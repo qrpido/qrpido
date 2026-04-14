@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cargando Tienda... | QRpido</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ff6b00">
+    <link rel="apple-touch-icon" href="https://via.placeholder.com/192/0a0a0c/ff6b00?text=QR">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <style>
+        :root { 
+            --color-marca: #ff6b00; 
+            --color-secundario: #ff6b00; 
+            --color-terciario: #ff6b00; 
+            --bg-oscuro: #0a0a0c;
+            --glass-bg: rgba(20, 20, 25, 0.75); 
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+        body, html { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg-oscuro); color: white; scroll-behavior: smooth; overflow-x: hidden; }
+        
+        /* === FONDOS Y CRISTAL === */
+        #fondo-pantalla { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; object-fit: cover; z-index: -2; opacity: 0.3; }
+        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border: 1px solid var(--color-secundario); border-radius: 20px; } 
+        
+        /* === SKELETON SHIMMER LOADING === */
+        .shimmer-box { position: relative; overflow: hidden; background: rgba(255,255,255,0.05) !important; color: transparent !important; border-color: transparent !important; text-shadow: none !important; box-shadow: none !important; pointer-events: none; }
+        .shimmer-box * { visibility: hidden; }
+        .shimmer-box::after { content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent); animation: shimmer 1.5s infinite; }
+        @keyframes shimmer { 100% { left: 100%; } }
+
+        /* === HEADER NEGOCIO (REDISEÑO ÁUREO) === */
+        .header-negocio { position: relative; text-align: center; margin-bottom: 20px; margin-top: 10px; padding-bottom: 20px; }
+        .portada-tienda { width: 100%; height: 140px; object-fit: cover; border-radius: 20px; border-bottom: 2px solid var(--color-marca); display: block; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+        
+        /* Botón Universal Compartir en la esquina estratégica */
+        .btn-compartir-flotante { position: absolute; top: 15px; right: 15px; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); border: 1px solid var(--color-secundario); color: white; border-radius: 50%; width: 36px; height: 36px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.3s; z-index: 10; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .btn-compartir-flotante:active { transform: scale(0.9); background: var(--color-marca); border-color: var(--color-marca); }
+        
+        .header-info-wrapper { padding: 0 20px; }
+        
+        /* Logo Proporción Áurea de Áreas (148px) y corte exacto en la mediatriz (-74px) */
+        .avatar-negocio { width: 148px; height: 148px; border-radius: 50%; border: 3px solid var(--color-marca); object-fit: cover; margin-top: -74px; box-shadow: 0 0 15px var(--color-marca); background: var(--bg-oscuro); cursor: pointer; position: relative; z-index: 2; }
+        
+        .nombre-negocio { 
+            margin: 10px auto 5px auto; font-size: 24px; color: #fdfdfd; font-weight: 900; text-transform: uppercase;
+            letter-spacing: 1px; text-shadow: 0 0 3px var(--color-marca), 0 0 8px var(--color-marca), 2px 2px 4px rgba(0,0,0,0.9); 
+            min-height: 28px; width: fit-content; min-width: 60%; border-radius: 10px;
+        }
+        
+        .texto-piedra {
+            font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin: 0 auto 5px auto;
+            background: linear-gradient(135deg, #777777 0%, #ffffff 50%, #333333 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(2px 2px 3px rgba(0,0,0,0.8));
+            min-height: 12px; width: fit-content; min-width: 40%; border-radius: 5px;
+        }
+
+        /* LÓGICA DE COBERTURA: ESTILOS DEL BADGE */
+        .badge-cobertura {
+            background: rgba(255, 68, 68, 0.15); border: 1px solid #ff4444; color: #ff4444; 
+            padding: 4px 12px; border-radius: 12px; font-size: 10px; font-weight: 900; 
+            text-transform: uppercase; letter-spacing: 1px; display: inline-block; 
+            margin-bottom: 8px; box-shadow: 0 0 10px rgba(255,68,68,0.2);
+        }
+
+                /* Diseño Áureo & Fibonacci */
+        .btn-contactar { display: inline-flex; justify-content: center; align-items: center; background: var(--color-marca); color: white; text-decoration: none; padding: 13px 21px; border-radius: 34px; font-weight: 900; font-size: 13px; letter-spacing: 1px; box-shadow: 0 8px 21px rgba(255, 107, 0, 0.4); transition: 0.3s; }
+        .btn-contactar:active { transform: scale(0.95); box-shadow: 0 5px 13px rgba(255, 107, 0, 0.3); }
+        .btn-historia { display: inline-flex; justify-content: center; align-items: center; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: #ddd; text-decoration: none; padding: 8px 21px; border-radius: 21px; font-size: 11px; font-weight: bold; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; transition: 0.3s; }
+        .btn-historia:active { background: rgba(255,255,255,0.1); transform: scale(0.95); }
+
+
+        /* === BANNER PROMO === */
+        .banner-contenedor { width: 100%; padding: 0 20px; box-sizing: border-box; margin-bottom: 20px; display: none; }
+        .banner-img { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 15px; border: 1px solid var(--color-secundario); box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+
+        /* === CARRUSEL DE CATEGORÍAS === */
+        .categorias-wrapper { 
+            position: sticky; top: 0; z-index: 900; 
+            background: rgba(10, 10, 12, 0.85); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+            padding: 12px 20px; border-bottom: 1px solid var(--glass-border); 
+            margin-bottom: 20px; display: none; box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+        .tags-container { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+        .tags-container::-webkit-scrollbar { display: none; }
+        .tag-pill { 
+            background: var(--color-terciario);
+            opacity: 0.8;
+            border: 1px solid rgba(255, 255, 255, 0.2); 
+            padding: 8px 18px; border-radius: 25px; font-size: 12px; white-space: nowrap; 
+            cursor: pointer; transition: 0.3s; font-weight: bold; color: #ddd; letter-spacing: 0.5px;
+        }
+        .tag-pill.activa { 
+            background: var(--color-secundario);
+            opacity: 1;
+            color: white; border-color: var(--color-secundario); 
+            box-shadow: 0 0 10px rgba(255,107,0,0.4); text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+
+        /* === CATÁLOGO (GRILLA) === */
+        .categoria-titulo { margin: 15px 20px 10px; font-size: 18px; font-weight: bold; border-bottom: 2px solid var(--color-secundario); padding-bottom: 5px; color: var(--color-marca); text-shadow: 0 0 5px rgba(255, 107, 0, 0.3); } 
+        .grilla-productos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; padding: 0 20px 100px; }
+        
+        .producto-card { display: flex; flex-direction: column; align-items: center; padding: 15px 10px; position: relative; overflow: hidden; transition: 0.3s; border: 1px solid var(--color-terciario); } 
+        .producto-card:active { border-color: var(--color-marca); box-shadow: 0 0 15px rgba(255,107,0,0.2); }
+        
+        .badge-promo { position: absolute; top: 10px; right: -25px; color: white; padding: 3px 30px; font-size: 10px; font-weight: 900; transform: rotate(45deg); z-index: 10; letter-spacing: 1px; box-shadow: 0 2px 10px rgba(0,0,0,0.5); text-transform: uppercase; }
+        .badge-oferta { background: #ff0044; }
+        .badge-nuevo { background: #00ff64; color: black; }
+        .badge-top { background: var(--color-secundario); color: white; } 
+        
+        .producto-card.agotado { filter: grayscale(100%); opacity: 0.6; }
+        .producto-card.agotado::after { content: 'AGOTADO'; position: absolute; top: 50%; background: rgba(0,0,0,0.8); color: white; padding: 5px 10px; font-weight: bold; transform: rotate(-15deg); border: 1px solid white; z-index: 15; }
+        
+        .marco-aureo { width: 100px; height: 161px; position: relative; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; }
+        .img-marco { position: absolute; width: 100%; height: 100%; object-fit: contain; z-index: 1; opacity: 0.5; }
+        .img-producto { position: relative; max-width: 120%; max-height: 120%; object-fit: contain; z-index: 2; filter: drop-shadow(0 10px 10px rgba(0,0,0,0.5)); transition: transform 0.3s; }
+        .producto-card:active .img-producto { transform: scale(1.1); }
+        
+        /* MICRO-INTERACCIÓN: Imagen volando al carrito */
+        .flying-img { position: fixed; z-index: 9999; pointer-events: none; transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.6s ease-in; object-fit: contain; filter: drop-shadow(0 5px 15px rgba(255,107,0,0.8)); }
+
+        .prod-nombre { font-size: 13px; font-weight: bold; text-align: center; margin-bottom: 5px; height: 36px; overflow: hidden; color: #eee; }
+        .prod-precio { font-size: 16px; color: var(--color-marca); font-weight: 900; margin-bottom: 10px; text-shadow: 0 0 5px rgba(255,107,0,0.3); }
+        
+        .controles-cantidad { display: flex; align-items: center; gap: 15px; background: rgba(0,0,0,0.6); border-radius: 20px; padding: 5px 10px; border: 1px solid var(--color-terciario); width: fit-content; margin: 0 auto; } 
+        .btn-cant { background: none; border: none; color: white; font-size: 18px; font-weight: bold; cursor: pointer; padding: 0 5px; }
+        .num-cant { font-size: 16px; font-weight: bold; width: 20px; text-align: center; }
+
+        .btn-especial { width: 100%; padding: 10px; border-radius: 10px; border: none; font-weight: 900; text-transform: uppercase; cursor: pointer; background: var(--color-marca); color: white; box-shadow: 0 0 10px rgba(255,107,0,0.3); transition: 0.3s; }
+        .btn-especial:active { transform: scale(0.95); }
+
+        /* === EASTER EGG === */
+        .easter-egg-msg { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--glass-bg); padding: 30px; border-radius: 20px; border: 2px solid var(--color-marca); color: var(--color-marca); text-align: center; z-index: 9999; display: none; text-shadow: 0 0 10px var(--color-marca); box-shadow: 0 0 30px var(--color-marca); font-weight: 900; font-size: 18px; backdrop-filter: blur(15px); text-transform: uppercase; }
+        .confeti { position: fixed; width: 8px; height: 8px; background: #0ff; z-index: 9998; display: none; animation: caer 3s linear forwards; }
+        @keyframes caer { 0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; } 100% { transform: translateY(110vh) rotate(720deg); opacity: 0; } }
+
+        /* === CARRITO FLOTANTE === */
+        #carrito-flotante { position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; background: var(--color-marca); color: white; padding: 15px 25px; border-radius: 30px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; box-shadow: 0 10px 30px rgba(0,0,0,0.8); z-index: 1000; transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); cursor: pointer; border: 1px solid rgba(255,255,255,0.2); }
+        #carrito-flotante.visible { bottom: 20px; }
+
+        /* === SCROLL TO TOP FLOTANTE === */
+        #btn-scroll-top {
+            position: fixed; bottom: -60px; left: 50%; transform: translateX(-50%);
+            background: rgba(10, 10, 12, 0.85); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+            border: 1px solid var(--color-secundario); color: white; padding: 10px 20px; border-radius: 30px; 
+            font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 10px rgba(255,107,0,0.3);
+            z-index: 950; cursor: pointer; transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex; align-items: center; gap: 5px;
+        }
+        #btn-scroll-top.visible { bottom: 25px; }
+        #btn-scroll-top.visible.con-carrito { bottom: 90px; }
+
+        /* === BOTTOM SHEETS (Modales Nativos) === */
+        .btn-cerrar-modal { position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.1); border: 1px solid var(--color-terciario); color: white; border-radius: 50%; width: 30px; height: 30px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.3s; z-index: 10; } 
+        .btn-cerrar-modal:active { transform: scale(0.9); background: var(--color-marca); }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; display: flex; justify-content: center; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .modal-overlay.activo { opacity: 1; pointer-events: all; }
+        .modal-contenido { width: 100%; max-width: 500px; background: var(--glass-bg); backdrop-filter: blur(25px); border-top-left-radius: 30px; border-top-right-radius: 30px; padding: 15px 30px 30px 30px; transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); max-height: 85vh; overflow-y: auto; border-top: 1px solid var(--color-marca); box-sizing: border-box; box-shadow: 0 -10px 30px rgba(0,0,0,0.5); touch-action: pan-y; }
+        .modal-overlay.activo .modal-contenido { transform: translateY(0); }
+        
+        .drag-handle { width: 50px; height: 5px; background: rgba(255,255,255,0.3); border-radius: 5px; margin: 0 auto 20px auto; cursor: grab; }
+
+        /* === CHECKOUT Y BOTONES === */
+        .resumen-item { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 5px; color: #ddd; }
+        .input-glass { width: 100%; background: rgba(0,0,0,0.6); border: 1px solid var(--glass-border); color: white; padding: 15px; border-radius: 12px; margin-bottom: 15px; outline: none; box-sizing: border-box; font-size: 15px; transition: 0.3s; }
+        .input-glass:focus { border-color: var(--color-marca); box-shadow: 0 0 10px rgba(255,107,0,0.2); }
+        
+        .btn-ubicacion { width: 100%; padding: 15px; border-radius: 12px; border: none; font-weight: bold; margin-bottom: 10px; display: flex; justify-content: center; align-items: center; gap: 10px; cursor: pointer; transition: 0.3s; font-size: 14px; }
+        .btn-gps { background: rgba(255,255,255,0.1); color: white; border: 1px solid var(--glass-border); }
+        .btn-gps.exito { background: rgba(0, 255, 100, 0.1); border-color: #00ff64; color: #00ff64; box-shadow: 0 0 10px rgba(0,255,100,0.2); }
+        .btn-mapa { background: rgba(255,255,255,0.1); color: white; border: 1px solid var(--glass-border); }
+        .btn-pedir { background: var(--color-marca); color: white; font-size: 16px; border: none; padding: 18px; width: 100%; border-radius: 15px; font-weight: 900; margin-top: 15px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 5px 15px rgba(255,107,0,0.4); }
+        .btn-pedir:active { transform: scale(0.98); }
+        .btn-pedir:disabled { background: #555; color: #999; cursor: not-allowed; box-shadow: none; }
+
+        #mapa-ubicacion { height: 300px; width: 100%; border-radius: 15px; margin-bottom: 15px; display: none; border: 1px solid var(--color-marca); }
+        
+        .btn-limpiar { background: transparent; border: 1px solid var(--color-marca); color: #ccc; border-radius: 15px; padding: 4px 10px; font-size: 11px; cursor: pointer; transition: 0.3s; display: flex; align-items: center; gap: 5px; font-weight: bold; text-transform: uppercase; }
+        .btn-limpiar:active { transform: scale(0.9); background: rgba(255,0,0,0.2); border-color: red; color: white; }
+
+        /* === UI DE RESCATE OFFLINE === */
+        .offline-banner { position: fixed; top: 0; left: 0; width: 100%; background: #ff4444; color: white; text-align: center; padding: 8px; z-index: 10000; font-weight: 900; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(255,68,68,0.4); display: none; }
+        .offline-banner.activo { display: block; }
+
+        /* === MODAL SOCIAL PREMIUM (ESTILO DORADO/MAGIC) === */
+        .modal-premium-social { text-align: center; padding: 30px 20px; }
+        .badge-impacto { background: linear-gradient(135deg, #FFD700 0%, #FFA500 50%, #B8860B 100%); color: black; padding: 5px 15px; border-radius: 20px; font-size: 11px; font-weight: 900; display: inline-block; margin-bottom: 15px; animation: glow 2s infinite; }
+        @keyframes glow { 0% { box-shadow: 0 0 5px #FFD700; } 50% { box-shadow: 0 0 20px #FFA500; } 100% { box-shadow: 0 0 5px #FFD700; } }
+        .titulo-impacto { font-size: 22px; font-weight: 900; margin-bottom: 10px; color: #FFD700; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        .texto-impacto { font-size: 14px; color: #ddd; line-height: 1.6; margin-bottom: 25px; }
+        .btn-upgrade-social { background: linear-gradient(135deg, #FFD700 0%, #FFA500 50%, #B8860B 100%); color: black; border: none; padding: 18px; width: 100%; border-radius: 15px; font-weight: 900; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 5px 15px rgba(255,165,0,0.4); }
+    </style>
+</head>
+<body>
+
+    <div id="offline-banner" class="offline-banner">⚠️ Sin conexión: Mostrando datos de tu última visita</div>
+
+    <img id="fondo-pantalla" src="" alt="Fondo">
+    <div id="easter-egg-box" class="easter-egg-msg"></div>
+
+    <div style="padding: 0 20px;">
+      
+        <div class="header-negocio">
+
+            <button id="btn-compartir" class="btn-compartir-flotante shimmer-box" onclick="compartirTienda()" title="Compartir Tienda">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                </svg>
+            </button>
+
+            <img id="portada-tienda" class="portada-tienda shimmer-box" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+
+            <img id="avatar-tienda" class="avatar-negocio shimmer-box" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onclick="checkEasterEgg()">
+            
+            <div class="header-info-wrapper">
+                <div id="contenedor-nombre">
+                    <h1 id="texto-nombre" class="nombre-negocio shimmer-box" style="width: 60%; height: 28px; border-radius: 10px; margin: 10px auto 5px auto; color: transparent;"></h1>
+                </div>
+                <div id="badge-cobertura-container" style="margin-top: 5px;"></div>
+                <div id="badge-aliado-container"></div>
+                <p id="texto-nicho" class="texto-piedra shimmer-box" style="width: 40%; height: 12px; border-radius: 5px; margin: 0 auto 5px auto; color: transparent;"></p>
+                                <div style="display: flex; flex-direction: column; gap: 13px; margin-top: 21px; align-items: center;">
+                    <a id="btn-whatsapp-header" href="#" target="_blank" class="btn-contactar shimmer-box">💬 CONTACTAR LOCAL</a>
+                    <button id="btn-historia" class="btn-historia" style="display:none;" onclick="abrirModal('overlay-historia')">📖 Nuestra Historia</button>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <div id="banner-contenedor" class="banner-contenedor"></div>
+
+    <div style="padding: 0 20px; margin-bottom: 15px;">
+        <div style="background: rgba(0,0,0,0.6); backdrop-filter: blur(10px); border: 1px solid var(--color-secundario); border-radius: 20px; display: flex; align-items: center; padding: 5px 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+            <span style="color: #aaa; margin-right: 10px; font-size: 14px;">🔍</span>
+            <input type="text" id="input-busqueda-local" placeholder="Buscar en esta tienda..." style="width: 100%; background: transparent; border: none; color: white; outline: none; padding: 10px 0; font-size: 15px;" oninput="buscarEnCatalogoLocal(this.value)">
+        </div>
+    </div>
+
+    <div id="categorias-wrapper" class="categorias-wrapper">
+        <div id="carrusel-categorias" class="tags-container"></div>
+    </div>
+
+    <div id="catalogo-contenedor">
+        <div class="grilla-productos">
+            <div class="glass-panel producto-card" style="border-color: rgba(255,255,255,0.05);">
+                <div class="shimmer-box" style="width: 100px; height: 100px; border-radius: 10px; margin-bottom: 15px;"></div>
+                <div class="shimmer-box" style="width: 80%; height: 14px; border-radius: 5px; margin-bottom: 8px;"></div>
+                <div class="shimmer-box" style="width: 50%; height: 18px; border-radius: 5px; margin-bottom: 15px;"></div>
+                <div class="shimmer-box" style="width: 100%; height: 36px; border-radius: 10px;"></div>
+            </div>
+            <div class="glass-panel producto-card" style="border-color: rgba(255,255,255,0.05);">
+                <div class="shimmer-box" style="width: 100px; height: 100px; border-radius: 10px; margin-bottom: 15px;"></div>
+                <div class="shimmer-box" style="width: 80%; height: 14px; border-radius: 5px; margin-bottom: 8px;"></div>
+                <div class="shimmer-box" style="width: 50%; height: 18px; border-radius: 5px; margin-bottom: 15px;"></div>
+                <div class="shimmer-box" style="width: 100%; height: 36px; border-radius: 10px;"></div>
+            </div>
+            <div class="glass-panel producto-card" style="border-color: rgba(255,255,255,0.05);">
+                <div class="shimmer-box" style="width: 100px; height: 100px; border-radius: 10px; margin-bottom: 15px;"></div>
+                <div class="shimmer-box" style="width: 80%; height: 14px; border-radius: 5px; margin-bottom: 8px;"></div>
+                <div class="shimmer-box" style="width: 50%; height: 18px; border-radius: 5px; margin-bottom: 15px;"></div>
+                <div class="shimmer-box" style="width: 100%; height: 36px; border-radius: 10px;"></div>
+            </div>
+            <div class="glass-panel producto-card" style="border-color: rgba(255,255,255,0.05);">
+                <div class="shimmer-box" style="width: 100px; height: 100px; border-radius: 10px; margin-bottom: 15px;"></div>
+                <div class="shimmer-box" style="width: 80%; height: 14px; border-radius: 5px; margin-bottom: 8px;"></div>
+                <div class="shimmer-box" style="width: 50%; height: 18px; border-radius: 5px; margin-bottom: 15px;"></div>
+                <div class="shimmer-box" style="width: 100%; height: 36px; border-radius: 10px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="paginacion-wrapper" style="margin: 0 20px 80px; display: none;">
+        <button id="btn-cargar-mas" class="btn-especial" onclick="cargarMasProductos()">Cargar Más Productos</button>
+    </div>
+
+    <div id="carrito-flotante" onclick="abrirCheckout()">
+        <span>🛒 <span id="cant-total-carrito">0</span> items</span>
+        <span id="precio-total-carrito">$0</span>
+    </div>
+
+    <button id="btn-scroll-top" onclick="subirAlMenu()">
+        ↑ VOLVER AL MENÚ
+    </button>
+
+    <div class="modal-overlay" id="overlay-premium-social" onclick="cerrarModal(event, 'overlay-premium-social')">
+        <div class="modal-contenido" id="sheet-premium-social">
+            <div class="drag-handle"></div>
+            <div class="modal-premium-social">
+                <div class="badge-impacto">🤝 IMPACTO SOCIAL ACTIVO</div>
+                <h2 class="titulo-impacto">¡Libera tu Potencial!</h2>
+                <p class="texto-impacto">Has alcanzado el límite de carritos o productos de tu plan gratuito. Hazte Premium para comprar sin límites y, con tu aporte, <b>brindaremos empleo a una madre soltera</b> para guiar a adultos mayores en el mundo digital.</p>
+                <button class="btn-upgrade-social" onclick="window.location.href='admin.html'">Suscripción Social Premium</button>
+                <p style="font-size: 11px; color: #888; margin-top: 15px;">Tu suscripción paga el seguro y pensión de una madre en nuestro programa.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="overlay-checkout" onclick="cerrarModal(event, 'overlay-checkout')">
+        <div class="modal-contenido" id="sheet-checkout">
+            <div class="drag-handle"></div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 style="margin: 0; color: var(--color-marca); text-shadow: 0 0 5px rgba(255,107,0,0.3);">Tu Pedido</h2>
+                <button class="btn-limpiar" onclick="limpiarCarrito()">🗑️ Vaciar</button>
+            </div>
+
+            <div id="lista-resumen" style="margin-bottom: 20px; max-height: 200px; overflow-y: auto;"></div>
+            
+            <h3 style="text-align: right; margin-bottom: 20px;">Total: <span id="total-final-checkout" style="color: var(--color-marca); text-shadow: 0 0 5px rgba(255,107,0,0.3);">$0</span></h3>
+            
+            <input type="text" id="input-nombre-cliente" class="input-glass" placeholder="Tu Nombre o Número de Mesa">
+            
+            <p style="font-size: 13px; color: #aaa; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px;">¿A dónde te lo enviamos?</p>
+            <button class="btn-ubicacion btn-gps" id="btn-gps" onclick="obtenerGPS()">📍 Usar mi ubicación actual</button>
+            <button class="btn-ubicacion btn-mapa" id="btn-abrir-mapa" onclick="abrirMiniMapa()">🗺️ Seleccionar en el mapa</button>
+            <div id="mapa-ubicacion"></div>
+            <button id="btn-enviar-pedido" class="btn-pedir" onclick="enviarPedido()">ENVIAR POR WHATSAPP</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="overlay-historia" onclick="cerrarModal(event, 'overlay-historia')">
+        <div class="modal-contenido" id="sheet-historia" style="text-align: center; position: relative;">
+            <div class="drag-handle"></div>
+            <h2 id="titulo-modal-extra" style="margin-top: 0; margin-right: 30px; color: var(--color-marca); text-shadow: 0 0 5px rgba(255,107,0,0.3);">Información</h2>
+            <div id="contenido-modal-extra" style="line-height: 1.6; color: #ddd; margin-bottom: 20px; text-align: left; font-size: 14px;"></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="overlay-compartir" onclick="cerrarModal(event, 'overlay-compartir')">
+        <div class="modal-contenido" id="sheet-compartir" style="text-align: center;">
+            <div class="drag-handle"></div>
+            <h2 style="margin-top: 0; color: var(--color-marca); text-shadow: 0 0 5px rgba(255,107,0,0.3); text-transform: uppercase; letter-spacing: 2px;">Compartir Tienda</h2>
+            
+            <div id="qr-code-container" style="background: white; padding: 15px; border-radius: 20px; display: inline-block; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); line-height: 0;">
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button class="btn-pedir" id="btn-descargar-qr" onclick="descargarQR()" style="margin-top: 0;">⬇️ DESCARGAR CÓDIGO QR</button>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-ubicacion btn-gps" onclick="copiarEnlace()" style="margin-bottom: 0; flex: 1;">🔗 COPIAR LINK</button>
+                    <button class="btn-ubicacion btn-mapa" onclick="compartirNativo()" style="margin-bottom: 0; flex: 1;">📲 COMPARTIR</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="module">
+                import QRpidoDB from './core-db.js';
+<script>
+    // 1. ESCUDO XSS ESTRICTO (Reglas Zero Trust)
+    window.sanitizarTexto = function(texto) {
+        if (texto === null || texto === undefined) return '';
+        return texto.toString().replace(/[&<>"']/g, function(m) {
+            return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[m];
+        });
+    };
+
+    // 2. ESCUDO CONTRA ENLACES MALICIOSOS (Inyección Javascript:)
+    window.sanitizarURL = function(url) {
+        if (!url) return '#';
+        const sanitizada = window.sanitizarTexto(url);
+        // Bloquea intentos de ejecutar código mediante un link falso
+        if (sanitizada.toLowerCase().trim().startsWith('javascript:')) return '#';
+        return sanitizada;
+    };
+
+    // 3. RETROCOMPATIBILIDAD (Para que el código viejo siga funcionando)
+    window.sanitizarAtributo = window.sanitizarTexto; 
+</script>
+ const fallbacks = {
+
+        const fallbacks = {
+            logo_portada: "https://via.placeholder.com/220x80/0a0a0c/ff6b00?text=QRPIDO",
+            wallpaper_generico: "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=50&w=400"
+,
+            avatar_generico: "https://via.placeholder.com/150x150/ff6b00/ffffff?text=Tienda",
+            marco_producto_generico: ""
+        };
+
+        let datosNegocio = {};
+        
+        window.formatearMoneda = function(valorInt64, moneda = 'COP') {
+            if (moneda === 'USD') {
+                return (valorInt64 / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+            }
+            return '$' + valorInt64.toLocaleString('es-CO');
+        };
+
+        let carrito = {}; 
+        let userLat = null, userLng = null;
+        let miniMapa = null;
+        let pinCliente = null;
+        let productosMemoria = [];
+        let categoriasGlobales = [];
+        let clicsLogo = 0;
+
+        let ultimoDocVisible = null;
+        let cargandoProductos = false;
+        
+        let filtroActual = 'Todas';
+        let busquedaActualLocal = "";
+
+        window.sanitizarTexto = function(texto) {
+            if (texto === null || texto === undefined) return '';
+            const div = document.createElement('div');
+            div.textContent = texto;
+            return div.innerHTML;
+        };
+        // =================================================================
+        // 🧬 MOTOR DE DECODIFICACIÓN GENÉTICA (BASE62)
+        // =================================================================
+        const CHARSET_BASE62 = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+        window.descomprimirColores = function(codigo13) {
+            let num = 0n;
+            const base = 62n;
+            
+            // Revertimos la compresión matemática
+            for (let i = 0; i < codigo13.length; i++) {
+                const char = codigo13[i];
+                const valor = BigInt(CHARSET_BASE62.indexOf(char));
+                num = (num * base) + valor;
+            }
+            
+            // Convertimos de nuevo a Hexadecimal y forzamos los 18 ceros (3 colores de 6 caracteres)
+            let hexStr = num.toString(16).padStart(18, '0');
+            
+            return {
+                c1: '#' + hexStr.substring(0, 6),
+                c2: '#' + hexStr.substring(6, 12),
+                c3: '#' + hexStr.substring(12, 18)
+            };
+        };
+
+        const urlParams = new URLSearchParams(window.location.search);
+        let idNegocio = urlParams.get('id');
+        if (!idNegocio) { idNegocio = 'acefama-pereira'; }
+
+        history.pushState(null, document.title, window.location.href);
+        window.addEventListener('popstate', function(event) {
+            const modales = document.querySelectorAll('.modal-overlay.activo');
+            if (modales.length > 0) {
+                modales.forEach(m => m.classList.remove('activo'));
+                history.pushState(null, document.title, window.location.href);
+            } else {
+                if (confirm("¿Seguro que quieres salir de esta tienda?")) {
+                    history.back(); 
+                } else {
+                    history.pushState(null, document.title, window.location.href); 
+                }
+            }
+        });
+
+        window.addEventListener('scroll', () => {
+            const btnScroll = document.getElementById('btn-scroll-top');
+            if (window.scrollY > 350) {
+                const carritoFlotante = document.getElementById('carrito-flotante');
+                if (carritoFlotante && carritoFlotante.classList.contains('visible')) {
+                    btnScroll.classList.add('con-carrito');
+                } else {
+                    btnScroll.classList.remove('con-carrito');
+                }
+                btnScroll.classList.add('visible');
+            } else {
+                btnScroll.classList.remove('visible');
+            }
+        });
+
+        window.subirAlMenu = function() {
+            if(navigator.vibrate) navigator.vibrate(30);
+            const categorias = document.getElementById('categorias-wrapper');
+            const offset = categorias ? categorias.offsetTop : 0;
+            window.scrollTo({ top: offset > 0 ? offset - 20 : 0, behavior: 'smooth' });
+        }
+
+        window.checkEasterEgg = function() {
+            clicsLogo++;
+            if (clicsLogo === 7 && datosNegocio.easter_egg_msg) {
+                const box = document.getElementById('easter-egg-box');
+                box.innerText = datosNegocio.easter_egg_msg;
+                box.style.display = 'block';
+                
+                for(let i=0; i<40; i++) {
+                    let c = document.createElement('div');
+                    c.className = 'confeti';
+                    c.style.left = Math.random() * 100 + 'vw';
+                    c.style.background = ['#0ff', '#ff0044', '#00ff64', '#FFD700'][Math.floor(Math.random()*4)];
+                    c.style.display = 'block';
+                    c.style.animationDuration = (Math.random() * 2 + 1) + 's';
+                    c.style.boxShadow = `0 0 10px ${c.style.background}`;
+                    document.body.appendChild(c);
+                }
+                
+                setTimeout(() => { 
+                    box.style.display = 'none'; 
+                    document.querySelectorAll('.confeti').forEach(el => el.remove()); 
+                    clicsLogo = 0; 
+                }, 4000);
+            }
+        }
+
+        async function construirTienda() {
+            if (!idNegocio) { 
+                document.getElementById('catalogo-contenedor').innerHTML = "<h2 style='color:#ff4444; text-align:center;'>Error: URL inválida.</h2>";
+                return; 
+            }
+
+            try {
+                const carritoGuardado = localStorage.getItem(`qrpido_cart_${idNegocio}`);
+                if (carritoGuardado) {
+                    try { carrito = JSON.parse(carritoGuardado); } catch(e) {}
+                }
+
+                                const { success: successNegocio, data: dataNegocio, error: errorNegocio } = await QRpidoDB.RadarService.obtenerNegocio(idNegocio);
+                
+                if (!successNegocio || !dataNegocio) { 
+                    document.getElementById('catalogo-contenedor').innerHTML = "<h2 style='color:#ff4444; text-align:center;'>Esta tienda no existe o fue cerrada.</h2>";
+                    return; 
+                }
+                
+                datosNegocio = dataNegocio;
+
+                
+                                // === 🧬 LECTURA DEL GENOMA (UI_PACK) ===
+                let c1 = '#ff6b00', c2 = '#ff6b00', c3 = '#ff6b00';
+                window.formaPinActual = '1'; // Lo guardamos global por si luego pones mapa en la tienda
+
+                if (datosNegocio.ui_pack && datosNegocio.ui_pack.length >= 16) {
+                    window.formaPinActual = datosNegocio.ui_pack.charAt(0);
+                    const base62Colors = datosNegocio.ui_pack.substring(1, 14);
+                    
+                    const colores = descomprimirColores(base62Colors);
+                    c1 = colores.c1;
+                    c2 = colores.c2;
+                    c3 = colores.c3;
+                    console.log(`🧬 Genoma decodificado: Pin [${window.formaPinActual}] - Colores: ${c1}, ${c2}, ${c3}`);
+                } else {
+                    // 🛟 Sistema de rescate: Por si entra un cliente viejo que aún no ha guardado su UI_PACK
+                    const colorFondoStr = datosNegocio.color_hex || '#ff6b00';
+                    const arrColores = colorFondoStr.split(',').map(c => c.trim());
+                    c1 = arrColores[0]; 
+                    c2 = arrColores.length > 1 ? arrColores[1] : c1; 
+                    c3 = arrColores.length > 2 ? arrColores[2] : (arrColores.length > 1 ? c2 : c1); 
+                }
+
+                document.documentElement.style.setProperty('--color-marca', c1);
+                document.documentElement.style.setProperty('--color-secundario', c2);
+                document.documentElement.style.setProperty('--color-terciario', c3);
+
+
+                document.title = `${datosNegocio.nombre} | QRpido`;
+                
+                document.getElementById('portada-tienda').classList.remove('shimmer-box');
+                document.getElementById('avatar-tienda').classList.remove('shimmer-box');
+                document.getElementById('texto-nombre').classList.remove('shimmer-box');
+                document.getElementById('texto-nombre').style.color = "inherit";
+                document.getElementById('texto-nicho').classList.remove('shimmer-box');                document.getElementById('texto-nicho').style.color = "inherit";
+                
+                const btnWa = document.getElementById('btn-whatsapp-header');
+                btnWa.classList.remove('shimmer-box');
+                btnWa.style.color = "white";
+                
+                document.getElementById('btn-compartir').classList.remove('shimmer-box');
+
+                document.getElementById('portada-tienda').src = datosNegocio.portada || fallbacks['wallpaper_generico'];
+                document.getElementById('fondo-pantalla').src = datosNegocio.fondo_negocio || fallbacks['wallpaper_generico'] || '';
+                document.getElementById('avatar-tienda').src = datosNegocio.logo || fallbacks['avatar_generico'] || '';
+                
+                if (datosNegocio.nombre_png) {
+                    document.getElementById('contenedor-nombre').innerHTML = `<img src="${datosNegocio.nombre_png}" style="height: 40px; margin: 10px 0; filter: drop-shadow(0 0 10px ${c1});">`;
+                } else {
+                    document.getElementById('texto-nombre').innerText = datosNegocio.nombre;
+                }
+                
+                document.getElementById('texto-nicho').innerText = datosNegocio.niche || "Catálogo Oficial";
+               document.getElementById('btn-whatsapp-header').href = window.sanitizarURL(`https://wa.me/${datosNegocio.whatsapp}?text=Hola, vengo de QRpido`);
+
+                const radKm = parseFloat(datosNegocio.cobertura_km) || 0;
+                const contenedorCobertura = document.getElementById('badge-cobertura-container');
+                if (radKm > 0 && radKm < 0.1) {
+                    contenedorCobertura.innerHTML = '<div class="badge-cobertura">📍 Solo recogida en local / Atención en sitio</div>';
+                } else {
+                    contenedorCobertura.innerHTML = '';
+                }
+
+                // MÓDULO PROGRAMA IMPULSADORES: Badge Aliado
+                const contenedorAliado = document.getElementById('badge-aliado-container');
+                if (datosNegocio.red_afiliados === true || datosNegocio.red_afiliados === 'SI') {
+                    contenedorAliado.innerHTML = `
+                        <div style="background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); color: #000; padding: 8px 15px; border-radius: 20px; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; display: inline-block; margin-top: 5px; margin-bottom: 5px; box-shadow: 0 5px 15px rgba(255, 215, 0, 0.4); border: 1px solid rgba(255,255,255,0.8); text-shadow: 0 1px 2px rgba(255,255,255,0.5);">
+                            🤝 Negocio Aliado: Acumula 10 ventas y cobra comisión
+                        </div>
+                    `;
+                } else {
+                    contenedorAliado.innerHTML = '';
+                }
+
+                if (datosNegocio.historia) {
+                    document.getElementById('btn-historia').style.display = 'block';
+                    document.getElementById('btn-historia').onclick = function() {
+                        document.getElementById('titulo-modal-extra').innerText = "Nuestra Historia";
+                        document.getElementById('contenido-modal-extra').innerHTML = `
+                            <button class="btn-cerrar-modal" onclick="cerrarModalManual('overlay-historia')">X</button>
+                            ${sanitizarTexto(datosNegocio.historia)}
+                            <button class="btn-pedir" onclick="cerrarModalManual('overlay-historia')" style="margin-top: 15px;">CERRAR</button>
+                        `;
+                        abrirModal('overlay-historia');
+                    };
+                }
+                if (datosNegocio.banner_promo) {
+                    const bCont = document.getElementById('banner-contenedor');
+                    bCont.innerHTML = `<img src="${datosNegocio.banner_promo}" class="banner-img" style="border-color: ${c2}">`;
+                    bCont.style.display = 'block';
+                }
+
+                                const filtros = { limite: 20 };
+                const { success: successProd, data: dataProd, ultimoDoc, error: errorProd } = await QRpidoDB.RadarService.obtenerProductosPublicos(idNegocio, filtros);
+                
+                if (successProd && dataProd.length > 0) {
+                    ultimoDocVisible = ultimoDoc;
+                }
+
+                productosMemoria = dataProd || [];
+                productosMemoria.sort((a, b) => (a.orden ?? 99) - (b.orden ?? 99));
+
+                // =======================================================
+                // 🚀 MOTOR DE FUSIÓN MASIVA (JSON + Firebase)
+                // =======================================================
+                if (datosNegocio.mapa_precios && Object.keys(datosNegocio.mapa_precios).length > 0) {
+                    try {
+                        // 1. Descargamos los diccionarios en paralelo (igual que en el admin)
+                        const resultadosJSON = await Promise.all([
+                            fetch('cat_farmacia.json').then(res => res.json()).catch(() => []),
+                            fetch('cat_ferreteria.json').then(res => res.json()).catch(() => []),
+                            fetch('cat_supermercado.json').then(res => res.json()).catch(() => []),
+                            fetch('cat_papeleria.json').then(res => res.json()).catch(() => []),
+                            fetch('cat_licoreria.json').then(res => res.json()).catch(() => []),
+                            fetch('cat_veterinaria.json').then(res => res.json()).catch(() => []),
+                            fetch('cat_tecnologia.json').then(res => res.json()).catch(() => []),
+                            fetch('cat_bicicletas.json').then(res => res.json()).catch(() => [])
+                        ]);
+                        
+                        let DICCIONARIO_UNIVERSAL = [];
+for (const res of resultadosJSON) {
+    for (let i = 0; i < res.length; i += 500) {
+        DICCIONARIO_UNIVERSAL.push(...res.slice(i, i + 500));
+        await new Promise(resolve => requestAnimationFrame(resolve));
+    }
+}
+
+                        const agotados = datosNegocio.inventario_agotado || [];
+
+                       // 🟢 1. EL MOTOR DE INDEXACIÓN O(1) (Hash Map)
+                                const DICCIONARIO_INDEXADO = {};
+                                const totalItems = DICCIONARIO_UNIVERSAL.length;
+                                for (let i = 0; i < totalItems; i++) {
+                                    DICCIONARIO_INDEXADO[DICCIONARIO_UNIVERSAL[i].id_prod] = DICCIONARIO_UNIVERSAL[i];
+                                }
+
+                                // 🟢 2. LA BÚSQUEDA CUÁNTICA O(1) (Acceso directo a memoria)
+                                for (const [id_prod, precio] of Object.entries(datosNegocio.mapa_precios)) {
+                                    // Ignoramos productos con precio 0
+                                    if (precio > 0) {
+                                        const itemCat = DICCIONARIO_INDEXADO[id_prod]; // <-- Magia pura: Cero iteraciones
+                                        if (itemCat) {
+                                            // Empaquetamos el producto virtual
+                                            productosMemoria.push({
+                                                id_prod: id_prod,
+                                                nombre: itemCat.nombre,
+                                                precio: precio,
+                                                categoria: itemCat.categoria || "Catálogo General", 
+                                                imagen: itemCat.img || datosNegocio.logo || fallbacks['avatar_generico'], 
+                                                tipo: "producto",
+                                                agotado: agotados.includes(id_prod),
+                                                es_masivo: true
+                                            });
+                                        }
+                                    }
+                                }
+
+                    } catch (e) {
+                        console.warn("Error cargando los catálogos masivos:", e);
+                    }
+                }
+                // =======================================================
+
+                                categoriasGlobales = [...new Set(productosMemoria.map(p => p.categoria || "Destacados"))];
+                construirCarruselCategorias();
+
+                renderizarCatalogo('Todas');
+                
+              // === CURA DEL CARRITO ZOMBIE (RESURRECCIÓN VISUAL) === if (Object.keys(carrito).length > 0) { for (let id in carrito) { const prodExiste = productosMemoria.find(p => p.id_prod === id); if (prodExiste) { const spanTarjeta = document.getElementById(`cant-${id}`); if (spanTarjeta) spanTarjeta.innerText = carrito[id].cant; } // NOTA: Ya no borramos el item si 'prodExiste' es falso. // Puede que el producto esté en la página 2 o 3 de la base de datos. } } // Calculamos y mostramos el carrito flotante si quedaron items vivos 
+                calcularTotales(); 
+                // === FIN RESURRECCIÓN ===
+                
+                                if (productosMemoria.length === 20) {
+
+                    document.getElementById('paginacion-wrapper').style.display = 'block';
+                }
+
+
+            } catch (e) {
+                console.error("Error:", e);
+                document.getElementById('catalogo-contenedor').innerHTML = `<div style="color: #ff4444; text-align: center; padding: 20px;">⚠️ Error conectando al servidor:<br>${e.message}</div>`;
+            }
+        }
+
+        function construirCarruselCategorias() {
+            const contenedor = document.getElementById('carrusel-categorias');
+            if (categoriasGlobales.length === 0) return;
+
+            document.getElementById('categorias-wrapper').style.display = 'block';
+
+            let html = `<div class="tag-pill activa" onclick="filtrarCategoria('Todas', this)">TODAS</div>`;
+            categoriasGlobales.forEach(cat => {
+                html += `<div class="tag-pill" onclick="filtrarCategoria('${cat.replace(/'/g, "\\'")}', this)">${cat.toUpperCase()}</div>`;
+            });
+            contenedor.innerHTML = html;
+        }
+
+        window.filtrarCategoria = function(categoriaFiltro, el) {
+            filtroActual = categoriaFiltro; 
+            document.querySelectorAll('#carrusel-categorias .tag-pill').forEach(t => t.classList.remove('activa'));
+            el.classList.add('activa');
+            renderizarCatalogo(categoriaFiltro);
+            document.getElementById('categorias-wrapper').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        window.buscarEnCatalogoLocal = function(texto) {
+            busquedaActualLocal = texto.toLowerCase().trim();
+            renderizarCatalogo(filtroActual);
+        }
+
+                function renderizarCatalogo(filtro) {
+            const contenedor = document.getElementById('catalogo-contenedor');
+            contenedor.innerHTML = ''; // Limpiamos seguro
+            const categorias = {};
+            
+            productosMemoria.forEach(p => {
+                let cat = p.categoria || "Destacados";
+                if (filtro !== 'Todas' && cat !== filtro) return; 
+
+                if (busquedaActualLocal !== "") {
+                    const strData = `${p.nombre} ${p.categoria || ''} ${p.cuerpo_articulo || ''}`.toLowerCase();
+                    if (!strData.includes(busquedaActualLocal)) return; 
+                }
+
+                if (!categorias[cat]) categorias[cat] = [];
+                categorias[cat].push(p);
+            });
+
+            if(datosNegocio.tipo_modelo === 'pizzeria' && filtro === 'Todas' && busquedaActualLocal === "") {
+                const btnDiv = document.createElement('div');
+                btnDiv.style.cssText = "padding: 0 20px 10px;";
+                const btnMitad = document.createElement('button');
+                btnMitad.className = "btn-especial";
+                btnMitad.textContent = "🍕 ARMAR PIZZA MITAD Y MITAD";
+                btnMitad.onclick = () => alert('Funcionalidad de Mitad y Mitad en desarrollo');
+                btnDiv.appendChild(btnMitad);
+                contenedor.appendChild(btnDiv);
+            }
+
+            if (Object.keys(categorias).length === 0) {
+                const msjVacio = document.createElement('div');
+                msjVacio.style.cssText = "text-align: center; padding: 40px 20px; color: #aaa;";
+                msjVacio.textContent = "No se encontraron productos con esa búsqueda. 🔍";
+                contenedor.appendChild(msjVacio);
+                return; // Salimos temprano
+            }
+
+            for (const [cat, items] of Object.entries(categorias)) {
+                // Título de Categoría Seguro
+                const divTitulo = document.createElement('div');
+                divTitulo.className = 'categoria-titulo';
+                divTitulo.textContent = cat.toUpperCase();
+                contenedor.appendChild(divTitulo);
+
+                const grilla = document.createElement('div');
+                grilla.className = 'grilla-productos';
+
+                items.forEach(p => {
+                    const imgMarco = p.marco_personalizado || fallbacks['marco_producto_generico'] || '';
+                    const isAgotado = p.agotado;
+
+                    const card = document.createElement('div');
+                    card.className = `glass-panel producto-card ${isAgotado ? 'agotado' : ''}`;
+
+                    // Badge Promocional
+                    if(p.badge) {
+                        const txtBadge = p.badge.toUpperCase();
+                        let classBadge = '';
+                        if(txtBadge.includes('OFERTA')) classBadge = 'badge-oferta';
+                        else if(txtBadge.includes('NUEVO')) classBadge = 'badge-nuevo';
+                        else if(txtBadge.includes('TOP')) classBadge = 'badge-top';
+                        
+                        const divBadge = document.createElement('div');
+                        divBadge.className = `badge-promo ${classBadge}`;
+                        divBadge.textContent = txtBadge;
+                        card.appendChild(divBadge);
+                    }
+
+                    // Marco Áureo e Imagen
+                    const divMarco = document.createElement('div');
+                    divMarco.className = 'marco-aureo';
+                    
+                    if (imgMarco) {
+                        const imgM = document.createElement('img');
+                        imgM.src = imgMarco;
+                        imgM.className = 'img-marco';
+                        imgM.loading = 'lazy';
+                        divMarco.appendChild(imgM);
+                    }
+
+                    const imgP = document.createElement('img');
+                    imgP.id = `img-${p.id_prod}`;
+                    imgP.src = p.imagen;
+                    imgP.className = 'img-producto';
+                    imgP.loading = 'lazy';
+                    imgP.onerror = () => imgP.style.display = 'none';
+                    divMarco.appendChild(imgP);
+                    card.appendChild(divMarco);
+
+                    // Textos Seguros
+                    const divNombre = document.createElement('div');
+                    divNombre.className = 'prod-nombre';
+                    divNombre.textContent = p.nombre;
+                    card.appendChild(divNombre);
+
+                    const divPrecio = document.createElement('div');
+                    divPrecio.className = 'prod-precio';
+                    divPrecio.textContent = p.precio > 0 ? formatearMoneda(p.precio, datosNegocio.moneda) : 'CONSULTAR';
+                    card.appendChild(divPrecio);
+
+                    // Controles de Acción
+                    if (p.tipo === 'servicio') {
+                        const btnAgendar = document.createElement('button');
+                        btnAgendar.className = 'btn-especial';
+                        btnAgendar.style.cssText = "font-size:12px; padding:8px; background: var(--color-secundario);";
+                        btnAgendar.textContent = "📅 AGENDAR";
+                        btnAgendar.onclick = () => window.open(`https://wa.me/${datosNegocio.whatsapp}?text=Hola! 👋 Me interesa el servicio: *${p.nombre}*`, '_blank');
+                        card.appendChild(btnAgendar);
+                    } else {
+                        if (p.cuerpo_articulo) {
+                            const btnLeer = document.createElement('button');
+                            btnLeer.className = 'btn-especial';
+                            btnLeer.style.cssText = "font-size:10px; padding:6px; margin-bottom: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--color-secundario);";
+                            btnLeer.textContent = "📖 LEER MÁS INFO";
+                            btnLeer.onclick = () => abrirArticulo(p.id_prod);
+                            card.appendChild(btnLeer);
+                        }
+
+                        const divControles = document.createElement('div');
+                        divControles.className = 'controles-cantidad';
+
+                        const btnMenos = document.createElement('button');
+                        btnMenos.className = 'btn-cant';
+                        btnMenos.textContent = '-';
+                        if (isAgotado) btnMenos.disabled = true;
+                        btnMenos.onclick = () => actualizarCarrito(p.id_prod, '', 0, -1);
+                        divControles.appendChild(btnMenos);
+
+                        const spanCant = document.createElement('span');
+                        spanCant.className = 'num-cant';
+                        spanCant.id = `cant-${p.id_prod}`;
+                        spanCant.textContent = '0';
+                        divControles.appendChild(spanCant);
+
+                        const btnMas = document.createElement('button');
+                        btnMas.className = 'btn-cant';
+                        btnMas.textContent = '+';
+                        if (isAgotado) btnMas.disabled = true;
+                        btnMas.onclick = () => actualizarCarrito(p.id_prod, '', 0, 1);
+                        divControles.appendChild(btnMas);
+
+                        card.appendChild(divControles);
+                    }
+
+                    grilla.appendChild(card);
+                });
+                contenedor.appendChild(grilla);
+            }
+
+            // Repintar carrito
+            for (let id in carrito) {
+                const el = document.getElementById(`cant-${id}`);
+                if (el) el.textContent = carrito[id].cant;
+            }
+        }
+
+
+                window.abrirArticulo = function(id) {
+            const p = productosMemoria.find(x => x.id_prod === id);
+            if (!p) return;
+            
+            const cantActual = carrito[id] ? carrito[id].cant : 0;
+            document.getElementById('titulo-modal-extra').innerText = p.nombre;
+            
+            const contModal = document.getElementById('contenido-modal-extra');
+            contModal.innerHTML = ''; // Quirófano limpio
+
+            const btnCerrar = document.createElement('button');
+            btnCerrar.className = 'btn-cerrar-modal';
+            btnCerrar.onclick = () => cerrarModalManual('overlay-historia');
+            btnCerrar.textContent = 'X';
+            contModal.appendChild(btnCerrar);
+
+            if (p.imagen) {
+                const imgP = document.createElement('img');
+                imgP.src = p.imagen;
+                imgP.style.cssText = "width:100%; border-radius:15px; margin-bottom:15px; margin-top:5px;";
+                contModal.appendChild(imgP);
+            }
+
+            // BLINDAJE ANTI-XSS para la descripción
+            const pDesc = document.createElement('p');
+            pDesc.style.cssText = "font-size: 14px;";
+            pDesc.textContent = p.cuerpo_articulo || ''; 
+            contModal.appendChild(pDesc);
+
+            if (p.galeria_extra && Array.isArray(p.galeria_extra)) {
+                p.galeria_extra.forEach(imgUrl => {
+                    const imgG = document.createElement('img');
+                    imgG.src = imgUrl;
+                    imgG.loading = "lazy";
+                    imgG.style.cssText = "width:100%; border-radius:15px; margin-top:10px;";
+                    contModal.appendChild(imgG);
+                });
+            }
+
+            // Los controles son seguros mediante innerHTML porque no incluyen texto del usuario, solo el ID alfanumérico y la cantidad
+            const divControles = document.createElement('div');
+            divControles.style.cssText = "margin-top: 20px; border-top: 1px solid var(--glass-border); padding-top: 15px;";
+            divControles.innerHTML = `
+                <p style="text-align: center; margin-bottom: 10px; font-weight: bold; color: var(--color-marca); letter-spacing: 1px;">AÑADIR A MI PEDIDO</p>
+                <div class="controles-cantidad" style="margin: 0 auto; max-width: 150px; justify-content: center;">
+                    <button class="btn-cant" onclick="actualizarCarrito('${p.id_prod}', '', 0, -1)">-</button>
+                    <span class="num-cant" id="cant-modal-${p.id_prod}">${cantActual}</span>
+                    <button class="btn-cant" onclick="actualizarCarrito('${p.id_prod}', '', 0, 1)">+</button>
+                </div>
+            `;
+            contModal.appendChild(divControles);
+
+            abrirModal('overlay-historia');
+        }
+
+
+        function animarAlCarrito(idProducto) {
+            const imgElement = document.getElementById('img-' + idProducto);
+            const carrito = document.getElementById('carrito-flotante');
+            if (!imgElement || !carrito || !carrito.classList.contains('visible')) return;
+
+            const rectImg = imgElement.getBoundingClientRect();
+            const rectCarrito = carrito.getBoundingClientRect();
+
+            const clone = imgElement.cloneNode(true);
+            clone.classList.add('flying-img');
+            clone.style.top = rectImg.top + 'px';
+            clone.style.left = rectImg.left + 'px';
+            clone.style.width = rectImg.width + 'px';
+            clone.style.height = rectImg.height + 'px';
+            document.body.appendChild(clone);
+
+            clone.getBoundingClientRect();
+
+            const destX = rectCarrito.left + (rectCarrito.width / 2) - (rectImg.width / 2);
+            const destY = rectCarrito.top + (rectCarrito.height / 2) - (rectImg.height / 2);
+
+            clone.style.transform = `translate(${destX - rectImg.left}px, ${destY - rectImg.top}px) scale(0.2)`;
+            clone.style.opacity = '0';
+
+            setTimeout(() => clone.remove(), 600);
+        }
+
+        // ==========================================
+        // MÓDULO CIBERSEGURIDAD: ZERO TRUST CARRITO
+        // ==========================================
+        window.actualizarCarrito = function(id, nombre, precio, cambio) {
+            if (navigator.vibrate) navigator.vibrate(50);
+
+            // === LÓGICA DE TECHO DE CRISTAL (LIMITACIONES) ===
+            const totalItemsEnCarrito = Object.values(carrito).reduce((acc, curr) => acc + curr.cant, 0);
+            const totalCarritosActivos = Object.keys(localStorage).filter(k => k.startsWith('qrpido_cart_')).length;
+            const esPremium = (datosNegocio && (datosNegocio.premium === "SI" || datosNegocio.premium === true));
+
+            // Bloquear si intenta subir de 25 productos sin ser premium
+            if (cambio > 0 && totalItemsEnCarrito >= 25 && !esPremium) {
+                abrirModal('overlay-premium-social');
+                return;
+            }
+
+            // Bloquear si tiene más de 10 carritos en el navegador y este es uno nuevo
+            if (cambio > 0 && totalCarritosActivos >= 10 && !localStorage.getItem(`qrpido_cart_${idNegocio}`) && !esPremium) {
+                abrirModal('overlay-premium-social');
+                return;
+            }
+
+            // Zero Trust: Ignoramos los parámetros nombre y precio inyectados en HTML.
+            if (!carrito[id]) carrito[id] = { cant: 0 };
+            
+            carrito[id].cant += cambio;
+            if (carrito[id].cant <= 0) delete carrito[id];
+            
+            // LocalStorage ahora SOLO guarda la cantidad vinculada al ID del producto.
+            localStorage.setItem(`qrpido_cart_${idNegocio}`, JSON.stringify(carrito));
+            
+            const numActual = carrito[id] ? carrito[id].cant : 0;
+            
+            const spanTarjeta = document.getElementById(`cant-${id}`);
+            if (spanTarjeta) spanTarjeta.innerText = numActual;
+            
+            const spanModal = document.getElementById(`cant-modal-${id}`);
+            if (spanModal) spanModal.innerText = numActual;
+
+            calcularTotales();
+
+            if (cambio > 0) animarAlCarrito(id);
+        }
+
+        function calcularTotales() {
+            let totalItems = 0;
+            let precioTotal = 0;
+            
+            for (let id in carrito) {
+                // Zero Trust: Consultamos el precio real desde la memoria descargada de Firebase
+                const prod = productosMemoria.find(p => p.id_prod === id);
+                if (prod) {
+                    totalItems += carrito[id].cant;
+                    precioTotal += (carrito[id].cant * prod.precio);
+                }
+            }
+            
+            const btnCarrito = document.getElementById('carrito-flotante');
+            document.getElementById('cant-total-carrito').innerText = totalItems;
+            document.getElementById('precio-total-carrito').innerText = formatearMoneda(precioTotal, datosNegocio.moneda);
+
+            if (totalItems > 0) { btnCarrito.classList.add('visible'); } 
+            else { btnCarrito.classList.remove('visible'); }
+        }
+
+                window.abrirCheckout = function() {
+            const lista = document.getElementById('lista-resumen');
+            lista.innerHTML = ''; // Limpieza del quirófano
+            let total = 0;
+            
+            if (Object.keys(carrito).length === 0) {
+                const pVacio = document.createElement('p');
+                pVacio.style.cssText = "text-align:center; color:#aaa; font-style:italic; padding: 20px 0;";
+                pVacio.textContent = "Tu pedido está vacío.";
+                lista.appendChild(pVacio);
+            } else {
+                for (let id in carrito) {
+                    const prod = productosMemoria.find(p => p.id_prod === id);
+                    if (!prod) continue; // Escudo contra IDs fantasmas
+
+                    const subtotal = carrito[id].cant * prod.precio;
+                    total += subtotal;
+                    
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = "resumen-item";
+                    itemDiv.style.cssText = "align-items: center; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.05); padding: 10px 0;";
+
+                    const nombreDiv = document.createElement('div');
+                    nombreDiv.style.cssText = "flex: 1; min-width: 140px; font-weight: bold; color: #eee;";
+                    nombreDiv.textContent = prod.nombre; // ¡Blindaje Anti-XSS Activado!
+                    itemDiv.appendChild(nombreDiv);
+
+                    const divDerecho = document.createElement('div');
+                    divDerecho.style.cssText = "display: flex; align-items: center; gap: 10px;";
+
+                    const controlesDiv = document.createElement('div');
+                    controlesDiv.className = "controles-cantidad";
+                    controlesDiv.style.cssText = "margin: 0; padding: 2px 8px; border-radius: 10px; background: rgba(0,0,0,0.8);";
+
+                    const btnMenos = document.createElement('button');
+                    btnMenos.className = "btn-cant";
+                    btnMenos.style.fontSize = "14px";
+                    btnMenos.textContent = "-";
+                    btnMenos.onclick = () => { actualizarCarrito(id, '', 0, -1); abrirCheckout(); };
+                    controlesDiv.appendChild(btnMenos);
+
+                    const spanCant = document.createElement('span');
+                    spanCant.className = "num-cant";
+                    spanCant.style.cssText = "font-size:14px; width: 15px;";
+                    spanCant.textContent = carrito[id].cant;
+                    controlesDiv.appendChild(spanCant);
+
+                    const btnMas = document.createElement('button');
+                    btnMas.className = "btn-cant";
+                    btnMas.style.fontSize = "14px";
+                    btnMas.textContent = "+";
+                    btnMas.onclick = () => { actualizarCarrito(id, '', 0, 1); abrirCheckout(); };
+                    controlesDiv.appendChild(btnMas);
+
+                    divDerecho.appendChild(controlesDiv);
+
+                    const spanPrecio = document.createElement('span');
+                    spanPrecio.style.cssText = "color: var(--color-marca); font-weight: bold; width: 75px; text-align: right;";
+                    spanPrecio.textContent = formatearMoneda(subtotal, datosNegocio.moneda);
+                    divDerecho.appendChild(spanPrecio);
+
+                    itemDiv.appendChild(divDerecho);
+                    lista.appendChild(itemDiv);
+                }
+            }
+            
+            document.getElementById('total-final-checkout').innerText = formatearMoneda(total, datosNegocio.moneda);
+            
+            const btnPedir = document.getElementById('btn-enviar-pedido');
+            
+            if (!verificarHorarioOperativo()) {
+                btnPedir.innerText = "CERRADO POR AHORA";
+                btnPedir.disabled = true;
+            } else if (Object.keys(carrito).length === 0) {
+                btnPedir.innerText = "CARRITO VACÍO";
+                btnPedir.disabled = true;
+            } else {
+                btnPedir.innerText = "ENVIAR POR WHATSAPP";
+                btnPedir.disabled = false;
+            }
+
+            // Solución al parpadeo: Solo lanzamos la orden de abrir si el modal está cerrado
+            const modalCheckout = document.getElementById('overlay-checkout');
+            if (!modalCheckout.classList.contains('activo')) {
+                abrirModal('overlay-checkout');
+            }
+        }
+
+                window.enviarPedido = async function() {
+           const nombreCliBruto = document.getElementById('input-nombre-cliente').value;
+
+            const nombreCli = nombreCliBruto.replace(/[^a-zA-Z0-9 ñÑáéíóúÁÉÍÓÚ]/g, "").trim();
+            
+            if (!nombreCli) { alert("Socio, pon tu nombre o mesa para identificarte (sin símbolos raros)."); return; }
+
+            let textoMensaje = `¡Hola *${datosNegocio.nombre}*! 👋 Quiero hacer el siguiente pedido:%0A%0A`;
+            let totalPedido = 0;
+            
+            for (let id in carrito) {
+                // Zero Trust: Armar el mensaje de texto utilizando datos inmutables en memoria
+                const prod = productosMemoria.find(p => p.id_prod === id);
+                if (!prod) continue; 
+
+                const subtotal = carrito[id].cant * prod.precio;
+                totalPedido += subtotal;
+                textoMensaje += `🔹 ${carrito[id].cant}x ${prod.nombre} (${formatearMoneda(subtotal, datosNegocio.moneda)})%0A`;
+            }
+            
+            textoMensaje += `%0A💰 *TOTAL: ${formatearMoneda(totalPedido, datosNegocio.moneda)}*%0A`;
+            textoMensaje += `👤 Nombre/Mesa: ${nombreCli}%0A`;
+            
+            if (userLat && userLng) {
+                textoMensaje += `📍 Mi ubicación exacta:%0Ahttps://www.google.com/maps?q=$${userLat},${userLng}`;
+            } else {
+                textoMensaje += `📍 (Ubicación no proporcionada, lo recojo en tienda o coordinamos).`;
+            }
+
+                        carrito = {};
+            localStorage.removeItem(`qrpido_cart_${idNegocio}`);
+            calcularTotales();
+
+                        // Telemetría de Conversión Final (Enrutado por core-db)
+            if (QRpidoDB.LocalService && QRpidoDB.LocalService.registrarEventoAnalytics) {
+                await QRpidoDB.LocalService.registrarEventoAnalytics('lead_whatsapp_generado', { 
+                    currency: datosNegocio.moneda || 'COP', 
+                    value: totalPedido, 
+                    store_id: idNegocio 
+                });
+            }
+
+
+            const urlWhatsapp = `https://wa.me/${datosNegocio.whatsapp}?text=${textoMensaje}`;
+            window.open(urlWhatsapp, '_blank');
+        }
+
+        // ==========================================
+        // FIN MÓDULO ZERO TRUST
+        // ==========================================
+
+        window.limpiarCarrito = function() {
+            if (!confirm("¿Deseas vaciar todo tu pedido?")) return;
+            
+            carrito = {};
+            localStorage.removeItem(`qrpido_cart_${idNegocio}`);
+            
+            document.querySelectorAll('.num-cant').forEach(el => el.innerText = "0");
+            
+            calcularTotales(); 
+            cerrarModalManual('overlay-checkout'); 
+        }
+
+        window.cargarMasProductos = async function() {
+            if (!ultimoDocVisible || cargandoProductos) return;
+            cargandoProductos = true;
+            const btn = document.getElementById('btn-cargar-mas');
+            btn.innerText = "Cargando...";
+
+            try {
+                                const filtros = { limite: 20, startAfterDoc: ultimoDocVisible };
+                const { success, data: nuevosProductos, ultimoDoc, error } = await QRpidoDB.RadarService.obtenerProductosPublicos(idNegocio, filtros);
+                
+                if (!success || nuevosProductos.length === 0) {
+                    document.getElementById('paginacion-wrapper').style.display = 'none';
+                    return;
+                }
+
+                ultimoDocVisible = ultimoDoc;
+
+                
+                nuevosProductos.sort((a, b) => (a.orden ?? 99) - (b.orden ?? 99));
+                productosMemoria = [...productosMemoria, ...nuevosProductos];
+
+                const nuevasCat = [...new Set(productosMemoria.map(p => p.categoria || "Destacados"))];
+                if (nuevasCat.length > categoriasGlobales.length) {
+                    categoriasGlobales = nuevasCat;
+                    construirCarruselCategorias();
+                }
+
+                renderizarCatalogo(filtroActual);
+                                if (nuevosProductos.length < 20) {
+                    document.getElementById('paginacion-wrapper').style.display = 'none';
+                } else {
+                    btn.innerText = "Cargar Más Productos";
+                }
+                
+            } catch (error) {
+                console.error("Error cargando más productos:", error);
+                btn.innerText = "Error. Reintentar";
+            } finally {
+                cargandoProductos = false;
+            }
+        }
+
+        window.compartirTienda = function() {
+            if (navigator.vibrate) navigator.vibrate(50); 
+
+            const urlTienda = window.location.href;
+            const colorHex = datosNegocio.color_hex ? datosNegocio.color_hex.split(',')[0].trim() : '#ff6b00'; 
+            
+            const qrContainer = document.getElementById('qr-code-container');
+            qrContainer.innerHTML = "";
+            qrContainer.style.boxShadow = `0 0 15px ${colorHex}`;
+            
+            new QRCode(qrContainer, {
+                text: urlTienda,
+                width: 200,
+                height: 200,
+                colorDark : colorHex,
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+            
+            abrirModal('overlay-compartir'); 
+        }
+
+        window.copiarEnlace = function() {
+            navigator.clipboard.writeText(window.location.href).then(() => {
+                alert('¡Enlace copiado al portapapeles! 🔗');
+            });
+        }
+
+        window.compartirNativo = async function() {
+            const urlTienda = window.location.href;
+            const tituloTienda = datosNegocio.nombre || 'Tienda en QRpido';
+            if (navigator.share) {
+                try { await navigator.share({ title: tituloTienda, text: `¡Mira esta tienda en QRpido: ${tituloTienda}!`, url: urlTienda }); } catch (err) {}
+            } else {
+                copiarEnlace();
+            }
+        }
+
+        window.descargarQR = async function() {
+            const btn = document.getElementById('btn-descargar-qr');
+            const textoOriginal = btn.innerText;
+            btn.innerText = "⏳ GENERANDO ARCHIVO...";
+            btn.style.opacity = "0.7";
+            
+            try {
+                const qrContainer = document.getElementById('qr-code-container');
+                const canvas = qrContainer.querySelector('canvas');
+                
+                if (canvas) {
+                    canvas.toBlob(function(blob) {
+                        const urlObj = window.URL.createObjectURL(blob);
+                        const nombreArchivo = `QR_${datosNegocio.nombre ? datosNegocio.nombre.replace(/\s+/g, '_') : 'QRpido'}_${Date.now()}.png`;
+                        
+                        const a = document.createElement('a');
+                        a.style.display = 'none';
+                        a.href = urlObj;
+                        a.download = nombreArchivo;
+                        document.body.appendChild(a);
+                        a.click();
+                        
+                        a.remove();
+                        window.URL.revokeObjectURL(urlObj);
+                    }, "image/png");
+                } else {
+                    alert("Por favor espera un segundo mientras el QR termina de generarse.");
+                }
+            } catch(e) {
+                console.error(e);
+            } finally {
+                setTimeout(() => {
+                    btn.innerText = textoOriginal;
+                    btn.style.opacity = "1";
+                }, 1000); 
+            }
+        }
+
+        function verificarHorarioOperativo() {
+            if (!datosNegocio.horario_apertura || !datosNegocio.horario_cierre) return true;
+            const ahora = new Date();
+            const horaActual = ahora.getHours() * 60 + ahora.getMinutes();
+            const [hDesde, mDesde] = datosNegocio.horario_apertura.split(':').map(Number);
+            const [hHasta, mHasta] = datosNegocio.horario_cierre.split(':').map(Number);
+            const minDesde = hDesde * 60 + mDesde;
+            const minHasta = hHasta * 60 + mHasta;
+
+            if (minHasta < minDesde) { 
+                return horaActual >= minDesde || horaActual <= minHasta;
+            } else {
+                return horaActual >= minDesde && horaActual <= minHasta;
+            }
+        }
+
+        window.abrirModal = function(idModal) { document.getElementById(idModal).classList.add('activo'); }
+        window.cerrarModal = function(e, idModal) { if (e.target.id === idModal) document.getElementById(idModal).classList.remove('activo'); }
+        window.cerrarModalManual = function(idModal) { document.getElementById(idModal).classList.remove('activo'); }
+
+        function aplicarSwipeAbajo(modalId, contentId) {
+            const modal = document.getElementById(modalId);
+            const content = document.getElementById(contentId);
+            let startY = 0, currentY = 0;
+            
+            content.addEventListener('touchstart', e => startY = e.touches[0].clientY, {passive: true});
+            content.addEventListener('touchmove', e => {
+                currentY = e.touches[0].clientY;
+                if(currentY > startY && content.scrollTop === 0) {
+                    content.style.transform = `translateY(${currentY - startY}px)`;
+                }
+            }, {passive: true});
+            content.addEventListener('touchend', () => {
+                if (currentY - startY > 100 && content.scrollTop === 0) modal.classList.remove('activo');
+                content.style.transform = ''; 
+            });
+        }
+        aplicarSwipeAbajo('overlay-checkout', 'sheet-checkout');
+        aplicarSwipeAbajo('overlay-compartir', 'sheet-compartir');
+        aplicarSwipeAbajo('overlay-historia', 'sheet-historia');
+        aplicarSwipeAbajo('overlay-premium-social', 'sheet-premium-social');
+
+        window.obtenerGPS = function() {
+            const btn = document.getElementById('btn-gps');
+            btn.innerText = "Buscando satélites...";
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    userLat = pos.coords.latitude;
+                    userLng = pos.coords.longitude;
+                    btn.innerText = "✅ ¡Ubicación capturada!";
+                    btn.classList.add('exito');
+                    document.getElementById('mapa-ubicacion').style.display = 'none'; 
+                }, () => {
+                    alert("Por favor habilita el GPS del celular.");
+                    btn.innerText = "📍 Usar mi ubicación actual";
+                });
+            }
+        }
+        window.abrirMiniMapa = function() {
+            const divMapa = document.getElementById('mapa-ubicacion');
+            divMapa.style.display = 'block';
+            const centroLat = (datosNegocio.Coordenadas && datosNegocio.Coordenadas.latitude) ? datosNegocio.Coordenadas.latitude : 4.8133;
+            const centroLng = (datosNegocio.Coordenadas && datosNegocio.Coordenadas.longitude) ? datosNegocio.Coordenadas.longitude : -75.6961;
+
+            if (!miniMapa) {
+                miniMapa = L.map('mapa-ubicacion').setView([centroLat, centroLng], 15);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                    attribution: '© OpenStreetMap © CartoDB'
+                }).addTo(miniMapa);
+                pinCliente = L.marker([centroLat, centroLng], { draggable: true }).addTo(miniMapa);
+                
+                pinCliente.on('dragend', function(e) {
+                    const pos = pinCliente.getLatLng();
+                    userLat = pos.lat; userLng = pos.lng;
+                });
+                
+                miniMapa.on('click', function(e) {
+                    pinCliente.setLatLng(e.latlng);
+                    userLat = e.latlng.lat; userLng = e.latlng.lng;
+                });
+            }
+            setTimeout(() => miniMapa.invalidateSize(), 300);
+        }
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => console.log('PWA lista y blindada.', reg.scope))
+                    .catch(err => console.log('PWA falló:', err));
+            });
+        }
+        
+        // === DETECCIÓN DE CONEXIÓN (PWA OFFLINE) ===
+        window.addEventListener('offline', () => document.getElementById('offline-banner').classList.add('activo'));
+        window.addEventListener('online', () => document.getElementById('offline-banner').classList.remove('activo'));
+        if (!navigator.onLine) document.getElementById('offline-banner').classList.add('activo');
+
+        window.onload = construirTienda;
+    </script>
+</body>
+</html>

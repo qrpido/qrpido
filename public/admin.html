@@ -1,0 +1,2360 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Portal de Socios | QRpido</title>
+        <script>
+        // 1. SÚPER ALERTA (Cualquier error salta a la cara en un popup inesquivable)
+        window.onerror = function(message, source, lineno, colno, error) {
+            alert("🚨 ERROR CRÍTICO:\n" + message + "\n\nLínea: " + lineno);
+            return false;
+        };
+
+        window.addEventListener('unhandledrejection', function(event) {
+            alert("🚨 ERROR FIREBASE:\n" + (event.reason.message || event.reason));
+        });
+
+        // 2. MOTOR DE BOTONES INMUNE (Desvinculado de Firebase para que nunca falle)
+        window.mostrarPanelAuth = function(panel) {
+            if(navigator.vibrate) navigator.vibrate(50);
+            
+            try {
+                // Apagamos todos
+                document.getElementById('panel-seleccion').style.display = 'none';
+                document.getElementById('panel-login-form').style.display = 'none';
+                document.getElementById('panel-registro-form').style.display = 'none';
+                
+                // Encendemos el que tocaste
+                if (panel === 'seleccion') document.getElementById('panel-seleccion').style.display = 'block';
+                if (panel === 'login') document.getElementById('panel-login-form').style.display = 'block';
+                if (panel === 'registro') document.getElementById('panel-registro-form').style.display = 'block';
+            } catch(e) {
+                alert("🚨 ERROR EN LOS PANELES:\n" + e.message);
+            }
+        };
+    </script>
+
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script src="https://unpkg.com/open-location-code@1.0.3/openlocationcode.js"></script>
+
+
+    <style>
+                :root { 
+            --naranja: #ff6b00; 
+            --bg-oscuro: #0a0a0c; 
+            --glass-bg: rgba(25, 25, 30, 0.85); 
+            --glass-border: rgba(255, 255, 255, 0.1); 
+            
+                        /* 📐 Sistema Áureo (1.618) & Fibonacci */
+            --texto-sm: 10px;       /* Micro textos */
+            --texto-base: 16px;     /* Párrafos e inputs */
+            --texto-h3: 26px;       /* Subtítulos (16 * 1.618) */
+            --texto-h1: 42px;       /* Títulos grandes (26 * 1.618) */
+            
+            /* Espaciados de Fibonacci */
+            --sp-micro: 8px;
+            --sp-sm: 13px;
+            --sp-md: 21px;
+            --sp-lg: 34px;
+            --sp-xl: 55px;
+        }
+        
+        body { background: var(--bg-oscuro); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding: var(--sp-sm); padding-bottom: 90px; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; background-image: radial-gradient(circle at 50% -20%, #331500, var(--bg-oscuro) 61.8%); transition: background-image 0.5s; font-size: var(--texto-base); }
+
+        
+        /* === SKELETON SHIMMER === */
+        .shimmer-box { position: relative; overflow: hidden; background: rgba(255,255,255,0.05) !important; border-color: transparent !important; }
+        .shimmer-box::after { content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent); animation: shimmer 1.5s infinite; }
+        @keyframes shimmer { 100% { left: 100%; } }
+        /* === EXPERIENCIA DE BÓVEDA (LOGIN/REGISTRO DISRUPTIVO) === */
+        #login-screen { width: 100%; max-width: 380px; margin: 4vh auto; perspective: 1000px; }
+        
+        .panel-login { background: rgba(15, 15, 18, 0.6); backdrop-filter: blur(19px); -webkit-backdrop-filter: blur(19px); border: 1px solid rgba(255, 107, 0, 0.2); border-radius: var(--sp-md); padding: var(--sp-lg) var(--sp-md); box-shadow: 0 var(--sp-lg) var(--sp-xl) rgba(0,0,0,0.8), inset 0 0 var(--sp-md) rgba(255, 107, 0, 0.05); position: relative; overflow: hidden; animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(40px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        
+        /* Brillo superior en la tarjeta */
+        .panel-login::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, var(--naranja), transparent); }
+
+         .logo-login { text-align: center; color: white; font-size: var(--texto-h1); font-weight: 900; letter-spacing: 2px; margin-bottom: var(--sp-micro); }
+        .logo-login span { color: var(--naranja); text-shadow: 0 0 15px rgba(255,107,0,0.6); }
+        .sub-logo { text-align: center; color: #888; font-size: var(--texto-sm); margin-bottom: var(--sp-lg); letter-spacing: 1px; text-transform: uppercase; }
+
+        /* Botón Google Premium */
+        .btn-google { width: 100%; background: white; color: #111; padding: 12px; border-radius: 14px; border: none; font-weight: bold; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 12px; transition: 0.3s; box-shadow: 0 10px 20px rgba(255,255,255,0.1); margin-bottom: 25px; }
+        .btn-google:active { transform: scale(0.96); }
+        .btn-google img { width: 20px; height: 20px; }
+
+        /* Divisor elegante */
+        .divisor-boveda { display: flex; align-items: center; text-align: center; color: #555; font-size: 11px; font-weight: bold; margin-bottom: 25px; text-transform: uppercase; letter-spacing: 2px; }
+        .divisor-boveda::before, .divisor-boveda::after { content: ''; flex: 1; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .divisor-boveda::before { margin-right: 15px; }
+        .divisor-boveda::after { margin-left: 15px; }
+
+        /* Inputs Neón */
+          .input-boveda { width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); color: white; padding: var(--sp-sm); border-radius: var(--sp-sm); margin-bottom: var(--sp-sm); outline: none; box-sizing: border-box; font-size: var(--texto-base); transition: all 0.3s ease; }
+        .input-boveda:focus { border-color: var(--naranja); box-shadow: 0 0 15px rgba(255,107,0,0.2); background: rgba(0,0,0,0.6); transform: translateY(-2px); }
+
+        /* Botón de Acción Principal */
+        .btn-accion-boveda { width: 100%; padding: var(--sp-sm) var(--sp-md); border-radius: var(--sp-sm); border: none; font-weight: 900; cursor: pointer; text-transform: uppercase; background: linear-gradient(135deg, #ff8c00, var(--naranja)); color: white; font-size: var(--texto-base); transition: 0.3s; letter-spacing: 2px; margin-top: var(--sp-sm); margin-bottom: var(--sp-micro); box-shadow: 0 10px 25px rgba(255,107,0,0.4); }
+        .btn-accion-boveda:active { transform: scale(0.96); box-shadow: 0 5px 15px rgba(255,107,0,0.3); }
+
+        /* Selector de Roles Disruptivo */
+      
+        .roles-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-sm); margin-bottom: var(--sp-md); }
+        .rol-card { position: relative; cursor: pointer; }
+        .rol-card input { display: none; }
+
+        .rol-content { background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--sp-sm); padding: var(--sp-sm) var(--sp-micro); text-align: center; transition: 0.3s; display: flex; flex-direction: column; gap: var(--sp-micro); align-items: center; }
+        .rol-content span.emoji { font-size: 24px; filter: grayscale(100%); transition: 0.3s; }
+        .rol-content span.texto { font-size: 10px; font-weight: bold; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        
+        .rol-card input:checked + .rol-content { background: rgba(255,107,0,0.1); border-color: var(--naranja); box-shadow: inset 0 0 15px rgba(255,107,0,0.2); transform: translateY(-5px); }
+        .rol-card input:checked + .rol-content span.emoji { filter: grayscale(0%); transform: scale(1.1); }
+        .rol-card input:checked + .rol-content span.texto { color: var(--naranja); }
+
+        /* Links de abajo */
+        .link-boveda { display: block; text-align: center; font-size: 12px; color: #aaa; margin-top: 20px; cursor: pointer; transition: 0.3s; text-decoration: none; }
+        .link-boveda:hover, .link-boveda:active { color: white; }
+        .link-boveda span { color: var(--naranja); font-weight: bold; text-decoration: underline; }
+
+        
+        /* === PANEL ADMIN === */
+        #dashboard-screen { width: 100%; max-width: 500px; display: none; }
+        .panel-admin { background: var(--glass-bg); backdrop-filter: blur(21px); border: 1px solid var(--glass-border); border-radius: var(--sp-md); width: 100%; box-shadow: 0 15px 35px rgba(0,0,0,0.6); overflow: hidden; margin-bottom: var(--sp-md); padding: var(--sp-md); box-sizing: border-box; }
+        
+        /* === HEADER OFICINA === */
+        .oficina-header { display: flex; align-items: center; gap: var(--sp-sm); margin-bottom: var(--sp-md); border-bottom: 1px solid var(--naranja); padding-bottom: var(--sp-sm); }
+        .oficina-logo { width: 50px; height: 50px; border-radius: 50%; border: 2px solid var(--naranja); object-fit: cover; }
+        .oficina-info h3 { margin: 0; font-size: var(--texto-h3); text-transform: uppercase; color: white; }
+        
+        .badge-plan { background: #555; padding: 4px 10px; border-radius: 12px; font-size: 10px; color: white; font-weight: bold; margin-top: 5px; display: inline-block; cursor: pointer; position: relative; transition: 0.3s; }
+        .badge-plan:active { transform: scale(0.95); }
+        .badge-plan.premium { background: #FFD700; color: black; box-shadow: 0 0 10px rgba(255,215,0,0.5); }
+        
+        .tooltip-glass { position: absolute; top: 120%; left: 50%; transform: translateX(-50%); background: rgba(10,10,12,0.95); backdrop-filter: blur(15px); border: 1px solid var(--naranja); padding: 12px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); z-index: 1000; width: 160px; text-align: center; display: none; animation: fadeIn 0.3s ease; }
+        .tooltip-glass::before { content:''; position:absolute; top:-6px; left:50%; transform:translateX(-50%) rotate(45deg); width:10px; height:10px; background:rgba(10,10,12,0.95); border-top: 1px solid var(--naranja); border-left: 1px solid var(--naranja); }
+        .btn-tooltip { width: 100%; background: #25D366; color: white; border: none; padding: 8px; border-radius: 8px; font-weight: bold; font-size: 11px; cursor: pointer; text-transform: uppercase; margin-top: 8px; box-shadow: 0 2px 5px rgba(37, 211, 102, 0.4); }
+
+        .btn-salir { margin-left: auto; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: #aaa; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: bold; transition: 0.3s; }
+        .btn-salir:active { background: #ff4444; border-color: #ff4444; color: white; }
+
+        /* === TABS OFICINA === */
+        .tabs { display: flex; gap: var(--sp-micro); margin-bottom: var(--sp-md); flex-wrap: wrap; }
+        .tab-btn { flex: 1; padding: 10px 5px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; text-transform: uppercase; font-size: 10px; letter-spacing: 1px; min-width: 20%; text-align: center;}
+        .tab-btn.activo { background: var(--naranja); border-color: var(--naranja); box-shadow: 0 0 15px rgba(255,107,0,0.4); }
+        
+        .tab-content { display: none; animation: fadeIn 0.4s ease; }
+        .tab-content.activo { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* === FORMULARIOS === */
+        .input-form { width: 100%; background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); color: white; padding: 14px; border-radius: 12px; margin-bottom: 15px; outline: none; box-sizing: border-box; font-size: 13px; transition: 0.3s; }
+        .input-form:focus { border-color: var(--naranja); }
+        .input-form:disabled { background: rgba(0,0,0,0.2); color: #666; cursor: not-allowed; border-color: transparent; }
+        textarea.input-form { resize: vertical; min-height: 80px; margin-bottom: 5px; }
+        label.section-title { font-size: 12px; font-weight: bold; color: #888; text-transform: uppercase; margin-bottom: 10px; display: block; }
+
+        .file-upload-wrapper { position: relative; width: 100%; margin-bottom: 15px; }
+        .file-upload-input { position: absolute; left: 0; top: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 2; }
+        .file-upload-ui { width: 100%; background: rgba(255,107,0,0.05); border: 1px dashed rgba(255,107,0,0.5); color: var(--naranja); padding: 15px; border-radius: 12px; text-align: center; box-sizing: border-box; font-weight: bold; font-size: 13px; transition: 0.3s; }
+        
+        .btn-submit { width: 100%; padding: 15px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; text-transform: uppercase; background: var(--naranja); color: white; font-size: 13px; transition: 0.3s; letter-spacing: 1px; margin-top: 10px; box-shadow: 0 5px 15px rgba(255,107,0,0.4); }
+        .btn-submit:active { transform: scale(0.97); }
+        .btn-submit:disabled { background: #444; color: #888; cursor: not-allowed; box-shadow: none; }
+
+        /* === MÓDULOS PREMIUM === */
+        .modulo-premium { position: relative; padding: 20px; border-radius: 15px; background: rgba(255, 107, 0, 0.03); border: 1px dashed rgba(255,107,0,0.3); margin-top: 15px; margin-bottom: 15px; }
+        .lock-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 10, 15, 0.9); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 10; border-radius: 15px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+        .lock-overlay p { color: #aaa; font-size: 12px; margin: 10px 0 15px 0; max-width: 80%; }
+        .btn-upgrade { background: var(--naranja); color: white; border: none; padding: 6px 15px; border-radius: 20px; font-weight: bold; font-size: 11px; cursor: pointer; }
+
+        /* === PRODUCTOS / INMUEBLES === */
+        .producto-card { background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); border-radius: 15px; padding: 12px; margin-bottom: 12px; display: flex; gap: 12px; align-items: center; border-left: 3px solid var(--naranja); }
+        .prod-img { width: 60px; height: 60px; border-radius: 10px; object-fit: cover; background: #222; }
+        .prod-info { flex: 1; }
+        .prod-info h4 { margin: 0 0 5px 0; font-size: 14px; }
+        .prod-info p { margin: 0; color: #888; font-size: 12px; }
+        .prod-acciones { display: flex; flex-direction: column; gap: 5px; }
+        .btn-accion { padding: 5px 10px; border-radius: 8px; border: none; cursor: pointer; font-size: 10px; font-weight: bold; transition: 0.3s;}
+        .btn-accion:active { transform: scale(0.9); }
+        .btn-edit { background: rgba(255, 204, 0, 0.15); color: #ffcc00; }
+        .btn-delete { background: rgba(255, 68, 68, 0.15); color: #ff4444; }
+        .btn-toggle { background: rgba(255, 255, 255, 0.1); color: white; }
+        .agotado { opacity: 0.5; filter: grayscale(100%); }
+        
+        .alert-limit { background: rgba(255, 68, 68, 0.1); border: 1px solid #ff4444; color: #ff4444; padding: 10px; border-radius: 10px; font-size: 12px; text-align: center; margin-bottom: 15px; font-weight: bold; display: none; }
+        .alert-limit a { color: #ff4444; text-decoration: underline; cursor: pointer; }
+
+        /* === BOTTOM SHEETS === */
+        #btn-flotante-ayuda { position: fixed; bottom: 20px; right: 20px; background: var(--naranja); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 12px 20px; border-radius: 25px; font-weight: bold; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.8); z-index: 900; transition: 0.3s; display: flex; align-items: center; gap: 8px; }
+        #btn-flotante-ayuda:active { transform: scale(0.9); }
+
+        .bottom-sheet-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 3000; display: flex; justify-content: center; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .bottom-sheet-overlay.activo { opacity: 1; pointer-events: all; }
+        .bottom-sheet-contenido { width: 100%; max-width: 500px; background: var(--glass-bg); backdrop-filter: blur(25px); border-top-left-radius: 30px; border-top-right-radius: 30px; padding: 15px 30px 30px 30px; transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); border-top: 1px solid var(--naranja); box-sizing: border-box; max-height: 85vh; overflow-y: auto; touch-action: pan-y; }
+        .bottom-sheet-overlay.activo .bottom-sheet-contenido { transform: translateY(0); }
+        .drag-handle { width: 50px; height: 5px; background: rgba(255,255,255,0.3); border-radius: 5px; margin: 0 auto 20px auto; cursor: grab; }
+
+        details { background: rgba(0,0,0,0.4); margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); text-align: left; }
+        summary { padding: 12px; font-size: 13px; font-weight: bold; cursor: pointer; color: var(--naranja); outline: none; }
+        details p { padding: 0 12px 12px; margin: 0; font-size: 12px; color: #ddd; line-height: 1.5; }
+        
+        .btn-contacto { width: 100%; padding: 12px; background: #25D366; color: white; border: none; border-radius: 8px; font-weight: bold; margin-bottom: 10px; cursor: pointer; text-transform: uppercase; font-size: 12px; box-shadow: 0 4px 10px rgba(37, 211, 102, 0.4); transition: 0.3s;}
+        .btn-contacto:active { transform: scale(0.95); }
+        .btn-contacto.gmail { background: #EA4335; margin-bottom: 0; box-shadow: 0 4px 10px rgba(234, 67, 53, 0.4); }
+
+        /* === UI DE RESCATE OFFLINE === */
+        .offline-banner { position: fixed; top: 0; left: 0; width: 100%; background: #ff4444; color: white; text-align: center; padding: 8px; z-index: 10000; font-weight: 900; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(255,68,68,0.4); display: none; }
+        .offline-banner.activo { display: block; }
+                      /* === BOTONES GEMA (ROCA PULIDA / ESTILO JUEGO) === */
+        .gem-social { width: 36px; height: 36px; border-radius: 10px; display: flex; justify-content: center; align-items: center; background: linear-gradient(145deg, #1e1e24, #121215); border: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: 0.3s; box-shadow: 4px 4px 10px rgba(0,0,0,0.8), inset 1px 1px 2px rgba(255,255,255,0.15), inset -1px -1px 3px rgba(0,0,0,0.5); text-decoration: none; font-size: 16px; }
+        .gem-social:active { transform: scale(0.9) translateY(2px); box-shadow: 2px 2px 5px rgba(0,0,0,0.8), inset 2px 2px 5px rgba(0,0,0,0.6); }
+        .gem-social.ig { background: linear-gradient(145deg, #d6249f, #285AEB); border-color: rgba(255,255,255,0.2); box-shadow: 3px 3px 8px rgba(0,0,0,0.5), 0 0 10px rgba(214, 36, 159, 0.4), inset 1px 1px 3px rgba(255,255,255,0.5), inset -2px -2px 4px rgba(0,0,0,0.4); }
+        .gem-social.wp { background: linear-gradient(145deg, #25D366, #128C7E); border-color: rgba(255,255,255,0.2); box-shadow: 3px 3px 8px rgba(0,0,0,0.5), 0 0 10px rgba(37, 211, 102, 0.4), inset 1px 1px 3px rgba(255,255,255,0.5), inset -2px -2px 4px rgba(0,0,0,0.4); }
+        .gem-social.maps { background: linear-gradient(145deg, #4285F4, #0F9D58); border-color: rgba(255,255,255,0.2); box-shadow: 3px 3px 8px rgba(0,0,0,0.5), 0 0 10px rgba(66, 133, 244, 0.4), inset 1px 1px 3px rgba(255,255,255,0.5), inset -2px -2px 4px rgba(0,0,0,0.4); }
+        .gem-social svg { width: 18px; height: 18px; fill: white; filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.5)); }
+
+        
+        /* Título en PNG */
+        .ui-nombre-png { max-height: 26px; object-fit: contain; display: block; filter: drop-shadow(0 0 5px rgba(255,107,0,0.4)); margin-bottom: 5px; }
+        /* === SWITCH MAESTRO === */
+        .switch-container { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); padding: 12px 16px; border-radius: 12px; margin-bottom: 10px; }
+        .switch-label { font-size: 13px; font-weight: bold; color: white; display: flex; flex-direction: column; gap: 4px; }
+        .switch-label span { font-size: 10px; color: #888; font-weight: normal; line-height: 1.3; padding-right: 15px; }
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.1); transition: .4s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: #888; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--naranja); box-shadow: 0 0 10px rgba(255,107,0,0.4); }
+        input:checked + .slider:before { transform: translateX(20px); background-color: white; }
+
+    </style>
+</head>
+<body>
+
+    <div id="offline-banner" class="offline-banner">⚠️ Sin conexión: Mostrando datos de tu última visita</div>
+
+    <button id="btn-flotante-ayuda" onclick="abrirModal('overlay-soporte')">💬 Soporte</button>
+    
+    <div class="bottom-sheet-overlay" id="overlay-soporte" onclick="cerrarModal(event, 'overlay-soporte')">
+        <div class="bottom-sheet-contenido" id="sheet-soporte">
+            <div class="drag-handle"></div>
+            <h2 style="color: var(--naranja); margin-top: 0; text-transform: uppercase; letter-spacing: 2px; text-align: center;">Centro de Ayuda</h2>
+            
+            <details>
+                <summary>¿Qué es la Red de Aliados? 🤝</summary>
+                <p>Es nuestro programa de impulsadores. Taxistas y promotores (Servicios) recomiendan tu negocio compartiendo su Código TX. Tú validas la venta y ellos ganan una comisión automática.</p>
+            </details>
+            <details>
+                <summary>¿Cómo valido un Código TX? 🎟️</summary>
+                <p>En tu panel, ve a la pestaña "Red Aliados", ingresa el código que el cliente te dio y el monto de la compra. El sistema calculará la comisión a pagar y la sumará a tu saldo adeudado.</p>
+            </details>
+            <details>
+                <summary>¿Cómo me vuelvo Premium? 👑</summary>
+                <p>Escríbenos directamente a nuestro WhatsApp de soporte para actualizar tu plan. El plan Premium desbloquea propiedades ilimitadas, galería de 10 fotos por inmueble, fondos, banners y catálogos sin límites.</p>
+            </details>
+            <details>
+                <summary>¿Cómo subo mis imágenes?</summary>
+                <p>Usa la nueva función de "Subir Foto" directamente en el portal. Ahora las imágenes se guardan de forma segura y automática en tu nube.</p>
+            </details>
+            <details>
+                <summary>No aparezco en el Mapa</summary>
+                <p>Asegúrate de llenar tu <b>"Mi Perfil"</b>. Escribe bien tus palabras clave y mantén tu geohash activo buscando tu negocio en el radar principal.</p>
+            </details>
+            
+            <hr style="border: 1px solid rgba(255,255,255,0.05); margin: 15px 0;">
+            <p style="text-align: center; font-size: 12px; margin-bottom: 10px; color: #aaa;">¿No resolvimos tu duda?</p>
+            
+            <button class="btn-contacto" onclick="contactarWhatsappSoporte()">WhatsApp de Soporte</button>
+            <button class="btn-contacto gmail" onclick="contactarEmailSoporte()">Enviar Correo (Gmail)</button>
+        </div>
+    </div>
+
+           <div id="login-screen">
+        
+        <div class="panel-login" id="panel-seleccion" style="text-align: center;">
+            <div class="logo-login">QR<span>PIDO</span></div>
+            <div class="sub-logo">Bienvenido al Portal</div>
+            
+            <p style="color: #aaa; font-size: 14px; margin-bottom: 30px;">¿Qué deseas hacer hoy?</p>
+            
+            <button class="btn-accion-boveda" style="margin-bottom: 15px; padding: 18px; font-size: 16px;" onclick="mostrarPanelAuth('login')">
+                🔑 YA TENGO CUENTA <br><span style="font-size: 11px; font-weight: normal; text-transform: none;">(Iniciar Sesión)</span>
+            </button>
+            
+            <button class="btn-accion-boveda" style="background: transparent; border: 2px solid var(--naranja); color: var(--naranja); box-shadow: none; padding: 18px; font-size: 16px;" onclick="mostrarPanelAuth('registro')">
+                🚀 SOY NUEVO <br><span style="font-size: 11px; font-weight: normal; text-transform: none;">(Crear mi Negocio)</span>
+            </button>
+        </div>
+
+        <div class="panel-login" id="panel-login-form" style="display: none;">
+            <button onclick="mostrarPanelAuth('seleccion')" style="background: transparent; border: none; color: #aaa; font-weight: bold; cursor: pointer; margin-bottom: 15px; font-size: 12px;">⬅ Volver atrás</button>
+            
+            <div class="logo-login" style="font-size: 28px;">QR<span>PIDO</span></div>
+            <div class="sub-logo" style="margin-bottom: 15px;">Ingresar a mi cuenta</div>
+
+            <button class="btn-google" onclick="iniciarConGoogle()" style="margin-bottom: 20px;">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G">
+                Ingresar con Google
+            </button>
+
+            <div class="divisor-boveda">O usa tu correo</div>
+            
+            <input type="email" id="login-email" class="input-boveda" placeholder="Correo electrónico">
+            <input type="password" id="login-pass" class="input-boveda" placeholder="Contraseña">
+            
+            <button class="btn-accion-boveda" id="btn-login-accion" onclick="iniciarSesion()">Entrar a mi Bóveda</button>
+
+            <a id="link-magic-admin" class="link-boveda" onclick="toggleMagicAdmin()" style="margin-top: 15px;">¿Olvidaste la clave? <span>Usar Enlace Mágico</span></a>
+        </div>
+
+        <div class="panel-login" id="panel-registro-form" style="display: none;">
+            <button onclick="mostrarPanelAuth('seleccion')" style="background: transparent; border: none; color: #aaa; font-weight: bold; cursor: pointer; margin-bottom: 15px; font-size: 12px;">⬅ Volver atrás</button>
+            
+            <div class="logo-login" style="font-size: 28px;">QR<span>PIDO</span></div>
+            <div class="sub-logo" style="margin-bottom: 15px;">Crear Nueva Cuenta</div>
+
+            <button class="btn-google" onclick="iniciarConGoogle()" style="margin-bottom: 20px;">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G">
+                Registrarme rápido con Google
+            </button>
+
+            <div class="divisor-boveda">O crea con correo</div>
+            
+            <input type="email" id="reg-email" class="input-boveda" placeholder="Tu correo electrónico">
+            <input type="password" id="reg-pass" class="input-boveda" placeholder="Crea una contraseña segura">
+            
+            <label class="section-title" style="text-align: center; margin-top: 15px;">¿Qué vas a publicar?</label>
+            
+            <div class="roles-grid">
+                <label class="rol-card">
+                    <input type="radio" name="tipo_cuenta" value="negocio" checked>
+                    <div class="rol-content">
+                        <span class="emoji">🏪</span>
+                        <span class="texto">Negocio</span>
+                    </div>
+                </label>
+                <label class="rol-card">
+                    <input type="radio" name="tipo_cuenta" value="servicio">
+                    <div class="rol-content">
+                        <span class="emoji">🤝</span>
+                        <span class="texto">Servicio</span>
+                    </div>
+                </label>
+                <label class="rol-card">
+                    <input type="radio" name="tipo_cuenta" value="inmueble">
+                    <div class="rol-content">
+                        <span class="emoji">🏠</span>
+                        <span class="texto">Inmueble</span>
+                    </div>
+                </label>
+            </div>
+            
+            <button class="btn-accion-boveda" id="btn-registrar" onclick="registrarUsuario()">Crear mi cuenta ahora</button>
+        </div>
+    </div>
+
+    <div id="dashboard-screen">
+
+        <div class="panel-admin">
+            
+                       <div class="oficina-header">
+                <img id="ui-logo" src="" class="oficina-logo" style="display:none;">
+                
+                <div class="oficina-info" style="flex: 1;">
+                    <img id="ui-nombre-img" class="ui-nombre-png" src="" style="display:none;">
+                    <h3 id="ui-nombre">MI TIENDA</h3>
+                    
+                    <div style="position: relative; display: inline-block;">
+                        <div id="ui-rango" class="badge-plan" onclick="toggleTooltipRango()">PLAN BÁSICO</div>
+                        <div id="tooltip-rango" class="tooltip-glass">
+                            <p id="tooltip-rango-texto" style="margin:0 0 5px 0; font-size:12px; font-weight:bold;">¿Quieres ser Premium? 👑</p>
+                            <p style="margin:0; font-size:10px; color:#aaa; line-height: 1.2;">Desbloquea límites y funciones pro.</p>
+                            <button class="btn-tooltip" onclick="contactarWhatsappSoporte()">Contactar Asesor</button>
+                        </div>
+                    </div>
+                </div>
+
+                                               <div id="ui-social-dock" style="display: none; flex-direction: column; gap: 6px; margin-right: 15px;">
+                </div>
+
+                <button class="btn-salir" style="margin-right: 8px; background: rgba(0, 255, 100, 0.1); border-color: #00ff64; color: #00ff64;" onclick="visualizarMiEspacio()" title="Ver cómo lo ven los clientes">👁️ Ver Tienda</button>
+
+                <button class="btn-salir" style="margin-right: 8px; background: rgba(255, 107, 0, 0.1); border-color: var(--naranja); color: var(--naranja);" onclick="window.location.href='index.html'">🗺️ Radar</button>
+                
+                <button class="btn-salir" onclick="cerrarSesion()">Salir</button>
+            </div> 
+
+                      <div class="tabs">
+
+                <button class="tab-btn activo" onclick="cambiarTab('perfil')">🏢 Perfil</button>
+                <button class="tab-btn" onclick="cambiarTab('diseno')">🎨 Diseño</button>
+                <button id="tab-btn-subir" class="tab-btn" onclick="cambiarTab('subir')">➕ Nuevo</button>
+                <button id="tab-btn-lista" class="tab-btn" onclick="cambiarTab('lista')">📦 Catálogo</button>
+                <button id="tab-btn-masivo" class="tab-btn" style="display: none; background: #8a2be2; border-color: #8a2be2;" onclick="cambiarTab('masivo')">⚡ Inv. Masivo</button>
+
+                <button id="tab-btn-pulso" class="tab-btn" style="display: none; background: #00ff64; color: black; border-color: #00ff64;" onclick="cambiarTab('pulso')">📰 Pulso</button>
+            </div>
+            <div id="content-perfil" class="tab-content activo">
+                <label class="section-title">Datos de Contacto</label>
+                <input type="text" id="perfilEmail" class="input-form" disabled placeholder="Correo">
+                <input type="text" id="perfilTelefono" class="input-form" placeholder="Número de WhatsApp">
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 11px; color: #888; margin-bottom: 5px; display: block;">Hora Apertura</label>
+                        <select id="perfilApertura" class="input-form" style="margin-bottom: 0;"></select>
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="font-size: 11px; color: #888; margin-bottom: 5px; display: block;">Hora Cierre</label>
+                        <select id="perfilCierre" class="input-form" style="margin-bottom: 0;"></select>
+                    </div>
+                </div>
+
+                <input type="text" id="perfilDireccion" class="input-form" placeholder="Dirección (Opcional)">
+                                                <div id="contenedor-mapa-perfil">
+                    <label class="section-title" style="margin-top: 15px;">📍 Ubicación Exacta en el Mapa</label>
+                    <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                        <input type="text" id="buscadorMapa" class="input-form" style="margin-bottom: 0;" placeholder="Buscar dirección, ciudad o coordenadas...">
+                        <button class="btn-submit" style="margin: 0; width: auto; padding: 0 15px; font-size: 11px;" onclick="buscarEnMiniMapa()">BUSCAR</button>
+                    </div>
+                    <div id="mini-mapa-perfil" style="width: 100%; height: 220px; border-radius: 12px; border: 1px solid var(--glass-border); margin-bottom: 10px; background: #111; z-index: 1;"></div>
+                    <p style="font-size: 11px; color: #aaa; text-align: center; margin-top: -5px; margin-bottom: 15px;">Mueve el pin rojo para ajustar tu ubicación exacta.</p>
+                    
+                    <input type="hidden" id="perfilLat">
+                    <input type="hidden" id="perfilLng">
+                </div>
+
+                <label class="section-title" style="margin-top:20px;">Posicionamiento</label>
+<input type="text" id="perfilNombre" class="input-form" placeholder="Nombre Oficial">
+
+<div style="position: relative; margin-bottom: 15px;">
+    <input type="text" id="perfilUsername" class="input-form" placeholder="Link personalizado (Ej: la_pizzeria)" style="margin-bottom: 5px; text-transform: lowercase;">
+    <small id="msg-username" style="display: block; font-size: 11px; font-weight: bold; margin-left: 5px; height: 15px;"></small>
+</div>
+
+                <div style="margin-bottom: 15px;">
+    <select id="perfilNichoSelect" class="input-form" style="margin-bottom: 5px;" onchange="toggleNichoOtro()">
+        <option value="">Selecciona tu Sector/Nicho principal...</option>
+        <optgroup label="⚡ NEGOCIOS CON INVENTARIO RÁPIDO">
+            <option value="farmacia">Farmacia / Droguería</option>
+            <option value="ferreteria">Ferretería</option>
+            <option value="supermercado">Supermercado / Mini-market</option>
+            <option value="papeleria">Papelería</option>
+            <option value="licoreria">Licorería</option>
+            <option value="veterinaria">Veterinaria / Mascotas</option>
+            <option value="tecnologia">Tecnología / Celulares</option>
+            <option value="bicicletas">Bicicletas / Repuestos</option>
+        </optgroup>
+        <optgroup label="📍 OTROS NEGOCIOS COMUNES">
+            <option value="restaurante">Restaurante / Comidas Rápidas</option>
+            <option value="ropa">Ropa / Boutique / Calzado</option>
+            <option value="belleza">Peluquería / Barbería / Spa</option>
+            <option value="salud">Consultorio / Médico / Odontología</option>
+            <option value="servicios">Servicios Profesionales / Talleres</option>
+        </optgroup>
+        <option value="otro">Otro (Escribir manualmente)</option>
+    </select>
+    <input type="text" id="perfilNichoOtro" class="input-form" placeholder="Escribe tu Nicho aquí..." style="display: none; border-color: var(--naranja);">
+</div>
+
+                <select id="perfilMoneda" class="input-form">
+    <option value="COP">Moneda: Peso Colombiano (COP)</option>
+    <option value="USD">Moneda: Dólar Estadounidense (USD)</option>
+</select>
+
+                <textarea id="perfilPalabras" class="input-form" placeholder="Palabras clave (Ej: pizzas, arriendos, centro)"></textarea>
+                <input type="number" id="perfilCobertura" class="input-form" placeholder="Radio de cobertura (Ej: 3.5 km)">
+
+                               <div class="modulo-premium">
+                    <div class="lock-overlay lock-perfil">
+                        <span style="font-size:30px;">🚀</span>
+                        <p>Desbloquea tu Historia, Promos y Redes Sociales.</p>
+                        <button class="btn-upgrade" onclick="abrirModal('overlay-soporte')">Hacerme Premium</button>
+                    </div>
+                    <label class="section-title">✨ Enlaces y Redes</label>
+                    <input type="text" id="perfilWp" class="input-form premium-input" placeholder="Link WhatsApp">
+                    <input type="text" id="perfilMaps" class="input-form premium-input" placeholder="Link Google Maps">
+                    <input type="text" id="perfilInstagram" class="input-form premium-input" placeholder="Link Instagram">
+                    
+                    <label class="section-title" style="margin-top:15px;">📖 Engagement y Comercial</label>
+                    <textarea id="perfilHistoria" class="input-form premium-input" placeholder="Historia de tu marca (Genera conexión con tus clientes)"></textarea>
+                    <input type="text" id="perfilRecomendaciones" class="input-form premium-input" placeholder="Recomendaciones (Ej: Pet Friendly, Llevar abrigo)">
+                    <input type="text" id="perfilPromo" class="input-form premium-input" placeholder="Promo Activa (Ej: 2x1 todos los Martes)">
+                    
+                    <div style="display: flex; gap: 10px;">
+                        <input type="number" id="perfilTarifaBase" class="input-form premium-input" placeholder="Tarifa Domicilio Base" style="margin-bottom: 0;">
+                        <input type="number" id="perfilPrecioEntrada" class="input-form premium-input" placeholder="Precio Cover / Entrada" style="margin-bottom: 0;">
+                    </div>
+                </div>
+
+
+                <button class="btn-submit" id="btn-submit-perfil" onclick="guardarPerfil()">GUARDAR PERFIL</button>
+            </div>
+
+            <div id="content-diseno" class="tab-content">
+                <label class="section-title">Identidad Visual</label>
+                <label class="section-title">Forma del Pin (Radar)</label>
+<select id="disenoFormaPin" class="input-form" style="font-size: 14px; font-weight: bold; color: var(--naranja); background: rgba(255,107,0,0.05);">
+    <optgroup label="📍 BÁSICOS ESTÁTICOS (Freemium)">
+        <option value="1">📍 Pin Estándar Clásico</option>
+        <option value="2">🍔 Hamburguesa / Comida Rápida (Básico)</option>
+        <option value="3">🍕 Porción de Pizza (Básico)</option>
+    </optgroup>
+    
+    <optgroup label="✨ ESPECIALIZADOS ANIMADOS 3D (Premium / Aliados)">
+        <option value="4">🚨 Urgencia / Alerta 24h</option>
+        <option value="5">⚙️ Engranaje / Taller</option>
+        <option value="6">🥩 Asadero / Parrilla / Fuego</option>
+        <option value="7">🍦 Heladería / Postres</option>
+        <option value="8">🥗 Comida Saludable / Vegano</option>
+        <option value="9">🍣 Sushi / Comida Asiática</option>
+        <option value="a">💊 Farmacia / Clínica</option>
+        <option value="b">💈 Barbería / Peluquería</option>
+        <option value="c">🧘 Spa / Yoga / Relajación</option>
+        <option value="d">👾 Tecnología / Gaming</option>
+        <option value="e">👗 Boutique / Ropa Moda</option>
+        <option value="f">🍸 Discoteca / Bar Nocturno</option>
+        <option value="g">🛠️ Ferretería / Construcción</option>
+        <option value="h">🚗 Taxis / Movilidad</option>
+        <option value="i">🚨 Policía / Ambulancia</option>
+        <option value="j">🐾 Veterinaria / Mascotas</option>
+        <option value="k">🛒 Supermercado / Abarrotes</option>
+        <option value="l">📚 Librería / Educación</option>
+        <option value="m">🎵 Disquera / Eventos Musicales</option>
+        <option value="n">💎 Joyería / Relojería</option>
+        <option value="o">⚽ Canchas / Gimnasio</option>
+        <option value="p">🌷 Floristería / Vivero</option>
+        <option value="q">🎬 Cine / Teatro</option>
+        <option value="r">🏗️ Constructora / Arquitectura</option>
+        <option value="s">🧼 Lavandería / Limpieza</option>
+        <option value="t">🍻 Licorería / Estanco</option>
+        <option value="u">🎰 Casino / Apuestas</option>
+        <option value="v">📸 Fotografía / Video Visual</option>
+        <option value="w">🧶 Artesanía / Manualidades</option>
+        <option value="x">🥐 Panadería / Repostería</option>
+        <option value="y">🍨 Heladería Premium (Gota)</option>
+        <option value="z">🔮 Esoterismo / Tarot</option>
+        <option value="A">✈️ Agencia de Viajes / Turismo</option>
+        <option value="B">🏦 Banco / Finanzas</option>
+        <option value="C">💻 Coworking / Oficinas</option>
+        <option value="D">🦷 Odontología</option>
+        <option value="E">💍 Bodas / Planners</option>
+        <option value="F">🎡 Parque Diversiones / Feria</option>
+        <option value="G">⛽ Gasolinera / Combustible</option>
+        <option value="H">🍰 Repostería Fina / Tortas</option>
+        <option value="I">⛪ Iglesia / Religión</option>
+        <option value="J">🧸 Juguetería</option>
+        <option value="K">📰 Kiosco / Revista</option>
+        <option value="L">📦 Logística / Envíos</option>
+        <option value="M">🖼️ Museo / Galería de Arte</option>
+        <option value="N">🏕️ Ecoturismo / Glamping</option>
+        <option value="O">👓 Óptica / Salud Visual</option>
+        <option value="P">🔥 Asadero Premium VIP</option>
+        <option value="Q">🧪 Laboratorio Clínico</option>
+        <option value="R">🍽️ Restaurante Gourmet Chef</option>
+        <option value="S">🛡️ Firma Legal / Abogados</option>
+        <option value="T">✒️ Tattoo Studio / Piercings</option>
+        <option value="U">🎓 Universidad / Instituto</option>
+        <option value="V">🐾 Veterinaria Clínica VIP</option>
+        <option value="W">📶 Cybercafé / Internet Tech</option>
+        <option value="X">🔞 Sex Shop / Adultos</option>
+        <option value="Y">🧘 Centro de Meditación</option>
+        <option value="Z">👟 Zapatería / Deportes Calzado</option>
+    </optgroup>
+</select>
+
+
+                <div class="file-upload-wrapper">
+                    <input type="file" id="disenoLogoFile" class="file-upload-input" accept="image/*" onchange="actualizarNombreImagenUI(this, 'texto-logo')">
+                    <div class="file-upload-ui" id="texto-logo">📸 Subir Logo Nuevo</div>
+                </div>
+                <div class="file-upload-wrapper">
+                    <input type="file" id="disenoPortadaFile" class="file-upload-input" accept="image/*" onchange="actualizarNombreImagenUI(this, 'texto-portada')">
+                    <div class="file-upload-ui" id="texto-portada">🖼️ Subir Portada Nueva</div>
+                                    <div class="file-upload-wrapper">
+                    <input type="file" id="disenoNombrePngFile" class="file-upload-input" accept="image/png, image/webp" onchange="actualizarNombreImagenUI(this, 'texto-nombre-png')">
+                    <div class="file-upload-ui" id="texto-nombre-png">🔤 Subir Título PNG (Logo Tipográfico)</div>
+                </div>
+
+                </div>
+
+                <label class="section-title" style="margin-top:20px;">Colores Corporativos</label>
+                <div style="display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px;">
+                    <input type="color" id="disenoColorPicker" class="input-form" style="padding: 0; width: 60px; height: 48px; cursor: pointer; border-radius: 12px; border:none;" onchange="document.getElementById('disenoColorHex').value = this.value">
+                    <input type="text" id="disenoColorHex" class="input-form" placeholder="Principal (Ej: #ff6b00)" style="margin-bottom: 0; flex: 1;">
+                </div>
+
+                <button id="btn-add-color2" style="background: transparent; border: 1px dashed var(--naranja); color: var(--naranja); padding: 8px; border-radius: 8px; font-size: 11px; cursor: pointer; margin-bottom: 15px; width: 100%; font-weight: bold;" onclick="mostrarColor(2)">+ ¿Tienes un color secundario?</button>
+
+                <div id="container-color2" style="display: none; gap: 10px; align-items: flex-start; margin-bottom: 10px;">
+                    <input type="color" id="disenoColorPicker2" class="input-form" style="padding: 0; width: 60px; height: 48px; cursor: pointer; border-radius: 12px; border:none;" onchange="document.getElementById('disenoColorHex2').value = this.value">
+                    <input type="text" id="disenoColorHex2" class="input-form" placeholder="Secundario (Ej: #000000)" style="margin-bottom: 0; flex: 1;">
+                    <button style="background: rgba(255, 68, 68, 0.15); color: #ff4444; border: none; border-radius: 12px; cursor: pointer; height: 48px; padding: 0 15px; font-weight: bold;" onclick="ocultarColor(2)">X</button>
+                </div>
+
+                <button id="btn-add-color3" style="display: none; background: transparent; border: 1px dashed var(--naranja); color: var(--naranja); padding: 8px; border-radius: 8px; font-size: 11px; cursor: pointer; margin-bottom: 15px; width: 100%; font-weight: bold;" onclick="mostrarColor(3)">+ ¿Tienes un color terciario?</button>
+
+                <div id="container-color3" style="display: none; gap: 10px; align-items: flex-start; margin-bottom: 15px;">
+                    <input type="color" id="disenoColorPicker3" class="input-form" style="padding: 0; width: 60px; height: 48px; cursor: pointer; border-radius: 12px; border:none;" onchange="document.getElementById('disenoColorHex3').value = this.value">
+                    <input type="text" id="disenoColorHex3" class="input-form" placeholder="Terciario (Ej: #ffffff)" style="margin-bottom: 0; flex: 1;">
+                    <button style="background: rgba(255, 68, 68, 0.15); color: #ff4444; border: none; border-radius: 12px; cursor: pointer; height: 48px; padding: 0 15px; font-weight: bold;" onclick="ocultarColor(3)">X</button>
+                </div>
+                               <div class="modulo-premium">
+                    <div class="lock-overlay lock-diseno">
+                        <span style="font-size:30px;">🗺️</span>
+                        <p>Personaliza tu Pin, Fondo y Banners.</p>
+                        <button class="btn-upgrade" onclick="abrirModal('overlay-soporte')">Hacerme Premium</button>
+                    </div>
+                    <label class="section-title">✨ Avanzado</label>
+                    <div class="file-upload-wrapper">
+                        <input type="file" id="disenoPinFile" class="file-upload-input premium-input" accept="image/png, image/webp" onchange="actualizarNombreImagenUI(this, 'texto-pin')">
+                        <div class="file-upload-ui premium-input" id="texto-pin" style="border-color: #FFD700; color: #FFD700; background: rgba(255,215,0,0.05);">📍 Subir Pin Personalizado (.PNG)</div>
+                    </div>
+                    <div class="file-upload-wrapper">
+                        <input type="file" id="disenoWallpaperFile" class="file-upload-input premium-input" accept="image/*" onchange="actualizarNombreImagenUI(this, 'texto-wallpaper')">
+                        <div class="file-upload-ui premium-input" id="texto-wallpaper" style="border-color: #FFD700; color: #FFD700; background: rgba(255,215,0,0.05);">🌌 Subir Fondo de Pantalla</div>
+                    </div>
+                    <div class="file-upload-wrapper">
+                        <input type="file" id="disenoBannerFile" class="file-upload-input premium-input" accept="image/*" onchange="actualizarNombreImagenUI(this, 'texto-banner')">
+                        <div class="file-upload-ui premium-input" id="texto-banner" style="border-color: #FFD700; color: #FFD700; background: rgba(255,215,0,0.05);">🎟️ Subir Banner Promocional</div>
+                    </div>
+                </div>
+
+                <button class="btn-submit" id="btn-submit-diseno" onclick="guardarDiseno()">GUARDAR DISEÑO</button>
+            </div>
+
+            <div id="content-subir" class="tab-content">
+                <input type="hidden" id="prodEditId">
+                <input type="hidden" id="prodImagenActual">
+                <input type="hidden" id="prodGaleriaActual"> 
+                
+                <div id="limite-plan-msg" class="alert-limit">
+                    Has alcanzado el límite de tu plan.<br><a onclick="abrirModal('overlay-soporte')">Mejora a Premium para crear ilimitados.</a>
+                </div>
+                
+                <label class="section-title">Información Básica</label>
+                <input type="text" id="prodNombre" class="input-form" placeholder="Título / Nombre del artículo">
+                <input type="number" step="any" id="prodPrecio" class="input-form" placeholder="Precio (Ej: 15000 COP o 15.50 USD)">
+
+                <input type="text" id="prodCategoria" class="input-form" placeholder="Categoría o Zona (Ej: Centro)">
+                
+                <select id="prodTipo" class="input-form">
+                    <option value="producto">📦 Entregable / Físico</option>
+                    <option value="servicio">🤝 Servicio / Contacto</option>
+                </select>
+
+                                <div id="campos-inmueble" style="display: none; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; gap: 10px;">
+                        <select id="prodCuartos" class="input-form" style="flex: 1; margin-bottom: 0;">
+                            <option value="">Habitaciones</option>
+                            <option value="1hab">1 Habitación</option>
+                            <option value="2hab">2 Habitaciones</option>
+                            <option value="3hab">3+ Habitaciones</option>
+                        </select>
+                        <select id="prodEstrato" class="input-form" style="flex: 1; margin-bottom: 0;">
+                            <option value="">Estrato</option>
+                            <option value="e12">1 - 2</option>
+                            <option value="e34">3 - 4</option>
+                            <option value="e56">5 - 6</option>
+                        </select>
+                    </div>
+                    
+                    <label class="section-title" style="margin-top: 10px; margin-bottom: 0;">📍 Ubicación de la Propiedad</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="buscadorMapaProd" class="input-form" style="margin-bottom: 0;" placeholder="Buscar calle, barrio, ciudad...">
+                        <button class="btn-submit" style="margin: 0; width: auto; padding: 0 15px; font-size: 11px;" onclick="buscarEnMiniMapaProd()">BUSCAR</button>
+                    </div>
+                    <div id="mini-mapa-prod" style="width: 100%; height: 200px; border-radius: 12px; border: 1px solid var(--glass-border); background: #111; z-index: 1;"></div>
+                    <p style="font-size: 10px; color: #aaa; text-align: center; margin-top: -5px; margin-bottom: 0;">Mueve el pin azul para ubicar la casa.</p>
+                    
+                    <input type="hidden" id="prodLat">
+                    <input type="hidden" id="prodLng">
+                </div>
+
+                <div class="file-upload-wrapper">
+                    <input type="file" id="prodImagenFile" class="file-upload-input" accept="image/*" onchange="actualizarNombreImagenUI(this, 'file-upload-text')">
+                    <div class="file-upload-ui" id="file-upload-text">📸 Subir foto principal</div>
+                </div>
+
+                <div class="file-upload-wrapper" style="margin-top: 10px;">
+                    <input type="file" id="prodGaleriaFiles" class="file-upload-input" accept="image/*" multiple onchange="manejarArchivosGaleria(this)">
+                    <div class="file-upload-ui" id="galeria-upload-text" style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.3); color: #ddd;">
+                        📸 Galería Extra (Opcional)
+                    </div>
+                    <p id="galeria-limite-text" style="font-size:11px; color:#aaa; text-align:center; margin-top: 5px; font-weight: bold;"></p>
+                </div>
+
+                <div class="modulo-premium">
+                    <div class="lock-overlay lock-productos">
+                        <span style="font-size:30px;">💎</span>
+                        <p>Añade descripciones y marquillas áureas.</p>
+                        <button class="btn-upgrade" onclick="abrirModal('overlay-soporte')">Hacerme Premium</button>
+                    </div>
+                    <label class="section-title">✨ Destaca tu Publicación</label>
+                    <input type="text" id="prodBadge" class="input-form premium-input" placeholder="Etiqueta (Ej: ¡Nuevo!, Vendido)">
+                    <textarea id="prodCuerpo" class="input-form premium-input" placeholder="Descripción detallada (Máx. 250 caract)..." maxlength="250" oninput="actualizarContador(this, 'contador-cuerpo')"></textarea>
+                    <small id="contador-cuerpo" style="color: #666; font-size: 11px; display: block; text-align: right; margin-top: -5px; margin-bottom: 15px;">0/250</small>
+                    <input type="text" id="prodMarco" class="input-form premium-input" placeholder="Link de marco personalizado áureo">
+                </div>
+
+                <button class="btn-submit" id="btn-submit-producto" onclick="guardarProducto()">GUARDAR DATOS</button>
+                <button class="btn-submit" id="btn-cancelar-edicion" onclick="cancelarEdicion()" style="display: none; background: transparent; border: 1px solid var(--naranja); color: var(--naranja); box-shadow: none; margin-top: 10px;">Cancelar Edición</button>
+            </div>
+                        <div id="content-lista" class="tab-content">
+                <label class="section-title">Mi Catálogo</label>
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <input type="text" id="filtro-busqueda" class="input-form" placeholder="🔍 Buscar por nombre..." style="margin-bottom: 0; flex: 2;" onkeyup="manejarBusquedaTeclado(event)">
+                    <select id="filtro-categoria" class="input-form" style="margin-bottom: 0; flex: 1;" onchange="filtrarCatalogo()">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+
+                <div id="lista-productos-container"></div>
+                
+                <button id="btn-cargar-mas" class="btn-submit" style="display: none; background: transparent; border: 1px dashed var(--naranja); color: var(--naranja); box-shadow: none; margin-top: 15px;" onclick="cargarMasProductos()">⬇️ Cargar más</button>
+            </div>
+
+            <div id="content-aliados" class="tab-content">
+                
+                <div id="aliados-view-negocio" style="display: none;">
+                    <div style="background: rgba(0,0,0,0.5); padding: 15px; border-radius: 15px; text-align: center; border: 1px solid rgba(255,68,68,0.2); margin-bottom: 20px;">
+                        <p style="color: #888; font-size: 11px; margin: 0 0 5px 0; text-transform: uppercase; font-weight: bold;">Deuda Actual Aliados</p>
+                        <h2 id="saldo-adeudado" style="color: #ff4444; margin: 0; font-size: 28px;">$0</h2>
+                    </div>
+                    
+                    <label class="section-title">Validar Venta (Código TX)</label>
+                    <input type="text" id="tx-codigo" class="input-form" placeholder="Ej: TX-ABC123" style="text-transform: uppercase;">
+                    <input type="number" id="tx-monto" class="input-form" placeholder="Monto total de la compra">
+                    
+                    <button id="btn-validar-tx" class="btn-submit" onclick="validarCodigoTX()">Confirmar Venta</button>
+                </div>
+
+                <div id="aliados-view-promotor" style="display: none;">
+                    <div style="background: rgba(0,0,0,0.5); padding: 15px; border-radius: 15px; text-align: center; border: 1px solid rgba(0,255,100,0.2); margin-bottom: 20px;">
+                        <p style="color: #888; font-size: 11px; margin: 0 0 5px 0; text-transform: uppercase; font-weight: bold;">Comisiones Ganadas</p>
+                        <h2 id="saldo-ganado" style="color: #00ff64; margin: 0; font-size: 28px;">$0</h2>
+                    </div>
+                    
+                    <label class="section-title">Tu Código de Aliado</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="mi-codigo-afiliado" class="input-form" readonly style="margin-bottom: 0; color: var(--naranja); font-weight: bold; text-align: center; letter-spacing: 2px;">
+                        <button class="btn-submit" style="margin: 0; width: auto; padding: 0 20px;" onclick="copiarMiCodigo()">Copiar</button>
+                    </div>
+                    <p style="font-size: 11px; color: #aaa; text-align: center; margin-top: 15px; line-height: 1.4;">Comparte este código con los negocios de la red para recibir tu comisión automática cuando les envíes clientes.</p>
+                </div>
+            </div>
+
+            <div id="content-masivo" class="tab-content">
+                <div style="background: rgba(138, 43, 226, 0.1); border: 1px solid rgba(138, 43, 226, 0.4); padding: 15px; border-radius: 12px; margin-bottom: 20px; text-align: center;">
+                    <p style="color: #d8b4fe; font-size: 12px; margin: 0; line-height: 1.4;"><strong>Modo Inventario Ultrarrápido</strong><br>Añade productos de catálogos predefinidos sin subir fotos ni descripciones.</p>
+                </div>
+                
+                <label class="section-title">Buscador Universal</label>
+                <div style="position: relative; margin-bottom: 20px;">
+                    <input type="text" id="buscador-json" class="input-form" placeholder="🔍 Ej: Aspirina, Cemento, Cerveza..." onkeyup="filtrarDiccionarioJSON()" style="margin-bottom: 0;">
+                    
+                    <div id="resultados-json" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; background: var(--bg-oscuro); border: 1px solid rgba(138, 43, 226, 0.5); border-radius: 0 0 12px 12px; max-height: 200px; overflow-y: auto; z-index: 100; box-shadow: 0 10px 20px rgba(0,0,0,0.8);"></div>
+                </div>
+
+                <label class="section-title">Mi Inventario Lote</label>
+                <div id="mi-inventario-masivo" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; max-height: 400px; overflow-y: auto; padding-right: 5px;"></div>
+
+                <button class="btn-submit" style="background: #8a2be2; box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);" onclick="guardarInventarioMasivo()">GUARDAR PRECIOS EN LOTE</button>
+            </div>
+
+                        <div id="content-pulso" class="tab-content">
+                <label class="section-title">Redacción | Pulso Urbano</label>
+                <input type="text" id="pulsoPlusCode" class="input-form" placeholder="📍 Plus Code del Suceso/Lugar (Opcional)">
+                <input type="text" id="pulsoTitulo" class="input-form" placeholder="Título del Artículo">
+                <input type="text" id="pulsoAutor" class="input-form" placeholder="Nombre del Autor (Ej: Equipo Editorial)">
+                
+                <select id="pulsoCategoria" class="input-form">
+                    <option value="">Selecciona una Categoría...</option>
+                    <option value="Noticias">📰 Noticias Locales</option>
+                    <option value="Deportes">⚽ Deportes</option>
+                    <option value="Comunidad">👥 Comunidad</option>
+                    <option value="Clasificados">🛒 Clasificados</option>
+                </select>
+
+                <div class="modulo-premium" style="border-color: #00ff64; background: rgba(0, 255, 100, 0.05);">
+                    <label class="section-title" style="color: #00ff64;">Estrategia de Monetización</label>
+                    <input type="text" id="pulsoSponsor" class="input-form" style="border-color: rgba(0, 255, 100, 0.3);" placeholder="Pega el ID del Negocio (Sponsor_ID) - Opcional">
+                    <p style="font-size: 10px; color: #888; margin-top: -10px; margin-bottom: 10px;">El negocio aparecerá como "Patrocinado por" en el artículo.</p>
+                </div>
+
+                <div class="file-upload-wrapper">
+                    <input type="file" id="pulsoPortadaFile" class="file-upload-input" accept="image/*" onchange="actualizarNombreImagenUI(this, 'texto-pulso-portada')">
+                    <div class="file-upload-ui" id="texto-pulso-portada">📸 Subir Imagen de Portada</div>
+                </div>
+
+                <textarea id="pulsoCuerpo" class="input-form" placeholder="Cuerpo del artículo (Soporta múltiples párrafos)..." style="min-height: 250px;"></textarea>
+
+                <button class="btn-submit" id="btn-submit-pulso" style="background: #00ff64; color: black; box-shadow: 0 5px 15px rgba(0, 255, 100, 0.4);" onclick="guardarArticuloPulso()">PUBLICAR ARTÍCULO</button>
+            </div>
+
+            </div>
+    </div>
+        <script type="module">
+      import * as geofire from 'https://cdn.jsdelivr.net/npm/geofire-common@5.2.0/+esm';
+      import QRpidoDB from './core-db.js';
+
+      function generarGeohash(lat, lng) {
+          return geofire.geohashForLocation([lat, lng]);
+      }
+
+        let idNegocioLogueado = null;
+        let isPremium = false;
+        let datosGlobalesNegocio = null;
+        let listaProductosGlobal = [];
+        
+        let ultimoDocCatalogo = null;
+        let categoriaFiltroActual = "";
+        let terminoBusquedaActual = "";
+        let categoriasDisponibles = new Set();
+
+        window.sanitizarTexto = function(texto) {
+            if (texto === null || texto === undefined) return '';
+            const div = document.createElement('div');
+            div.textContent = texto;
+            return div.innerHTML;
+        };
+
+        window.cargarSaldosAliados = async () => {
+            try {
+                if (datosGlobalesNegocio.tipo_modelo === 'servicio') {
+                    document.getElementById('saldo-ganado').innerText = "$0";
+                    document.getElementById('mi-codigo-afiliado').value = "TX-" + idNegocioLogueado.substring(0,6).toUpperCase();
+                } else {
+                    const { success, data, error } = await QRpidoDB.RadarService.obtenerComisiones(idNegocioLogueado);
+                    let adeudado = 0;
+                    if (success && data) {
+                        data.forEach(comision => { adeudado += comision.comision_ganada || 0; });
+                    }
+                    document.getElementById('saldo-adeudado').innerText = "$" + adeudado.toLocaleString('es-CO');
+                }
+            } catch (e) { console.error("Error cargando saldos:", e); }
+        };
+
+        window.validarCodigoTX = async () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            const tx = document.getElementById('tx-codigo').value.trim().toUpperCase();
+            const monto = parseFloat(document.getElementById('tx-monto').value);
+            const monedaActual = datosGlobalesNegocio.moneda || 'COP';
+            const limiteMinimo = monedaActual === 'USD' ? 7 : 30000;
+            
+            if(!tx || isNaN(monto) || monto < limiteMinimo) {
+                const minFormateado = new Intl.NumberFormat(monedaActual === 'USD' ? 'en-US' : 'es-CO', { style: 'currency', currency: monedaActual }).format(limiteMinimo);
+                return alert(`Ingresa un código válido. La venta mínima para comisionar es de ${minFormateado}.`);
+            }
+
+            const btn = document.getElementById('btn-validar-tx');
+            btn.innerText = "Validando..."; btn.disabled = true;
+
+            try {
+                const comision = monto * 0.10; 
+                const docId = `TX_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+                const payload = {
+                    codigo_tx: tx, monto_venta: monto, comision_ganada: comision, estado: "validado",
+                    fecha: new Date().toISOString(), moneda: datosGlobalesNegocio.moneda || "COP" 
+                };
+                const { success, error } = await QRpidoDB.AdminService.guardarComision(idNegocioLogueado, docId, payload);
+                if (!success) throw new Error(error);
+
+                alert(`¡Venta confirmada! Comisión calculada: $${comision.toLocaleString('es-CO')}`);
+                document.getElementById('tx-codigo').value = '';
+                document.getElementById('tx-monto').value = '';
+                window.cargarSaldosAliados(); 
+            } catch (e) { alert("Error validando TX: " + e.message); } finally { btn.innerText = "Confirmar Venta"; btn.disabled = false; }
+        };
+
+        window.copiarMiCodigo = function() {
+            if (navigator.vibrate) navigator.vibrate(50);
+            const val = document.getElementById('mi-codigo-afiliado').value;
+            navigator.clipboard.writeText(val).then(() => alert('¡Código copiado! 🔗 Compártelo para ganar comisiones.'));
+        };
+
+        window.mostrarColor = function(num) {
+            if (navigator.vibrate) navigator.vibrate(50);
+            document.getElementById(`container-color${num}`).style.display = 'flex';
+            document.getElementById(`btn-add-color${num}`).style.display = 'none';
+            if(num === 2) document.getElementById('btn-add-color3').style.display = 'block';
+        };
+
+        window.ocultarColor = function(num) {
+            if (navigator.vibrate) navigator.vibrate(50);
+            document.getElementById(`container-color${num}`).style.display = 'none';
+            document.getElementById(`disenoColorHex${num}`).value = '';
+            if(num === 3) document.getElementById('btn-add-color3').style.display = 'block';
+            else if (num === 2) {
+                document.getElementById('btn-add-color2').style.display = 'block';
+                document.getElementById('btn-add-color3').style.display = 'none';
+                document.getElementById('container-color3').style.display = 'none';
+                document.getElementById('disenoColorHex3').value = '';
+            }
+        };
+
+        window.comprimirImagen = function(file, maxWidth = 800, quality = 0.7) {
+            return new Promise(async (resolve, reject) => {
+                if (!file || !file.type.startsWith('image/')) return resolve(file);
+                try {
+                    const bitmap = await createImageBitmap(file);
+                    let width = bitmap.width, height = bitmap.height;
+                    if (width > maxWidth) { height = Math.round((height * maxWidth) / width); width = maxWidth; }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width; canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(bitmap, 0, 0, width, height);
+                    bitmap.close(); 
+                    canvas.toBlob(blob => { resolve(blob); }, 'image/webp', quality);
+                } catch (error) { reject(error); }
+            });
+        };
+
+        function poblarHorarios() {
+            let opciones = '<option value="">Selecciona...</option>';
+            for(let h=0; h<24; h++) {
+                for(let m of ['00', '30']) {
+                    const militar = `${h.toString().padStart(2, '0')}:${m}`;
+                    const ampm = h >= 12 ? 'PM' : 'AM';
+                    let h12 = h % 12 || 12;
+                    const visual = `${h12.toString().padStart(2, '0')}:${m} ${ampm}`;
+                    opciones += `<option value="${militar}">${visual}</option>`;
+                }
+            }
+            document.getElementById('perfilApertura').innerHTML = opciones;
+            document.getElementById('perfilCierre').innerHTML = opciones;
+        }
+        poblarHorarios();
+
+        window.abrirModal = (id) => document.getElementById(id).classList.add('activo');
+        window.cerrarModal = (e, id) => { if (e.target.id === id) document.getElementById(id).classList.remove('activo'); }
+        
+        window.addEventListener('click', function(e) {
+            const badge = document.getElementById('ui-rango');
+            const tt = document.getElementById('tooltip-rango');
+            if (badge && tt && e.target !== badge && !tt.contains(e.target)) { tt.style.display = 'none'; }
+        });
+
+        window.toggleTooltipRango = function() {
+            if (navigator.vibrate) navigator.vibrate(50);
+            const tt = document.getElementById('tooltip-rango');
+            if (tt.style.display === 'none' || tt.style.display === '') {
+                tt.style.display = 'block';
+                if(isPremium) {
+                    document.getElementById('tooltip-rango-texto').innerText = "¡Eres Premium! 👑";
+                    document.querySelector('.btn-tooltip').innerText = "Soporte VIP";
+                }
+            } else { tt.style.display = 'none'; }
+        }
+        
+        function aplicarSwipeAbajo(modalId, contentId) {
+            const modal = document.getElementById(modalId);
+            const content = document.getElementById(contentId);
+            let startY = 0, currentY = 0;
+            content.addEventListener('touchstart', e => startY = e.touches[0].clientY, {passive: true});
+            content.addEventListener('touchmove', e => {
+                currentY = e.touches[0].clientY;
+                if(currentY > startY && content.scrollTop === 0) content.style.transform = `translateY(${currentY - startY}px)`;
+            }, {passive: true});
+            content.addEventListener('touchend', () => {
+                if (currentY - startY > 100 && content.scrollTop === 0) modal.classList.remove('activo');
+                content.style.transform = ''; 
+            });
+        }
+        aplicarSwipeAbajo('overlay-soporte', 'sheet-soporte');
+
+        window.contactarWhatsappSoporte = async function() {
+            if (navigator.vibrate) navigator.vibrate(50);
+            let numeroDestino = "573000000000";
+            const { success, data } = await QRpidoDB.LocalService.obtenerConfiguracion(); 
+            if (success && data?.whatsapp_soporte) numeroDestino = data.whatsapp_soporte;
+            const idCli = idNegocioLogueado || "Usuario Nuevo";
+            window.open(`https://wa.me/${numeroDestino}?text=${encodeURIComponent(`Hola QRpido, soy la bóveda: *${idCli}*. Solicito soporte premium.`)}`, '_blank');
+        }
+
+        window.contactarEmailSoporte = async function() {
+            if (navigator.vibrate) navigator.vibrate(50);
+            let correoDestino = "soporte@tuqrpido.com";
+            const { success, data } = await QRpidoDB.LocalService.obtenerConfiguracion(); 
+            if (success && data?.correo_soporte) correoDestino = data.correo_soporte;
+            const idCli = idNegocioLogueado || "Usuario Nuevo";
+            window.location.href = `mailto:${correoDestino}?subject=Soporte QRpido - Bóveda: ${idCli}&body=Hola equipo, necesito ayuda con: `;
+        }
+
+                window.cambiarTab = (tabId) => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('activo'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('activo'));
+            document.getElementById(`content-${tabId}`).classList.add('activo');
+            const botones = document.querySelectorAll('.tab-btn');
+            botones.forEach(btn => { if(btn.getAttribute('onclick').includes(tabId)) btn.classList.add('activo'); });
+            
+            // 🚨 DESPERTADOR DEL MAPA DE PROPIEDADES
+            if (tabId === 'subir' && window.inicializarMiniMapaProd) {
+                setTimeout(() => window.inicializarMiniMapaProd(), 300);
+            }
+        }
+
+        
+        window.actualizarContador = (el, idContador) => { document.getElementById(idContador).innerText = `${el.value.length}/250`; }
+        window.actualizarNombreImagenUI = (input, idTexto) => {
+            const textoUI = document.getElementById(idTexto);
+            if (input.files && input.files[0]) {
+                textoUI.innerText = `✔️ Archivo listo`; textoUI.style.borderColor = "#00ff00"; textoUI.style.color = "#00ff00";
+            } else {
+                textoUI.innerText = "📸 Subir archivo"; textoUI.style.borderColor = "var(--naranja)"; textoUI.style.color = "var(--naranja)";
+            }
+        }
+
+        window.manejarArchivosGaleria = function(input) {
+            let maxExtra = isPremium ? (datosGlobalesNegocio.tipo_modelo === 'inmueble' ? 9 : 4) : (datosGlobalesNegocio.tipo_modelo === 'inmueble' ? 2 : 1);
+            let cant = input.files.length;
+            if (cant > maxExtra) {
+                alert(`⚠️ Límite superado. Tu plan permite un máximo de ${maxExtra} fotos extra. Solo se subirán las primeras ${maxExtra}.`);
+                cant = maxExtra; 
+            }
+            const textoUI = document.getElementById('galeria-upload-text');
+            if (cant > 0) {
+                textoUI.innerText = `📸 ${cant} foto(s) extra lista(s)`; textoUI.style.borderColor = "#00ff00"; textoUI.style.color = "#00ff00";
+            } else {
+                textoUI.innerText = "📸 Subir Galería Extra (Opcional)"; textoUI.style.borderColor = "rgba(255,255,255,0.3)"; textoUI.style.color = "#ddd";
+            }
+        }
+
+        window.iniciarConGoogle = async () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            const { success, error } = await QRpidoDB.SecurityService.iniciarConGoogle();
+            if (!success) alert("Error con Google: " + error);
+        };
+
+        let modoMagicAdmin = false;
+        window.toggleMagicAdmin = () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            modoMagicAdmin = !modoMagicAdmin;
+            const passInput = document.getElementById('login-pass');
+            const btnAccion = document.getElementById('btn-login-accion');
+            
+            if (modoMagicAdmin) {
+                passInput.style.display = 'none';
+                btnAccion.innerText = 'Enviar Enlace Mágico';
+                btnAccion.onclick = window.enviarMagicLinkAdmin;
+            } else {
+                passInput.style.display = 'block';
+                btnAccion.innerText = 'Iniciar Sesión';
+                btnAccion.onclick = window.iniciarSesion;
+            }
+        }
+
+        window.enviarMagicLinkAdmin = async () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            const email = document.getElementById('login-email').value.trim();
+            if (!email) return alert("Por favor ingresa tu correo.");
+            
+            const btn = document.getElementById('btn-login-accion');
+            btn.innerText = "Enviando..."; btn.disabled = true;
+            
+            const { success, error } = await QRpidoDB.SecurityService.enviarMagicLink(email, window.location.href);
+            if (success) {
+                window.localStorage.setItem('emailForSignInAdmin', email);
+                alert("¡Enlace enviado! Revisa tu bandeja de entrada o carpeta de SPAM.");
+            } else { alert("Error: " + error); }
+            btn.innerText = "Enviar Enlace Mágico"; btn.disabled = false; 
+        }
+
+        if (QRpidoDB.SecurityService.esEnlaceMagico(window.location.href)) {
+            let email = window.localStorage.getItem('emailForSignInAdmin') || window.prompt('Por favor, proporciona tu correo para confirmación');
+            QRpidoDB.SecurityService.verificarMagicLink(email, window.location.href).then(({ success, error }) => {
+                if (success) window.localStorage.removeItem('emailForSignInAdmin');
+                else alert("Error verificando enlace: " + error);
+            });
+        }
+
+        window.iniciarSesion = async () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            const email = document.getElementById('login-email').value.trim();
+            const pass = document.getElementById('login-pass').value;
+            if(!email || !pass) return alert("Llena ambos campos para acceder.");
+            
+            const btn = document.getElementById('btn-login-accion');
+            btn.innerText = "Verificando Bóveda..."; btn.disabled = true;
+            
+            const { success, error } = await QRpidoDB.SecurityService.iniciarSesion(email, pass);
+            if (!success) {
+                alert("Credenciales incorrectas o bloqueadas. (" + error + ")");
+                btn.innerText = "Entrar a mi Bóveda"; btn.disabled = false;
+            }
+        }
+
+        window.registrarUsuario = async () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            const email = document.getElementById('reg-email').value.trim();
+            const pass = document.getElementById('reg-pass').value;
+            const tipoCuenta = document.querySelector('input[name="tipo_cuenta"]:checked').value;
+            
+            if(!email || !pass) return alert("Completa el correo y la contraseña.");
+
+            const btn = document.getElementById('btn-registrar');
+            btn.innerText = "Creando Bóveda..."; btn.disabled = true;
+
+            const { success, error } = await QRpidoDB.SecurityService.registrarUsuario(email, pass, tipoCuenta);
+            if (success) {
+                if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
+            } else {
+                alert("Error al registrar: " + error);
+                btn.innerText = "Crear mi cuenta ahora"; btn.disabled = false;
+            }
+        };
+
+        window.cerrarSesion = async () => { if (navigator.vibrate) navigator.vibrate(50); await QRpidoDB.SecurityService.cerrarSesion(); }
+
+        QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
+            if (user) {
+                const { success: adminSuccess, data: adminData } = await QRpidoDB.SecurityService.obtenerRolAdmin(user.uid);
+                let userRole = adminSuccess && adminData ? adminData.rol : "estandar";
+
+                const { success: dirSuccess, data: dirData, error } = await QRpidoDB.AdminService.obtenerNegocioPorUsuario(user.uid, user.email, userRole);
+                
+                if (!dirSuccess && userRole !== "editor") {
+                    alert("⚠️ " + error);
+                    await QRpidoDB.SecurityService.cerrarSesion();
+                    return;
+                }
+
+                if (dirData) {
+                    datosGlobalesNegocio = dirData;
+                    idNegocioLogueado = dirData.id || user.uid;
+                    isPremium = (datosGlobalesNegocio.premium === "SI" || datosGlobalesNegocio.premium === true);
+                } else {
+                    datosGlobalesNegocio = { tipo_modelo: 'admin' };
+                    idNegocioLogueado = user.uid;
+                }
+
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('dashboard-screen').style.display = 'block';
+
+                const selectNicho = document.getElementById('perfilNichoSelect');
+
+                if (userRole === "editor") {
+                    document.querySelectorAll('.tab-btn:not(#tab-btn-pulso)').forEach(btn => btn.style.display = 'none');
+                    document.getElementById('tab-btn-pulso').style.display = 'block';
+                    document.getElementById('ui-nombre').innerText = "Panel Editorial";
+                    document.getElementById('ui-rango').innerText = "EDITOR";
+                    document.getElementById('ui-rango').style.background = "#00ff64";
+                    document.getElementById('ui-rango').style.color = "black";
+                    window.cambiarTab('pulso'); 
+                    return; 
+                } 
+                
+                if (userRole === "super_admin") {
+                    document.getElementById('tab-btn-pulso').style.display = 'block';
+                }
+
+                if (isPremium) {
+                    document.querySelectorAll('.lock-overlay').forEach(lock => lock.style.display = 'none');
+                }
+
+                if(datosGlobalesNegocio.logo) {
+                    document.getElementById('ui-logo').src = datosGlobalesNegocio.logo;
+                    document.getElementById('ui-logo').style.display = 'block';
+                }
+
+                if(datosGlobalesNegocio.nombre_png) {
+                    document.getElementById('ui-nombre-img').src = datosGlobalesNegocio.nombre_png;
+                    document.getElementById('ui-nombre-img').style.display = 'block';
+                    document.getElementById('ui-nombre').style.display = 'none';
+                } else {
+                    document.getElementById('ui-nombre-img').style.display = 'none';
+                    document.getElementById('ui-nombre').style.display = 'block';
+                }
+
+                const dock = document.getElementById('ui-social-dock');
+                dock.innerHTML = '';
+                let hasSocial = false;
+                
+                const iconIG = `<svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 1.734-6.98 6.023-.058 1.28-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 1.734 6.78 6.023 6.98 1.28.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-1.732 6.979-6.023.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-1.728-6.78-6.023-6.98-1.28-.058-1.689-.072-4.948-.072zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>`;
+                const iconWP = `<svg viewBox="0 0 24 24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.334.101.154.448.724.969 1.185.674.595 1.225.779 1.396.866.173.086.275.072.375-.043.101-.115.433-.505.549-.68.116-.173.231-.144.39-.086.159.058 1.012.477 1.185.564.173.087.289.129.332.202.043.073.043.423-.101.827z"/></svg>`;
+                const iconMap = `<svg viewBox="0 0 24 24"><path d="M12 0c-4.198 0-8 3.403-8 7.602 0 4.198 3.469 9.21 8 16.398 4.531-7.188 8-12.2 8-16.398 0-4.199-3.801-7.602-8-7.602zm0 11c-1.657 0-3-1.343-3-3s1.343-3 3-3 3 1.343 3 3-1.343 3-3 3z"/></svg>`;
+
+                if (isPremium) {
+                    if(datosGlobalesNegocio.link_wp) { dock.innerHTML += `<a href="${window.sanitizarTexto(datosGlobalesNegocio.link_wp)}" target="_blank" class="gem-social wp">${iconWP}</a>`; hasSocial = true; }
+                    if(datosGlobalesNegocio.link_ig) { dock.innerHTML += `<a href="${window.sanitizarTexto(datosGlobalesNegocio.link_ig)}" target="_blank" class="gem-social ig">${iconIG}</a>`; hasSocial = true; }
+                    if(datosGlobalesNegocio.link_maps) { dock.innerHTML += `<a href="${window.sanitizarTexto(datosGlobalesNegocio.link_maps)}" target="_blank" class="gem-social maps">${iconMap}</a>`; hasSocial = true; }
+                }
+                dock.style.display = hasSocial ? 'flex' : 'none';
+
+                if (datosGlobalesNegocio.tipo_modelo === 'servicio') {
+                    document.getElementById('aliados-view-promotor').style.display = 'block';
+                    document.getElementById('aliados-view-negocio').style.display = 'none';
+                } else {
+                    document.getElementById('aliados-view-promotor').style.display = 'none';
+                    document.getElementById('aliados-view-negocio').style.display = 'block';
+                }
+                window.cargarSaldosAliados();
+
+                                // 🚨 MUTACIÓN INTELIGENTE DE LISTAS Y TEXTOS
+                if (datosGlobalesNegocio.tipo_modelo === 'inmueble') {
+                    if(document.getElementById('contenedor-mapa-perfil')) document.getElementById('contenedor-mapa-perfil').style.display = 'none';
+                    document.getElementById('tab-btn-subir').innerHTML = '➕ Nueva Propiedad';
+
+                    document.getElementById('tab-btn-lista').innerHTML = '🏠 Mis Propiedades';
+                    document.getElementById('campos-inmueble').style.display = 'flex';
+                    document.getElementById('galeria-limite-text').innerHTML = isPremium ? "Límite actual: <b>9 fotos extra</b> (Total 10)." : "Límite actual: <b>2 fotos extra</b>. ¡Mejora a Premium para subir 10!";
+                    document.getElementById('limite-plan-msg').innerHTML = 'Has alcanzado el límite de 3 propiedades.<br><a onclick="window.abrirModal(\'overlay-soporte\')">Mejora a Premium para subir ilimitadas.</a>';
+                    
+                    // Mutación de Placeholders para Inmuebles
+                    document.getElementById('prodNombre').placeholder = "Nombre de la Propiedad (Ej: Casa en Pinares)";
+                    document.getElementById('prodPrecio').placeholder = "Valor (Ej: 1500000 COP)";
+                    document.getElementById('prodCategoria').placeholder = "Sector o Barrio (Ej: Cuba, Álamos)";
+                    document.getElementById('prodTipo').innerHTML = '<option value="arriendo">🏠 En Arriendo</option><option value="venta">💰 En Venta</option>';
+                    document.querySelector('#content-lista .section-title').innerText = 'Mis Propiedades';
+                    document.getElementById('filtro-busqueda').placeholder = "🔍 Buscar propiedad...";
+
+                    if(selectNicho) selectNicho.innerHTML = `
+                        <option value="">Selecciona el enfoque de tus inmuebles...</option>
+                        <option value="Arriendos Residenciales">Arriendos Residenciales</option>
+                        <option value="Venta de Propiedades">Venta de Propiedades</option>
+                        <option value="Locales y Oficinas">Locales Comerciales / Oficinas</option>
+                        <option value="Hospedaje Turístico">Hospedaje / Airbnb / Turístico</option>
+                        <option value="Inmobiliaria Mixta">Inmobiliaria General (Mixta)</option>
+                        <option value="otro">Otro (Escribir manualmente)</option>
+                    `;
+                                        // Ocultar el módulo Premium completo del Perfil para Inmuebles
+                    const moduloPremiumPerfil = document.querySelector('#content-perfil .modulo-premium');
+                    if(moduloPremiumPerfil) moduloPremiumPerfil.style.display = 'none';
+                    
+                    // Ocultar campos irrelevantes para quien solo arrienda casas
+                    document.getElementById('perfilCobertura').style.display = 'none';
+                    document.getElementById('perfilNombre').placeholder = "Nombre del Asesor o Agencia (Ej: Inmobiliaria XYZ)";
+
+                } else {
+                    if(document.getElementById('contenedor-mapa-perfil')) document.getElementById('contenedor-mapa-perfil').style.display = 'block';
+                    document.getElementById('tab-btn-subir').innerHTML = '➕ Nuevo Ítem';
+
+                    document.getElementById('tab-btn-lista').innerHTML = '📦 Catálogo';
+                    document.getElementById('campos-inmueble').style.display = 'none';
+                    document.getElementById('limite-plan-msg').innerHTML = 'Has alcanzado el límite de 1 sucursal/ítem.<br><a onclick="window.abrirModal(\'overlay-soporte\')">Mejora a Premium para subir ilimitadas.</a>';
+                    document.getElementById('galeria-limite-text').innerHTML = isPremium ? "Límite actual: <b>4 fotos extra</b> (Total 5)." : "Límite actual: <b>1 foto extra</b>. ¡Mejora a Premium para subir 5!";
+                    
+                    // Restaurar Placeholders por defecto para Negocios/Servicios
+                    document.getElementById('prodNombre').placeholder = "Título / Nombre del artículo";
+                    document.getElementById('prodPrecio').placeholder = "Precio (Ej: 15000 COP o 15.50 USD)";
+                    document.getElementById('prodCategoria').placeholder = "Categoría o Zona (Ej: Centro)";
+                    document.getElementById('prodTipo').innerHTML = '<option value="producto">📦 Entregable / Físico</option><option value="servicio">🤝 Servicio / Contacto</option>';
+                    document.querySelector('#content-lista .section-title').innerText = 'Mi Catálogo';
+                    document.getElementById('filtro-busqueda').placeholder = "🔍 Buscar por nombre...";
+
+                                        if (datosGlobalesNegocio.tipo_modelo === 'servicio' && selectNicho) {
+                        selectNicho.innerHTML = `
+                            <option value="">Selecciona tu tipo de servicio...</option>
+                            <option value="Transporte y Movilidad">Transporte / Movilidad</option>
+                            <option value="Mantenimiento y Reparación">Mantenimiento / Reparación</option>
+                            <option value="Salud y Bienestar">Salud / Bienestar Integral</option>
+                            <option value="Barbería y Belleza">Barbería / Peluquería / Estética / Spa</option>
+                            <option value="Asesoría Profesional">Asesoría Profesional / Legal</option>
+                            <option value="Eventos y Entretenimiento">Eventos / Entretenimiento</option>
+                            <option value="otro">Otro (Escribir manualmente)</option>
+                        `;
+                    } else if (selectNicho) {
+                        selectNicho.innerHTML = `
+                            <option value="">Selecciona tu Sector/Nicho principal...</option>
+                            <optgroup label="⚡ NEGOCIOS CON INVENTARIO RÁPIDO">
+                                <option value="farmacia">Farmacia / Droguería</option>
+                                <option value="ferreteria">Ferretería</option>
+                                <option value="supermercado">Supermercado / Mini-market</option>
+                                <option value="papeleria">Papelería</option>
+                                <option value="licoreria">Licorería</option>
+                                <option value="veterinaria">Veterinaria / Mascotas</option>
+                                <option value="tecnologia">Tecnología / Celulares</option>
+                                <option value="bicicletas">Bicicletas / Repuestos</option>
+                            </optgroup>
+                            <optgroup label="📍 OTROS NEGOCIOS COMUNES">
+                                <option value="restaurante">Restaurante / Comidas Rápidas</option>
+                                <option value="ropa">Ropa / Boutique / Calzado</option>
+                                <option value="belleza">Peluquería / Barbería / Spa</option>
+                                <option value="salud">Consultorio / Médico / Odontología</option>
+                                <option value="servicios">Servicios Profesionales / Talleres</option>
+                            </optgroup>
+                            <option value="otro">Otro (Escribir manualmente)</option>
+                        `;
+                    }
+                                        // Restaurar el módulo Premium del Perfil para Negocios normales
+                    const moduloPremiumPerfil = document.querySelector('#content-perfil .modulo-premium');
+                    if(moduloPremiumPerfil) moduloPremiumPerfil.style.display = 'block';
+                    
+                    document.getElementById('perfilCobertura').style.display = 'block';
+                    document.getElementById('perfilNombre').placeholder = "Nombre Oficial";
+                }
+
+                // ==========================================
+                // 🚨 MOTOR DE HIDRATACIÓN (Limpio y Único)
+                // ==========================================
+                
+                // 1. Rellenar Header Superior
+                document.getElementById('ui-nombre').innerText = datosGlobalesNegocio.nombre || "MI TIENDA";
+                // Mutar texto del botón "Ver Tienda"
+                const btnVer = document.querySelector('button[onclick="visualizarMiEspacio()"]');
+                if (btnVer) {
+                    if (datosGlobalesNegocio.tipo_modelo === 'inmueble') btnVer.innerHTML = '👁️ Ver Inmuebles';
+                    else if (datosGlobalesNegocio.tipo_modelo === 'servicio') btnVer.innerHTML = '👁️ Ver Servicio';
+                    else btnVer.innerHTML = '👁️ Ver Tienda';
+                }
+
+                // 2. Rellenar Perfil Básico
+                document.getElementById('perfilEmail').value = user.email || '';
+                document.getElementById('perfilNombre').value = datosGlobalesNegocio.nombre || '';
+                document.getElementById('perfilUsername').value = datosGlobalesNegocio.username || '';
+                window.usernameOriginal = datosGlobalesNegocio.username || '';
+                
+                // Fix del WhatsApp
+                document.getElementById('perfilTelefono').value = datosGlobalesNegocio.whatsApp || datosGlobalesNegocio.telefono || '';
+                
+                document.getElementById('perfilApertura').value = datosGlobalesNegocio.horario_apertura || ''; 
+                document.getElementById('perfilCierre').value = datosGlobalesNegocio.horario_cierre || '';
+                document.getElementById('perfilDireccion').value = datosGlobalesNegocio.direccion || '';
+                document.getElementById('perfilMoneda').value = datosGlobalesNegocio.moneda || 'COP';
+                document.getElementById('perfilPalabras').value = datosGlobalesNegocio.palabras_clave || '';
+                document.getElementById('perfilCobertura').value = datosGlobalesNegocio.cobertura_km || '';
+
+                // 3. Rellenar Selector de Nicho (Blindado anti-choques)
+                let nichoRecuperado = datosGlobalesNegocio.niche || '';
+                let selectorUI = document.getElementById('perfilNichoSelect'); 
+                if (selectorUI) {
+                    let opcionExiste = Array.from(selectorUI.options).some(opt => opt.value === nichoRecuperado);
+                    if (opcionExiste && nichoRecuperado !== 'otro' && nichoRecuperado !== '') {
+                        selectorUI.value = nichoRecuperado;
+                        if(document.getElementById('perfilNichoOtro')) document.getElementById('perfilNichoOtro').style.display = 'none';
+                    } else if (nichoRecuperado !== '') {
+                        selectorUI.value = 'otro';
+                        if(document.getElementById('perfilNichoOtro')) {
+                            document.getElementById('perfilNichoOtro').value = nichoRecuperado;
+                            document.getElementById('perfilNichoOtro').style.display = 'block';
+                        }
+                    }
+                }
+
+                // 4. Rellenar Funciones Premium
+                if(isPremium) {
+                    document.getElementById('perfilWp').value = datosGlobalesNegocio.link_wp || '';
+                    document.getElementById('perfilMaps').value = datosGlobalesNegocio.link_maps || '';
+                    document.getElementById('perfilInstagram').value = datosGlobalesNegocio.link_ig || '';
+                    document.getElementById('perfilHistoria').value = datosGlobalesNegocio.historia || '';
+                    document.getElementById('perfilRecomendaciones').value = datosGlobalesNegocio.recomendaciones || '';
+                    document.getElementById('perfilPromo').value = datosGlobalesNegocio.promo || '';
+                    document.getElementById('perfilTarifaBase').value = datosGlobalesNegocio.tarifa_base || '';
+                    document.getElementById('perfilPrecioEntrada').value = datosGlobalesNegocio.precio_entrada || '';
+                }
+
+                // 5. INICIALIZAR MINI MAPA (Con los datos ya hidratados)
+                let latInit = null;
+                let lngInit = null;
+                if (datosGlobalesNegocio.Coordenadas) {
+                    latInit = datosGlobalesNegocio.Coordenadas.latitude || datosGlobalesNegocio.Coordenadas._lat;
+                    lngInit = datosGlobalesNegocio.Coordenadas.longitude || datosGlobalesNegocio.Coordenadas._long;
+                }
+                setTimeout(() => { 
+                    window.inicializarMiniMapa(latInit, lngInit); 
+                    window.restaurarBorradorLocal(); 
+                }, 500);
+
+
+
+                const colorFondoStr = datosGlobalesNegocio.color_hex || '#ff6b00';
+                const arrColores = colorFondoStr.split(',').map(c => c.trim());
+
+                document.getElementById('disenoColorHex').value = arrColores[0];
+                document.getElementById('disenoColorPicker').value = arrColores[0];
+                document.documentElement.style.setProperty('--naranja', arrColores[0]);
+
+                if (arrColores[1]) {
+                    document.getElementById('disenoColorHex2').value = arrColores[1];
+                    document.getElementById('disenoColorPicker2').value = arrColores[1];
+                    document.getElementById('container-color2').style.display = 'flex';
+                    document.getElementById('btn-add-color2').style.display = 'none';
+                    document.getElementById('btn-add-color3').style.display = 'block';
+                } else {
+                    document.getElementById('container-color2').style.display = 'none';
+                    document.getElementById('btn-add-color2').style.display = 'block';
+                    document.getElementById('btn-add-color3').style.display = 'none';
+                    document.getElementById('disenoColorHex2').value = '';
+                }
+
+                if (arrColores[2]) {
+                    document.getElementById('disenoColorHex3').value = arrColores[2];
+                    document.getElementById('disenoColorPicker3').value = arrColores[2];
+                    document.getElementById('container-color3').style.display = 'flex';
+                    document.getElementById('btn-add-color3').style.display = 'none';
+                } else {
+                    document.getElementById('container-color3').style.display = 'none';
+                    if (!arrColores[1]) document.getElementById('btn-add-color3').style.display = 'none';
+                    document.getElementById('disenoColorHex3').value = '';
+                }
+
+                let pinGuardado = '1';
+                if(datosGlobalesNegocio.ui_pack && datosGlobalesNegocio.ui_pack.length >= 16) {
+                    pinGuardado = datosGlobalesNegocio.ui_pack.charAt(0);
+                }
+
+                const isAliado = (datosGlobalesNegocio.red_afiliados === true || datosGlobalesNegocio.red_afiliados === 'SI');
+                const tienePermisoAnimados = isPremium || isAliado;
+                const selectPin = document.getElementById('disenoFormaPin');
+                const opcionesPremium = selectPin.querySelectorAll('optgroup[label*="ESPECIALIZADOS"] option');
+
+                if (tienePermisoAnimados) {
+                    opcionesPremium.forEach(opt => { 
+                        opt.disabled = false; 
+                        opt.innerText = opt.innerText.replace(' 🔒', ''); 
+                    });
+                } else {
+                    opcionesPremium.forEach(opt => { 
+                        opt.disabled = true; 
+                        if(!opt.innerText.includes('🔒')) opt.innerText += ' 🔒'; 
+                    });
+                    if (!['1','2','3'].includes(pinGuardado)) pinGuardado = '1';
+                }
+                selectPin.value = pinGuardado;
+
+                // --- ACTIVACIÓN DEL MODO MASIVO (AHORA BASADO EN EL NICHO) ---
+                const nichosMasivos = ['farmacia', 'ferreteria', 'supermercado', 'papeleria', 'licoreria', 'veterinaria', 'tecnologia', 'bicicletas'];
+                const nichoActual = datosGlobalesNegocio.niche ? datosGlobalesNegocio.niche.toLowerCase() : '';
+                
+                                if (nichosMasivos.includes(nichoActual)) {
+                    // 🚨 CAMBIO: Le dejamos TODO encendido a las Farmacias/Ferreterías
+                    document.getElementById('tab-btn-subir').style.display = 'block'; 
+                    document.getElementById('tab-btn-lista').style.display = 'block'; 
+                    document.getElementById('tab-btn-masivo').style.display = 'block'; 
+                    window.cargarMapaPrecios(); 
+                    window.cargarMisProductos(); // Cargamos ambos catálogos
+                } else {
+                    // Si es un restaurante normal, le ocultamos el masivo
+                    document.getElementById('tab-btn-masivo').style.display = 'none';
+                    document.getElementById('tab-btn-subir').style.display = 'block'; 
+                    document.getElementById('tab-btn-lista').style.display = 'block'; 
+                    window.cargarMisProductos(); 
+                }
+
+
+            } else {
+                idNegocioLogueado = null;
+                datosGlobalesNegocio = null;
+                document.getElementById('login-screen').style.display = 'block';
+                document.getElementById('dashboard-screen').style.display = 'none';
+                const btnLogin = document.getElementById('btn-login-accion');
+                if (btnLogin) {
+                    btnLogin.innerText = "Entrar a mi Bóveda";
+                    btnLogin.disabled = false;
+                }
+            }
+        });
+
+        let timerBusquedaUsuario;
+        let usernameValidoParaGuardar = null;
+        const inputUsername = document.getElementById('perfilUsername');
+        const feedbackUI = document.getElementById('msg-username');
+
+        inputUsername.addEventListener('input', (e) => {
+            clearTimeout(timerBusquedaUsuario);
+            let rawValue = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+            e.target.value = rawValue;
+
+            if (rawValue === '') {
+                feedbackUI.innerText = "";
+                usernameValidoParaGuardar = null;
+                return;
+            }
+
+            if (rawValue.length < 3) {
+                feedbackUI.innerText = "⚠️ Mínimo 3 caracteres";
+                feedbackUI.style.color = "#ff4444";
+                usernameValidoParaGuardar = null;
+                return;
+            }
+
+            if (window.usernameOriginal && rawValue === window.usernameOriginal) {
+                feedbackUI.innerText = "✅ Es tu username actual";
+                feedbackUI.style.color = "#00ff64";
+                usernameValidoParaGuardar = rawValue;
+                return;
+            }
+
+            feedbackUI.innerText = "⏳ Consultando radar...";
+            feedbackUI.style.color = "#aaaaaa";
+            usernameValidoParaGuardar = null;
+
+            timerBusquedaUsuario = setTimeout(async () => {
+                try {
+                    const { success, data } = await QRpidoDB.AdminService.verificarUsernameDisponible(rawValue);
+                    if (success && data.disponible) {
+                        feedbackUI.innerText = "✅ ¡Enlace disponible!";
+                        feedbackUI.style.color = "#00ff64";
+                        usernameValidoParaGuardar = rawValue;
+                    } else {
+                        feedbackUI.innerText = "❌ Este nombre ya está conquistado.";
+                        feedbackUI.style.color = "#ff4444";
+                        usernameValidoParaGuardar = null;
+                    }
+                } catch (error) {
+                    feedbackUI.innerText = "⚠️ Error validando";
+                    feedbackUI.style.color = "#ffcc00";
+                }
+            }, 600); 
+        });
+
+        window.toggleNichoOtro = function() {
+            const select = document.getElementById('perfilNichoSelect');
+            const inputOtro = document.getElementById('perfilNichoOtro');
+            if (select.value === 'otro') {
+                inputOtro.style.display = 'block'; inputOtro.focus();
+            } else { inputOtro.style.display = 'none'; }
+        };
+
+        let miniMapa = null;
+        let pinMiniMapa = null;
+
+        window.inicializarMiniMapa = function(latInicial, lngInicial) {
+            if (miniMapa) return; 
+
+            const defaultLat = latInicial || 4.8133; 
+            const defaultLng = lngInicial || -75.6961;
+
+            miniMapa = L.map('mini-mapa-perfil', { zoomControl: false }).setView([defaultLat, defaultLng], 15);
+            L.tileLayer('https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.png', { maxZoom: 20 }).addTo(miniMapa);
+
+            pinMiniMapa = L.marker([defaultLat, defaultLng], { draggable: true }).addTo(miniMapa);
+
+            pinMiniMapa.on('dragend', function() {
+                const pos = pinMiniMapa.getLatLng();
+                document.getElementById('perfilLat').value = pos.lat;
+                document.getElementById('perfilLng').value = pos.lng;
+                window.guardarBorradorLocal(); 
+            });
+
+            if(latInicial && lngInicial) {
+                document.getElementById('perfilLat').value = defaultLat;
+                document.getElementById('perfilLng').value = defaultLng;
+            }
+            setTimeout(() => { miniMapa.invalidateSize(); }, 500);
+        };
+
+        window.buscarEnMiniMapa = async function() {
+            if (navigator.vibrate) navigator.vibrate(50);
+            const query = document.getElementById('buscadorMapa').value.trim();
+            if(!query) return;
+
+            const coordsRegex = /^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/;
+            if (coordsRegex.test(query)) {
+                const partes = query.split(',');
+                centrarPin(parseFloat(partes[0].trim()), parseFloat(partes[1].trim()));
+                return;
+            }
+
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                if (data && data.length > 0) {
+                    centrarPin(parseFloat(data[0].lat), parseFloat(data[0].lon));
+                } else {
+                    alert("No encontramos ese lugar. Intenta agregar la ciudad, ej: 'Unicentro Pereira'");
+                }
+            } catch(e) { alert("Error buscando ubicación."); }
+        };
+
+        function centrarPin(lat, lng) {
+            const latlng = new L.LatLng(lat, lng);
+            miniMapa.flyTo(latlng, 16);
+            pinMiniMapa.setLatLng(latlng);
+            document.getElementById('perfilLat').value = lat;
+            document.getElementById('perfilLng').value = lng;
+            window.guardarBorradorLocal();
+        }
+                // ==========================================
+        // 🚨 CEREBRO DEL MAPA DE PROPIEDADES (INMUEBLES)
+        // ==========================================
+        let miniMapaProd = null;
+        let pinMiniMapaProd = null;
+
+        window.inicializarMiniMapaProd = function(latInicial, lngInicial) {
+            if (miniMapaProd) {
+                miniMapaProd.invalidateSize(); // Refresca si ya existe
+                return; 
+            }
+
+            const defaultLat = latInicial || 4.8133; 
+            const defaultLng = lngInicial || -75.6961;
+
+            miniMapaProd = L.map('mini-mapa-prod', { zoomControl: false }).setView([defaultLat, defaultLng], 15);
+            L.tileLayer('https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.png', { maxZoom: 20 }).addTo(miniMapaProd);
+
+            // Usamos un pin azul para diferenciarlo del rojo del perfil
+            const iconoCasa = L.divIcon({ html: '🏠', className: 'dummy-class', iconSize: [24, 24] });
+            pinMiniMapaProd = L.marker([defaultLat, defaultLng], { draggable: true, icon: iconoCasa }).addTo(miniMapaProd);
+
+            pinMiniMapaProd.on('dragend', function() {
+                const pos = pinMiniMapaProd.getLatLng();
+                document.getElementById('prodLat').value = pos.lat;
+                document.getElementById('prodLng').value = pos.lng;
+            });
+
+            if(latInicial && lngInicial) {
+                document.getElementById('prodLat').value = defaultLat;
+                document.getElementById('prodLng').value = defaultLng;
+            }
+            setTimeout(() => { miniMapaProd.invalidateSize(); }, 500);
+        };
+
+        window.buscarEnMiniMapaProd = async function() {
+            if (navigator.vibrate) navigator.vibrate(50);
+            const query = document.getElementById('buscadorMapaProd').value.trim();
+            if(!query) return;
+
+            const coordsRegex = /^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/;
+            if (coordsRegex.test(query)) {
+                const partes = query.split(',');
+                centrarPinProd(parseFloat(partes[0].trim()), parseFloat(partes[1].trim()));
+                return;
+            }
+
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                if (data && data.length > 0) {
+                    centrarPinProd(parseFloat(data[0].lat), parseFloat(data[0].lon));
+                } else {
+                    alert("No encontramos ese lugar. Intenta agregar la ciudad, ej: 'Pinares Pereira'");
+                }
+            } catch(e) { alert("Error buscando ubicación de la propiedad."); }
+        };
+
+        function centrarPinProd(lat, lng) {
+            const latlng = new L.LatLng(lat, lng);
+            miniMapaProd.flyTo(latlng, 16);
+            pinMiniMapaProd.setLatLng(latlng);
+            document.getElementById('prodLat').value = lat;
+            document.getElementById('prodLng').value = lng;
+        }
+
+
+        window.guardarPerfil = async () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            if (!idNegocioLogueado) return;
+
+            const rawUser = document.getElementById('perfilUsername').value.trim();
+            if (rawUser.length > 0 && rawUser !== window.usernameOriginal && !usernameValidoParaGuardar) {
+                alert("El enlace personalizado no está disponible o es muy corto. Por favor corrígelo.");
+                document.getElementById('perfilUsername').focus();
+                return;
+            }
+
+            const btn = document.getElementById('btn-submit-perfil');
+            btn.innerText = "Sincronizando..."; btn.disabled = true;
+            
+            try {
+                let finalUsername = rawUser === '' ? null : (usernameValidoParaGuardar || window.usernameOriginal);
+
+                let obj = {
+                    nombre: document.getElementById('perfilNombre').value.trim(),
+                    username: finalUsername, 
+                    whatsApp: document.getElementById('perfilTelefono').value.trim(), 
+                    horario_apertura: document.getElementById('perfilApertura').value,
+                    horario_cierre: document.getElementById('perfilCierre').value,
+                    direccion: document.getElementById('perfilDireccion').value.trim(),
+                    niche: document.getElementById('perfilNichoSelect').value === 'otro' 
+                           ? document.getElementById('perfilNichoOtro').value.trim() 
+                           : document.getElementById('perfilNichoSelect').value,
+                    moneda: document.getElementById('perfilMoneda').value,
+                    palabras_clave: document.getElementById('perfilPalabras').value.trim(),
+                    cobertura_km: parseFloat(document.getElementById('perfilCobertura').value) || 0
+                };
+                
+                                // Bypass: Los agentes inmobiliarios NO necesitan ubicación en su perfil
+                if (datosGlobalesNegocio.tipo_modelo !== 'inmueble') {
+                    const latGuardar = parseFloat(document.getElementById('perfilLat').value);
+                    const lngGuardar = parseFloat(document.getElementById('perfilLng').value);
+                    
+                    if (isNaN(latGuardar) || isNaN(lngGuardar)) {
+                        throw new Error("Por favor ubica tu negocio moviendo el pin rojo en el Mini-Mapa.");
+                    }
+                    
+                    obj.Coordenadas = { latitude: latGuardar, longitude: lngGuardar };
+                    obj.geohash = generarGeohash(latGuardar, lngGuardar);
+                }
+
+
+                if(isPremium) {
+                    obj.link_wp = document.getElementById('perfilWp').value.trim();
+                    obj.link_maps = document.getElementById('perfilMaps').value.trim();
+                    obj.link_ig = document.getElementById('perfilInstagram').value.trim();
+                    obj.historia = document.getElementById('perfilHistoria').value.trim();
+                    obj.recomendaciones = document.getElementById('perfilRecomendaciones').value.trim();
+                    obj.promo = document.getElementById('perfilPromo').value.trim();
+                    obj.tarifa_base = parseInt(document.getElementById('perfilTarifaBase').value) || 0;
+                    obj.precio_entrada = parseInt(document.getElementById('perfilPrecioEntrada').value) || 0;
+                }
+                
+                const { success, error } = await QRpidoDB.AdminService.actualizarNegocio(idNegocioLogueado, obj);
+                if (!success) throw new Error(error);
+
+                document.getElementById('ui-nombre').innerText = obj.nombre || "Mi Tienda";
+                window.usernameOriginal = finalUsername; 
+                if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
+                alert("¡Perfil asegurado en la bóveda!");
+                window.limpiarBorradorLocal(); 
+                                // --- MUTACIÓN EN VIVO (Actualiza la UI sin recargar) ---
+                datosGlobalesNegocio.niche = obj.niche; // Actualiza la RAM local
+                const nichosMasivos = ['farmacia', 'ferreteria', 'supermercado', 'papeleria', 'licoreria', 'veterinaria', 'tecnologia', 'bicicletas'];
+                
+                if (nichosMasivos.includes(obj.niche.toLowerCase())) {
+                    // Le dejamos TODO encendido a las Farmacias/Ferreterías
+                    document.getElementById('tab-btn-subir').style.display = 'block'; 
+                    document.getElementById('tab-btn-lista').style.display = 'block'; 
+                    document.getElementById('tab-btn-masivo').style.display = 'block'; 
+                    window.cargarMapaPrecios(); 
+                    window.cargarMisProductos(); 
+                } else {
+                    // Si es un restaurante normal, le ocultamos el masivo
+                    document.getElementById('tab-btn-masivo').style.display = 'none';
+                    document.getElementById('tab-btn-subir').style.display = 'block'; 
+                    document.getElementById('tab-btn-lista').style.display = 'block'; 
+                }
+
+            } catch(e) { alert("Error: " + e.message); } 
+            finally { btn.innerText = "GUARDAR PERFIL"; btn.disabled = false; }
+        }
+
+        window.guardarDiseno = async () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            if (!idNegocioLogueado) return;
+            const btn = document.getElementById('btn-submit-diseno');
+            btn.innerText = "Subiendo Archivos..."; btn.disabled = true;
+            try {
+                let c1 = document.getElementById('disenoColorHex').value.trim();
+                let c2 = document.getElementById('disenoColorHex2').value.trim();
+                let c3 = document.getElementById('disenoColorHex3').value.trim();
+                
+                let arrColores = [c1];
+                if (c2 && document.getElementById('container-color2').style.display !== 'none') arrColores.push(c2);
+                if (c3 && document.getElementById('container-color3').style.display !== 'none') arrColores.push(c3);
+                
+                let formaPin = document.getElementById('disenoFormaPin').value || '1';
+                const esAliado = (datosGlobalesNegocio.red_afiliados === true || datosGlobalesNegocio.red_afiliados === 'SI');
+                if (!isPremium && !esAliado && !['1','2','3'].includes(formaPin)) { formaPin = '1'; }
+
+                let hex1 = c1 || '#ff6b00';
+                let hex2 = (c2 && document.getElementById('container-color2').style.display !== 'none') ? c2 : hex1;
+                let hex3 = (c3 && document.getElementById('container-color3').style.display !== 'none') ? c3 : '#ffffff';
+                
+                let base62Colors = window.comprimirColores(hex1, hex2, hex3);
+                let ui_pack_final = formaPin + base62Colors + '0' + '0';
+
+                let obj = { color_hex: arrColores.join(', '), ui_pack: ui_pack_final };
+
+                const logoF = document.getElementById('disenoLogoFile').files[0];
+                const portF = document.getElementById('disenoPortadaFile').files[0];
+                
+                const upload = async (file, prefix) => {
+                    const blob = await window.comprimirImagen(file);
+                    const path = `tiendas/${idNegocioLogueado}/${prefix}_${Date.now()}.webp`;
+                    const { success, data, error } = await QRpidoDB.AdminService.subirArchivo(path, blob);
+                    if(!success) throw new Error(error);
+                    return data;
+                };
+
+                if(logoF) obj.logo = await upload(logoF, 'logo');
+                if(portF) obj.portada = await upload(portF, 'portada');
+
+                const nombrePngF = document.getElementById('disenoNombrePngFile').files[0];
+                const pinF = document.getElementById('disenoPinFile').files[0];
+                const wallpaperF = document.getElementById('disenoWallpaperFile').files[0];
+                const bannerF = document.getElementById('disenoBannerFile').files[0];
+
+                if(nombrePngF) { btn.innerText = "Subiendo Título PNG..."; obj.nombre_png = await upload(nombrePngF, 'titulo'); }
+
+                if(isPremium) {
+                    if(pinF) { btn.innerText = "Subiendo Pin..."; obj.link_pin = await upload(pinF, 'pin'); }
+                    if(wallpaperF) { btn.innerText = "Subiendo Fondo..."; obj.fondo_negocio = await upload(wallpaperF, 'wall'); }
+                    if(bannerF) { btn.innerText = "Subiendo Banner..."; obj.banner_promo = await upload(bannerF, 'banner'); }
+                }
+
+                const { success, error } = await QRpidoDB.AdminService.actualizarNegocio(idNegocioLogueado, obj);
+                if (!success) throw new Error(error);
+
+                document.documentElement.style.setProperty('--naranja', arrColores[0]);
+                if(obj.logo) { document.getElementById('ui-logo').src = obj.logo; document.getElementById('ui-logo').style.display='inline-block'; }
+                if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
+                alert("¡Diseño actualizado exitosamente!");
+            } catch(e){ alert("Error: " + e.message); } 
+            finally { btn.innerText = "GUARDAR DISEÑO"; btn.disabled = false; }
+        }
+
+        window.guardarArticuloPulso = async () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            const titulo = document.getElementById('pulsoTitulo').value.trim();
+            const autor = document.getElementById('pulsoAutor').value.trim();
+            const categoria = document.getElementById('pulsoCategoria').value;
+            const cuerpo = document.getElementById('pulsoCuerpo').value.trim();
+            const sponsorId = document.getElementById('pulsoSponsor').value.trim();
+            
+            if(!titulo || !categoria || !cuerpo) { return alert("El título, la categoría y el cuerpo son obligatorios."); }
+
+            const btn = document.getElementById('btn-submit-pulso');
+            btn.innerText = "Publicando..."; btn.disabled = true;
+
+            try {
+                let urlPortada = null;
+                const file = document.getElementById('pulsoPortadaFile').files[0];
+                if(file) {
+                    btn.innerText = "Subiendo Portada...";
+                    const blobImg = await window.comprimirImagen(file);
+                    const { success: upSuccess, data: url, error: upError } = await QRpidoDB.AdminService.subirArchivo(`pulso_urbano/${Date.now()}.webp`, blobImg);
+                    if (!upSuccess) throw new Error(upError);
+                    urlPortada = url;
+                }
+
+                const payload = {
+                    titulo: titulo, autor: autor || "Equipo Editorial", categoria: categoria, cuerpo_texto: cuerpo,
+                    sponsor_id: sponsorId || null, imagen_portada: urlPortada, fecha_publicacion: new Date().toISOString(),
+                    creado_por: idNegocioLogueado, estado: "publicado"
+                };
+                const { success, error } = await QRpidoDB.RadarService.publicarArticulo(payload);
+                if (!success) throw new Error(error);
+
+                if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
+                alert("¡Artículo publicado con éxito en Pulso Urbano!");
+                
+                document.getElementById('pulsoTitulo').value = ''; document.getElementById('pulsoAutor').value = '';
+                document.getElementById('pulsoCategoria').value = ''; document.getElementById('pulsoCuerpo').value = '';
+                document.getElementById('pulsoSponsor').value = ''; document.getElementById('pulsoPortadaFile').value = '';
+                document.getElementById('texto-pulso-portada').innerText = "📸 Subir Imagen de Portada";
+                document.getElementById('texto-pulso-portada').style.borderColor = "var(--naranja)";
+                
+            } catch (e) { alert("Error al publicar: " + e.message); } 
+            finally { btn.innerText = "PUBLICAR ARTÍCULO"; btn.disabled = false; }
+        };
+
+        window.guardarProducto = async () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            if (!idNegocioLogueado) return;
+            const nom = document.getElementById('prodNombre').value.trim();
+            const pre = document.getElementById('prodPrecio').value.trim();
+            const editId = document.getElementById('prodEditId').value;
+            if(!nom || !pre) return alert("El nombre y el precio son obligatorios.");
+
+            let limite = isPremium ? Infinity : (datosGlobalesNegocio.tipo_modelo === 'inmueble' ? 3 : 1);
+            if (!isPremium && !editId) {
+                if (listaProductosGlobal.length >= limite) {
+                    document.getElementById('limite-plan-msg').style.display = 'block';
+                    document.getElementById('content-subir').scrollIntoView({ behavior: 'smooth' });
+                    return;
+                }
+            }
+            
+            const btn = document.getElementById('btn-submit-producto');
+            btn.innerText = "Empaquetando Datos..."; btn.disabled = true;
+            
+            try {
+                let urlImg = document.getElementById('prodImagenActual').value;
+                const f = document.getElementById('prodImagenFile').files[0];
+                if(f) { 
+                    const blobImg = await window.comprimirImagen(f);
+                    const { success: upSuccess, data: url, error: upError } = await QRpidoDB.AdminService.subirArchivo(`productos/${idNegocioLogueado}/${Date.now()}.webp`, blobImg);
+                    if(!upSuccess) throw new Error(upError);
+                    urlImg = url; 
+                }
+
+                let monedaActual = datosGlobalesNegocio.moneda || 'COP';
+                let precioInput = parseFloat(pre);
+                let precioInt64 = monedaActual === 'USD' ? Math.round(precioInput * 100) : Math.round(precioInput);
+
+                let pObj = { 
+                    nombre: nom, precio: precioInt64, categoria: document.getElementById('prodCategoria').value || "General", 
+                    tipo: document.getElementById('prodTipo').value, imagen: urlImg 
+                };
+
+                                if (datosGlobalesNegocio.tipo_modelo === 'inmueble') {
+                    pObj.cuartos = document.getElementById('prodCuartos').value;
+                    pObj.estrato = document.getElementById('prodEstrato').value;
+                    
+                    // Lee las coordenadas ocultas del mini-mapa de propiedades
+                    const pLat = parseFloat(document.getElementById('prodLat').value);
+                    const pLng = parseFloat(document.getElementById('prodLng').value);
+
+                    if (isNaN(pLat) || isNaN(pLng)) {
+                        alert("Por favor ubica la propiedad moviendo el pin azul en el Mini-Mapa.");
+                        btn.innerText = "GUARDAR DATOS"; btn.disabled = false;
+                        return; 
+                    }
+                    
+                    pObj.Coordenadas = { latitude: pLat, longitude: pLng };
+                    pObj.geohash = generarGeohash(pLat, pLng);
+                }
+
+
+                let maxExtra = isPremium ? (datosGlobalesNegocio.tipo_modelo === 'inmueble' ? 9 : 4) : (datosGlobalesNegocio.tipo_modelo === 'inmueble' ? 2 : 1);
+                const filesGaleria = document.getElementById('prodGaleriaFiles').files;
+                let urlsGaleria = [];
+                
+                if (filesGaleria.length > 0) {
+                    const cantSubir = Math.min(filesGaleria.length, maxExtra);
+                    for(let i=0; i<cantSubir; i++) {
+                        btn.innerText = `Subiendo foto extra ${i+1}/${cantSubir}...`;
+                        const fG = filesGaleria[i];
+                        const blobG = await window.comprimirImagen(fG);
+                        const { success: upSuccess, data: url, error: upError } = await QRpidoDB.AdminService.subirArchivo(`productos/${idNegocioLogueado}/${Date.now()}_g${i}.webp`, blobG);
+                        if(!upSuccess) throw new Error(upError);
+                        urlsGaleria.push(url);
+                    }
+                    pObj.galeria_extra = urlsGaleria;
+                } else if (editId) {
+                    const viejaGal = document.getElementById('prodGaleriaActual').value;
+                    if (viejaGal) pObj.galeria_extra = JSON.parse(viejaGal);
+                }
+
+                if(isPremium) { 
+                    pObj.badge = document.getElementById('prodBadge').value; 
+                    pObj.cuerpo_articulo = document.getElementById('prodCuerpo').value;
+                    pObj.marco_personalizado = document.getElementById('prodMarco').value;
+                }
+                
+                if(!editId) { pObj.agotado = false; pObj.fecha_creacion = new Date().toISOString(); }
+                const { success, error } = await QRpidoDB.AdminService.guardarProducto(idNegocioLogueado, editId, pObj);
+                if(!success) throw new Error(error);
+                
+                if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
+                window.cancelarEdicion(); 
+                window.cargarMisProductos(); 
+                window.cambiarTab('lista');
+            } catch(e){ alert("Error: " + e.message); } 
+            finally { btn.innerText = "GUARDAR DATOS"; btn.disabled = false; }
+        }
+
+        window.clonarProducto = (id) => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            const p = listaProductosGlobal.find(x=>x.id_prod===id);
+            if(!p) return;
+            
+            let limite = isPremium ? Infinity : (datosGlobalesNegocio.tipo_modelo === 'inmueble' ? 3 : 1);
+            if (listaProductosGlobal.length >= limite) {
+                alert("Has alcanzado el límite de tu plan. No puedes clonar más ítems.");
+                return;
+            }
+
+            document.getElementById('prodNombre').value = ''; 
+            if(datosGlobalesNegocio.tipo_modelo === 'inmueble') { document.getElementById('prodLat').value = ''; document.getElementById('prodLng').value = ''; }
+            document.getElementById('prodEditId').value = ''; 
+            document.getElementById('prodPrecio').value = p.precio; 
+            document.getElementById('prodCategoria').value = p.categoria || ''; 
+            document.getElementById('prodTipo').value = p.tipo || 'producto'; 
+            document.getElementById('prodImagenActual').value = p.imagen || '';
+            document.getElementById('file-upload-text').innerText = "📸 Imagen clonada (Puedes cambiarla)";
+            document.getElementById('file-upload-text').style.borderColor = "#00ff00"; document.getElementById('file-upload-text').style.color = "#00ff00";
+
+            if (p.galeria_extra && p.galeria_extra.length > 0) {
+                document.getElementById('prodGaleriaActual').value = JSON.stringify(p.galeria_extra);
+                document.getElementById('galeria-upload-text').innerText = `📸 Galería clonada (${p.galeria_extra.length} fotos)`;
+                document.getElementById('galeria-upload-text').style.borderColor = "#00ff00"; document.getElementById('galeria-upload-text').style.color = "#00ff00";
+            } else {
+                document.getElementById('prodGaleriaActual').value = "";
+                document.getElementById('galeria-upload-text').innerText = "📸 Subir Galería Extra (Opcional)";
+                document.getElementById('galeria-upload-text').style.borderColor = "rgba(255,255,255,0.3)"; document.getElementById('galeria-upload-text').style.color = "#ddd";
+            }
+
+            if (datosGlobalesNegocio.tipo_modelo === 'inmueble') {
+                document.getElementById('prodCuartos').value = p.cuartos || '';
+                document.getElementById('prodEstrato').value = p.estrato || '';
+            }
+
+            if(isPremium){ 
+                document.getElementById('prodBadge').value = p.badge || ''; 
+                document.getElementById('prodCuerpo').value = p.cuerpo_articulo || ''; 
+                document.getElementById('prodMarco').value = p.marco_personalizado || ''; 
+                window.actualizarContador(document.getElementById('prodCuerpo'), 'contador-cuerpo');
+            }
+            
+            document.getElementById('btn-submit-producto').innerText = "GUARDAR CLON"; 
+            document.getElementById('btn-cancelar-edicion').style.display = "block"; 
+            document.getElementById('limite-plan-msg').style.display = 'none';
+
+            window.cambiarTab('subir');
+            document.getElementById('prodNombre').focus();
+        }
+
+        window.manejarBusquedaTeclado = (e) => { if(e.key === 'Enter') window.ejecutarBusqueda(); };
+
+        window.ejecutarBusqueda = () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            terminoBusquedaActual = document.getElementById('filtro-busqueda').value.trim();
+            if(terminoBusquedaActual !== "") { document.getElementById('filtro-categoria').value = ""; categoriaFiltroActual = ""; }
+            window.cargarMisProductos(true);
+        };
+
+        window.filtrarCatalogo = () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            categoriaFiltroActual = document.getElementById('filtro-categoria').value;
+            if(categoriaFiltroActual !== "") { document.getElementById('filtro-busqueda').value = ""; terminoBusquedaActual = ""; }
+            window.cargarMisProductos(true); 
+        };
+
+        window.cargarMasProductos = () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            window.cargarMisProductos(false); 
+        };
+
+        window.cargarMisProductos = async function(reiniciar = true) {
+            const cont = document.getElementById('lista-productos-container');
+            const btnMas = document.getElementById('btn-cargar-mas');
+            
+            if (reiniciar) {
+                cont.innerHTML = `<div class="producto-card shimmer-box" style="height:86px;"></div><div class="producto-card shimmer-box" style="height:86px;"></div>`;
+                ultimoDocCatalogo = null;
+                listaProductosGlobal = [];
+            } else { btnMas.innerText = "Cargando..."; btnMas.disabled = true; }
+
+            try {
+                const filtros = { terminoBusqueda: terminoBusquedaActual, categoria: categoriaFiltroActual, limite: 10, startAfterDoc: reiniciar ? null : ultimoDocCatalogo };
+                const { success, data, ultimoDoc, error } = await QRpidoDB.AdminService.obtenerProductos(idNegocioLogueado, filtros);
+                
+                if (reiniciar) cont.innerHTML = ""; 
+                if (!success || (data.length === 0 && reiniciar)) {
+                    if(terminoBusquedaActual !== "") {
+                        cont.innerHTML = `<div style='text-align:center; color:#888; padding: 40px 0;'><h3>No hay coincidencias</h3><p>Asegúrate de escribir el nombre exactamente igual.</p></div>`;
+                    } else {
+                        cont.innerHTML = `<div style='text-align:center; color:#888; padding: 40px 0;'><h3>Aún no tienes ítems</h3><p>Usa la pestaña (+) para empezar a subir tu inventario.</p></div>`; 
+                    }
+                    btnMas.style.display = 'none'; return;
+                }
+
+                ultimoDocCatalogo = ultimoDoc;
+                if (data.length < 10) { btnMas.style.display = 'none'; } else { btnMas.style.display = 'block'; btnMas.innerText = "⬇️ Cargar más"; btnMas.disabled = false; }
+
+                data.forEach(p => {
+                    if(!listaProductosGlobal.find(x => x.id_prod === p.id_prod)) listaProductosGlobal.push(p);
+                    if (p.categoria) categoriasDisponibles.add(p.categoria);
+
+                    let extraInfo = '';
+                    if (datosGlobalesNegocio.tipo_modelo === 'inmueble') extraInfo = ` | ${(p.cuartos||'').replace('hab',' Hab')} | Estrato ${(p.estrato||'').replace('e','')}`;
+
+                    const card = document.createElement('div'); card.className = `producto-card ${p.agotado ? 'agotado' : ''}`;
+                    const img = document.createElement('img'); img.className = 'prod-img'; img.src = p.imagen || ''; card.appendChild(img);
+                    const infoDiv = document.createElement('div'); infoDiv.className = 'prod-info';
+                    const h4 = document.createElement('h4'); h4.textContent = (p.nombre || '') + ' ';
+                    
+                    if (p.badge) {
+                        const badgeSpan = document.createElement('span'); badgeSpan.style.color = '#FFD700'; badgeSpan.style.fontSize = '10px'; badgeSpan.textContent = `[${p.badge}]`; h4.appendChild(badgeSpan);
+                    }
+                    infoDiv.appendChild(h4);
+
+                    const pPrecio = document.createElement('p'); pPrecio.style.color = 'var(--naranja)'; pPrecio.style.fontWeight = 'bold';
+                    pPrecio.textContent = new Intl.NumberFormat((datosGlobalesNegocio.moneda === 'USD') ? 'en-US' : 'es-CO', { style: 'currency', currency: datosGlobalesNegocio.moneda || 'COP', minimumFractionDigits: (datosGlobalesNegocio.moneda === 'USD') ? 2 : 0 }).format((datosGlobalesNegocio.moneda === 'USD') ? (p.precio / 100) : p.precio);
+                    infoDiv.appendChild(pPrecio);
+
+                    const pCat = document.createElement('p'); pCat.style.fontSize = '10px'; pCat.textContent = (p.categoria || '') + extraInfo; infoDiv.appendChild(pCat);
+                    card.appendChild(infoDiv);
+
+                    const accionesDiv = document.createElement('div'); accionesDiv.className = 'prod-acciones';
+                    const btnEdit = document.createElement('button'); btnEdit.className = 'btn-accion btn-edit'; btnEdit.textContent = 'Editar'; btnEdit.onclick = () => window.prepararEdicion(p.id_prod); accionesDiv.appendChild(btnEdit);
+
+                    let limitePlan = isPremium ? Infinity : (datosGlobalesNegocio.tipo_modelo === 'inmueble' ? 3 : 1);
+                    if (listaProductosGlobal.length < limitePlan) {
+                        const btnClonar = document.createElement('button'); btnClonar.className = 'btn-accion'; btnClonar.style.background = 'rgba(0, 255, 255, 0.15)'; btnClonar.style.color = '#0ff'; btnClonar.textContent = 'Clonar'; btnClonar.onclick = () => window.clonarProducto(p.id_prod); accionesDiv.appendChild(btnClonar);
+                    }
+
+                    const btnToggle = document.createElement('button'); btnToggle.className = 'btn-accion btn-toggle'; btnToggle.textContent = p.agotado ? 'Activar' : 'Pausar'; btnToggle.onclick = () => window.cambiarEstadoAgotado(p.id_prod, p.agotado); accionesDiv.appendChild(btnToggle);
+                    const btnDelete = document.createElement('button'); btnDelete.className = 'btn-accion btn-delete'; btnDelete.textContent = 'Borrar'; btnDelete.onclick = () => window.eliminarProducto(p.id_prod); accionesDiv.appendChild(btnDelete);
+
+                    card.appendChild(accionesDiv); cont.appendChild(card);
+                });
+
+                if (reiniciar) window.actualizarSelectCategorias();
+
+                let limite = isPremium ? Infinity : (datosGlobalesNegocio.tipo_modelo === 'inmueble' ? 3 : 1);
+                const limiteMsg = document.getElementById('limite-plan-msg');
+                if (!isPremium && listaProductosGlobal.length >= limite) limiteMsg.style.display = 'block'; else limiteMsg.style.display = 'none';
+
+            } catch (e) {
+                console.error(e);
+                if(reiniciar) cont.innerHTML = "<p style='color:#ff4444; text-align:center;'>Error cargando catálogo.</p>";
+            }
+        }
+
+        window.actualizarSelectCategorias = function() {
+            const select = document.getElementById('filtro-categoria');
+            const valorActual = select.value;
+            select.innerHTML = ''; 
+            const defaultOpt = document.createElement('option'); defaultOpt.value = ''; defaultOpt.textContent = 'Todas las categorías'; select.appendChild(defaultOpt);
+            categoriasDisponibles.forEach(cat => {
+                const opt = document.createElement('option'); opt.value = cat; opt.textContent = cat; 
+                if (cat === valorActual) opt.selected = true; select.appendChild(opt);
+            });
+        }
+        
+        window.cambiarEstadoAgotado = async (id, est) => { if (navigator.vibrate) navigator.vibrate(50); const { success } = await QRpidoDB.AdminService.actualizarProducto(idNegocioLogueado, id, { agotado: !est }); if(success) window.cargarMisProductos(); }
+        window.eliminarProducto = async (id) => { if (navigator.vibrate) navigator.vibrate(50); if(confirm("¿Borrar definitivamente? Esta acción no se puede deshacer.")) { const { success } = await QRpidoDB.AdminService.eliminarProducto(idNegocioLogueado, id); if(success) window.cargarMisProductos(); } }
+
+        window.prepararEdicion = (id) => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            const p = listaProductosGlobal.find(x=>x.id_prod===id);
+            if(!p) return;
+            document.getElementById('prodNombre').value=p.nombre; document.getElementById('prodPrecio').value=p.precio; 
+            document.getElementById('prodCategoria').value=p.categoria || ''; document.getElementById('prodTipo').value=p.tipo || 'producto'; 
+            document.getElementById('prodEditId').value=id; document.getElementById('prodImagenActual').value=p.imagen||'';
+            document.getElementById('file-upload-text').innerText = "📸 Subir Nueva Foto Principal";
+            
+            if (p.galeria_extra && p.galeria_extra.length > 0) {
+                document.getElementById('prodGaleriaActual').value = JSON.stringify(p.galeria_extra);
+                document.getElementById('galeria-upload-text').innerText = `📸 Tiene ${p.galeria_extra.length} fotos extra. Subir nuevas las reemplazará.`;
+                document.getElementById('galeria-upload-text').style.borderColor = "var(--naranja)"; document.getElementById('galeria-upload-text').style.color = "var(--naranja)";
+            } else {
+                document.getElementById('prodGaleriaActual').value = ""; document.getElementById('galeria-upload-text').innerText = "📸 Subir Galería Extra (Opcional)";
+                document.getElementById('galeria-upload-text').style.borderColor = "rgba(255,255,255,0.3)"; document.getElementById('galeria-upload-text').style.color = "#ddd";
+            }
+
+            if (datosGlobalesNegocio.tipo_modelo === 'inmueble') {
+                document.getElementById('prodCuartos').value = p.cuartos || ''; document.getElementById('prodEstrato').value = p.estrato || ''; if(p.Coordenadas) { setTimeout(() => window.inicializarMiniMapaProd(p.Coordenadas.latitude || p.Coordenadas._lat, p.Coordenadas.longitude || p.Coordenadas._long), 300); }
+            }
+
+            if(isPremium){ 
+                document.getElementById('prodBadge').value=p.badge||''; document.getElementById('prodCuerpo').value=p.cuerpo_articulo||''; document.getElementById('prodMarco').value=p.marco_personalizado||''; 
+                window.actualizarContador(document.getElementById('prodCuerpo'), 'contador-cuerpo');
+            }
+            
+            document.getElementById('btn-submit-producto').innerText="ACTUALIZAR DATOS"; document.getElementById('btn-cancelar-edicion').style.display="block"; 
+            document.getElementById('limite-plan-msg').style.display = 'none'; window.cambiarTab('subir');
+        }
+
+        window.cancelarEdicion = () => { 
+            if (navigator.vibrate) navigator.vibrate(50);
+            document.getElementById('prodNombre').value=''; document.getElementById('prodPrecio').value=''; document.getElementById('prodCategoria').value=''; 
+            if(datosGlobalesNegocio && datosGlobalesNegocio.tipo_modelo === 'inmueble') { document.getElementById('prodCuartos').value=''; document.getElementById('prodEstrato').value=''; document.getElementById('prodLat').value=''; document.getElementById('prodLng').value=''; }
+            document.getElementById('prodEditId').value=''; document.getElementById('prodGaleriaActual').value=''; 
+            
+            if (isPremium) { document.getElementById('prodBadge').value=''; document.getElementById('prodCuerpo').value=''; document.getElementById('prodMarco').value=''; }
+            
+            document.getElementById('btn-submit-producto').innerText="GUARDAR DATOS"; document.getElementById('btn-cancelar-edicion').style.display="none"; 
+            document.getElementById('prodImagenFile').value=''; document.getElementById('prodGaleriaFiles').value='';
+            document.getElementById('file-upload-text').innerText = "📸 Subir foto principal"; document.getElementById('file-upload-text').style.borderColor = "var(--naranja)"; document.getElementById('file-upload-text').style.color = "var(--naranja)";
+            document.getElementById('galeria-upload-text').innerText = "📸 Subir Galería Extra (Opcional)"; document.getElementById('galeria-upload-text').style.borderColor = "rgba(255,255,255,0.3)"; document.getElementById('galeria-upload-text').style.color = "#ddd";
+            
+            let limite = isPremium ? Infinity : (datosGlobalesNegocio && datosGlobalesNegocio.tipo_modelo === 'inmueble' ? 3 : 1);
+            if (!isPremium && listaProductosGlobal.length >= limite) document.getElementById('limite-plan-msg').style.display = 'block';
+        }
+
+        const CHARSET_BASE62 = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        window.comprimirColores = function(hex1, hex2, hex3) {
+            const normalizarHex = (hex) => {
+                let clean = hex.replace('#', '');
+                if (clean.length === 3) clean = clean.split('').map(c => c + c).join('');
+                return clean.padEnd(6, '0'); 
+            };
+            const megaHex = normalizarHex(hex1) + normalizarHex(hex2) + normalizarHex(hex3);
+            let num = BigInt("0x" + megaHex);
+            let codigoComprimido = "";
+            const base = BigInt(62);
+            if (num === 0n) return "0".padStart(13, '0');
+            while (num > 0n) {
+                let residuo = Number(num % base);
+                codigoComprimido = CHARSET_BASE62[residuo] + codigoComprimido;
+                num = num / base;
+            }
+            return codigoComprimido.padStart(13, '0'); 
+        }
+
+        let DICCIONARIO_UNIVERSAL = [];
+        Promise.all([
+            fetch('cat_farmacia.json').then(res => res.json()).catch(() => []), fetch('cat_ferreteria.json').then(res => res.json()).catch(() => []),
+            fetch('cat_supermercado.json').then(res => res.json()).catch(() => []), fetch('cat_papeleria.json').then(res => res.json()).catch(() => []),
+            fetch('cat_licoreria.json').then(res => res.json()).catch(() => []), fetch('cat_veterinaria.json').then(res => res.json()).catch(() => []),
+            fetch('cat_tecnologia.json').then(res => res.json()).catch(() => []), fetch('cat_bicicletas.json').then(res => res.json()).catch(() => [])
+        ]).then(async resultados => {
+            DICCIONARIO_UNIVERSAL = [];
+            for (const res of resultados) {
+                for (let i = 0; i < res.length; i += 500) {
+                    DICCIONARIO_UNIVERSAL.push(...res.slice(i, i + 500));
+                    await new Promise(resolve => requestAnimationFrame(resolve));
+                }
+            }
+        }).catch(error => console.error("Error crítico cargando catálogos:", error));
+
+        let mapaPreciosLocal = {}; let inventarioAgotadoLocal = [];
+
+        window.cargarMapaPrecios = () => {
+            mapaPreciosLocal = datosGlobalesNegocio.mapa_precios || {}; inventarioAgotadoLocal = datosGlobalesNegocio.inventario_agotado || [];
+            window.renderizarInventarioMasivo();
+        };
+
+        let debounceTimerJSON;
+        window.filtrarDiccionarioJSON = () => {
+            clearTimeout(debounceTimerJSON);
+            debounceTimerJSON = setTimeout(() => {
+                const term = document.getElementById('buscador-json').value.toLowerCase().trim();
+                const cajaResultados = document.getElementById('resultados-json');
+                if (term.length < 2) { cajaResultados.innerHTML = ''; cajaResultados.style.display = 'none'; return; }
+                
+                let contadorResultados = 0;
+                const filtrados = DICCIONARIO_UNIVERSAL.filter(item => {
+                    if (contadorResultados >= 30) return false; 
+                    const match = item.nombre.toLowerCase().includes(term) && !mapaPreciosLocal.hasOwnProperty(item.id_prod);
+                    if (match) contadorResultados++; return match;
+                });
+                
+                cajaResultados.innerHTML = '';
+                if (filtrados.length === 0) {
+                    cajaResultados.innerHTML = `<div style="padding: 10px; color: #888; font-size: 12px; text-align: center;">Sin coincidencias en el catálogo base.</div>`;
+                } else {
+                    filtrados.forEach(item => {
+                        const div = document.createElement('div');
+                        div.style = "padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; font-size: 13px; font-weight: bold;";
+                        div.innerText = item.nombre + " (" + item.id_prod + ")";
+                        div.onclick = () => window.agregarAlInventario(item); cajaResultados.appendChild(div);
+                    });
+                }
+                cajaResultados.style.display = 'block';
+            }, 300); 
+        };
+
+        window.agregarAlInventario = (item) => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            mapaPreciosLocal[item.id_prod] = 0; document.getElementById('buscador-json').value = ''; document.getElementById('resultados-json').style.display = 'none';
+            window.renderizarInventarioMasivo();
+        };
+
+        window.renderizarInventarioMasivo = () => {
+            const contenedor = document.getElementById('mi-inventario-masivo'); contenedor.innerHTML = ''; 
+            if (Object.keys(mapaPreciosLocal).length === 0) {
+                contenedor.innerHTML = `<p style="color: #888; font-size: 12px; text-align: center;">Tu inventario está vacío. Busca productos arriba.</p>`; return;
+            }
+            for (const [id_prod, precio] of Object.entries(mapaPreciosLocal)) {
+                const itemInfo = DICCIONARIO_UNIVERSAL.find(x => x.id_prod === id_prod) || { nombre: "Producto Desconocido" };
+                const isAgotado = inventarioAgotadoLocal.includes(id_prod);
+                const divCard = document.createElement('div'); divCard.style.cssText = "background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); border-radius: 10px; padding: 12px; display: flex; align-items: center; gap: 10px;";
+                const divInfo = document.createElement('div'); divInfo.style.flex = "1";
+                const h4Nombre = document.createElement('h4'); h4Nombre.style.cssText = `margin: 0 0 5px 0; font-size: 13px; color: ${isAgotado ? '#666' : 'white'};`; h4Nombre.textContent = itemInfo.nombre; divInfo.appendChild(h4Nombre);
+                const spanId = document.createElement('span'); spanId.style.cssText = "font-size: 9px; color: #888; text-transform: uppercase;"; spanId.textContent = `ID: ${id_prod}`; divInfo.appendChild(spanId); divCard.appendChild(divInfo);
+                const divAcciones = document.createElement('div'); divAcciones.style.cssText = "display: flex; flex-direction: column; gap: 5px; align-items: flex-end;";
+                const inputPrecio = document.createElement('input'); inputPrecio.type = "number"; inputPrecio.className = "input-form"; inputPrecio.value = precio; inputPrecio.placeholder = "$ Precio"; inputPrecio.style.cssText = `margin: 0; padding: 6px; width: 100px; font-size: 14px; text-align: right; background: ${isAgotado ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.8)'};`;
+                if (isAgotado) inputPrecio.disabled = true; inputPrecio.onchange = (e) => window.actualizarPrecioLocal(id_prod, e.target.value); divAcciones.appendChild(inputPrecio);
+                const labelAgotado = document.createElement('label'); labelAgotado.style.cssText = "font-size: 10px; color: #ff4444; display: flex; align-items: center; gap: 5px; cursor: pointer;";
+                const checkAgotado = document.createElement('input'); checkAgotado.type = "checkbox"; checkAgotado.checked = isAgotado; checkAgotado.onchange = (e) => window.toggleAgotadoLocal(id_prod, e.target.checked);
+                labelAgotado.appendChild(checkAgotado); labelAgotado.appendChild(document.createTextNode(" Agotado")); divAcciones.appendChild(labelAgotado); divCard.appendChild(divAcciones);
+                const btnDelete = document.createElement('button'); btnDelete.style.cssText = "background: rgba(255,0,0,0.2); border: none; color: #ff4444; border-radius: 6px; padding: 8px; cursor: pointer;"; btnDelete.textContent = "🗑️"; btnDelete.onclick = () => window.quitarDelInventario(id_prod); divCard.appendChild(btnDelete);
+                contenedor.appendChild(divCard);
+            }
+        };
+
+        window.actualizarPrecioLocal = (id_prod, nuevoPrecio) => { mapaPreciosLocal[id_prod] = parseInt(nuevoPrecio) || 0; };
+        window.toggleAgotadoLocal = (id_prod, isChecked) => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            if (isChecked) { if (!inventarioAgotadoLocal.includes(id_prod)) inventarioAgotadoLocal.push(id_prod); } 
+            else { inventarioAgotadoLocal = inventarioAgotadoLocal.filter(id => id !== id_prod); }
+            window.renderizarInventarioMasivo();
+        };
+
+        window.quitarDelInventario = (id_prod) => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            delete mapaPreciosLocal[id_prod]; inventarioAgotadoLocal = inventarioAgotadoLocal.filter(id => id !== id_prod);
+            window.renderizarInventarioMasivo();
+        };
+
+        window.guardarInventarioMasivo = async () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            const btn = document.querySelector('#content-masivo .btn-submit'); btn.innerText = "Guardando Lote..."; btn.disabled = true;
+            try {
+                const { success, error } = await QRpidoDB.AdminService.actualizarNegocio(idNegocioLogueado, { mapa_precios: mapaPreciosLocal, inventario_agotado: inventarioAgotadoLocal });
+                if (!success) throw new Error(error);
+                if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
+                alert("¡Inventario sincronizado exitosamente!"); datosGlobalesNegocio.mapa_precios = mapaPreciosLocal; datosGlobalesNegocio.inventario_agotado = inventarioAgotadoLocal;
+            } catch (error) { alert("Error al guardar: " + error.message); } finally { btn.innerText = "GUARDAR PRECIOS EN LOTE"; btn.disabled = false; }
+        };
+
+                window.visualizarMiEspacio = () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            if (!datosGlobalesNegocio || !idNegocioLogueado) { alert("⚠️ Primero debes llenar y guardar tu 'Perfil' para generar tu espacio."); return; }
+            
+            const baseOriginal = window.location.origin === "null" ? "" : window.location.origin; 
+            const rutaRaiz = baseOriginal + window.location.pathname.replace('admin.html', '');
+            
+            // Bypass temporal del username puro para evitar el Error 404 de Firebase Hosting
+            // Usamos enrutamiento seguro por parámetros (?id= o ?u=)
+            const esInmueble = datosGlobalesNegocio.tipo_modelo === 'inmueble'; 
+            const paginaDestino = esInmueble ? 'inmueble.html' : 'negocio.html'; 
+            
+            const parametro = (datosGlobalesNegocio.username && datosGlobalesNegocio.username !== '') 
+                ? `?u=${encodeURIComponent(datosGlobalesNegocio.username.toLowerCase())}` 
+                : `?id=${encodeURIComponent(idNegocioLogueado)}`;
+                
+            const urlDestino = `${rutaRaiz}${paginaDestino}${parametro}`;
+            window.open(urlDestino, '_blank');
+        };
+
+        
+        const CLAVE_BORRADOR = 'qrpido_borrador_admin';
+                window.guardarBorradorLocal = function() {
+            const borrador = {};
+            document.querySelectorAll('.input-form').forEach(el => { if (el.id) borrador[el.id] = el.value; });
+            
+            // Guarda el mapa rojo (Perfil)
+            const lat = document.getElementById('perfilLat')?.value; const lng = document.getElementById('perfilLng')?.value;
+            if(lat) borrador['perfilLat'] = lat; if(lng) borrador['perfilLng'] = lng;
+            
+            // Guarda el mapa azul (Propiedades)
+            const pLat = document.getElementById('prodLat')?.value; const pLng = document.getElementById('prodLng')?.value;
+            if(pLat) borrador['prodLat'] = pLat; if(pLng) borrador['prodLng'] = pLng;
+            
+            localStorage.setItem(CLAVE_BORRADOR, JSON.stringify(borrador));
+        };
+
+
+                window.restaurarBorradorLocal = function() {
+            const borradorStr = localStorage.getItem(CLAVE_BORRADOR);
+            if (!borradorStr) return;
+            try {
+                const borrador = JSON.parse(borradorStr);
+                Object.keys(borrador).forEach(id => { const el = document.getElementById(id); if (el) el.value = borrador[id]; });
+                if (window.toggleNichoOtro) window.toggleNichoOtro();
+                
+                // Restaura mapa rojo
+                const savedLat = borrador['perfilLat']; const savedLng = borrador['perfilLng'];
+                if (savedLat && savedLng && window.miniMapa && window.pinMiniMapa) {
+                    const latlng = new L.LatLng(parseFloat(savedLat), parseFloat(savedLng));
+                    window.miniMapa.setView(latlng, 16); window.pinMiniMapa.setLatLng(latlng);
+                }
+                
+                // Restaura mapa azul
+                const savedPLat = borrador['prodLat']; const savedPLng = borrador['prodLng'];
+                if (savedPLat && savedPLng && window.miniMapaProd && window.pinMiniMapaProd) {
+                    const latlngProd = new L.LatLng(parseFloat(savedPLat), parseFloat(savedPLng));
+                    window.miniMapaProd.setView(latlngProd, 16); window.pinMiniMapaProd.setLatLng(latlngProd);
+                }
+
+                const toast = document.createElement('div'); toast.innerHTML = "💾 Datos recuperados tras el reinicio.";
+                toast.style.cssText = "position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:var(--naranja); color:white; padding:10px 20px; border-radius:20px; z-index:9999; font-size:12px; font-weight:bold; box-shadow:0 4px 10px rgba(0,0,0,0.5);";
+                document.body.appendChild(toast); setTimeout(() => toast.remove(), 4000);
+            } catch (e) { console.error(e); }
+        };
+
+
+        window.limpiarBorradorLocal = function() { localStorage.removeItem(CLAVE_BORRADOR); };
+
+        document.addEventListener('input', (e) => { if (e.target && e.target.classList && e.target.classList.contains('input-form')) window.guardarBorradorLocal(); });
+        document.addEventListener('change', (e) => { if (e.target && e.target.classList && e.target.classList.contains('input-form')) window.guardarBorradorLocal(); });
+        
+        const mapOld = window.inicializarMiniMapa;
+        if (mapOld) {
+            window.inicializarMiniMapa = function(l, lg) {
+                mapOld(l, lg);
+                if (window.pinMiniMapa) window.pinMiniMapa.on('dragend', window.guardarBorradorLocal);
+            };
+        }
+                const mapProdOld = window.inicializarMiniMapaProd;
+        if (mapProdOld) {
+            window.inicializarMiniMapaProd = function(l, lg) {
+                mapProdOld(l, lg);
+                if (window.pinMiniMapaProd) window.pinMiniMapaProd.on('dragend', window.guardarBorradorLocal);
+            };
+        }
+
+    </script>
+</body>
+</html>
