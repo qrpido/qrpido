@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>QRpido - Centro de Moderación</title>
+    <meta name="theme-color" content="#0a0a0c">
+    
+    <style>
+        /* === VARIABLES DEL SISTEMA QRPIDO === */
+        :root {
+            --naranja: #ff6b00;
+            --bg-oscuro: #0a0a0c;
+            --glass-bg: rgba(20, 20, 25, 0.85);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --verde-neon: #00ff64;
+            --rojo-alerta: #ff4444;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background: var(--bg-oscuro);
+            color: white;
+            min-height: 100vh;
+        }
+
+        /* === HEADER Y NAVEGACIÓN === */
+        .header-admin {
+            background: var(--glass-bg);
+            backdrop-filter: blur(15px);
+            border-bottom: 1px solid var(--naranja);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .header-admin h1 {
+            margin: 0; font-size: 20px; font-weight: 900;
+            text-transform: uppercase; letter-spacing: 2px;
+            color: var(--naranja); text-shadow: 0 0 10px rgba(255,107,0,0.3);
+        }
+
+        .btn-logout {
+            background: transparent; border: 1px solid var(--rojo-alerta);
+            color: var(--rojo-alerta); padding: 5px 15px; border-radius: 8px;
+            font-weight: bold; cursor: pointer; transition: 0.3s;
+        }
+
+        .tabs-container {
+            display: flex; gap: 10px; padding: 15px 20px;
+            background: rgba(0,0,0,0.5);
+        }
+
+        .tab-btn {
+            flex: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
+            color: #aaa; padding: 10px; border-radius: 12px; font-weight: bold;
+            text-transform: uppercase; cursor: pointer; transition: 0.3s;
+        }
+
+        .tab-btn.activo {
+            background: var(--naranja); color: white; border-color: var(--naranja);
+            box-shadow: 0 0 15px rgba(255,107,0,0.4);
+        }
+
+        .tab-content { display: none; padding: 20px; }
+        .tab-content.activo { display: block; animation: fadeIn 0.4s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* === TARJETAS DE MODERACIÓN (GLASSMORPHISM) === */
+        .card-moderacion {
+            background: var(--glass-bg); backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border); border-radius: 15px;
+            padding: 15px; margin-bottom: 20px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+
+        .card-header { border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; margin-bottom: 10px; }
+        .card-title { margin: 0; font-size: 18px; font-weight: 900; color: white; }
+        .badge-tipo { 
+            display: inline-block; background: rgba(255,255,255,0.1); 
+            padding: 3px 8px; border-radius: 8px; font-size: 11px; 
+            text-transform: uppercase; margin-top: 5px; color: #ccc;
+        }
+
+        /* === HERRAMIENTAS TÁCTICAS === */
+        .tools-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
+        
+        .btn-tool {
+            display: flex; align-items: center; justify-content: center; gap: 5px;
+            padding: 8px; border-radius: 8px; font-size: 12px; font-weight: bold;
+            text-decoration: none; border: 1px solid var(--glass-border);
+        }
+        .tool-wsp { background: rgba(37, 211, 102, 0.1); color: #25D366; border-color: rgba(37, 211, 102, 0.3); }
+        .tool-ig { background: rgba(225, 48, 108, 0.1); color: #E1306C; border-color: rgba(225, 48, 108, 0.3); }
+        .tool-map { background: rgba(0, 170, 255, 0.1); color: #00aaff; border-color: rgba(0, 170, 255, 0.3); grid-column: span 2; }
+        .tool-vitrina { background: rgba(255, 107, 0, 0.1); color: var(--naranja); border-color: rgba(255, 107, 0, 0.3); grid-column: span 2; }
+
+        .info-row { font-size: 13px; color: #aaa; margin: 5px 0; }
+        .info-row strong { color: #ddd; }
+
+        /* === CONTROLES DE ACCIÓN (APROBAR/RECHAZAR) === */
+        .action-box { 
+            background: rgba(0,0,0,0.4); padding: 10px; 
+            border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .select-motivo {
+            width: 100%; background: rgba(255,255,255,0.05); color: white;
+            border: 1px solid var(--glass-border); padding: 10px;
+            border-radius: 8px; margin-bottom: 10px; outline: none;
+        }
+        .select-motivo option { background: var(--bg-oscuro); color: white; }
+
+        .action-buttons { display: flex; gap: 10px; }
+        .btn-action { 
+            flex: 1; padding: 12px; border: none; border-radius: 8px;
+            font-weight: 900; text-transform: uppercase; cursor: pointer; transition: 0.3s;
+        }
+        .btn-aprobar { background: var(--verde-neon); color: black; box-shadow: 0 0 10px rgba(0,255,100,0.3); }
+        .btn-rechazar { background: transparent; border: 1px solid var(--rojo-alerta); color: var(--rojo-alerta); }
+        .btn-action:active { transform: scale(0.95); }
+
+        /* === BUSCADOR HISTORIAL === */
+        .search-container { display: flex; gap: 10px; margin-bottom: 20px; }
+        .input-search {
+            flex: 1; background: var(--glass-bg); border: 1px solid var(--naranja);
+            color: white; padding: 12px 15px; border-radius: 25px; outline: none;
+        }
+        .btn-search {
+            background: var(--naranja); color: white; border: none;
+            padding: 0 20px; border-radius: 25px; font-weight: bold; cursor: pointer;
+        }
+
+        .mensaje-vacio { text-align: center; color: #888; font-style: italic; padding: 40px 20px; }
+        
+        /* Pantalla de Carga Autenticación */
+        #auth-lock {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-oscuro); z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="auth-lock">
+        <h2 style="color: var(--naranja); animation: pulse 1.5s infinite;">Verificando Credenciales...</h2>
+        <p style="color: #888;">Protocolo Zero Trust</p>
+    </div>
+
+    <header class="header-admin">
+        <h1>Centro Control</h1>
+        <button class="btn-logout" onclick="cerrarSesion()">Salir</button>
+    </header>
+
+    <div class="tabs-container">
+        <button class="tab-btn activo" onclick="cambiarTab('pendientes', this)">Pendientes</button>
+        <button class="tab-btn" onclick="cambiarTab('historial', this)">Historial</button>
+    </div>
+
+    <main id="tab-pendientes" class="tab-content activo">
+        <div id="contenedor-pendientes">
+            <div class="mensaje-vacio">Buscando negocios en cola... ⏳</div>
+        </div>
+    </main>
+
+    <main id="tab-historial" class="tab-content">
+        <div class="search-container">
+            <input type="email" id="input-correo-historial" class="input-search" placeholder="Escribe el correo a buscar...">
+            <button class="btn-search" onclick="buscarEnHistorial()">Buscar</button>
+        </div>
+        
+        <div id="resultado-historial">
+            <div class="mensaje-vacio">Ingresa un correo exacto para buscar en la Bóveda de Rechazos.</div>
+        </div>
+    </main>
+
+    <script type="module">
+        import QRpidoDB from './core-db.js';
+
+        // Escudo Anti-XSS nativo
+        window.sanitizarTexto = function(texto) {
+            if (!texto) return '';
+            const div = document.createElement('div');
+            div.textContent = texto;
+            return div.innerHTML;
+        };
+
+        // Variables Globales de Estado (Para cuidar la RAM)
+        window.memoriaPendientes = [];
+
+                // 1. PROTOCOLO DE SEGURIDAD ZERO TRUST (Rango Militar)
+        QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
+            if (user) {
+                // El usuario está logueado, ahora verificamos en la base de datos si es de la élite
+                const { success, data } = await QRpidoDB.SecurityService.obtenerRolAdmin(user.uid);
+                
+                if (success && (data.rol === 'admin' || data.rol === 'moderador')) {
+                    // ¡Es uno de los nuestros! Le quitamos el candado visual
+                    document.getElementById('auth-lock').style.display = 'none';
+                    cargarPendientes();
+                } else {
+                    // Es un civil (dueño de negocio normal) intentando hackear el panel
+                    alert("⛔ ACCESO DENEGADO: Tu cuenta no tiene rango de moderador.");
+                    window.location.href = 'index.html'; 
+                }
+            } else {
+                // No está logueado
+                window.location.href = 'index.html'; 
+            }
+        });
+
+
+        window.cerrarSesion = async () => {
+            await QRpidoDB.SecurityService.cerrarSesion();
+        };
+
+        // 2. SISTEMA DE PESTAÑAS
+        window.cambiarTab = (idTab, btn) => {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('activo'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('activo'));
+            document.getElementById(`tab-${idTab}`).classList.add('activo');
+            btn.classList.add('activo');
+        };
+
+        // 3. CARGAR NEGOCIOS PENDIENTES
+        async function cargarPendientes() {
+            const contenedor = document.getElementById('contenedor-pendientes');
+            contenedor.innerHTML = '<div class="mensaje-vacio">Escaneando base de datos... ⏳</div>';
+
+            const { success, data, error } = await QRpidoDB.AdminService.obtenerNegociosPendientes();
+            
+            if (!success) {
+                contenedor.innerHTML = `<div class="mensaje-vacio" style="color:var(--rojo-alerta);">Error: ${error}</div>`;
+                return;
+            }
+
+            if (data.length === 0) {
+                contenedor.innerHTML = '<div class="mensaje-vacio">✅ Todo limpio. No hay negocios pendientes.</div>';
+                return;
+            }
+
+            // Guardamos en la memoria RAM local para acceder a ellos al momento de rechazar
+            window.memoriaPendientes = data;
+            
+            let htmlCards = '';
+            data.forEach(n => {
+                const nombreLimpio = sanitizarTexto(n.nombre || 'Sin Nombre');
+                const telefonoLimpio = sanitizarTexto(n.whatsapp || '').replace(/\D/g,''); // Solo números
+                
+                // Generador de Mensaje WSP Dinámico
+                const mensajeWsp = encodeURIComponent(`Hola ${nombreLimpio}, soy del equipo de verificación de QRpido. Nos comunicamos para validar tu catálogo y habilitar tu negocio en el mapa.`);
+                const linkWsp = telefonoLimpio ? `https://wa.me/${telefonoLimpio}?text=${mensajeWsp}` : '#';
+                
+                const linkIg = n.instagram ? sanitizarTexto(n.instagram) : null;
+                const linkTienda = `negocio.html?id=${encodeURIComponent(n.id)}`;
+
+                htmlCards += `
+                <div class="card-moderacion" id="card-${n.id}">
+                    <div class="card-header">
+                        <h3 class="card-title">${nombreLimpio}</h3>
+                        <div class="badge-tipo">${sanitizarTexto(n.tipo_modelo || 'Desconocido')}</div>
+                    </div>
+                    
+                    <p class="info-row"><strong>✉️ Correo:</strong> ${sanitizarTexto(n.email)}</p>
+                    <p class="info-row"><strong>📍 Zona:</strong> ${sanitizarTexto(n.categoria || 'No especificada')}</p>
+                    <p class="info-row" style="font-size:10px;"><strong>🧭 Coordenadas:</strong> 
+                        ${n.Coordenadas ? `${n.Coordenadas.latitude}, ${n.Coordenadas.longitude}` : 'Falta anclar PIN'}
+                    </p>
+
+                    <div class="tools-grid">
+                        <a href="${linkWsp}" target="_blank" class="btn-tool tool-wsp" ${!telefonoLimpio ? 'style="opacity:0.3; pointer-events:none;"' : ''}>
+                            💬 Validar WSP
+                        </a>
+                        ${linkIg ? `<a href="${linkIg}" target="_blank" class="btn-tool tool-ig">📸 Instagram</a>` : `<div class="btn-tool" style="opacity:0.3;">Sin IG</div>`}
+                        <a href="${linkTienda}" target="_blank" class="btn-tool tool-vitrina">🔍 Visualizar Catálogo</a>
+                    </div>
+
+                    <div class="action-box">
+                        <select id="motivo-${n.id}" class="select-motivo">
+                            <option value="">Selecciona motivo de rechazo...</option>
+                            <option value="pornografia">🚫 Pornografía / Contenido Explícito</option>
+                            <option value="ilicito">🛑 Negocio Ilícito / Prohibido</option>
+                            <option value="whatsapp_invalido">📵 WhatsApp Inválido / No responde</option>
+                            <option value="tipo_invalido">❌ Invalidación Tipo de Negocio</option>
+                            <option value="spam" style="color:var(--rojo-alerta); font-weight:bold;">🔥 SPAM / Cuenta Falsa (A Lista Negra)</option>
+                        </select>
+                        
+                        <div class="action-buttons">
+                            <button class="btn-action btn-rechazar" onclick="ejecutarRechazo('${n.id}')">Eliminar</button>
+                            <button class="btn-action btn-aprobar" onclick="ejecutarAprobacion('${n.id}')">Aprobar</button>
+                        </div>
+                    </div>
+                </div>`;
+            });
+
+            contenedor.innerHTML = htmlCards;
+        }
+
+        // 4. ACCIONES DE MODERACIÓN
+        window.ejecutarAprobacion = async (id) => {
+            if(!confirm("¿Seguro que deseas habilitar este negocio en el mapa público?")) return;
+            
+            const btn = document.querySelector(`#card-${id} .btn-aprobar`);
+            btn.innerText = '⏳...'; btn.disabled = true;
+
+            const { success, error } = await QRpidoDB.AdminService.aprobarNegocio(id);
+            if(success) {
+                document.getElementById(`card-${id}`).remove();
+                // Si la pantalla se queda vacía, recargamos para ver si hay más
+                if(document.querySelectorAll('.card-moderacion').length === 0) cargarPendientes();
+            } else {
+                alert("Error al aprobar: " + error);
+                btn.innerText = 'Aprobar'; btn.disabled = false;
+            }
+        };
+
+        window.ejecutarRechazo = async (id) => {
+            const selectMotivo = document.getElementById(`motivo-${id}`);
+            const motivo = selectMotivo.value;
+
+            if(!motivo) {
+                alert("Debes seleccionar un motivo antes de rechazar y eliminar este negocio.");
+                selectMotivo.focus();
+                return;
+            }
+
+            const mensajeBlacklist = motivo === 'spam' ? '\n\n⚠️ ATENCIÓN: Al marcarlo como SPAM, su correo irá a la Lista Negra.' : '';
+            if(!confirm("¿Seguro que deseas rechazar y destruir la cuenta de este negocio?" + mensajeBlacklist)) return;
+
+            const btn = document.querySelector(`#card-${id} .btn-rechazar`);
+            btn.innerText = '⏳...'; btn.disabled = true;
+
+            // Rescatamos los datos de la memoria local para mandarlos al cementerio
+            const datosNegocio = window.memoriaPendientes.find(n => n.id === id);
+
+            const { success, error } = await QRpidoDB.AdminService.rechazarNegocio(id, datosNegocio, motivo);
+            
+            if(success) {
+                document.getElementById(`card-${id}`).remove();
+                if(document.querySelectorAll('.card-moderacion').length === 0) cargarPendientes();
+            } else {
+                alert("Error al rechazar: " + error);
+                btn.innerText = 'Eliminar'; btn.disabled = false;
+            }
+        };
+
+        // 5. BUSCADOR DE HISTORIAL (CEMENTERIO)
+        window.buscarEnHistorial = async () => {
+            const input = document.getElementById('input-correo-historial');
+            const correo = input.value.trim();
+            const contenedor = document.getElementById('resultado-historial');
+
+            if(!correo) {
+                contenedor.innerHTML = '<div class="mensaje-vacio">Escribe un correo para buscar.</div>';
+                return;
+            }
+
+            contenedor.innerHTML = '<div class="mensaje-vacio">Buscando en la Bóveda de Rechazos... ⏳</div>';
+
+            const { success, data, error } = await QRpidoDB.AdminService.buscarRechazoPorCorreo(correo);
+
+            if(!success) {
+                contenedor.innerHTML = `<div class="mensaje-vacio" style="color:var(--rojo-alerta);">Error: ${error}</div>`;
+                return;
+            }
+
+            if(!data) {
+                contenedor.innerHTML = `
+                <div class="card-moderacion" style="text-align:center; border-color: #555;">
+                    <div style="font-size:30px; margin-bottom:10px;">👻</div>
+                    <h3 style="margin:0;">No existe</h3>
+                    <p style="color:#aaa; font-size:12px;">No encontramos registros de rechazo para:<br><b>${sanitizarTexto(correo)}</b></p>
+                </div>`;
+                return;
+            }
+
+            // Mapeo amigable de los motivos
+            const motivosLegibles = {
+                'pornografia': '🚫 Contenido Explícito',
+                'ilicito': '🛑 Negocio Ilícito',
+                'whatsapp_invalido': '📵 WSP Inválido',
+                'tipo_invalido': '❌ Tipo Inválido'
+            };
+
+            const motivoAmostrar = motivosLegibles[data.motivo_rechazo] || data.motivo_rechazo;
+            const fecha = new Date(data.fecha_rechazo).toLocaleDateString('es-CO');
+
+            contenedor.innerHTML = `
+            <div class="card-moderacion" style="border-color: var(--rojo-alerta);">
+                <div class="card-header">
+                    <h3 class="card-title">${sanitizarTexto(data.nombre)}</h3>
+                    <div class="badge-tipo" style="background: rgba(255,68,68,0.2); color: var(--rojo-alerta);">Rechazado el ${fecha}</div>
+                </div>
+                <p class="info-row"><strong>✉️ Correo:</strong> ${sanitizarTexto(data.email)}</p>
+                <p class="info-row"><strong>📱 WhatsApp:</strong> ${sanitizarTexto(data.whatsapp)}</p>
+                <p class="info-row"><strong>📍 Dirección:</strong> ${sanitizarTexto(data.direccion)}</p>
+                <div style="margin-top:15px; padding:10px; background:rgba(0,0,0,0.5); border-radius:8px; border-left:3px solid var(--rojo-alerta);">
+                    <p style="margin:0; font-size:11px; color:#aaa; text-transform:uppercase;">Motivo del Dictamen:</p>
+                    <p style="margin:5px 0 0 0; font-weight:bold; color:white;">${motivoAmostrar}</p>
+                </div>
+            </div>`;
+        };
+    </script>
+</body>
+</html>

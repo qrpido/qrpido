@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>QRpido - Cerebro Central</title>
+    <meta name="theme-color" content="#0a0a0c">
+    
+    <style>
+        :root {
+            --naranja: #ff6b00;
+            --bg-oscuro: #0a0a0c;
+            --glass-bg: rgba(20, 20, 25, 0.85);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --rojo-alerta: #ff4444;
+            --azul-corp: #00aaff;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background: var(--bg-oscuro);
+            color: white;
+            min-height: 100vh;
+        }
+
+        .header-admin {
+            background: var(--glass-bg); backdrop-filter: blur(15px);
+            border-bottom: 1px solid var(--azul-corp); padding: 15px 20px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .header-admin h1 {
+            margin: 0; font-size: 20px; font-weight: 900;
+            text-transform: uppercase; letter-spacing: 2px;
+            color: var(--azul-corp); text-shadow: 0 0 10px rgba(0,170,255,0.3);
+        }
+
+        .btn-logout {
+            background: transparent; border: 1px solid var(--rojo-alerta);
+            color: var(--rojo-alerta); padding: 5px 15px; border-radius: 8px;
+            font-weight: bold; cursor: pointer; transition: 0.3s;
+        }
+
+        .dashboard-container { padding: 20px; }
+
+        /* === TARJETAS ESTADÍSTICAS === */
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px; }
+        .stat-card {
+            background: linear-gradient(135deg, rgba(255,107,0,0.1) 0%, rgba(0,0,0,0.4) 100%);
+            border: 1px solid var(--naranja); border-radius: 15px; padding: 20px;
+            text-align: center; box-shadow: 0 5px 15px rgba(255,107,0,0.2);
+        }
+        .stat-number { font-size: 32px; font-weight: 900; color: white; margin: 0; }
+        .stat-label { font-size: 11px; color: var(--naranja); text-transform: uppercase; font-weight: bold; letter-spacing: 1px; }
+
+        /* === SECCIÓN DE EQUIPO === */
+        .section-title { font-size: 16px; color: #aaa; text-transform: uppercase; border-bottom: 1px solid var(--glass-border); padding-bottom: 5px; margin-bottom: 15px; }
+
+        .search-container { display: flex; gap: 10px; margin-bottom: 20px; }
+        .input-search {
+            flex: 1; background: var(--glass-bg); border: 1px solid var(--azul-corp);
+            color: white; padding: 12px 15px; border-radius: 25px; outline: none;
+        }
+        .btn-search {
+            background: var(--azul-corp); color: black; border: none;
+            padding: 0 20px; border-radius: 25px; font-weight: bold; cursor: pointer;
+        }
+
+        .card-moderador {
+            background: var(--glass-bg); border: 1px solid var(--glass-border);
+            border-radius: 15px; padding: 15px; margin-bottom: 15px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        
+        .mod-info h3 { margin: 0 0 5px 0; font-size: 15px; color: white; }
+        .mod-info p { margin: 0; font-size: 12px; color: #888; }
+        
+        .btn-eliminar-mod {
+            background: rgba(255,68,68,0.1); border: 1px solid var(--rojo-alerta);
+            color: var(--rojo-alerta); padding: 8px 12px; border-radius: 8px;
+            font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.3s;
+        }
+        .btn-eliminar-mod:active { transform: scale(0.9); }
+
+        #auth-lock {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-oscuro); z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="auth-lock">
+        <h2 style="color: var(--azul-corp); animation: pulse 1.5s infinite;">Acceso Restringido</h2>
+        <p style="color: #888;">Validando privilegios SuperAdmin...</p>
+    </div>
+
+    <header class="header-admin">
+        <h1>👁️ Cerebro Central</h1>
+        <button class="btn-logout" onclick="cerrarSesion()">Salir</button>
+    </header>
+
+    <div class="dashboard-container">
+        
+        <div class="stats-grid">
+            <div class="stat-card" onclick="window.location.href='moderacion.html'" style="cursor:pointer;">
+                <p class="stat-number" id="stat-pendientes">-</p>
+                <p class="stat-label">En Cola (Pendientes)</p>
+            </div>
+            <div class="stat-card">
+                <p class="stat-number" id="stat-activos">-</p>
+                <p class="stat-label">Negocios Activos</p>
+            </div>
+        </div>
+
+        <h2 class="section-title">Reclutar Agente Moderador</h2>
+        <div class="search-container">
+            <input type="email" id="input-nuevo-mod" class="input-search" placeholder="Correo de la cuenta QRpido del agente...">
+            <button class="btn-search" id="btn-add-mod" onclick="buscarYnombrar()">Otorgar Placa</button>
+        </div>
+
+        <h2 class="section-title">Escuadrón Activo</h2>
+        <div id="lista-moderadores">
+            <p style="text-align:center; color:#888; font-size:12px;">Cargando escuadrón...</p>
+        </div>
+
+    </div>
+
+    <script type="module">
+        import QRpidoDB from './core-db.js';
+
+        window.sanitizarTexto = function(texto) {
+            if (!texto) return '';
+            const div = document.createElement('div');
+            div.textContent = texto;
+            return div.innerHTML;
+        };
+
+        // 1. ESCUDO SUPER ADMIN
+        QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
+            if (user) {
+                const { success, data } = await QRpidoDB.SecurityService.obtenerRolAdmin(user.uid);
+                
+                if (success && data.rol === 'superadmin') {
+                    document.getElementById('auth-lock').style.display = 'none';
+                    arrancarCerebro();
+                } else {
+                    alert("⛔ ACCESO DENEGADO: Solo el Arquitecto (SuperAdmin) puede entrar aquí.");
+                    window.location.href = 'index.html'; 
+                }
+            } else {
+                window.location.href = 'index.html'; 
+            }
+        });
+
+        window.cerrarSesion = async () => {
+            await QRpidoDB.SecurityService.cerrarSesion();
+        };
+
+        async function arrancarCerebro() {
+            cargarEstadisticas();
+            cargarModeradores();
+        }
+
+        async function cargarEstadisticas() {
+            const { success, data } = await QRpidoDB.AdminService.obtenerEstadisticasGlobales();
+            if(success) {
+                document.getElementById('stat-activos').innerText = data.activos;
+                document.getElementById('stat-pendientes').innerText = data.pendientes;
+            }
+        }
+
+        // 2. LÓGICA DE RECLUTAMIENTO
+        window.buscarYnombrar = async () => {
+            const input = document.getElementById('input-nuevo-mod');
+            const email = input.value.trim();
+            if(!email) return alert("Escribe un correo.");
+
+            const btn = document.getElementById('btn-add-mod');
+            btn.innerText = "Buscando..."; btn.disabled = true;
+
+            // 2A. Verificamos que el usuario exista en QRpido
+            const busqueda = await QRpidoDB.AdminService.buscarUsuarioParaModerador(email);
+            if(!busqueda.success) {
+                alert(busqueda.error);
+                btn.innerText = "Otorgar Placa"; btn.disabled = false;
+                return;
+            }
+
+            const confirmacion = confirm(`Usuario encontrado: ${busqueda.data.nombre}\n\n¿Estás seguro de otorgarle privilegios de moderador a esta cuenta? Tienen poder para eliminar negocios.`);
+            
+            if(confirmacion) {
+                // 2B. Le damos el poder
+                const otorgar = await QRpidoDB.AdminService.nombrarModerador(busqueda.data.uid, email);
+                if(otorgar.success) {
+                    alert("¡Placa otorgada con éxito! El agente ya puede acceder a moderacion.html");
+                    input.value = '';
+                    cargarModeradores(); // Recargamos la lista visual
+                } else {
+                    alert("Error interno: " + otorgar.error);
+                }
+            }
+            
+            btn.innerText = "Otorgar Placa"; btn.disabled = false;
+        };
+
+        // 3. LISTAR Y ELIMINAR ESCUADRÓN
+        async function cargarModeradores() {
+            const contenedor = document.getElementById('lista-moderadores');
+            const { success, data } = await QRpidoDB.AdminService.obtenerEquipoModeradores();
+            
+            if(!success || data.length === 0) {
+                contenedor.innerHTML = '<p style="text-align:center; color:#888; font-style:italic;">No tienes agentes activos.</p>';
+                return;
+            }
+
+            let htmlMods = '';
+            data.forEach(mod => {
+                const fecha = mod.fecha_ingreso ? new Date(mod.fecha_ingreso).toLocaleDateString('es-CO') : 'Antiguo';
+                htmlMods += `
+                <div class="card-moderador" id="mod-${mod.uid}">
+                    <div class="mod-info">
+                        <h3>🛡️ Agente</h3>
+                        <p>${sanitizarTexto(mod.email)}</p>
+                        <p style="font-size:10px; color:#555; margin-top:3px;">Asignado: ${fecha}</p>
+                    </div>
+                    <button class="btn-eliminar-mod" onclick="eliminarAgente('${mod.uid}', '${sanitizarTexto(mod.email)}')">
+                        🗑️ Revocar
+                    </button>
+                </div>`;
+            });
+            contenedor.innerHTML = htmlMods;
+        }
+
+        window.eliminarAgente = async (uid, email) => {
+            if(!confirm(`⚠️ ATENCIÓN ⚠️\n\n¿Estás seguro que deseas revocar los privilegios de moderador a:\n${email}?\n\nPerderá acceso al panel de moderación inmediatamente.`)) return;
+
+            const { success, error } = await QRpidoDB.AdminService.revocarModerador(uid);
+            if(success) {
+                document.getElementById(`mod-${uid}`).remove();
+                if(document.querySelectorAll('.card-moderador').length === 0) cargarModeradores();
+            } else {
+                alert("Error al revocar permisos: " + error);
+            }
+        };
+
+    </script>
+</body>
+</html>

@@ -26,7 +26,8 @@
 
 
 
-import { doc, getDoc, setDoc, collection, writeBatch, getDocs, query, where, limit, startAfter, orderBy, startAt, endAt } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { doc, getDoc, setDoc, collection, writeBatch, getDocs, query, where, limit, startAfter, orderBy, startAt, endAt, collectionGroup, deleteDoc, getCountFromServer } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
 
 
 
@@ -468,6 +469,146 @@ return { success: false, error: error.message };
             }
         },
 
+            // --- MÓDULO DE MODERACIÓN AVANZADA ---
+
+            obtenerNegociosPendientes: async () => {
+                try {
+                    const q = query(
+                        collection(db, _SCHEMA.ColeccionDirectorio), 
+                        where("estado_moderacion", "==", "pendiente"),
+                        limit(20) // Traemos de 20 en 20 para no saturar la RAM
+                    );
+                    const snap = await getDocs(q);
+                    const resultados = [];
+                    snap.forEach(doc => resultados.push({ id: doc.id, ...doc.data() }));
+                    return { success: true, data: resultados };
+                } catch (e) { return { success: false, error: e.message }; }
+            },
+
+            aprobarNegocio: async (idNegocio) => {
+                try {
+                    // Quitamos el estado pendiente y le ponemos fecha de aprobación
+                    await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, idNegocio), { 
+                        estado_moderacion: 'aprobado',
+                        fecha_aprobacion: new Date().toISOString()
+                    }, { merge: true });
+                    return { success: true };
+                } catch (e) { return { success: false, error: e.message }; }
+            },
+
+            rechazarNegocio: async (idNegocio, datosNegocio, motivoRechazo) => {
+                try {
+                    const batch = writeBatch(db);
+                    
+                    // 1. Referencia al negocio en la tabla principal (para borrarlo)
+                    const refPrincipal = doc(db, _SCHEMA.ColeccionDirectorio, idNegocio);
+                    batch.delete(refPrincipal);
+
+                    // 2. Si NO es Spam, lo guardamos en la Bóveda de Rechazos (Cementerio)
+                    if (motivoRechazo !== 'spam') {
+                        const refRechazo = doc(db, 'Boveda_Rechazos', idNegocio);
+                        batch.set(refRechazo, {
+                            nombre: datosNegocio.nombre || 'Sin nombre',
+                            email: datosNegocio.email || 'Sin correo',
+                            whatsapp: datosNegocio.whatsapp || 'Sin número',
+                            direccion: datosNegocio.direccion || 'Sin dirección',
+                            motivo_rechazo: motivoRechazo,
+                            fecha_rechazo: new Date().toISOString()
+                        });
+                    } else {
+                        // 3. SORPRESA: Si es Spam, lo metemos a la Lista Negra
+                        const refBlacklist = doc(db, 'Lista_Negra', datosNegocio.email || idNegocio);
+                        batch.set(refBlacklist, { 
+                            email: datosNegocio.email, 
+                            fecha_bloqueo: new Date().toISOString(),
+                            motivo: 'Spam detectado en moderación'
+                        });
+                    }
+
+                    await batch.commit();
+                    return { success: true };
+                } catch (e) { return { success: false, error: e.message }; }
+            },
+
+            buscarRechazoPorCorreo: async (correoBusqueda) => {
+                try {
+                    const q = query(collection(db, 'Boveda_Rechazos'), where("email", "==", correoBusqueda.trim().toLowerCase()));
+                    const snap = await getDocs(q);
+                    if (snap.empty) return { success: true, data: null };
+                    
+                    // Retornamos el primero que encuentre
+                    return { success: true, data: snap.docs[0].data() };
+                } catch (e) { return { success: false, error: e.message }; }
+            },
+            // --- MÓDULO CEREBRO CENTRAL (SUPER ADMIN) ---
+
+            obtenerEstadisticasGlobales: async () => {
+                try {
+                    // Magia de Ahorro: getCountFromServer cuenta en la nube, casi no cuesta lecturas
+                    const collDirectorio = collection(db, _SCHEMA.ColeccionDirectorio);
+                    
+                    const qAprobados = query(collDirectorio, where("estado_moderacion", "==", "aprobado"));
+                    const qPendientes = query(collDirectorio, where("estado_moderacion", "==", "pendiente"));
+
+                    const [snapAprobados, snapPendientes] = await Promise.all([
+                        getCountFromServer(qAprobados),
+                        getCountFromServer(qPendientes)
+                    ]);
+
+                    return { 
+                        success: true, 
+                        data: {
+                            activos: snapAprobados.data().count,
+                            pendientes: snapPendientes.data().count
+                        } 
+                    };
+                } catch (e) { return { success: false, error: e.message }; }
+            },
+
+            buscarUsuarioParaModerador: async (email) => {
+                try {
+                    // Buscamos al usuario en la base principal por su correo
+                    const q = query(
+                        collection(db, _SCHEMA.ColeccionDirectorio), 
+                        where("email", "==", email.trim().toLowerCase()), 
+                        limit(1)
+                    );
+                    const snap = await getDocs(q);
+                    if(snap.empty) return { success: false, error: "No existe ninguna cuenta con este correo en QRpido." };
+                    
+                    const datos = snap.docs[0].data();
+                    return { success: true, data: { uid: snap.docs[0].id, nombre: datos.nombre, email: datos.email } };
+                } catch (e) { return { success: false, error: e.message }; }
+            },
+
+            nombrarModerador: async (uid, email) => {
+                try {
+                    await setDoc(doc(db, "Usuarios_Admin", uid), { 
+                        rol: "moderador", 
+                        email: email, 
+                        fecha_ingreso: new Date().toISOString() 
+                    });
+                    return { success: true };
+                } catch (e) { return { success: false, error: e.message }; }
+            },
+
+            obtenerEquipoModeradores: async () => {
+                try {
+                    const q = query(collection(db, "Usuarios_Admin"), where("rol", "==", "moderador"));
+                    const snap = await getDocs(q);
+                    const mods = [];
+                    snap.forEach(doc => mods.push({ uid: doc.id, ...doc.data() }));
+                    return { success: true, data: mods };
+                } catch (e) { return { success: false, error: e.message }; }
+            },
+
+            revocarModerador: async (uid) => {
+                try {
+                    // Le quitamos la placa borrando su documento de la colección de permisos
+                    await deleteDoc(doc(db, "Usuarios_Admin", uid));
+                    return { success: true };
+                } catch (e) { return { success: false, error: e.message }; }
+            },
 
 
 /**
@@ -487,6 +628,7 @@ return { success: false, error: error.message };
 
 
 RadarService: {
+  
 
 
 
@@ -671,6 +813,43 @@ buscarEnRadar: async (lat, lng, radiusInM) => {
                 } catch (e) {
                     console.error("Error CoreDB buscarEnRadar:", e);
                     return { success: false, error: e.message };
+                }
+            },
+            buscarInmueblesEnRadar: async (lat, lng, radiusInM) => {
+                if (!db || typeof geofire === 'undefined') return { success: false, error: 'Firebase o GeofireX no listos' };
+                try {
+                    const radiusInKm = radiusInM / 1000;
+                    const bounds = geofire.geohashQueryBounds([lat, lng], radiusInKm);
+                    const promises = [];
+
+                    for (const b of bounds) {
+                        // 🚨 Magia aquí: collectionGroup perfora TODAS las carpetas "productos" de todos los usuarios
+                        const q = query(
+                            collectionGroup(db, _SCHEMA.SubColeccionProductos),
+                            orderBy('geohash'),
+                            startAt(b[0]),
+                            endAt(b[1])
+                        );
+                        promises.push(getDocs(q));
+                    }
+
+                    const snapshots = await Promise.all(promises);
+                    const matchingDocs = [];
+
+                    snapshots.forEach((snap) => {
+                        snap.docs.forEach((doc) => {
+                            const data = doc.data();
+                            // Si tiene geohash, es un inmueble con coordenadas propias
+                            if(data.geohash) {
+                                matchingDocs.push({ ...data, id: doc.id, es_inmueble_real: true, tipo_modelo: 'inmueble' });
+                            }
+                        });
+                    });
+
+                    return { success: true, data: matchingDocs };
+                } catch (error) {
+                    console.error("Error CoreDB buscarInmueblesEnRadar:", error);
+                    return { success: false, error: error.message };
                 }
             },
 

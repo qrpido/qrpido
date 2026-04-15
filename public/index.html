@@ -380,7 +380,8 @@ filter: brightness(0.3) grayscale(0.5); pointer-events: none;
 
 .bottom-sheet-overlay.activo { opacity: 1; pointer-events: all; }
 
-.bottom-sheet-contenido { width: 100%; max-width: 500px; background: var(--glass-bg); backdrop-filter: blur(25px); border-top-left-radius: 34px; border-top-right-radius: 34px; padding: var(--sp-md) var(--sp-lg) var(--sp-lg) var(--sp-lg); transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); border-top: 1px solid var(--naranja); box-sizing: border-box; max-height: 61.8vh; overflow-y: auto; touch-action: pan-y; }
+.bottom-sheet-contenido { width: 92%; max-width: 500px; background: var(--glass-bg); backdrop-filter: blur(25px); border-radius: 34px; padding: var(--sp-md) var(--sp-lg) var(--sp-lg) var(--sp-lg); transform: translateY(150%); transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); border: 1px solid var(--glass-border); box-sizing: border-box; max-height: 65vh; overflow-y: auto; touch-action: pan-y; margin-bottom: 20px; box-shadow: 0 15px 40px rgba(0,0,0,0.8); }
+
 
 .bottom-sheet-overlay.activo .bottom-sheet-contenido { transform: translateY(0); }
 
@@ -694,7 +695,8 @@ No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.
 
 <button class="btn-submenu" onclick="abrirModal('modal-login'); toggleSubmenu()">🔑 Iniciar Sesión</button>
 
-<button class="btn-submenu" onclick="window.location.href='agenda.html'">🔔 Notificaciones</button>
+<button id="btn-acceso-moderacion" class="btn-submenu" onclick="window.location.href='moderacion.html'" style="display:none; border-color: #00ff64; color: #00ff64;">⚖️ Panel Moderación</button>
+
 
 <button class="btn-submenu" onclick="abrirModal('modal-soporte'); toggleSubmenu()" style="border-color: var(--naranja); color: var(--naranja);">💬 Centro de Ayuda</button>
 
@@ -726,7 +728,8 @@ No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.
 
 <div id="panel-captacion" class="panel-seccion contenido-colapsable" style="text-align: center;">
 
-<button id="btn-cta-panel" class="btn-pedir" style="margin-top: 0; padding: 12px; font-size: 12px;" onclick="window.location.href='admin.html'">¿Eres dueño? Anúnciate aquí</button>
+<button id="btn-cta-panel" class="btn-pedir" style="margin-top: 0; padding: 12px; font-size: 12px;" onclick="abrirModal('modal-login'); document.getElementById('panel-cristal').classList.add('colapsado');">¿Eres dueño? Anúnciate aquí</button>
+
 
 </div>
 
@@ -835,11 +838,10 @@ No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.
 
 </div>
 
-<div id="panel-usuario-activo" style="display: none; text-align: center;">
+<div id="panel-usuario-activo" style="display: none; text-align: center; padding-top: 15px;">
 
-<div style="font-size: 40px; margin-bottom: 10px;" id="icono-rol-usuario">👤</div>
+<h3 id="nombre-usuario-activo" style="margin: 0 0 20px 0; color: var(--naranja); font-size: 18px; word-break: break-all;">Cargando...</h3>
 
-<h3 id="nombre-usuario-activo" style="margin: 0 0 20px 0;">Cargando...</h3>
 
 <button class="btn-auth btn-ingresar" onclick="window.location.href='admin.html'">Ir a mi Oficina</button>
 
@@ -1737,20 +1739,26 @@ window.dibujarPinesDesdeJSONCache = function(boundsActuales) {
     if (!window.DICCIONARIO_UNIVERSAL || window.DICCIONARIO_UNIVERSAL.length === 0) return;
 
     requestAnimationFrame(() => {
-        window.DICCIONARIO_UNIVERSAL.forEach(negocio => {
-            // Verifica que tenga lat/lng y esté en la pantalla visible
+        let pinesDibujadosEnEsteFrame = 0;
+        const LIMITE_PINES_PANTALLA = 100; // Escudo protector de CPU
+
+        for (let i = 0; i < window.DICCIONARIO_UNIVERSAL.length; i++) {
+            if (pinesDibujadosEnEsteFrame >= LIMITE_PINES_PANTALLA) break; 
+
+            const negocio = window.DICCIONARIO_UNIVERSAL[i];
+            
             if (negocio.lat && negocio.lng && boundsActuales.contains([negocio.lat, negocio.lng])) {
-                
-                // Si el marcador NO existe, lo creamos
                 if (!marcadoresActivos[negocio.id_prod]) {
                     const marker = L.marker([negocio.lat, negocio.lng]).addTo(mapa);
-                    marker.bindPopup(`<b>${negocio.nombre}</b><br><span id="precio-${negocio.id_prod}">Verificando...</span>`);
+                    marker.bindPopup(`<b>${sanitizarTexto(negocio.nombre)}</b><br><span id="precio-${sanitizarTexto(negocio.id_prod)}">Verificando...</span>`);
                     marcadoresActivos[negocio.id_prod] = marker;
                 }
+                pinesDibujadosEnEsteFrame++;
             }
-        });
+        }
     });
 };
+
 
 
 window.descargarNegociosDeFirebase = async function() {
@@ -1768,12 +1776,28 @@ window.descargarNegociosDeFirebase = async function() {
         // 🛡️ Límite estricto de radio (Máximo 2000m = 2km)
         if (radiusInM > 2000) radiusInM = 2000;
 
-        // Llamada a la base de datos limpia (Solo trae los datos vivos)
-        const { success, data: arrayNegocios, error } = await QRpidoDB.RadarService.buscarEnRadar(center[0], center[1], radiusInM);
+       // Llamada a la base de datos (Bifurcación: Escanea negocios o escanea casas)
+        let success, arrayNegocios, error;
+        if (categoriaActivaGlobal === 'inmuebles') {
+            const res = await QRpidoDB.RadarService.buscarInmueblesEnRadar(center[0], center[1], radiusInM);
+            success = res.success; arrayNegocios = res.data; error = res.error;
+        } else {
+            const res = await QRpidoDB.RadarService.buscarEnRadar(center[0], center[1], radiusInM);
+            success = res.success; arrayNegocios = res.data; error = res.error;
+        }
 
-        if (!success) throw new Error(error);
+                if (!success) throw new Error(error);
+
+        if (dbDirectorioMap.size > 1500) {
+            // Garbage collection manual: Evitamos colapsar la RAM eliminando pines antiguos
+            const llaves = Array.from(dbDirectorioMap.keys());
+            for(let i = 0; i < 500; i++) {
+                dbDirectorioMap.delete(llaves[i]);
+            }
+        }
 
         arrayNegocios.forEach(data => {
+
             const doc = { id: data.id || data.codigo };
             let lat, lng;
 
@@ -1853,92 +1877,56 @@ window.descargarNegociosDeFirebase = async function() {
 function construirMapa() {
 
 mapa = L.map('mapa-qrpido', { zoomControl: false, minZoom: 5 }).setView([4.8133, -75.6961], 14);
-// INYECCIÓN DEL TORNIQUETE FINANCIERO
-    mapa.on('moveend', () => {
-        const boundsActuales = mapa.getBounds();
-        const zoomActual = mapa.getZoom();
-        const centroActual = mapa.getCenter();
-
-        // 1. Dibujo estático gratis (desde caché JSON)
-        if (window.dibujarPinesDesdeJSONCache) {
-            window.dibujarPinesDesdeJSONCache(boundsActuales);
-        }
-
-        // 2. Bloqueo si el zoom es muy lejano
-        if (zoomActual < 14) return;
-
-        // 3. Bloqueo por distancia (Efecto Rebote: mínimo 1km)
-        if (ultimoCentroFetch && ultimoCentroFetch.distanceTo(centroActual) < 1000) return;
-        ultimoCentroFetch = centroActual;
-
-        // 4. Debounce (Espera 500ms antes de cobrar)
-        clearTimeout(debounceFirebase);
-        debounceFirebase = setTimeout(() => {
-            // Llama a tu función original que descarga de Firebase
-            if (window.descargarNegociosDeFirebase) {
-                window.descargarNegociosDeFirebase(); 
-            }
-        }, 500); 
-    });
-
-
 capaBase = L.tileLayer('https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.png', {
-
 maxZoom: 20,
-
 attribution: '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a>'
-
 }).addTo(mapa);
 
-
 const panel = document.querySelector('.leaflet-tile-pane');
-
 panel.style.filter = "none";
-
-
 
 capaRadar = L.layerGroup().addTo(mapa);
 
-
 let timerMovimiento;
-  let lastFetchCenter = null;
-  const UMBRAL_DISTANCIA_METROS = 400; // Bloqueo si el desplazamiento es menor a 400m
+let ultimoCentroFetch = null;
+const UMBRAL_DISTANCIA_METROS = 400; // Define un solo umbral estricto
 
-  mapa.on('moveend', () => {
+mapa.on('moveend', () => {
     clearTimeout(timerMovimiento);
     
+    // 1. Dibujo estático gratis (desde caché JSON) Ocurre inmediatamente
+    const boundsActuales = mapa.getBounds();
+    if (window.dibujarPinesDesdeJSONCache) window.dibujarPinesDesdeJSONCache(boundsActuales);
+
+    if (mapa.getZoom() < 14) return; // Bloqueo de zoom lejano
+
     timerMovimiento = setTimeout(() => {
-      const currentCenter = mapa.getCenter();
+        const currentCenter = mapa.getCenter();
 
-      // 1. Escudo Financiero: Verificar si se movió una distancia significativa
-      if (lastFetchCenter && currentCenter.distanceTo(lastFetchCenter) < UMBRAL_DISTANCIA_METROS) {
-          // Si el movimiento fue mínimo, solo refrescamos los pines locales en memoria sin activar la red
-          if (datosDescargados && !zonaNecesitaDescarga) {
-              if (document.querySelector('.leaflet-popup')) return;
-              barridoRadar(document.getElementById('input-buscador').value);
-          }
-          return; // Abortamos para no mostrar el botón de descarga
-      }
-
-      // 2. Si se movió lo suficiente, actualizamos el punto de control
-      lastFetchCenter = currentCenter;
-
-      // 3. Tu lógica original intacta para determinar si salió de la "Caja Fuerte"
-      if (datosDescargados && cajaFuerteEspacial) {
-        if (!cajaFuerteEspacial.contains(mapa.getBounds())) {
-          zonaNecesitaDescarga = true;
+        // 2. Escudo Financiero: Verificar si se movió una distancia significativa
+        if (ultimoCentroFetch && currentCenter.distanceTo(ultimoCentroFetch) < UMBRAL_DISTANCIA_METROS) {
+            if (datosDescargados && !zonaNecesitaDescarga && !document.querySelector('.leaflet-popup')) {
+                barridoRadar(document.getElementById('input-buscador').value);
+            }
+            return; 
         }
-      }
 
-      if (zonaNecesitaDescarga) {
-        document.getElementById('btn-cargar-zona').style.display = 'block';
-      } else if (datosDescargados) {
-        if (document.querySelector('.leaflet-popup')) return;
-        barridoRadar(document.getElementById('input-buscador').value);
-      }
-      
-    }, 800); // Debounce de 800ms para mayor fluidez
-  });
+        ultimoCentroFetch = currentCenter;
+
+        // 3. Validación de la "Caja Fuerte" Espacial
+        if (datosDescargados && cajaFuerteEspacial && !cajaFuerteEspacial.contains(mapa.getBounds())) {
+            zonaNecesitaDescarga = true;
+        }
+
+        if (zonaNecesitaDescarga) {
+            document.getElementById('btn-cargar-zona').style.display = 'block';
+            if (window.descargarNegociosDeFirebase) window.descargarNegociosDeFirebase();
+        } else if (datosDescargados && !document.querySelector('.leaflet-popup')) {
+            barridoRadar(document.getElementById('input-buscador').value);
+        }
+    }, 500); 
+});
+
 
 
 
@@ -2435,10 +2423,14 @@ document.querySelectorAll('#contenedor-etiquetas .tag-pill').forEach(t => t.clas
 
 div.classList.add('activa');
 
-
 renderizarPanel(c);
-
-if (typeof barridoRadar === "function") barridoRadar('');
+// 🚨 GATILLO: Forzamos al radar a descargar de nuevo si cambiamos entre Negocios e Inmuebles
+if (c.id === 'inmuebles' || c.id === 'negocios') {
+    zonaNecesitaDescarga = true;
+    descargarNegociosDeFirebase();
+} else {
+    if (typeof barridoRadar === "function") barridoRadar('');
+}
 
 }
 
@@ -2654,29 +2646,19 @@ const pos = L.latLng(p.Coordenadas.latitude, p.Coordenadas.longitude);
 
 const pinUsado = dbSimbologia[p.link_pin] || dbSimbologia['pin_normal'];
 
-const portadaUsada = p.portada || dbSimbologia['wallpaper_generico'];
-
-const logoUsado = p.logo || dbSimbologia['avatar_generico'];
-
+// Si es inmueble usa "p.imagen", si es negocio usa "p.portada / p.logo"
+const portadaUsada = p.es_inmueble_real ? p.imagen : (p.portada || dbSimbologia['wallpaper_generico']);
+const logoUsado = p.es_inmueble_real ? p.imagen : (p.logo || dbSimbologia['avatar_generico']);
 const nombreLimpio = sanitizarTexto(p.nombre || 'Negocio').replace(/'/g, "\\'");
-
-
 const escapeQuotes = (str) => (str || '').replace(/'/g, "%27").replace(/"/g, "%22");
-
 const logoSeguro = escapeQuotes(logoUsado);
-
 const portadaSegura = escapeQuotes(portadaUsada);
-
-
 let c1 = 'var(--naranja)';
-
 let c2 = 'var(--naranja)';
-
 let c3 = '#ffffff'; // Color de borde por defecto
+let claseForma = p.es_inmueble_real ? 'pin-1' : 'pin-1'; // Pin estándar (pronto pondremos el 3D)
+let textoNicho = sanitizarTexto(p.es_inmueble_real ? (p.categoria || 'Propiedad') : (p.niche || 'Local'));
 
-let claseForma = 'pin-1'; // Pin estándar por defecto
-
-let textoNicho = sanitizarTexto(p.niche || 'Local');
 
 
 
@@ -2868,12 +2850,10 @@ data-ad-slot="YYYYY"></ins>
 
 
 // --- AQUÍ CREAMOS EL ENLACE INTELIGENTE ---
+const linkDestino = p.es_inmueble_real 
+? `inmueble.html?id=${encodeURIComponent(p.codigo)}` 
+: (p.username ? `/${p.username.toLowerCase()}` : `negocio.html?id=${encodeURIComponent(p.codigo)}`);
 
-const linkDestino = p.username
-
-? `/${p.username.toLowerCase()}`
-
-: `${p.tipo_modelo === 'inmueble' ? 'inmueble.html' : 'negocio.html'}?id=${encodeURIComponent(p.codigo)}`;
 
 
 // Preparamos el username para el botón de compartir
@@ -3321,18 +3301,27 @@ window.cerrarSesion = async () => {
     document.getElementById('modal-login').classList.remove('activo');
 };
 
-QRpidoDB.SecurityService.observarEstadoSesion((user) => {
-if (user) {
+QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
+    const btnMod = document.getElementById('btn-acceso-moderacion');
+    if (user) {
+        document.getElementById('form-login-activo').style.display = 'none';
+        document.getElementById('panel-usuario-activo').style.display = 'block';
+        document.getElementById('nombre-usuario-activo').innerText = user.email;
+        document.getElementById('btn-portal-mando').style.background = 'var(--naranja)';
 
-document.getElementById('form-login-activo').style.display = 'none';
+        // 🛡️ SENSOR DE RANGO: Verificamos si es personal autorizado
+        const { success, data } = await QRpidoDB.SecurityService.obtenerRolAdmin(user.uid);
+        if (success && (data.rol === 'admin' || data.rol === 'moderador' || data.rol === 'superadmin')) {
+            if(btnMod) btnMod.style.display = 'block'; // Revelamos el panel
+        }
+    } else {
+        document.getElementById('form-login-activo').style.display = 'block';
+        document.getElementById('panel-usuario-activo').style.display = 'none';
+        document.getElementById('btn-portal-mando').style.background = 'var(--glass-bg)';
+        if(btnMod) btnMod.style.display = 'none'; // Ocultamos si no hay sesión
+    }
+});
 
-document.getElementById('panel-usuario-activo').style.display = 'block';
-
-document.getElementById('nombre-usuario-activo').innerText = user.email;
-
-document.getElementById('btn-portal-mando').style.background = 'var(--naranja)';
-
-} else {
 
 document.getElementById('form-login-activo').style.display = 'block';
 

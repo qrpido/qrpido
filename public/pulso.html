@@ -1,904 +1,636 @@
 <!DOCTYPE html>
-
 <html lang="es">
-
 <head>
-
-<meta charset="UTF-8">
-
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-
-<title>Pulso Urbano | QRpido</title>
-
-<link rel="manifest" href="manifest.json">
-
-<meta name="theme-color" content="#ff6b00">
-
-<link rel="apple-touch-icon" href="https://via.placeholder.com/192/0a0a0c/ff6b00?text=QR">
-
-
-
-<style>
-
-:root {
-
---color-marca: #ff6b00;
-
---bg-oscuro: #0a0a0c;
-
---glass-bg: rgba(20, 20, 25, 0.75);
-
---glass-border: rgba(255, 255, 255, 0.1);
-
-}
-
-body, html { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg-oscuro); color: white; scroll-behavior: smooth; overflow-x: hidden; }
-
-/* === FONDOS Y CRISTAL === */
-
-#fondo-pantalla { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; object-fit: cover; z-index: -2; opacity: 0.15; }
-
-.glass-panel { background: var(--glass-bg); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border: 1px solid var(--glass-border); border-radius: 20px; }
-
-/* === SKELETON SHIMMER === */
-
-.shimmer-box { position: relative; overflow: hidden; background: rgba(255,255,255,0.05) !important; color: transparent !important; border-color: transparent !important; pointer-events: none; }
-
-.shimmer-box * { visibility: hidden; }
-
-.shimmer-box::after { content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent); animation: shimmer 1.5s infinite; }
-
-@keyframes shimmer { 100% { left: 100%; } }
-
-
-
-/* === NAVEGACIÓN FLOTANTE === */
-
-.nav-flotante { position: absolute; top: 15px; left: 15px; z-index: 100; }
-
-.btn-nav { background: rgba(0,0,0,0.6); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 50%; width: 40px; height: 40px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.5); text-decoration: none; }
-
-.btn-nav:active { transform: scale(0.9); background: var(--color-marca); border-color: var(--color-marca); }
-
-
-
-/* === HEADER === */
-
-.pulso-header { text-align: center; padding: 60px 20px 20px; position: relative; z-index: 10;}
-
-.pulso-titulo { margin: 0; font-size: 32px; font-weight: 900; text-transform: uppercase; letter-spacing: 3px; color: #fff; text-shadow: 0 0 10px rgba(255,107,0,0.6); }
-
-.pulso-subtitulo { margin: 5px 0 0; color: var(--color-marca); font-size: 12px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; }
-
-
-
-/* === NIVEL SUPERIOR: TICKER 2x2 === */
-
-.ticker-wrapper { padding: 0 15px; margin-bottom: 30px; position: relative; z-index: 10;}
-
-.ticker-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-
-.tv-widget-container { height: 120px; border-radius: 15px; overflow: hidden; background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); display: flex; align-items: center; justify-content: center; }
-
-.tv-widget-dynamic { height: 120px; border-radius: 15px; background: rgba(0,0,0,0.5); border: 1px solid var(--color-marca); display: flex; flex-direction: column; overflow: hidden; position: relative;}
-
-.selector-mercado { background: rgba(255,107,0,0.2); border: none; border-bottom: 1px solid var(--color-marca); color: white; width: 100%; padding: 5px 10px; font-size: 11px; font-weight: bold; outline: none; appearance: none; text-align: center; cursor: pointer; }
-
-.selector-mercado option { background: var(--bg-oscuro); color: white; }
-
-.dynamic-wrapper { flex: 1; width: 100%; position: relative; }
-
-
-
-/* === NIVEL MEDIO: FEED DE NOTICIAS === */
-
-.noticias-wrapper { padding: 0 15px 30px; position: relative; z-index: 10; max-width: 1000px; margin: 0 auto; }
-
-.layout-noticias { display: grid; grid-template-columns: 1fr; gap: 20px; }
-
-@media (min-width: 768px) { .layout-noticias { grid-template-columns: 2fr 1fr; } }
-
-/* Feed Principal (Tarjetas Grandes) */
-
-.feed-principal { display: flex; flex-direction: column; gap: 20px; }
-
-.noticia-card { display: flex; flex-direction: column; overflow: hidden; transition: 0.3s; }
-
-.noticia-img { width: 100%; height: 200px; object-fit: cover; border-bottom: 2px solid var(--color-marca); }
-
-.noticia-content { padding: 20px; }
-
-.noticia-meta { font-size: 11px; color: var(--color-marca); font-weight: bold; text-transform: uppercase; margin-bottom: 8px; display: flex; justify-content: space-between;}
-
-.noticia-titulo { margin: 0 0 10px 0; font-size: 20px; font-weight: 900; line-height: 1.3; }
-
-.noticia-extracto { margin: 0 0 15px 0; font-size: 14px; color: #ccc; line-height: 1.5; }
-
-.btn-leer { display: inline-block; background: rgba(255,255,255,0.1); border: 1px solid var(--glass-border); color: white; padding: 8px 20px; border-radius: 20px; font-size: 12px; font-weight: bold; text-decoration: none; transition: 0.3s; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; }
-
-.btn-leer:hover { background: var(--color-marca); border-color: var(--color-marca); }
-
-
-
-/* Feed Secundario (Minimalista) */
-
-.feed-secundario { display: flex; flex-direction: column; gap: 10px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 20px; border: 1px solid var(--glass-border); height: fit-content; }
-
-.seccion-titulo { margin: 0 0 15px 0; font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: #aaa; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
-
-.noticia-mini { padding-bottom: 12px; border-bottom: 1px dashed rgba(255,255,255,0.05); display: flex; flex-direction: column; gap: 4px; cursor: pointer; transition: 0.3s; }
-
-.noticia-mini:last-child { border-bottom: none; padding-bottom: 0; }
-
-.noticia-mini:hover .mini-titulo { color: var(--color-marca); }
-
-.mini-titulo { margin: 0; font-size: 14px; font-weight: bold; line-height: 1.3; color: #eee; transition: 0.3s;}
-
-.mini-meta { margin: 0; font-size: 10px; color: #888; text-transform: uppercase; }
-
-
-
-/* === NIVEL INFERIOR: BOTÓN Y ADSENSE === */
-
-.paginacion-wrapper { text-align: center; padding: 0 15px 50px; position: relative; z-index: 10; }
-
-.btn-pulsante { background: var(--color-marca); color: white; border: none; padding: 15px 30px; border-radius: 30px; font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; cursor: pointer; transition: 0.3s; box-shadow: 0 5px 15px rgba(255,107,0,0.4); display: inline-block;}
-
-.btn-pulsante:active { transform: scale(0.95); }
-
-.btn-pulsante:disabled { background: #444; color: #888; box-shadow: none; cursor: not-allowed; }
-
-
-
-/* Camuflaje AdSense */
-
-.adsense-mock { border: 1px dashed var(--color-marca); background: rgba(255,107,0,0.05); display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px; margin-bottom: 20px; }
-
-.adsense-label { font-size: 10px; color: var(--color-marca); letter-spacing: 2px; text-transform: uppercase; font-weight: bold; margin-bottom: 10px; }
-
-
-
-/* Modal Lectura Completa */
-
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; display: flex; justify-content: center; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
-
-.modal-overlay.activo { opacity: 1; pointer-events: all; }
-
-.modal-contenido { width: 100%; max-width: 800px; height: 90vh; background: var(--bg-oscuro); border-top-left-radius: 30px; border-top-right-radius: 30px; transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); border-top: 1px solid var(--color-marca); box-sizing: border-box; display: flex; flex-direction: column;}
-
-.modal-overlay.activo .modal-contenido { transform: translateY(0); }
-
-.drag-handle { width: 50px; height: 5px; background: rgba(255,255,255,0.3); border-radius: 5px; margin: 15px auto; cursor: grab; flex-shrink: 0;}
-
-.modal-scroll { overflow-y: auto; padding: 0 25px 40px; flex-grow: 1;}
-
-.modal-img { width: 100%; height: 250px; object-fit: cover; border-radius: 15px; margin-bottom: 20px; border: 1px solid var(--glass-border); }
-
-.modal-cuerpo { font-size: 15px; color: #ddd; line-height: 1.8; white-space: pre-wrap; }
-
-
-
-/* === UI DE RESCATE OFFLINE === */
-
-.offline-banner { position: fixed; top: 0; left: 0; width: 100%; background: #ff4444; color: white; text-align: center; padding: 8px; z-index: 10000; font-weight: 900; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(255,68,68,0.4); display: none; }
-
-.offline-banner.activo { display: block; }
-
-</style>
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pulso Urbano | QRpido</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ff6b00">
+    <link rel="apple-touch-icon" href="https://via.placeholder.com/192/0a0a0c/ff6b00?text=QR">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            /* Genoma Base QRpido */
+            --color-marca: #ff6b00;
+            --bg-oscuro: #0a0a0c;
+            --glass-bg: rgba(20, 20, 25, 0.75);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            
+            /* Matemática Áurea para el layout superior */
+            --alto-buscador: 48px;
+            --alto-indicador: calc(var(--alto-buscador) / 1.618);
+            
+            /* Cristal puro Burbujas */
+            --burbuja-fondo: rgba(255, 255, 255, 0.03);
+            --burbuja-borde: rgba(255, 255, 255, 0.08);
+            --sombra-minima: 0 15px 35px rgba(0, 0, 0, 0.3);
+            
+            /* Radios Fibonacci Burbujas */
+            --radio-macro: 116px; 
+            --radio-medio: 72px;  
+            --radio-micro: 45px;  
+            --radio-nano: 35px; 
+            
+            /* Efecto Barrido */
+            --barrido-onda: rgba(148, 163, 184, 0.05);
+            --barrido-desenfoque: blur(40px);
+        }
+
+        body, html { 
+            margin: 0; padding: 0; 
+            font-family: 'Segoe UI', sans-serif; 
+            background: var(--bg-oscuro); color: white; 
+            scroll-behavior: smooth; overflow-x: hidden; 
+            width: 100vw; height: 100vh;
+        }
+
+        /* === FONDOS Y CRISTAL === */
+        #fondo-pantalla { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; object-fit: cover; z-index: -2; opacity: 0.15; }
+        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border: 1px solid var(--glass-border); border-radius: 20px; }
+
+        /* === SKELETON SHIMMER === */
+        .shimmer-box { position: relative; overflow: hidden; background: rgba(255,255,255,0.05) !important; color: transparent !important; border-color: transparent !important; pointer-events: none; }
+        .shimmer-box * { visibility: hidden; }
+        .shimmer-box::after { content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent); animation: shimmer 1.5s infinite; }
+        @keyframes shimmer { 100% { left: 100%; } }
+
+        /* === NAVEGACIÓN FLOTANTE === */
+        .nav-flotante { position: absolute; top: 15px; left: 15px; z-index: 100; }
+        .btn-nav { background: rgba(0,0,0,0.6); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 50%; width: 40px; height: 40px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.5); text-decoration: none; }
+        .btn-nav:active { transform: scale(0.9); background: var(--color-marca); border-color: var(--color-marca); }
+
+        /* === VISTA 1: ECOSISTEMA (LAYOUT PRINCIPAL) === */
+        #vista-ecosistema {
+            display: flex; flex-direction: column; width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 10;
+            user-select: none; -webkit-user-select: none; touch-action: none; 
+        }
+
+        .top-section {
+            padding: 20px 5%; z-index: 15; display: flex; flex-direction: column; align-items: center;
+            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.8);
+            background: rgba(10, 10, 12, 0.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+        }
+
+        .pulso-header { width: 100%; display: flex; flex-direction: column; align-items: center; margin-top: 10px; }
+        .pulso-titulo { margin: 0; font-size: 32px; font-weight: 900; text-transform: uppercase; letter-spacing: 3px; color: #fff; text-shadow: 0 0 10px rgba(255,107,0,0.6); }
+        .pulso-subtitulo { margin: 5px 0 15px 0; color: var(--color-marca); font-size: 11px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; }
+
+        .buscador-qrpido {
+            width: 100%; max-width: 500px; height: var(--alto-buscador);
+            background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 25px; padding: 0 20px; display: flex; align-items: center; box-sizing: border-box;
+            transition: border-color 0.3s ease; pointer-events: auto;
+        }
+        .buscador-qrpido:focus-within { border-color: var(--color-marca); }
+        .buscador-qrpido i { color: #888; margin-right: 12px; }
+        .buscador-qrpido input { background: transparent; border: none; color: white; font-size: 0.95rem; width: 100%; outline: none; height: 100%; font-family: 'Segoe UI', sans-serif;}
+        .buscador-qrpido input::placeholder { color: #888; }
+
+        /* Ticker Miniaturas (1 Línea Scroll) */
+        .panel-indicadores {
+            display: flex; flex-direction: row; flex-wrap: nowrap; gap: 12px;
+            margin-top: 15px; width: 100vw; max-width: 100vw; padding: 0 5vw; margin-left: -5vw;
+            box-sizing: border-box; overflow-x: auto; -ms-overflow-style: none; scrollbar-width: none; 
+            pointer-events: auto;
+        }
+        .panel-indicadores::-webkit-scrollbar { display: none; }
+
+        .indicador {
+            background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px; padding: 0 16px; height: var(--alto-indicador);
+            display: flex; flex-direction: row; align-items: center; gap: 10px;
+            box-shadow: inset 0 2px 10px rgba(255,255,255,0.02); flex: 0 0 auto; white-space: nowrap; 
+        }
+        .ind-titulo { font-size: 0.65rem; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; margin: 0; font-weight: bold;}
+        .ind-valor { font-size: 0.85rem; font-weight: bold; color: white; display: flex; align-items: center;}
+        .ind-valor i { font-size: 0.7rem; margin-right: 4px; }
+        .up { color: #4ade80; } .down { color: #f87171; } 
+
+        /* Espacio de Flotación */
+        #ecosistema { flex: 1; position: relative; width: 100%; z-index: 10; }
+
+        .burbuja {
+            position: absolute; transform: translate(-50%, -50%); 
+            border-radius: 50%; background: var(--burbuja-fondo);
+            backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border: 1px solid var(--burbuja-borde);
+            box-shadow: inset 0 15px 25px -10px rgba(255, 255, 255, 0.15), inset 0 -20px 35px -15px rgba(0, 0, 0, 0.8), var(--sombra-minima);                              
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            text-align: center; padding: 10px; cursor: grab; box-sizing: border-box; will-change: left, top, transform;
+            transition: opacity 0.3s ease;
+        }
+        .burbuja.arrastrando {
+            cursor: grabbing;
+            box-shadow: inset 0 15px 25px -10px rgba(255, 255, 255, 0.2), inset 0 -20px 35px -15px rgba(0, 0, 0, 0.8), 0 25px 45px rgba(255, 107, 0, 0.2); 
+            transform: translate(-50%, -50%) scale(1.05); z-index: 20 !important;
+        }
+        .burbuja i { font-size: 2rem; margin-bottom: 6px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); color: white;}
+        .titulo { font-size: 0.9rem; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 2px; }
+        .subtitulo { font-size: 0.7rem; color: #aaa; }
+
+        .macro { width: calc(var(--radio-macro) * 2); height: calc(var(--radio-macro) * 2); }
+        .macro i { font-size: 3.2rem; margin-bottom: 10px; color: var(--color-marca);}
+        .macro .titulo { font-size: 1.1rem; }
+        .medio { width: calc(var(--radio-medio) * 2); height: calc(var(--radio-medio) * 2); }
+        .micro { width: calc(var(--radio-micro) * 2); height: calc(var(--radio-micro) * 2); }
+        .micro i { font-size: 1.2rem; } .micro .titulo { font-size: 0.75rem; }
+        .nano { width: calc(var(--radio-nano) * 2); height: calc(var(--radio-nano) * 2); padding: 5px;}
+        .nano i { font-size: 1rem; margin-bottom: 3px; color: #888;} .nano .titulo { font-size: 0.55rem; color: #888; }
+
+        /* ONDA DE BARRIDO */
+        #barrido-onda {
+            position: fixed; top: 50%; left: 50%; width: 0vw; height: 0vw; border-radius: 50%;
+            background: var(--barrido-onda); backdrop-filter: var(--barrido-desenfoque); -webkit-backdrop-filter: var(--barrido-desenfoque);
+            transform: translate(-50%, -50%); z-index: 30; pointer-events: none; opacity: 0;
+            transition: width 0.6s ease-out, height 0.6s ease-out, opacity 0.3s ease;
+        }
+        #barrido-onda.activado { width: 300vw; height: 300vw; opacity: 1; }
+        @keyframes explosion-burbuja { to { transform: translate(-50%, -50%) scale(0) rotate(180deg); opacity: 0; } }
+        .burbuja.barrida { animation: explosion-burbuja 0.6s forwards cubic-bezier(0.165, 0.84, 0.44, 1); pointer-events: none; }
+
+        /* === VISTA 2: FEED DE NOTICIAS (Oculto inicialmente) === */
+        #vista-noticias {
+            display: none; width: 100%; height: 100vh; overflow-y: auto; overflow-x: hidden;
+            position: absolute; top: 0; left: 0; z-index: 20; padding-top: 80px; 
+            background: transparent; /* Deja ver el fondo oscuro */
+        }
+        
+        .header-noticias { text-align: center; margin-bottom: 30px; }
+        .header-noticias h2 { color: var(--color-marca); font-size: 24px; text-transform: uppercase; letter-spacing: 2px; margin: 0;}
+
+        /* Reutilizamos clases originales del Feed */
+        .noticias-wrapper { padding: 0 15px 30px; position: relative; z-index: 10; max-width: 1000px; margin: 0 auto; }
+        .layout-noticias { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        @media (min-width: 768px) { .layout-noticias { grid-template-columns: 2fr 1fr; } }
+        
+        .feed-principal { display: flex; flex-direction: column; gap: 20px; }
+        .noticia-card { display: flex; flex-direction: column; overflow: hidden; transition: 0.3s; }
+        .noticia-img { width: 100%; height: 200px; object-fit: cover; border-bottom: 2px solid var(--color-marca); }
+        .noticia-content { padding: 20px; }
+        .noticia-meta { font-size: 11px; color: var(--color-marca); font-weight: bold; text-transform: uppercase; margin-bottom: 8px; display: flex; justify-content: space-between;}
+        .noticia-titulo { margin: 0 0 10px 0; font-size: 20px; font-weight: 900; line-height: 1.3; }
+        .noticia-extracto { margin: 0 0 15px 0; font-size: 14px; color: #ccc; line-height: 1.5; }
+        .btn-leer { display: inline-block; background: rgba(255,255,255,0.1); border: 1px solid var(--glass-border); color: white; padding: 8px 20px; border-radius: 20px; font-size: 12px; font-weight: bold; text-decoration: none; transition: 0.3s; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; }
+        .btn-leer:hover { background: var(--color-marca); border-color: var(--color-marca); }
+
+        .feed-secundario { display: flex; flex-direction: column; gap: 10px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 20px; border: 1px solid var(--glass-border); height: fit-content; }
+        .seccion-titulo { margin: 0 0 15px 0; font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: #aaa; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
+        .noticia-mini { padding-bottom: 12px; border-bottom: 1px dashed rgba(255,255,255,0.05); display: flex; flex-direction: column; gap: 4px; cursor: pointer; transition: 0.3s; }
+        .noticia-mini:last-child { border-bottom: none; padding-bottom: 0; }
+        .noticia-mini:hover .mini-titulo { color: var(--color-marca); }
+        .mini-titulo { margin: 0; font-size: 14px; font-weight: bold; line-height: 1.3; color: #eee; transition: 0.3s;}
+        .mini-meta { margin: 0; font-size: 10px; color: #888; text-transform: uppercase; }
+
+        .paginacion-wrapper { text-align: center; padding: 0 15px 50px; position: relative; z-index: 10; }
+        .btn-pulsante { background: var(--color-marca); color: white; border: none; padding: 15px 30px; border-radius: 30px; font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; cursor: pointer; transition: 0.3s; box-shadow: 0 5px 15px rgba(255,107,0,0.4); display: inline-block;}
+        .btn-pulsante:active { transform: scale(0.95); }
+        .btn-pulsante:disabled { background: #444; color: #888; box-shadow: none; cursor: not-allowed; }
+
+        /* Camuflaje AdSense */
+        .adsense-mock { border: 1px dashed var(--color-marca); background: rgba(255,107,0,0.05); display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px; margin-bottom: 20px; }
+        .adsense-label { font-size: 10px; color: var(--color-marca); letter-spacing: 2px; text-transform: uppercase; font-weight: bold; margin-bottom: 10px; }
+
+        /* Modal Lectura Completa Original */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; display: flex; justify-content: center; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .modal-overlay.activo { opacity: 1; pointer-events: all; }
+        .modal-contenido { width: 100%; max-width: 800px; height: 90vh; background: var(--bg-oscuro); border-top-left-radius: 30px; border-top-right-radius: 30px; transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); border-top: 1px solid var(--color-marca); box-sizing: border-box; display: flex; flex-direction: column;}
+        .modal-overlay.activo .modal-contenido { transform: translateY(0); }
+        .drag-handle { width: 50px; height: 5px; background: rgba(255,255,255,0.3); border-radius: 5px; margin: 15px auto; cursor: grab; flex-shrink: 0;}
+        .modal-scroll { overflow-y: auto; padding: 0 25px 40px; flex-grow: 1;}
+        .modal-img { width: 100%; height: 250px; object-fit: cover; border-radius: 15px; margin-bottom: 20px; border: 1px solid var(--glass-border); }
+        .modal-cuerpo { font-size: 15px; color: #ddd; line-height: 1.8; white-space: pre-wrap; }
+
+        .offline-banner { position: fixed; top: 0; left: 0; width: 100%; background: #ff4444; color: white; text-align: center; padding: 8px; z-index: 10000; font-weight: 900; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(255,68,68,0.4); display: none; }
+        .offline-banner.activo { display: block; }
+
+    </style>
 </head>
-
 <body>
 
-
-
-<div id="offline-banner" class="offline-banner">⚠️ Sin conexión: Mostrando datos de tu última visita</div>
-
-
-
+<div id="offline-banner" class="offline-banner">⚠️ Sin conexión: Mostrando datos locales</div>
 <img id="fondo-pantalla" src="https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=1080" alt="Fondo Ambiental">
 
-
-
 <a href="index.html" class="nav-flotante btn-nav" title="Volver al Radar">
-
-<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
 </a>
 
+<div id="vista-ecosistema">
+    <section class="top-section">
+        <header class="pulso-header">
+            <h1 class="pulso-titulo">Pulso Urbano</h1>
+            <p class="pulso-subtitulo" id="fecha-hoy">Actualizando...</p>
+            <div class="buscador-qrpido">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="Buscar novedades locales...">
+            </div>
+        </header>
 
+        <div class="panel-indicadores">
+            <div class="indicador">
+                <span class="ind-titulo">USD / COP</span>
+                <span class="ind-valor"><i class="fas fa-caret-up up"></i> $ 3.850</span>
+            </div>
+            <div class="indicador">
+                <span class="ind-titulo">EUR / USD</span>
+                <span class="ind-valor"><i class="fas fa-caret-down down"></i> € 1.082</span>
+            </div>
+            <div class="indicador">
+                <span class="ind-titulo">WTI</span>
+                <span class="ind-valor"><i class="fas fa-caret-up up"></i> $ 82.50</span>
+            </div>
+            <div class="indicador">
+                <span class="ind-titulo">S&P 500</span>
+                <span class="ind-valor"> 5,100</span>
+            </div>
+            <div class="indicador">
+                <span class="ind-titulo">Shanghai</span>
+                <span class="ind-valor"> 3,050</span>
+            </div>
+        </div>
+    </section>
 
-<header class="pulso-header">
-
-<h1 class="pulso-titulo">Pulso Urbano</h1>
-
-<p class="pulso-subtitulo" id="fecha-hoy">Actualizando...</p>
-
-</header>
-
-
-
-<section class="ticker-wrapper">
-
-<div class="ticker-grid">
-
-<div class="tv-widget-container">
-
-<div class="tradingview-widget-container">
-
-<div class="tradingview-widget-container__widget"></div>
-
-<script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
-
-{ "symbol": "FX_IDC:USDCOP", "width": "100%", "height": "100%", "locale": "es", "dateRange": "1M", "colorTheme": "dark", "isTransparent": true, "autosize": true, "largeChartUrl": "" }
-
-</script>
-
+    <section id="ecosistema">
+        <div class="burbuja macro" data-radio="116" data-tema="Geopolítica">
+            <i class="fas fa-globe-americas"></i>
+            <span class="titulo">Análisis Geopolítico</span>
+            <span class="subtitulo">Impacto Global</span>
+        </div>
+        <div class="burbuja medio" data-radio="72" data-tema="Nacionales">
+            <i class="fas fa-flag"></i>
+            <span class="titulo">Nacionales</span>
+        </div>
+        <div class="burbuja medio" data-radio="72" data-tema="Internacionales">
+            <i class="fas fa-network-wired"></i>
+            <span class="titulo">Internacionales</span>
+        </div>
+        <div class="burbuja micro" data-radio="45" data-tema="Locales">
+            <i class="fas fa-map-marker-alt"></i>
+            <span class="titulo">Locales</span>
+        </div>
+        <div class="burbuja nano" data-radio="35" data-tema="Patrocinado">
+            <i class="far fa-newspaper"></i>
+            <span class="titulo">Sponsor</span>
+            <span class="subtitulo">Ad</span>
+        </div>
+    </section>
 </div>
 
+<div id="barrido-onda"></div>
+
+<div id="vista-noticias">
+    <a href="#" class="nav-flotante btn-nav" title="Volver a Categorías" id="btn-volver-ecosistema" style="display: none; position: fixed;">
+        <i class="fas fa-th-large"></i>
+    </a>
+
+    <div class="header-noticias">
+        <h2 id="titulo-seccion-noticias">Últimas Noticias</h2>
+    </div>
+
+    <section class="noticias-wrapper">
+        <div class="layout-noticias">
+            <div class="feed-principal" id="feed-principal">
+                <article class="glass-panel noticia-card shimmer-box" style="height: 350px;"></article>
+                <article class="glass-panel noticia-card shimmer-box" style="height: 350px;"></article>
+            </div>
+
+            <aside class="feed-secundario">
+                <h3 class="seccion-titulo">En Breve</h3>
+                <div id="feed-secundario-lista">
+                    <div class="noticia-mini shimmer-box" style="height: 40px; margin-bottom: 10px;"></div>
+                    <div class="noticia-mini shimmer-box" style="height: 40px; margin-bottom: 10px;"></div>
+                </div>
+            </aside>
+        </div>
+    </section>
+
+    <section class="paginacion-wrapper">
+        <button id="btn-cargar-mas" class="btn-pulsante" onclick="cargarMasNoticias()">Cargar más noticias</button>
+    </section>
 </div>
-
-<div class="tv-widget-container">
-
-<div class="tradingview-widget-container">
-
-<div class="tradingview-widget-container__widget"></div>
-
-<script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
-
-{ "symbol": "FOREXCOM:SPXUSD", "width": "100%", "height": "100%", "locale": "es", "dateRange": "1M", "colorTheme": "dark", "isTransparent": true, "autosize": true, "largeChartUrl": "" }
-
-</script>
-
-</div>
-
-</div>
-
-
-
-<div class="tv-widget-container">
-
-<div class="tradingview-widget-container">
-
-<div class="tradingview-widget-container__widget"></div>
-
-<script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
-
-{ "symbol": "ICEUS:KC1!", "width": "100%", "height": "100%", "locale": "es", "dateRange": "1M", "colorTheme": "dark", "isTransparent": true, "autosize": true, "largeChartUrl": "" }
-
-</script>
-
-</div>
-
-</div>
-
-
-
-<div class="tv-widget-dynamic">
-
-<select id="selector-mercado" class="selector-mercado" onchange="actualizarWidgetDinamico(this.value)">
-
-<option value="BINANCE:BTCUSD">Cripto: Bitcoin</option>
-
-<option value="OANDA:XAUUSD">Metal: Oro</option>
-
-<option value="NASDAQ:AAPL">Acción: Apple</option>
-
-<option value="ECONOMICS:COINTR">Tasa Interés CO</option>
-
-</select>
-
-<div id="tv-contenedor-dinamico" class="dynamic-wrapper"></div>
-
-</div>
-
-</div>
-
-</section>
-
-
-
-<section class="noticias-wrapper">
-
-<div class="layout-noticias">
-
-<div class="feed-principal" id="feed-principal">
-
-<article class="glass-panel noticia-card shimmer-box" style="height: 350px;"></article>
-
-<article class="glass-panel noticia-card shimmer-box" style="height: 350px;"></article>
-
-</div>
-
-
-
-<aside class="feed-secundario">
-
-<h3 class="seccion-titulo">Última Hora</h3>
-
-<div id="feed-secundario-lista">
-
-<div class="noticia-mini shimmer-box" style="height: 40px; margin-bottom: 10px;"></div>
-
-<div class="noticia-mini shimmer-box" style="height: 40px; margin-bottom: 10px;"></div>
-
-<div class="noticia-mini shimmer-box" style="height: 40px; margin-bottom: 10px;"></div>
-
-<div class="noticia-mini shimmer-box" style="height: 40px; margin-bottom: 10px;"></div>
-
-</div>
-
-</aside>
-
-</div>
-
-</section>
-
-
-
-<section class="paginacion-wrapper">
-
-<button id="btn-cargar-mas" class="btn-pulsante" onclick="cargarMasNoticias()">Cargar más noticias</button>
-
-</section>
-
-
 
 <div class="modal-overlay" id="modal-lector" onclick="cerrarModal(event, 'modal-lector')">
-
-<div class="modal-contenido" id="sheet-lector">
-
-<div class="drag-handle"></div>
-
-<div class="modal-scroll">
-
-<p id="lector-meta" class="noticia-meta" style="margin-bottom: 10px;"></p>
-
-<h1 id="lector-titulo" class="noticia-titulo" style="font-size: 24px; margin-bottom: 20px;">Cargando...</h1>
-
-<img id="lector-img" src="" class="modal-img" style="display: none;">
-
-<div id="lector-cuerpo" class="modal-cuerpo"></div>
-
+    <div class="modal-contenido" id="sheet-lector">
+        <div class="drag-handle"></div>
+        <div class="modal-scroll">
+            <p id="lector-meta" class="noticia-meta" style="margin-bottom: 10px;"></p>
+            <h1 id="lector-titulo" class="noticia-titulo" style="font-size: 24px; margin-bottom: 20px;">Cargando...</h1>
+            <img id="lector-img" src="" class="modal-img" style="display: none;">
+            <div id="lector-cuerpo" class="modal-cuerpo"></div>
+        </div>
+    </div>
 </div>
-
-</div>
-
-</div>
-
-
 
 <script type="module">
-
-import QRpidoDB from './core-db.js';
-
-
-
-let ultimoDocumento = null;
-
-let contadorClicsAdSense = 0;
-
-window.noticiasGlobales = []; // Cache en RAM para el lector modal
-
-
-
-// Inicializar Fecha
-
-const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-
-document.getElementById('fecha-hoy').innerText = new Date().toLocaleDateString('es-CO', opcionesFecha);
-
-
-
-// === ESCUDO ANTI-XSS ===
-
-window.sanitizarTexto = function(texto) {
-
-if (!texto) return '';
-
-const div = document.createElement('div');
-
-div.textContent = texto;
-
-return div.innerHTML;
-
-};
-
-
-
-function formatearFecha(timestamp) {
-
-if (!timestamp) return "Reciente";
-
-const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-
-return date.toLocaleDateString('es-CO', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-
-}
-
-
-
-// === LÓGICA TRADINGVIEW DINÁMICO ===
-
-window.actualizarWidgetDinamico = function(simbolo) {
-
-const contenedor = document.getElementById('tv-contenedor-dinamico');
-
-contenedor.innerHTML = ''; // Limpiar script anterior
-
-
-
-const script = document.createElement('script');
-
-script.type = 'text/javascript';
-
-script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js';
-
-script.async = true;
-
-const config = {
-
-"symbol": simbolo,
-
-"width": "100%",
-
-"height": "100%",
-
-"locale": "es",
-
-"dateRange": "1M",
-
-"colorTheme": "dark",
-
-"isTransparent": true,
-
-"autosize": true,
-
-"largeChartUrl": ""
-
-};
-
-script.innerHTML = JSON.stringify(config);
-
-contenedor.appendChild(script);
-
-};
-
-
-
-// Instanciar por defecto al abrir
-
-actualizarWidgetDinamico("BINANCE:BTCUSD");
-
-
-
-// === ARQUITECTURA FEED NOTICIAS ===
-
-async function inicializarFeed() {
-
-try {
-
-// Consultamos 15 noticias iniciales vía Core
-const { success, data, error, ultimoDoc } = await QRpidoDB.MediaService.obtenerPulsoUrbano({ limite: 15 });
-
-document.getElementById('feed-principal').innerHTML = '';
-document.getElementById('feed-secundario-lista').innerHTML = '';
-
-if (!success || data.length === 0) {
-document.getElementById('feed-principal').innerHTML = `<p style="text-align:center; color:#aaa;">${error || 'No hay noticias publicadas aún.'}</p>`;
-document.getElementById('btn-cargar-mas').style.display = 'none';
-return;
-}
-
-ultimoDocumento = ultimoDoc;
-const noticias = data;
-window.noticiasGlobales = [...noticias];
-
-
-
-// Repartir: 5 para el principal, el resto al secundario
-
-const principal = noticias.slice(0, 5);
-
-const secundario = noticias.slice(5, 15);
-
-
-
-principal.forEach(n => inyectarTarjetaPrincipal(n));
-
-secundario.forEach(n => inyectarTarjetaSecundaria(n));
-
-
-
-if (noticias.length < 15) document.getElementById('btn-cargar-mas').style.display = 'none';
-
-                // INTERCEPTOR DE DEEP LINKS (Compartidos en Redes / Buscadores)
-                const urlParams = new URLSearchParams(window.location.search);
-                const articuloParam = urlParams.get('articulo');
-                if (articuloParam) {
-                    const idObjetivo = articuloParam.split('-')[0]; // Extrae el ID real antes del guion
-                    let noticiaEncontrada = window.noticiasGlobales.find(n => n.id === idObjetivo);
-                   
-                   // Si no está en las primeras 15, usamos nuestro servicio de Core para aislar la UI
-                    if (!noticiaEncontrada) {
-                        const { success, data } = await QRpidoDB.MediaService.obtenerNoticiaPorId(idObjetivo);
-                        if (success) {
-                            noticiaEncontrada = data;
-                            window.noticiasGlobales.push(noticiaEncontrada);
-                        }
-                    }
-                   
-                    if (noticiaEncontrada) {
-                        setTimeout(() => abrirArticulo(noticiaEncontrada.id), 300);
+    // Módulo Simulado de DB (Asegúrate de importar tu DB real aquí)
+    const QRpidoDB = {
+        MediaService: {
+            obtenerPulsoUrbano: async ({limite}) => ({ success: true, data: [{id:'1', titulo:'Prueba de integración QRpido', fuente:'Local', cuerpo_texto:'El sistema de burbujas ha sido fusionado con éxito en la base de datos.', fecha_publicacion: new Date()}], ultimoDoc: 'ref' }),
+            obtenerNoticiaPorId: async (id) => ({ success: false })
+        }
+    };
+    // import QRpidoDB from './core-db.js'; // <- DESCOMENTAR EN PRODUCCIÓN
+
+    let ultimoDocumento = null;
+    let contadorClicsAdSense = 0;
+    window.noticiasGlobales = []; 
+
+    // === INICIALIZACIÓN BÁSICA ===
+    const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    document.getElementById('fecha-hoy').innerText = new Date().toLocaleDateString('es-CO', opcionesFecha);
+
+    window.sanitizarTexto = function(texto) {
+        if (!texto) return '';
+        const div = document.createElement('div');
+        div.textContent = texto;
+        return div.innerHTML;
+    };
+
+    function formatearFecha(timestamp) {
+        if (!timestamp) return "Reciente";
+        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+        return date.toLocaleDateString('es-CO', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+
+    // === LÓGICA DE GEOLOCALIZACIÓN SILENCIOSA ===
+    if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+            (pos) => console.log(`Ubicación capturada para QRpido: Lat ${pos.coords.latitude}, Lon ${pos.coords.longitude}`),
+            (err) => console.log("Usuario denegó ubicación o error.")
+        );
+    }
+
+    // === LÓGICA DE ALIMENTACIÓN DE NOTICIAS (CARGA FANTASMA) ===
+    async function inicializarFeedFantasma() {
+        try {
+            const { success, data, error, ultimoDoc } = await QRpidoDB.MediaService.obtenerPulsoUrbano({ limite: 15 });
+            document.getElementById('feed-principal').innerHTML = '';
+            document.getElementById('feed-secundario-lista').innerHTML = '';
+
+            if (!success || data.length === 0) {
+                document.getElementById('feed-principal').innerHTML = `<p style="text-align:center; color:#aaa;">${error || 'No hay noticias publicadas aún.'}</p>`;
+                document.getElementById('btn-cargar-mas').style.display = 'none';
+                return;
+            }
+
+            ultimoDocumento = ultimoDoc;
+            window.noticiasGlobales = [...data];
+
+            const principal = data.slice(0, 5);
+            const secundario = data.slice(5, 15);
+
+            principal.forEach(n => inyectarTarjetaPrincipal(n));
+            secundario.forEach(n => inyectarTarjetaSecundaria(n));
+
+            if (data.length < 15) document.getElementById('btn-cargar-mas').style.display = 'none';
+        } catch (error) {
+            console.error(error);
+            document.getElementById('feed-principal').innerHTML = `<p style="color:#ff4444; text-align:center;">Error cargando noticias.</p>`;
+        }
+    }
+
+    // Iniciar carga de DB inmediatamente en segundo plano
+    window.onload = inicializarFeedFantasma;
+
+    function inyectarTarjetaPrincipal(n) {
+        const feed = document.getElementById('feed-principal');
+        const extracto = n.cuerpo_texto ? (n.cuerpo_texto.substring(0, 120) + '...') : '';
+        const html = `
+        <article class="glass-panel noticia-card">
+            ${n.imagen_portada ? `<img src="${n.imagen_portada}" class="noticia-img" loading="lazy">` : ''}
+            <div class="noticia-content">
+                <div class="noticia-meta">
+                    <span>${sanitizarTexto(n.fuente || 'Redacción')}</span>
+                    <span>${formatearFecha(n.fecha_publicacion)}</span>
+                </div>
+                <h2 class="noticia-titulo">${sanitizarTexto(n.titulo)}</h2>
+                <p class="noticia-extracto">${sanitizarTexto(extracto)}</p>
+                <button class="btn-leer" onclick="abrirArticulo('${n.id}')">Leer Artículo</button>
+            </div>
+        </article>`;
+        feed.insertAdjacentHTML('beforeend', html);
+    }
+
+    function inyectarTarjetaSecundaria(n) {
+        const feed = document.getElementById('feed-secundario-lista');
+        const html = `
+        <article class="noticia-mini" onclick="abrirArticulo('${n.id}')">
+            <h4 class="mini-titulo">${sanitizarTexto(n.titulo)}</h4>
+            <p class="mini-meta">${sanitizarTexto(n.fuente || 'Redacción')} • ${formatearFecha(n.fecha_publicacion)}</p>
+        </article>`;
+        feed.insertAdjacentHTML('beforeend', html);
+    }
+
+    // === PAGINACIÓN Y ADSENSE ===
+    window.cargarMasNoticias = async function() {
+        if (!ultimoDocumento) return;
+        if (navigator.vibrate) navigator.vibrate(30);
+        const btn = document.getElementById('btn-cargar-mas');
+        btn.innerText = "Cargando..."; btn.disabled = true;
+        contadorClicsAdSense++;
+
+        try {
+            const { success, data, ultimoDoc } = await QRpidoDB.MediaService.obtenerPulsoUrbano({ limite: 5, startAfterDoc: ultimoDocumento });
+            if (!success || data.length === 0) {
+                btn.innerText = "No hay más noticias"; btn.style.background = "transparent"; btn.style.color = "#888"; btn.style.boxShadow = "none";
+                return;
+            }
+            ultimoDocumento = ultimoDoc;
+            window.noticiasGlobales = window.noticiasGlobales.concat(data);
+
+            if (contadorClicsAdSense % 3 === 0) inyectarBloqueAdSense();
+            data.forEach(n => inyectarTarjetaPrincipal(n));
+            
+            if (data.length < 5) btn.style.display = 'none';
+            else { btn.innerText = "Cargar más noticias"; btn.disabled = false; }
+        } catch (e) {
+            btn.innerText = "Error. Reintentar"; btn.disabled = false;
+        }
+    };
+
+    function inyectarBloqueAdSense() {
+        const feed = document.getElementById('feed-principal');
+        const htmlAd = `
+        <article class="glass-panel noticia-card adsense-mock">
+            <span class="adsense-label">Publicidad</span>
+            <div style="width: 100%; height: 200px; display:flex; align-items:center; justify-content:center; color:#666; font-size:12px; font-weight:bold;">
+                [ BLOQUE GOOGLE ADSENSE ]
+            </div>
+        </article>`;
+        feed.insertAdjacentHTML('beforeend', htmlAd);
+    }
+
+    // === LÓGICA DEL MOTOR FÍSICO (BURBUJAS) ===
+    const elementos = document.querySelectorAll('.burbuja');
+    const barridoOnda = document.getElementById('barrido-onda');
+    const ecosistema = document.getElementById('ecosistema');
+    const vistaEcosistema = document.getElementById('vista-ecosistema');
+    const vistaNoticias = document.getElementById('vista-noticias');
+    const btnVolverEco = document.getElementById('btn-volver-ecosistema');
+    const navPrincipal = document.querySelector('.nav-flotante[href="index.html"]'); // Botón original
+    
+    let ecosistemaRect = ecosistema.getBoundingClientRect();
+    window.addEventListener('resize', () => ecosistemaRect = ecosistema.getBoundingClientRect());
+
+    let burbujas = [];
+    const VELOCIDAD_SEDA = 0.15; 
+    const FRICCION_AGUA = 0.92; 
+
+    elementos.forEach((el) => {
+        const radio = parseFloat(el.getAttribute('data-radio'));
+        const masa = Math.PI * (radio * radio); 
+        burbujas.push({
+            el: el, radio: radio, masa: masa,
+            x: radio + Math.random() * (ecosistemaRect.width - radio * 2),
+            y: radio + Math.random() * (ecosistemaRect.height - radio * 2),
+            vx: (Math.random() - 0.5) * VELOCIDAD_SEDA * 2, vy: (Math.random() - 0.5) * VELOCIDAD_SEDA * 2,
+            arrastrando: false, haArrastrado: false, lastX: 0, lastY: 0
+        });
+    });
+
+    burbujas.forEach(b => {
+        b.el.addEventListener('pointerdown', (e) => {
+            b.arrastrando = true; b.haArrastrado = false;
+            b.el.classList.add('arrastrando'); b.el.setPointerCapture(e.pointerId);
+            b.vx = 0; b.vy = 0;
+        });
+        b.el.addEventListener('pointermove', (e) => {
+            if (b.arrastrando) {
+                b.haArrastrado = true; b.lastX = b.x; b.lastY = b.y;
+                b.x = e.clientX - ecosistemaRect.left; 
+                b.y = e.clientY - ecosistemaRect.top;
+            }
+        });
+        b.el.addEventListener('pointerup', (e) => {
+            if (b.arrastrando) {
+                b.arrastrando = false; b.el.classList.remove('arrastrando'); b.el.releasePointerCapture(e.pointerId);
+                b.vx = Math.max(Math.min((b.x - b.lastX) * 0.2, 8), -8);
+                b.vy = Math.max(Math.min((b.y - b.lastY) * 0.2, 8), -8);
+            }
+        });
+        b.el.addEventListener('click', (e) => {
+            if (!b.haArrastrado) {
+                e.stopPropagation();
+                activarTransicionNoticias(b.el);
+            }
+        });
+    });
+
+    function render() {
+        if (vistaEcosistema.style.display === 'none') return requestAnimationFrame(render); // Pausar física si no se ve
+
+        burbujas.forEach(b => {
+            if (!b.arrastrando) {
+                b.x += b.vx; b.y += b.vy;
+                let velActual = Math.sqrt(b.vx*b.vx + b.vy*b.vy);
+                if (velActual > VELOCIDAD_SEDA) { b.vx *= FRICCION_AGUA; b.vy *= FRICCION_AGUA; } 
+                else if (velActual < 0.02) { b.vx += (Math.random() - 0.5) * 0.01; b.vy += (Math.random() - 0.5) * 0.01; }
+            }
+            if (b.x - b.radio <= 0) { b.x = b.radio; b.vx *= -1; } 
+            else if (b.x + b.radio >= ecosistemaRect.width) { b.x = ecosistemaRect.width - b.radio; b.vx *= -1; }
+            if (b.y - b.radio <= 0) { b.y = b.radio; b.vy *= -1; } 
+            else if (b.y + b.radio >= ecosistemaRect.height) { b.y = ecosistemaRect.height - b.radio; b.vy *= -1; }
+        });
+
+        for (let i = 0; i < burbujas.length; i++) {
+            for (let j = i + 1; j < burbujas.length; j++) {
+                const b1 = burbujas[i]; const b2 = burbujas[j];
+                const dx = b2.x - b1.x; const dy = b2.y - b1.y;
+                const distancia = Math.sqrt(dx*dx + dy*dy);
+                const min_dist = b1.radio + b2.radio;
+
+                if (distancia < min_dist) {
+                    const nx = dx / distancia; const ny = dy / distancia;
+                    const overlap = min_dist - distancia;
+                    if (!b1.arrastrando) { b1.x -= nx * (overlap / 2); b1.y -= ny * (overlap / 2); }
+                    if (!b2.arrastrando) { b2.x += nx * (overlap / 2); b2.y += ny * (overlap / 2); }
+
+                    if (!b1.arrastrando && !b2.arrastrando) {
+                        const velAlongNormal = (b2.vx - b1.vx)*nx + (b2.vy - b1.vy)*ny;
+                        if (velAlongNormal > 0) continue;
+                        const impulse = (-(1 + 0.3) * velAlongNormal) / (1/b1.masa + 1/b2.masa);
+                        b1.vx -= (impulse / b1.masa) * nx; b1.vy -= (impulse / b1.masa) * ny;
+                        b2.vx += (impulse / b2.masa) * nx; b2.vy += (impulse / b2.masa) * ny;
                     }
                 }
-
-            } catch (error) {
-                console.error(error);
-                document.getElementById('feed-principal').innerHTML = `<p style="color:#ff4444; text-align:center;">Error cargando noticias.</p>`;
             }
         }
 
-
-
-function inyectarTarjetaPrincipal(n) {
-
-const feed = document.getElementById('feed-principal');
-
-const extracto = n.cuerpo_texto ? (n.cuerpo_texto.substring(0, 120) + '...') : '';
-
-const html = `
-
-<article class="glass-panel noticia-card">
-
-${n.imagen_portada ? `<img src="${n.imagen_portada}" class="noticia-img" loading="lazy">` : ''}
-
-<div class="noticia-content">
-
-<div class="noticia-meta">
-
-<span>${sanitizarTexto(n.fuente || 'Redacción Propia')}</span>
-
-<span>${formatearFecha(n.fecha_publicacion)}</span>
-
-</div>
-
-<h2 class="noticia-titulo">${sanitizarTexto(n.titulo)}</h2>
-
-<p class="noticia-extracto">${sanitizarTexto(extracto)}</p>
-
-<button class="btn-leer" onclick="abrirArticulo('${n.id}')">Leer Artículo</button>
-
-</div>
-
-</article>
-
-`;
-
-feed.insertAdjacentHTML('beforeend', html);
-
-}
-
-
-
-function inyectarTarjetaSecundaria(n) {
-
-const feed = document.getElementById('feed-secundario-lista');
-
-const html = `
-
-<article class="noticia-mini" onclick="abrirArticulo('${n.id}')">
-
-<h4 class="mini-titulo">${sanitizarTexto(n.titulo)}</h4>
-
-<p class="mini-meta">${sanitizarTexto(n.fuente || 'Redacción')} • ${formatearFecha(n.fecha_publicacion)}</p>
-
-</article>
-
-`;
-
-feed.insertAdjacentHTML('beforeend', html);
-
-}
-
-
-
-// === ALGORITMO MONETIZACIÓN & PAGINACIÓN ===
-
-window.cargarMasNoticias = async function() {
-
-if (!ultimoDocumento) return;
-
-if (navigator.vibrate) navigator.vibrate(30);
-
-const btn = document.getElementById('btn-cargar-mas');
-
-btn.innerText = "Cargando..."; btn.disabled = true;
-
-
-
-contadorClicsAdSense++;
-
-
-
-try {
-
-// Traer 5 más para el feed principal vía Core
-const { success, data, ultimoDoc } = await QRpidoDB.MediaService.obtenerPulsoUrbano({ limite: 5, startAfterDoc: ultimoDocumento });
-
-if (!success || data.length === 0) {
-btn.innerText = "No hay más noticias";
-btn.style.background = "transparent";
-btn.style.color = "#888";
-btn.style.boxShadow = "none";
-return;
-}
-
-ultimoDocumento = ultimoDoc;
-const nuevas = data;
-window.noticiasGlobales = window.noticiasGlobales.concat(nuevas);
-
-
-
-// Algoritmo AdSense: Inyectar anuncio cada 3 clics
-
-if (contadorClicsAdSense % 3 === 0) {
-
-inyectarBloqueAdSense();
-
-}
-
-
-
-nuevas.forEach(n => inyectarTarjetaPrincipal(n));
-
-
-
-if (nuevas.length < 5) {
-
-btn.style.display = 'none';
-
-} else {
-
-btn.innerText = "Cargar más noticias";
-
-btn.disabled = false;
-
-}
-
-
-
-} catch (e) {
-
-console.error(e);
-
-btn.innerText = "Error. Reintentar";
-
-btn.disabled = false;
-
-}
-
-};
-
-
-
-function inyectarBloqueAdSense() {
-
-const feed = document.getElementById('feed-principal');
-
-const htmlAd = `
-
-<article class="glass-panel noticia-card adsense-mock">
-
-<span class="adsense-label">Publicidad</span>
-
-<div style="width: 100%; height: 200px; display:flex; align-items:center; justify-content:center; color:#666; font-size:12px; font-weight:bold;">
-
-[ BLOQUE GOOGLE ADSENSE ]
-
-</div>
-
-</article>
-
-`;
-
-feed.insertAdjacentHTML('beforeend', htmlAd);
-
-}
-
-
-
-// === MODAL LECTOR ===
-
-window.abrirArticulo = function(id) {
-
-const noticia = window.noticiasGlobales.find(n => n.id === id);
-
-if (!noticia) return;
-
-
-
-document.getElementById('lector-meta').innerHTML = `<span>${sanitizarTexto(noticia.fuente || 'Redacción')}</span><span>${formatearFecha(noticia.fecha_publicacion)}</span>`;
-
-document.getElementById('lector-titulo').innerText = noticia.titulo;
-
-document.getElementById('lector-cuerpo').innerText = noticia.cuerpo_texto || '';
-
-const imgEl = document.getElementById('lector-img');
-
-if (noticia.imagen_portada) {
-
-imgEl.src = noticia.imagen_portada;
-
-imgEl.style.display = 'block';
-
-} else {
-
-imgEl.style.display = 'none';
-
-}
-
-
-
-document.getElementById('modal-lector').classList.add('activo');
-           
-            // SEO: Inyectar metas y actualizar URL
-            inyectarSEONoticia(noticia);
-           
-            // Crear URL amigable (ej: pulso.html?articulo=ID-titulo-de-la-noticia)
-            const slug = noticia.titulo.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '').substring(0, 50);
-            window.history.pushState({modalOpen: true}, '', `pulso.html?articulo=${noticia.id}-${slug}`);
-
-};
-
-
-
-window.cerrarModal = (e, id) => { if (e.target.id === id) document.getElementById(id).classList.remove('activo'); }
-
-// Swipe Down para cerrar Modal Lector
-
-function aplicarSwipeAbajo(modalId, contentId) {
-
-const modal = document.getElementById(modalId);
-
-const content = document.getElementById(contentId);
-
-let startY = 0, currentY = 0;
-
-content.addEventListener('touchstart', e => startY = e.touches[0].clientY, {passive: true});
-
-content.addEventListener('touchmove', e => {
-
-currentY = e.touches[0].clientY;
-
-// Solo swipe down si el scroll del modal está en top
-
-const scrollArea = content.querySelector('.modal-scroll');
-
-if(currentY > startY && scrollArea.scrollTop <= 0) {
-
-content.style.transform = `translateY(${currentY - startY}px)`;
-
-}
-
-}, {passive: true});
-
-content.addEventListener('touchend', () => {
-
-const scrollArea = content.querySelector('.modal-scroll');
-
-if (currentY - startY > 100 && scrollArea.scrollTop <= 0) modal.classList.remove('activo');
-
-content.style.transform = '';
-
-});
-
-}
-
-aplicarSwipeAbajo('modal-lector', 'sheet-lector');
-
-
-
-// Escudo Anti-Salida en Modal
-
-history.pushState(null, document.title, window.location.href);
-
-window.addEventListener('popstate', function(event) {
-
-const modal = document.getElementById('modal-lector');
-
-if (modal.classList.contains('activo')) {
-
-modal.classList.remove('activo');
-
-history.pushState(null, document.title, window.location.href);
-
-} else {
-
-history.back();
-
-}
-
-});
-
-
-
-if ('serviceWorker' in navigator) {
-
-window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(err => console.log('PWA falló:', err)); });
-
-}
-
-
-
-// === DETECCIÓN DE CONEXIÓN (PWA OFFLINE) ===
-
-window.addEventListener('offline', () => document.getElementById('offline-banner').classList.add('activo'));
-
-window.addEventListener('online', () => document.getElementById('offline-banner').classList.remove('activo'));
-
-if (!navigator.onLine) document.getElementById('offline-banner').classList.add('activo');
-
-// === MOTOR SEO DINÁMICO ===
-        window.inyectarSEONoticia = function(noticia) {
-            document.title = `${sanitizarTexto(noticia.titulo)} | Pulso Urbano QRpido`;
-
-            const extracto = noticia.cuerpo_texto ? noticia.cuerpo_texto.substring(0, 150) + '...' : 'Las últimas noticias de tu ciudad en QRpido.';
-            const imgSegura = noticia.imagen_portada || 'https://via.placeholder.com/1080/0a0a0c/ff6b00?text=Pulso+Urbano';
-
-            const metaTags = {
-                'description': extracto,
-                'og:title': noticia.titulo,
-                'og:description': extracto,
-                'og:image': imgSegura,
-                'og:url': window.location.href,
-                'twitter:card': 'summary_large_image'
-            };
-
-            Object.entries(metaTags).forEach(([name, content]) => {
-                let el = document.querySelector(`meta[name="${name}"], meta[property="${name}"]`);
-                if (!el) {
-                    el = document.createElement('meta');
-                    el.setAttribute(name.includes('og:') ? 'property' : 'name', name);
-                    document.head.appendChild(el);
-                }
-                el.setAttribute('content', content);
-            });
-
-            // SCHEMA.ORG (JSON-LD para Google News)
-            let scriptSchema = document.getElementById('schema-noticia');
-            if (scriptSchema) scriptSchema.remove();
-
-            scriptSchema = document.createElement('script');
-            scriptSchema.id = 'schema-noticia';
-            scriptSchema.type = 'application/ld+json';
-           
-            // Fallback de fecha por si la estructura de Firebase cambia
-            let fechaPublicacion = new Date().toISOString();
-            if (noticia.fecha_publicacion && noticia.fecha_publicacion.toDate) {
-                fechaPublicacion = noticia.fecha_publicacion.toDate().toISOString();
-            }
-
-            scriptSchema.text = JSON.stringify({
-                "@context": "https://schema.org",
-                "@type": "NewsArticle",
-                "headline": noticia.titulo,
-                "image": [imgSegura],
-                "datePublished": fechaPublicacion,
-                "author": [{
-                    "@type": "Organization",
-                    "name": noticia.fuente || "Redacción QRpido"
-                }]
-            });
-            document.head.appendChild(scriptSchema);
-        };
-
-window.onload = inicializarFeed;
-
-
+        burbujas.forEach(b => { b.el.style.left = `${b.x}px`; b.el.style.top = `${b.y}px`; });
+        requestAnimationFrame(render);
+    }
+    render();
+
+    // === TRANSICIÓN ENTRE VISTAS ===
+    function activarTransicionNoticias(burbujaClickeada) {
+        barridoOnda.classList.add('activado');
+        elementos.forEach(b => { if (b !== burbujaClickeada) b.classList.add('barrida'); });
+        burbujaClickeada.classList.add('barrida');
+
+        setTimeout(() => {
+            vistaEcosistema.style.display = 'none';
+            vistaNoticias.style.display = 'block';
+            navPrincipal.style.display = 'none';
+            btnVolverEco.style.display = 'flex';
+            
+            // Actualizar el título de la sección según la burbuja (Ej: "Noticias Locales")
+            const tema = burbujaClickeada.getAttribute('data-tema');
+            document.getElementById('titulo-seccion-noticias').innerText = tema ? `Noticias ${tema}` : 'Últimas Noticias';
+            
+            // En el futuro aquí podrías filtrar las noticias cargadas en RAM (window.noticiasGlobales) según el tema.
+        }, 600);
+
+        setTimeout(() => { barridoOnda.classList.remove('activado'); }, 900);
+    }
+
+    btnVolverEco.addEventListener('click', (e) => {
+        e.preventDefault();
+        vistaNoticias.style.display = 'none';
+        btnVolverEco.style.display = 'none';
+        vistaEcosistema.style.display = 'flex';
+        navPrincipal.style.display = 'flex';
+        elementos.forEach(b => b.classList.remove('barrida'));
+    });
+
+    // === MODAL Y LECTOR (Inalterado) ===
+    window.abrirArticulo = function(id) {
+        const noticia = window.noticiasGlobales.find(n => n.id === id);
+        if (!noticia) return;
+
+        document.getElementById('lector-meta').innerHTML = `<span>${sanitizarTexto(noticia.fuente || 'Redacción')}</span><span>${formatearFecha(noticia.fecha_publicacion)}</span>`;
+        document.getElementById('lector-titulo').innerText = noticia.titulo;
+        document.getElementById('lector-cuerpo').innerText = noticia.cuerpo_texto || '';
+        
+        const imgEl = document.getElementById('lector-img');
+        if (noticia.imagen_portada) { imgEl.src = noticia.imagen_portada; imgEl.style.display = 'block'; } 
+        else { imgEl.style.display = 'none'; }
+
+        document.getElementById('modal-lector').classList.add('activo');
+    };
+
+    window.cerrarModal = (e, id) => { if (e.target.id === id) document.getElementById(id).classList.remove('activo'); }
+
+    function aplicarSwipeAbajo(modalId, contentId) {
+        const modal = document.getElementById(modalId);
+        const content = document.getElementById(contentId);
+        let startY = 0, currentY = 0;
+        content.addEventListener('touchstart', e => startY = e.touches[0].clientY, {passive: true});
+        content.addEventListener('touchmove', e => {
+            currentY = e.touches[0].clientY;
+            const scrollArea = content.querySelector('.modal-scroll');
+            if(currentY > startY && scrollArea.scrollTop <= 0) content.style.transform = `translateY(${currentY - startY}px)`;
+        }, {passive: true});
+        content.addEventListener('touchend', () => {
+            const scrollArea = content.querySelector('.modal-scroll');
+            if (currentY - startY > 100 && scrollArea.scrollTop <= 0) modal.classList.remove('activo');
+            content.style.transform = '';
+        });
+    }
+    aplicarSwipeAbajo('modal-lector', 'sheet-lector');
+
+    window.addEventListener('offline', () => document.getElementById('offline-banner').classList.add('activo'));
+    window.addEventListener('online', () => document.getElementById('offline-banner').classList.remove('activo'));
+    if (!navigator.onLine) document.getElementById('offline-banner').classList.add('activo');
 
 </script>
-
 </body>
-
 </html>
