@@ -460,16 +460,16 @@ return { success: false, error: error.message };
                 } catch (e) { return { success: false, error: e.message }; }
             },
 
-            eliminarProducto: async (idNegocio, idProducto) => {
+                        eliminarProducto: async (idNegocio, idProducto) => {
                 try {
                     // Marcado de seguridad (Soft Delete)
                     await setDoc(doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, idProducto), { agotado: true, eliminado: true }, { merge: true });
                     return { success: true };
                 } catch (e) { return { success: false, error: e.message }; }
-            }
-        },
+            }, // <--- 🚨 CIRUGÍA: Dejamos esto abierto con una coma
 
             // --- MÓDULO DE MODERACIÓN AVANZADA ---
+
 
             obtenerNegociosPendientes: async () => {
                 try {
@@ -602,13 +602,14 @@ return { success: false, error: error.message };
                 } catch (e) { return { success: false, error: e.message }; }
             },
 
-            revocarModerador: async (uid) => {
+                        revocarModerador: async (uid) => {
                 try {
                     // Le quitamos la placa borrando su documento de la colección de permisos
                     await deleteDoc(doc(db, "Usuarios_Admin", uid));
                     return { success: true };
                 } catch (e) { return { success: false, error: e.message }; }
-            },
+            }
+        }, 
 
 
 /**
@@ -616,6 +617,7 @@ return { success: false, error: error.message };
 
 
 * @namespace RadarService
+
 
 
 
