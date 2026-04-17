@@ -788,7 +788,8 @@ buscarEnRadar: async (lat, lng, radiusInM) => {
                 if (!db || typeof geofire === 'undefined') return { success: false, error: 'Firebase o GeofireX no listos' };
 
                 try {
-                    const radiusInKm = radiusInM / 1000;
+                    const radiusInKm = radiusInM; 
+
                     const bounds = geofire.geohashQueryBounds([lat, lng], radiusInKm);
                     const promises = [];
 
@@ -820,12 +821,12 @@ buscarEnRadar: async (lat, lng, radiusInM) => {
             buscarInmueblesEnRadar: async (lat, lng, radiusInM) => {
                 if (!db || typeof geofire === 'undefined') return { success: false, error: 'Firebase o GeofireX no listos' };
                 try {
-                    const radiusInKm = radiusInM / 1000;
+                    const radiusInKm = radiusInM;
+
                     const bounds = geofire.geohashQueryBounds([lat, lng], radiusInKm);
                     const promises = [];
 
                     for (const b of bounds) {
-                        // 🚨 Magia aquí: collectionGroup perfora TODAS las carpetas "productos" de todos los usuarios
                         const q = query(
                             collectionGroup(db, _SCHEMA.SubColeccionProductos),
                             orderBy('geohash'),

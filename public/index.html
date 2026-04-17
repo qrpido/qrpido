@@ -520,52 +520,38 @@ details p { padding: 0 12px 12px; margin: 0; font-size: 12px; color: #ddd; line-
 /* === GAMIFICACIÓN FAVORITOS === */
 
 @keyframes saltoCorazon { 0% { transform: translateY(0px) scale(1); } 40% { transform: translateY(-25px) scale(1.4) rotateY(180deg); } 100% { transform: translateY(0px) scale(1) rotateY(360deg); } }
-
 /* =========================================
-
-✅ ZOOM SEMÁNTICO (CORREGIDO PARA PINES.CSS)
-
+✅ ZOOM SEMÁNTICO (ESCALA DINÁMICA ÁUREA)
 ========================================= */
+.pin-wrapper { transition: transform 0.4s ease, opacity 0.4s ease; transform-origin: center center; }
 
-.pin-wrapper { transition: transform 0.4s ease, opacity 0.4s ease; }
+/* Zoom 16+: Muy Cerca (Tamaño completo para interactuar) */
+#mapa-qrpido[data-zoom="18"] .pin-wrapper:not(.pin-moneda-magica),
+#mapa-qrpido[data-zoom="17"] .pin-wrapper:not(.pin-moneda-magica),
+#mapa-qrpido[data-zoom="16"] .pin-wrapper:not(.pin-moneda-magica) { transform: scale(0.85); opacity: 1; }
 
+#mapa-qrpido[data-zoom="18"] .pin-moneda-magica,
+#mapa-qrpido[data-zoom="17"] .pin-moneda-magica,
+#mapa-qrpido[data-zoom="16"] .pin-moneda-magica { transform: scale(1.3); z-index: 1000; }
 
+/* Zoom 15: Distancia media (Empiezan a encogerse) */
+#mapa-qrpido[data-zoom="15"] .pin-wrapper:not(.pin-moneda-magica) { transform: scale(0.6); opacity: 0.95; }
+#mapa-qrpido[data-zoom="15"] .pin-moneda-magica { transform: scale(1.0); z-index: 1000; }
 
-/* Zoom 15: Medio lejos */
+/* Zoom 14: Lejos (Tamaño del punto azul GPS, máxima elegancia) */
+#mapa-qrpido[data-zoom="14"] .pin-wrapper:not(.pin-moneda-magica) { transform: scale(0.36); opacity: 0.9; pointer-events: all; }
+#mapa-qrpido[data-zoom="14"] .pin-moneda-magica { transform: scale(0.72); z-index: 1000; pointer-events: all; }
 
-#mapa-qrpido[data-zoom="15"] .pin-wrapper:not(.pin-moneda-magica) { transform: scale(0.8); }
-
-#mapa-qrpido[data-zoom="15"] .pin-moneda-magica { transform: scale(1.1); z-index: 1000; }
-
-
-
-/* Zoom 14: Lejos */
-
-#mapa-qrpido[data-zoom="14"] .pin-wrapper:not(.pin-moneda-magica) { transform: scale(0.4); opacity: 0.5; pointer-events: none; }
-
-#mapa-qrpido[data-zoom="14"] .pin-moneda-magica { transform: scale(1.2); z-index: 1000; }
-
-
-
-/* Zoom 13 o menos: Vista de Ciudad (Visión Panorámica) */
-
+/* Zoom 13 o menos: Vista de Ciudad (Reducción al mínimo para no saturar) */
 #mapa-qrpido[data-zoom="13"] .pin-wrapper:not(.pin-moneda-magica),
-
-#mapa-qrpido[data-zoom="12"] .pin-wrapper:not(.pin-moneda-magica),
-
+#mapa-qrpido[data-zoom="12"] .pin-wrapper:not(.pin-moneda-magica) { transform: scale(0.2); opacity: 0.6; pointer-events: none; }
 #mapa-qrpido[data-zoom="11"] .pin-wrapper:not(.pin-moneda-magica),
-
 #mapa-qrpido[data-zoom="10"] .pin-wrapper:not(.pin-moneda-magica) { transform: scale(0); opacity: 0; pointer-events: none; }
 
-
-
 #mapa-qrpido[data-zoom="13"] .pin-moneda-magica,
-
-#mapa-qrpido[data-zoom="12"] .pin-moneda-magica { transform: scale(1.3); z-index: 2000; }
-
-
-
-
+#mapa-qrpido[data-zoom="12"] .pin-moneda-magica { transform: scale(0.4); opacity: 0.8; z-index: 2000; pointer-events: all; }
+#mapa-qrpido[data-zoom="11"] .pin-moneda-magica,
+#mapa-qrpido[data-zoom="10"] .pin-moneda-magica { transform: scale(0); opacity: 0; pointer-events: none; }
 
 </style>
 
@@ -697,8 +683,10 @@ No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.
 
 <button id="btn-acceso-moderacion" class="btn-submenu" onclick="window.location.href='moderacion.html'" style="display:none; border-color: #00ff64; color: #00ff64;">⚖️ Panel Moderación</button>
 
+<button id="btn-acceso-superadmin" class="btn-submenu" onclick="window.location.href='qrpido.html'" style="display:none; border-color: #00aaff; color: #00aaff;">👁️ Cerebro Central</button>
 
 <button class="btn-submenu" onclick="abrirModal('modal-soporte'); toggleSubmenu()" style="border-color: var(--naranja); color: var(--naranja);">💬 Centro de Ayuda</button>
+
 
 </div>
 
@@ -1842,24 +1830,12 @@ window.descargarNegociosDeFirebase = async function() {
             window.renderizarPanel(catActualObj);
         }
 
-        // === CIRUGÍA APLICADA (PASO 4) ===
-        // ELIMINAMOS la llamada a barridoRadar() para no quemar la RAM dibujando pines dobles.
-        // ELIMINAMOS el flyToBounds() para evitar bucles infinitos de consultas.
-        // En su lugar, inyectamos la data viva directo en los pines estáticos.
-        
-        arrayNegocios.forEach(data => {
-            const idProd = data.id || data.codigo;
-            // Verificamos si el pin ya fue dibujado gratis por el JSON
-            if (marcadoresActivos[idProd]) {
-                const spanPrecio = document.getElementById(`precio-${idProd}`);
-                if (spanPrecio) {
-                    // Actualizamos con la info real (asumiendo que 'precio' es el campo)
-                    // Si tu campo se llama distinto, cámbialo aquí.
-                    spanPrecio.innerText = data.precio ? window.formatearMoneda(data.precio) : "Disponible";
-                    spanPrecio.style.color = "var(--naranja)"; // Se pinta para confirmar que tiene data viva
-                }
-            }
-        });
+        // 🚨 RESTAURACIÓN DEL DIBUJADO 🚨
+        // Como el JSON inicial de la plataforma está vacío, necesitamos forzar el dibujado de los pines.
+        if (typeof barridoRadar === "function") {
+            barridoRadar(document.getElementById('input-buscador').value);
+        }
+
 
     } catch (error) {
         if (btn) {
@@ -2623,26 +2599,18 @@ pinesEnPantalla = [...seleccionAliados, ...seleccionPremium, ...seleccionFreemiu
 
 
 
-if (pinesEnPantalla.length === 0) {
-const toast = document.getElementById('toast-fantasma');
-
-toast.innerText = filtrandoFavoritos ? "No tienes guardados en esta zona ❤️" : "No encontramos negocios aquí 📍";
-
-toast.style.opacity = '1';
-
-setTimeout(() => { toast.style.opacity = '0'; }, 3000);
-
-
-return;
-
-}
-
-
+            if (pinesEnPantalla.length === 0) {
+                const toast = document.getElementById('toast-fantasma');
+                let nombreCat = categoriaActivaGlobal === 'inmuebles' ? 'inmuebles' : (categoriaActivaGlobal === 'servicios' ? 'servicios' : 'negocios');
+                toast.innerText = filtrandoFavoritos ? "No tienes guardados en esta zona ❤️" : `No encontramos ${nombreCat} aquí 📍`;
+                toast.style.opacity = '1';
+                setTimeout(() => { toast.style.opacity = '0'; }, 3000);
+                return;
+            }
 
 pinesEnPantalla.forEach(p => {
 
 const pos = L.latLng(p.Coordenadas.latitude, p.Coordenadas.longitude);
-
 
 const pinUsado = dbSimbologia[p.link_pin] || dbSimbologia['pin_normal'];
 
@@ -3303,6 +3271,8 @@ window.cerrarSesion = async () => {
 
 QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
     const btnMod = document.getElementById('btn-acceso-moderacion');
+    const btnSuper = document.getElementById('btn-acceso-superadmin');
+    
     if (user) {
         document.getElementById('form-login-activo').style.display = 'none';
         document.getElementById('panel-usuario-activo').style.display = 'block';
@@ -3311,16 +3281,23 @@ QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
 
         // 🛡️ SENSOR DE RANGO: Verificamos si es personal autorizado
         const { success, data } = await QRpidoDB.SecurityService.obtenerRolAdmin(user.uid);
-        if (success && (data.rol === 'admin' || data.rol === 'moderador' || data.rol === 'superadmin')) {
-            if(btnMod) btnMod.style.display = 'block'; // Revelamos el panel
+        if (success) {
+            if (data.rol === 'admin' || data.rol === 'moderador' || data.rol === 'superadmin') {
+                if(btnMod) btnMod.style.display = 'block'; 
+            }
+            if (data.rol === 'superadmin') {
+                if(btnSuper) btnSuper.style.display = 'block'; 
+            }
         }
     } else {
         document.getElementById('form-login-activo').style.display = 'block';
         document.getElementById('panel-usuario-activo').style.display = 'none';
         document.getElementById('btn-portal-mando').style.background = 'var(--glass-bg)';
-        if(btnMod) btnMod.style.display = 'none'; // Ocultamos si no hay sesión
+        if(btnMod) btnMod.style.display = 'none'; 
+        if(btnSuper) btnSuper.style.display = 'none'; 
     }
 });
+
 
 
 document.getElementById('form-login-activo').style.display = 'block';
