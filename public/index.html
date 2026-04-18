@@ -71,7 +71,14 @@
 body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: 'Segoe UI', sans-serif; background: var(--bg-oscuro); color: white; overflow: hidden; transition: color 0.4s ease; }
 
 
-#mapa-qrpido { height: 100%; width: 100%; z-index: 1; }
+#mapa-qrpido { 
+height: 100%; width: 100%; z-index: 1; 
+will-change: transform; 
+transform: translateZ(0); 
+backface-visibility: hidden;
+contain: strict;
+}
+
 
 
 /* === Ocultar X nativa de Leaflet para evitar choques === */
@@ -2449,12 +2456,13 @@ contenedor.appendChild(div);
 
 
 
-
 window.barridoRadar = function(filtroTexto = "") {
+if(!datosDescargados) return;
 
+mapa.removeLayer(capaRadar);
 capaRadar.clearLayers();
 
-if(!datosDescargados) return;
+
 
 
 let filtrados = (dbDirectorio || []).filter(p => p.estado_moderacion !== "pendiente");
@@ -2969,7 +2977,6 @@ sheetHibrido.innerHTML = '';
 }
 
 
-
 function cargarCaballoTroya() {
 
 if(!dbTroya || dbTroya.length === 0) return;
@@ -3056,23 +3063,20 @@ targetGamma = gamma;
 
 
 function animarRadar() {
-
 if (!gyroActivo) return;
-
-currentGamma += (targetGamma - currentGamma) * 0.08;
-
-
+let diff = targetGamma - currentGamma;
+if (Math.abs(diff) > 0.2) {
+currentGamma += diff * 0.08;
 const mapaContenedor = document.getElementById('mapa-qrpido');
-
 if (mapaContenedor) {
-
-mapaContenedor.style.transform = `scale(1.15) rotateZ(${-currentGamma}deg)`;
-
+// Forzar composición 3D para la GPU
+mapaContenedor.style.transform = `translate3d(0,0,0) scale(1.15) rotateZ(${-currentGamma}deg)`;
+}
 }
 
 rafGyroId = requestAnimationFrame(animarRadar);
-
 }
+
 
 
 
