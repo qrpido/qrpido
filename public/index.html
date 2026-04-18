@@ -73,11 +73,12 @@ body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: 'Seg
 
 #mapa-qrpido { 
 height: 100%; width: 100%; z-index: 1; 
+/* Mantenemos el hilo de la GPU, pero le devolvemos los ojos a Leaflet */
 will-change: transform; 
 transform: translateZ(0); 
 backface-visibility: hidden;
-contain: strict;
 }
+
 
 
 
@@ -231,7 +232,15 @@ body.ui-light .select-glass option { background: white; color: black; }
 
 /* === POPUPS Y PINES 3D === */
 
-.leaflet-popup-content-wrapper { background: var(--glass-bg); backdrop-filter: blur(15px); border: 1px solid var(--glass-border); border-radius: 15px; padding: 0; overflow: hidden; transition: 0.4s; }
+.leaflet-popup-content-wrapper { 
+background: rgba(20, 20, 25, 0.95); /* 🛡️ BISTURÍ: Fondo sólido oscuro sin desenfoque */
+border: 1px solid var(--glass-border); 
+border-radius: 15px; 
+padding: 0; 
+overflow: hidden; 
+transition: transform 0.4s ease; /* 🛡️ Evitar transicionar 'all' */
+}
+
 
 .leaflet-popup-content { margin: 0; width: 240px !important; }
 
@@ -1253,16 +1262,20 @@ QRpidoDB.LocalService.registrarEventoAnalytics('add_to_wishlist', { item_id: id,
 
 localStorage.setItem('qrpido_favoritos_anon', JSON.stringify(favs));
 
-
 if (event && event.currentTarget) {
 
 const btn = event.currentTarget;
 
 btn.style.animation = 'none';
 
-void btn.offsetWidth;
+// 🛡️ BISTURÍ: Doble requestAnimationFrame permite reiniciar la animación sin bloquear el hilo principal
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    btn.style.animation = 'saltoCorazon 0.6s ease-out forwards';
+  });
+});
 
-btn.style.animation = 'saltoCorazon 0.6s ease-out forwards';
+
 
 
 if (isAdding) {
@@ -2459,7 +2472,6 @@ contenedor.appendChild(div);
 window.barridoRadar = function(filtroTexto = "") {
 if(!datosDescargados) return;
 
-mapa.removeLayer(capaRadar);
 capaRadar.clearLayers();
 
 
