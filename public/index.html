@@ -522,8 +522,7 @@ details p { padding: 0 12px 12px; margin: 0; font-size: 12px; color: #ddd; line-
 @keyframes saltoCorazon { 0% { transform: translateY(0px) scale(1); } 40% { transform: translateY(-25px) scale(1.4) rotateY(180deg); } 100% { transform: translateY(0px) scale(1) rotateY(360deg); } }
 /* =========================================
 ✅ ZOOM SEMÁNTICO (ESCALA DINÁMICA ÁUREA)
-========================================= */
-.pin-wrapper { transition: transform 0.4s ease, opacity 0.4s ease; transform-origin: center center; }
+========================================= */.pin-wrapper { will-change: transform; transition: transform 0.2s ease, opacity 0.2s ease; transform-origin: center center; }
 
 /* Zoom 16+: Muy Cerca (Tamaño completo para interactuar) */
 #mapa-qrpido[data-zoom="18"] .pin-wrapper:not(.pin-moneda-magica),
@@ -534,7 +533,7 @@ details p { padding: 0 12px 12px; margin: 0; font-size: 12px; color: #ddd; line-
 #mapa-qrpido[data-zoom="17"] .pin-moneda-magica,
 #mapa-qrpido[data-zoom="16"] .pin-moneda-magica { transform: scale(1.3); z-index: 1000; }
 
-/* Zoom 15: Distancia media (Empiezan a encogerse) */
+/* Zoom 15: Medio lejos */
 #mapa-qrpido[data-zoom="15"] .pin-wrapper:not(.pin-moneda-magica) { transform: scale(0.6); opacity: 0.95; }
 #mapa-qrpido[data-zoom="15"] .pin-moneda-magica { transform: scale(1.0); z-index: 1000; }
 
@@ -940,6 +939,28 @@ No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.
 </div>
 
 <script type="module">
+// --- 📊 MICRO-PROFILER QRPIDO (LÍNEA BASE ANDROID 1.5GB) ---
+window.qrpidoLog = [];
+window.tiempoArranque = performance.now();
+
+window.qrpidoLog.push(`[0ms] 🚀 INICIO DE EJECUCIÓN (Motor Arrancado)`);
+
+// ⏱️ Cronómetro de alta precisión para medir el costo de CPU
+window.cronometrar = function(nombreTarea, tareaFuncion) {
+    return function(...args) {
+        const t0 = performance.now();
+        const resultado = tareaFuncion.apply(this, args);
+        const t1 = performance.now();
+        const costo = (t1 - t0).toFixed(2);
+        window.qrpidoLog.push(`[${(t1 - window.tiempoArranque).toFixed(0)}ms] ⚙️ PROCESO: '${nombreTarea}' costó ${costo}ms`);
+        return resultado;
+    };
+};
+
+window.registrarPaso = function(mensaje) {
+    const t = (performance.now() - window.tiempoArranque).toFixed(0);
+    window.qrpidoLog.push(`[${t}ms] 📍 ${mensaje}`);
+};
 
 // 1. INYECCIÓN DEL MIDDLEWARE
 import QRpidoDB from './core-db.js';
@@ -3289,6 +3310,7 @@ QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
                 if(btnSuper) btnSuper.style.display = 'block'; 
             }
         }
+
     } else {
         document.getElementById('form-login-activo').style.display = 'block';
         document.getElementById('panel-usuario-activo').style.display = 'none';
@@ -3361,6 +3383,49 @@ document.body.addEventListener('click', (e) => {
         } 
     } 
 }); 
+// --- 🩺 ESCÁNER DE HARDWARE Y MEMORIA ---
+let fCount = 0, lastFTime = performance.now();
+
+function auditarHardware() {
+    fCount++;
+    let now = performance.now();
+    if (now >= lastFTime + 1000) {
+        let fps = Math.round((fCount * 1000) / (now - lastFTime));
+        let nodosDOM = document.getElementsByTagName('*').length; // El peso real de la app
+        let pines = document.querySelectorAll('.pin-wrapper').length;
+        
+        // La API performance.memory solo funciona en navegadores basados en Chromium (Android)
+        let ram = window.performance && performance.memory ? 
+                  (performance.memory.usedJSHeapSize / 1048576).toFixed(1) : "N/A";
+        
+        window.qrpidoLog.push(`[${(now - window.tiempoArranque).toFixed(0)}ms] 📊 METRICA -> FPS: ${fps} | RAM: ${ram}MB | Nodos DOM: ${nodosDOM} | Pines: ${pines}`);
+        
+        if(document.getElementById('m-fps')) document.getElementById('m-fps').innerText = fps;
+        if(document.getElementById('m-ram')) document.getElementById('m-ram').innerText = ram + 'MB';
+        if(document.getElementById('m-dom')) document.getElementById('m-dom').innerText = nodosDOM;
+        
+        fCount = 0; lastFTime = now;
+    }
+    requestAnimationFrame(auditarHardware);
+}
+auditarHardware();
+
+window.descargarAuditoria = function() {
+    const blob = new Blob([window.qrpidoLog.join('\n')], { type: 'text/plain' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `AUDITORIA_QRPIDO_${new Date().getTime()}.txt`;
+    a.click();
+};
+
 </script> 
+<div style="position:fixed; top:70px; right:10px; z-index:99999; background:rgba(10,10,15,0.95); color:#00ff64; padding:10px; border-radius:12px; font-family:monospace; font-size:11px; border:1px solid #00ff64; pointer-events:none; box-shadow: 0 4px 15px rgba(0,255,100,0.2);">
+    <b>PERFORMANCE BUDGET</b><br>
+    <hr style="border-color:#00ff64; margin:5px 0; opacity:0.3;">
+    ⏱️ FPS: <span id="m-fps">--</span><br>
+    💾 RAM: <span id="m-ram">--</span><br>
+    📦 DOM: <span id="m-dom">--</span> nodos<br>
+    <button onclick="descargarAuditoria()" style="pointer-events:all; background:#00ff64; color:#000; border:none; padding:8px; margin-top:8px; width:100%; font-weight:900; border-radius:6px; cursor:pointer;">BAJAR DATA</button>
+</div>
+
 </body> 
 </html>
