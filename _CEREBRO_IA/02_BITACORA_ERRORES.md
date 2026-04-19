@@ -1,10 +1,16 @@
-# 📖 Bitácora de Sesiones y Errores
+# 🧠 Contexto General de QRpido
+**Proyecto:** Plataforma B2C/B2B de radar urbano con enfoque en hiper-optimización de recursos y "Easter Eggs" como firma de autor.
+**Estrategia Actual de Producto:** Captura asincrónica de intención de compra (Permitir armado de carritos 24/7 como beneficio exclusivo para negocios, bloqueando únicamente la pasarela de WhatsApp fuera de horario).
+**Stack:** Vanilla JS, CSS nativo, Firebase v10, Leaflet.
+**Entorno de Pruebas Base:** Android con 1.5GB/2GB de RAM (Gama de entrada). Presupuesto de memoria estricto: <60MB RAM.
 
-## [2026-04-17] Sincronización Matemática de Geofire y Zoom Semántico
-- **Problema Geofire:** El radar estaba ciego. La librería usa METROS directos, no kilómetros. Se corrigió en `core-db.js`.
-- **Decisión Arquitectónica UI:** Se implementó "Efecto Dron" con escala dinámica áurea en CSS (`will-change: transform`). En zoom lejano los pines miden lo mismo que el punto GPS para no saturar la pantalla.
+## Estado de la Arquitectura
+- **Frontend (Mapa):** `index.html` optimizado (Renderizado GPU, 60 FPS, consumo fijo de 9.5MB de RAM, DOM capado a ~250 nodos). Interfaz matemática basada en Proporción Áurea.
+- **Herramientas de Medición:** "Burbuja Magnética" interactiva (Micro-Profiler) inyectada para medir FPS, RAM y Nodos DOM en tiempo real sin bloquear el hilo principal. Debe estar en todas las vistas.
+- **Backend:** Firebase Hosting (SPA routing activado) y Firebase Firestore. Autolimpiado de versiones activo.
 
-## [2026-04-18] Telemetría y Límites de Hardware
-- **Aprendizaje sobre Hosting:** La PWA monolítica con Vanilla JS pesa apenas ~146 KB en Firebase. Eficiencia extrema lograda al evitar frameworks.
-- **Decisión Arquitectónica (Medición):** Antes de modularizar el código, se inyectó un Micro-Profiler para auditar FPS, RAM y Nodos DOM en tiempo real.
-- **Concepto (Efecto Observador):** Medir consume recursos, pero el gadget usa `requestAnimationFrame` para tener un impacto casi nulo. Buscamos detectar "infartos" del sistema (caídas drásticas), no micro-segundos.
+## Reglas de IA Activas
+- NUNCA generar código completo.
+- Usar formato de "Buscar y Reemplazar" quirúrgico (`> BUSCA ESTE BLOQUE EXACTO... > PÍSALO CON ESTO...`).
+- Operar y diagnosticar basados EXCLUSIVAMENTE en datos reales del log del Micro-Profiler.
+- Priorizar lógica matemática (Fibonacci/Áurea) en UI y delegación a GPU en animaciones.
