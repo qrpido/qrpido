@@ -3416,15 +3416,82 @@ window.descargarAuditoria = function() {
 };
 
 </script> 
-> <div style="position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); z-index:99999; background:rgba(10,10,15,0.95); color:#00ff64; padding:10px; border-radius:12px; font-family:monospace; font-size:11px; border:1px solid #00ff64; pointer-events:none; box-shadow: 0 4px 15px rgba(0,255,100,0.2);">
+> <div id="perf-bubble" style="position:fixed; top:20%; right:5px; z-index:999999; width:45px; height:45px; background:rgba(10,10,12,0.85); backdrop-filter:blur(10px); border:2px solid #00ff64; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 15px rgba(0,255,100,0.3); cursor:pointer; touch-action:none; font-size:20px; transition: left 0.3s ease-out, top 0.3s ease-out;">
+    📊
+</div>
 
-    <b>PERFORMANCE BUDGET</b><br>
-    <hr style="border-color:#00ff64; margin:5px 0; opacity:0.3;">
+> <div id="perf-panel" style="position:fixed; top:50%; left:50%; transform:translate(-50%, -50%) scale(0.8); z-index:999998; background:rgba(10,10,15,0.95); color:#00ff64; padding:15px; border-radius:20px; font-family:monospace; font-size:12px; border:1px solid #00ff64; box-shadow: 0 15px 40px rgba(0,0,0,0.8); opacity:0; pointer-events:none; transition: 0.3s cubic-bezier(0.25, 1, 0.5, 1);">
+    <b style="color:white; display:block; text-align:center; letter-spacing:1px; font-family:sans-serif;">PERFORMANCE</b>
+    <hr style="border-color:#00ff64; margin:10px 0; opacity:0.3;">
     ⏱️ FPS: <span id="m-fps">--</span><br>
     💾 RAM: <span id="m-ram">--</span><br>
     📦 DOM: <span id="m-dom">--</span> nodos<br>
-    <button onclick="descargarAuditoria()" style="pointer-events:all; background:#00ff64; color:#000; border:none; padding:8px; margin-top:8px; width:100%; font-weight:900; border-radius:6px; cursor:pointer;">BAJAR DATA</button>
+    <button onclick="descargarAuditoria()" style="pointer-events:all; background:#00ff64; color:#000; border:none; padding:10px; margin-top:12px; width:100%; font-weight:900; border-radius:8px; cursor:pointer;">BAJAR DATA</button>
 </div>
+
+<script>
+// 🧠 Motor de Físicas Magnéticas y Touch
+const bubble = document.getElementById('perf-bubble');
+const panel = document.getElementById('perf-panel');
+let bDragging = false, bStartX, bStartY, bInitialX, bInitialY, bRaf;
+
+bubble.addEventListener('touchstart', (e) => {
+    bDragging = false;
+    bStartX = e.touches[0].clientX;
+    bStartY = e.touches[0].clientY;
+    const rect = bubble.getBoundingClientRect();
+    bInitialX = rect.left;
+    bInitialY = rect.top;
+    bubble.style.transition = 'none'; // Quita animación para fluidez absoluta al dedo
+}, {passive: true});
+
+bubble.addEventListener('touchmove', (e) => {
+    const dx = e.touches[0].clientX - bStartX;
+    const dy = e.touches[0].clientY - bStartY;
+    
+    // Amortiguador de 5px para no confundir un "Toque" con un "Arrastre"
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+        bDragging = true;
+        if(bRaf) cancelAnimationFrame(bRaf);
+        bRaf = requestAnimationFrame(() => {
+            let nLeft = bInitialX + dx;
+            let nTop = bInitialY + dy;
+            
+            // Contención geométrica para que no se salga de la pantalla
+            nLeft = Math.max(0, Math.min(nLeft, window.innerWidth - 45));
+            nTop = Math.max(0, Math.min(nTop, window.innerHeight - 45));
+            
+            bubble.style.left = nLeft + 'px';
+            bubble.style.top = nTop + 'px';
+            bubble.style.right = 'auto'; // Anulamos la derecha inicial
+        });
+    }
+}, {passive: true});
+
+bubble.addEventListener('touchend', () => {
+    if (!bDragging) {
+        // Evento: TOQUE (Abre/Cierra el panel)
+        if (navigator.vibrate) navigator.vibrate(20);
+        const isOpen = panel.style.opacity === '1';
+        panel.style.opacity = isOpen ? '0' : '1';
+        panel.style.pointerEvents = isOpen ? 'none' : 'all';
+        panel.style.transform = isOpen ? 'translate(-50%, -50%) scale(0.8)' : 'translate(-50%, -50%) scale(1)';
+    } else {
+        // Evento: ARRASTRE FINALIZADO (Snap Magnético)
+        bubble.style.transition = 'left 0.3s cubic-bezier(0.25, 1, 0.5, 1), top 0.3s ease-out';
+        const rect = bubble.getBoundingClientRect();
+        const center = rect.left + (rect.width / 2);
+        
+        // Gravedad hacia el borde más cercano
+        if (center > window.innerWidth / 2) {
+            bubble.style.left = (window.innerWidth - rect.width - 5) + 'px';
+        } else {
+            bubble.style.left = '5px';
+        }
+    }
+});
+</script>
+
 
 </body> 
 </html>
