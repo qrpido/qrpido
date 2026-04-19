@@ -3,9 +3,10 @@
 ## Fase Actual: Telemetría, Retención y Modales
 - [x] Ejecutar prueba de estrés y estabilizar motor gráfico (Logrado: 60 FPS, 9.5MB RAM estables).
 - [x] Estandarizar Proporción Áurea en modales y limpiar sintaxis de Leaflet para evitar colapsos.
+- [x] **UX Panel Cristal:** Corregido el cierre (X) para que mantenga la categoría actual (Inmuebles/Servicios) en lugar de forzar el reinicio a Negocios.
 - [ ] **Desbloqueo de Catálogo:** Permitir siempre el acceso a `negocio.html` desde el mapa (Maximizar retención).
-- [ ] **UX Inmuebles:** Agregar botón (X) y lógica de "Swipe Down" ligero para descartar las tarjetas.
-- [ ] **UX Autenticación (Gestión de Credenciales):** Añadir botón para ver/ocultar contraseña en `index.html` y `admin.html`. Configurar etiquetas nativas para forzar el autocompletado, sugerencia de contraseñas seguras y el modal de "Guardar contraseña" de Chrome/Google.
+- [ ] **UX Inmuebles:** Agregar botón (X) y lógica de "Swipe Down" ligero para descartar las tarjetas inferiores.
+- [ ] **UX Autenticación (Gestión de Credenciales):** Añadir botón para ver/ocultar contraseña (👁️) en `index.html` y `admin.html`. Configurar etiquetas nativas para forzar el autocompletado y el modal de "Guardar contraseña" de Chrome/Safari.
 - [ ] **Easter Egg V1 & V2:** Contador de taps (50 toques = Toast) y (100 toques = Sonata de Beethoven con mecánica de dispersión en GPU).
 
 ## Fase Siguiente: Catálogos y Carrito
