@@ -242,7 +242,8 @@ transition: transform 0.4s ease; /* 🛡️ Evitar transicionar 'all' */
 }
 
 
-.leaflet-popup-content { margin: 0; width: 240px !important; }
+.leaflet-popup-content { margin: 0; width: 164px !important; }
+
 
 .leaflet-popup-tip { background: var(--glass-bg); transition: 0.4s; }
 
@@ -253,11 +254,12 @@ transition: transform 0.4s ease; /* 🛡️ Evitar transicionar 'all' */
 
 .pin-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 
+.popup-portada { width: 100%; height: 95px; object-fit: cover; border-bottom: 2px solid var(--naranja); box-sizing: border-box; }
+
+.popup-info { padding: 0 15px 20px 15px; text-align: center; position: relative; box-sizing: border-box; }
 
 
-.popup-portada { width: 100%; height: 100px; object-fit: cover; border-bottom: 2px solid var(--naranja); }
 
-.popup-info { padding: var(--sp-md); text-align: center; position: relative; }
 
 
 .btn-compartir { position: absolute; top: var(--sp-sm); right: var(--sp-sm); background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 50%; width: var(--sp-lg); height: var(--sp-lg); display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.3s; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
@@ -271,10 +273,11 @@ transition: transform 0.4s ease; /* 🛡️ Evitar transicionar 'all' */
 
 .btn-fav-popup:hover { transform: scale(1.1); }
 
+.popup-logo { width: 90px; height: 90px; border-radius: 50%; border: 2px solid var(--naranja); margin-top: -45px; background: var(--bg-oscuro); position: relative; z-index: 2; object-fit: cover; box-shadow: 0 4px 10px rgba(0,0,0,0.5); flex-shrink: 0; }
 
-.popup-logo { width: 81px; height: 81px; border-radius: 50%; border: 2px solid var(--naranja); margin-top: -55px; background: var(--bg-oscuro); position: relative; z-index: 2; object-fit: cover; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
 
-.btn-catalogo { display: block; background: var(--naranja); color: white; text-decoration: none; padding: var(--sp-sm) var(--sp-md); border-radius: 13px; font-weight: bold; font-size: var(--texto-base); margin-top: var(--sp-sm); }
+.btn-catalogo { display: block; width: 100%; box-sizing: border-box; background: var(--naranja); color: white; text-decoration: none; padding: 12px 0; border-radius: 8px; font-weight: bold; font-size: 13px; margin-top: 15px; letter-spacing: 1px; }
+
 
 .badge-fuera-zona { background: rgba(255,0,0,0.8); color: white; font-size: var(--texto-sm); padding: 3px 8px; border-radius: 10px; font-weight: bold; margin-bottom: 5px; display: inline-block; letter-spacing: 0.5px; }
 
@@ -296,19 +299,15 @@ transition: transform 0.4s ease; /* 🛡️ Evitar transicionar 'all' */
 
 .logo-palpitante { animation: latidoNeon 1.5s infinite; animation-delay: 0.75s; }
 
+.texto-piedra { font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin: 0; background: linear-gradient(135deg, #777777 0%, #ffffff 50%, #333333 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(2px 2px 3px rgba(0,0,0,0.8)); }
 
-.texto-piedra { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin: 5px 0; background: linear-gradient(135deg, #777777 0%, #ffffff 50%, #333333 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(2px 2px 3px rgba(0,0,0,0.8)); }
+.popup-title-wrapper { margin: 2px auto; position: relative; z-index: 3; text-align: center; }
 
-.popup-title-wrapper { margin: var(--sp-micro) auto var(--sp-sm) auto; position: relative; z-index: 3; text-align: center; }
-
-.popup-title { margin: 0; font-size: var(--texto-h3); color: #fdfdfd; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
-
-
+.popup-title { margin: 0; font-size: 16px; line-height: 1.1; color: #fdfdfd; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
 
 /* Estrellas 3D Universales */
 
-.estrellas { color: #FFD700; font-size: 14px; margin-bottom: 5px; text-shadow: 1px 1px 0 rgba(204,170,0,0.6), -1px -1px 0 rgba(255,238,102,0.4), 2px 2px 2px rgba(0,0,0,0.8); letter-spacing: 2px; }
-
+.estrellas { color: #FFD700; font-size: 11px; margin: 0; text-shadow: 1px 1px 0 rgba(204,170,0,0.6), -1px -1px 0 rgba(255,238,102,0.4), 2px 2px 2px rgba(0,0,0,0.8); letter-spacing: 2px; }
 
 
 /* === BOTÓN GPS FLOTANTE === */
@@ -2902,43 +2901,28 @@ const htmlPopup = `
   </div>`;
 
 
-
-
-const marker = L.marker([pos.lat, pos.lng], { icon: iconoLeaflet }).addTo(capaRadar).bindPopup(htmlPopup);
-
+const marker = L.marker([pos.lat, pos.lng], { icon: iconoLeaflet }).addTo(capaRadar).bindPopup(htmlPopup, { autoPan: false });
 
 if (esAliado) {
-
-marker.on('click', function(e) {
-
-if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
-
-const iconEl = e.target._icon.querySelector('.pin-moneda-magica');
-
-if (iconEl) {
-
-iconEl.style.animation = 'none';
-
-void iconEl.offsetWidth;
-
-iconEl.style.animation = 'saltoMoneda 0.6s ease-out forwards';
-
-setTimeout(() => { iconEl.style.animation = 'flotarMoneda 2s infinite ease-in-out'; }, 600);
-
+    marker.on('click', function(e) {
+        if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+        const iconEl = e.target._icon.querySelector('.pin-moneda-magica');
+        if (iconEl) {
+            iconEl.style.animation = 'none';
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    iconEl.style.animation = 'saltoMoneda 0.6s ease-out forwards';
+                });
+            });
+            setTimeout(() => { iconEl.style.animation = 'flotarMoneda 2.5s infinite ease-in-out'; }, 600);
+        }
+    });
 }
-
-});
-
-}
-
-
-
-marker.on('popupopen', () => { if (radKm >= 0.1) window.circuloActual = L.circle([pos.lat, pos.lng], { color: c1, fillOpacity: 0.1, radius: radKm * 1000, dashArray: '5,5' }).addTo(mapa); });
-
-marker.on('popupclose', () => { if(window.circuloActual) mapa.removeLayer(window.circuloActual); });
 
 
 window.marcadoresRadar[p.codigo] = marker;
+
+
 
 
 
@@ -3432,7 +3416,8 @@ window.descargarAuditoria = function() {
 };
 
 </script> 
-<div style="position:fixed; top:70px; right:10px; z-index:99999; background:rgba(10,10,15,0.95); color:#00ff64; padding:10px; border-radius:12px; font-family:monospace; font-size:11px; border:1px solid #00ff64; pointer-events:none; box-shadow: 0 4px 15px rgba(0,255,100,0.2);">
+> <div style="position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); z-index:99999; background:rgba(10,10,15,0.95); color:#00ff64; padding:10px; border-radius:12px; font-family:monospace; font-size:11px; border:1px solid #00ff64; pointer-events:none; box-shadow: 0 4px 15px rgba(0,255,100,0.2);">
+
     <b>PERFORMANCE BUDGET</b><br>
     <hr style="border-color:#00ff64; margin:5px 0; opacity:0.3;">
     ⏱️ FPS: <span id="m-fps">--</span><br>
