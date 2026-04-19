@@ -826,11 +826,18 @@ No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.
 
 <div style="text-align: center; margin: 10px 0; color: #888; font-size: 12px;">O INGRESA CON TU CORREO</div>
 
-<input type="email" id="login-email" class="input-login" placeholder="Correo electrónico">
+<form id="form-login-portal" onsubmit="event.preventDefault(); iniciarSesion();">
+    <input type="email" id="login-email" name="email" class="input-login" placeholder="Correo electrónico" autocomplete="username" required>
 
-<input type="password" id="login-pass" class="input-login" placeholder="Contraseña">
+    
+    <div style="position: relative; width: 100%;">
+        <input type="password" id="login-pass" name="password" class="input-login" placeholder="Contraseña" autocomplete="current-password" required style="padding-right: 45px;">
+        <button type="button" onclick="toggleVerPassword('login-pass', this)" style="position: absolute; right: 10px; top: 40%; transform: translateY(-50%); background: transparent; border: none; color: #888; font-size: 18px; cursor: pointer; padding: 5px; z-index: 10;">👁️</button>
+    </div>
 
-<button class="btn-auth btn-ingresar" id="btn-login-accion" onclick="iniciarSesion()">Ingresar a mi Oficina</button>
+    <button type="submit" class="btn-auth btn-ingresar" id="btn-login-accion">Ingresar a mi Oficina</button>
+</form>
+
 
 <p style="text-align: center; font-size: 12px; color: #aaa; text-decoration: underline; cursor: pointer; margin-bottom: 15px;" onclick="toggleMagicLink()">¿Olvidaste tu contraseña? Ingresar con enlace mágico</p>
 
@@ -934,16 +941,18 @@ No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.
 
 
 
-<input type="email" id="radar-email" placeholder="Correo electrónico" style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 12px; border-radius: 12px; margin-bottom: 10px; box-sizing: border-box;">
+<form onsubmit="event.preventDefault(); loginTradicionalRadar();">
+    <input type="email" id="radar-email" name="email" placeholder="Correo electrónico" autocomplete="username" required style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 12px; border-radius: 12px; margin-bottom: 10px; box-sizing: border-box;">
 
-<input type="password" id="radar-pass" placeholder="Contraseña" style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 12px; border-radius: 12px; margin-bottom: 15px; box-sizing: border-box;">
+    <div style="position: relative; width: 100%; margin-bottom: 15px;">
+        <input type="password" id="radar-pass" name="password" placeholder="Contraseña" autocomplete="current-password" required style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 12px; border-radius: 12px; box-sizing: border-box; padding-right: 45px;">
+        <button type="button" onclick="toggleVerPassword('radar-pass', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: #888; font-size: 18px; cursor: pointer; padding: 5px;">👁️</button>
+    </div>
 
-
-<button id="btn-radar-accion" onclick="loginTradicionalRadar()" style="width: 100%; padding: 12px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; background: #ff6b00; color: white;">Iniciar Sesión</button>
-
+    <button type="submit" id="btn-radar-accion" style="width: 100%; padding: 12px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; background: #ff6b00; color: white;">Iniciar Sesión</button>
+</form>
 
 <p id="radar-magic-text" style="text-align: center; font-size: 12px; color: #aaa; text-decoration: underline; cursor: pointer; margin-top: 15px;" onclick="toggleMagicRadar()">¿Olvidaste tu contraseña? Ingresar con enlace mágico (Magic Link)</p>
-
 
 <button onclick="document.getElementById('modal-login-radar').style.display='none'" style="width: 100%; background: transparent; color: #aaa; border: none; margin-top: 10px; cursor: pointer;">Cancelar</button>
 
@@ -974,6 +983,19 @@ window.registrarPaso = function(mensaje) {
     const t = (performance.now() - window.tiempoArranque).toFixed(0);
     window.qrpidoLog.push(`[${t}ms] 📍 ${mensaje}`);
 };
+
+// 🛡️ BISTURÍ: Lógica de visibilidad de contraseña (Firma QRpido)
+window.toggleVerPassword = function(inputId, btn) {
+    const el = document.getElementById(inputId);
+    if (el.type === 'password') {
+        el.type = 'text';
+        btn.innerText = '🙈';
+    } else {
+        el.type = 'password';
+        btn.innerText = '👁️';
+    }
+};
+
 
 // 1. INYECCIÓN DEL MIDDLEWARE
 import QRpidoDB from './core-db.js';
@@ -3416,11 +3438,13 @@ window.descargarAuditoria = function() {
 };
 
 </script> 
-> <div id="perf-bubble" style="position:fixed; top:20%; right:5px; z-index:999999; width:45px; height:45px; background:rgba(10,10,12,0.85); backdrop-filter:blur(10px); border:2px solid #00ff64; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 15px rgba(0,255,100,0.3); cursor:pointer; touch-action:none; font-size:20px; transition: left 0.3s ease-out, top 0.3s ease-out;">
+
+<div id="perf-bubble" style="position:fixed; top:20%; right:5px; z-index:999999; width:45px; height:45px; background:rgba(10,10,12,0.85); backdrop-filter:blur(10px); border:2px solid #00ff64; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 15px rgba(0,255,100,0.3); cursor:pointer; touch-action:none; font-size:20px; transition: left 0.3s ease-out, top 0.3s ease-out;">
     📊
 </div>
 
-> <div id="perf-panel" style="position:fixed; top:50%; left:50%; transform:translate(-50%, -50%) scale(0.8); z-index:999998; background:rgba(10,10,15,0.95); color:#00ff64; padding:15px; border-radius:20px; font-family:monospace; font-size:12px; border:1px solid #00ff64; box-shadow: 0 15px 40px rgba(0,0,0,0.8); opacity:0; pointer-events:none; transition: 0.3s cubic-bezier(0.25, 1, 0.5, 1);">
+<div id="perf-panel" style="position:fixed; top:50%; left:50%; transform:translate(-50%, -50%) scale(0.8); z-index:999998; background:rgba(10,10,15,0.95); color:#00ff64; padding:15px; border-radius:20px; font-family:monospace; font-size:12px; border:1px solid #00ff64; box-shadow: 0 15px 40px rgba(0,0,0,0.8); opacity:0; pointer-events:none; transition: 0.3s cubic-bezier(0.25, 1, 0.5, 1);">
+
     <b style="color:white; display:block; text-align:center; letter-spacing:1px; font-family:sans-serif;">PERFORMANCE</b>
     <hr style="border-color:#00ff64; margin:10px 0; opacity:0.3;">
     ⏱️ FPS: <span id="m-fps">--</span><br>
