@@ -3,34 +3,23 @@ module qrpido::logistica {
     use std::string::String;
 
     // ---------------------------------------------------
-    // 1. EL RECIBO INMUTABLE (La Caja Negra)
+    // 1. EL RECIBO INMUTABLE (La Huella Digital)
     // ---------------------------------------------------
-    // Esta estructura define los datos que se grabarán en piedra en la blockchain.
-    struct ReciboQRpido has copy, drop {
-        orden_id_firebase: String,
-        monto_total_cop: u64,
-        comision_plataforma: u64,  // Fijado firmemente al 10%
-        pago_embajador: u64,       // El 25% de la comisión
+    // Solo guardamos el hash SHA-256. Cero datos financieros expuestos.
+    struct SelloCriptografico has copy, drop {
+        huella_sha256: String,
         timestamp_sui: u64
     }
 
     // ---------------------------------------------------
-    // 2. LA EMISIÓN (El Megáfono)
+    // 2. LA EMISIÓN (El Megáfono Ciego)
     // ---------------------------------------------------
-    // Cloud Functions llamará a esta función para sellar la transacción.
     public entry fun sellar_transaccion(
-        orden_id: String,
-        monto_total: u64,
-        comision: u64,
-        embajador: u64,
+        hash_transaccion: String,
         tiempo_actual: u64
     ) {
-        // Emitimos el evento. Queda registrado en la red para siempre.
-        event::emit(ReciboQRpido {
-            orden_id_firebase: orden_id,
-            monto_total_cop: monto_total,
-            comision_plataforma: comision,
-            pago_embajador: embajador,
+        event::emit(SelloCriptografico {
+            huella_sha256: hash_transaccion,
             timestamp_sui: tiempo_actual
         });
     }

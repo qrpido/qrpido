@@ -298,3 +298,54 @@ Aprovechando la arquitectura del Notario en SUI y las billeteras ya forjadas, in
 ​Petición para la IA: Actúa como Arquitecto de Software. Analiza la viabilidad, el diseño de la base de datos en Firestore para este flujo híbrido de carrito, y la estructura de los datos que debemos mandar a SUI para garantizar que el registro notarial sea imposible de vulnerar.
 
 ///////////// con eso termine de formular el bakend /////////
+
+
+//////// parte legal
+//////////////////////////
+
+​📋 COPIA ESTE PROMPT MAESTRO (BLOQUE LEGAL 1):
+​Actúa como un Abogado Especialista en Derecho Tecnológico y Comercio Electrónico en Colombia, experto en redactar Términos y Condiciones para plataformas SaaS y modelos de economía colaborativa.
+​Tu misión es redactar la "Sección 1: Naturaleza y Alcance del Servicio" para la plataforma QRpido. QRpido NO es una empresa de domicilios ni un restaurante; es exclusivamente un proveedor de tecnología (SaaS) que ofrece un mapa interactivo y catálogos digitales para que comercios locales y usuarios interactúen.
+​Reglas Estrictas para la Redacción de este Bloque:
+​Definición Estricta del Rol: Debes dejar absoluta y legalmente claro que QRpido provee el software (la infraestructura tecnológica, la visualización de catálogos y el puente de comunicación). QRpido se exime de toda responsabilidad civil, penal o comercial sobre la calidad de los productos, garantías, tiempos de preparación, o veracidad de las fotos subidas por los comercios.
+​Seguridad de la Cuenta: Establece que la seguridad de las credenciales (correo y contraseña estándar o inicio de sesión vía Google SSO) es responsabilidad exclusiva del usuario. Todo movimiento realizado bajo esa cuenta se presume legalmente válido.
+​El Punto de Anclaje (Pieza de Lego hacia la Sección 2): El último párrafo de este bloque debe ser el conector exacto hacia el Bloque 2. Debe indicar textualmente que cualquier solicitud de entrega o despacho físico que el usuario inicie a través de la interfaz tecnológica de QRpido, no constituye un servicio prestado por QRpido, sino que activa un Contrato de Mandato directo e independiente con un repartidor tercero, el cual se rige bajo las condiciones de la Sección 2.
+​Formato de Entrega: No quiero la estructura completa de la página (nada de <html>, <body> o CSS). Entrégame EXCLUSIVAMENTE el texto legal formateado en etiquetas HTML semánticas básicas (<h3>, <p>, <ul>, <li>), listo para ser inyectado dentro del contenedor de términos. Utiliza un tono legal, firme, pero comprensible para un usuario promedio.
+
+​📋 COPIA ESTE PROMPT MAESTRO (BLOQUE LEGAL 2):
+​Actúa como un Abogado Especialista en Derecho Tecnológico y Comercial en Colombia. Tienes el contexto previo de que QRpido es exclusivamente una plataforma SaaS (Sección 1).
+​Tu misión es redactar la "Sección 2: Contrato de Mandato y Logística P2P" para los Términos y Condiciones. Esta sección es el escudo legal que separa a QRpido de cualquier relación laboral o de transporte con los conductores.
+​Reglas Estrictas para la Redacción de este Bloque:
+​El Contrato de Mandato (Art. 1262 del Código de Comercio): Define explícitamente que al solicitar un domicilio en la interfaz, el Usuario (Mandante) celebra un Contrato de Mandato directo, independiente y bilateral con el Conductor/Repartidor (Mandatario). El Mandatario acepta el encargo de recoger y entregar el producto a cambio de una remuneración. QRpido es un tercero ajeno a este contrato y no funge como empresa de transporte ni de mensajería.
+​El "Notario Ciego" y Proof of Delivery: Explica que QRpido provee una herramienta de validación criptográfica (El Apretón de Manos Digital / Código Corto) para certificar que el mandato se cumplió. Establece que el saldo logístico pagado por el usuario solo se libera al conductor cuando ambas partes validan la entrega mediante este protocolo tecnológico inmutable.
+​El Punto de Anclaje (Pieza de Lego hacia la Sección 3): El último párrafo debe conectar con el modelo financiero. Debe indicar que para facilitar la ejecución de este mandato y el pago de los catálogos de los comercios, QRpido dispone de herramientas tecnológicas financieras (pasarelas de pago inyectadas y recargas de saldo virtual) y retiene una comisión exclusivamente matemática (el 10%) por el uso de la infraestructura, lo cual se detalla en la Sección 3.
+​Formato de Entrega: No quiero la estructura completa de la página. Entrégame EXCLUSIVAMENTE el texto legal formateado en etiquetas HTML semánticas básicas (<h3>, <p>, <ul>, <li>), listo para ser concatenado debajo de la Sección 1. Utiliza un tono legal estricto que proteja el modelo operativo descentralizado de la plataforma.
+​Confirmación: No agregues preámbulos. Entrega directamente el código HTML con el texto legal de la Sección 2.
+
+​📋 COPIA ESTE PROMPT MAESTRO (BLOQUE LEGAL 3):
+​Actúa como un Abogado Especialista en Derecho Financiero y Tecnológico (Fintech) en Colombia. Tienes el contexto de que QRpido es un SaaS (Sección 1) que facilita Contratos de Mandato para logística (Sección 2).
+​Tu misión es redactar la "Sección 3: Ecosistema Financiero, Pasarelas de Pago y Activos Virtuales" para los Términos y Condiciones. Este es el escudo fiscal y financiero de la plataforma.
+​Reglas Estrictas para la Redacción de este Bloque:
+​Cero Intermediación en Ventas (Pasarela Inyectada): Define claramente que para los comercios "Premium", QRpido permite la inyección técnica de la pasarela de pagos propia del comercio (ej. Wompi de Bancolombia). El flujo de dinero por la compra de productos va directamente del Cliente al Comercio. QRpido no retiene, ni procesa, ni toca el dinero de los productos vendidos, eximiéndose de responsabilidades de intermediación financiera.
+​Naturaleza del Saldo Logístico (Cerrado y de Uso Específico): Explica que el sistema de "Saldo" o recargas dentro de QRpido funciona como un pago anticipado por uso de infraestructura y ejecución de mandatos logísticos, de circuito cerrado. Deja textualmente claro que este saldo NO constituye una cuenta de ahorros, ni un depósito bancario, ni captación masiva y habitual de dineros del público bajo las leyes colombianas.
+​La Comisión Matemática y la Inmutabilidad: Establece el cobro de una tarifa tecnológica fija (comisión matemática del 10%) por el uso del puente de conexión logística y la validación en la infraestructura de registro (Blockchain SUI). Aclara que el uso de tecnología de registro descentralizado es estrictamente para fines de trazabilidad, transparencia y auditoría (Proof of Delivery), no constituyendo asesoría ni especulación con criptoactivos.
+​Cierre del Contrato (La Pieza Final): El último párrafo debe servir como el cierre general del documento. Debe indicar que al marcar la casilla de aceptación o hacer uso de la plataforma, el Usuario reconoce y acepta íntegramente las tres secciones de este documento con plena validez jurídica.
+​Formato de Entrega: No quiero la estructura completa de la página. Entrégame EXCLUSIVAMENTE el texto legal formateado en etiquetas HTML semánticas básicas (<h3>, <p>, <ul>, <li>), listo para ser concatenado debajo de la Sección 2. Utiliza un tono firme y definitivo.
+​Confirmación: No agregues preámbulos. Entrega directamente el código HTML con el texto legal de la Sección 3.
+
+Actúa como el Fiscal Jefe de la Unidad de Delitos Financieros, Tecnológicos y Laborales de Colombia. Eres un sabueso legal implacable, experto en desmantelar startups, probar evasión fiscal ante la DIAN, demostrar captación ilegal de fondos ante la Superfinanciera, y comprobar relaciones laborales encubiertas ante el Ministerio de Trabajo. Tu único objetivo en la vida es encontrar un hueco en los Términos y Condiciones de la plataforma "QRpido" para clausurarla y quebrar a sus creadores.
+​A continuación, te presentaré el borrador actual de los Términos y Condiciones de QRpido.
+​Quiero que analices este texto con la intención destructiva de un fiscal. Sin embargo, en tu arrogancia y afán por explicarme cómo vas a destruir mi plataforma, vas a cometer un error táctico: me vas a revelar exactamente cómo debo blindarme. Por cada ataque que planees, me vas a dictar sin querer la redacción jurídica exacta que yo debería agregar para que tu ataque quede completamente anulado.
+​Reglas Estrictas para tu Respuesta:
+​Para cada hueco legal que encuentres (busca un máximo de 3 fallas críticas), debes estructurar tu respuesta de la siguiente manera, manteniendo tu tono arrogante e implacable:
+​El Cargo (Mi Ataque): Describe con qué ley colombiana o argumento jurídico planeas destruir a QRpido (ej. "Los voy a demandar por contrato realidad con los domiciliarios" o "Los voy a sancionar por lavado de activos con ese saldo virtual").
+​La Grieta (Tu Debilidad): Cita exactamente la parte del texto que te da la excusa para atacar o menciona el vacío legal que olvidamos cubrir.
+​El Tiro por la Culata (El Escudo que no deberías darme): Con un tono de frustración (ej. "Si tan solo hubieran agregado esta cláusula, mi demanda no serviría para nada..."), redáctame el Párrafo Legal Exacto que debo inyectar en mis Términos y Condiciones para bloquear tu ataque. Entrega este texto formateado en HTML (<p>, <li>), listo para copiar y pegar, manteniendo el tono firme y la proporción de mis variables.
+​No me des consejos amistosos. Atácame sin piedad y deja que tu ego me entregue las soluciones jurídicas.
+​Aquí están los Términos y Condiciones que debes destruir:
+​[PEGA AQUÍ EL TEXTO UNIFICADO DE LAS SECCIONES 1, 2 Y 3]
+
+
+////////////fin de los prompts de la parte legal///////////////////////////
+
+

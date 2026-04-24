@@ -43,4 +43,15 @@ Fecha: 22 de Abril de 2026
 ​Solución: Arquitectura de fragmentación atómica establecida en Firebase RTDB (/Sistema/MallaDeGas/libres) usando .transaction() para permitir miles de pagos concurrentes sin Coin Locking.
 ​[x] Smart Contract (El Notario):
 ​Solución: Código logistica.move rescrito desde cero. Se eliminó el Escrow pesado y se reemplazó por Sui Events (Recibos Inmutables) para certificar las transacciones a una fracción del costo y riesgo legal.
+//////////////////
+//////////////
+22/04/2025 21:33 hemos terminado la parte teorica del Backend solo falta plata para sctivar el plan Blaze para activar las funciones
 
+Fase 5: Logística P2P (Proof of Delivery)
+
+[x] El Cadenero (Validación Backend): Cloud Function blindada con sistema Anti-Fuerza Bruta que valida el código y reparte matemáticamente el saldo.
+
+[x] Sello SUI Inmutable: Trituradora SHA-256 en backend para registro ciego automático del txID en la blockchain al confirmar la entrega.
+
+////////////////
+//////////
