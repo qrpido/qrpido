@@ -187,23 +187,36 @@ exports.validarEntrega = functions.https.onCall(async (data, context) => {
                 if (!extraccion.committed || !monedaSuiGas) {
                     throw new Error("Malla de Gas vacía o saturada.");
                 }
+                // b. La Trituradora Criptográfica (SHA-256)
+                // Unimos todos los datos sensibles en un solo texto que solo tú y Firebase conocen
+                const datosCrudos = `ORDEN:${ordenId}|MONTO:${montoTotal}|COMISION:${comisionPlataforma}|EMBAJADOR:${pagoEmbajador}`;
+                // Convertimos ese texto en una huella digital indescifrable de 64 caracteres
+                const huellaCriptografica = crypto.createHash('sha256').update(datosCrudos).digest('hex');
 
-                // b. Construir el Evento en SUI con la moneda asegurada
+                // c. Construir el Evento en SUI enviando SOLO la huella
                 /* const tx = new TransactionBlock();
-                // Inyectamos la moneda específica extraída de RTDB para pagar el gas de esta transacción
                 tx.setGasPayment([{ 
                     objectId: monedaSuiGas.id, 
                     version: monedaSuiGas.version, 
                     digest: monedaSuiGas.digest 
                 }]);
 
-                tx.moveCall({ ... logistica::sellar_transaccion ... });
+                tx.moveCall({
+                    target: `${process.env.PACKAGE_ID}::logistica::sellar_transaccion`,
+                    arguments: [
+                        tx.pure(huellaCriptografica), // El Notario de SUI solo recibe el código raro
+                        tx.pure(Date.now())
+                    ]
+                });
+                
                 const result = await suiClient.signAndExecuteTransactionBlock(...);
                 txID_Generado = result.digest;
                 
-                // c. Reciclaje: Devolver el "vuelto" a RTDB con los nuevos datos de la moneda
+                // d. Reciclaje: Devolver el "vuelto" a RTDB con los nuevos datos de la moneda
                 // await libresRef.child(monedaSuiGas.id).set(NUEVOS_DATOS_SUI);
                 */
+
+
 
                 // Simulación para Dry-Coding
                 txID_Generado = "0x" + Math.random().toString(16).slice(2) + "_EVENTO_SELLADO";

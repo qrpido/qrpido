@@ -1,12 +1,14 @@
-​🧠 Contexto General de QRpido (Versión SaaS Autónoma)
+​🧠 Contexto General de QRpido (Versión SaaS Autónoma) Actualizado
 ​Proyecto: Plataforma B2C/B2B de radar urbano con enfoque en hiper-optimización de recursos, descentralización financiera y validación inmutable de logística P2P.
 Estrategia Actual de Producto: Modelo SaaS de dos niveles (Freemium y Premium). Captura asincrónica de intención de compra (Carritos 24/7). El paquete Premium incluye la inyección de la pasarela Wompi del propio comercio para pagos directos (blindaje legal y fiscal para QRpido). Motor logístico Trustless basado en blockchain (Recibos Inmutables) completamente invisible para el usuario.
-Stack: Vanilla JS, CSS nativo, Firebase v10 (Hosting, Firestore, RTDB, Auth, Cloud Functions), Leaflet, Node.js, SDK de SUI (@mysten/sui), API Wompi.
+Stack: Vanilla JS, CSS nativo modularizado, Firebase v10 (Hosting, Firestore, RTDB, Auth, Cloud Functions), Leaflet, Node.js, SDK de SUI (@mysten/sui), API Wompi.
 Entorno de Pruebas Base: Cliente: Android con 1.5GB/2GB de RAM (Gama de entrada). Presupuesto de memoria estricto: <60MB RAM (apuntando a <30MB en módulos de mapa). Servidor: Alpine Linux en terminal móvil (Acode) con Node.js 22.
 ​Estado de la Arquitectura
-​Frontend (Mapa y UI): * index.html hiper-optimizado (GPU, 60 FPS, consumo fijo de 9.5MB RAM). Interfaz con Proporción Áurea.
+Frontend (Mapa y UI): * index.html hiper-optimizado (GPU, 60 FPS, consumo fijo de 9.5MB RAM). Interfaz con Proporción Áurea.
+​Implementación del "Golden Design System" fundado en archivo independiente (ui-estilos.css) con variables en español (--naranja, --bg-oscuro, --texto-base) para la modularización progresiva de estilos.
 ​Gestión de contraseñas nativa del SO.
-​Seguridad UI: Implementación de "Trampa Honeypot" (0 bytes) contra bots y escudo legal (Contrato de Mandato) en el registro en lugar de reCAPTCHA.
+​Seguridad UI y Legal: * Implementación de "Trampa Honeypot" (0 bytes) contra bots y escudo legal (Contrato de Mandato) en el registro en lugar de reCAPTCHA.
+​Búnker jurídico operativo (terminos.html) con escudos corporativos (Anti-DIAN, Anti-SIC, MinTrabajo, Cesión de M&A) y Habeas Data adaptado a Web3 con limitación técnica por inmutabilidad (SUI).
 ​Herramientas de Medición: "Burbuja Magnética" (Micro-Profiler) inyectada para medir FPS, RAM y DOM.
 ​Backend (Roles, Tesorería y Seguridad Web2): * Autenticación mediante Google SSO y contraseñas estándar (Rechazo absoluto de Magic Links por vectores de phishing).
 ​Tesorería Central: Webhook de Wompi en index.js para recargas de saldo (gasolina logística) con validación de firmas criptográficas. Comisión matemática fijada al 10%.
