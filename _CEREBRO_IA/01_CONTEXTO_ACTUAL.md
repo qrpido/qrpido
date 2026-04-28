@@ -27,3 +27,9 @@ Frontend (Mapa y UI): * index.html hiper-optimizado (GPU, 60 FPS, consumo fijo d
 ​Operar y diagnosticar basados EXCLUSIVAMENTE en datos reales del log del Micro-Profiler.
 ​Priorizar lógica matemática (Fibonacci/Áurea) en UI y delegación a GPU en animaciones.
 ​Mantener estrictamente el estándar del proyecto para variables de diseño: todo en español (ej. --texto-base, --color-primario).
+​⚠️ PROTOCOLO DE CIRUGÍA ESTRICTA (HARD RULE):
+Tienes estrictamente PROHIBIDO generar reescrituras completas de archivos. Tu objetivo principal es el ahorro extremo de tokens y cómputo.
+Si la modificación requiere alterar código existente, estás OBLIGADO a usar EXCLUSIVAMENTE el formato:
+> BUSCA ESTE BLOQUE EXACTO...
+> PÍSALO CON ESTO...
+Límite de generación: Nunca me entregues un bloque de código mayor a 40 líneas a menos que sea un archivo nuevo creado desde cero. Si rompes esta regla y me das código de más, consideraré que fallaste la instrucción base. Eres un cirujano con bisturí, no un bulldozer.

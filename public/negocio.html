@@ -7,218 +7,26 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#ff6b00">
     <link rel="apple-touch-icon" href="https://via.placeholder.com/192/0a0a0c/ff6b00?text=QR">
-
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-
-    <style>
-        :root { 
-            --color-marca: #ff6b00; 
-            --color-secundario: #ff6b00; 
-            --color-terciario: #ff6b00; 
-            --bg-oscuro: #0a0a0c;
-            --glass-bg: rgba(20, 20, 25, 0.75); 
-            --glass-border: rgba(255, 255, 255, 0.1);
-        }
-        body, html { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg-oscuro); color: white; scroll-behavior: smooth; overflow-x: hidden; }
-        
-        /* === FONDOS Y CRISTAL === */
-        #fondo-pantalla { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; object-fit: cover; z-index: -2; opacity: 0.3; }
-        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border: 1px solid var(--color-secundario); border-radius: 20px; } 
-        
-        /* === SKELETON SHIMMER LOADING === */
-        .shimmer-box { position: relative; overflow: hidden; background: rgba(255,255,255,0.05) !important; color: transparent !important; border-color: transparent !important; text-shadow: none !important; box-shadow: none !important; pointer-events: none; }
-        .shimmer-box * { visibility: hidden; }
-        .shimmer-box::after { content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent); animation: shimmer 1.5s infinite; }
-        @keyframes shimmer { 100% { left: 100%; } }
-
-        /* === HEADER NEGOCIO (REDISEÑO ÁUREO) === */
-        .header-negocio { position: relative; text-align: center; margin-bottom: 20px; margin-top: 10px; padding-bottom: 20px; }
-        .portada-tienda { width: 100%; height: 140px; object-fit: cover; border-radius: 20px; border-bottom: 2px solid var(--color-marca); display: block; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
-        
-        /* Botón Universal Compartir en la esquina estratégica */
-        .btn-compartir-flotante { position: absolute; top: 15px; right: 15px; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); border: 1px solid var(--color-secundario); color: white; border-radius: 50%; width: 36px; height: 36px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.3s; z-index: 10; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
-        .btn-compartir-flotante:active { transform: scale(0.9); background: var(--color-marca); border-color: var(--color-marca); }
-        
-        .header-info-wrapper { padding: 0 20px; }
-        
-        /* Logo Proporción Áurea de Áreas (148px) y corte exacto en la mediatriz (-74px) */
-        .avatar-negocio { width: 148px; height: 148px; border-radius: 50%; border: 3px solid var(--color-marca); object-fit: cover; margin-top: -74px; box-shadow: 0 0 15px var(--color-marca); background: var(--bg-oscuro); cursor: pointer; position: relative; z-index: 2; }
-        
-        .nombre-negocio { 
-            margin: 10px auto 5px auto; font-size: 24px; color: #fdfdfd; font-weight: 900; text-transform: uppercase;
-            letter-spacing: 1px; text-shadow: 0 0 3px var(--color-marca), 0 0 8px var(--color-marca), 2px 2px 4px rgba(0,0,0,0.9); 
-            min-height: 28px; width: fit-content; min-width: 60%; border-radius: 10px;
-        }
-        
-        .texto-piedra {
-            font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin: 0 auto 5px auto;
-            background: linear-gradient(135deg, #777777 0%, #ffffff 50%, #333333 100%);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(2px 2px 3px rgba(0,0,0,0.8));
-            min-height: 12px; width: fit-content; min-width: 40%; border-radius: 5px;
-        }
-
-        /* LÓGICA DE COBERTURA: ESTILOS DEL BADGE */
-        .badge-cobertura {
-            background: rgba(255, 68, 68, 0.15); border: 1px solid #ff4444; color: #ff4444; 
-            padding: 4px 12px; border-radius: 12px; font-size: 10px; font-weight: 900; 
-            text-transform: uppercase; letter-spacing: 1px; display: inline-block; 
-            margin-bottom: 8px; box-shadow: 0 0 10px rgba(255,68,68,0.2);
-        }
-
-                /* Diseño Áureo & Fibonacci */
-        .btn-contactar { display: inline-flex; justify-content: center; align-items: center; background: var(--color-marca); color: white; text-decoration: none; padding: 13px 21px; border-radius: 34px; font-weight: 900; font-size: 13px; letter-spacing: 1px; box-shadow: 0 8px 21px rgba(255, 107, 0, 0.4); transition: 0.3s; }
-        .btn-contactar:active { transform: scale(0.95); box-shadow: 0 5px 13px rgba(255, 107, 0, 0.3); }
-        .btn-historia { display: inline-flex; justify-content: center; align-items: center; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: #ddd; text-decoration: none; padding: 8px 21px; border-radius: 21px; font-size: 11px; font-weight: bold; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; transition: 0.3s; }
-        .btn-historia:active { background: rgba(255,255,255,0.1); transform: scale(0.95); }
-
-
-        /* === BANNER PROMO === */
-        .banner-contenedor { width: 100%; padding: 0 20px; box-sizing: border-box; margin-bottom: 20px; display: none; }
-        .banner-img { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 15px; border: 1px solid var(--color-secundario); box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
-
-        /* === CARRUSEL DE CATEGORÍAS === */
-        .categorias-wrapper { 
-            position: sticky; top: 0; z-index: 900; 
-            background: rgba(10, 10, 12, 0.85); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
-            padding: 12px 20px; border-bottom: 1px solid var(--glass-border); 
-            margin-bottom: 20px; display: none; box-shadow: 0 10px 20px rgba(0,0,0,0.5);
-        }
-        .tags-container { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
-        .tags-container::-webkit-scrollbar { display: none; }
-        .tag-pill { 
-            background: var(--color-terciario);
-            opacity: 0.8;
-            border: 1px solid rgba(255, 255, 255, 0.2); 
-            padding: 8px 18px; border-radius: 25px; font-size: 12px; white-space: nowrap; 
-            cursor: pointer; transition: 0.3s; font-weight: bold; color: #ddd; letter-spacing: 0.5px;
-        }
-        .tag-pill.activa { 
-            background: var(--color-secundario);
-            opacity: 1;
-            color: white; border-color: var(--color-secundario); 
-            box-shadow: 0 0 10px rgba(255,107,0,0.4); text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
-        }
-
-        /* === CATÁLOGO (GRILLA) === */
-        .categoria-titulo { margin: 15px 20px 10px; font-size: 18px; font-weight: bold; border-bottom: 2px solid var(--color-secundario); padding-bottom: 5px; color: var(--color-marca); text-shadow: 0 0 5px rgba(255, 107, 0, 0.3); } 
-        .grilla-productos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; padding: 0 20px 100px; }
-        
-        .producto-card { display: flex; flex-direction: column; align-items: center; padding: 15px 10px; position: relative; overflow: hidden; transition: 0.3s; border: 1px solid var(--color-terciario); } 
-        .producto-card:active { border-color: var(--color-marca); box-shadow: 0 0 15px rgba(255,107,0,0.2); }
-        
-        .badge-promo { position: absolute; top: 10px; right: -25px; color: white; padding: 3px 30px; font-size: 10px; font-weight: 900; transform: rotate(45deg); z-index: 10; letter-spacing: 1px; box-shadow: 0 2px 10px rgba(0,0,0,0.5); text-transform: uppercase; }
-        .badge-oferta { background: #ff0044; }
-        .badge-nuevo { background: #00ff64; color: black; }
-        .badge-top { background: var(--color-secundario); color: white; } 
-        
-        .producto-card.agotado { filter: grayscale(100%); opacity: 0.6; }
-        .producto-card.agotado::after { content: 'AGOTADO'; position: absolute; top: 50%; background: rgba(0,0,0,0.8); color: white; padding: 5px 10px; font-weight: bold; transform: rotate(-15deg); border: 1px solid white; z-index: 15; }
-        
-        .marco-aureo { width: 100px; height: 161px; position: relative; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; }
-        .img-marco { position: absolute; width: 100%; height: 100%; object-fit: contain; z-index: 1; opacity: 0.5; }
-        .img-producto { position: relative; max-width: 120%; max-height: 120%; object-fit: contain; z-index: 2; filter: drop-shadow(0 10px 10px rgba(0,0,0,0.5)); transition: transform 0.3s; }
-        .producto-card:active .img-producto { transform: scale(1.1); }
-        
-        /* MICRO-INTERACCIÓN: Imagen volando al carrito */
-        .flying-img { position: fixed; z-index: 9999; pointer-events: none; transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.6s ease-in; object-fit: contain; filter: drop-shadow(0 5px 15px rgba(255,107,0,0.8)); }
-
-        .prod-nombre { font-size: 13px; font-weight: bold; text-align: center; margin-bottom: 5px; height: 36px; overflow: hidden; color: #eee; }
-        .prod-precio { font-size: 16px; color: var(--color-marca); font-weight: 900; margin-bottom: 10px; text-shadow: 0 0 5px rgba(255,107,0,0.3); }
-        
-        .controles-cantidad { display: flex; align-items: center; gap: 15px; background: rgba(0,0,0,0.6); border-radius: 20px; padding: 5px 10px; border: 1px solid var(--color-terciario); width: fit-content; margin: 0 auto; } 
-        .btn-cant { background: none; border: none; color: white; font-size: 18px; font-weight: bold; cursor: pointer; padding: 0 5px; }
-        .num-cant { font-size: 16px; font-weight: bold; width: 20px; text-align: center; }
-
-        .btn-especial { width: 100%; padding: 10px; border-radius: 10px; border: none; font-weight: 900; text-transform: uppercase; cursor: pointer; background: var(--color-marca); color: white; box-shadow: 0 0 10px rgba(255,107,0,0.3); transition: 0.3s; }
-        .btn-especial:active { transform: scale(0.95); }
-
-        /* === EASTER EGG === */
-        .easter-egg-msg { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--glass-bg); padding: 30px; border-radius: 20px; border: 2px solid var(--color-marca); color: var(--color-marca); text-align: center; z-index: 9999; display: none; text-shadow: 0 0 10px var(--color-marca); box-shadow: 0 0 30px var(--color-marca); font-weight: 900; font-size: 18px; backdrop-filter: blur(15px); text-transform: uppercase; }
-        .confeti { position: fixed; width: 8px; height: 8px; background: #0ff; z-index: 9998; display: none; animation: caer 3s linear forwards; }
-        @keyframes caer { 0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; } 100% { transform: translateY(110vh) rotate(720deg); opacity: 0; } }
-
-        /* === CARRITO FLOTANTE === */
-        #carrito-flotante { position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; background: var(--color-marca); color: white; padding: 15px 25px; border-radius: 30px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; box-shadow: 0 10px 30px rgba(0,0,0,0.8); z-index: 1000; transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); cursor: pointer; border: 1px solid rgba(255,255,255,0.2); }
-        #carrito-flotante.visible { bottom: 20px; }
-
-        /* === SCROLL TO TOP FLOTANTE === */
-        #btn-scroll-top {
-            position: fixed; bottom: -60px; left: 50%; transform: translateX(-50%);
-            background: rgba(10, 10, 12, 0.85); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
-            border: 1px solid var(--color-secundario); color: white; padding: 10px 20px; border-radius: 30px; 
-            font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 10px rgba(255,107,0,0.3);
-            z-index: 950; cursor: pointer; transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            display: flex; align-items: center; gap: 5px;
-        }
-        #btn-scroll-top.visible { bottom: 25px; }
-        #btn-scroll-top.visible.con-carrito { bottom: 90px; }
-
-        /* === BOTTOM SHEETS (Modales Nativos) === */
-        .btn-cerrar-modal { position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.1); border: 1px solid var(--color-terciario); color: white; border-radius: 50%; width: 30px; height: 30px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.3s; z-index: 10; } 
-        .btn-cerrar-modal:active { transform: scale(0.9); background: var(--color-marca); }
-
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; display: flex; justify-content: center; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
-        .modal-overlay.activo { opacity: 1; pointer-events: all; }
-        .modal-contenido { width: 100%; max-width: 500px; background: var(--glass-bg); backdrop-filter: blur(25px); border-top-left-radius: 30px; border-top-right-radius: 30px; padding: 15px 30px 30px 30px; transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); max-height: 85vh; overflow-y: auto; border-top: 1px solid var(--color-marca); box-sizing: border-box; box-shadow: 0 -10px 30px rgba(0,0,0,0.5); touch-action: pan-y; }
-        .modal-overlay.activo .modal-contenido { transform: translateY(0); }
-        
-        .drag-handle { width: 50px; height: 5px; background: rgba(255,255,255,0.3); border-radius: 5px; margin: 0 auto 20px auto; cursor: grab; }
-
-        /* === CHECKOUT Y BOTONES === */
-        .resumen-item { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 5px; color: #ddd; }
-        .input-glass { width: 100%; background: rgba(0,0,0,0.6); border: 1px solid var(--glass-border); color: white; padding: 15px; border-radius: 12px; margin-bottom: 15px; outline: none; box-sizing: border-box; font-size: 15px; transition: 0.3s; }
-        .input-glass:focus { border-color: var(--color-marca); box-shadow: 0 0 10px rgba(255,107,0,0.2); }
-        
-        .btn-ubicacion { width: 100%; padding: 15px; border-radius: 12px; border: none; font-weight: bold; margin-bottom: 10px; display: flex; justify-content: center; align-items: center; gap: 10px; cursor: pointer; transition: 0.3s; font-size: 14px; }
-        .btn-gps { background: rgba(255,255,255,0.1); color: white; border: 1px solid var(--glass-border); }
-        .btn-gps.exito { background: rgba(0, 255, 100, 0.1); border-color: #00ff64; color: #00ff64; box-shadow: 0 0 10px rgba(0,255,100,0.2); }
-        .btn-mapa { background: rgba(255,255,255,0.1); color: white; border: 1px solid var(--glass-border); }
-        .btn-pedir { background: var(--color-marca); color: white; font-size: 16px; border: none; padding: 18px; width: 100%; border-radius: 15px; font-weight: 900; margin-top: 15px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 5px 15px rgba(255,107,0,0.4); }
-        .btn-pedir:active { transform: scale(0.98); }
-        .btn-pedir:disabled { background: #555; color: #999; cursor: not-allowed; box-shadow: none; }
-
-        #mapa-ubicacion { height: 300px; width: 100%; border-radius: 15px; margin-bottom: 15px; display: none; border: 1px solid var(--color-marca); }
-        
-        .btn-limpiar { background: transparent; border: 1px solid var(--color-marca); color: #ccc; border-radius: 15px; padding: 4px 10px; font-size: 11px; cursor: pointer; transition: 0.3s; display: flex; align-items: center; gap: 5px; font-weight: bold; text-transform: uppercase; }
-        .btn-limpiar:active { transform: scale(0.9); background: rgba(255,0,0,0.2); border-color: red; color: white; }
-
-        /* === UI DE RESCATE OFFLINE === */
-        .offline-banner { position: fixed; top: 0; left: 0; width: 100%; background: #ff4444; color: white; text-align: center; padding: 8px; z-index: 10000; font-weight: 900; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(255,68,68,0.4); display: none; }
-        .offline-banner.activo { display: block; }
-
-        /* === MODAL SOCIAL PREMIUM (ESTILO DORADO/MAGIC) === */
-        .modal-premium-social { text-align: center; padding: 30px 20px; }
-        .badge-impacto { background: linear-gradient(135deg, #FFD700 0%, #FFA500 50%, #B8860B 100%); color: black; padding: 5px 15px; border-radius: 20px; font-size: 11px; font-weight: 900; display: inline-block; margin-bottom: 15px; animation: glow 2s infinite; }
-        @keyframes glow { 0% { box-shadow: 0 0 5px #FFD700; } 50% { box-shadow: 0 0 20px #FFA500; } 100% { box-shadow: 0 0 5px #FFD700; } }
-        .titulo-impacto { font-size: 22px; font-weight: 900; margin-bottom: 10px; color: #FFD700; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
-        .texto-impacto { font-size: 14px; color: #ddd; line-height: 1.6; margin-bottom: 25px; }
-        .btn-upgrade-social { background: linear-gradient(135deg, #FFD700 0%, #FFA500 50%, #B8860B 100%); color: black; border: none; padding: 18px; width: 100%; border-radius: 15px; font-weight: 900; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 5px 15px rgba(255,165,0,0.4); }
-    </style>
+    <script src="https://checkout.wompi.co/widget.js"></script>
+       <link rel="stylesheet" href="ui-estilos.css"> 
 </head>
 <body>
-
     <div id="offline-banner" class="offline-banner">⚠️ Sin conexión: Mostrando datos de tu última visita</div>
-
     <img id="fondo-pantalla" src="" alt="Fondo">
     <div id="easter-egg-box" class="easter-egg-msg"></div>
-
     <div style="padding: 0 20px;">
       
         <div class="header-negocio">
-
             <button id="btn-compartir" class="btn-compartir-flotante shimmer-box" onclick="compartirTienda()" title="Compartir Tienda">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle>
                     <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
                 </svg>
             </button>
-
             <img id="portada-tienda" class="portada-tienda shimmer-box" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
-
             <img id="avatar-tienda" class="avatar-negocio shimmer-box" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onclick="checkEasterEgg()">
             
             <div class="header-info-wrapper">
@@ -232,25 +40,19 @@
                     <a id="btn-whatsapp-header" href="#" target="_blank" class="btn-contactar shimmer-box">💬 CONTACTAR LOCAL</a>
                     <button id="btn-historia" class="btn-historia" style="display:none;" onclick="abrirModal('overlay-historia')">📖 Nuestra Historia</button>
                 </div>
-
             </div>
         </div>
-
     </div>
-
     <div id="banner-contenedor" class="banner-contenedor"></div>
-
     <div style="padding: 0 20px; margin-bottom: 15px;">
         <div style="background: rgba(0,0,0,0.6); backdrop-filter: blur(10px); border: 1px solid var(--color-secundario); border-radius: 20px; display: flex; align-items: center; padding: 5px 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
             <span style="color: #aaa; margin-right: 10px; font-size: 14px;">🔍</span>
             <input type="text" id="input-busqueda-local" placeholder="Buscar en esta tienda..." style="width: 100%; background: transparent; border: none; color: white; outline: none; padding: 10px 0; font-size: 15px;" oninput="buscarEnCatalogoLocal(this.value)">
         </div>
     </div>
-
     <div id="categorias-wrapper" class="categorias-wrapper">
         <div id="carrusel-categorias" class="tags-container"></div>
     </div>
-
     <div id="catalogo-contenedor">
         <div class="grilla-productos">
             <div class="glass-panel producto-card" style="border-color: rgba(255,255,255,0.05);">
@@ -279,20 +81,16 @@
             </div>
         </div>
     </div>
-
     <div id="paginacion-wrapper" style="margin: 0 20px 80px; display: none;">
         <button id="btn-cargar-mas" class="btn-especial" onclick="cargarMasProductos()">Cargar Más Productos</button>
     </div>
-
     <div id="carrito-flotante" onclick="abrirCheckout()">
         <span>🛒 <span id="cant-total-carrito">0</span> items</span>
         <span id="precio-total-carrito">$0</span>
     </div>
-
     <button id="btn-scroll-top" onclick="subirAlMenu()">
         ↑ VOLVER AL MENÚ
     </button>
-
     <div class="modal-overlay" id="overlay-premium-social" onclick="cerrarModal(event, 'overlay-premium-social')">
         <div class="modal-contenido" id="sheet-premium-social">
             <div class="drag-handle"></div>
@@ -305,7 +103,6 @@
             </div>
         </div>
     </div>
-
     <div class="modal-overlay" id="overlay-checkout" onclick="cerrarModal(event, 'overlay-checkout')">
         <div class="modal-contenido" id="sheet-checkout">
             <div class="drag-handle"></div>
@@ -314,7 +111,6 @@
                 <h2 style="margin: 0; color: var(--color-marca); text-shadow: 0 0 5px rgba(255,107,0,0.3);">Tu Pedido</h2>
                 <button class="btn-limpiar" onclick="limpiarCarrito()">🗑️ Vaciar</button>
             </div>
-
             <div id="lista-resumen" style="margin-bottom: 20px; max-height: 200px; overflow-y: auto;"></div>
             
             <h3 style="text-align: right; margin-bottom: 20px;">Total: <span id="total-final-checkout" style="color: var(--color-marca); text-shadow: 0 0 5px rgba(255,107,0,0.3);">$0</span></h3>
@@ -322,13 +118,31 @@
             <input type="text" id="input-nombre-cliente" class="input-glass" placeholder="Tu Nombre o Número de Mesa">
             
             <p style="font-size: 13px; color: #aaa; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px;">¿A dónde te lo enviamos?</p>
-            <button class="btn-ubicacion btn-gps" id="btn-gps" onclick="obtenerGPS()">📍 Usar mi ubicación actual</button>
-            <button class="btn-ubicacion btn-mapa" id="btn-abrir-mapa" onclick="abrirMiniMapa()">🗺️ Seleccionar en el mapa</button>
+           <button class="btn-ubicacion btn-gps" id="btn-gps" onclick="obtenerGPS()">📍 Usar mi ubicación actual</button>
+           <button class="btn-ubicacion btn-mapa" id="btn-abrir-mapa" onclick="abrirMiniMapa()">🗺️ Seleccionar en el mapa</button>
             <div id="mapa-ubicacion"></div>
-            <button id="btn-enviar-pedido" class="btn-pedir" onclick="enviarPedido()">ENVIAR POR WHATSAPP</button>
-        </div>
-    </div>
+            
+            <div id="modulo-domiciliario" style="margin-top: 15px; padding: 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); border-radius: 12px; text-align: center;">
+                <p style="font-size: 11px; color: var(--naranja); margin: 0 0 10px 0; font-weight: bold; text-transform: uppercase;">¿Quieres elegir a tu domiciliario favorito?</p>
+                <div style="display: flex; gap: 12px; justify-content: center; overflow-x: auto;">
+                    <div class="avatar-domi" onclick="guardarReferidoSeguro('A1B2', event)" style="width: 45px; height: 45px; border-radius: 50%; background: var(--bg-oscuro); border: 1px solid var(--glass-border); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 20px; transition: border-color 0.3s;">🏍️</div>
+                    <div class="avatar-domi" onclick="guardarReferidoSeguro('X7Y9', event)" style="width: 45px; height: 45px; border-radius: 50%; background: var(--bg-oscuro); border: 1px solid var(--glass-border); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 20px; transition: border-color 0.3s;">🚴</div>
+                    <div class="avatar-domi" onclick="guardarReferidoSeguro('K9M4', event)" style="width: 45px; height: 45px; border-radius: 50%; background: var(--bg-oscuro); border: 1px solid var(--glass-border); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 20px; transition: border-color 0.3s;">🏎️</div>
+                </div>
+            </div>
+            
+            <div id="contenedor-acciones-checkout" style="margin-top: 15px;">
 
+
+                <button id="btn-enviar-pedido" class="btn-pedir" onclick="enviarPedido()">ENVIAR POR WHATSAPP</button>
+                <button id="btn-pago-wompi" class="btn-pedir" onclick="iniciarPagoWompi()" style="display: none; background: #0000FF; margin-top: 10px;">💳 PAGAR EN LÍNEA SEGURA</button>
+            </div>
+
+
+        </div>
+
+
+    </div>
     <div class="modal-overlay" id="overlay-historia" onclick="cerrarModal(event, 'overlay-historia')">
         <div class="modal-contenido" id="sheet-historia" style="text-align: center; position: relative;">
             <div class="drag-handle"></div>
@@ -336,7 +150,6 @@
             <div id="contenido-modal-extra" style="line-height: 1.6; color: #ddd; margin-bottom: 20px; text-align: left; font-size: 14px;"></div>
         </div>
     </div>
-
     <div class="modal-overlay" id="overlay-compartir" onclick="cerrarModal(event, 'overlay-compartir')">
         <div class="modal-contenido" id="sheet-compartir" style="text-align: center;">
             <div class="drag-handle"></div>
@@ -344,7 +157,6 @@
             
             <div id="qr-code-container" style="background: white; padding: 15px; border-radius: 20px; display: inline-block; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); line-height: 0;">
             </div>
-
             <div style="display: flex; flex-direction: column; gap: 10px;">
                 <button class="btn-pedir" id="btn-descargar-qr" onclick="descargarQR()" style="margin-top: 0;">⬇️ DESCARGAR CÓDIGO QR</button>
                 <div style="display: flex; gap: 10px;">
@@ -364,7 +176,6 @@
             return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[m];
         });
     };
-
     // 2. ESCUDO CONTRA ENLACES MALICIOSOS (Inyección Javascript:)
     window.sanitizarURL = function(url) {
         if (!url) return '#';
@@ -373,12 +184,10 @@
         if (sanitizada.toLowerCase().trim().startsWith('javascript:')) return '#';
         return sanitizada;
     };
-
     // 3. RETROCOMPATIBILIDAD (Para que el código viejo siga funcionando)
     window.sanitizarAtributo = window.sanitizarTexto; 
 </script>
  const fallbacks = {
-
         const fallbacks = {
             logo_portada: "https://via.placeholder.com/220x80/0a0a0c/ff6b00?text=QRPIDO",
             wallpaper_generico: "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=50&w=400"
@@ -386,7 +195,6 @@
             avatar_generico: "https://via.placeholder.com/150x150/ff6b00/ffffff?text=Tienda",
             marco_producto_generico: ""
         };
-
         let datosNegocio = {};
         
         window.formatearMoneda = function(valorInt64, moneda = 'COP') {
@@ -395,7 +203,6 @@
             }
             return '$' + valorInt64.toLocaleString('es-CO');
         };
-
         let carrito = {}; 
         let userLat = null, userLng = null;
         let miniMapa = null;
@@ -403,13 +210,11 @@
         let productosMemoria = [];
         let categoriasGlobales = [];
         let clicsLogo = 0;
-
         let ultimoDocVisible = null;
         let cargandoProductos = false;
         
         let filtroActual = 'Todas';
         let busquedaActualLocal = "";
-
         window.sanitizarTexto = function(texto) {
             if (texto === null || texto === undefined) return '';
             const div = document.createElement('div');
@@ -420,7 +225,6 @@
         // 🧬 MOTOR DE DECODIFICACIÓN GENÉTICA (BASE62)
         // =================================================================
         const CHARSET_BASE62 = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
         window.descomprimirColores = function(codigo13) {
             let num = 0n;
             const base = 62n;
@@ -441,12 +245,56 @@
                 c3: '#' + hexStr.substring(12, 18)
             };
         };
-
         const urlParams = new URLSearchParams(window.location.search);
         let idNegocio = urlParams.get('id');
         if (!idNegocio) { idNegocio = 'acefama-pereira'; }
+        
+        // 🕰️ MOTOR TOTP (Reloj Criptográfico Bitwise)
+        window.generarFirmaDinamica = function(codigoReferido, localId) {
+            const bloqueTiempo = Math.floor(Date.now() / 21600000); // Bloque estricto de 6h
+            const payload = `${codigoReferido}-${localId}-${bloqueTiempo}`;
+            let hash = 0;
+            for (let i = 0; i < payload.length; i++) {
+                const char = payload.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash; // Math de 32 bits nativa (RAM = 0)
+            }
+            return `REF-${codigoReferido}-${Math.abs(hash).toString(36).substring(0, 4).toUpperCase()}`;
+        };
+
+
+       window.guardarReferidoSeguro = async function(codigo, e) {
+            // 🛡️ Escudo Biométrico del DOM
+            if (e && !e.isTrusted) return; 
+            
+            if (e) {
+                document.querySelectorAll('.avatar-domi').forEach(el => el.style.border = '1px solid var(--glass-border)');
+                e.currentTarget.style.border = '2px solid var(--naranja)';
+            }
+
+
+            // 🚨 Ciberseguridad: Petición de un solo uso al servidor
+            const { success, data } = await QRpidoDB.SecurityService.generarSelloSeguroTOTP(codigo, idNegocio);
+            
+            if (success) {
+                localStorage.setItem('qrpido_totp_ref', JSON.stringify({ 
+                    firma: data.firma, 
+                    timestamp: data.timestamp 
+                }));
+            }
+        };
+
+
+
+
+        // 🕵️ El Vendedor Invisible (Captura en sombra)
+        const refParam = urlParams.get('ref');
+        if (refParam) guardarReferidoSeguro(refParam.toUpperCase(), null);
+
 
         history.pushState(null, document.title, window.location.href);
+
+
         window.addEventListener('popstate', function(event) {
             const modales = document.querySelectorAll('.modal-overlay.activo');
             if (modales.length > 0) {
@@ -460,7 +308,6 @@
                 }
             }
         });
-
         window.addEventListener('scroll', () => {
             const btnScroll = document.getElementById('btn-scroll-top');
             if (window.scrollY > 350) {
@@ -475,14 +322,12 @@
                 btnScroll.classList.remove('visible');
             }
         });
-
         window.subirAlMenu = function() {
             if(navigator.vibrate) navigator.vibrate(30);
             const categorias = document.getElementById('categorias-wrapper');
             const offset = categorias ? categorias.offsetTop : 0;
             window.scrollTo({ top: offset > 0 ? offset - 20 : 0, behavior: 'smooth' });
         }
-
         window.checkEasterEgg = function() {
             clicsLogo++;
             if (clicsLogo === 7 && datosNegocio.easter_egg_msg) {
@@ -490,14 +335,14 @@
                 box.innerText = datosNegocio.easter_egg_msg;
                 box.style.display = 'block';
                 
-                for(let i=0; i<40; i++) {
+                // 🛡️ FINOPS & RAM: Reducimos de 40 divs complejos a 5 para no asfixiar el Garbage Collector en móviles de gama baja.
+                for(let i=0; i<5; i++) {
                     let c = document.createElement('div');
                     c.className = 'confeti';
                     c.style.left = Math.random() * 100 + 'vw';
                     c.style.background = ['#0ff', '#ff0044', '#00ff64', '#FFD700'][Math.floor(Math.random()*4)];
                     c.style.display = 'block';
                     c.style.animationDuration = (Math.random() * 2 + 1) + 's';
-                    c.style.boxShadow = `0 0 10px ${c.style.background}`;
                     document.body.appendChild(c);
                 }
                 
@@ -508,19 +353,16 @@
                 }, 4000);
             }
         }
-
         async function construirTienda() {
             if (!idNegocio) { 
                 document.getElementById('catalogo-contenedor').innerHTML = "<h2 style='color:#ff4444; text-align:center;'>Error: URL inválida.</h2>";
                 return; 
             }
-
             try {
                 const carritoGuardado = localStorage.getItem(`qrpido_cart_${idNegocio}`);
                 if (carritoGuardado) {
                     try { carrito = JSON.parse(carritoGuardado); } catch(e) {}
                 }
-
                                 const { success: successNegocio, data: dataNegocio, error: errorNegocio } = await QRpidoDB.RadarService.obtenerNegocio(idNegocio);
                 
                 if (!successNegocio || !dataNegocio) { 
@@ -529,12 +371,10 @@
                 }
                 
                 datosNegocio = dataNegocio;
-
                 
                                 // === 🧬 LECTURA DEL GENOMA (UI_PACK) ===
                 let c1 = '#ff6b00', c2 = '#ff6b00', c3 = '#ff6b00';
                 window.formaPinActual = '1'; // Lo guardamos global por si luego pones mapa en la tienda
-
                 if (datosNegocio.ui_pack && datosNegocio.ui_pack.length >= 16) {
                     window.formaPinActual = datosNegocio.ui_pack.charAt(0);
                     const base62Colors = datosNegocio.ui_pack.substring(1, 14);
@@ -552,12 +392,9 @@
                     c2 = arrColores.length > 1 ? arrColores[1] : c1; 
                     c3 = arrColores.length > 2 ? arrColores[2] : (arrColores.length > 1 ? c2 : c1); 
                 }
-
                 document.documentElement.style.setProperty('--color-marca', c1);
                 document.documentElement.style.setProperty('--color-secundario', c2);
                 document.documentElement.style.setProperty('--color-terciario', c3);
-
-
                 document.title = `${datosNegocio.nombre} | QRpido`;
                 
                 document.getElementById('portada-tienda').classList.remove('shimmer-box');
@@ -571,7 +408,6 @@
                 btnWa.style.color = "white";
                 
                 document.getElementById('btn-compartir').classList.remove('shimmer-box');
-
                 document.getElementById('portada-tienda').src = datosNegocio.portada || fallbacks['wallpaper_generico'];
                 document.getElementById('fondo-pantalla').src = datosNegocio.fondo_negocio || fallbacks['wallpaper_generico'] || '';
                 document.getElementById('avatar-tienda').src = datosNegocio.logo || fallbacks['avatar_generico'] || '';
@@ -584,7 +420,6 @@
                 
                 document.getElementById('texto-nicho').innerText = datosNegocio.niche || "Catálogo Oficial";
                document.getElementById('btn-whatsapp-header').href = window.sanitizarURL(`https://wa.me/${datosNegocio.whatsapp}?text=Hola, vengo de QRpido`);
-
                 const radKm = parseFloat(datosNegocio.cobertura_km) || 0;
                 const contenedorCobertura = document.getElementById('badge-cobertura-container');
                 if (radKm > 0 && radKm < 0.1) {
@@ -592,7 +427,6 @@
                 } else {
                     contenedorCobertura.innerHTML = '';
                 }
-
                 // MÓDULO PROGRAMA IMPULSADORES: Badge Aliado
                 const contenedorAliado = document.getElementById('badge-aliado-container');
                 if (datosNegocio.red_afiliados === true || datosNegocio.red_afiliados === 'SI') {
@@ -604,7 +438,6 @@
                 } else {
                     contenedorAliado.innerHTML = '';
                 }
-
                 if (datosNegocio.historia) {
                     document.getElementById('btn-historia').style.display = 'block';
                     document.getElementById('btn-historia').onclick = function() {
@@ -622,51 +455,44 @@
                     bCont.innerHTML = `<img src="${datosNegocio.banner_promo}" class="banner-img" style="border-color: ${c2}">`;
                     bCont.style.display = 'block';
                 }
-
                                 const filtros = { limite: 20 };
                 const { success: successProd, data: dataProd, ultimoDoc, error: errorProd } = await QRpidoDB.RadarService.obtenerProductosPublicos(idNegocio, filtros);
                 
                 if (successProd && dataProd.length > 0) {
                     ultimoDocVisible = ultimoDoc;
                 }
-
                 productosMemoria = dataProd || [];
                 productosMemoria.sort((a, b) => (a.orden ?? 99) - (b.orden ?? 99));
-
                 // =======================================================
                 // 🚀 MOTOR DE FUSIÓN MASIVA (JSON + Firebase)
                 // =======================================================
                 if (datosNegocio.mapa_precios && Object.keys(datosNegocio.mapa_precios).length > 0) {
                     try {
-                        // 1. Descargamos los diccionarios en paralelo (igual que en el admin)
-                        const resultadosJSON = await Promise.all([
-                            fetch('cat_farmacia.json').then(res => res.json()).catch(() => []),
-                            fetch('cat_ferreteria.json').then(res => res.json()).catch(() => []),
-                            fetch('cat_supermercado.json').then(res => res.json()).catch(() => []),
-                            fetch('cat_papeleria.json').then(res => res.json()).catch(() => []),
-                            fetch('cat_licoreria.json').then(res => res.json()).catch(() => []),
-                            fetch('cat_veterinaria.json').then(res => res.json()).catch(() => []),
-                            fetch('cat_tecnologia.json').then(res => res.json()).catch(() => []),
-                            fetch('cat_bicicletas.json').then(res => res.json()).catch(() => [])
-                        ]);
-                        
+                       // 1. Carga Inteligente (Lazy Load): Solo descargamos el JSON del nicho actual
                         let DICCIONARIO_UNIVERSAL = [];
-for (const res of resultadosJSON) {
-    for (let i = 0; i < res.length; i += 500) {
-        DICCIONARIO_UNIVERSAL.push(...res.slice(i, i + 500));
-        await new Promise(resolve => requestAnimationFrame(resolve));
-    }
-}
+                        const nichoActual = (datosNegocio.niche || '').toLowerCase().trim();
+                        const nichosMasivos = ['farmacia', 'ferreteria', 'supermercado', 'papeleria', 'licoreria', 'veterinaria', 'tecnologia', 'bicicletas'];
+                        
+                        if (nichosMasivos.includes(nichoActual)) {
+                            const res = await fetch(`cat_${nichoActual}.json`).catch(() => null);
+                            if (res && res.ok) {
+                                const dataJSON = await res.json();
+                                // Chunking para mantener 60 FPS mientras inyectamos a memoria
+                                for (let i = 0; i < dataJSON.length; i += 500) {
+                                    DICCIONARIO_UNIVERSAL.push(...dataJSON.slice(i, i + 500));
+                                    await new Promise(resolve => requestAnimationFrame(resolve));
+                                }
+                            }
+                        }
+
 
                         const agotados = datosNegocio.inventario_agotado || [];
-
                        // 🟢 1. EL MOTOR DE INDEXACIÓN O(1) (Hash Map)
                                 const DICCIONARIO_INDEXADO = {};
                                 const totalItems = DICCIONARIO_UNIVERSAL.length;
                                 for (let i = 0; i < totalItems; i++) {
                                     DICCIONARIO_INDEXADO[DICCIONARIO_UNIVERSAL[i].id_prod] = DICCIONARIO_UNIVERSAL[i];
                                 }
-
                                 // 🟢 2. LA BÚSQUEDA CUÁNTICA O(1) (Acceso directo a memoria)
                                 for (const [id_prod, precio] of Object.entries(datosNegocio.mapa_precios)) {
                                     // Ignoramos productos con precio 0
@@ -687,16 +513,13 @@ for (const res of resultadosJSON) {
                                         }
                                     }
                                 }
-
                     } catch (e) {
                         console.warn("Error cargando los catálogos masivos:", e);
                     }
                 }
                 // =======================================================
-
                                 categoriasGlobales = [...new Set(productosMemoria.map(p => p.categoria || "Destacados"))];
                 construirCarruselCategorias();
-
                 renderizarCatalogo('Todas');
                 
               // === CURA DEL CARRITO ZOMBIE (RESURRECCIÓN VISUAL) === if (Object.keys(carrito).length > 0) { for (let id in carrito) { const prodExiste = productosMemoria.find(p => p.id_prod === id); if (prodExiste) { const spanTarjeta = document.getElementById(`cant-${id}`); if (spanTarjeta) spanTarjeta.innerText = carrito[id].cant; } // NOTA: Ya no borramos el item si 'prodExiste' es falso. // Puede que el producto esté en la página 2 o 3 de la base de datos. } } // Calculamos y mostramos el carrito flotante si quedaron items vivos 
@@ -704,30 +527,23 @@ for (const res of resultadosJSON) {
                 // === FIN RESURRECCIÓN ===
                 
                                 if (productosMemoria.length === 20) {
-
                     document.getElementById('paginacion-wrapper').style.display = 'block';
                 }
-
-
             } catch (e) {
                 console.error("Error:", e);
                 document.getElementById('catalogo-contenedor').innerHTML = `<div style="color: #ff4444; text-align: center; padding: 20px;">⚠️ Error conectando al servidor:<br>${e.message}</div>`;
             }
         }
-
         function construirCarruselCategorias() {
             const contenedor = document.getElementById('carrusel-categorias');
             if (categoriasGlobales.length === 0) return;
-
             document.getElementById('categorias-wrapper').style.display = 'block';
-
             let html = `<div class="tag-pill activa" onclick="filtrarCategoria('Todas', this)">TODAS</div>`;
             categoriasGlobales.forEach(cat => {
                 html += `<div class="tag-pill" onclick="filtrarCategoria('${cat.replace(/'/g, "\\'")}', this)">${cat.toUpperCase()}</div>`;
             });
             contenedor.innerHTML = html;
         }
-
         window.filtrarCategoria = function(categoriaFiltro, el) {
             filtroActual = categoriaFiltro; 
             document.querySelectorAll('#carrusel-categorias .tag-pill').forEach(t => t.classList.remove('activa'));
@@ -735,12 +551,10 @@ for (const res of resultadosJSON) {
             renderizarCatalogo(categoriaFiltro);
             document.getElementById('categorias-wrapper').scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
-
         window.buscarEnCatalogoLocal = function(texto) {
             busquedaActualLocal = texto.toLowerCase().trim();
             renderizarCatalogo(filtroActual);
         }
-
                 function renderizarCatalogo(filtro) {
             const contenedor = document.getElementById('catalogo-contenedor');
             contenedor.innerHTML = ''; // Limpiamos seguro
@@ -749,16 +563,13 @@ for (const res of resultadosJSON) {
             productosMemoria.forEach(p => {
                 let cat = p.categoria || "Destacados";
                 if (filtro !== 'Todas' && cat !== filtro) return; 
-
                 if (busquedaActualLocal !== "") {
                     const strData = `${p.nombre} ${p.categoria || ''} ${p.cuerpo_articulo || ''}`.toLowerCase();
                     if (!strData.includes(busquedaActualLocal)) return; 
                 }
-
                 if (!categorias[cat]) categorias[cat] = [];
                 categorias[cat].push(p);
             });
-
             if(datosNegocio.tipo_modelo === 'pizzeria' && filtro === 'Todas' && busquedaActualLocal === "") {
                 const btnDiv = document.createElement('div');
                 btnDiv.style.cssText = "padding: 0 20px 10px;";
@@ -769,7 +580,6 @@ for (const res of resultadosJSON) {
                 btnDiv.appendChild(btnMitad);
                 contenedor.appendChild(btnDiv);
             }
-
             if (Object.keys(categorias).length === 0) {
                 const msjVacio = document.createElement('div');
                 msjVacio.style.cssText = "text-align: center; padding: 40px 20px; color: #aaa;";
@@ -777,24 +587,19 @@ for (const res of resultadosJSON) {
                 contenedor.appendChild(msjVacio);
                 return; // Salimos temprano
             }
-
             for (const [cat, items] of Object.entries(categorias)) {
                 // Título de Categoría Seguro
                 const divTitulo = document.createElement('div');
                 divTitulo.className = 'categoria-titulo';
                 divTitulo.textContent = cat.toUpperCase();
                 contenedor.appendChild(divTitulo);
-
                 const grilla = document.createElement('div');
                 grilla.className = 'grilla-productos';
-
                 items.forEach(p => {
                     const imgMarco = p.marco_personalizado || fallbacks['marco_producto_generico'] || '';
                     const isAgotado = p.agotado;
-
                     const card = document.createElement('div');
                     card.className = `glass-panel producto-card ${isAgotado ? 'agotado' : ''}`;
-
                     // Badge Promocional
                     if(p.badge) {
                         const txtBadge = p.badge.toUpperCase();
@@ -808,7 +613,6 @@ for (const res of resultadosJSON) {
                         divBadge.textContent = txtBadge;
                         card.appendChild(divBadge);
                     }
-
                     // Marco Áureo e Imagen
                     const divMarco = document.createElement('div');
                     divMarco.className = 'marco-aureo';
@@ -820,7 +624,6 @@ for (const res of resultadosJSON) {
                         imgM.loading = 'lazy';
                         divMarco.appendChild(imgM);
                     }
-
                     const imgP = document.createElement('img');
                     imgP.id = `img-${p.id_prod}`;
                     imgP.src = p.imagen;
@@ -829,18 +632,15 @@ for (const res of resultadosJSON) {
                     imgP.onerror = () => imgP.style.display = 'none';
                     divMarco.appendChild(imgP);
                     card.appendChild(divMarco);
-
                     // Textos Seguros
                     const divNombre = document.createElement('div');
                     divNombre.className = 'prod-nombre';
                     divNombre.textContent = p.nombre;
                     card.appendChild(divNombre);
-
                     const divPrecio = document.createElement('div');
                     divPrecio.className = 'prod-precio';
                     divPrecio.textContent = p.precio > 0 ? formatearMoneda(p.precio, datosNegocio.moneda) : 'CONSULTAR';
                     card.appendChild(divPrecio);
-
                     // Controles de Acción
                     if (p.tipo === 'servicio') {
                         const btnAgendar = document.createElement('button');
@@ -858,46 +658,37 @@ for (const res of resultadosJSON) {
                             btnLeer.onclick = () => abrirArticulo(p.id_prod);
                             card.appendChild(btnLeer);
                         }
-
                         const divControles = document.createElement('div');
                         divControles.className = 'controles-cantidad';
-
                         const btnMenos = document.createElement('button');
                         btnMenos.className = 'btn-cant';
                         btnMenos.textContent = '-';
                         if (isAgotado) btnMenos.disabled = true;
                         btnMenos.onclick = () => actualizarCarrito(p.id_prod, '', 0, -1);
                         divControles.appendChild(btnMenos);
-
                         const spanCant = document.createElement('span');
                         spanCant.className = 'num-cant';
                         spanCant.id = `cant-${p.id_prod}`;
                         spanCant.textContent = '0';
                         divControles.appendChild(spanCant);
-
                         const btnMas = document.createElement('button');
                         btnMas.className = 'btn-cant';
                         btnMas.textContent = '+';
                         if (isAgotado) btnMas.disabled = true;
                         btnMas.onclick = () => actualizarCarrito(p.id_prod, '', 0, 1);
                         divControles.appendChild(btnMas);
-
                         card.appendChild(divControles);
                     }
-
                     grilla.appendChild(card);
                 });
                 contenedor.appendChild(grilla);
             }
-
             // Repintar carrito
             for (let id in carrito) {
                 const el = document.getElementById(`cant-${id}`);
                 if (el) el.textContent = carrito[id].cant;
             }
         }
-
-
                 window.abrirArticulo = function(id) {
             const p = productosMemoria.find(x => x.id_prod === id);
             if (!p) return;
@@ -907,26 +698,22 @@ for (const res of resultadosJSON) {
             
             const contModal = document.getElementById('contenido-modal-extra');
             contModal.innerHTML = ''; // Quirófano limpio
-
             const btnCerrar = document.createElement('button');
             btnCerrar.className = 'btn-cerrar-modal';
             btnCerrar.onclick = () => cerrarModalManual('overlay-historia');
             btnCerrar.textContent = 'X';
             contModal.appendChild(btnCerrar);
-
             if (p.imagen) {
                 const imgP = document.createElement('img');
                 imgP.src = p.imagen;
                 imgP.style.cssText = "width:100%; border-radius:15px; margin-bottom:15px; margin-top:5px;";
                 contModal.appendChild(imgP);
             }
-
             // BLINDAJE ANTI-XSS para la descripción
             const pDesc = document.createElement('p');
             pDesc.style.cssText = "font-size: 14px;";
             pDesc.textContent = p.cuerpo_articulo || ''; 
             contModal.appendChild(pDesc);
-
             if (p.galeria_extra && Array.isArray(p.galeria_extra)) {
                 p.galeria_extra.forEach(imgUrl => {
                     const imgG = document.createElement('img');
@@ -936,7 +723,6 @@ for (const res of resultadosJSON) {
                     contModal.appendChild(imgG);
                 });
             }
-
             // Los controles son seguros mediante innerHTML porque no incluyen texto del usuario, solo el ID alfanumérico y la cantidad
             const divControles = document.createElement('div');
             divControles.style.cssText = "margin-top: 20px; border-top: 1px solid var(--glass-border); padding-top: 15px;";
@@ -949,19 +735,14 @@ for (const res of resultadosJSON) {
                 </div>
             `;
             contModal.appendChild(divControles);
-
             abrirModal('overlay-historia');
         }
-
-
         function animarAlCarrito(idProducto) {
             const imgElement = document.getElementById('img-' + idProducto);
             const carrito = document.getElementById('carrito-flotante');
             if (!imgElement || !carrito || !carrito.classList.contains('visible')) return;
-
             const rectImg = imgElement.getBoundingClientRect();
             const rectCarrito = carrito.getBoundingClientRect();
-
             const clone = imgElement.cloneNode(true);
             clone.classList.add('flying-img');
             clone.style.top = rectImg.top + 'px';
@@ -969,41 +750,32 @@ for (const res of resultadosJSON) {
             clone.style.width = rectImg.width + 'px';
             clone.style.height = rectImg.height + 'px';
             document.body.appendChild(clone);
-
             clone.getBoundingClientRect();
-
             const destX = rectCarrito.left + (rectCarrito.width / 2) - (rectImg.width / 2);
             const destY = rectCarrito.top + (rectCarrito.height / 2) - (rectImg.height / 2);
-
             clone.style.transform = `translate(${destX - rectImg.left}px, ${destY - rectImg.top}px) scale(0.2)`;
             clone.style.opacity = '0';
-
             setTimeout(() => clone.remove(), 600);
         }
-
         // ==========================================
         // MÓDULO CIBERSEGURIDAD: ZERO TRUST CARRITO
         // ==========================================
         window.actualizarCarrito = function(id, nombre, precio, cambio) {
             if (navigator.vibrate) navigator.vibrate(50);
-
             // === LÓGICA DE TECHO DE CRISTAL (LIMITACIONES) ===
             const totalItemsEnCarrito = Object.values(carrito).reduce((acc, curr) => acc + curr.cant, 0);
             const totalCarritosActivos = Object.keys(localStorage).filter(k => k.startsWith('qrpido_cart_')).length;
             const esPremium = (datosNegocio && (datosNegocio.premium === "SI" || datosNegocio.premium === true));
-
             // Bloquear si intenta subir de 25 productos sin ser premium
             if (cambio > 0 && totalItemsEnCarrito >= 25 && !esPremium) {
                 abrirModal('overlay-premium-social');
                 return;
             }
-
             // Bloquear si tiene más de 10 carritos en el navegador y este es uno nuevo
             if (cambio > 0 && totalCarritosActivos >= 10 && !localStorage.getItem(`qrpido_cart_${idNegocio}`) && !esPremium) {
                 abrirModal('overlay-premium-social');
                 return;
             }
-
             // Zero Trust: Ignoramos los parámetros nombre y precio inyectados en HTML.
             if (!carrito[id]) carrito[id] = { cant: 0 };
             
@@ -1020,13 +792,18 @@ for (const res of resultadosJSON) {
             
             const spanModal = document.getElementById(`cant-modal-${id}`);
             if (spanModal) spanModal.innerText = numActual;
-
             calcularTotales();
-
             if (cambio > 0) animarAlCarrito(id);
         }
-
-        function calcularTotales() {
+       function calcularTotales() {
+            const btnCarrito = document.getElementById('carrito-flotante');
+            
+            // 3. Bifurcación Inmobiliaria: Apagado global del carrito
+            if (datosNegocio && datosNegocio.tipo_modelo === 'inmueble') {
+                btnCarrito.style.display = 'none';
+                return;
+            }
+            
             let totalItems = 0;
             let precioTotal = 0;
             
@@ -1039,13 +816,13 @@ for (const res of resultadosJSON) {
                 }
             }
             
-            const btnCarrito = document.getElementById('carrito-flotante');
             document.getElementById('cant-total-carrito').innerText = totalItems;
             document.getElementById('precio-total-carrito').innerText = formatearMoneda(precioTotal, datosNegocio.moneda);
-
+            
             if (totalItems > 0) { btnCarrito.classList.add('visible'); } 
             else { btnCarrito.classList.remove('visible'); }
         }
+
 
                 window.abrirCheckout = function() {
             const lista = document.getElementById('lista-resumen');
@@ -1061,53 +838,43 @@ for (const res of resultadosJSON) {
                 for (let id in carrito) {
                     const prod = productosMemoria.find(p => p.id_prod === id);
                     if (!prod) continue; // Escudo contra IDs fantasmas
-
                     const subtotal = carrito[id].cant * prod.precio;
                     total += subtotal;
                     
                     const itemDiv = document.createElement('div');
                     itemDiv.className = "resumen-item";
                     itemDiv.style.cssText = "align-items: center; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.05); padding: 10px 0;";
-
                     const nombreDiv = document.createElement('div');
                     nombreDiv.style.cssText = "flex: 1; min-width: 140px; font-weight: bold; color: #eee;";
                     nombreDiv.textContent = prod.nombre; // ¡Blindaje Anti-XSS Activado!
                     itemDiv.appendChild(nombreDiv);
-
                     const divDerecho = document.createElement('div');
                     divDerecho.style.cssText = "display: flex; align-items: center; gap: 10px;";
-
                     const controlesDiv = document.createElement('div');
                     controlesDiv.className = "controles-cantidad";
                     controlesDiv.style.cssText = "margin: 0; padding: 2px 8px; border-radius: 10px; background: rgba(0,0,0,0.8);";
-
                     const btnMenos = document.createElement('button');
                     btnMenos.className = "btn-cant";
                     btnMenos.style.fontSize = "14px";
                     btnMenos.textContent = "-";
                     btnMenos.onclick = () => { actualizarCarrito(id, '', 0, -1); abrirCheckout(); };
                     controlesDiv.appendChild(btnMenos);
-
                     const spanCant = document.createElement('span');
                     spanCant.className = "num-cant";
                     spanCant.style.cssText = "font-size:14px; width: 15px;";
                     spanCant.textContent = carrito[id].cant;
                     controlesDiv.appendChild(spanCant);
-
                     const btnMas = document.createElement('button');
                     btnMas.className = "btn-cant";
                     btnMas.style.fontSize = "14px";
                     btnMas.textContent = "+";
                     btnMas.onclick = () => { actualizarCarrito(id, '', 0, 1); abrirCheckout(); };
                     controlesDiv.appendChild(btnMas);
-
                     divDerecho.appendChild(controlesDiv);
-
                     const spanPrecio = document.createElement('span');
                     spanPrecio.style.cssText = "color: var(--color-marca); font-weight: bold; width: 75px; text-align: right;";
                     spanPrecio.textContent = formatearMoneda(subtotal, datosNegocio.moneda);
                     divDerecho.appendChild(spanPrecio);
-
                     itemDiv.appendChild(divDerecho);
                     lista.appendChild(itemDiv);
                 }
@@ -1115,18 +882,31 @@ for (const res of resultadosJSON) {
             
             document.getElementById('total-final-checkout').innerText = formatearMoneda(total, datosNegocio.moneda);
             
-            const btnPedir = document.getElementById('btn-enviar-pedido');
-            
-            if (!verificarHorarioOperativo()) {
-                btnPedir.innerText = "CERRADO POR AHORA";
-                btnPedir.disabled = true;
-            } else if (Object.keys(carrito).length === 0) {
-                btnPedir.innerText = "CARRITO VACÍO";
-                btnPedir.disabled = true;
-            } else {
-                btnPedir.innerText = "ENVIAR POR WHATSAPP";
-                btnPedir.disabled = false;
+              const btnPedir = document.getElementById('btn-enviar-pedido');
+    const btnWompi = document.getElementById('btn-pago-wompi');
+    
+    if(btnWompi) btnWompi.style.display = 'none';
+    btnPedir.style.display = 'block';
+
+
+    if (!verificarHorarioOperativo()) {
+        btnPedir.innerText = "CERRADO POR AHORA";
+        btnPedir.disabled = true;
+    } else if (Object.keys(carrito).length === 0) {
+        btnPedir.innerText = "CARRITO VACÍO";
+        btnPedir.disabled = true;
+    } else {
+        btnPedir.innerText = "ENVIAR POR WHATSAPP";
+        btnPedir.disabled = false;
+        
+        if (datosNegocio.premium === true || datosNegocio.premium === "SI") {
+            if (datosNegocio.wompi_pub && btnWompi) {
+                btnWompi.style.display = 'block';
+                btnPedir.style.display = 'none'; 
             }
+        }
+    }
+
 
             // Solución al parpadeo: Solo lanzamos la orden de abrir si el modal está cerrado
             const modalCheckout = document.getElementById('overlay-checkout');
@@ -1135,57 +915,214 @@ for (const res of resultadosJSON) {
             }
         }
 
-                window.enviarPedido = async function() {
-           const nombreCliBruto = document.getElementById('input-nombre-cliente').value;
 
+        window.iniciarPagoWompi = async function() {
+            // 🛡️ ESCUDO KILL-SWITCH: Verificamos si la plataforma está pausada
+            const { success: confOk, data: confData } = await QRpidoDB.LocalService.obtenerConfiguracion();
+            if (confOk && confData.bloqueo_tickets === true) {
+                alert("⚠️ AVISO DE SISTEMA: Los pagos en línea están pausados temporalmente por mantenimiento.");
+                return;
+            }
+
+
+            const nombreCliBruto = document.getElementById('input-nombre-cliente').value;
+            const nombreCli = nombreCliBruto.replace(/[^a-zA-Z0-9 ñÑáéíóúÁÉÍÓÚ]/g, "").trim();
+            if (!nombreCli) { alert("Por favor ingresa tu nombre para el comprobante."); return; }
+
+
+            let totalPedido = 0;
+            let payloadCarrito = {};
+            for (let id in carrito) {
+                const prod = productosMemoria.find(p => p.id_prod === id);
+                if (prod) {
+                    totalPedido += (carrito[id].cant * prod.precio);
+                    payloadCarrito[id] = { cant: carrito[id].cant, precio: prod.precio, nombre: prod.nombre };
+                }
+            }
+
+
+            const tkt = 'TKT-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+            const refPago = `QRPIDO-${idNegocio}-${tkt}-${Date.now()}`;
+
+
+            const checkout = new WidgetCheckout({
+                currency: datosNegocio.moneda || 'COP',
+                amountInCents: totalPedido * 100, // Wompi procesa en centavos
+                reference: refPago,
+                publicKey: datosNegocio.wompi_pub
+                // 🛡️ UX FIX: Eliminamos redirectUrl. Así Wompi no recarga la página y la alerta de éxito sobrevive.
+            });
+            
+            // Guardamos intención PENDIENTE (Zero-Trust) antes de abrir pasarela
+            try {
+                if (QRpidoDB.LogisticaService && QRpidoDB.LogisticaService.registrarIntencionCompra) {
+                    QRpidoDB.LogisticaService.registrarIntencionCompra({
+                        idNegocio: idNegocio,
+                        ticket: tkt,
+                        cliente: nombreCli,
+                        total: totalPedido,
+                        carrito: payloadCarrito,
+                        ubicacion: (userLat && userLng) ? { lat: userLat, lng: userLng } : null,
+                        ref_wompi: refPago,
+                        estado_pago: 'PENDIENTE',
+                        timestamp: Date.now()
+                    });
+                }
+            } catch (e) { console.warn("Error asíncrono guardando pre-ticket:", e); }
+
+
+            checkout.open(function (result) {
+                const tr = result.transaction;
+                if (tr.status === 'APPROVED') {
+                    alert(`✅ ¡Pago exitoso! Tu número de Ticket inmutable es: ${tkt}`);
+                    limpiarCarrito();
+                } else {
+                    alert("❌ El pago no fue aprobado. Por favor intenta con otro método.");
+                }
+            });
+        };
+
+
+                window.enviarPedido = async function() {
+// 🛡️ ESCUDO KILL-SWITCH: Verificamos si la plataforma está pausada
+    const { success: confOk, data: confData } = await QRpidoDB.LocalService.obtenerConfiguracion();
+    if (confOk && confData.bloqueo_tickets === true) {
+        alert("⚠️ AVISO DE SISTEMA: El registro de nuevos tickets está pausado temporalmente por mantenimiento de seguridad.");
+        return;
+    }
+            // 1. Muro Anti-Spam (Cooldown de 3 minutos = 180000 ms)
+            const cooldown = localStorage.getItem('qrpido_cooldown');
+            if (cooldown && Date.now() < parseInt(cooldown)) {
+                const faltan = Math.ceil((parseInt(cooldown) - Date.now()) / 1000);
+                alert(`⏳ Por seguridad, espera ${faltan} segundos antes de generar otro ticket.`);
+                return;
+            }
+
+
+            const nombreCliBruto = document.getElementById('input-nombre-cliente').value;
             const nombreCli = nombreCliBruto.replace(/[^a-zA-Z0-9 ñÑáéíóúÁÉÍÓÚ]/g, "").trim();
             
             if (!nombreCli) { alert("Socio, pon tu nombre o mesa para identificarte (sin símbolos raros)."); return; }
 
+
+            // Cambio UI: Bloqueo de botón durante asincronía
+            const btnPedir = document.getElementById('btn-enviar-pedido');
+            const textoOriginalBtn = btnPedir.innerText;
+            btnPedir.innerText = "GENERANDO TICKET SEGURO...";
+            btnPedir.disabled = true;
+
+
+            // Generación de Ticket Único
+            const tkt = 'TKT-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+
+
             let textoMensaje = `¡Hola *${datosNegocio.nombre}*! 👋 Quiero hacer el siguiente pedido:%0A%0A`;
             let totalPedido = 0;
+            let payloadCarrito = {}; // Bóveda para el backend
             
             for (let id in carrito) {
-                // Zero Trust: Armar el mensaje de texto utilizando datos inmutables en memoria
                 const prod = productosMemoria.find(p => p.id_prod === id);
                 if (!prod) continue; 
-
                 const subtotal = carrito[id].cant * prod.precio;
                 totalPedido += subtotal;
                 textoMensaje += `🔹 ${carrito[id].cant}x ${prod.nombre} (${formatearMoneda(subtotal, datosNegocio.moneda)})%0A`;
+                payloadCarrito[id] = { cant: carrito[id].cant, precio: prod.precio, nombre: prod.nombre };
             }
             
             textoMensaje += `%0A💰 *TOTAL: ${formatearMoneda(totalPedido, datosNegocio.moneda)}*%0A`;
             textoMensaje += `👤 Nombre/Mesa: ${nombreCli}%0A`;
             
             if (userLat && userLng) {
-                textoMensaje += `📍 Mi ubicación exacta:%0Ahttps://www.google.com/maps?q=$${userLat},${userLng}`;
+                textoMensaje += `📍 Mi ubicación exacta:%0Ahttps://www.google.com/maps/search/?api=1&query=${userLat},${userLng}%0A`;
             } else {
-                textoMensaje += `📍 (Ubicación no proporcionada, lo recojo en tienda o coordinamos).`;
+                textoMensaje += `📍 (Ubicación no proporcionada, lo recojo en tienda o coordinamos).%0A`;
             }
 
-                        carrito = {};
+
+           textoMensaje += `%0A🎫 *TICKET:* ${tkt}`;
+
+
+            // 🕰️ Sello de Sangre TOTP: Inyección en WhatsApp
+            const firmaCache = localStorage.getItem('qrpido_totp_ref');
+            if (firmaCache) {
+                const cacheData = JSON.parse(firmaCache);
+                if (Date.now() - cacheData.timestamp < 21600000) { // Vigencia: 6 horas
+                    textoMensaje += `%0A🤝 *REF:* ${cacheData.firma}`;
+                } else {
+                    localStorage.removeItem('qrpido_totp_ref'); // Expiró
+                }
+            }
+
+
+            // 2. Inyección Zero-Trust: Registro asíncrono silencioso en Firebase
+
+
+            try {
+                if (QRpidoDB.LogisticaService && QRpidoDB.LogisticaService.registrarIntencionCompra) {
+                    const payload = {
+                        idNegocio: idNegocio,
+                        ticket: tkt,
+                        cliente: nombreCli,
+                        total: totalPedido,
+                        carrito: payloadCarrito,
+                        ubicacion: (userLat && userLng) ? { lat: userLat, lng: userLng } : null,
+                        timestamp: Date.now()
+                    };
+                    await QRpidoDB.LogisticaService.registrarIntencionCompra(payload);
+                }
+            } catch (err) {
+                console.warn("Logística DB: No se pudo guardar el ticket en la nube", err);
+            }
+
+
+            // Limpieza local y activación de Cooldown
+            carrito = {};
             localStorage.removeItem(`qrpido_cart_${idNegocio}`);
+            localStorage.setItem('qrpido_cooldown', Date.now() + (3 * 60 * 1000));
             calcularTotales();
 
-                        // Telemetría de Conversión Final (Enrutado por core-db)
+
+            // Restaurar UI del botón
+            btnPedir.innerText = textoOriginalBtn;
+            btnPedir.disabled = false;
+                       // Telemetría Local Original
             if (QRpidoDB.LocalService && QRpidoDB.LocalService.registrarEventoAnalytics) {
                 await QRpidoDB.LocalService.registrarEventoAnalytics('lead_whatsapp_generado', { 
                     currency: datosNegocio.moneda || 'COP', 
                     value: totalPedido, 
-                    store_id: idNegocio 
+                    store_id: idNegocio,
+                    ticket: tkt
                 });
             }
 
 
+            // 🛸 1. EL RASTREADOR FANTASMA (Fire & Forget)
+            // Disparamos la actualización a Firestore de forma asíncrona. 
+            // Usamos tu variable global 'idNegocio' ya existente en este archivo.
+            try {
+                // Asumimos que firebase está inyectado globalmente. Si falla, morimos en silencio.
+                firebase.firestore().collection('Directorio').doc(idNegocio).update({
+                    leads_generados: firebase.firestore.FieldValue.increment(1),
+                    ultimo_lead: firebase.firestore.FieldValue.serverTimestamp()
+                }).catch(err => {
+                    console.warn("Telemetría en caché local. (Zero Fricción)");
+                });
+            } catch (e) {
+                console.warn("Rastreo omitido: SDK global no detectado en el DOM.");
+            }
+
+
+            // 2. Liberación inmediata hacia WhatsApp
             const urlWhatsapp = `https://wa.me/${datosNegocio.whatsapp}?text=${textoMensaje}`;
             window.open(urlWhatsapp, '_blank');
         }
 
+
+
+
         // ==========================================
         // FIN MÓDULO ZERO TRUST
         // ==========================================
-
         window.limpiarCarrito = function() {
             if (!confirm("¿Deseas vaciar todo tu pedido?")) return;
             
@@ -1197,13 +1134,11 @@ for (const res of resultadosJSON) {
             calcularTotales(); 
             cerrarModalManual('overlay-checkout'); 
         }
-
         window.cargarMasProductos = async function() {
             if (!ultimoDocVisible || cargandoProductos) return;
             cargandoProductos = true;
             const btn = document.getElementById('btn-cargar-mas');
             btn.innerText = "Cargando...";
-
             try {
                                 const filtros = { limite: 20, startAfterDoc: ultimoDocVisible };
                 const { success, data: nuevosProductos, ultimoDoc, error } = await QRpidoDB.RadarService.obtenerProductosPublicos(idNegocio, filtros);
@@ -1212,19 +1147,15 @@ for (const res of resultadosJSON) {
                     document.getElementById('paginacion-wrapper').style.display = 'none';
                     return;
                 }
-
                 ultimoDocVisible = ultimoDoc;
-
                 
                 nuevosProductos.sort((a, b) => (a.orden ?? 99) - (b.orden ?? 99));
                 productosMemoria = [...productosMemoria, ...nuevosProductos];
-
                 const nuevasCat = [...new Set(productosMemoria.map(p => p.categoria || "Destacados"))];
                 if (nuevasCat.length > categoriasGlobales.length) {
                     categoriasGlobales = nuevasCat;
                     construirCarruselCategorias();
                 }
-
                 renderizarCatalogo(filtroActual);
                                 if (nuevosProductos.length < 20) {
                     document.getElementById('paginacion-wrapper').style.display = 'none';
@@ -1239,10 +1170,8 @@ for (const res of resultadosJSON) {
                 cargandoProductos = false;
             }
         }
-
         window.compartirTienda = function() {
             if (navigator.vibrate) navigator.vibrate(50); 
-
             const urlTienda = window.location.href;
             const colorHex = datosNegocio.color_hex ? datosNegocio.color_hex.split(',')[0].trim() : '#ff6b00'; 
             
@@ -1261,13 +1190,11 @@ for (const res of resultadosJSON) {
             
             abrirModal('overlay-compartir'); 
         }
-
         window.copiarEnlace = function() {
             navigator.clipboard.writeText(window.location.href).then(() => {
                 alert('¡Enlace copiado al portapapeles! 🔗');
             });
         }
-
         window.compartirNativo = async function() {
             const urlTienda = window.location.href;
             const tituloTienda = datosNegocio.nombre || 'Tienda en QRpido';
@@ -1277,7 +1204,6 @@ for (const res of resultadosJSON) {
                 copiarEnlace();
             }
         }
-
         window.descargarQR = async function() {
             const btn = document.getElementById('btn-descargar-qr');
             const textoOriginal = btn.innerText;
@@ -1315,7 +1241,6 @@ for (const res of resultadosJSON) {
                 }, 1000); 
             }
         }
-
         function verificarHorarioOperativo() {
             if (!datosNegocio.horario_apertura || !datosNegocio.horario_cierre) return true;
             const ahora = new Date();
@@ -1324,18 +1249,15 @@ for (const res of resultadosJSON) {
             const [hHasta, mHasta] = datosNegocio.horario_cierre.split(':').map(Number);
             const minDesde = hDesde * 60 + mDesde;
             const minHasta = hHasta * 60 + mHasta;
-
             if (minHasta < minDesde) { 
                 return horaActual >= minDesde || horaActual <= minHasta;
             } else {
                 return horaActual >= minDesde && horaActual <= minHasta;
             }
         }
-
         window.abrirModal = function(idModal) { document.getElementById(idModal).classList.add('activo'); }
         window.cerrarModal = function(e, idModal) { if (e.target.id === idModal) document.getElementById(idModal).classList.remove('activo'); }
         window.cerrarModalManual = function(idModal) { document.getElementById(idModal).classList.remove('activo'); }
-
         function aplicarSwipeAbajo(modalId, contentId) {
             const modal = document.getElementById(modalId);
             const content = document.getElementById(contentId);
@@ -1357,7 +1279,6 @@ for (const res of resultadosJSON) {
         aplicarSwipeAbajo('overlay-compartir', 'sheet-compartir');
         aplicarSwipeAbajo('overlay-historia', 'sheet-historia');
         aplicarSwipeAbajo('overlay-premium-social', 'sheet-premium-social');
-
         window.obtenerGPS = function() {
             const btn = document.getElementById('btn-gps');
             btn.innerText = "Buscando satélites...";
@@ -1379,7 +1300,6 @@ for (const res of resultadosJSON) {
             divMapa.style.display = 'block';
             const centroLat = (datosNegocio.Coordenadas && datosNegocio.Coordenadas.latitude) ? datosNegocio.Coordenadas.latitude : 4.8133;
             const centroLng = (datosNegocio.Coordenadas && datosNegocio.Coordenadas.longitude) ? datosNegocio.Coordenadas.longitude : -75.6961;
-
             if (!miniMapa) {
                 miniMapa = L.map('mapa-ubicacion').setView([centroLat, centroLng], 15);
                 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
@@ -1399,7 +1319,6 @@ for (const res of resultadosJSON) {
             }
             setTimeout(() => miniMapa.invalidateSize(), 300);
         }
-
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('sw.js')
@@ -1412,8 +1331,15 @@ for (const res of resultadosJSON) {
         window.addEventListener('offline', () => document.getElementById('offline-banner').classList.add('activo'));
         window.addEventListener('online', () => document.getElementById('offline-banner').classList.remove('activo'));
         if (!navigator.onLine) document.getElementById('offline-banner').classList.add('activo');
-
         window.onload = construirTienda;
     </script>
 </body>
 </html>
+
+
+
+
+
+
+
+

@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Arquitectura QRpido | Mapa Táctico Interactivo</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
+    
+    <style>
+    /* Estilo del "Cartel Modal" QRpido */
+.modal-tactico {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.5);
+    width: 80%; max-width: 400px; max-height: 60vh;
+    background: var(--fondo-cristal); backdrop-filter: blur(15px);
+    border: 1px solid var(--naranja); border-radius: 20px;
+    padding: 20px; z-index: 9999; display: none; opacity: 0;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 10px 50px rgba(0,0,0,0.9); color: white;
+}
+.modal-tactico.activo { display: block; opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.modal-tactico-header { color: var(--naranja); font-weight: 900; text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid rgba(255,107,0,0.2); padding-bottom: 5px; }
+.modal-tactico-body { font-size: 13px; line-height: 1.6; overflow-y: auto; max-height: 40vh; padding-right: 5px; }
+.btn-cerrar-tactico { position: absolute; top: 10px; right: 15px; cursor: pointer; color: #888; font-weight: bold; }
+        body { 
+            background: #0a0a0c; 
+            color: white; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            padding: 20px; 
+            margin: 0;
+            overflow-x: hidden;
+        }
+        h1 { 
+            color: #ff6b00; 
+            text-align: center; 
+            text-transform: uppercase; 
+            letter-spacing: 4px; 
+            text-shadow: 0 0 15px rgba(255, 107, 0, 0.4);
+            margin-bottom: 5px;
+        }
+        p.subtitle {
+            text-align: center;
+            color: #888;
+            font-size: 13px;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+        
+        /* Controles y Botones */
+        .controles-leyenda { 
+            display: flex; 
+            justify-content: center; 
+            gap: 10px; 
+            margin-bottom: 20px; 
+            flex-wrap: wrap; 
+        }
+        .btn-filtro { 
+            padding: 8px 12px; 
+            border-radius: 20px; 
+            font-size: 11px; 
+            font-weight: 900; 
+            color: black;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: transform 0.2s, filter 0.2s, opacity 0.3s;
+        }
+        .btn-filtro:active { transform: scale(0.95); }
+        .btn-filtro.inactivo { opacity: 0.3; filter: grayscale(80%); }
+        
+        /* Contenedor Interactivo del Mapa */
+        .visor-wrapper {
+            position: relative;
+            width: 100%;
+            height: 65vh; /* Altura fija para poder arrastrar dentro */
+            background: rgba(20, 20, 25, 0.85); 
+            border-radius: 15px; 
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8), inset 0 0 50px rgba(0,0,0,0.5);
+            overflow: hidden;
+            touch-action: none; /* Bloquea el scroll de la página al tocar el mapa */
+        }
+        
+        .mermaid {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: grab;
+        }
+        .mermaid:active { cursor: grabbing; }
+        
+        /* Botón Flotante de Reseteo */
+        .btn-reset {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #555;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 100;
+            backdrop-filter: blur(5px);
+            transition: 0.3s;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        .btn-reset:active { background: #ff6b00; border-color: #ff6b00; transform: scale(0.95); }
+
+        /* Tooltip de ayuda */
+        .ayuda-tactil {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 107, 0, 0.2);
+            border: 1px solid #ff6b00;
+            color: #ffcc00;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 10px;
+            pointer-events: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🧠 Topología QRpido</h1>
+    <p class="subtitle">Toca los botones para aislar el flujo de datos</p>
+
+    <div class="controles-leyenda" id="panel-botones">
+        <button class="btn-filtro" id="btn-00aaff" style="background: #00aaff; box-shadow: 0 0 10px #00aaff;" onclick="filtrarFlujo('#00aaff', this)">Flujo Cliente</button>
+        <button class="btn-filtro" id="btn-ff6b00" style="background: #ff6b00; box-shadow: 0 0 10px #ff6b00;" onclick="filtrarFlujo('#ff6b00', this)">Flujo Comercio</button>
+        <button class="btn-filtro" id="btn-00f5d4" style="background: #00f5d4; box-shadow: 0 0 10px #00f5d4;" onclick="filtrarFlujo('#00f5d4', this)">Logística Web3</button>
+        <button class="btn-filtro" id="btn-8a2be2" style="background: #8a2be2; color: white; box-shadow: 0 0 10px #8a2be2;" onclick="filtrarFlujo('#8a2be2', this)">Tribunal Central</button>
+    </div>
+
+    <div class="visor-wrapper">
+        <button class="btn-reset" onclick="resetearMapa()">🔄 Restaurar Mapa</button>
+        <div class="ayuda-tactil">Pellizca para Zoom ✌️ Arrastra para mover 👆</div>
+        
+        <div class="mermaid">
+            graph TD
+                %% ACTORES PRINCIPALES
+                Cliente((👤 Cliente))
+                Comercio((🏪 Comercio))
+                Domi((🏍️ Domiciliario))
+                SuperAdmin((👁️ SuperAdmin))
+
+                %% CAPA FRONTEND
+                subgraph FRONTEND [Capa PWA]
+                    I[index.html <br> Radar]
+                    N[negocio.html <br> Catálogo]
+                    A[admin.html <br> Bóveda]
+                    AG[agenda.html <br> Operaciones]
+                    Q[qrpido.html <br> Mando]
+                end
+
+                %% CAPA DE ABSTRACCIÓN CORE
+                subgraph CORE [Capa Abstracción]
+                    MM[motor-mapa.js]
+                    CDB[core-db.js]
+                end
+
+                %% CAPA BACKEND CLOUD
+                subgraph BACKEND [Backend Firebase]
+                    FS[(Firestore)]
+                    RTDB[(RTDB <br> Malla Gas)]
+                    CF{Cloud Functions}
+                    W[API Wompi]
+                end
+
+                %% CAPA WEB3
+                subgraph WEB3 [Capa Inmutable]
+                    SUI(((SUI Network)))
+                end
+
+                %% CONEXIONES
+                Cliente -->|1. Busca| I
+                I -->|2. Rutea| N
+                N -->|3. Paga| W
+                N -->|4. TOTP| CDB
+                CDB -->|5. Pre-Ticket| FS
+                W -->|6. Éxito| CF
+
+                Comercio -->|1. Edita| A
+                A -->|2. Perfil| CDB
+                CDB -->|3. Guarda| FS
+                Comercio -->|4. Confirma| N
+
+                Domi -->|1. GPS| AG
+                AG -->|2. Escucha| RTDB
+                AG -->|3. Acepta| CF
+                CF -->|4. Valida| FS
+                CF -->|5. Escrow| SUI
+                CF -->|6. Paga| RTDB
+
+                SuperAdmin -->|1. Audita| Q
+                Q -->|2. Monitor| RTDB
+                Q -->|3. Fugas| FS
+                Q -.->|4. KillSwitch| CF
+                CF -.->|5. Verdugo| FS
+
+                %% ESTILOS VISUALES
+                classDef ui fill:#111,stroke:#333,stroke-width:1px,color:#fff;
+                classDef core fill:#1a1a24,stroke:#ff6b00,stroke-width:2px,color:#fff;
+                classDef backend fill:#111,stroke:#00aaff,stroke-width:2px,color:#fff;
+                classDef web3 fill:#050505,stroke:#00f5d4,stroke-width:2px,color:#00f5d4,stroke-dasharray: 5 5;
+                classDef actor fill:#222,stroke:#fff,stroke-width:1px,color:#fff,shape:circle;
+
+                class I,N,A,AG,Q ui;
+                class MM,CDB core;
+                class FS,RTDB,CF,W backend;
+                class SUI web3;
+                class Cliente,Comercio,Domi,SuperAdmin actor;
+
+%% COLORIZACIÓN (Identificadores Hexadecimales)
+                linkStyle 0,1,2,3,4,5 stroke:#00aaff,stroke-width:2px;
+                linkStyle 6,7,8,9 stroke:#ff6b00,stroke-width:2px;
+                linkStyle 10,11,12,13,14,15 stroke:#00f5d4,stroke-width:2px;
+                linkStyle 16,17,18,19,20 stroke:#8a2be2,stroke-width:2px;
+
+                %% 🔗 ENLACES NATIVOS DIRECTOS A LA PALABRA (Idea del Arquitecto)
+                click I call clicEnNodo()
+                click N call clicEnNodo()
+                click A call clicEnNodo()
+                click AG call clicEnNodo()
+                click Q call clicEnNodo()
+                click MM call clicEnNodo()
+                click CDB call clicEnNodo()
+                click FS call clicEnNodo()
+                click RTDB call clicEnNodo()
+                click CF call clicEnNodo()
+                click W call clicEnNodo()
+                click SUI call clicEnNodo()
+        </div>
+    </div>
+
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        
+        let panzoomInstancia = null;
+
+// Inicializamos Mermaid pero le decimos que espere para poder manipular el DOM
+        mermaid.initialize({ 
+            startOnLoad: false, 
+            theme: 'dark',
+            securityLevel: 'loose', // 🚨 LA LLAVE MAESTRA: Apaga el escudo anti-XSS de Mermaid para permitir clics
+            flowchart: { curve: 'basis' }
+        });
+
+        document.addEventListener("DOMContentLoaded", async () => {
+            // 1. Renderizamos el diagrama
+            await mermaid.run({ querySelector: '.mermaid' });
+            
+            // 2. Activamos Panzoom (Zoom y Paneo Táctil)
+            const elementoSVG = document.querySelector('.mermaid svg');
+            if (elementoSVG) {
+                // Hacemos que el SVG llene el contenedor
+                elementoSVG.style.width = '100%';
+                elementoSVG.style.height = '100%';
+                elementoSVG.style.maxWidth = 'none';
+
+                panzoomInstancia = Panzoom(elementoSVG, {
+                    maxScale: 5,
+                    minScale: 0.5,
+                    step: 0.3,
+                    contain: 'outside'
+                });
+
+                // Habilitamos Zoom con la rueda del ratón (por si acaso conectas un mouse)
+                elementoSVG.parentElement.addEventListener('wheel', panzoomInstancia.zoomWithWheel);
+            }
+        });
+
+// ==========================================================
+        // 3. EL GRAN DICCIONARIO TÁCTICO (64 INTERACCIONES)
+        // ==========================================================
+        let flujoActivo = null;
+
+        const EXPLICACIONES = {
+            "azul": { // 👤 FLUJO CLIENTE (Compra)
+                "Cliente": "Navega sin fricción. No se le exigen Magic Links (vulnerables a phishing); usa Google SSO o su gestor de credenciales nativo.",
+                "Comercio": "Actor pasivo en esta fase. Su catálogo es consumido desde el JSON estático sin que él interactúe.",
+                "Domi": "En espera. El domiciliario no ve este pedido hasta que el comercio lo apruebe.",
+                "SuperAdmin": "Observación en la sombra. Las métricas de intención de compra alimentan el panel de BI.",
+                "I": "Radar Urbano. El panel de información lateral se puede cerrar en cualquier momento sin resetear el filtro de categoría activa.",
+                "N": "Tienda. Lazy Loading del JSON. El carrito vive en localStorage (máx 25 items) bajo la llave 'qrpido_cart_ID'.",
+                "A": "Módulo en reposo. El cliente no tiene acceso a la bóveda administrativa.",
+                "AG": "Agenda logística en reposo. No se requiere conductor aún.",
+                "Q": "El Cerebro Central contabiliza un intento de conversión en la telemetría global.",
+                "MM": "Motor Mapa. Lee el giroscopio limitando la rotación estrictamente entre -12 y 12 grados para evitar desorientación del usuario.",
+                "CDB": "Core-DB. Extrae el Sello TOTP de la memoria y valida el carrito contra los precios inmutables descargados.",
+                "FS": "Firestore. Se inyecta el Pre-Ticket en 'pedidos_entrantes' (allow create: if true). El estado inicial es PENDIENTE.",
+                "RTDB": "Malla de Gas inactiva. No hay despachos logísticos en curso.",
+                "CF": "El Cadenero duerme. Solo despertará si Wompi dispara un Webhook de pago.",
+                "W": "Widget Checkout. Configurado sin 'redirectUrl' para evitar el parpadeo del DOM y asegurar que la alerta de éxito sobreviva.",
+                "SUI": "Capa Web3 inactiva. El contrato Escrow espera la fase logística."
+            },
+            "naranja": { // 🏪 FLUJO COMERCIO (Gestión)
+                "Cliente": "Actor pasivo. Disfruta de las actualizaciones del catálogo en tiempo real.",
+                "Comercio": "Autenticado vía Firebase Auth. Su UID es la llave maestra que atraviesa la regla 'isOwner(userId)'.",
+                "Domi": "En espera de que el comercio asigne un ticket a la red P2P.",
+                "SuperAdmin": "Verifica que el comercio no suba contenido inapropiado. Puede forzar 'estado_moderacion'.",
+                "I": "Radar Urbano. El pin del comercio parpadea si se ha activado el modo 'Aliado' en su perfil.",
+                "N": "Vista previa. El comerciante recibe el ticket estructurado por WhatsApp y decide la logística.",
+                "A": "Bóveda. Renderiza el Genoma Visual usando nomenclatura estandarizada en español (ej. var(--texto-base)).",
+                "AG": "Módulo Mando. El comercio pega el Ticket, define la tarifa de flete y presiona 'Enviar a Malla'.",
+                "Q": "Monitorea si el comercio modifica sus precios drásticamente (Límite de 1000 items por mapa_precios).",
+                "MM": "Actualiza la posición del geohash si el comercio mueve su pin maestro de ubicación.",
+                "CDB": "Si el comercio es una sucursal, redirige la escritura hacia el Catálogo Central (Arquitectura Hub & Spoke).",
+                "FS": "Firestore actualiza el documento. Las reglas bloquean intentos de alterar 'requiere_auditoria' o 'intentos_whatsapp'.",
+                "RTDB": "Malla de Gas. Recibe el ticket emitido por la agenda logística con el estado BUSCANDO.",
+                "CF": "Genera el registro base en Logistica_Ordenes preparándolo para el contrato inteligente.",
+                "W": "Inactivo. El comercio usa este módulo solo para recargar su propio saldo de Gas.",
+                "SUI": "El smart contract se inicializa pero los fondos aún no se han liberado."
+            },
+            "verde": { // 🛵 LOGÍSTICA & WEB3 (La Malla)
+                "Cliente": "Sigue el estado de su pedido mediante la comunicación P2P o actualizaciones del comercio.",
+                "Comercio": "Su saldo de Gas Logístico queda 'congelado' temporalmente en custodia del Escrow.",
+                "Domi": "Mantiene GPS de alta precisión activo. El sistema de telemetría descarta lecturas de 'Fake GPS'.",
+                "SuperAdmin": "Visualiza el hash de la transacción SUI en tiempo real a través del panel de logs.",
+                "I": "El radar dibuja el movimiento del conductor si la privacidad del viaje lo permite.",
+                "N": "Módulo inactivo durante el trayecto físico del paquete.",
+                "A": "Bóveda en reposo. El inventario ya fue descontado.",
+                "AG": "Terminal del Conductor. Interfaz oscura ultra-rápida. Caza órdenes entrantes en su sector.",
+                "Q": "El panel de radar en vivo muestra el ticket cambiando de BUSCANDO a EN_CAMINO.",
+                "MM": "motor-mapa.js calcula la distancia geodésica entre el conductor y el cliente.",
+                "CDB": "Optimización extrema: limitToLast(50) en RTDB evita descargar megabytes de historial al móvil del conductor.",
+                "FS": "Firestore actualiza la orden a ENTREGADO y desbloquea el pago. Guarda el txID de Web3.",
+                "RTDB": "Transacciones Mutex. Evita condiciones de carrera si dos conductores tocan el mismo ticket al mismo milisegundo.",
+                "CF": "El Cadenero procesa la entrega. Calcula la comisión del 10% y ejecuta la matemática de partición de pagos.",
+                "W": "Inactivo en esta fase.",
+                "SUI": "Sella la entrega de forma inmutable. La blockchain recibe el Hash SHA-256 de la orden para evitar repudios."
+            },
+            "morado": { // 👁️ TRIBUNAL Y SUPER ADMIN
+                "Cliente": "Completamente aislado de esta capa de infraestructura de control.",
+                "Comercio": "Sujeto a auditoría silenciosa. Puede ser penalizado si supera los umbrales de evasión.",
+                "Domi": "En pausa si el SuperAdmin activa el Kill-Switch de emergencia.",
+                "SuperAdmin": "Control absoluto. Las reglas 'isSuperAdmin()' en Firestore le otorgan permisos de lectura/escritura globales.",
+                "I": "Inactivo. El SuperAdmin opera desde qrpido.html, no desde el mapa público.",
+                "N": "El botón 'Enviar por WhatsApp' se bloquea si la variable global 'bloqueo_tickets' es true.",
+                "A": "Bóveda inactiva. El admin revisa las métricas centralizadas, no catálogos individuales.",
+                "AG": "Si el Kill-Switch está activo, la agenda no permite subir más órdenes a la Malla de Gas.",
+                "Q": "Cerebro Central. Monitoreo de liquidez, control del Tribunal de Evasión y botón de Pausa Global.",
+                "MM": "Inactivo en el panel de control central.",
+                "CDB": "Ejecuta 'Perdonar Negocio'. Resetea 'intentos_whatsapp' y borra el flag de auditoría.",
+                "FS": "Auditoría en la sombra. getCountFromServer() cuenta los comercios sin consumir ancho de banda de lectura.",
+                "RTDB": "Destruye el listener onValue() al tocar 'Pausar Stream', liberando la RAM del dispositivo del Arquitecto.",
+                "CF": "El Verdugo Automático calcula ratios de conversión (<5%). Si hay anomalías, marca el documento en silencio.",
+                "W": "Inactivo en el panel de crisis.",
+                "SUI": "Monitoreo del tesoro. Se vigilan las comisiones acumuladas en la red descentralizada."
+            }
+        };
+
+        // ==========================================================
+        // 4. FILTRADO VISUAL (CSS INJECTION)
+        // ==========================================================
+        window.filtrarFlujo = function(colorHex, botonClicado) {
+            if ("vibrate" in navigator) navigator.vibrate(30);
+
+            // UI: Gestión de botones
+            const botones = document.querySelectorAll('.btn-filtro');
+            botones.forEach(b => b.classList.add('inactivo'));
+            botonClicado.classList.remove('inactivo');
+
+            flujoActivo = colorHex.includes('00aaff') ? 'azul' : 
+                          colorHex.includes('ff6b00') ? 'naranja' : 
+                          colorHex.includes('00f5d4') ? 'verde' : 'morado';
+
+            // SVG: Filtrado de conectores
+            const rgbMap = {
+                '#00aaff': 'rgb(0, 170, 255)',
+                '#ff6b00': 'rgb(255, 107, 0)',
+                '#00f5d4': 'rgb(0, 245, 212)',
+                '#8a2be2': 'rgb(138, 43, 226)'
+            };
+            const rgbColor = rgbMap[colorHex];
+
+            const lineas = document.querySelectorAll('.mermaid svg .edgePaths path, .mermaid svg path.flowchart-link');
+            lineas.forEach(path => {
+                const strokeValue = (window.getComputedStyle(path).stroke || path.getAttribute('stroke') || path.style.stroke || "").toLowerCase();
+                path.style.transition = 'opacity 0.4s, stroke-width 0.4s';
+                
+                if (strokeValue.includes(colorHex.toLowerCase()) || (rgbColor && strokeValue.includes(rgbColor))) {
+                    path.style.opacity = '1';
+                    path.style.strokeWidth = '4px';
+                } else {
+                    path.style.opacity = '0.05';
+                    path.style.strokeWidth = '1px';
+                }
+            });
+        };
+
+        // ==========================================================
+        // 5. RECEPCIÓN DE CLICS NATIVOS DE MERMAID
+        // ==========================================================
+        window.clicEnNodo = function(nodoId) {
+            if (!flujoActivo) return; // Si no hay flujo seleccionado, el mapa es "de solo lectura"
+
+            // Fallback por si Mermaid manda un ID extraño o no mapeado
+            const texto = EXPLICACIONES[flujoActivo][nodoId] || "Módulo en reposo durante este ciclo de ejecución.";
+            
+            if (navigator.vibrate) navigator.vibrate(20);
+            document.getElementById('modal-titulo').innerText = `MÓDULO: ${nodoId}`;
+            document.getElementById('modal-texto').innerText = texto;
+            document.getElementById('modal-info').classList.add('activo');
+        };
+
+        window.cerrarModalInfo = () => { 
+            const modal = document.getElementById('modal-info');
+            if(modal) modal.classList.remove('activo'); 
+        };
+
+        window.resetearMapa = function() {
+            if ("vibrate" in navigator) navigator.vibrate([30, 30]);
+
+            flujoActivo = null;
+            window.cerrarModalInfo();
+
+            document.querySelectorAll('.btn-filtro').forEach(b => b.classList.remove('inactivo'));
+
+            const lineas = document.querySelectorAll('.mermaid svg .edgePaths path, .mermaid svg path.flowchart-link');
+            lineas.forEach(path => {
+                path.style.opacity = '1';
+                path.style.strokeWidth = '2px';
+            });
+
+            if (window.panzoomInstancia) window.panzoomInstancia.reset();
+        };
+
+        // ==========================================================
+        // 6. INICIALIZADOR ÚNICO (SIN DUPLICADOS)
+        // ==========================================================
+        document.addEventListener("DOMContentLoaded", async () => {
+            // Renderizamos vectores
+            await mermaid.run({ querySelector: '.mermaid' });
+            
+            const elementoSVG = document.querySelector('.mermaid svg');
+            if (elementoSVG) {
+                elementoSVG.style.width = '100%';
+                elementoSVG.style.height = '100%';
+                elementoSVG.style.maxWidth = 'none';
+
+                // Activamos gestos táctiles (zoom/pan)
+                window.panzoomInstancia = Panzoom(elementoSVG, {
+                    maxScale: 5, minScale: 0.5, step: 0.3, contain: 'outside'
+                });
+                
+                elementoSVG.parentElement.addEventListener('wheel', window.panzoomInstancia.zoomWithWheel);
+            }
+        });
+        </script>
+    <div id="modal-info" class="modal-tactico">
+    <span class="btn-cerrar-tactico" onclick="cerrarModalInfo()">✕</span>
+    <div class="modal-tactico-header" id="modal-titulo">MÓDULO</div>
+    <div class="modal-tactico-body" id="modal-texto"></div>
+</div>
+</body>
+</html>

@@ -67,3 +67,12 @@ Logros de la Sesión (Parte 2):
 ​[x] UI/UX Manifiesto Legal: Diseño visual del archivo terminos.html aplicando la Proporción Áurea (Fibonacci) para espaciados e interlineado. Texto justificado con separación silábica automática para estándar de documento legal.
 [x] Fundación del Golden Design System: Creación e inicialización del archivo maestro ui-estilos.css para iniciar la extracción y modularización de la capa visual (Fase 7 adelantada). Inyección del ADN visual de QRpido (Naranja, Negro Deep Space, Plata).
 [x] Lógica de Conversión UX: Implementación de script de auto-cierre de pestaña window.close() con fallback visual en el botón de "Comprendido y Aceptado", asegurando que el usuario regrese a su flujo de registro sin perder datos.
+
+
+ Fecha: 26 de Abril de 2026
+🚀 Hitos Alcanzados: Cierre absoluto de la Fase 5 (Logística P2P - Proof of Delivery) y cimientos KYC de la Fase 6.
+​agenda.html (Motor de Despacho): Extirpación del modelo antiguo. Inyectada la pestaña de "Despachos" con analizador Regex para el estándar de tickets [MMNNN] - [SSSSS]. Creada la operación atómica que ata el ticket al UID del domiciliario, debita el saldo logístico e inyecta la orden a la Malla de Gas. Implementado botón "Kill-Switch" con sistema de strikes.
+​Verificación negocio.html: Validado con éxito que el Generador del Pre-Ticket (Zero-Trust) y el enrutador financiero del carrito ya estaban operando bajo la arquitectura 5+5.
+​domicilios.html (El Apretón de Manos Digital): Se eliminó el PIN Pad fijo (ahorro de RAM/Nodos DOM). Se implementó el "Teclado Táctil Fantasma" renderizado dinámicamente en Vanilla JS para soportar el código alfanumérico de 5 caracteres. Interfaz conectada a la función de liberación de fondos SUI.
+​core-db.js (Puente Web3): Inyectados los puentes asíncronos registrarDespachoSUI, liberarFondosSUI y ejecutarKillSwitch para conectar de forma segura los frontends a la Malla de Gas (Realtime Database).
+​moderacion.html (Aduana KYC): Blindaje legal y anti-lavado en el panel de soporte. Inyección dinámica del botón "🪪 Ver Documento KYC" e insignia de "🔗 Billetera Web3 Activa". Agregada la opción "kyc_invalido" a la lógica de rechazos y al mapeo visual de la Bóveda de Rechazos (Cementerio).
