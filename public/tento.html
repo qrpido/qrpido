@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Captura y Calibración de Tipificación</title>
+    <style>
+        :root {
+            --bg-color: #f4f7f6;
+            --container-bg: #ffffff;
+            --text-color: #333;
+            --border-color: #ccc;
+            --btn-bg: #0056b3;
+            --btn-hover: #004494;
+            --btn-success: #28a745;
+            --btn-success-hover: #218838;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+               .container {
+            background-color: var(--container-bg);
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 1200px; /* Más ancho para acomodar dos columnas */
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* Mitad y mitad */
+            gap: 30px;
+        }
+        .panel { display: flex; flex-direction: column; gap: 15px; }
+        .seccion-visible { display: flex !important; }
+        
+        @media (max-width: 768px) {
+            .container { grid-template-columns: 1fr; } /* Una columna en pantallas pequeñas */
+        }
+
+        h2, h3 { margin-top: 0; color: #2c3e50; }
+        .input-group { margin-bottom: 20px; }
+        
+        textarea, input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        textarea { height: 120px; resize: vertical; }
+        
+        button {
+            background-color: var(--btn-bg);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-top: 10px;
+        }
+        button:hover { background-color: var(--btn-hover); }
+        .btn-generar { background-color: var(--btn-success); width: 100%; font-weight: bold; margin-top: 20px;}
+        .btn-generar:hover { background-color: var(--btn-success-hover); }
+
+        /* Estilos del Panel de Discriminación */
+        .resultado-panel {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .item-extraido {
+            padding: 12px 15px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background-color: #fff;
+            transition: background-color 0.3s;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        .item-clave {
+            font-weight: bold;
+            min-width: 90px;
+            max-width: 120px;
+            text-transform: uppercase;
+            font-size: 0.9em;
+            word-wrap: break-word;
+        }
+        .item-valor {
+            flex: 1;
+            color: #1a1a1a;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            min-width: 0; 
+        }
+        select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            font-weight: bold;
+            outline: none;
+            max-width: 180px; 
+        }
+
+        
+        /* Clases dinámicas de colores para la calibración */
+        .color-default { background-color: #fff; }
+        .color-1 { background-color: #FFDDC1; } /* Naranja */
+        .color-2 { background-color: #B9F2FF; } /* Azul */
+        .color-3 { background-color: #E7FFAC; } /* Verde */
+        .color-4 { background-color: #D5AAFF; } /* Morado */
+        
+        .seccion-oculta { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+      <div class="panel">
+        <h2>1. Datos de Entrada</h2>
+        
+        <div class="input-group">
+            <label for="link-form"><strong>Link del Formulario de Google:</strong></label>
+            <input type="text" id="link-form" placeholder="Pega el link pre-llenado aquí...">
+        </div>
+
+        <div class="input-group">
+            <label for="texto-tipificacion"><strong>Tipificación Maestra:</strong></label>
+            <textarea id="texto-tipificacion" placeholder="Pega aquí el resultado del CMV..."></textarea>
+        </div>
+        
+        <button id="btn-procesar" class="btn-generar">TOCAR ESTE BOTÓN PARA LA MAGIA</button>
+    </div>
+
+    <div id="seccion-calibracion" class="panel seccion-oculta">
+        <h3>2. Ítems Discriminados</h3>
+        <p>Asigna cada dato extraído al campo correspondiente.</p>
+        
+        <div id="panel-resultados" class="resultado-panel">
+            </div>
+
+        <button id="btn-generar" class="btn-generar">Generar Link de Autollenado</button>
+    </div>
+</div>
+
+<script>
+    // Diccionario temporal simulando los campos del formulario
+    // En la realidad, estos representan los 'entry.123456' de Google Forms
+    const camposFormulario = [
+        { id: 'ignorar', nombre: 'Ignorar / No enviar', claseColor: 'color-default' },
+        { id: 'entry.111111', nombre: 'Campo: RUT', claseColor: 'color-1' },
+        { id: 'entry.222222', nombre: 'Campo: Nombre Cliente', claseColor: 'color-2' },
+        { id: 'entry.333333', nombre: 'Campo: Motivo', claseColor: 'color-3' },
+        { id: 'entry.444444', nombre: 'Campo: Detalles', claseColor: 'color-4' }
+    ];
+
+    document.getElementById('btn-procesar').addEventListener('click', procesarTexto);
+    document.getElementById('btn-generar').addEventListener('click', generarLinkGoogleForm);
+
+    function procesarTexto() {
+        const textoCrudo = document.getElementById('texto-tipificacion').value;
+        const panelResultados = document.getElementById('panel-resultados');
+        const seccionCalibracion = document.getElementById('seccion-calibracion');
+        
+        panelResultados.replaceChildren();
+
+        if (!textoCrudo.trim()) {
+            alert('Por favor, ingresa una tipificación válida.');
+            return;
+        }
+
+                const fragmentos = textoCrudo.split(/\s+(?=[A-ZÁÉÍÓÚÑ]+\s*:)/);
+        const regexPatron = /^([^:]+):\s*([\s\S]+)$/; 
+        let datosExtraidos = 0;
+
+        fragmentos.forEach((fragmento, index) => {
+            const coincidencia = fragmento.trim().match(regexPatron);
+            if (coincidencia) {
+                let clave = coincidencia[1].trim();
+                let valor = coincidencia[2].trim();
+                
+                if (clave.includes('TIPIFICACIÓN') || clave.length > 25 || !valor) return;
+
+                crearNodoInteractuador(clave, valor, index, panelResultados);
+                datosExtraidos++;
+            }
+        });
+
+
+                if (datosExtraidos > 0) {
+            seccionCalibracion.classList.remove('seccion-oculta');
+            seccionCalibracion.classList.add('seccion-visible');
+        } else {
+            seccionCalibracion.classList.add('seccion-oculta');
+            seccionCalibracion.classList.remove('seccion-visible');
+        }
+
+    }
+
+    function crearNodoInteractuador(clave, valor, index, contenedor) {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'item-extraido color-default';
+        itemDiv.id = `fila-${index}`;
+
+        const spanClave = document.createElement('span');
+        spanClave.className = 'item-clave';
+        spanClave.textContent = clave + ':';
+
+        const spanValor = document.createElement('span');
+        spanValor.className = 'item-valor';
+        spanValor.textContent = valor;
+        spanValor.title = valor; // Tooltip por si el texto es muy largo
+        spanValor.dataset.valorPuro = valor; // Guardamos el valor para extraerlo después
+
+        const select = document.createElement('select');
+        select.className = 'selector-campo';
+        
+        // Llenar el dropdown con las opciones simuladas
+        camposFormulario.forEach(campo => {
+            const option = document.createElement('option');
+            option.value = campo.id;
+            option.textContent = campo.nombre;
+            option.dataset.claseColor = campo.claseColor;
+            select.appendChild(option);
+        });
+
+        // Evento: Cambiar el color de toda la fila cuando el usuario selecciona una opción
+        select.addEventListener('change', function(e) {
+            const opcionSeleccionada = e.target.options[e.target.selectedIndex];
+            const nuevaClaseColor = opcionSeleccionada.dataset.claseColor;
+            
+            // Limpiar clases de color anteriores
+            itemDiv.className = 'item-extraido';
+            // Aplicar nuevo color
+            itemDiv.classList.add(nuevaClaseColor);
+        });
+
+        itemDiv.appendChild(spanClave);
+        itemDiv.appendChild(spanValor);
+        itemDiv.appendChild(select);
+        
+        contenedor.appendChild(itemDiv);
+    }
+
+    function generarLinkGoogleForm() {
+        const linkBase = document.getElementById('link-form').value.trim();
+        
+        if (!linkBase) {
+            alert('Por favor ingresa el link del Formulario de Google.');
+            return;
+        }
+
+        // Lógica de construcción de URL de autollenado
+        let urlFinal = linkBase;
+        
+        // Google Forms usa ?usp=pp_url para inicializar parámetros prellenados
+        if (!urlFinal.includes('?')) {
+            urlFinal += '?usp=pp_url';
+        } else {
+            urlFinal += '&usp=pp_url'; // Por si el link ya tenía parámetros
+        }
+
+        const filas = document.querySelectorAll('.item-extraido');
+        let parametrosAñadidos = 0;
+
+        filas.forEach(fila => {
+            const valorAsignado = fila.querySelector('.item-valor').dataset.valorPuro;
+            const selector = fila.querySelector('select');
+            const idCampoDestino = selector.value;
+
+            // Solo agregamos si el operador asignó un campo real (ignoramos el valor 'ignorar')
+            if (idCampoDestino !== 'ignorar') {
+                // Formateamos para URL (reemplaza espacios por %20, etc.)
+                const valorCodificado = encodeURIComponent(valorAsignado);
+                urlFinal += `&${idCampoDestino}=${valorCodificado}`;
+                parametrosAñadidos++;
+            }
+        });
+
+        if (parametrosAñadidos === 0) {
+            alert('No has asignado ningún valor a los campos del formulario.');
+            return;
+        }
+
+        console.log("Link generado:", urlFinal);
+        
+        // Abrir el formulario prellenado en una nueva pestaña
+        window.open(urlFinal, '_blank');
+    }
+</script>
+
+</body>
+</html>

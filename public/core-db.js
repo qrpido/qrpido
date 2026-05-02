@@ -1,8 +1,3 @@
-* @file core-db.js
-* @description Capa de Abstracción y Seguridad para Firebase v10.
-* Aísla la UI de la base de datos, optimiza costos (Blaze), implementa Zero Trust
-* y maneja el enrutamiento inteligente para sucursales/franquicias.
-*/
 
 
 import { doc, getDoc, setDoc, collection, writeBatch, getDocs, query, where, limit, startAfter, orderBy, startAt, endAt, collectionGroup, deleteDoc, getCountFromServer } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
@@ -10,10 +5,14 @@ import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, si
 import { getAnalytics, logEvent } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js';
 import * as geofire from "https://cdn.jsdelivr.net/npm/geofire-common@5.2.0/+esm";
 // INYECTAMOS EL IMPORT DE STORAGE, RTDB Y FUNCTIONS AQUÍ:
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
+
+
 import { getDatabase, ref as rtdbRef, set, get, onValue, child, serverTimestamp, query as queryRTDB, limitToLast, orderByChild } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js'; 
 import { db } from './firebase-config.js'; // Ajusta la ruta a tu inicialización de Firebase
+
+
 
 
 // Extraemos las instancias nativas desde tu base de datos ya inicializada
@@ -21,6 +20,8 @@ const auth = getAuth(db.app);
 const storage = getStorage(db.app); 
 const realtimeDb = getDatabase(db.app); // 🔥 MOTOR DEL RADAR P2P ACTIVADO
 const functions = getFunctions(db.app); // 🚨 SALVAVIDAS: Inicialización vital para Web3 y TOTP
+
+
 
 
 // 🚨 ESCUDO VITAL: Evita que el mapa colapse si el usuario usa Modo Incógnito o Brave
@@ -116,6 +117,8 @@ return { success: false, error: error.message };
         },
 
 
+
+
         /**
          * @namespace AdminService
          * Operaciones de escritura optimizadas e inteligentes para administradores.
@@ -143,16 +146,19 @@ perdonarNegocio: async (idNegocio) => {
                     return { success: false, error: e.message };
                 }
             },
-            subirArchivo: async (path, blob) => {
+                        subirArchivo: async (path, blob) => {
                 try {
-                    const storageRef = ref(storage, path);
-                    await uploadBytes(storageRef, blob);
-                    const urlDescarga = await getDownloadURL(storageRef);
+                    // Usamos la función 'ref' limpia y nombramos la constante en español para evitar colisiones
+                    const referenciaArchivo = ref(storage, path);
+                    await uploadBytes(referenciaArchivo, blob);
+                    const urlDescarga = await getDownloadURL(referenciaArchivo);
                     return { success: true, data: urlDescarga };
                 } catch (e) {
-                    return { success: false, error: e.message };
+                    return { success: false, error: "Error subiendo archivo a la bodega", details: e.message };
                 }
             },
+
+
             updateCatalog: async (idReferencia, arrayProductos, esFranquicia = false) => {
                 try {
                     const batch = writeBatch(db);
@@ -198,10 +204,16 @@ perdonarNegocio: async (idNegocio) => {
                 try {
                     const qSnap = await getDocs(collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`));
                     const resultados = [];
-                    qSnap.forEach(doc => resultados.push({ id_prod: doc.id, ...doc.data() }));
+                    qSnap.forEach(doc => {
+                        const d = doc.data();
+                        // 🛡️ Filtro Fantasma: Solo mostramos lo que no esté eliminado
+                        if (!d.eliminado) resultados.push({ id_prod: doc.id, ...d });
+                    });
                     return { success: true, data: resultados, ultimoDoc: null };
                 } catch (e) { return { success: false, error: e.message }; }
             },
+
+
             actualizarProducto: async (idNegocio, idProducto, dataObj) => {
                 try {
                     await setDoc(doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, idProducto), dataObj, { merge: true });
@@ -398,10 +410,14 @@ let ultimoDoc = null;
 if (!querySnapshot.empty) {
 ultimoDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
 querySnapshot.forEach((doc) => {
-resultados.push({ id_prod: doc.id, ...doc.data() });
+const d = doc.data();
+// 🛡️ Filtro Fantasma Público: Ocultamos los eliminados a los clientes
+if (!d.eliminado) resultados.push({ id_prod: doc.id, ...d });
 });
 }
 return { success: true, data: resultados, ultimoDoc: ultimoDoc };
+
+
 } catch (e) {
 return { success: false, error: "Error obteniendo productos", details: e.message };
 }
@@ -451,12 +467,14 @@ buscarEnRadar: async (lat, lng, radiusInM) => {
                     }
                     const snapshots = await Promise.all(promises);
                     const matchingDocs = [];
-                    snapshots.forEach((snap) => {
+                                        snapshots.forEach((snap) => {
                         snap.docs.forEach((doc) => {
                             const data = doc.data();
                             // Si tiene geohash, es un inmueble con coordenadas propias
                             if(data.geohash) {
-                                matchingDocs.push({ ...data, id: doc.id, es_inmueble_real: true, tipo_modelo: 'inmueble' });
+                                // 🧠 MAGIA ARQUITECTÓNICA: Extraemos el ID del Dueño desde la ruta profunda del documento
+                                const idPadre = doc.ref.parent.parent ? doc.ref.parent.parent.id : doc.id;
+                                matchingDocs.push({ ...data, id: doc.id, id_negocio_padre: idPadre, es_inmueble_real: true, tipo_modelo: 'inmueble' });
                             }
                         });
                     });
@@ -504,6 +522,8 @@ buscarEnRadar: async (lat, lng, radiusInM) => {
             } catch (e) { return { success: false, error: e.message }; }
         }
     },
+
+
 
 
 /**
@@ -561,6 +581,8 @@ generarSelloSeguroTOTP: async (codigoReferido, idNegocio) => {
             return { success: false, error: e.message };
         }
     },
+
+
 
 
 registrarUsuario: async (email, pass, tipoCuenta) => {
@@ -642,6 +664,8 @@ return { success: false, error: e.message };
 },
 
 
+
+
 cerrarSesion: async () => {
 try {
 await signOut(auth);
@@ -652,10 +676,14 @@ return { success: false, error: e.message };
 },
 
 
+
+
 observarEstadoSesion: (callback) => {
 onAuthStateChanged(auth, callback);
 }
 }, // <-- Cierre de SecurityService
+
+
 
 
 /**
@@ -664,6 +692,8 @@ onAuthStateChanged(auth, callback);
 * Mantiene separados los datos públicos del radar y la bóveda secreta.
 */
 LogisticaService: {
+
+
 
 
    registrarIntencionCompra: async (payload) => {
@@ -681,6 +711,8 @@ LogisticaService: {
             }
 
 
+
+
             // Zero-Trust: Guardamos el pre-ticket en Firestore dentro de la bóveda del negocio
             const docRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${payload.idNegocio}/pedidos_entrantes`, payload.ticket);
             await setDoc(docRef, payload);
@@ -688,10 +720,14 @@ LogisticaService: {
         } catch (e) {
 
 
+
+
             console.warn("CoreDB: Fallo al registrar la intención de compra", e);
             return { success: false, error: e.message };
         }
     },
+
+
 
 
     escucharRadarActivo: (callback) => {
@@ -707,6 +743,8 @@ LogisticaService: {
     },
 
 
+
+
         inyectarOrdenComercio: async (idOrden, datosRadar, datosSecretos) => {
         try {
             // El comercio inyecta la orden en ambos nodos de forma simultánea
@@ -717,6 +755,8 @@ LogisticaService: {
             return { success: false, error: e.message };
         }
     },
+
+
 
 
     // ==========================================
@@ -738,8 +778,12 @@ LogisticaService: {
             };
 
 
+
+
             const funcionRespuesta = await crearOrdenLogistica(requestData);
             const dataBackend = funcionRespuesta.data;
+
+
 
 
             if (!dataBackend.success) {
@@ -747,7 +791,11 @@ LogisticaService: {
             }
 
 
+
+
             console.log("🔒 Escrow asegurado. ID Interno:", dataBackend.ordenId);
+
+
 
 
             // 2. AHORA SÍ: Inyectamos a Malla de Gas (RTDB)
@@ -769,6 +817,10 @@ LogisticaService: {
 
 
 
+
+
+
+
     liberarFondosSUI: async (payload) => {
         try {
             console.log("🌐 [Oráculo SUI] Validando Apretón de Manos Criptográfico...", payload);
@@ -782,6 +834,8 @@ LogisticaService: {
             return { success: false, error: e.message };
         }
     },
+
+
 
 
     ejecutarKillSwitch: async (ticketPublico, conductorUid) => {
@@ -801,9 +855,17 @@ LogisticaService: {
 
 
 
+
+
+
+
 // ==========================================
 // EXPORTACIÓN ESTRICTA (Singleton)
 // ==========================================
 // Evita que la UI tenga acceso a _SCHEMA o _cacheLocales.
 export default QRpidoDB;
+
+
+
+
 

@@ -230,20 +230,59 @@ window.marcadoresRadar[codigo].openPopup();
 }
 }, 1500);
 };
-async function arrancarMotor() {
+window.arrancarMotor = async function() {
 try {
 if (typeof L === 'undefined') throw new Error("Leaflet no se descargó.");
 construirMapa();
 construirCarrusel();
-setTimeout(() => {
-document.getElementById('pantalla-carga').style.opacity = '0';
-setTimeout(() => {
-document.getElementById('pantalla-carga').style.display = 'none';
-document.getElementById('wrapper-buscador').classList.remove('shimmer-box');
-document.getElementById('contenedor-etiquetas').classList.remove('shimmer-box');
-iniciarTour();
-}, 500);
-}, 800);
+            setTimeout(() => {
+                document.getElementById('pantalla-carga').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('pantalla-carga').style.display = 'none';
+                    document.getElementById('wrapper-buscador').classList.remove('shimmer-box');
+                    document.getElementById('contenedor-etiquetas').classList.remove('shimmer-box');
+                    
+                    // 🛸 MAGIA CINEMÁTICA: Detectamos si el usuario viene del Tinder de Inmuebles
+                    const params = new URLSearchParams(window.location.search);
+                    const idDron = params.get('enfocar');
+                    const latDron = parseFloat(params.get('lat'));
+                    const lngDron = parseFloat(params.get('lng'));
+
+
+                    if (idDron && !isNaN(latDron) && !isNaN(lngDron)) {
+                        // 1. Ajustamos el cerebro del mapa a modo 'inmuebles'
+                        categoriaActivaGlobal = 'inmuebles';
+                        document.querySelectorAll('#contenedor-etiquetas .tag-pill').forEach(p => {
+                            p.classList.remove('activa');
+                            if(p.innerText.toUpperCase().includes('INMUEBLES')) p.classList.add('activa');
+                        });
+                        
+                        // 2. Ejecutamos la caída cinemática (Dron a 60 FPS)
+                        mapa.flyTo([latDron, lngDron], 18, { duration: 2.5, easeLinearity: 0.25 });
+                        
+                        // 3. Forzamos al radar a escanear esa zona exacta al instante
+                        zonaNecesitaDescarga = true;
+                        if (window.descargarNegociosDeFirebase) window.descargarNegociosDeFirebase();
+
+
+                        // 4. Calculamos el tiempo de impacto para abrir el popup de la casa justo al aterrizar
+                        setTimeout(() => {
+                            if (window.marcadoresRadar && window.marcadoresRadar[idDron]) {
+                                window.marcadoresRadar[idDron].openPopup();
+                            }
+                        }, 2600); // 2.6 segundos (justo 100ms después de que termina el flyTo)
+
+
+                        // 5. Borramos la URL silenciosamente para que no repita el vuelo si el usuario recarga la página
+                        window.history.replaceState(null, '', window.location.pathname);
+                    } else {
+                        // Si no viene del Tinder, ejecutamos el inicio normal
+                        iniciarTour(); 
+                    }
+                }, 500);
+            }, 800);
+
+
 try {
 const { success, data } = await QRpidoDB.LocalService.obtenerCaballoTroya();
 dbTroya = success && data ? data : [];
@@ -433,10 +472,23 @@ dbDirectorioMap.set(doc.id, { codigo: doc.id, ...safeData });
 }
 }
 });
-dbDirectorio = Array.from(dbDirectorioMap.values());
-datosDescargados = true;
-zonaNecesitaDescarga = false;
-cajaFuerteEspacial = mapa.getBounds().pad(0.5);
+        dbDirectorio = Array.from(dbDirectorioMap.values());
+        datosDescargados = true;
+        zonaNecesitaDescarga = false;
+        cajaFuerteEspacial = mapa.getBounds().pad(0.5);
+
+
+        // 🧹 EXORCISMO DE CLONES: Borramos los pines del JSON caché porque ya llegaron los reales
+        if (typeof marcadoresActivos !== 'undefined') {
+            for (let idClon in marcadoresActivos) {
+                if (mapa.hasLayer(marcadoresActivos[idClon])) {
+                    mapa.removeLayer(marcadoresActivos[idClon]);
+                }
+                delete marcadoresActivos[idClon];
+            }
+        }
+
+
 if (btn) {
 btn.style.display = 'none';
 btn.innerText = "🔍 Buscar en esta zona";
@@ -459,7 +511,7 @@ btn.style.display = 'block';
 console.error("Error en la descarga:", error);
 }
 };
-function construirMapa() {
+window.construirMapa = function() {
 mapa = L.map('mapa-qrpido', { zoomControl: false, minZoom: 5 }).setView([4.8133, -75.6961], 14);
 capaBase = L.tileLayer('https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.png', {
 maxZoom: 20,
@@ -585,7 +637,7 @@ window.togglePanelAcordeon = function() {
 const panel = document.getElementById('panel-cristal');
 panel.classList.toggle('colapsado');
 }
-function renderizarPanel(catObj) {
+window.renderizarPanel = function(catObj) {
 const panel = document.getElementById('panel-cristal');
 const pFiltros = document.getElementById('panel-filtros');
 const pVitrina = document.getElementById('vitrina-contenido');
@@ -679,7 +731,7 @@ panelCaptacion.style.display = 'block';
 btnCTA.innerText = catObj.cta ? `¿Eres dueño? ${catObj.cta}` : '¿Eres dueño? Anúnciate aquí';
 }
 }
-function construirCarrusel() {
+window.construirCarrusel = function() {
 const contenedor = document.getElementById('contenedor-etiquetas');
 contenedor.innerHTML = '';
 categoriasEstaticas.forEach(c => {
@@ -734,8 +786,15 @@ contenedor.appendChild(div);
 }
 window.barridoRadar = window.barridoRadar = function(filtroTexto = "") {
 if(!datosDescargados) return;
-// 🛡️ RAM FIX: Eliminamos capaRadar.clearLayers() para reciclar nodos del DOM (Object Pooling)
+
+
+capaRadar.clearLayers();
+window.marcadoresRadar = {};
+
+
 let filtrados = (dbDirectorio || []).filter(p => p.estado_moderacion !== "pendiente");
+
+
 const catActualObj = categoriasEstaticas.find(c => c.id === categoriaActivaGlobal);
 const favsStorage = JSON.parse(localStorage.getItem('qrpido_favoritos_anon')) || [];
 const favsIds = favsStorage.map(f => f.id);
@@ -824,16 +883,6 @@ window.memoriaRadar = seleccionFreemium.map(p => p.codigo);
 }
 // 4. Unimos las tropas para enviarlas al renderizador
 pinesEnPantalla = [...seleccionAliados, ...seleccionPremium, ...seleccionFreemium];
-
-
-// 🛡️ OBJECT POOLING: Destruimos ÚNICAMENTE los marcadores que ya no están en pantalla
-const codigosVisibles = pinesEnPantalla.map(p => p.codigo);
-for (let cod in window.marcadoresRadar) {
-    if (!codigosVisibles.includes(cod)) {
-        capaRadar.removeLayer(window.marcadoresRadar[cod]);
-        delete window.marcadoresRadar[cod];
-    }
-}
 
 
 if (pinesEnPantalla.length === 0) {
@@ -926,22 +975,45 @@ const esAliado = (p.red_afiliados === true || p.red_afiliados === 'SI');
         }
 
 
-        const iconoLeaflet = L.divIcon({ html: htmlPin, className: '', iconSize: [44, 44], iconAnchor: [22, 22] });
+                const iconoLeaflet = L.divIcon({ html: htmlPin, className: '', iconSize: [44, 44], iconAnchor: [22, 22] });
 
 
         let tituloRenderizado = '';
         const urlSeguraPng = p.nombre_png ? escapeQuotes(p.nombre_png) : '';
+
+
         if (urlSeguraPng && urlSeguraPng.trim() !== '') {
             tituloRenderizado = `<img src="${urlSeguraPng}" alt="${nombreLimpio}" style="max-height: 35px; max-width: 90%; object-fit: contain; margin: 0 auto; display: block; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">`;
         } else {
             tituloRenderizado = `<h3 class="popup-title" style="text-shadow: 0 0 5px ${c1};">${sanitizarTexto(p.nombre || 'Negocio')}</h3>`;
         }
-        
-        // ... (Dejas el bloque de publicidad igual hasta llegar al popup) ...
-        // EN EL HTML DEL POPUP, INYECTAS EL BADGE ASÍ:
 
 
-        const linkDestino = p.es_inmueble_real ? `inmueble.html?id=${encodeURIComponent(p.codigo)}` : (p.username ? `/${p.username.toLowerCase()}` : `negocio.html?id=${encodeURIComponent(p.codigo)}`);
+        const usaPublicidadPropia = p.publicidad_propia === true;
+        let bloquePublicidad = '';
+
+
+        if (usaPublicidadPropia) {
+            const troyasActivos = dbTroya.filter(t => t.activo === true || t.activo === "SI");
+            const anuncio = troyasActivos.length > 0 ? troyasActivos[Math.floor(Math.random() * troyasActivos.length)] : null;
+            if (anuncio) {
+                bloquePublicidad = `<a href="${anuncio.link_accion}" target="_blank"><img src="${anuncio.imagen_16_9}" style="width:100%; border-radius:10px; margin-top:10px; border: 1px solid var(--naranja);"></a>`;
+            }
+        } else {
+            bloquePublicidad = `
+            <div class="adsense-popup" style="margin-top:10px; min-height:50px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+            <ins class="adsbygoogle" style="display:inline-block;width:100%;height:50px" data-ad-client="ca-pub-XXXXX" data-ad-slot="YYYYY"></ins>
+            </div>`;
+        }
+
+
+        // --- AQUÍ CREAMOS EL ENLACE INTELIGENTE ---
+// 🔗 Enrutamos al cliente a la Agencia (id_negocio_padre) y le pasamos el inmueble específico (item)
+const linkDestino = p.es_inmueble_real
+? `inmueble.html?id=${encodeURIComponent(p.id_negocio_padre || p.codigo)}&item=${encodeURIComponent(p.codigo)}`
+: (p.username ? `/${p.username.toLowerCase()}` : `negocio.html?id=${encodeURIComponent(p.codigo)}`);
+
+
         const usernameParaCompartir = p.username ? `'${p.username.toLowerCase()}'` : `null`;
 
 
@@ -953,78 +1025,14 @@ const esAliado = (p.red_afiliados === true || p.red_afiliados === 'SI');
         </div>
         <div class="popup-info">
             <img src="${logoSeguro}" class="popup-logo" style="border-color: ${c1};" onerror="window.imagenRotaToGlass(this, '${nombreLimpio}')">
-            
             <div class="popup-title-wrapper" style="margin-bottom: 8px; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;">
                 ${badgeRemate} ${badgeCobertura}
             </div>
-            
             ${tituloRenderizado}
             <div class="estrellas" style="margin-top: 5px;">${estrellasHtml}</div>
             <p class="texto-piedra">${textoNicho}</p>
             <a href="${window.sanitizarURL(linkDestino)}" class="btn-catalogo js-action-ver-detalles" data-codigo="${window.sanitizarAtributo(encodeURIComponent(p.codigo))}" data-nicho="${window.sanitizarAtributo(sanitizarTexto(p.niche))}" style="background: ${c2}; color: ${estaAbierto ? '#ffffff' : '#aaaaaa'} !important; text-shadow: 0 1px 2px rgba(0,0,0,0.5); pointer-events: ${estaAbierto ? 'all' : 'none'};">${estaAbierto ? 'VER DETALLES' : 'CERRADO AHORA'}</a>
         </div>`;
-const iconoLeaflet = L.divIcon({ html: htmlPin, className: '', iconSize: [44, 44], iconAnchor: [22, 22] });
-let tituloRenderizado = '';
-const urlSeguraPng = p.nombre_png ? escapeQuotes(p.nombre_png) : '';
-if (urlSeguraPng && urlSeguraPng.trim() !== '') {
-tituloRenderizado = `<img src="${urlSeguraPng}" alt="${nombreLimpio}" style="max-height: 35px; max-width: 90%; object-fit: contain; margin: 0 auto; display: block; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">`;
-} else {
-tituloRenderizado = `<h3 class="popup-title" style="text-shadow: 0 0 5px ${c1};">${sanitizarTexto(p.nombre || 'Negocio')}</h3>`;
-}
-const usaPublicidadPropia = p.publicidad_propia === true;
-let bloquePublicidad = '';
-if (usaPublicidadPropia) {
-const troyasActivos = dbTroya.filter(t => t.activo === true || t.activo === "SI");
-const anuncio = troyasActivos.length > 0 ? troyasActivos[Math.floor(Math.random() * troyasActivos.length)] : null;
-if (anuncio) {
-bloquePublicidad = `<a href="${anuncio.link_accion}" target="_blank"><img src="${anuncio.imagen_16_9}" style="width:100%; border-radius:10px; margin-top:10px; border: 1px solid var(--naranja);"></a>`;
-}
-} else {
-bloquePublicidad = `
-<div class="adsense-popup" style="margin-top:10px; min-height:50px; background: rgba(0,0,0,0.2); border-radius: 8px;">
-<ins class="adsbygoogle"
-style="display:inline-block;width:100%;height:50px"
-data-ad-client="ca-pub-XXXXX"
-data-ad-slot="YYYYY"></ins>
-</div>`;
-}
-// --- AQUÍ CREAMOS EL ENLACE INTELIGENTE ---
-const linkDestino = p.es_inmueble_real
-? `inmueble.html?id=${encodeURIComponent(p.codigo)}`
-: (p.username ? `/${p.username.toLowerCase()}` : `negocio.html?id=${encodeURIComponent(p.codigo)}`);
-// Preparamos el username para el botón de compartir
-const usernameParaCompartir = p.username ? `'${p.username.toLowerCase()}'` : `null`;
-const htmlPopup = `
-<div style="position: relative;">
-<button class="btn-fav-popup js-action-favorito" style="${favStyleBtn}"
-data-codigo="${window.sanitizarAtributo(encodeURIComponent(p.codigo))}"
-data-nombre="${window.sanitizarAtributo(nombreLimpio)}"
-data-precio="${window.sanitizarAtributo(p.precio || 0)}"
-data-portada="${window.sanitizarAtributo(portadaSegura)}"
-data-whatsapp="${window.sanitizarAtributo(p.whatsapp || '')}">
-${corazon}
-</button>
-<button class="btn-compartir js-action-compartir"
-data-codigo="${window.sanitizarAtributo(encodeURIComponent(p.codigo))}"
-data-nombre="${window.sanitizarAtributo(nombreLimpio)}"
-data-username="${window.sanitizarAtributo(usernameParaCompartir)}">
-<svg style="pointer-events: none;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
-</button>
-<img src="${portadaUsada}" class="popup-portada" style="border-color: ${c1}" onerror="window.imagenRotaToGlass(this, '${nombreLimpio}')">
-</div>
-<div class="popup-info">
-<img src="${logoSeguro}" class="popup-logo" style="border-color: ${c1};" onerror="window.imagenRotaToGlass(this, '${nombreLimpio}')">
-<div class="popup-title-wrapper" style="margin-bottom: 8px; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;">
-${badgeCobertura}
-</div>
-${tituloRenderizado}
-<div class="estrellas" style="margin-top: 5px;">${estrellasHtml}</div>
-<p class="texto-piedra">${textoNicho}</p>
-<a href="${window.sanitizarURL(linkDestino)}" class="btn-catalogo js-action-ver-detalles"
-data-codigo="${window.sanitizarAtributo(encodeURIComponent(p.codigo))}"
-data-nicho="${window.sanitizarAtributo(sanitizarTexto(p.niche))}"
-style="background: ${c2}; color: ${estaAbierto ? '#ffffff' : '#aaaaaa'} !important; text-shadow: 0 1px 2px rgba(0,0,0,0.5); pointer-events: ${estaAbierto ? 'all' : 'none'};">${estaAbierto ? 'VER DETALLES' : 'CERRADO AHORA'}</a>
-</div>`;
 
 
 // 🛡️ OBJECT POOLING: Solo creamos el marcador en el DOM si no existe en la RAM
@@ -1049,11 +1057,31 @@ setTimeout(() => { iconEl.style.animation = 'flotarMoneda 2.5s infinite ease-in-
 } // <- Cierre del If del Object Pooling
 
 
+// ✖️ NUEVA FUNCIÓN GLOBAL PARA CERRAR CARDS INDIVIDUALES
+window.cerrarTarjetaInmueble = function(event, elemento) {
+    event.stopPropagation(); // Evita que al hacer clic en la X, el mapa haga zoom al inmueble
+    elemento.closest('.tarjeta-hibrida').style.display = 'none';
+};
+
+
 if (categoriaActivaGlobal === 'inmuebles') {
+
+
 tarjetasHibridasHtml += `
-<div class="tarjeta-hibrida" style="border-color: ${c1};" onclick="enfocarInmueble('${sanitizarTexto(p.codigo)}', ${pos.lat}, ${pos.lng})">
+
+
+<div class="tarjeta-hibrida" style="border-color: ${c1}; position: relative;" onclick="enfocarInmueble('${sanitizarTexto(p.codigo)}', ${pos.lat}, ${pos.lng})">
+
+
 <button class="btn-fav-card" style="${favStyleBtn}" onclick="window.toggleFavorito('${encodeURIComponent(p.codigo)}', '${nombreLimpio}', '${p.precio || 0}', '${portadaSegura}', '${sanitizarTexto(p.whatsapp || '')}', event)">${corazon}</button>
+
+
+<button class="btn-cerrar-card" onclick="window.cerrarTarjetaInmueble(event, this)" style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.6); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; z-index: 10; cursor: pointer; font-size: 12px; font-weight: bold;">✖</button>
+
+
 <img src="${portadaUsada}" class="tarjeta-hibrida-img" onerror="this.src='${dbSimbologia['wallpaper_generico']}'">
+
+
 <div class="tarjeta-hibrida-info">
 <h4 class="tarjeta-hibrida-titulo">${sanitizarTexto(p.nombre || 'Inmueble')}</h4>
 <p class="tarjeta-hibrida-nicho" style="color: ${c1};">${textoNicho}</p>
@@ -1070,7 +1098,7 @@ sheetHibrido.classList.remove('activo');
 sheetHibrido.innerHTML = '';
 }
 }
-function cargarCaballoTroya() {
+window.cargarCaballoTroya = function() {
 if(!dbTroya || dbTroya.length === 0) return;
 const troyasActivos = dbTroya.filter(t => t.activo === true || t.activo === "SI");
 if (troyasActivos.length > 0) {

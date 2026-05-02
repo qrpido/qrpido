@@ -7,21 +7,109 @@
       
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
-    <script src="https://unpkg.com/open-location-code@1.0.3/openlocationcode.js"></script>
+        <script src="https://unpkg.com/open-location-code@1.0.3/openlocationcode.js"></script>
     <link rel="stylesheet" href="ui-estilos.css">
-            <script type="text/javascript" src="https://checkout.wompi.co/widget.js"></script> 
+    <style>
+        /* 🚀 Vanguardia UI - Action Bar & Wompi Flotante */
+        .oficina-acciones { display: flex; gap: var(--sp-micro); margin-bottom: var(--sp-md); padding-bottom: var(--sp-md); border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .btn-moderno { flex: 1; padding: 13px 0; border-radius: 12px; font-weight: 900; font-size: 11px; text-transform: uppercase; cursor: pointer; transition: 0.3s; border: 1px solid transparent; letter-spacing: 0.5px; }
+        .btn-moderno:active { transform: scale(0.95); }
+        .btn-radar { background: rgba(255, 107, 0, 0.15); color: var(--naranja); border-color: rgba(255, 107, 0, 0.3); }
+        .btn-ver { background: rgba(0, 255, 100, 0.1); color: #00ff64; border-color: rgba(0, 255, 100, 0.2); }
+        .btn-salir-pro { background: rgba(255, 68, 68, 0.1); color: #ff4444; border-color: rgba(255, 68, 68, 0.2); max-width: 65px; }
+        
+                       /* 🛸 Burbuja Magnética Multiusos */
+        .burbuja-magnetica { position: fixed; top: 120px; right: 0; z-index: 9999; display: flex; align-items: center; gap: 8px; background: rgba(10, 10, 12, 0.95); backdrop-filter: blur(10px); border: 1px solid var(--naranja); border-right: none; border-radius: 30px 0 0 30px; padding: 6px 12px 6px 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.6), inset 0 0 10px rgba(255,107,0,0.2); cursor: grab; transition: transform 0.2s ease, right 0.3s ease, left 0.3s ease; user-select: none; touch-action: none; height: 44px !important; box-sizing: border-box; }
+        .burbuja-magnetica:active { transform: scale(0.95); }
+        .burbuja-icono { background: rgba(255,255,255,0.1); width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; pointer-events: none; }
+        .burbuja-info { display: flex; flex-direction: column; line-height: 1; pointer-events: none; }
+        .burbuja-label { font-size: 9px; color: #aaa; font-weight: bold; letter-spacing: 1px; margin-bottom: 3px; }
+        .burbuja-saldo { font-size: 14px; font-weight: 900; color: #00ff64; text-shadow: 0 0 5px rgba(0,255,100,0.3); }
+        
+        .panel-burbuja { position: fixed; top: 175px; right: 15px; z-index: 9998; background: rgba(15, 15, 18, 0.95); backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 10px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); opacity: 0; pointer-events: none; transform: translateY(-10px) scale(0.95); transition: 0.3s cubic-bezier(0.16, 1, 0.3, 1); transform-origin: top right; }
+        .panel-burbuja.activo { opacity: 1; pointer-events: all; transform: translateY(0) scale(1); }
+        .btn-burbuja { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 10px; border-radius: 10px; font-size: 12px; font-weight: bold; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; }
+        .btn-burbuja:active { background: rgba(255,255,255,0.1); transform: scale(0.98); }
+        .btn-burbuja.recargar { border-color: rgba(255,107,0,0.3); color: var(--naranja); }
+        .btn-burbuja.retirar { border-color: rgba(0,255,100,0.3); color: #00ff64; }
+
+
+        
+               /* 🚨 CENTRADO PERFECTO Y MODO APP MÓVIL */
+        body.boveda-ui { display: flex !important; flex-direction: column; align-items: center; overflow-x: hidden !important; padding: 15px !important; box-sizing: border-box; }
+        #login-screen, #dashboard-screen { width: 100% !important; max-width: 500px !important; box-sizing: border-box !important; }
+        
+        /* Pestañas Maestras (3 Columnas) */
+        .tabs { display: flex; background: rgba(0,0,0,0.6); padding: 6px; border-radius: 14px; margin-bottom: 20px; border: 1px solid var(--glass-border); gap: 5px; }
+        .tab-btn { flex: 1; min-width: 0 !important; padding: 12px 5px !important; font-size: 11px; border-radius: 10px; }
+        
+        /* Vista Excel para Inventario */
+        .excel-grid { background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); border-radius: 12px; padding: 10px; margin-bottom: 10px; }
+        .excel-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+    </style>
+
+
+
+
+                       <script type="text/javascript" src="https://checkout.wompi.co/widget.js"></script> 
+ 
     <script src="profiler.js"></script>
     <script type="module" src="auth-mando.js"></script>
+
+
+    <script>
+        // =================================================================
+        // 🩺 CRASH REPORTER: Auditoría del Portal de Socios (admin.html)
+        // =================================================================
+        window.qrpidoErrorLog = []; 
+        function mostrarCartelErrorYDescargar(titulo, detalle) {
+            const timestamp = new Date().toISOString();
+            window.qrpidoErrorLog.push(`[${timestamp}] ${titulo}\n${detalle}\n\n`);
+            if (!document.body) {
+                window.addEventListener('DOMContentLoaded', () => renderizarCartel(titulo, detalle));
+            } else {
+                renderizarCartel(titulo, detalle);
+            }
+        }
+        function renderizarCartel(titulo, detalle) {
+            if (document.getElementById('cartel-error-critico')) return;
+            const errDiv = document.createElement('div');
+            errDiv.id = 'cartel-error-critico';
+            errDiv.style.cssText = "position:fixed; top:10%; left:5%; width:90%; max-width:500px; transform:translateX(-50%); left:50%; background:rgba(20,0,0,0.95); backdrop-filter:blur(10px); color:white; padding:20px; z-index:999999; font-family:monospace; border-radius:15px; border: 2px solid #ff4444; box-shadow: 0 10px 40px rgba(255,0,0,0.5); font-size: 12px; max-height: 80vh; overflow-y: auto;";
+            errDiv.innerHTML = `
+                <b style="color:#ff4444; font-size:16px;">🚨 ${titulo}</b>
+                <hr style="border-color:#ff4444; margin:10px 0;">
+                <div style="margin-bottom:15px; word-wrap: break-word;">${detalle.replace(/\n/g, '<br>')}</div>
+                <button id="btn-bajar-error" style="background:#ff4444; color:white; border:none; padding:12px; width:100%; font-weight:bold; border-radius:8px; cursor:pointer;">📥 DESCARGAR INFORME TÉCNICO</button>
+                <button onclick="this.parentElement.remove()" style="background:transparent; color:#888; border:1px solid #888; padding:8px; width:100%; font-weight:bold; border-radius:8px; cursor:pointer; margin-top:10px;">CERRAR AVISO</button>
+            `;
+            document.body.appendChild(errDiv);
+            document.getElementById('btn-bajar-error').onclick = () => {
+                const blob = new Blob(["=== REPORTE DE CRASH (ADMIN.HTML) ===\n\n" + window.qrpidoErrorLog.join('---\n')], { type: 'text/plain' });
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `CRASH_ADMIN_${new Date().getTime()}.txt`; a.click();
+            };
+        }
+        window.onerror = function(message, source, lineno, colno, error) {
+            mostrarCartelErrorYDescargar('ERROR DE SINTAXIS / EJECUCIÓN', `Mensaje: ${message}\nLínea: ${lineno}:${colno}\nArchivo: ${source}`);
+            return false;
+        };
+        window.addEventListener('unhandledrejection', function(event) {
+            mostrarCartelErrorYDescargar('ERROR DE PROMESA (FIREBASE)', `Razón: ${event.reason}`);
+        });
+    </script>
 </head>
+
+
 
 
 <body class="boveda-ui">
 
 
-    <div id="offline-banner" class="offline-banner">⚠️ Sin conexión: Mostrando datos de tu última visita</div>
-    <button id="btn-flotante-ayuda" onclick="abrirModal('overlay-soporte')">💬 Soporte</button>
+       <div id="offline-banner" class="offline-banner">⚠️ Sin conexión: Mostrando datos de tu última visita</div>
     
     <div class="bottom-sheet-overlay" id="overlay-soporte" onclick="cerrarModal(event, 'overlay-soporte')">
+
+
         <div class="bottom-sheet-contenido" id="sheet-soporte">
             <div class="drag-handle"></div>
             <h2 style="color: var(--naranja); margin-top: 0; text-transform: uppercase; letter-spacing: 2px; text-align: center;">Centro de Ayuda</h2>
@@ -143,17 +231,55 @@
 
         </div>
     </div>
-    <div id="dashboard-screen">
-        <div class="panel-admin">
+   <div class="modal-overlay" id="muro-baneo" style="z-index: 9999; background: rgba(10, 10, 12, 0.95); backdrop-filter: blur(20px);">
+        <div class="modal-contenido" style="border: 2px solid var(--rojo-alerta); box-shadow: 0 0 30px rgba(255, 68, 68, 0.4); text-align: center;">
+            <h2 style="color: var(--rojo-alerta); font-size: 28px; margin-top: 0;">ACCESO BLOQUEADO</h2>
+            <p style="color: #ddd; font-size: 14px; line-height: 1.6;">Has sido suspendido de la Red de Aliados por <b>Evasión de Comisiones</b>.<br>El algoritmo central ha detectado una anomalía grave entre las interacciones a tu WhatsApp (referidos) y las órdenes validadas.</p>
+            <p id="txt-strikes" style="color: var(--naranja); font-weight: bold; padding: 10px; background: rgba(255,107,0,0.1); border-radius: 8px;"></p>
+            <button class="btn-submit" style="background: transparent; border: 1px solid var(--naranja); color: var(--naranja); margin-top: 20px;" onclick="contactarWhatsappSoporte()">Presentar Apelación y Pruebas</button>
+        </div>
+    </div>
+
+
+                     <div id="dashboard-screen">
+        
+        <div id="contenedor-saldo-universal" class="burbuja-magnetica" style="display: none;">
+            <div class="burbuja-icono">💬</div>
+            <div class="burbuja-info">
+                <span class="burbuja-label">SALDO GAS</span>
+                <span id="texto-saldo-global" class="burbuja-saldo">$0</span>
+            </div>
+        </div>
+
+
+        <div id="panel-operaciones-burbuja" class="panel-burbuja">
+            <button class="btn-burbuja recargar" onclick="llamarWompi()">▶️ Recargar Gasolina</button>
+            <button class="btn-burbuja retirar" onclick="solicitarRetiroSaldo()">💸 Retirar Saldo</button>
+            <button class="btn-burbuja" onclick="abrirModal('overlay-soporte')">💬 Centro de Soporte</button>
+        </div>
+
+
+                <div class="panel-admin">
+
+
             
-                       <div class="oficina-header">
-                <img id="ui-logo" src="" class="oficina-logo" style="display:none;">
+            <div id="ui-portada-bg" style="height: 110px; margin: -21px -21px 15px -21px; background: linear-gradient(to bottom, rgba(255,107,0,0.1), var(--glass-bg)), #0a0a0c center/cover; border-bottom: 1px solid rgba(255,255,255,0.05); border-radius: 20px 20px 0 0;"></div>
+
+
+
+
+            <div class="oficina-header" style="margin-top: -55px; border-bottom: none; margin-bottom: 8px; align-items: flex-start; padding-bottom: 0; position: relative; z-index: 2;">
+                <img id="ui-logo" src="" class="oficina-logo" style="display:none; width: 68px; height: 68px; border-width: 3px; background: var(--bg-oscuro); box-shadow: 0 8px 16px rgba(0,0,0,0.6);">
+
+
                 
-                <div class="oficina-info" style="flex: 1;">
-                    <img id="ui-nombre-img" class="ui-nombre-png" src="" style="display:none;">
-                    <h3 id="ui-nombre">MI TIENDA</h3>
+                               <div class="oficina-info" style="flex: 1; padding-top: 5px;">
+                    <img id="ui-nombre-img" class="ui-nombre-png" src="" style="display:none; max-height: 34px;">
+                    <h3 id="ui-nombre" style="font-size: 24px; margin-bottom: 2px; letter-spacing: 0.5px; background: linear-gradient(135deg, #ffffff 0%, #aaaaaa 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5));">MI TIENDA</h3>
                     
                     <div style="position: relative; display: inline-block;">
+
+
                         <div id="ui-rango" class="badge-plan" onclick="toggleTooltipRango()">PLAN BÁSICO</div>
                         <div id="tooltip-rango" class="tooltip-glass">
                             <p id="tooltip-rango-texto" style="margin:0 0 5px 0; font-size:12px; font-weight:bold;">¿Quieres ser Premium? 👑</p>
@@ -164,35 +290,30 @@
                 </div>
 
 
-                                <div id="contenedor-saldo-universal" style="display: none; align-items: center; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); border-radius: 21px; padding: 4px 8px; margin-right: 13px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);">
-                    <span style="font-size: 10px; color: #aaa; margin-right: 5px; font-weight: bold; letter-spacing: 1px;">GAS:</span>
-                    <span id="texto-saldo-global" style="font-size: 13px; font-weight: 900; color: #00ff64; margin-right: 8px;">$0</span>
-                    <button onclick="llamarWompi()" style="background: var(--naranja); border: none; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 8px rgba(255,107,0,0.6); transition: 0.3s;" title="Recargar Gasolina">▶️</button>
-                </div>
-
-
-                <div id="ui-social-dock" style="display: none; flex-direction: column; gap: 6px; margin-right: 15px;">
-                </div>
-
-
-                <button class="btn-salir" style="margin-right: 8px; background: rgba(0, 255, 100, 0.1); border-color: #00ff64; color: #00ff64;" onclick="visualizarMiEspacio()" title="Ver cómo lo ven los clientes">👁️ Ver Tienda</button>
-                <button class="btn-salir" style="margin-right: 8px; background: rgba(255, 107, 0, 0.1); border-color: var(--naranja); color: var(--naranja);" onclick="window.location.href='index.html'">🗺️ Radar</button>
-                
-                <button class="btn-salir" onclick="cerrarSesion()">Salir</button>
+                <div id="ui-social-dock" style="display: none; flex-direction: column; gap: 6px;"></div>
             </div> 
-                      <div class="tabs">
-                <button class="tab-btn activo" onclick="cambiarTab('perfil')">🏢 Perfil</button>
-                <button class="tab-btn" onclick="cambiarTab('diseno')">🎨 Diseño</button>
-                <button id="tab-btn-subir" class="tab-btn" onclick="cambiarTab('subir')">➕ Nuevo</button>
-                <button id="tab-btn-lista" class="tab-btn" onclick="cambiarTab('lista')">📦 Catálogo</button>
-                <button id="tab-btn-masivo" class="tab-btn" style="display: none; background: #8a2be2; border-color: #8a2be2;" onclick="cambiarTab('masivo')">⚡ Inv. Masivo</button>
-              <button id="tab-btn-pulso" class="tab-btn" style="display: none; background: #00ff64; color: black; border-color: #00ff64;" onclick="cambiarTab('pulso')">📰 Pulso</button>
+
+
+                                   <div class="oficina-acciones">
+                <button class="btn-moderno btn-radar" onclick="window.location.href='index.html'">🗺️ Radar</button>
+                <button class="btn-moderno btn-ver" onclick="visualizarMiEspacio()" title="Ver cómo lo ven los clientes">👁️ Vista Previa</button>
+                <button class="btn-moderno btn-salir-pro" onclick="cerrarSesion()">Salir</button>
             </div>
+        </div> 
+
+
+                <div class="tabs">
+            <button class="tab-btn activo" onclick="cambiarTab('ajustes')">⚙️ Ajustes</button>
+            <button class="tab-btn" onclick="cambiarTab('inventario')">📦 Inventario</button>
+            <button class="tab-btn" style="color: #FFD700; opacity: 0.8;" onclick="abrirModal('overlay-soporte')">📊 Analytics 🔒</button>
+            <button id="tab-btn-pulso" class="tab-btn" style="display: none; background: #00ff64; color: black; border-color: #00ff64;" onclick="cambiarTab('pulso')">📰 Pulso</button>
+        </div>
 
 
 
+        <div id="content-ajustes" class="tab-content activo">
 
-            <div id="content-perfil" class="tab-content activo">
+
                 <label class="section-title">Datos de Contacto</label>
                 <input type="text" id="perfilEmail" class="input-form" disabled placeholder="Correo">
                 <input type="text" id="perfilTelefono" class="input-form" placeholder="Número de WhatsApp">
@@ -229,9 +350,12 @@
                 <div style="margin-bottom: 15px;">
     <select id="perfilNichoSelect" class="input-form" style="margin-bottom: 5px;" onchange="toggleNichoOtro()">
         <option value="">Selecciona tu Sector/Nicho principal...</option>
-        <optgroup label="⚡ NEGOCIOS CON INVENTARIO RÁPIDO">
+                <optgroup label="⚡ NEGOCIOS CON INVENTARIO RÁPIDO">
+            <option value="carniceria">Carnicería / Fama de Carnes</option>
             <option value="farmacia">Farmacia / Droguería</option>
             <option value="ferreteria">Ferretería</option>
+
+
             <option value="supermercado">Supermercado / Mini-market</option>
             <option value="papeleria">Papelería</option>
             <option value="licoreria">Licorería</option>
@@ -260,7 +384,7 @@
                     <div class="lock-overlay lock-perfil">
                         <span style="font-size:30px;">🚀</span>
                         <p>Desbloquea tu Historia, Promos y Redes Sociales.</p>
-                        <button class="btn-upgrade" onclick="abrirModal('overlay-soporte')">Hacerme Premium</button>
+                        <button class="btn-upgrade" onclick="convertirPremium()">Hacerme Premium</button>
                     </div>
                     <label class="section-title">✨ Enlaces y Redes</label>
                     <input type="text" id="perfilWp" class="input-form premium-input" placeholder="Link WhatsApp">
@@ -297,39 +421,77 @@
                     </label>
                 </div>
 
+                <!-- 🤝 ACORDEÓN: RED DE ALIADOS (Nace oculto, se activa para Servicios/Aliados) -->
+                <details id="content-aliados" style="background: rgba(0, 255, 100, 0.05); border: 1px dashed #00ff64; margin-bottom: 20px; display: none;">
+                    <summary style="font-size: 15px; color: #00ff64; padding: 10px;">🤝 Mi Red de Aliados</summary>
+                    <div style="padding: 0 12px 12px 12px;">
+                        
+                        <div id="aliados-view-negocio" style="display: none;">
+                            <div style="background: rgba(0,0,0,0.5); padding: 15px; border-radius: 15px; text-align: center; border: 1px solid rgba(255,68,68,0.2); margin-bottom: 20px;">
+                                <p style="color: #888; font-size: 11px; margin: 0 0 5px 0; text-transform: uppercase; font-weight: bold;">Deuda Actual Aliados</p>
+                                <h2 id="saldo-adeudado" style="color: #ff4444; margin: 0; font-size: 28px;">$0</h2>
+                            </div>
+                            
+                            <label class="section-title">Validar Venta (Código TX)</label>
+                            <input type="text" id="tx-codigo" class="input-form" placeholder="Ej: TX-ABC123" style="text-transform: uppercase;">
+                            <input type="number" id="tx-monto" class="input-form" placeholder="Monto total de la compra">
+                            
+                            <button id="btn-validar-tx" class="btn-submit" onclick="validarCodigoTX()">Confirmar Venta</button>
+                        </div>
+                        <div id="aliados-view-promotor" style="display: none;">
+                            <div style="background: rgba(0,0,0,0.5); padding: 15px; border-radius: 15px; text-align: center; border: 1px solid rgba(0,255,100,0.2); margin-bottom: 20px;">
+                                <p style="color: #888; font-size: 11px; margin: 0 0 5px 0; text-transform: uppercase; font-weight: bold;">Comisiones Ganadas</p>
+                                <h2 id="saldo-ganado" style="color: #00ff64; margin: 0; font-size: 28px;">$0</h2>
+                            </div>
+                            
+                            <label class="section-title">Tu Código de Aliado</label>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="mi-codigo-afiliado" class="input-form" readonly style="margin-bottom: 0; color: var(--naranja); font-weight: bold; text-align: center; letter-spacing: 2px;">
+                                <button class="btn-submit" style="margin: 0; width: auto; padding: 0 20px;" onclick="copiarMiCodigo()">Copiar</button>
+                            </div>
+                            <p style="font-size: 11px; color: #aaa; text-align: center; margin-top: 15px; line-height: 1.4;">Comparte este código con los negocios de la red para recibir tu comisión automática cuando les envíes clientes.</p>
+                        </div>
+                    </div>
+                </details>
 
                 <button class="btn-submit" id="btn-submit-perfil" onclick="guardarPerfil()">GUARDAR PERFIL</button>
 
 
-            </div>
-            <div id="content-diseno" class="tab-content">
-                <label class="section-title">Identidad Visual</label>
+
+                <hr style="border-color: rgba(255,255,255,0.1); margin: 30px 0;">
+
+
+                <label class="section-title">🎨 Identidad Visual</label>
+
+
                 <label class="section-title">Forma del Pin (Radar)</label>
 <select id="disenoFormaPin" class="input-form" style="font-size: 14px; font-weight: bold; color: var(--naranja); background: rgba(255,107,0,0.05);">
     <optgroup label="📍 BÁSICOS ESTÁTICOS (Freemium)">
         <option value="1">📍 Pin Estándar Clásico</option>
         <option value="2">🍔 Hamburguesa / Comida Rápida (Básico)</option>
         <option value="3">🍕 Porción de Pizza (Básico)</option>
+        <option value="4">🚨 Urgencia / Alerta 24h</option>
+        <option value="5">⚙️ Engranaje / Taller</option>
+        <option value="b">💈 Barbería / Peluquería</option>
+        <option value="k">🛒 Supermercado / Abarrotes</option>
+        <option value="a">💊 Farmacia / Clínica</option>
+
+        
     </optgroup>
     
     <optgroup label="✨ ESPECIALIZADOS ANIMADOS 3D (Premium / Aliados)">
-        <option value="4">🚨 Urgencia / Alerta 24h</option>
-        <option value="5">⚙️ Engranaje / Taller</option>
+        
         <option value="6">🥩 Asadero / Parrilla / Fuego</option>
         <option value="7">🍦 Heladería / Postres</option>
         <option value="8">🥗 Comida Saludable / Vegano</option>
         <option value="9">🍣 Sushi / Comida Asiática</option>
-        <option value="a">💊 Farmacia / Clínica</option>
-        <option value="b">💈 Barbería / Peluquería</option>
         <option value="c">🧘 Spa / Yoga / Relajación</option>
         <option value="d">👾 Tecnología / Gaming</option>
         <option value="e">👗 Boutique / Ropa Moda</option>
         <option value="f">🍸 Discoteca / Bar Nocturno</option>
-        <option value="g">🛠️ Ferretería / Construcción</option>
         <option value="h">🚗 Taxis / Movilidad</option>
         <option value="i">🚨 Policía / Ambulancia</option>
         <option value="j">🐾 Veterinaria / Mascotas</option>
-        <option value="k">🛒 Supermercado / Abarrotes</option>
         <option value="l">📚 Librería / Educación</option>
         <option value="m">🎵 Disquera / Eventos Musicales</option>
         <option value="n">💎 Joyería / Relojería</option>
@@ -406,7 +568,7 @@
                     <div class="lock-overlay lock-diseno">
                         <span style="font-size:30px;">🗺️</span>
                         <p>Personaliza tu Pin, Fondo y Banners.</p>
-                        <button class="btn-upgrade" onclick="abrirModal('overlay-soporte')">Hacerme Premium</button>
+                        <button class="btn-upgrade" onclick="convertirPremium()">Hacerme Premium</button>
                     </div>
                     <label class="section-title">✨ Avanzado</label>
                     <div class="file-upload-wrapper">
@@ -422,10 +584,18 @@
                         <div class="file-upload-ui premium-input" id="texto-banner" style="border-color: #FFD700; color: #FFD700; background: rgba(255,215,0,0.05);">🎟️ Subir Banner Promocional</div>
                     </div>
                 </div>
-                <button class="btn-submit" id="btn-submit-diseno" onclick="guardarDiseno()">GUARDAR DISEÑO</button>
+                                <button class="btn-submit" id="btn-submit-diseno" onclick="guardarDiseno()">GUARDAR DISEÑO</button>
             </div>
-            <div id="content-subir" class="tab-content">
+
+
+        <div id="content-inventario" class="tab-content">
+                
+                <details style="background: rgba(255,107,0,0.05); border: 1px dashed var(--naranja);">
+                    <summary style="font-size: 15px;">➕ Añadir Nuevo Producto / Ítem</summary>
+                    <div style="padding: 0 12px 12px 12px;">
                 <input type="hidden" id="prodEditId">
+
+
                 <input type="hidden" id="prodImagenActual">
                 <input type="hidden" id="prodGaleriaActual"> 
                 
@@ -484,7 +654,7 @@
                     <div class="lock-overlay lock-productos">
                         <span style="font-size:30px;">💎</span>
                         <p>Añade descripciones y marquillas áureas.</p>
-                        <button class="btn-upgrade" onclick="abrirModal('overlay-soporte')">Hacerme Premium</button>
+                        <button class="btn-upgrade" onclick="convertirPremium()">Hacerme Premium</button>
                     </div>
                     <label class="section-title">✨ Destaca tu Publicación</label>
                     <input type="text" id="prodBadge" class="input-form premium-input" placeholder="Etiqueta (Ej: ¡Nuevo!, Vendido)">
@@ -492,11 +662,31 @@
                     <small id="contador-cuerpo" style="color: #666; font-size: 11px; display: block; text-align: right; margin-top: -5px; margin-bottom: 15px;">0/250</small>
                     <input type="text" id="prodMarco" class="input-form premium-input" placeholder="Link de marco personalizado áureo">
                 </div>
-                <button class="btn-submit" id="btn-submit-producto" onclick="guardarProducto()">GUARDAR DATOS</button>
-                <button class="btn-submit" id="btn-cancelar-edicion" onclick="cancelarEdicion()" style="display: none; background: transparent; border: 1px solid var(--naranja); color: var(--naranja); box-shadow: none; margin-top: 10px;">Cancelar Edición</button>
-            </div>
-                        <div id="content-lista" class="tab-content">
-                <label class="section-title">Mi Catálogo</label>
+                               <button class="btn-submit" id="btn-submit-producto" onclick="guardarProducto()">GUARDAR DATOS</button>
+               <button class="btn-submit" id="btn-cancelar-edicion" onclick="cancelarEdicion()" style="display: none; background: transparent; border: 1px solid var(--naranja); color: var(--naranja); box-shadow: none; margin-top: 10px;">Cancelar Edición</button>
+                    </div>
+                </details>
+
+                <details id="acordeon-masivo" style="display: none; background: rgba(138, 43, 226, 0.05); border: 1px dashed #8a2be2; margin-top: 15px;">
+                    <summary style="font-size: 15px; color: #d8b4fe;">⚡ Modo Inventario Masivo</summary>
+                    <div style="padding: 0 12px 12px 12px;">
+                        <p style="color: #888; font-size: 11px; margin-top: 0;">Añade productos de catálogos predefinidos sin subir fotos.</p>
+                        <div style="position: relative; margin-bottom: 15px;">
+                            <input type="text" id="buscador-json" class="input-form" placeholder="🔍 Ej: Aspirina, Cemento..." onkeyup="filtrarDiccionarioJSON()" style="margin-bottom: 0;">
+                            <div id="resultados-json" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; background: var(--bg-oscuro); border: 1px solid rgba(138, 43, 226, 0.5); border-radius: 0 0 12px 12px; max-height: 200px; overflow-y: auto; z-index: 100; box-shadow: 0 10px 20px rgba(0,0,0,0.8);"></div>
+                        </div>
+                        <div id="mi-inventario-masivo" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; max-height: 300px; overflow-y: auto;"></div>
+                        <button class="btn-submit" style="background: #8a2be2; color: white;" onclick="guardarInventarioMasivo()">GUARDAR PRECIOS EN LOTE</button>
+                    </div>
+                </details>
+
+                <hr style="border-color: rgba(255,255,255,0.1); margin: 20px 0;">
+
+
+
+                <label class="section-title">📦 Catálogo y Precios (Edición Rápida)</label>
+
+
                 
                 <div style="display: flex; gap: 10px; margin-bottom: 15px;">
                     <input type="text" id="filtro-busqueda" class="input-form" placeholder="🔍 Buscar por nombre..." style="margin-bottom: 0; flex: 2;" onkeyup="manejarBusquedaTeclado(event)">
@@ -506,9 +696,10 @@
                 </div>
                 <div id="lista-productos-container"></div>
                 
-                <button id="btn-cargar-mas" class="btn-submit" style="display: none; background: transparent; border: 1px dashed var(--naranja); color: var(--naranja); box-shadow: none; margin-top: 15px;" onclick="cargarMasProductos()">⬇️ Cargar más</button>
-            </div>
-            <div id="content-aliados" class="tab-content">
+                               <button id="btn-cargar-mas" class="btn-submit" style="display: none; background: transparent; border: 1px dashed var(--naranja); color: var(--naranja); box-shadow: none; margin-top: 15px;" onclick="cargarMasProductos()">⬇️ Cargar más</button>
+            </div> <div id="content-aliados" style="display: none;">
+
+
                 
                 <div id="aliados-view-negocio" style="display: none;">
                     <div style="background: rgba(0,0,0,0.5); padding: 15px; border-radius: 15px; text-align: center; border: 1px solid rgba(255,68,68,0.2); margin-bottom: 20px;">
@@ -536,21 +727,7 @@
                     <p style="font-size: 11px; color: #aaa; text-align: center; margin-top: 15px; line-height: 1.4;">Comparte este código con los negocios de la red para recibir tu comisión automática cuando les envíes clientes.</p>
                 </div>
             </div>
-            <div id="content-masivo" class="tab-content">
-                <div style="background: rgba(138, 43, 226, 0.1); border: 1px solid rgba(138, 43, 226, 0.4); padding: 15px; border-radius: 12px; margin-bottom: 20px; text-align: center;">
-                    <p style="color: #d8b4fe; font-size: 12px; margin: 0; line-height: 1.4;"><strong>Modo Inventario Ultrarrápido</strong><br>Añade productos de catálogos predefinidos sin subir fotos ni descripciones.</p>
-                </div>
-                
-                <label class="section-title">Buscador Universal</label>
-                <div style="position: relative; margin-bottom: 20px;">
-                    <input type="text" id="buscador-json" class="input-form" placeholder="🔍 Ej: Aspirina, Cemento, Cerveza..." onkeyup="filtrarDiccionarioJSON()" style="margin-bottom: 0;">
-                    
-                    <div id="resultados-json" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; background: var(--bg-oscuro); border: 1px solid rgba(138, 43, 226, 0.5); border-radius: 0 0 12px 12px; max-height: 200px; overflow-y: auto; z-index: 100; box-shadow: 0 10px 20px rgba(0,0,0,0.8);"></div>
-                </div>
-                <label class="section-title">Mi Inventario Lote</label>
-                <div id="mi-inventario-masivo" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; max-height: 400px; overflow-y: auto; padding-right: 5px;"></div>
-                <button class="btn-submit" style="background: #8a2be2; box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);" onclick="guardarInventarioMasivo()">GUARDAR PRECIOS EN LOTE</button>
-            </div>
+           
                         <div id="content-pulso" class="tab-content">
                 <label class="section-title">Redacción | Pulso Urbano</label>
                 <input type="text" id="pulsoPlusCode" class="input-form" placeholder="📍 Plus Code del Suceso/Lugar (Opcional)">
@@ -601,14 +778,92 @@
         };
 
 
-        window.formatearMoneda = function(valor) {
+                window.formatearMoneda = function(valor) {
             return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(valor);
         };
+        // --- 🛸 MOTOR MAGNÉTICO BURBUJA Y MENÚ ---
+        const burbuja = document.getElementById('contenedor-saldo-universal');
+        const panelBurbuja = document.getElementById('panel-operaciones-burbuja');
+        let bDrag = false, bSX, bSY, bRaf;
+
+
+        if (burbuja) {
+            burbuja.addEventListener('touchstart', (e) => {
+                bDrag = false; bSX = e.touches[0].clientX; bSY = e.touches[0].clientY;
+                burbuja.style.transition = 'none';
+            }, {passive: true});
+
+
+            burbuja.addEventListener('touchmove', (e) => {
+                const dx = e.touches[0].clientX - bSX, dy = e.touches[0].clientY - bSY;
+                if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+                    bDrag = true;
+                    if(bRaf) cancelAnimationFrame(bRaf);
+                    bRaf = requestAnimationFrame(() => {
+                        burbuja.style.top = Math.max(0, Math.min(e.touches[0].clientY - 22, window.innerHeight - 44)) + 'px';
+                        burbuja.style.left = Math.max(0, Math.min(e.touches[0].clientX - 50, window.innerWidth - 100)) + 'px';
+                        burbuja.style.right = 'auto';
+                    });
+                }
+            }, {passive: true});
+
+
+            burbuja.addEventListener('touchend', () => {
+                if (!bDrag) {
+                    // Acción de Click: Abrir/Cerrar menú
+                    if (navigator.vibrate) navigator.vibrate(20);
+                    panelBurbuja.classList.toggle('activo');
+                    
+                    const rect = burbuja.getBoundingClientRect();
+                    panelBurbuja.style.top = (rect.bottom + 10) + 'px';
+                    
+                    if (rect.left > window.innerWidth / 2) {
+                        panelBurbuja.style.right = '15px'; panelBurbuja.style.left = 'auto'; panelBurbuja.style.transformOrigin = 'top right';
+                    } else {
+                        panelBurbuja.style.left = '15px'; panelBurbuja.style.right = 'auto'; panelBurbuja.style.transformOrigin = 'top left';
+                    }
+                } else {
+                    // Snap Magnético a los bordes
+                    burbuja.style.transition = 'transform 0.2s ease, right 0.3s ease, left 0.3s ease';
+                    const rect = burbuja.getBoundingClientRect();
+                    if (rect.left + rect.width / 2 > window.innerWidth / 2) {
+                        burbuja.style.right = '0'; burbuja.style.left = 'auto'; burbuja.style.borderRadius = '30px 0 0 30px';
+                    } else {
+                        burbuja.style.left = '0'; burbuja.style.right = 'auto'; burbuja.style.borderRadius = '0 30px 30px 0';
+                    }
+                    panelBurbuja.classList.remove('activo'); // Cerrar menú al mover
+                }
+            });
+        }
+
+
+        window.solicitarRetiroSaldo = function() {
+            if (navigator.vibrate) navigator.vibrate(50);
+            const saldoActualStr = document.getElementById('texto-saldo-global').innerText.replace(/[^0-9.-]+/g,"");
+            const saldoActual = parseFloat(saldoActualStr) || 0;
+            
+            if (saldoActual < 10000) {
+                alert(`Tu saldo es ${document.getElementById('texto-saldo-global').innerText}. El mínimo para retirar es $10,000 COP.`);
+                return;
+            }
+            
+            const monto = prompt(`Tienes ${document.getElementById('texto-saldo-global').innerText} disponibles.\n¿Cuánto deseas retirar? (Mínimo 10000)`, saldoActual);
+            if (!monto || isNaN(monto) || parseInt(monto) < 10000 || parseInt(monto) > saldoActual) {
+                return alert("Monto inválido o superior a tu saldo.");
+            }
+            
+            alert(`Solicitud de retiro por $${parseInt(monto).toLocaleString('es-CO')} enviada a la Tesorería. Te contactaremos por WhatsApp.`);
+            panelBurbuja.classList.remove('activo');
+        };
+
+
 
 
         window.llamarWompi = function() {
             if (navigator.vibrate) navigator.vibrate(50);
             if (!idNegocioLogueado) return alert("Error: Bóveda no identificada.");
+
+
 
 
             const monto = prompt("¿Cuánto saldo logístico (gasolina) deseas recargar? (Mínimo $10,000 COP)", "10000");
@@ -652,7 +907,7 @@
                 }
             } catch (e) { console.error("Error cargando saldos:", e); }
         };
-        window.validarCodigoTX = async () => {
+       window.validarCodigoTX = async () => {
             if (navigator.vibrate) navigator.vibrate(50);
             const tx = document.getElementById('tx-codigo').value.trim().toUpperCase();
             const monto = parseFloat(document.getElementById('tx-monto').value);
@@ -672,14 +927,28 @@
                     codigo_tx: tx, monto_venta: monto, comision_ganada: comision, estado: "validado",
                     fecha: new Date().toISOString(), moneda: datosGlobalesNegocio.moneda || "COP" 
                 };
+                
+                // 1. Guardar la comisión
                 const { success, error } = await QRpidoDB.AdminService.guardarComision(idNegocioLogueado, docId, payload);
                 if (!success) throw new Error(error);
+                
+                // 🚨 PARCHE: SALVAR AL NEGOCIO DEL VERDUGO AUTOMÁTICO
+                // Sumamos la orden validada para restarle "fugas" al algoritmo de evasión
+                const ordenesActuales = datosGlobalesNegocio.ordenes_validadas || 0;
+                await QRpidoDB.AdminService.actualizarNegocio(idNegocioLogueado, {
+                    ordenes_validadas: ordenesActuales + 1
+                });
+                datosGlobalesNegocio.ordenes_validadas = ordenesActuales + 1; // Actualizar RAM local
+
+
                 alert(`¡Venta confirmada! Comisión calculada: $${comision.toLocaleString('es-CO')}`);
                 document.getElementById('tx-codigo').value = '';
                 document.getElementById('tx-monto').value = '';
                 window.cargarSaldosAliados(); 
-            } catch (e) { alert("Error validando TX: " + e.message); } finally { btn.innerText = "Confirmar Venta"; btn.disabled = false; }
+            } catch (e) { alert("Error validando TX: " + e.message); } finally { btn.innerText = "Confirmar Venta y Comisionar"; btn.disabled = false; }
         };
+
+
         window.copiarMiCodigo = function() {
             if (navigator.vibrate) navigator.vibrate(50);
             const val = document.getElementById('mi-codigo-afiliado').value;
@@ -703,22 +972,45 @@
                 document.getElementById('disenoColorHex3').value = '';
             }
         };
-        window.comprimirImagen = function(file, maxWidth = 800, quality = 0.7) {
+               window.comprimirImagen = function(file, maxWidth = 800, quality = 0.7, forceSquare = false) {
             return new Promise(async (resolve, reject) => {
                 if (!file || !file.type.startsWith('image/')) return resolve(file);
                 try {
                     const bitmap = await createImageBitmap(file);
                     let width = bitmap.width, height = bitmap.height;
+                    let sx = 0, sy = 0, sWidth = width, sHeight = height;
+
+
+                    // 📐 Magia Áurea: Recorte Cuadrado Perfecto desde el Centro
+                    if (forceSquare) {
+                        const size = Math.min(width, height);
+                        sx = (width - size) / 2;
+                        sy = (height - size) / 2;
+                        sWidth = size;
+                        sHeight = size;
+                        width = size;
+                        height = size;
+                    }
+
+
                     if (width > maxWidth) { height = Math.round((height * maxWidth) / width); width = maxWidth; }
+                    
                     const canvas = document.createElement('canvas');
                     canvas.width = width; canvas.height = height;
                     const ctx = canvas.getContext('2d');
-                    ctx.drawImage(bitmap, 0, 0, width, height);
+                    
+                    // Fondo oscuro por si suben un PNG transparente
+                    ctx.fillStyle = '#0a0a0c'; 
+                    ctx.fillRect(0, 0, width, height);
+                    
+                    ctx.drawImage(bitmap, sx, sy, sWidth, sHeight, 0, 0, width, height);
                     bitmap.close(); 
                     canvas.toBlob(blob => { resolve(blob); }, 'image/webp', quality);
                 } catch (error) { reject(error); }
             });
         };
+
+
         function poblarHorarios() {
             let opciones = '<option value="">Selecciona...</option>';
             for(let h=0; h<24; h++) {
@@ -777,7 +1069,7 @@
             const idCli = idNegocioLogueado || "Usuario Nuevo";
             window.open(`https://wa.me/${numeroDestino}?text=${encodeURIComponent(`Hola QRpido, soy la bóveda: *${idCli}*. Solicito soporte premium.`)}`, '_blank');
         }
-        window.contactarEmailSoporte = async function() {
+                        window.contactarEmailSoporte = async function() {
             if (navigator.vibrate) navigator.vibrate(50);
             let correoDestino = "soporte@tuqrpido.com";
             const { success, data } = await QRpidoDB.LocalService.obtenerConfiguracion(); 
@@ -785,7 +1077,39 @@
             const idCli = idNegocioLogueado || "Usuario Nuevo";
             window.location.href = `mailto:${correoDestino}?subject=Soporte QRpido - Bóveda: ${idCli}&body=Hola equipo, necesito ayuda con: `;
         }
+
+
+        window.convertirPremium = function() {
+            if (navigator.vibrate) navigator.vibrate(50);
+            if (!idNegocioLogueado) return alert("Error: Bóveda no identificada.");
+
+
+            // Generamos referencia atómica exclusiva para PREMIUM
+            // El Webhook en backend leerá "PREMIUM_" y sabrá que debe actualizar la cuenta, no el saldo logístico
+            const refWompiPremium = `PREMIUM_${idNegocioLogueado}_${Date.now()}`;
+            
+            const checkout = new WidgetCheckout({
+                currency: 'COP',
+                amountInCents: 39000 * 100, // $39.000 COP en centavos
+                reference: refWompiPremium,
+                publicKey: 'pub_test_XXXXXXXXXXXXXXXXXXXXX', // ⚠️ TU LLAVE PUBLICA DE TEST AQUÍ
+                redirectUrl: window.location.href 
+            });
+            
+            checkout.open(function (result) {
+                const transaction = result.transaction;
+                if(transaction.status === 'APPROVED') {
+                    alert("¡Bienvenido al nivel Premium! Tu bóveda se está desbloqueando.");
+                    // Aquí podrías hacer un reload forzado tras unos segundos, 
+                    // o dejar que el Webhook despierte a la UI en tiempo real vía Firebase
+                }
+            });
+        };
+
+
                 window.cambiarTab = (tabId) => {
+
+
             if (navigator.vibrate) navigator.vibrate(50);
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('activo'));
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('activo'));
@@ -834,20 +1158,36 @@
                     await QRpidoDB.SecurityService.cerrarSesion();
                     return;
                 }
-                if (dirData) {
+               if (dirData) {
                     datosGlobalesNegocio = dirData;
                     idNegocioLogueado = dirData.id || user.uid;
                     isPremium = (datosGlobalesNegocio.premium === "SI" || datosGlobalesNegocio.premium === true);
+                    
+                    // 🚨 VERDUGO AUTOMÁTICO: Bloqueo de UI por Strikes de Evasión
+                    if (datosGlobalesNegocio.estado_aliado === 'baneado_temporal' || datosGlobalesNegocio.estado_aliado === 'baneado_permanente') {
+                        const txtStrikes = document.getElementById('txt-strikes');
+                        if(datosGlobalesNegocio.estado_aliado === 'baneado_permanente') {
+                            txtStrikes.innerText = "❌ STRIKE 2 EJECUTADO: Expulsión Definitiva. Has superado el umbral de 9 fallos post-apelación.";
+                            txtStrikes.style.color = "var(--rojo-alerta)";
+                        } else {
+                            txtStrikes.innerText = "⚠️ STRIKE 1: Límite de 50 fugas no reportadas superado.";
+                        }
+                        document.getElementById('muro-baneo').classList.add('activo');
+                    }
                 } else {
+
+
                     datosGlobalesNegocio = { tipo_modelo: 'admin' };
                     idNegocioLogueado = user.uid;
                 }
                 document.getElementById('login-screen').style.display = 'none';
                 document.getElementById('dashboard-screen').style.display = 'block';
                 const selectNicho = document.getElementById('perfilNichoSelect');
-                if (userRole === "editor") {
-                    document.querySelectorAll('.tab-btn:not(#tab-btn-pulso)').forEach(btn => btn.style.display = 'none');
-                    document.getElementById('tab-btn-pulso').style.display = 'block';
+                               if (userRole === "editor") {
+                    document.querySelectorAll('.tab-btn').forEach(btn => btn.style.display = 'none');
+                    const btnP = document.getElementById('tab-btn-pulso');
+                    if (btnP) btnP.style.display = 'block';
+
                     document.getElementById('ui-nombre').innerText = "Panel Editorial";
                     document.getElementById('ui-rango').innerText = "EDITOR";
                     document.getElementById('ui-rango').style.background = "#00ff64";
@@ -856,17 +1196,24 @@
                     return; 
                 } 
                 
-                if (userRole === "super_admin") {
-                    document.getElementById('tab-btn-pulso').style.display = 'block';
+                                if (userRole === "super_admin") {
+                    const btnP = document.getElementById('tab-btn-pulso');
+                    if (btnP) btnP.style.display = 'block';
                 }
+
                 if (isPremium) {
                     document.querySelectorAll('.lock-overlay').forEach(lock => lock.style.display = 'none');
                 }
-                if(datosGlobalesNegocio.logo) {
+                                if(datosGlobalesNegocio.logo) {
                     document.getElementById('ui-logo').src = datosGlobalesNegocio.logo;
                     document.getElementById('ui-logo').style.display = 'block';
                 }
+                if(datosGlobalesNegocio.portada) {
+                    document.getElementById('ui-portada-bg').style.backgroundImage = `linear-gradient(to bottom, transparent, var(--glass-bg)), url('${datosGlobalesNegocio.portada}')`;
+                }
                 if(datosGlobalesNegocio.nombre_png) {
+
+
                     document.getElementById('ui-nombre-img').src = datosGlobalesNegocio.nombre_png;
                     document.getElementById('ui-nombre-img').style.display = 'block';
                     document.getElementById('ui-nombre').style.display = 'none';
@@ -895,12 +1242,11 @@
                     document.getElementById('aliados-view-negocio').style.display = 'block';
                 }
                 window.cargarSaldosAliados();
-                                // 🚨 MUTACIÓN INTELIGENTE DE LISTAS Y TEXTOS
+                                                         // 🚨 MUTACIÓN INTELIGENTE DE LISTAS Y TEXTOS
                 if (datosGlobalesNegocio.tipo_modelo === 'inmueble') {
                     if(document.getElementById('contenedor-mapa-perfil')) document.getElementById('contenedor-mapa-perfil').style.display = 'none';
-                    document.getElementById('tab-btn-subir').innerHTML = '➕ Nueva Propiedad';
-                    document.getElementById('tab-btn-lista').innerHTML = '🏠 Mis Propiedades';
                     document.getElementById('campos-inmueble').style.display = 'flex';
+
                     document.getElementById('galeria-limite-text').innerHTML = isPremium ? "Límite actual: <b>9 fotos extra</b> (Total 10)." : "Límite actual: <b>2 fotos extra</b>. ¡Mejora a Premium para subir 10!";
                     document.getElementById('limite-plan-msg').innerHTML = 'Has alcanzado el límite de 3 propiedades.<br><a onclick="window.abrirModal(\'overlay-soporte\')">Mejora a Premium para subir ilimitadas.</a>';
                     
@@ -908,9 +1254,13 @@
                     document.getElementById('prodNombre').placeholder = "Nombre de la Propiedad (Ej: Casa en Pinares)";
                     document.getElementById('prodPrecio').placeholder = "Valor (Ej: 1500000 COP)";
                     document.getElementById('prodCategoria').placeholder = "Sector o Barrio (Ej: Cuba, Álamos)";
-                    document.getElementById('prodTipo').innerHTML = '<option value="arriendo">🏠 En Arriendo</option><option value="venta">💰 En Venta</option>';
-                    document.querySelector('#content-lista .section-title').innerText = 'Mis Propiedades';
+                                       document.getElementById('prodTipo').innerHTML = '<option value="arriendo">🏠 En Arriendo</option><option value="venta">💰 En Venta</option>';
+                    const tituloLista = Array.from(document.querySelectorAll('#content-inventario .section-title')).find(el => el.innerText.includes('Catálogo'));
+                    if(tituloLista) tituloLista.innerText = '🏠 Mis Propiedades';
+                    const sumarioSubir = document.querySelector('#content-inventario details summary');
+                    if(sumarioSubir) sumarioSubir.innerHTML = '➕ Añadir Nueva Propiedad';
                     document.getElementById('filtro-busqueda').placeholder = "🔍 Buscar propiedad...";
+
                     if(selectNicho) selectNicho.innerHTML = `
                         <option value="">Selecciona el enfoque de tus inmuebles...</option>
                         <option value="Arriendos Residenciales">Arriendos Residenciales</option>
@@ -929,9 +1279,8 @@
                     document.getElementById('perfilNombre').placeholder = "Nombre del Asesor o Agencia (Ej: Inmobiliaria XYZ)";
                 } else {
                     if(document.getElementById('contenedor-mapa-perfil')) document.getElementById('contenedor-mapa-perfil').style.display = 'block';
-                    document.getElementById('tab-btn-subir').innerHTML = '➕ Nuevo Ítem';
-                    document.getElementById('tab-btn-lista').innerHTML = '📦 Catálogo';
                     document.getElementById('campos-inmueble').style.display = 'none';
+
                     document.getElementById('limite-plan-msg').innerHTML = 'Has alcanzado el límite de 1 sucursal/ítem.<br><a onclick="window.abrirModal(\'overlay-soporte\')">Mejora a Premium para subir ilimitadas.</a>';
                     document.getElementById('galeria-limite-text').innerHTML = isPremium ? "Límite actual: <b>4 fotos extra</b> (Total 5)." : "Límite actual: <b>1 foto extra</b>. ¡Mejora a Premium para subir 5!";
                     
@@ -939,9 +1288,13 @@
                     document.getElementById('prodNombre').placeholder = "Título / Nombre del artículo";
                     document.getElementById('prodPrecio').placeholder = "Precio (Ej: 15000 COP o 15.50 USD)";
                     document.getElementById('prodCategoria').placeholder = "Categoría o Zona (Ej: Centro)";
-                    document.getElementById('prodTipo').innerHTML = '<option value="producto">📦 Entregable / Físico</option><option value="servicio">🤝 Servicio / Contacto</option>';
-                    document.querySelector('#content-lista .section-title').innerText = 'Mi Catálogo';
+                                       document.getElementById('prodTipo').innerHTML = '<option value="producto">📦 Entregable / Físico</option><option value="servicio">🤝 Servicio / Contacto</option>';
+                    const tituloLista = Array.from(document.querySelectorAll('#content-inventario .section-title')).find(el => el.innerText.includes('Propiedades'));
+                    if(tituloLista) tituloLista.innerText = '📦 Catálogo y Precios';
+                    const sumarioSubir = document.querySelector('#content-inventario details summary');
+                    if(sumarioSubir) sumarioSubir.innerHTML = '➕ Añadir Nuevo Producto / Ítem';
                     document.getElementById('filtro-busqueda').placeholder = "🔍 Buscar por nombre...";
+
                                         if (datosGlobalesNegocio.tipo_modelo === 'servicio' && selectNicho) {
                         selectNicho.innerHTML = `
                             <option value="">Selecciona tu tipo de servicio...</option>
@@ -1102,27 +1455,26 @@
                         opt.disabled = true; 
                         if(!opt.innerText.includes('🔒')) opt.innerText += ' 🔒'; 
                     });
-                    if (!['1','2','3'].includes(pinGuardado)) pinGuardado = '1';
+                    if (!['1','2','3','4','5','b','k','a'].includes(pinGuardado)) pinGuardado = '1';
                 }
                 selectPin.value = pinGuardado;
-                // --- ACTIVACIÓN DEL MODO MASIVO (AHORA BASADO EN EL NICHO) ---
-                const nichosMasivos = ['farmacia', 'ferreteria', 'supermercado', 'papeleria', 'licoreria', 'veterinaria', 'tecnologia', 'bicicletas'];
+                                // --- ACTIVACIÓN DEL MODO MASIVO (AHORA BASADO EN EL NICHO) ---
+                const nichosMasivos = ['farmacia', 'ferreteria', 'supermercado', 'papeleria', 'licoreria', 'veterinaria', 'tecnologia', 'bicicletas', 'carniceria'];
                 const nichoActual = datosGlobalesNegocio.niche ? datosGlobalesNegocio.niche.toLowerCase() : '';
+
+
                 
-                                if (nichosMasivos.includes(nichoActual)) {
-                    // 🚨 CAMBIO: Le dejamos TODO encendido a las Farmacias/Ferreterías
-                    document.getElementById('tab-btn-subir').style.display = 'block'; 
-                    document.getElementById('tab-btn-lista').style.display = 'block'; 
-                    document.getElementById('tab-btn-masivo').style.display = 'block'; 
+                                                         if (nichosMasivos.includes(nichoActual)) {
+                    const panelMasivo = document.getElementById('acordeon-masivo');
+                    if(panelMasivo) panelMasivo.style.display = 'block';
+                    await window.cargarDiccionarioNicho(nichoActual); 
                     window.cargarMapaPrecios(); 
-                    window.cargarMisProductos(); // Cargamos ambos catálogos
+                    window.cargarMisProductos(); 
                 } else {
-                    // Si es un restaurante normal, le ocultamos el masivo
-                    document.getElementById('tab-btn-masivo').style.display = 'none';
-                    document.getElementById('tab-btn-subir').style.display = 'block'; 
-                    document.getElementById('tab-btn-lista').style.display = 'block'; 
+
                     window.cargarMisProductos(); 
                 }
+
             } else {
                 idNegocioLogueado = null;
                 datosGlobalesNegocio = null;
@@ -1368,19 +1720,16 @@
                 datosGlobalesNegocio.niche = obj.niche; // Actualiza la RAM local
                 const nichosMasivos = ['farmacia', 'ferreteria', 'supermercado', 'papeleria', 'licoreria', 'veterinaria', 'tecnologia', 'bicicletas'];
                 
-                if (nichosMasivos.includes(obj.niche.toLowerCase())) {
-                    // Le dejamos TODO encendido a las Farmacias/Ferreterías
-                    document.getElementById('tab-btn-subir').style.display = 'block'; 
-                    document.getElementById('tab-btn-lista').style.display = 'block'; 
-                    document.getElementById('tab-btn-masivo').style.display = 'block'; 
+              if (nichosMasivos.includes(obj.niche.toLowerCase())) {
+                    const panelMasivo = document.getElementById('acordeon-masivo');
+                    if(panelMasivo) panelMasivo.style.display = 'block';
                     window.cargarMapaPrecios(); 
                     window.cargarMisProductos(); 
                 } else {
-                    // Si es un restaurante normal, le ocultamos el masivo
-                    document.getElementById('tab-btn-masivo').style.display = 'none';
-                    document.getElementById('tab-btn-subir').style.display = 'block'; 
-                    document.getElementById('tab-btn-lista').style.display = 'block'; 
+
+                    window.cargarMisProductos(); 
                 }
+
             } catch(e) { alert("Error: " + e.message); } 
             finally { btn.innerText = "GUARDAR PERFIL"; btn.disabled = false; }
         }
@@ -1400,7 +1749,7 @@
                 
                 let formaPin = document.getElementById('disenoFormaPin').value || '1';
                 const esAliado = (datosGlobalesNegocio.red_afiliados === true || datosGlobalesNegocio.red_afiliados === 'SI');
-                if (!isPremium && !esAliado && !['1','2','3'].includes(formaPin)) { formaPin = '1'; }
+                if (!isPremium && !esAliado && !['1','2','3','4','5','b','k','a'].includes(formaPin)) { formaPin = '1'; }
                 let hex1 = c1 || '#ff6b00';
                 let hex2 = (c2 && document.getElementById('container-color2').style.display !== 'none') ? c2 : hex1;
                 let hex3 = (c3 && document.getElementById('container-color3').style.display !== 'none') ? c3 : '#ffffff';
@@ -1411,15 +1760,19 @@
                 const logoF = document.getElementById('disenoLogoFile').files[0];
                 const portF = document.getElementById('disenoPortadaFile').files[0];
                 
-                const upload = async (file, prefix) => {
-                    const blob = await window.comprimirImagen(file);
+                               // Le añadimos el parámetro isSquare a la función de subida
+                const upload = async (file, prefix, isSquare = false) => {
+                    const blob = await window.comprimirImagen(file, 800, 0.7, isSquare);
                     const path = `tiendas/${idNegocioLogueado}/${prefix}_${Date.now()}.webp`;
                     const { success, data, error } = await QRpidoDB.AdminService.subirArchivo(path, blob);
                     if(!success) throw new Error(error);
                     return data;
                 };
-                if(logoF) obj.logo = await upload(logoF, 'logo');
-                if(portF) obj.portada = await upload(portF, 'portada');
+                // El logo se fuerza a CUADRADO (true), la portada NO (false)
+                if(logoF) obj.logo = await upload(logoF, 'logo', true);
+                if(portF) obj.portada = await upload(portF, 'portada', false);
+
+
                 const nombrePngF = document.getElementById('disenoNombrePngFile').files[0];
                 const pinF = document.getElementById('disenoPinFile').files[0];
                 const wallpaperF = document.getElementById('disenoWallpaperFile').files[0];
@@ -1487,10 +1840,10 @@
             const editId = document.getElementById('prodEditId').value;
             if(!nom || !pre) return alert("El nombre y el precio son obligatorios.");
             let limite = isPremium ? Infinity : (datosGlobalesNegocio.tipo_modelo === 'inmueble' ? 3 : 1);
-            if (!isPremium && !editId) {
+                       if (!isPremium && !editId) {
                 if (listaProductosGlobal.length >= limite) {
                     document.getElementById('limite-plan-msg').style.display = 'block';
-                    document.getElementById('content-subir').scrollIntoView({ behavior: 'smooth' });
+                    document.getElementById('content-inventario').scrollIntoView({ behavior: 'smooth' });
                     return;
                 }
             }
@@ -1499,10 +1852,11 @@
             btn.innerText = "Empaquetando Datos..."; btn.disabled = true;
             
             try {
-                let urlImg = document.getElementById('prodImagenActual').value;
+                                let urlImg = document.getElementById('prodImagenActual').value;
                 const f = document.getElementById('prodImagenFile').files[0];
                 if(f) { 
-                    const blobImg = await window.comprimirImagen(f);
+                    // 📐 Forzamos el true al final para recortar la foto principal a 1:1
+                    const blobImg = await window.comprimirImagen(f, 800, 0.7, true);
                     const { success: upSuccess, data: url, error: upError } = await QRpidoDB.AdminService.subirArchivo(`productos/${idNegocioLogueado}/${Date.now()}.webp`, blobImg);
                     if(!upSuccess) throw new Error(upError);
                     urlImg = url; 
@@ -1536,10 +1890,13 @@
                 
                 if (filesGaleria.length > 0) {
                     const cantSubir = Math.min(filesGaleria.length, maxExtra);
-                    for(let i=0; i<cantSubir; i++) {
+                                       for(let i=0; i<cantSubir; i++) {
                         btn.innerText = `Subiendo foto extra ${i+1}/${cantSubir}...`;
                         const fG = filesGaleria[i];
-                        const blobG = await window.comprimirImagen(fG);
+                        // 📐 Forzamos el true también en la galería extra
+                        const blobG = await window.comprimirImagen(fG, 800, 0.7, true);
+
+
                         const { success: upSuccess, data: url, error: upError } = await QRpidoDB.AdminService.subirArchivo(`productos/${idNegocioLogueado}/${Date.now()}_g${i}.webp`, blobG);
                         if(!upSuccess) throw new Error(upError);
                         urlsGaleria.push(url);
@@ -1560,9 +1917,10 @@
                 if(!success) throw new Error(error);
                 
                 if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
-                window.cancelarEdicion(); 
+                               window.cancelarEdicion(); 
                 window.cargarMisProductos(); 
-                window.cambiarTab('lista');
+                window.cambiarTab('inventario');
+
             } catch(e){ alert("Error: " + e.message); } 
             finally { btn.innerText = "GUARDAR DATOS"; btn.disabled = false; }
         }
@@ -1605,11 +1963,14 @@
                 window.actualizarContador(document.getElementById('prodCuerpo'), 'contador-cuerpo');
             }
             
-            document.getElementById('btn-submit-producto').innerText = "GUARDAR CLON"; 
+                        document.getElementById('btn-submit-producto').innerText = "GUARDAR CLON"; 
             document.getElementById('btn-cancelar-edicion').style.display = "block"; 
             document.getElementById('limite-plan-msg').style.display = 'none';
-            window.cambiarTab('subir');
+            window.cambiarTab('inventario');
+            const acordeon = document.querySelector('#content-inventario details');
+            if (acordeon) acordeon.open = true;
             document.getElementById('prodNombre').focus();
+
         }
         window.manejarBusquedaTeclado = (e) => { if(e.key === 'Enter') window.ejecutarBusqueda(); };
         window.ejecutarBusqueda = () => {
@@ -1728,9 +2089,13 @@
                 window.actualizarContador(document.getElementById('prodCuerpo'), 'contador-cuerpo');
             }
             
-            document.getElementById('btn-submit-producto').innerText="ACTUALIZAR DATOS"; document.getElementById('btn-cancelar-edicion').style.display="block"; 
-            document.getElementById('limite-plan-msg').style.display = 'none'; window.cambiarTab('subir');
+                        document.getElementById('btn-submit-producto').innerText="ACTUALIZAR DATOS"; document.getElementById('btn-cancelar-edicion').style.display="block"; 
+            document.getElementById('limite-plan-msg').style.display = 'none'; window.cambiarTab('inventario');
+            const acordeon = document.querySelector('#content-inventario details');
+            if (acordeon) acordeon.open = true;
+            document.getElementById('prodNombre').focus();
         }
+
         window.cancelarEdicion = () => { 
             if (navigator.vibrate) navigator.vibrate(50);
             document.getElementById('prodNombre').value=''; document.getElementById('prodPrecio').value=''; document.getElementById('prodCategoria').value=''; 
@@ -1766,21 +2131,30 @@
             }
             return codigoComprimido.padStart(13, '0'); 
         }
-        let DICCIONARIO_UNIVERSAL = [];
-        Promise.all([
-            fetch('cat_farmacia.json').then(res => res.json()).catch(() => []), fetch('cat_ferreteria.json').then(res => res.json()).catch(() => []),
-            fetch('cat_supermercado.json').then(res => res.json()).catch(() => []), fetch('cat_papeleria.json').then(res => res.json()).catch(() => []),
-            fetch('cat_licoreria.json').then(res => res.json()).catch(() => []), fetch('cat_veterinaria.json').then(res => res.json()).catch(() => []),
-            fetch('cat_tecnologia.json').then(res => res.json()).catch(() => []), fetch('cat_bicicletas.json').then(res => res.json()).catch(() => [])
-        ]).then(async resultados => {
-            DICCIONARIO_UNIVERSAL = [];
-            for (const res of resultados) {
-                for (let i = 0; i < res.length; i += 500) {
-                    DICCIONARIO_UNIVERSAL.push(...res.slice(i, i + 500));
+     let DICCIONARIO_UNIVERSAL = [];
+        window.cargarDiccionarioNicho = async (nichoActual) => {
+            const nichoFormat = (nichoActual || '').toLowerCase().trim();
+            const nichosValidos = ['farmacia', 'ferreteria', 'supermercado', 'papeleria', 'licoreria', 'veterinaria', 'tecnologia', 'bicicletas','carniceria'];
+            
+            if (!nichosValidos.includes(nichoFormat)) return;
+            
+            try {
+                const res = await fetch(`cat_${nichoFormat}.json`);
+                if (!res.ok) return;
+                const dataJSON = await res.json();
+                
+                DICCIONARIO_UNIVERSAL = [];
+                for (let i = 0; i < dataJSON.length; i += 500) {
+                    DICCIONARIO_UNIVERSAL.push(...dataJSON.slice(i, i + 500));
                     await new Promise(resolve => requestAnimationFrame(resolve));
                 }
+                console.log(`[RAM SAVER] Catálogo ${nichoFormat} cargado en memoria.`);
+            } catch (error) {
+                console.error("Error cargando catálogo JSON:", error);
             }
-        }).catch(error => console.error("Error crítico cargando catálogos:", error));
+        };
+
+
         let mapaPreciosLocal = {}; let inventarioAgotadoLocal = [];
         window.cargarMapaPrecios = () => {
             mapaPreciosLocal = datosGlobalesNegocio.mapa_precios || {}; inventarioAgotadoLocal = datosGlobalesNegocio.inventario_agotado || [];
@@ -1946,8 +2320,4 @@
     </script>
 </body>
 </html>
-
-
-
-
 

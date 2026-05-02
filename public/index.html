@@ -1,7 +1,7 @@
 ​<!DOCTYPE html>
 <html lang="es">
 <head>
-<script>
+    <script>
     // =================================================================
     // 🩺 CRASH REPORTER: Sistema Automático de Auditoría de Errores
     // =================================================================
@@ -14,7 +14,6 @@
         window.qrpidoErrorLog.push(textoError);
 
 
-        // Protegemos el renderizado si el DOM no ha cargado completamente
         if (!document.body) {
             window.addEventListener('DOMContentLoaded', () => renderizarCartel(titulo, detalle));
         } else {
@@ -24,7 +23,6 @@
 
 
     function renderizarCartel(titulo, detalle) {
-        // Evitamos spamear la pantalla si hay un loop infinito de errores
         if (document.getElementById('cartel-error-critico')) return;
 
 
@@ -44,10 +42,8 @@
 
 
         document.getElementById('btn-bajar-error').onclick = () => {
-            // Unimos el log del error con la telemetría del Profiler si está activo
             const contextData = window.qrpidoLog ? window.qrpidoLog.join('\n') : "Sin historial de rendimiento";
             const data = "=== REPORTE DE CRASH QRpido ===\n\n" + window.qrpidoErrorLog.join('---\n') + "\n=== CONTEXTO DE EJECUCIÓN (Motor) ===\n" + contextData;
-            
             const blob = new Blob([data], { type: 'text/plain' });
             const a = document.createElement('a'); 
             a.href = URL.createObjectURL(blob);
@@ -57,23 +53,24 @@
     }
 
 
-    // 🪤 Trampa 1: Caza Errores de Sintaxis y DOM (Leaflet, JS Roto)
+    // IGNORAR EL ERROR FANTASMA DE LEAFLET:
     window.onerror = function(message, source, lineno, colno, error) {
+        if (message.includes("Failed to execute 'removeChild' on 'Node'")) {
+            console.warn("🛡️ Escudo DOM: Leaflet intentó borrar un nodo inexistente. Ignorado.");
+            return true; // Frena el error para que no bloquee la app
+        }
         const detalle = `Mensaje: ${message}\nLínea: ${lineno}:${colno}\nArchivo: ${source}\nStack: ${error ? error.stack : 'N/A'}`;
         mostrarCartelErrorYDescargar('ERROR DE SINTAXIS / EJECUCIÓN', detalle);
         return false;
     };
 
 
-    // 🪤 Trampa 2: Caza Errores Asíncronos (Promesas de Firebase, Wompi, Fetch)
     window.addEventListener('unhandledrejection', function(event) {
         const detalle = `Razón: ${event.reason ? (event.reason.stack || event.reason.message || event.reason) : 'Desconocida'}`;
         mostrarCartelErrorYDescargar('ERROR DE PROMESA (FIREBASE / RED)', detalle);
     });
 </script>
-
-
-    <meta charset="UTF-8">
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>QRpido - Radar Urbano</title>
 <link rel="manifest" href="manifest.json">
@@ -116,6 +113,14 @@ return sanitizada;
 };
 // 3. RETROCOMPATIBILIDAD (Para que el código viejo siga funcionando)
 window.sanitizarAtributo = window.sanitizarTexto;
+// 4. SALVAVIDAS VISUAL: Reemplazo para imágenes rotas o sin logo
+window.imagenRotaToGlass = function(imgElement, nombreRef) {
+    imgElement.onerror = null; // 🛡️ Previene loop infinito si el placeholder también falla
+    const letras = nombreRef ? window.sanitizarTexto(nombreRef).substring(0,3).toUpperCase() : 'QRP';
+    imgElement.src = 'https://via.placeholder.com/150/0a0a0c/ff6b00?text=' + letras;
+};
+
+
 </script>
 </head>
 <body class="ui-light">
@@ -172,8 +177,11 @@ No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.
 
 <button class="btn-login" id="btn-portal-mando" onclick="toggleSubmenu()">🔑</button>
 <div id="submenu-llave" class="submenu-llave">
-<button class="btn-submenu" onclick="abrirModal('modal-login'); toggleSubmenu()">🔑 Iniciar Sesión</button>
+<button id="btn-login-submenu" class="btn-submenu" onclick="abrirModal('modal-login'); toggleSubmenu()">🔑 Iniciar Sesión</button>
+<button id="btn-mi-oficina" class="btn-submenu" onclick="window.location.href='admin.html'" style="display:none; background: var(--naranja); color: white; border: none; font-weight: bold;">🏪 Ir a Mi Oficina</button>
 <button id="btn-acceso-moderacion" class="btn-submenu" onclick="window.location.href='moderacion.html'" style="display:none; border-color: #00ff64; color: #00ff64;">⚖️ Panel Moderación</button>
+
+
 <button id="btn-acceso-superadmin" class="btn-submenu" onclick="window.location.href='qrpido.html'" style="display:none; border-color: #00aaff; color: #00aaff;">👁️ Cerebro Central</button>
 <button class="btn-submenu" onclick="abrirModal('modal-soporte'); toggleSubmenu()" style="border-color: var(--naranja); color: var(--naranja);">💬 Centro de Ayuda</button>
 </div>
@@ -386,8 +394,14 @@ window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js'
 window.addEventListener('offline', () => document.getElementById('offline-banner').classList.add('activo'));
 window.addEventListener('online', () => document.getElementById('offline-banner').classList.remove('activo'));
 if (!navigator.onLine) document.getElementById('offline-banner').classList.add('activo');
-arrancarMotor();
+
+
+window.arrancarMotor();
+
+
 // EL CEREBRO CENTRAL DE ACCIONES DEL MAPA (Event Delegation)
+
+
 document.body.addEventListener('click', (e) => {
 // Buscamos si se hizo clic en un elemento interactivo
 const elementoAccion = e.target.closest('[class*="js-action-"]');
@@ -480,6 +494,26 @@ setTimeout(() => {
         sY = cY = 0;
     });
 }, 1500); // Delay asegurando carga del DOM
+</script>
+<script>
+        // 🕵️‍♂️ ESPÍA DE SESIÓN: Alterna dinámicamente entre "Iniciar Sesión" y "Mi Oficina"
+    window.addEventListener('DOMContentLoaded', () => {
+        const observerAuth = new MutationObserver(() => {
+            const panelActivo = document.getElementById('panel-usuario-activo');
+            const btnLoginSub = document.getElementById('btn-login-submenu');
+            const btnMiOficina = document.getElementById('btn-mi-oficina');
+            
+            if (panelActivo) {
+                const usuarioLogueado = panelActivo.style.display !== 'none';
+                if (btnLoginSub) btnLoginSub.style.display = usuarioLogueado ? 'none' : 'block';
+                if (btnMiOficina) btnMiOficina.style.display = usuarioLogueado ? 'block' : 'none';
+            }
+        });
+        const nodoObservado = document.getElementById('panel-usuario-activo');
+        if (nodoObservado) {
+            observerAuth.observe(nodoObservado, { attributes: true, attributeFilter: ['style'] });
+        }
+    });
 </script>
 
 

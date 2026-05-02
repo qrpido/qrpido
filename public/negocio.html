@@ -12,6 +12,26 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://checkout.wompi.co/widget.js"></script>
        <link rel="stylesheet" href="ui-estilos.css"> 
+    <style>
+        /* 🚑 CIRUGÍA DE RESCATE: Forzar desbloqueo del scroll vertical en móviles */
+        html, body {
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            overscroll-behavior-y: auto !important;
+            height: auto !important;
+            min-height: 100vh !important;
+            touch-action: auto !important;
+            position: relative !important;
+        }
+        
+        /* Aseguramos que el catálogo no se quede atrapado en una caja pequeña */
+        #catalogo-contenedor {
+            overflow-y: visible !important;
+            padding-bottom: 100px !important; /* Espacio extra para el carrito flotante */
+        }
+    </style>
+
+
 </head>
 <body>
     <div id="offline-banner" class="offline-banner">⚠️ Sin conexión: Mostrando datos de tu última visita</div>
@@ -166,36 +186,43 @@
             </div>
         </div>
     </div>
-    <script type="module">
-                import QRpidoDB from './core-db.js';
-<script>
-    // 1. ESCUDO XSS ESTRICTO (Reglas Zero Trust)
-    window.sanitizarTexto = function(texto) {
-        if (texto === null || texto === undefined) return '';
-        return texto.toString().replace(/[&<>"']/g, function(m) {
-            return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[m];
-        });
-    };
-    // 2. ESCUDO CONTRA ENLACES MALICIOSOS (Inyección Javascript:)
-    window.sanitizarURL = function(url) {
-        if (!url) return '#';
-        const sanitizada = window.sanitizarTexto(url);
-        // Bloquea intentos de ejecutar código mediante un link falso
-        if (sanitizada.toLowerCase().trim().startsWith('javascript:')) return '#';
-        return sanitizada;
-    };
-    // 3. RETROCOMPATIBILIDAD (Para que el código viejo siga funcionando)
-    window.sanitizarAtributo = window.sanitizarTexto; 
-</script>
- const fallbacks = {
+        <script type="module">
+        import QRpidoDB from './core-db.js';
+
+
+        // 1. ESCUDO XSS ESTRICTO (Reglas Zero Trust)
+        window.sanitizarTexto = function(texto) {
+            if (texto === null || texto === undefined) return '';
+            return texto.toString().replace(/[&<>"']/g, function(m) {
+                return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[m];
+            });
+        };
+
+
+        // 2. ESCUDO CONTRA ENLACES MALICIOSOS (Inyección Javascript:)
+        window.sanitizarURL = function(url) {
+            if (!url) return '#';
+            const sanitizada = window.sanitizarTexto(url);
+            if (sanitizada.toLowerCase().trim().startsWith('javascript:')) return '#';
+            return sanitizada;
+        };
+
+
+        // 3. RETROCOMPATIBILIDAD
+        window.sanitizarAtributo = window.sanitizarTexto; 
+
+
         const fallbacks = {
             logo_portada: "https://via.placeholder.com/220x80/0a0a0c/ff6b00?text=QRPIDO",
-            wallpaper_generico: "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=50&w=400"
-,
+            wallpaper_generico: "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=50&w=400",
             avatar_generico: "https://via.placeholder.com/150x150/ff6b00/ffffff?text=Tienda",
             marco_producto_generico: ""
         };
+
+
         let datosNegocio = {};
+
+
         
         window.formatearMoneda = function(valorInt64, moneda = 'COP') {
             if (moneda === 'USD') {

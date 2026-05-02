@@ -1,0 +1,28 @@
+rules_version = '2';
+
+// 🛡️ BODEGA QRPIDO: Reglas de Seguridad Zero-Trust Estrictas
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // 1. REGLA GLOBAL: Lectura pública (para el mapa), pero ESCRITURA BLOQUEADA.
+    match /{allPaths=**} {
+      allow read: if true; 
+      allow write: if false; // 🚫 Cerramos la llave maestra. Nadie escribe aquí.
+    }
+
+    // 2. CARPETA NEGOCIOS: Solo imágenes controladas
+    match /negocios/{negocioId}/{fileName} {
+      // allow create/update evita que un usuario X borre (delete) la foto de otro
+      allow create, update: if request.auth != null 
+                   && request.resource.size < 2 * 1024 * 1024 // 📉 Bajamos a 2MB (Ahorro de RAM y costos)
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // 3. CARPETA INMUEBLES: (Preparando el terreno para el sistema Tinder)
+    match /inmuebles/{inmuebleId}/{fileName} {
+      allow create, update: if request.auth != null 
+                   && request.resource.size < 2 * 1024 * 1024 // 📉 Máximo 2MB
+                   && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

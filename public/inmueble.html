@@ -135,11 +135,16 @@
        
         <h1 class="titulo-propiedad shimmer-box" id="inmueble-titulo" style="width: 80%; height: 31px; border-radius: 8px; margin: 0 0 5px 0;"></h1>
         <h2 class="precio-propiedad shimmer-box" id="inmueble-precio" style="width: 50%; height: 38px; border-radius: 8px; margin: 0 0 15px 0;"></h2>
-        <div class="badges-row" id="contenedor-badges">
+                <div class="badges-row" id="contenedor-badges">
             <div class="badge-cristal shimmer-box" style="width: 80px; height: 40px; border-radius: 15px;"></div>
             <div class="badge-cristal shimmer-box" style="width: 80px; height: 40px; border-radius: 15px;"></div>
             <div class="badge-cristal shimmer-box" style="width: 80px; height: 40px; border-radius: 15px;"></div>
         </div>
+
+
+        <button onclick="window.volarAlMapa()" style="width: 100%; padding: 12px; border-radius: 15px; background: rgba(255,255,255,0.05); color: var(--color-marca); border: 1px solid var(--color-marca); font-weight: bold; font-size: 14px; margin-bottom: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: 0.3s;" onactive="this.style.transform='scale(0.98)'">🗺️ VER UBICACIÓN EN EL MAPA</button>
+
+
         <h3 class="seccion-titulo">Descripción</h3>
         <div class="descripcion-texto shimmer-box" id="inmueble-descripcion" style="min-height: 100px; border-radius: 15px;"></div>
         <h3 class="seccion-titulo">Ofrecido por</h3>
@@ -201,9 +206,36 @@
         let datosAgencia = null;
         let propiedadActual = null;
        
-        window.propiedadesGlobales = []; // Necesario para la mecánica Tinder
+                window.propiedadesGlobales = []; // Necesario para la mecánica Tinder
         window.contadorRecargas = 0; // Algoritmo Monetización
+        
+        // 🛸 NUEVO: MOTOR DE VUELO AL MAPA PRINCIPAL
+        window.volarAlMapa = function() {
+            if (!propiedadActual) return;
+            
+            // Extraemos las coordenadas de la base de datos de la propiedad
+            let lat, lng;
+            if (propiedadActual.Coordenadas) {
+                lat = propiedadActual.Coordenadas.latitude;
+                lng = propiedadActual.Coordenadas.longitude;
+            }
+
+
+            if (!lat || !lng) {
+                alert("📍 El dueño no fijó las coordenadas exactas de esta propiedad en el mapa.");
+                return;
+            }
+
+
+            // Despegamos hacia index.html inyectando la misión en la URL
+            const idAgencia = datosAgencia.id_interno || datosAgencia.codigo;
+            window.location.href = `index.html?enfocar=${encodeURIComponent(propiedadActual.id_prod)}&lat=${lat}&lng=${lng}`;
+        };
+
+
         // === PERSISTENCIA ANÓNIMA (TINDER MATCHES) ===
+
+
         window.toggleFavorito = function(id, nombre, precio, foto, whatsapp, event) {
             if (event) { event.preventDefault(); event.stopPropagation(); }
             if (navigator.vibrate) navigator.vibrate(30);
@@ -652,4 +684,3 @@ QRpidoDB.LocalService.registrarEventoAnalytics('tinder_skip_next', {
     </script>
 </body>
 </html>
-
