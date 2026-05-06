@@ -3,6 +3,19 @@ const admin = require("firebase-admin");
 const { Ed25519Keypair } = require('@mysten/sui/keypairs/ed25519');
 const { getFullnodeUrl, SuiClient } = require('@mysten/sui/client');
 const { defineSecret } = require('firebase-functions/params');
+const nodemailer = require('nodemailer');
+
+// -------------------------------------------------------------------
+// CONFIGURACIÓN GLOBAL: MOTOR DE CORREO (ADUANA DIGITAL)
+// -------------------------------------------------------------------
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: 'qrpido@gmail.com',        // <-- Tu correo real
+        pass: 'khxvkeufgicxcrsh'         // <-- La clave de 16 letras (sin espacios)
+    }
+});
+
 
 // Inicializar el SDK de administrador de Firebase
 admin.initializeApp();
@@ -805,5 +818,80 @@ exports.barrenderoCriptografico = functions.pubsub.schedule('every 24 hours').on
         console.error("[DUST SWEEPER] Error crítico barriendo la Malla:", error);
         return null;
     }
+});
+// ============================================================================
+// 🔐 MÓDULO 9: LA ADUANA DIGITAL (Sistema OTP por Correo)
+// ============================================================================
+
+exports.solicitarOTP = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Acceso denegado.');
+
+    const uid = context.auth.uid;
+    const emailDestino = context.auth.token.email; 
+    const { accion } = data; 
+
+    // Generador criptográfico ligero de 6 dígitos
+    const codigo = Math.floor(100000 + Math.random() * 900000).toString();
+    const tiempoExpiracion = new Date(Date.now() + 5 * 60 * 1000); // Caducidad: 5 minutos
+
+    const db = admin.firestore();
+    
+    // Bóveda temporal
+    await db.collection('Sistema_OTP').doc(uid).set({
+        codigo: codigo,
+        accion: accion,
+        expira: admin.firestore.Timestamp.fromDate(tiempoExpiracion)
+    });
+
+        const mailOptions = {
+        from: '"Seguridad QRpido" <qrpido@gmail.com>', // <-- Tu correo real aquí también
+        to: emailDestino,
+        subject: `Tu código de seguridad es: ${codigo}`,
+        text: `Usa este código de 6 dígitos para autorizar la acción: ${accion}. Expira en 5 minutos. No lo compartas con nadie.`
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+        return { success: true, mensaje: "Código enviado al correo." };
+    } catch (error) {
+        console.error("Error crítico enviando OTP:", error);
+        throw new functions.https.HttpsError('internal', 'Falla en la infraestructura de correo.');
+    }
+});
+
+exports.validarAccionConOTP = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Acceso denegado.');
+
+    const uid = context.auth.uid;
+    const { codigoIngresado, accionEsperada } = data;
+    
+    const db = admin.firestore();
+    const otpRef = db.collection('Sistema_OTP').doc(uid);
+
+    return await db.runTransaction(async (transaction) => {
+        const doc = await transaction.get(otpRef);
+        if (!doc.exists) throw new functions.https.HttpsError('not-found', 'No hay peticiones de seguridad pendientes.');
+
+        const datosOTP = doc.data();
+
+        // Triple barrera de seguridad
+        if (datosOTP.accion !== accionEsperada) {
+            throw new functions.https.HttpsError('invalid-argument', 'Violación de contexto: La acción no coincide.');
+        }
+        
+        if (datosOTP.expira.toDate() < new Date()) {
+            transaction.delete(otpRef);
+            throw new functions.https.HttpsError('deadline-exceeded', 'El código ha caducado.');
+        }
+        
+        if (datosOTP.codigo !== codigoIngresado) {
+            throw new functions.https.HttpsError('invalid-argument', 'El código de seguridad es incorrecto.');
+        }
+
+        // 🟢 VALIDACIÓN EXITOSA: Destrucción atómica de la evidencia
+        transaction.delete(otpRef);
+
+        return { success: true, validado: true };
+    });
 });
 
