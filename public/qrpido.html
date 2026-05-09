@@ -109,21 +109,42 @@ display: flex; flex-direction: column; justify-content: center; align-items: cen
     </div>
 
 
-    <h2 class="section-title">💰 Bóveda Financiera Global</h2>
+   <h2 class="section-title">💰 Bóveda Financiera Global</h2>
     <div class="stats-grid" style="grid-template-columns: 1fr 1fr 1fr;">
-        <div class="stat-card" style="padding: 10px; border-color: var(--verde-sui);">
-            <p class="stat-number" id="stat-gas-global" style="font-size: 18px;">$0</p>
-            <p class="stat-label" style="font-size: 8px;">Gas en Malla</p>
+        <div class="stat-card" style="padding: 10px; border-color: var(--azul-corp);">
+            <p class="stat-number" id="stat-saldo-malla" style="font-size: 18px; color: var(--azul-corp);">$0</p>
+            <p class="stat-label" style="font-size: 8px;">Saldo en Malla</p>
         </div>
-        <div class="stat-card" style="padding: 10px; border-color: #ffd700;">
-            <p class="stat-number" id="stat-comisiones" style="font-size: 18px; color: #ffd700;">$0</p>
-            <p class="stat-label" style="font-size: 8px;">Comisiones</p>
+        <div class="stat-card" style="padding: 10px; border-color: var(--naranja);">
+            <p class="stat-number" id="stat-comisiones" style="font-size: 18px; color: var(--naranja);">$0</p>
+            <p class="stat-label" style="font-size: 8px;">Comisiones (10%)</p>
         </div>
-        <div class="stat-card" style="padding: 10px;">
-            <p class="stat-number" id="stat-sui-treasury" style="font-size: 18px; color: var(--verde-sui);">0</p>
-            <p class="stat-label" style="font-size: 8px;">SUI Tesorería</p>
+        <div class="stat-card" style="padding: 10px; border-color: var(--rojo-alerta);">
+            <p class="stat-number" id="stat-pagos-pendientes" style="font-size: 18px; color: var(--rojo-alerta);">$0</p>
+            <p class="stat-label" style="font-size: 8px;">Deuda Domiciliarios</p>
         </div>
     </div>
+
+
+    <h2 class="section-title" style="color: var(--verde-sui);">📡 Telemetría: Ejecución de Carritos</h2>
+    <div class="stats-grid" style="grid-template-columns: 1fr;">
+        <div class="stat-card" style="padding: 15px; border-color: var(--verde-sui); display: flex; justify-content: space-around; align-items: center;">
+            <div>
+                <p class="stat-number" id="stat-intentos-global" style="font-size: 24px; color: white;">0</p>
+                <p class="stat-label" style="font-size: 9px;">Clics WhatsApp</p>
+            </div>
+            <div>
+                <p class="stat-number" id="stat-ratio-global" style="font-size: 28px; color: var(--verde-sui);">0%</p>
+                <p class="stat-label" style="font-size: 9px;">Tasa de Conversión</p>
+            </div>
+            <div>
+                <p class="stat-number" id="stat-validados-global" style="font-size: 24px; color: white;">0</p>
+                <p class="stat-label" style="font-size: 9px;">Tickets Validados</p>
+            </div>
+        </div>
+    </div>
+
+
 
 
     <h2 class="section-title" style="color: var(--amarillo-aviso);">⚖️ Tribunal de Evasión (Observación)</h2>
@@ -200,17 +221,38 @@ async function arrancarCerebro() {
 }
 
 
-// 1. Monitor Financiero
+// 1. Monitor Financiero y Telemetría Global
 async function cargarEstadisticasFinancieras() {
     const { success, data } = await QRpidoDB.AdminService.obtenerEstadisticasGlobales();
     if(success) {
-        document.getElementById('stat-activos').innerText = data.activos;
-        document.getElementById('stat-pendientes').innerText = data.pendientes;
-        // Simulamos por ahora los valores Web3 hasta conectar el index.js final
-        document.getElementById('stat-gas-global').innerText = "$ " + (data.activos * 15000).toLocaleString();
-        document.getElementById('stat-comisiones').innerText = "$ " + (data.activos * 4200).toLocaleString();
+        document.getElementById('stat-activos').innerText = data.activos || 0;
+        document.getElementById('stat-pendientes').innerText = data.pendientes || 0;
+
+
+        // Cálculos Financieros Estrictos
+        const saldoMalla = data.saldo_total_comercios || 0;
+        const comisionesPlataforma = data.ingresos_brutos * 0.10 || 0; // 10% Fijo
+        const deudaDomiciliarios = data.pagos_pendientes_logistica || 0;
+
+
+        document.getElementById('stat-saldo-malla').innerText = "$ " + saldoMalla.toLocaleString('es-CO');
+        document.getElementById('stat-comisiones').innerText = "$ " + comisionesPlataforma.toLocaleString('es-CO');
+        document.getElementById('stat-pagos-pendientes').innerText = "$ " + deudaDomiciliarios.toLocaleString('es-CO');
+
+
+        // Telemetría de Conversión
+        const clicsTotales = data.intentos_whatsapp_global || 0;
+        const validadosTotales = data.ordenes_validadas_global || 0;
+        const ratio = clicsTotales > 0 ? ((validadosTotales / clicsTotales) * 100).toFixed(1) : 0;
+
+
+        document.getElementById('stat-intentos-global').innerText = clicsTotales.toLocaleString('es-CO');
+        document.getElementById('stat-validados-global').innerText = validadosTotales.toLocaleString('es-CO');
+        document.getElementById('stat-ratio-global').innerText = ratio + "%";
     }
 }
+
+
 
 
 // 2. Tribunal de Evasión (El Verdugo Silencioso)
@@ -251,46 +293,70 @@ window.ejecutarIndulto = async (idNegocio) => {
         alert("Error al perdonar: " + error);
     }
 };
+// 4. Explorador SUI Ligero (Con Garbage Collector)
 function iniciarMonitorWeb3() {
     const log = document.getElementById('sui-log');
-    // Escuchamos las últimas 5 órdenes entregadas para ver sus hashes
-    const q = query(collection(db, "Logistica_Ordenes"), orderBy("timestamp_entrega", "desc"), limit(5));
     
-    onSnapshot(q, (snap) => {
-        snap.docChanges().forEach((change) => {
-            if (change.type === "added" || change.type === "modified") {
-                const doc = change.doc.data();
-                if (doc.seguridad_web3?.txID_pago) {
-                    const p = document.createElement('p');
-                    p.style.margin = "2px 0";
-                    p.innerHTML = `[${new Date().toLocaleTimeString()}] <span style="color:#fff">TX:</span> ${doc.seguridad_web3.txID_pago.substring(0,20)}... ✅`;
-                    log.prepend(p);
-                }
-            }
-        });
+    // Conectamos mediante el servicio centralizado para mantener el puente limpio
+    QRpidoDB.AdminService.escucharHashesSUI((txData) => {
+        if (!txData || !txData.txID_pago) return;
+        
+        const p = document.createElement('p');
+        p.style.margin = "4px 0";
+        p.style.borderBottom = "1px dotted rgba(0, 245, 212, 0.2)";
+        p.style.paddingBottom = "4px";
+        
+        const horaFormato = new Date().toLocaleTimeString('es-CO');
+        p.innerHTML = `[${horaFormato}] <span style="color:#fff">TX:</span> <span style="font-family: monospace; letter-spacing: 1px;">${txData.txID_pago.substring(0,24)}...</span> ✅`;
+        
+        log.prepend(p);
+
+
+        // OPTIMIZACIÓN EXTREMA: Garbage Collector DOM (Máximo 10 nodos para cuidar la RAM)
+        while (log.children.length > 10) {
+            log.removeChild(log.lastChild);
+        }
     });
 }
-// 3. Radar en Vivo con Gestión de RAM
+
+
+// 3. Radar en Vivo con Gestión de RAM (Malla de Gas)
 function iniciarEscuchaRadar() {
     const cont = document.getElementById('radar-vivo');
     QRpidoDB.LogisticaService.escucharRadarActivo((res) => {
         if (!radarEscuchando) return;
-        if (res.success) {
+        if (res.success && res.data) {
             let html = '';
+            // Límite estricto para proteger la RAM en móviles de 2GB
             const ordenes = Object.entries(res.data).reverse().slice(0, 15);
-            ordenes.forEach(([id, info]) => {
-                const clasePill = info.estado === 'EN_TRANSITO' ? 'pill-camino' : 'pill-buscando';
+            
+            ordenes.forEach(([ticketId, info]) => {
+                const estado = info.estado || 'BUSCANDO';
+                let clasePill = 'pill-buscando';
+                if (estado === 'EN_TRANSITO') clasePill = 'pill-camino';
+                if (estado === 'ENTREGADO') clasePill = 'pill-ok'; // Se verá sin fondo si no existe la clase, pero mantendrá la estructura
+
+
+                const comercio = info.comercio_nombre ? info.comercio_nombre.substring(0, 12) : 'Negocio';
+                const flete = info.valor_flete ? `$${info.valor_flete.toLocaleString('es-CO')}` : '---';
+
+
                 html += `
-                <div class="radar-row">
-                    <span style="color:var(--azul-corp)">#${id.substring(0,6)}</span>
-                    <span style="font-size:9px;">${info.uidConductor ? 'Moto: OK' : 'Buscando...'}</span>
-                    <span class="status-pill ${clasePill}">${info.estado.replace('_', ' ')}</span>
+                <div class="radar-row" style="grid-template-columns: 1fr 1.5fr 1fr 1fr; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); padding: 8px;">
+                    <span style="color:var(--azul-corp); font-weight: 900;">#${ticketId.substring(0,6)}</span>
+                    <span style="color: white; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${comercio}</span>
+                    <span style="color: var(--naranja);">${flete}</span>
+                    <span class="status-pill ${clasePill}" style="text-align: center;">${estado.replace('_', ' ')}</span>
                 </div>`;
             });
-            cont.innerHTML = html || '<p style="text-align:center; color:#555;">No hay órdenes activas.</p>';
+            cont.innerHTML = html || '<p style="text-align:center; color:#555;">La Malla de Gas está en silencio.</p>';
+        } else {
+            cont.innerHTML = '<p style="text-align:center; color:#555;">La Malla de Gas está en silencio.</p>';
         }
     });
 }
+
+
 
 
 window.toggleRadarStream = () => {
@@ -302,16 +368,30 @@ window.toggleRadarStream = () => {
 };
 
 
-// 4. Kill Switch (Control de Crisis)
+// 5. Kill Switch (Control de Crisis Nivel Arquitecto)
 window.activarKillSwitch = async () => {
     const estadoActual = document.getElementById('kill-switch').classList.contains('active');
-    const msg = estadoActual ? "¿Deseas REABRIR la plataforma para nuevos pedidos?" : "⚠️ ¿CONFIRMAS EL BLOQUEO TOTAL? No se podrán generar nuevos tickets de WhatsApp.";
+    const msg = estadoActual 
+        ? "🛡️ ¿Deseas REABRIR la plataforma? Se permitirá nuevamente la generación de códigos TOTP." 
+        : "⚠️ PELIGRO: ¿CONFIRMAS EL BLOQUEO TOTAL? Se detendrá la creación de órdenes logísticas a nivel de base de datos.";
+    
     if(!confirm(msg)) return;
 
 
     const nuevoEstado = !estadoActual;
-    const { success } = await QRpidoDB.AdminService.actualizarConfiguracionGlobal({ bloqueo_tickets: nuevoEstado });
-    if(success) actualizarUIKillSwitch(nuevoEstado);
+    const btn = document.getElementById('kill-switch');
+    btn.innerText = "Sincronizando con el servidor...";
+
+
+    // Inyectamos directo a Firestore en la colección Sistema
+    const { success, error } = await QRpidoDB.AdminService.actualizarConfiguracionGlobal({ bloqueo_tickets_totp: nuevoEstado });
+    
+    if(success) {
+        actualizarUIKillSwitch(nuevoEstado);
+    } else {
+        alert("Error al accionar el Kill Switch: " + error);
+        actualizarUIKillSwitch(estadoActual); // Revertir visualmente en caso de fallo
+    }
 };
 
 
@@ -319,7 +399,7 @@ function actualizarUIKillSwitch(bloqueado) {
     const btn = document.getElementById('kill-switch');
     if(bloqueado) {
         btn.classList.add('active');
-        btn.innerText = "🚨 SISTEMA BLOQUEADO (TICKETS PAUSADOS)";
+        btn.innerText = "🚨 SISTEMA BLOQUEADO (TICKETS Y TOTP PAUSADOS)";
     } else {
         btn.classList.remove('active');
         btn.innerText = "🛑 ACTIVAR PAUSA DE EMERGENCIA (TICKETS)";
@@ -328,16 +408,16 @@ function actualizarUIKillSwitch(bloqueado) {
 
 
 async function chequearEstadoKillSwitch() {
-    const { success, data } = await QRpidoDB.LocalService.obtenerConfiguracion();
-    if(success && data.bloqueo_tickets) actualizarUIKillSwitch(true);
+    // Leemos la fuente de la verdad en Firestore, no el caché local
+    const { success, data } = await QRpidoDB.AdminService.obtenerConfiguracionGlobal();
+    if(success && data.bloqueo_tickets_totp) {
+        actualizarUIKillSwitch(true);
+    } else {
+        actualizarUIKillSwitch(false);
+    }
 }
-async function cargarEstadisticas() {
-const { success, data } = await QRpidoDB.AdminService.obtenerEstadisticasGlobales();
-if(success) {
-document.getElementById('stat-activos').innerText = data.activos;
-document.getElementById('stat-pendientes').innerText = data.pendientes;
-}
-}
+
+
 // 2. LÓGICA DE RECLUTAMIENTO
 window.buscarYnombrar = async () => {
 const input = document.getElementById('input-nuevo-mod');
@@ -404,3 +484,26 @@ alert("Error al revocar permisos: " + error);
 </script>
 </body>
 </html>
+
+
+
+
+Contexto Principal: Proyecto QRpido (El Cerebro Central / Master Admin) Soy Zamyr. Vamos a trabajar exclusivamente en realizar cortes quirúrgicos al archivo qrpido.html. Este es el dashboard del SuperAdmin (El Arquitecto).
+El Ecosistema: Plataforma PWA hiper-optimizada para móviles de gama de entrada (2GB RAM). Código en Vanilla JS, Firebase v10 (Firestore y RTDB). Estética "Cypherpunk" con azul corporativo y naranja áureo.
+La Misión: Convertir el panel en un Centro de BI Financiero y Logístico. Actualmente solo maneja moderadores. Necesitamos que monitoree la salud económica y operativa de QRpido.
+Reglas de Trabajo (HARD RULES):
+PROHIBIDO reescribir el archivo completo. Solo cortes quirúrgicos: > BUSCA ESTE BLOQUE EXACTO: y > PÍSALO CON ESTO:.
+Mantener la compatibilidad estricta con el puente QRpidoDB.
+Optimización extrema de RAM: Usar onValue de RTDB con moderación para no fundir el navegador del móvil con miles de eventos.
+Misión: Ejecutar los siguientes 4 cortes estratégicos en qrpido.html:
+Bóveda Financiera Global (Fase 2): Expandir la stats-grid para incluir:
+Saldo en Malla: Sumatoria de los saldos logísticos de todos los comercios.
+Comisiones Acumuladas: El 10% generado por la plataforma listo para retiro.
+Pagos Pendientes: Deuda actual con el escuadrón de domiciliarios.
+Monitor de la Malla de Gas (Fase 5): Crear una sección llamada "🛰️ Radar de Despachos en Vivo". Debe conectarse a Realtime Database (malla_de_gas/ordenes_activas) y listar en tiempo real:
+Ticket ID | Comercio | Valor Flete | Estado (Buscando/En camino/Entregado).
+Trazabilidad de Conversión (Telemetría): Inyectar un indicador de "Ejecución de Carritos": Comparar cuántas personas dieron clic en "Enviar WhatsApp" vs cuántos tickets fueron realmente validados por los comercios.
+Explorador SUI (Web3): Crear un log (historial de texto pequeño) que muestre los últimos 10 hashes (txID) registrados en la red SUI para certificar la inmutabilidad de las entregas.
+Control de Crisis (Kill Switch): Agregar un botón de "Emergencia" para pausar el registro de nuevos tickets en caso de detectar un ataque de bots masivo (Fase 7).
+A continuación, te pasaré el código fuente completo de mi qrpido.html actual. Confirma que entiendes que este es el panel del dueño absoluto y dime por cuál de los cortes empezamos para blindar la operación.
+
