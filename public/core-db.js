@@ -1,6 +1,6 @@
 
 
-import { doc, getDoc, setDoc, collection, writeBatch, getDocs, query, where, limit, startAfter, orderBy, startAt, endAt, collectionGroup, deleteDoc, getCountFromServer } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { doc, getDoc, setDoc, collection, writeBatch, getDocs, query, where, limit, startAfter, orderBy, startAt, endAt, collectionGroup, deleteDoc, getCountFromServer, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, getAdditionalUserInfo, setPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { getAnalytics, logEvent } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js';
 import * as geofire from "https://cdn.jsdelivr.net/npm/geofire-common@5.2.0/+esm";
@@ -312,12 +312,34 @@ obtenerNegociosEnObservacion: async () => {
                     return { success: true, data: resultados };
                 } catch (e) { return { success: false, error: e.message }; }
             },
-            actualizarConfiguracionGlobal: async (dataObj) => {
+           actualizarConfiguracionGlobal: async (dataObj) => {
                 try {
                     await setDoc(doc(db, "Sistema", "Configuracion"), dataObj, { merge: true });
                     return { success: true };
                 } catch (e) { return { success: false, error: e.message }; }
             },
+            obtenerConfiguracionGlobal: async () => {
+                try {
+                    const docSnap = await getDoc(doc(db, "Sistema", "Configuracion"));
+                    return { success: true, data: docSnap.exists() ? docSnap.data() : {} };
+                } catch (e) { return { success: false, error: e.message }; }
+            },
+            escucharHashesSUI: (callback) => {
+                try {
+                    const q = query(collection(db, "Logistica_Ordenes"), orderBy("timestamp_entrega", "desc"), limit(10));
+                    onSnapshot(q, (snap) => {
+                        snap.docChanges().forEach((change) => {
+                            if (change.type === "added" || change.type === "modified") {
+                                callback(change.doc.data());
+                            }
+                        });
+                    });
+                } catch (e) {
+                    console.error("Error al conectar con SUI Logs:", e);
+                }
+            },
+
+
             obtenerEstadisticasGlobales: async () => {
                 try {
                     // Magia de Ahorro: getCountFromServer cuenta en la nube, casi no cuesta lecturas

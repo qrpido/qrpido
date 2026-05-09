@@ -143,6 +143,17 @@ display: flex; flex-direction: column; justify-content: center; align-items: cen
             </div>
         </div>
     </div>
+<h2 class="section-title" style="margin-top: 20px; color: var(--azul-corp);">💎 Reservas Híbridas (Web3 Live)</h2>
+    <div class="stats-grid" style="grid-template-columns: 1fr 1fr;">
+        <div class="stat-card" style="padding: 15px; border-color: var(--verde-sui);">
+            <p class="stat-number" id="stat-sui-live" style="font-size: 22px; color: var(--verde-sui);">Cargando...</p>
+            <p class="stat-label" style="font-size: 9px;">SUI Network (Gas)</p>
+        </div>
+        <div class="stat-card" style="padding: 15px; border-color: #0052ff;">
+            <p class="stat-number" id="stat-base-live" style="font-size: 22px; color: #0052ff;">Cargando...</p>
+            <p class="stat-label" style="font-size: 9px;">Base L2 (Contrato)</p>
+        </div>
+    </div>
 
 
 
@@ -213,12 +224,52 @@ let desuscripcionRadar = null;
 
 async function arrancarCerebro() {
     cargarEstadisticasFinancieras();
+    consultarSaldosBlockchain(); // <-- Nueva inyección Web3
     cargarModeradores();
     cargarTribunalEvasion();
     iniciarEscuchaRadar();
     chequearEstadoKillSwitch();
     iniciarMonitorWeb3();
 }
+
+
+// Interrogación Directa a RPCs Públicos (Cero RAM / Cero Librerías)
+async function consultarSaldosBlockchain() {
+    const DIR_TESORERIA_SUI = "0x966bb847123c0999b3b02eca0456349558363b76148f5c4edf8d7d831b1a7d84";
+    const DIR_CONTRATO_BASE = "0xEBC3D776557C72Ae9e42309eAc761866212421a9";
+
+
+    // 1. Fetch nativo a SUI Mainnet
+    try {
+        const resSui = await fetch('https://fullnode.mainnet.sui.io:443', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "suix_getBalance", params: [DIR_TESORERIA_SUI] })
+        });
+        const dataSui = await resSui.json();
+        const suiFormateado = (parseInt(dataSui.result.totalBalance) / 1000000000).toFixed(2);
+        document.getElementById('stat-sui-live').innerText = `${suiFormateado} SUI`;
+    } catch (e) {
+        document.getElementById('stat-sui-live').innerText = "Error SUI";
+    }
+
+
+    // 2. Fetch nativo a Base Mainnet (EVM)
+    try {
+        const resBase = await fetch('https://mainnet.base.org', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "eth_getBalance", params: [DIR_CONTRATO_BASE, "latest"] })
+        });
+        const dataBase = await resBase.json();
+        const baseFormateado = (parseInt(dataBase.result, 16) / 1e18).toFixed(4); // Wei a ETH
+        document.getElementById('stat-base-live').innerText = `${baseFormateado} ETH`;
+    } catch (e) {
+        document.getElementById('stat-base-live').innerText = "Error Base";
+    }
+}
+
+
 
 
 // 1. Monitor Financiero y Telemetría Global
@@ -293,12 +344,32 @@ window.ejecutarIndulto = async (idNegocio) => {
         alert("Error al perdonar: " + error);
     }
 };
-// 4. Explorador SUI Ligero (Con Garbage Collector)
+// 4. Explorador SUI Ligero (Delegado al Core-DB)
 function iniciarMonitorWeb3() {
     const log = document.getElementById('sui-log');
     
-    // Conectamos mediante el servicio centralizado para mantener el puente limpio
-    QRpidoDB.AdminService.escucharHashesSUI((txData) => {
+    QRpidoDB.AdminService.escucharHashesSUI((docData) => {
+        if (docData.seguridad_web3 && docData.seguridad_web3.txID_pago) {
+            const p = document.createElement('p');
+            p.style.margin = "4px 0";
+            p.style.borderBottom = "1px dotted rgba(0, 245, 212, 0.2)";
+            p.style.paddingBottom = "4px";
+            
+            const horaFormato = new Date().toLocaleTimeString('es-CO');
+            p.innerHTML = `[${horaFormato}] <span style="color:#fff">TX:</span> <span style="font-family: monospace; letter-spacing: 1px;">${docData.seguridad_web3.txID_pago.substring(0,24)}...</span> ✅`;
+            
+            log.prepend(p);
+
+
+            // OPTIMIZACIÓN DE RAM
+            while (log.children.length > 10) {
+                log.removeChild(log.lastChild);
+            }
+        }
+    });
+}
+
+
         if (!txData || !txData.txID_pago) return;
         
         const p = document.createElement('p');
@@ -484,26 +555,3 @@ alert("Error al revocar permisos: " + error);
 </script>
 </body>
 </html>
-
-
-
-
-Contexto Principal: Proyecto QRpido (El Cerebro Central / Master Admin) Soy Zamyr. Vamos a trabajar exclusivamente en realizar cortes quirúrgicos al archivo qrpido.html. Este es el dashboard del SuperAdmin (El Arquitecto).
-El Ecosistema: Plataforma PWA hiper-optimizada para móviles de gama de entrada (2GB RAM). Código en Vanilla JS, Firebase v10 (Firestore y RTDB). Estética "Cypherpunk" con azul corporativo y naranja áureo.
-La Misión: Convertir el panel en un Centro de BI Financiero y Logístico. Actualmente solo maneja moderadores. Necesitamos que monitoree la salud económica y operativa de QRpido.
-Reglas de Trabajo (HARD RULES):
-PROHIBIDO reescribir el archivo completo. Solo cortes quirúrgicos: > BUSCA ESTE BLOQUE EXACTO: y > PÍSALO CON ESTO:.
-Mantener la compatibilidad estricta con el puente QRpidoDB.
-Optimización extrema de RAM: Usar onValue de RTDB con moderación para no fundir el navegador del móvil con miles de eventos.
-Misión: Ejecutar los siguientes 4 cortes estratégicos en qrpido.html:
-Bóveda Financiera Global (Fase 2): Expandir la stats-grid para incluir:
-Saldo en Malla: Sumatoria de los saldos logísticos de todos los comercios.
-Comisiones Acumuladas: El 10% generado por la plataforma listo para retiro.
-Pagos Pendientes: Deuda actual con el escuadrón de domiciliarios.
-Monitor de la Malla de Gas (Fase 5): Crear una sección llamada "🛰️ Radar de Despachos en Vivo". Debe conectarse a Realtime Database (malla_de_gas/ordenes_activas) y listar en tiempo real:
-Ticket ID | Comercio | Valor Flete | Estado (Buscando/En camino/Entregado).
-Trazabilidad de Conversión (Telemetría): Inyectar un indicador de "Ejecución de Carritos": Comparar cuántas personas dieron clic en "Enviar WhatsApp" vs cuántos tickets fueron realmente validados por los comercios.
-Explorador SUI (Web3): Crear un log (historial de texto pequeño) que muestre los últimos 10 hashes (txID) registrados en la red SUI para certificar la inmutabilidad de las entregas.
-Control de Crisis (Kill Switch): Agregar un botón de "Emergencia" para pausar el registro de nuevos tickets en caso de detectar un ataque de bots masivo (Fase 7).
-A continuación, te pasaré el código fuente completo de mi qrpido.html actual. Confirma que entiendes que este es el panel del dueño absoluto y dime por cuál de los cortes empezamos para blindar la operación.
-
