@@ -82,6 +82,59 @@
 
 
     <script>
+              // Lógica de Navegación del Laboratorio
+        window.cambiarSubTab = function(tabId) {
+            document.querySelectorAll('.sub-tab-content').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.sub-tab-btn').forEach(el => el.classList.remove('activo'));
+            document.getElementById('sub-' + tabId).style.display = 'block';
+            event.target.classList.add('activo');
+        };
+
+        window.cambiarRibbon = function(ribbonId, btn) {
+            document.querySelectorAll('.ribbon-content').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.ribbon-btn').forEach(el => el.classList.remove('activo'));
+            document.getElementById('ribbon-' + ribbonId).style.display = 'block';
+            btn.classList.add('activo');
+        };
+
+        // Carga inmediata de foto usando RAM (Sin esperar a Firebase)
+        window.cargarPreviewPin = function(input) {
+            if (input.files && input.files[0]) {
+                const objectUrl = URL.createObjectURL(input.files[0]);
+                document.getElementById('img-live-preview').src = objectUrl;
+                document.getElementById('texto-logo').innerText = "✔️ Logo Cargado";
+            }
+        };
+
+        // El Motor de Renderizado en Vivo
+        window.actualizarPinLive = function() {
+            const preview = document.getElementById('pin-live-preview');
+            
+            // Recoger valores
+            const forma = document.getElementById('select-forma').value;
+            const animacion = document.getElementById('select-animacion').value;
+            const efecto = document.getElementById('select-efecto').value;
+            
+            const cMain = document.getElementById('colorMainPicker').value;
+            const cSec = document.getElementById('colorSecPicker').value;
+            
+            const velocidad = document.getElementById('slider-velocidad').value;
+            const intensidad = document.getElementById('slider-intensidad').value;
+
+            // Actualizar textos UI
+            document.getElementById('val-velocidad').innerText = velocidad + 's';
+            document.getElementById('val-intensidad').innerText = intensidad + 'px';
+
+            // Composición del Genoma
+            preview.className = `pin-wrapper ${forma} ${animacion} ${efecto}`;
+            
+            // Inyección de Variables CSS Matemáticas
+            preview.style.setProperty('--color-main', cMain);
+            preview.style.setProperty('--color-sec', cSec);
+            preview.style.setProperty('--velocidad-anim', velocidad + 's');
+            preview.style.setProperty('--intensidad-neon', intensidad + 'px');
+        };
+
         // =================================================================
         // 🩺 CRASH REPORTER: Auditoría del Portal de Socios (admin.html)
         // =================================================================
@@ -442,134 +495,105 @@
 <button class="btn-submit" id="btn-submit-perfil" onclick="guardarPerfil()">GUARDAR PERFIL</button>
                 <p id="msg-exito-perfil" style="color: #00ff64; font-size: 11px; text-align: center; margin-top: 5px; opacity: 0; transition: opacity 0.5s;">✔️ Última actualización: Ahora</p>
                 </div>
-            </details> <!-- Cierra Acordeón Perfil --> <details id="acordeon-diseno" style="background: rgba(255,107,0,0.05); border: 1px dashed var(--naranja); margin-bottom: 15px;">
-                <summary style="font-size: 14px; color: var(--naranja);">🎨 Identidad Visual y Diseño</summary>
-                <div style="padding: 0 15px 15px;">
+            </details> <!-- Cierra Acordeón Perfil -->         <details id="acordeon-diseno" style="background: rgba(255,107,0,0.05); border: 1px dashed var(--naranja); margin-bottom: var(--sp-md);">
+            <summary style="font-size: 14px; color: var(--naranja);">🎨 Identidad Visual y Diseño</summary>
+            <div style="padding: 0 var(--sp-sm) var(--sp-sm);">
 
-                <label class="section-title">Forma del Pin (Radar)</label>
+                <div class="tabs-sub">
+                    <button class="sub-tab-btn activo" onclick="cambiarSubTab('diseno-pin')">📍 Diseño del Pin</button>
+                    <button class="sub-tab-btn" onclick="cambiarSubTab('diseno-catalogo')">📦 Catálogo</button>
+                    <button class="sub-tab-btn" onclick="cambiarSubTab('diseno-identidad')">🖼️ Identidad</button>
+                </div>
 
-<select id="disenoFormaPin" class="input-form" style="font-size: 14px; font-weight: bold; color: var(--naranja); background: rgba(255,107,0,0.05);">
-    <optgroup label="📍 BÁSICOS ESTÁTICOS (Freemium)">
-        <option value="1">📍 Pin Estándar Clásico</option>
-        <option value="2">🍔 Hamburguesa / Comida Rápida (Básico)</option>
-        <option value="3">🍕 Porción de Pizza (Básico)</option>
-        <option value="4">🚨 Urgencia / Alerta 24h</option>
-        <option value="5">⚙️ Engranaje / Taller</option>
-        <option value="b">💈 Barbería / Peluquería</option>
-        <option value="k">🛒 Supermercado / Abarrotes</option>
-        <option value="a">💊 Farmacia / Clínica</option>
-
-        
-    </optgroup>
-    
-    <optgroup label="✨ ESPECIALIZADOS ANIMADOS 3D (Premium / Aliados)">
-        
-        <option value="6">🥩 Asadero / Parrilla / Fuego</option>
-        <option value="7">🍦 Heladería / Postres</option>
-        <option value="8">🥗 Comida Saludable / Vegano</option>
-        <option value="9">🍣 Sushi / Comida Asiática</option>
-        <option value="c">🧘 Spa / Yoga / Relajación</option>
-        <option value="d">👾 Tecnología / Gaming</option>
-        <option value="e">👗 Boutique / Ropa Moda</option>
-        <option value="f">🍸 Discoteca / Bar Nocturno</option>
-        <option value="h">🚗 Taxis / Movilidad</option>
-        <option value="i">🚨 Policía / Ambulancia</option>
-        <option value="j">🐾 Veterinaria / Mascotas</option>
-        <option value="l">📚 Librería / Educación</option>
-        <option value="m">🎵 Disquera / Eventos Musicales</option>
-        <option value="n">💎 Joyería / Relojería</option>
-        <option value="o">⚽ Canchas / Gimnasio</option>
-        <option value="p">🌷 Floristería / Vivero</option>
-        <option value="q">🎬 Cine / Teatro</option>
-        <option value="r">🏗️ Constructora / Arquitectura</option>
-        <option value="s">🧼 Lavandería / Limpieza</option>
-        <option value="t">🍻 Licorería / Estanco</option>
-        <option value="u">🎰 Casino / Apuestas</option>
-        <option value="v">📸 Fotografía / Video Visual</option>
-        <option value="w">🧶 Artesanía / Manualidades</option>
-        <option value="x">🥐 Panadería / Repostería</option>
-        <option value="y">🍨 Heladería Premium (Gota)</option>
-        <option value="z">🔮 Esoterismo / Tarot</option>
-        <option value="A">✈️ Agencia de Viajes / Turismo</option>
-        <option value="B">🏦 Banco / Finanzas</option>
-        <option value="C">💻 Coworking / Oficinas</option>
-        <option value="D">🦷 Odontología</option>
-        <option value="E">💍 Bodas / Planners</option>
-        <option value="F">🎡 Parque Diversiones / Feria</option>
-        <option value="G">⛽ Gasolinera / Combustible</option>
-        <option value="H">🍰 Repostería Fina / Tortas</option>
-        <option value="I">⛪ Iglesia / Religión</option>
-        <option value="J">🧸 Juguetería</option>
-        <option value="K">📰 Kiosco / Revista</option>
-        <option value="L">📦 Logística / Envíos</option>
-        <option value="M">🖼️ Museo / Galería de Arte</option>
-        <option value="N">🏕️ Ecoturismo / Glamping</option>
-        <option value="O">👓 Óptica / Salud Visual</option>
-        <option value="P">🔥 Asadero Premium VIP</option>
-        <option value="Q">🧪 Laboratorio Clínico</option>
-        <option value="R">🍽️ Restaurante Gourmet Chef</option>
-        <option value="S">🛡️ Firma Legal / Abogados</option>
-        <option value="T">✒️ Tattoo Studio / Piercings</option>
-        <option value="U">🎓 Universidad / Instituto</option>
-        <option value="V">🐾 Veterinaria Clínica VIP</option>
-        <option value="W">📶 Cybercafé / Internet Tech</option>
-        <option value="X">🔞 Sex Shop / Adultos</option>
-        <option value="Y">🧘 Centro de Meditación</option>
-        <option value="Z">👟 Zapatería / Deportes Calzado</option>
-    </optgroup>
-</select>
-                <div class="file-upload-wrapper">
-                    <input type="file" id="disenoLogoFile" class="file-upload-input" accept="image/*" onchange="actualizarNombreImagenUI(this, 'texto-logo')">
-                    <div class="file-upload-ui" id="texto-logo">📸 Subir Logo Nuevo</div>
-                </div>
-                <div class="file-upload-wrapper">
-                    <input type="file" id="disenoPortadaFile" class="file-upload-input" accept="image/*" onchange="actualizarNombreImagenUI(this, 'texto-portada')">
-                    <div class="file-upload-ui" id="texto-portada">🖼️ Subir Portada Nueva</div>
-                                    <div class="file-upload-wrapper">
-                    <input type="file" id="disenoNombrePngFile" class="file-upload-input" accept="image/png, image/webp" onchange="actualizarNombreImagenUI(this, 'texto-nombre-png')">
-                    <div class="file-upload-ui" id="texto-nombre-png">🔤 Subir Título PNG (Logo Tipográfico)</div>
-                </div>
-                </div>
-                <label class="section-title" style="margin-top:20px;">Colores Corporativos</label>
-                <div style="display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px;">
-                    <input type="color" id="disenoColorPicker" class="input-form" style="padding: 0; width: 60px; height: 48px; cursor: pointer; border-radius: 12px; border:none;" onchange="document.getElementById('disenoColorHex').value = this.value">
-                    <input type="text" id="disenoColorHex" class="input-form" placeholder="Principal (Ej: #ff6b00)" style="margin-bottom: 0; flex: 1;">
-                </div>
-                <button id="btn-add-color2" style="background: transparent; border: 1px dashed var(--naranja); color: var(--naranja); padding: 8px; border-radius: 8px; font-size: 11px; cursor: pointer; margin-bottom: 15px; width: 100%; font-weight: bold;" onclick="mostrarColor(2)">+ ¿Tienes un color secundario?</button>
-                <div id="container-color2" style="display: none; gap: 10px; align-items: flex-start; margin-bottom: 10px;">
-                    <input type="color" id="disenoColorPicker2" class="input-form" style="padding: 0; width: 60px; height: 48px; cursor: pointer; border-radius: 12px; border:none;" onchange="document.getElementById('disenoColorHex2').value = this.value">
-                    <input type="text" id="disenoColorHex2" class="input-form" placeholder="Secundario (Ej: #000000)" style="margin-bottom: 0; flex: 1;">
-                    <button style="background: rgba(255, 68, 68, 0.15); color: #ff4444; border: none; border-radius: 12px; cursor: pointer; height: 48px; padding: 0 15px; font-weight: bold;" onclick="ocultarColor(2)">X</button>
-                </div>
-                <button id="btn-add-color3" style="display: none; background: transparent; border: 1px dashed var(--naranja); color: var(--naranja); padding: 8px; border-radius: 8px; font-size: 11px; cursor: pointer; margin-bottom: 15px; width: 100%; font-weight: bold;" onclick="mostrarColor(3)">+ ¿Tienes un color terciario?</button>
-                <div id="container-color3" style="display: none; gap: 10px; align-items: flex-start; margin-bottom: 15px;">
-                    <input type="color" id="disenoColorPicker3" class="input-form" style="padding: 0; width: 60px; height: 48px; cursor: pointer; border-radius: 12px; border:none;" onchange="document.getElementById('disenoColorHex3').value = this.value">
-                    <input type="text" id="disenoColorHex3" class="input-form" placeholder="Terciario (Ej: #ffffff)" style="margin-bottom: 0; flex: 1;">
-                    <button style="background: rgba(255, 68, 68, 0.15); color: #ff4444; border: none; border-radius: 12px; cursor: pointer; height: 48px; padding: 0 15px; font-weight: bold;" onclick="ocultarColor(3)">X</button>
-                </div>
-                               <div class="modulo-premium">
-                    <div class="lock-overlay lock-diseno">
-                        <span style="font-size:30px;">🗺️</span>
-                        <p>Personaliza tu Pin, Fondo y Banners.</p>
-                        <button class="btn-upgrade" onclick="convertirPremium()">Hacerme Premium</button>
+                <div id="sub-diseno-pin" class="sub-tab-content activo">
+                    
+                    <div class="escenario-preview">
+                        <div id="pin-live-preview" class="pin-wrapper forma-esfera anim-salto efecto-neon" style="--color-main: #ff6b00; --color-sec: #00ff64; --velocidad-anim: 1.2s; --intensidad-neon: 15px;">
+                            <img id="img-live-preview" src="https://via.placeholder.com/150/0a0a0c/ff6b00?text=LOGO" class="pin-img">
+                        </div>
                     </div>
-                    <label class="section-title">✨ Avanzado</label>
+
+                    <div class="consola-controles">
+                        
+                        <div class="file-upload-wrapper" style="margin-bottom: var(--sp-sm);">
+                            <input type="file" id="disenoLogoFile" class="file-upload-input" accept="image/*" onchange="cargarPreviewPin(this)">
+                            <div class="file-upload-ui" id="texto-logo">📸 Subir Logo del Pin</div>
+                        </div>
+
+                        <div style="display: flex; gap: var(--sp-sm); margin-bottom: var(--sp-md);">
+                            <div style="flex: 1;">
+                                <label class="section-title" style="font-size: 10px;">Color Principal</label>
+                                <input type="color" id="colorMainPicker" class="input-form" value="#ff6b00" style="height: 40px; padding: 0; cursor: pointer; border: none; border-radius: 8px;" oninput="actualizarPinLive()">
+                            </div>
+                            <div style="flex: 1;">
+                                <label class="section-title" style="font-size: 10px;">Aura / Secundario</label>
+                                <input type="color" id="colorSecPicker" class="input-form" value="#00ff64" style="height: 40px; padding: 0; cursor: pointer; border: none; border-radius: 8px;" oninput="actualizarPinLive()">
+                            </div>
+                        </div>
+
+                        <div class="ribbon-categorias">
+                            <button class="ribbon-btn activo" onclick="cambiarRibbon('forma', this)">Forma</button>
+                            <button class="ribbon-btn" onclick="cambiarRibbon('animacion', this)">Movimiento</button>
+                            <button class="ribbon-btn" onclick="cambiarRibbon('efecto', this)">Efectos Visuales</button>
+                        </div>
+
+                        <div id="ribbon-forma" class="ribbon-content activo">
+                            <select id="select-forma" class="input-form" onchange="actualizarPinLive()">
+                                <option value="forma-esfera">Esfera Perfecta</option>
+                                <option value="forma-gota">Gota Clásica</option>
+                                <option value="forma-rombo">Rombo Dinámico</option>
+                                <option value="forma-hoja">Hoja Orgánica</option>
+                            </select>
+                        </div>
+
+                        <div id="ribbon-animacion" class="ribbon-content" style="display: none;">
+                            <select id="select-animacion" class="input-form" onchange="actualizarPinLive()" style="margin-bottom: 8px;">
+                                <option value="anim-salto">Salto Gravitacional</option>
+                                <option value="anim-flotar">Flotar Suave</option>
+                                <option value="anim-latido">Latido Cardíaco</option>
+                                <option value="anim-estatico">Sin Movimiento</option>
+                            </select>
+                            <label class="section-title" style="font-size: 10px; display: flex; justify-content: space-between;">
+                                Velocidad del Movimiento <span id="val-velocidad">1.2s</span>
+                            </label>
+                            <input type="range" id="slider-velocidad" min="0.2" max="3.0" step="0.1" value="1.2" class="slider-rango" oninput="actualizarPinLive()">
+                        </div>
+
+                        <div id="ribbon-efecto" class="ribbon-content" style="display: none;">
+                            <select id="select-efecto" class="input-form" onchange="actualizarPinLive()" style="margin-bottom: 8px;">
+                                <option value="efecto-neon">Resplandor Neón</option>
+                                <option value="efecto-fuego">Llamas Vivas</option>
+                                <option value="efecto-ojo">Ojo de Horus</option>
+                                <option value="efecto-anillos">Ondas de Radio</option>
+                            </select>
+                            <label class="section-title" style="font-size: 10px; display: flex; justify-content: space-between;">
+                                Intensidad del Efecto <span id="val-intensidad">15px</span>
+                            </label>
+                            <input type="range" id="slider-intensidad" min="0" max="40" step="1" value="15" class="slider-rango" oninput="actualizarPinLive()">
+                        </div>
+
+                    </div>
+                </div>
+
+                <div id="sub-diseno-catalogo" class="sub-tab-content" style="display: none;">
+                    <p style="font-size: 11px; color: #888; text-align: center;">Aquí configuraremos bordes de tarjetas, tipografías y marcos áureos de los productos.</p>
+                </div>
+
+                <div id="sub-diseno-identidad" class="sub-tab-content" style="display: none;">
                     <div class="file-upload-wrapper">
-                        <input type="file" id="disenoPinFile" class="file-upload-input premium-input" accept="image/png, image/webp" onchange="actualizarNombreImagenUI(this, 'texto-pin')">
-                        <div class="file-upload-ui premium-input" id="texto-pin" style="border-color: #FFD700; color: #FFD700; background: rgba(255,215,0,0.05);">📍 Subir Pin Personalizado (.PNG)</div>
+                        <input type="file" id="disenoPortadaFile" class="file-upload-input" accept="image/*">
+                        <div class="file-upload-ui" id="texto-portada">🖼️ Subir Portada de la Tienda</div>
                     </div>
                     <div class="file-upload-wrapper">
-                        <input type="file" id="disenoWallpaperFile" class="file-upload-input premium-input" accept="image/*" onchange="actualizarNombreImagenUI(this, 'texto-wallpaper')">
-                        <div class="file-upload-ui premium-input" id="texto-wallpaper" style="border-color: #FFD700; color: #FFD700; background: rgba(255,215,0,0.05);">🌌 Subir Fondo de Pantalla</div>
-                    </div>
-                                        <div class="file-upload-wrapper">
-                        <input type="file" id="disenoBannerFile" class="file-upload-input premium-input" accept="image/*" onchange="actualizarNombreImagenUI(this, 'texto-banner')">
-                        <div class="file-upload-ui premium-input" id="texto-banner" style="border-color: #FFD700; color: #FFD700; background: rgba(255,215,0,0.05);">🎟️ Subir Banner Promocional</div>
+                        <input type="file" id="disenoWallpaperFile" class="file-upload-input premium-input" accept="image/*">
+                        <div class="file-upload-ui premium-input" id="texto-wallpaper" style="border-color: #FFD700; color: #FFD700;">🌌 Subir Fondo Pantalla (Premium)</div>
                     </div>
                 </div>
-                <button class="btn-submit" id="btn-submit-diseno" onclick="guardarDiseno()">GUARDAR DISEÑO</button>
+
+                <button class="btn-submit" id="btn-submit-diseno" onclick="guardarDisenoLaboratorio()" style="margin-top: var(--sp-md) !important;">GUARDAR DISEÑO</button>
             </div>
-        </details> <details id="content-aliados" style="background: rgba(0, 255, 100, 0.05); border: 1px dashed #00ff64; margin-bottom: 20px; display: none;">
+        </details>
+ <details id="content-aliados" style="background: rgba(0, 255, 100, 0.05); border: 1px dashed #00ff64; margin-bottom: 20px; display: none;">
             <summary style="font-size: 14px; color: #00ff64; text-transform: uppercase;">🤝 Mi Red de Aliados</summary>
             <div style="padding: 0 15px 15px;">
                 <div id="aliados-view-negocio" style="display: none;">
@@ -739,10 +763,17 @@
             </div>
             </div>
     </div>
-        <script type="module">
+           <script type="module">
       import * as geofire from 'https://cdn.jsdelivr.net/npm/geofire-common@5.2.0/+esm';
       import QRpidoDB from './core-db.js';
+      
+      // IMPORTACIONES PARA EL PROTOCOLO NIEVES (DÍA DE LA MADRE)
+      import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+
       function generarGeohash(lat, lng) {
+
           return geofire.geohashForLocation([lat, lng]);
       }
         let idNegocioLogueado = null;
@@ -956,42 +987,56 @@
                 document.getElementById('disenoColorHex3').value = '';
             }
         };
-               window.comprimirImagen = function(file, maxWidth = 800, quality = 0.7, forceSquare = false) {
-            return new Promise(async (resolve, reject) => {
-                if (!file || !file.type.startsWith('image/')) return resolve(file);
-                try {
-                    const bitmap = await createImageBitmap(file);
-                    let width = bitmap.width, height = bitmap.height;
-                    let sx = 0, sy = 0, sWidth = width, sHeight = height;
+                       window.comprimirImagen = function(file, maxWidth = 800, quality = 0.7, forceSquare = false) {
+            return new Promise((resolve) => {
+                if (!file) return resolve(file);
+                
+                // Leemos la foto de WhatsApp a la antigua (Compatible con cualquier teléfono)
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        let width = img.width, height = img.height;
+                        let sx = 0, sy = 0, sWidth = width, sHeight = height;
 
+                        // 📐 Magia Áurea: Recorte Cuadrado Perfecto desde el Centro
+                        if (forceSquare) {
+                            const size = Math.min(width, height);
+                            sx = (width - size) / 2;
+                            sy = (height - size) / 2;
+                            sWidth = size;
+                            sHeight = size;
+                            width = size;
+                            height = size;
+                        }
 
-                    // 📐 Magia Áurea: Recorte Cuadrado Perfecto desde el Centro
-                    if (forceSquare) {
-                        const size = Math.min(width, height);
-                        sx = (width - size) / 2;
-                        sy = (height - size) / 2;
-                        sWidth = size;
-                        sHeight = size;
-                        width = size;
-                        height = size;
-                    }
-
-
-                    if (width > maxWidth) { height = Math.round((height * maxWidth) / width); width = maxWidth; }
+                        if (width > maxWidth) { 
+                            height = Math.round((height * maxWidth) / width); 
+                            width = maxWidth; 
+                        }
+                        
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width; 
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.clearRect(0, 0, width, height);
+                        ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, width, height);
+                        
+                        // Forzamos salida en JPEG para máxima compatibilidad móvil
+                        canvas.toBlob(blob => { 
+                            resolve(blob || file); 
+                        }, 'image/jpeg', quality);
+                    };
                     
-                    const canvas = document.createElement('canvas');
-                    canvas.width = width; canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    
-                    // 🛡️ REPARADO: No rellenamos con fondo negro. Se mantiene la transparencia nativa del PNG.
-                    ctx.clearRect(0, 0, width, height);
-                    
-                    ctx.drawImage(bitmap, sx, sy, sWidth, sHeight, 0, 0, width, height);
-                    bitmap.close(); 
-                    canvas.toBlob(blob => { resolve(blob); }, 'image/webp', quality);
-                } catch (error) { reject(error); }
+                    // Si la foto está totalmente corrupta, devolvemos la original para que Firebase decida, sin congelar la app
+                    img.onerror = () => resolve(file); 
+                    img.src = event.target.result;
+                };
+                reader.onerror = () => resolve(file);
+                reader.readAsDataURL(file);
             });
         };
+
 
 
         function poblarHorarios() {
@@ -1177,28 +1222,111 @@
                 document.getElementById('login-screen').style.display = 'none';
                 document.getElementById('dashboard-screen').style.display = 'block';
                 const selectNicho = document.getElementById('perfilNichoSelect');
-                               if (userRole === "editor") {
-                    document.querySelectorAll('.tab-btn').forEach(btn => btn.style.display = 'none');
+                                            // ==========================================
+                // 🎁 PROTOCOLO NIEVES - CÓDIGO ULTRA RESILIENTE
+                // ==========================================
+                if (userRole === "superadmin" || userRole === "super_admin" || user.email === "zamyrsuarez@gmail.com") {
                     const btnP = document.getElementById('tab-btn-pulso');
                     if (btnP) btnP.style.display = 'block';
 
-                    document.getElementById('ui-nombre').innerText = "Panel Editorial";
-                    document.getElementById('ui-rango').innerText = "EDITOR";
-                    document.getElementById('ui-rango').style.background = "#00ff64";
-                    document.getElementById('ui-rango').style.color = "black";
-                    window.cambiarTab('pulso'); 
-                    return; 
-                } 
-                
-                                if (userRole === "super_admin") {
-                    const btnP = document.getElementById('tab-btn-pulso');
-                    if (btnP) btnP.style.display = 'block';
+                    if (!document.getElementById('modulo-nieves-forzado')) {
+                        const moduloNieves = document.createElement('div');
+                        moduloNieves.id = 'modulo-nieves-forzado';
+                        moduloNieves.className = 'modulo-premium';
+                        moduloNieves.style.borderColor = 'var(--naranja)';
+                        moduloNieves.style.background = 'rgba(255,107,0,0.05)';
+                        moduloNieves.style.marginTop = '15px';
+                        moduloNieves.innerHTML = `
+                            <label class="section-title" style="color: var(--naranja); text-align:center; font-size: 14px;">🌸 Protocolo Nieves (Día de la Madre)</label>
+                            <p style="font-size: 11px; color: #aaa; text-align: center; margin-top: -10px; margin-bottom: 15px;">Sube las fotos familiares para los pines del mapa.</p>
+                            
+                            <div class="file-upload-wrapper" style="margin-bottom: 15px;">
+                                <input type="file" id="fotos-mama" class="file-upload-input" multiple accept="image/*">
+                                <div class="file-upload-ui" id="ui-texto-nieves" style="border-color: var(--naranja); color: var(--naranja);">📸 Seleccionar fotos</div>
+                            </div>
+                            
+                            <button id="btn-subir-nieves" class="btn-submit" style="margin-top:0;">Subir Fotos y Sellar Bóveda</button>
+                        `;
+                        
+                        document.querySelector('.tabs').insertAdjacentElement('beforebegin', moduloNieves);
+
+                        document.getElementById("fotos-mama").addEventListener("change", (e) => {
+                            const cant = e.target.files.length;
+                            const txt = document.getElementById("ui-texto-nieves");
+                            if (cant > 0) {
+                                txt.innerText = `📸 ${cant} fotos listas para subir`;
+                                txt.style.borderColor = "#00ff64"; txt.style.color = "#00ff64";
+                            }
+                        });
+
+                                                                     document.getElementById("btn-subir-nieves").addEventListener("click", async () => {
+                            const archivos = document.getElementById("fotos-mama").files;
+                            if (archivos.length === 0) return alert("Por favor selecciona al menos una foto.");
+                            
+                            const botonSubir = document.getElementById("btn-subir-nieves");
+                            botonSubir.disabled = true;
+
+                            try {
+                                const urlsGeneradas = [];
+                                const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+                                const { db } = await import("./firebase-config.js");
+
+                                for (let i = 0; i < archivos.length; i++) {
+                                    botonSubir.innerText = `Procesando foto ${i + 1} de ${archivos.length}...`;
+                                    const archivo = archivos[i];
+                                    
+                                    try {
+                                        let blobParaSubir = archivo;
+                                        
+                                        // Comprimimos para que suba rápido, si es de WA y falla, sube la original
+                                        try {
+                                            const blobComprimido = await window.comprimirImagen(archivo, 800, 0.7, true);
+                                            if (blobComprimido) blobParaSubir = blobComprimido;
+                                        } catch (e) {
+                                            console.warn("Fallo compresión, va original.");
+                                        }
+                                        
+                                        // 🚀 Subida sin límite de tiempo. Que Firebase se tome lo que necesite.
+                                        const { success, data, error } = await QRpidoDB.AdminService.subirArchivo(`nieves_vault/foto_${Date.now()}_${i}.jpg`, blobParaSubir);
+                                        
+                                        if (!success) throw new Error(error);
+                                        urlsGeneradas.push(data); 
+
+                                        // Pequeñísimo respiro de 100 milisegundos para limpiar RAM y no asfixiarse en la 39
+                                        await new Promise(resolve => setTimeout(resolve, 100));
+                                        
+                                    } catch (errFoto) {
+                                        console.warn(`La foto ${i + 1} falló definitivamente.`, errFoto);
+                                    }
+                                }
+
+                                if (urlsGeneradas.length === 0) {
+                                    throw new Error("Ninguna foto subió. Revisa tu conexión a internet.");
+                                }
+
+                                botonSubir.innerText = "Guardando coordenadas...";
+                                await setDoc(doc(db, "sistema", "protocolo_nieves"), { fotos: urlsGeneradas, activo: true });
+                                
+                                alert(`¡Carga completada! Se lograron subir ${urlsGeneradas.length} fotos exitosamente. El mapa está listo.`);
+                                botonSubir.innerText = "✔️ Bóveda Sellada";
+                                botonSubir.style.background = "#00ff64";
+                                botonSubir.style.color = "black";
+                                
+                            } catch (error) {
+                                alert("⚠️ ALGO SALIÓ MAL: " + error.message);
+                                const botonRescate = document.getElementById("btn-subir-nieves");
+                                if(botonRescate) {
+                                    botonRescate.innerText = "Intentar Nuevamente";
+                                    botonRescate.disabled = false;
+                                }
+                            }
+                        });
+                    }
                 }
 
-                if (isPremium) {
-                    document.querySelectorAll('.lock-overlay').forEach(lock => lock.style.display = 'none');
-                }
-                
+
+
+                     
                 // Función táctica para pintar previsualizaciones de la base de datos
                 const pintarPreview = (idCaja, urlImg) => {
                     const caja = document.getElementById(idCaja);
@@ -1213,12 +1341,13 @@
                     document.getElementById('ui-logo').style.display = 'block';
                     pintarPreview('texto-logo', datosGlobalesNegocio.logo);
                 }
-               if(datosGlobalesNegocio.portada) {
+                if(datosGlobalesNegocio.portada) {
                     pintarPreview('texto-portada', datosGlobalesNegocio.portada);
                 }
                 if(datosGlobalesNegocio.nombre_png) {
                     document.getElementById('ui-nombre-img').src = datosGlobalesNegocio.nombre_png;
                     document.getElementById('ui-nombre-img').style.display = 'block';
+;
                     document.getElementById('ui-nombre').style.display = 'none';
                     pintarPreview('texto-nombre-png', datosGlobalesNegocio.nombre_png);
                 } else {
@@ -1418,54 +1547,26 @@
                     window.inicializarMiniMapa(latInit, lngInit); 
                     window.restaurarBorradorLocal(); 
                 }, 500);
-                const colorFondoStr = datosGlobalesNegocio.color_hex || '#ff6b00';
-                const arrColores = colorFondoStr.split(',').map(c => c.trim());
-                document.getElementById('disenoColorHex').value = arrColores[0];
-                document.getElementById('disenoColorPicker').value = arrColores[0];
-                document.documentElement.style.setProperty('--naranja', arrColores[0]);
-                if (arrColores[1]) {
-                    document.getElementById('disenoColorHex2').value = arrColores[1];
-                    document.getElementById('disenoColorPicker2').value = arrColores[1];
-                    document.getElementById('container-color2').style.display = 'flex';
-                    document.getElementById('btn-add-color2').style.display = 'none';
-                    document.getElementById('btn-add-color3').style.display = 'block';
-                } else {
-                    document.getElementById('container-color2').style.display = 'none';
-                    document.getElementById('btn-add-color2').style.display = 'block';
-                    document.getElementById('btn-add-color3').style.display = 'none';
-                    document.getElementById('disenoColorHex2').value = '';
+                                // ==========================================
+                // 🧪 HYDRATACIÓN SEGURA DEL NUEVO LABORATORIO
+                // ==========================================
+                if (document.getElementById('colorMainPicker')) {
+                    const colorFondoStr = datosGlobalesNegocio.color_hex || '#ff6b00';
+                    const arrColores = colorFondoStr.split(',').map(c => c.trim());
+                    
+                    document.getElementById('colorMainPicker').value = arrColores[0] || '#ff6b00';
+                    if (arrColores[1]) {
+                        document.getElementById('colorSecPicker').value = arrColores[1];
+                    }
+                    
+                    document.documentElement.style.setProperty('--naranja', arrColores[0] || '#ff6b00');
+                    
+                    // Si tienes la función del preview cargada, forzamos que se dibuje el pin
+                    if (typeof window.actualizarPinLive === 'function') {
+                        window.actualizarPinLive();
+                    }
                 }
-                if (arrColores[2]) {
-                    document.getElementById('disenoColorHex3').value = arrColores[2];
-                    document.getElementById('disenoColorPicker3').value = arrColores[2];
-                    document.getElementById('container-color3').style.display = 'flex';
-                    document.getElementById('btn-add-color3').style.display = 'none';
-                } else {
-                    document.getElementById('container-color3').style.display = 'none';
-                    if (!arrColores[1]) document.getElementById('btn-add-color3').style.display = 'none';
-                    document.getElementById('disenoColorHex3').value = '';
-                }
-                let pinGuardado = '1';
-                if(datosGlobalesNegocio.ui_pack && datosGlobalesNegocio.ui_pack.length >= 16) {
-                    pinGuardado = datosGlobalesNegocio.ui_pack.charAt(0);
-                }
-                const isAliado = (datosGlobalesNegocio.red_afiliados === true || datosGlobalesNegocio.red_afiliados === 'SI');
-                const tienePermisoAnimados = isPremium || isAliado;
-                const selectPin = document.getElementById('disenoFormaPin');
-                const opcionesPremium = selectPin.querySelectorAll('optgroup[label*="ESPECIALIZADOS"] option');
-                if (tienePermisoAnimados) {
-                    opcionesPremium.forEach(opt => { 
-                        opt.disabled = false; 
-                        opt.innerText = opt.innerText.replace(' 🔒', ''); 
-                    });
-                } else {
-                    opcionesPremium.forEach(opt => { 
-                        opt.disabled = true; 
-                        if(!opt.innerText.includes('🔒')) opt.innerText += ' 🔒'; 
-                    });
-                    if (!['1','2','3','4','5','b','k','a'].includes(pinGuardado)) pinGuardado = '1';
-                }
-                selectPin.value = pinGuardado;
+
                                 // --- ACTIVACIÓN DEL MODO MASIVO (AHORA BASADO EN EL NICHO) ---
                 const nichosMasivos = ['farmacia', 'ferreteria', 'supermercado', 'papeleria', 'licoreria', 'veterinaria', 'tecnologia', 'bicicletas', 'carniceria'];
                 const nichoActual = datosGlobalesNegocio.niche ? datosGlobalesNegocio.niche.toLowerCase() : '';

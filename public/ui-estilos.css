@@ -211,41 +211,31 @@ details[open] { background: rgba(20,20,25,0.8); border-color: rgba(255,107,0,0.3
 @keyframes saltoMoneda { 0% { transform: translateY(0px) scale(1); } 40% { transform: translateY(-40px) scale(1.2); } 100% { transform: translateY(0px) scale(1); } }
 /* === GAMIFICACIÓN FAVORITOS === */
 @keyframes saltoCorazon { 0% { transform: translateY(0px) scale(1); } 40% { transform: translateY(-25px) scale(1.4) rotateY(180deg); } 100% { transform: translateY(0px) scale(1) rotateY(360deg); } }
-/* === ZOOM SEMÁNTICO ESTRICTO (Regresión Áurea 1.618) === */
-.pin-wrapper { will-change: transform, opacity; transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.3s ease; transform-origin: center bottom; }
+/* === ZOOM SEMÁNTICO ESTRICTO (Calibrado a la vista "IZ DI") === */
+.pin-wrapper { 
+    will-change: transform, opacity; 
+    transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.3s ease; 
+    transform-origin: center bottom; 
+}
 
+/* Zoom 18: Zoom In Máximo - Tamaño Natural (100%) */
+#mapa-qrpido[data-zoom="18"] .pin-wrapper:not(.pin-moneda-magica) { transform: scale(1.0); opacity: 1; pointer-events: all; }
+#mapa-qrpido[data-zoom="18"] .pin-moneda-magica { transform: scale(1.2); z-index: 1000; pointer-events: all; }
 
-/* Zoom 17-18: Interacción Directa (100% Escala) */
-#mapa-qrpido[data-zoom="18"] .pin-wrapper:not(.pin-moneda-magica),
-#mapa-qrpido[data-zoom="17"] .pin-wrapper:not(.pin-moneda-magica) { transform: scale(1.0); opacity: 1; pointer-events: all; }
-#mapa-qrpido[data-zoom="18"] .pin-moneda-magica,
-#mapa-qrpido[data-zoom="17"] .pin-moneda-magica { transform: scale(1.2); z-index: 1000; pointer-events: all; }
+/* Zoom 17: Acercamiento Medio (61.8%) */
+#mapa-qrpido[data-zoom="17"] .pin-wrapper:not(.pin-moneda-magica) { transform: scale(0.618); opacity: 1; pointer-events: all; }
+#mapa-qrpido[data-zoom="17"] .pin-moneda-magica { transform: scale(0.75); z-index: 1000; pointer-events: all; }
 
+/* Zoom 16: Alejamiento Medio (38.2%) */
+#mapa-qrpido[data-zoom="16"] .pin-wrapper:not(.pin-moneda-magica) { transform: scale(0.382); opacity: 0.95; pointer-events: all; }
+#mapa-qrpido[data-zoom="16"] .pin-moneda-magica { transform: scale(0.5); z-index: 1000; pointer-events: all; }
 
-/* Zoom 16: Aproximación Cercana (0.618) */
-#mapa-qrpido[data-zoom="16"] .pin-wrapper:not(.pin-moneda-magica) { transform: scale(0.618); opacity: 0.95; pointer-events: all; }
-#mapa-qrpido[data-zoom="16"] .pin-moneda-magica { transform: scale(0.85); z-index: 1000; pointer-events: all; }
+/* Zoom 15: EL LÍMITE ("IZ DI") - Tamaño diminuto como en la Imagen 1 (23.6%) */
+#mapa-qrpido[data-zoom="15"] .pin-wrapper:not(.pin-moneda-magica) { transform: scale(0.236); opacity: 0.85; pointer-events: none; }
+#mapa-qrpido[data-zoom="15"] .pin-moneda-magica { transform: scale(0.3); z-index: 1000; pointer-events: none; }
 
+/* Borramos los niveles 14, 13 y 12 porque Leaflet ya no dejará llegar hasta allá */
 
-/* Zoom 15: Vista de Barrio (0.382) */
-#mapa-qrpido[data-zoom="15"] .pin-wrapper:not(.pin-moneda-magica) { transform: scale(0.382); opacity: 0.9; pointer-events: all; }
-#mapa-qrpido[data-zoom="15"] .pin-moneda-magica { transform: scale(0.618); z-index: 1000; pointer-events: all; }
-
-
-/* Zoom 14: Aterrizaje Inicial - Constelación Limpia (0.236) */
-#mapa-qrpido[data-zoom="14"] .pin-wrapper:not(.pin-moneda-magica) { transform: scale(0.236); opacity: 0.85; pointer-events: none; }
-#mapa-qrpido[data-zoom="14"] .pin-moneda-magica { transform: scale(0.382); z-index: 1000; pointer-events: none; }
-
-
-/* Zoom 13: Vista Ciudad/Satélite (0.146) */
-#mapa-qrpido[data-zoom="13"] .pin-wrapper:not(.pin-moneda-magica) { transform: scale(0.146); opacity: 0.6; pointer-events: none; }
-#mapa-qrpido[data-zoom="13"] .pin-moneda-magica { transform: scale(0.236); opacity: 0.8; z-index: 2000; pointer-events: none; }
-
-
-/* Zoom 12 o menos: Ocultos para no saturar memoria RAM */
-#mapa-qrpido[data-zoom="12"] .pin-wrapper,
-#mapa-qrpido[data-zoom="11"] .pin-wrapper,
-#mapa-qrpido[data-zoom="10"] .pin-wrapper { transform: scale(0); opacity: 0; pointer-events: none; }
 
 
 /* ========================================= VARIABLES DEL BÚNKER LEGAL ========================================= */ :root { --fondo-legal: #f8f9fa; --color-texto-legal: #171717; /* Renombrado para evitar colisión con tipografía áurea */ --borde-cristal-legal: rgba(0, 0, 0, 0.05); /* --naranja, --bg-oscuro y --plata-metalizado ya son heredadas del root principal */ } 
@@ -620,4 +610,69 @@ input:checked + .slider:before { transform: translateX(20px); background-color: 
 .input-glass:focus { border-color: var(--color-marca); box-shadow: 0 0 10px rgba(255,107,0,0.2); }
 #mapa-ubicacion { height: 300px; width: 100%; border-radius: 15px; margin-bottom: 15px; display: none; border: 1px solid var(--color-marca); }
 .btn-gps.exito { background: rgba(0, 255, 100, 0.1); border-color: #00ff64; color: #00ff64; box-shadow: 0 0 10px rgba(0,255,100,0.2); }
+/* =========================================
+   🌸 PROTOCOLO NIEVES: PRUEBA DE ESTRÉS GPU
+   ========================================= */
+.pin-nieves-hardware {
+    border-radius: 50%;
+    will-change: transform;
+    transform-style: preserve-3d;
+    -webkit-backface-visibility: hidden;
+}
 
+.animacion-baile {
+    will-change: transform; 
+    animation: baileMatriz 1.2s infinite alternate cubic-bezier(0.25, 1, 0.5, 1);
+    transform-origin: center bottom;
+}
+
+@keyframes baileMatriz {
+    0% { 
+        transform: translate3d(0, 0, 0) scale(1) rotate(-8deg); 
+        filter: drop-shadow(0 5px 5px rgba(255,107,0,0.5));
+    }
+    100% { 
+        transform: translate3d(0, -20px, 0) scale(1.15) rotate(8deg); 
+        filter: drop-shadow(0 20px 15px rgba(255,107,0,0.8));
+    }
+}
+/* === UI LABORATORIO DE PINES (ESTILO YOUCUT) === */
+.tabs-sub { display: flex; background: rgba(0,0,0,0.8); border-radius: 12px; padding: 4px; margin-bottom: var(--sp-md); box-shadow: inset 0 2px 5px rgba(0,0,0,0.5); }
+.sub-tab-btn { flex: 1; background: transparent; border: none; color: #888; font-size: 10px; font-weight: 900; text-transform: uppercase; padding: 10px 5px; border-radius: 8px; transition: 0.3s; cursor: pointer; }
+.sub-tab-btn.activo { background: var(--naranja); color: white; box-shadow: 0 4px 10px rgba(255,107,0,0.4); }
+
+.escenario-preview { width: 100%; height: 180px; background: radial-gradient(circle at center, rgba(30,30,35,1) 0%, #000 100%); border-radius: 15px; border: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: center; align-items: center; margin-bottom: var(--sp-sm); position: relative; overflow: hidden; box-shadow: inset 0 10px 30px rgba(0,0,0,0.8); }
+.escenario-preview::after { content: ''; position: absolute; bottom: 0; width: 100%; height: 40%; background: linear-gradient(to top, rgba(255,107,0,0.1), transparent); pointer-events: none; }
+
+.consola-controles { background: rgba(15, 15, 18, 0.95); padding: var(--sp-sm); border-radius: 15px; border: 1px solid var(--glass-border); }
+
+.ribbon-categorias { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.ribbon-categorias::-webkit-scrollbar { display: none; }
+.ribbon-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #aaa; border-radius: 20px; padding: 6px 15px; font-size: 10px; font-weight: bold; text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: 0.3s; }
+.ribbon-btn.activo { background: rgba(255,255,255,0.15); color: white; border-color: white; }
+
+/* Sliders de Rango (Estilo Consola) */
+.slider-rango { -webkit-appearance: none; width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 5px; outline: none; margin-top: 5px; }
+.slider-rango::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: var(--naranja); cursor: pointer; box-shadow: 0 0 10px rgba(255,107,0,0.8); transition: transform 0.1s; }
+.slider-rango::-webkit-slider-thumb:active { transform: scale(1.2); }
+
+/* === MOTOR COMPOSABLE DE PINES === */
+.forma-esfera { border-radius: 50%; }
+.forma-gota { border-radius: 50% 50% 10% 50%; transform: rotate(45deg); }
+.forma-gota .pin-img { transform: rotate(-45deg); }
+.forma-rombo { border-radius: 8px; transform: rotate(45deg); }
+.forma-rombo .pin-img { transform: rotate(-45deg); }
+.forma-hoja { border-radius: 50px 0 50px 0; }
+
+.anim-salto { animation: animSalto var(--velocidad-anim, 1s) infinite alternate cubic-bezier(0.5, 0.05, 1, 0.5); transform-origin: center bottom; }
+.anim-flotar { animation: animFlotar var(--velocidad-anim, 2s) infinite ease-in-out; }
+.anim-latido { animation: animLatido var(--velocidad-anim, 1s) infinite; }
+
+.efecto-neon { box-shadow: 0 0 var(--intensidad-neon, 15px) var(--color-sec); border-color: var(--color-main); }
+.efecto-anillos::before { content: ''; position: absolute; inset: -4px; border-radius: inherit; border: 2px solid var(--color-sec); animation: animOndas var(--velocidad-anim, 2s) infinite ease-out; }
+
+/* Keyframes base */
+@keyframes animSalto { 0% { transform: translateY(0) scale(1, 0.9); } 100% { transform: translateY(-20px) scale(1, 1.1); } }
+@keyframes animFlotar { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+@keyframes animLatido { 0%, 100% { transform: scale(1); } 15%, 45% { transform: scale(1.15); } 30% { transform: scale(1); } }
+@keyframes animOndas { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(calc(1 + (var(--intensidad-neon) / 20))); opacity: 0; } }

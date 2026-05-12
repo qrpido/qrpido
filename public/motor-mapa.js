@@ -1,4 +1,7 @@
 import QRpidoDB from './core-db.js';
+import { db } from './firebase-config.js'; 
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+ // 🌸 PROTOCOLO NIEVES
 // === EL RESTO DE TU CÓDIGO (VARIABLES Y LÓGICA DEL MAPA) ===
 let mapa, capaBase, capaRadar;
 // === TORNIQUETE FINANCIERO FIREBASE ===
@@ -509,14 +512,15 @@ btn.innerText = "🔍 Buscar en esta zona";
 btn.style.display = 'block';
 }
 console.error("Error en la descarga:", error);
-}
+}window.construirMapa = function() {
+    // 🛡️ REGLA HIPERLOCAL CORREGIDA: minZoom en 15 (Distancia exacta de "IZ DI")
+    mapa = L.map('mapa-qrpido', { zoomControl: false, minZoom: 15, maxZoom: 18 }).setView([4.8133, -75.6961], 16);
+    
+    capaBase = L.tileLayer('https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.png', {
+        maxZoom: 20,
+        attribution: '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a>'
+    }).addTo(mapa);
 };
-window.construirMapa = function() {
-mapa = L.map('mapa-qrpido', { zoomControl: false, minZoom: 5 }).setView([4.8133, -75.6961], 14);
-capaBase = L.tileLayer('https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.png', {
-maxZoom: 20,
-attribution: '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a>'
-}).addTo(mapa);
 const panel = document.querySelector('.leaflet-tile-pane');
 panel.style.filter = "none";
 capaRadar = L.layerGroup().addTo(mapa);
@@ -559,6 +563,7 @@ mapa.on('click', () => {
 const panel = document.getElementById('panel-cristal');
 if (panel) panel.classList.add('colapsado');
 });
+};
 }
 window.buscarCiudadGlobal = async function() {
 const texto = document.getElementById('input-buscador').value.trim();
@@ -963,7 +968,7 @@ const esFav = favs.includes(encodeURIComponent(p.codigo));
 const corazon = esFav ? '❤️' : '🤍';
 const favStyleBtn = esFav ? 'color: #ff4444; border-color: #ff4444; background: rgba(255,68,68,0.2);' : '';
 const esAliado = (p.red_afiliados === true || p.red_afiliados === 'SI');
-        let htmlPin = '';
+                        let htmlPin = '';
         if (esAliado) {
             htmlPin = `<div class="pin-wrapper pin-moneda-magica ${claseFuego}" style="border-color: #FFD700;"><img src="${logoSeguro}" class="pin-img" onerror="window.imagenRotaToGlass(this, '${nombreLimpio}')"></div>`;
         } else {
@@ -973,7 +978,6 @@ const esAliado = (p.red_afiliados === true || p.red_afiliados === 'SI');
             <img src="${logoSeguro}" class="pin-img" onerror="window.imagenRotaToGlass(this, '${nombreLimpio}')">
             </div>`;
         }
-
 
                 const iconoLeaflet = L.divIcon({ html: htmlPin, className: '', iconSize: [44, 44], iconAnchor: [22, 22] });
 
@@ -1214,4 +1218,202 @@ btnGiro.style.display = 'none';
 if(gyroActivo) window.toggleRadarInmersivo(btnGiro);
 }
 }
+// =================================================================
+// 🌸 PROTOCOLO NIEVES: MATRIZ LEGIBLE + VISOR FOTOS + MENSAJE MEJORADO
+// =================================================================
 
+window.activarProtocoloNieves = async function() {
+    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+    alert("🌸 Iniciando Protocolo Nieves..."); 
+
+    try {
+        const { doc, getDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+        const docSnap = await getDoc(doc(db, "sistema", "protocolo_nieves"));
+        
+        if (!docSnap.exists() || !docSnap.data().activo) {
+            alert("⚠️ La bóveda de Nieves no está activa.");
+            return;
+        }
+
+        const urlsFotos = docSnap.data().fotos;
+        if (!urlsFotos || urlsFotos.length === 0) return alert("⚠️ La bóveda está vacía.");
+
+        alert("🚀 ¡Fotos listas! Desplegando sobre tu casa a gran escala...");
+
+        // 📍 COORDENADAS EXACTAS DE TU CASA EN LOBATERA
+        const centroLat = 7.9301874;
+        const centroLng = -72.2442390;
+        
+        // Matriz "FELIZ DIA MAMA"
+        const matriz = [
+            "1111 0 1111 0 1000 0 1 0 1111   000   1110  0 1 0  10   000   111 0  10  0 111 0  10",
+            "1000 0 1000 0 1000 0 1 0 0001   000   1001  0 1 0 101   000   101 0 101  0 101 0 101",
+            "1110 0 1110 0 1000 0 1 0 0010   000   1001  0 1 0 111   000   101 0 111  0 101 0 111",
+            "1000 0 1000 0 1000 0 1 0 0100   000   1001  0 1 0 101   000   101 0 101  0 101 0 101",
+            "1000 0 1111 0 1111 0 1 0 1111   000   1110  0 1 0 101   000   101 0 101  0 101 0 101"
+        ];
+
+        let indexFoto = 0;
+        
+        // 📏 AJUSTE CRÍTICO DE LEGIBILIDAD: Pines más pequeños y más separados
+        const tamañoPin = 22; 
+        const latPaso = 0.00015; 
+        const lngPaso = 0.00015;
+
+        const offsetLat = (matriz.length * latPaso) / 2;
+        const offsetLng = (matriz[0].length * lngPaso) / 2;
+
+        for (let f = 0; f < matriz.length; f++) {
+            const fila = matriz[f]; 
+            for (let c = 0; c < fila.length; c++) {
+                if (fila[c] === "1") {
+                    const urlFoto = urlsFotos[indexFoto % urlsFotos.length]; 
+                    indexFoto++;
+
+                    const latPin = (centroLat + offsetLat) - (f * latPaso);
+                    const lngPin = (centroLng - offsetLng) + (c * lngPaso);
+
+                    const htmlInterno = `
+                        <div class="pin-wrapper" style="width: ${tamañoPin}px !important; height: ${tamañoPin}px !important; border: 2px solid var(--naranja); box-shadow: 0 2px 4px rgba(0,0,0,0.5); overflow: hidden; margin: 0; padding: 0;">
+                            <img src="${urlFoto}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                        </div>
+                    `;
+
+                    const iconoOptimizado = L.divIcon({
+                        html: htmlInterno,
+                        className: '', 
+                        iconSize: [tamañoPin, tamañoPin],
+                        iconAnchor: [tamañoPin/2, tamañoPin/2]
+                    });
+
+                    // 💌 TARJETA INTERACTIVA CON FUNCIÓN DE AMPLIAR FOTO
+                    const tarjetaAmor = `
+                        <div style="text-align: center; width: 140px; padding: 5px;">
+                            <img src="${urlFoto}" onclick="window.abrirFotoNieves('${urlFoto}')" style="width:100%; height:130px; object-fit:cover; border-radius:8px; margin-bottom: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); cursor: zoom-in;">
+                            <h4 style="color: var(--naranja); margin: 0; font-size: 14px; font-weight: 900;">¡FELIZ DÍA! 🌸</h4>
+                            <p style="margin: 3px 0 5px 0; font-size: 10px; color: #ddd; font-weight: bold;">Toca la foto para ampliarla.</p>
+                        </div>
+                    `;
+
+                    L.marker([latPin, lngPin], { icon: iconoOptimizado }).bindPopup(tarjetaAmor).addTo(mapa);
+                }
+            }
+        }
+        
+        mapa.flyTo([centroLat, centroLng], 16, {
+            animate: true,
+            duration: 2.5 
+        });
+
+        setTimeout(window.detonarCelebracionNieves, 2600);
+
+    } catch (error) {
+        alert("⚠️ Error en el Protocolo Nieves: " + error.message);
+        console.error(error);
+    }
+};
+
+// =================================================================
+// 📸 VISOR DE PANTALLA COMPLETA PARA LAS FOTOS
+// =================================================================
+window.abrirFotoNieves = function(url) {
+    let visor = document.getElementById('visor-nieves-fs');
+    if (!visor) {
+        visor = document.createElement('div');
+        visor.id = 'visor-nieves-fs';
+        // Fondo oscuro y en la capa más alta posible
+        visor.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.95); z-index: 99999999; display: flex; justify-content: center; align-items: center; opacity: 0; transition: opacity 0.3s ease; flex-direction: column;';
+        
+        // Cerrar si hace clic fuera de la foto
+        visor.onclick = function(e) { if(e.target === visor) window.cerrarFotoNieves(); };
+
+        const cerrarBtn = document.createElement('button');
+        cerrarBtn.innerHTML = '✖';
+        cerrarBtn.style.cssText = 'position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.2); color: white; border: 1px solid white; border-radius: 50%; width: 40px; height: 40px; font-size: 18px; font-weight: bold; cursor: pointer; z-index: 2;';
+        cerrarBtn.onclick = window.cerrarFotoNieves;
+
+        const img = document.createElement('img');
+        img.id = 'img-nieves-fs';
+        img.style.cssText = 'max-width: 95vw; max-height: 85vh; object-fit: contain; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);';
+
+        visor.appendChild(cerrarBtn);
+        visor.appendChild(img);
+        document.body.appendChild(visor);
+    }
+    
+    document.getElementById('img-nieves-fs').src = url;
+    visor.style.display = 'flex';
+    requestAnimationFrame(() => visor.style.opacity = '1');
+};
+
+window.cerrarFotoNieves = function() {
+    const visor = document.getElementById('visor-nieves-fs');
+    if(visor) {
+        visor.style.opacity = '0';
+        setTimeout(() => visor.style.display = 'none', 300);
+    }
+};
+
+
+// =================================================================
+// 🎊 ANIMACIÓN DE FLORES Y MENSAJE PARA MAMÁ (EFECTO ANIME / LOTO)
+// =================================================================
+window.detonarCelebracionNieves = function() {
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 500]); 
+    const frag = document.createDocumentFragment();
+
+    // 1. EL MENSAJE CENTRAL (Rosado, borde blanco, sombra pesada)
+    const cartelMensaje = document.createElement('div');
+    cartelMensaje.innerHTML = `<h1 style="color: #ff007f; text-shadow: 2px 2px 0px #fff, -2px -2px 0px #fff, 2px -2px 0px #fff, -2px 2px 0px #fff, 0 8px 20px rgba(0,0,0,0.9); font-family: 'Georgia', serif; font-size: 32px; line-height: 1.3; font-weight: 900; margin: 0; letter-spacing: 1px;">El Dia de la Madre es todos los días.<br>Te amo mamá 💖</h1>`;
+    cartelMensaje.style.cssText = `position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.5); z-index: 9999999; text-align: center; width: 90%; pointer-events: none; opacity: 0; transition: all 1s cubic-bezier(0.175, 0.885, 0.32, 1.275);`;
+    cartelMensaje.id = "mensaje-madre";
+    frag.appendChild(cartelMensaje);
+
+    requestAnimationFrame(() => {
+        setTimeout(() => {
+            cartelMensaje.style.opacity = '1';
+            cartelMensaje.style.transform = 'translate(-50%, -50%) scale(1)';
+        }, 100);
+    });
+
+    // 2. LA LLUVIA DE FLORES (CAÍDA LENTA Y DRAMÁTICA)
+    const emojis = ['🌸', '✨', '💖', '🌺', '🌷', '💮'];
+    for (let i = 0; i < 40; i++) {
+        const conf = document.createElement('div');
+        conf.className = "flor-voladora";
+        conf.innerText = emojis[Math.floor(Math.random() * emojis.length)];
+        
+        // ⏱️ EL SECRETO ANIME: Tiempo de caída aleatorio entre 8 y 15 segundos
+        const tiempoCaida = Math.random() * 7 + 8; 
+        
+        // linear para gravedad constante, ease-in-out para el balanceo suave
+        conf.style.cssText = `position: fixed; top: -50px; left: ${Math.random() * 100}vw; font-size: ${Math.random() * 25 + 15}px; z-index: 999999; pointer-events: none; transition: top ${tiempoCaida}s linear, transform ${tiempoCaida}s ease-in-out; opacity: 0.9;`;
+        frag.appendChild(conf);
+
+        requestAnimationFrame(() => {
+            // Escalonamos la salida hasta por 2 segundos para que no salgan todas juntas
+            setTimeout(() => {
+                conf.style.top = '120vh'; // Que caigan hasta bien abajo de la pantalla
+                // Rotación suave y balanceo amplio de lado a lado (como una hoja al viento)
+                conf.style.transform = `rotate(${Math.random() * 360 + 360}deg) translateX(${Math.random() * 200 - 100}px)`;
+            }, Math.random() * 2000); 
+        });
+    }
+    document.body.appendChild(frag);
+
+    // ⏱️ LIMPIEZA ADAPTADA A LA LENTITUD
+    // El mensaje desaparece suavemente a los 12 segundos
+    setTimeout(() => {
+        const mensaje = document.getElementById('mensaje-madre');
+        if(mensaje) {
+            mensaje.style.opacity = '0';
+            mensaje.style.transform = 'translate(-50%, -50%) scale(1.2)';
+            setTimeout(() => mensaje.remove(), 1000);
+        }
+    }, 12000);
+
+    // Las flores tienen permiso de existir hasta 17 segundos antes de borrarlas de la RAM
+    setTimeout(() => {
+        document.querySelectorAll('.flor-voladora').forEach(el => el.remove());
+    }, 17000);
+};
