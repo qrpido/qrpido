@@ -18,10 +18,12 @@ window.mostrarPanelAuth = function(panel) {
         document.getElementById('panel-login-form').style.display = 'none';
         document.getElementById('panel-registro-form').style.display = 'none';
         
-        if (panel === 'seleccion') document.getElementById('panel-seleccion').style.display = 'block';
+               if (panel === 'seleccion') document.getElementById('panel-seleccion').style.display = 'block';
         if (panel === 'login') document.getElementById('panel-login-form').style.display = 'block';
         if (panel === 'registro') document.getElementById('panel-registro-form').style.display = 'block';
+        if (panel === 'totp') document.getElementById('panel-totp-form').style.display = 'block';
     } catch(e) {
+
         console.error("Error en paneles:", e.message);
     }
 };
@@ -42,20 +44,48 @@ window.registrarUsuario = async () => {
 
     if(!email || !pass) return alert("Completa el correo y la contraseña.");
 
-    const btn = document.getElementById('btn-registrar');
-    btn.innerText = "Creando Bóveda..."; btn.disabled = true;
+       const btn = document.getElementById('btn-registrar');
+    btn.innerText = "Enviando TOTP..."; btn.disabled = true;
     
     const { success, error } = await QRpidoDB.SecurityService.registrarUsuario(email, pass, tipoCuenta);
     if (success) {
         if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
-    } else {
+        // UX Corregida: Nos quedamos en el mapa y pasamos a la validación en 2 pasos
+        window.mostrarPanelAuth('totp');
+       } else {
         alert("Error al registrar: " + error);
         btn.innerText = "Crear mi cuenta ahora"; btn.disabled = false;
     }
 };
 
+// VALIDACIÓN TOTP (Cortafuegos Anti-Bots y Verificación)
+window.validarCodigoRegistro = async () => {
+    if (navigator.vibrate) navigator.vibrate(50);
+    // Recuperamos el email del paso anterior de registro
+    const email = document.getElementById('reg-email').value.trim();
+    const codigo = document.getElementById('input-totp').value.trim();
+
+    if (!codigo || codigo.length !== 6) return alert("El código debe tener exactamente 6 dígitos.");
+
+    const btn = document.getElementById('btn-validar-totp');
+    btn.innerText = "Verificando..."; btn.disabled = true;
+
+    // Delegamos la validación al Cerebro (core-db.js / Cloud Functions)
+    const { success, error } = await QRpidoDB.SecurityService.verificarTOTP(email, codigo);
+    
+    if (success) {
+        if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
+        // Cierre inmersivo: El observador de sesión encenderá la UI automáticamente
+        const modal = document.getElementById('modal-login');
+        if (modal) modal.classList.remove('activo');
+    } else {
+        alert("Código inválido o expirado: " + error);
+        btn.innerText = "Validar Código"; btn.disabled = false;
+    }
+};
 
 window.iniciarConGoogle = async () => {
+
     const { success, error } = await QRpidoDB.SecurityService.iniciarConGoogle();
     if (success) {
         const modal = document.getElementById('modal-login');
@@ -108,11 +138,10 @@ QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
         if(panelActivo) panelActivo.style.display = 'block';
         if(document.getElementById('nombre-usuario-activo')) document.getElementById('nombre-usuario-activo').innerText = user.email;
         if(btnMando) btnMando.style.background = 'var(--naranja)';
-
         const { success, data } = await QRpidoDB.SecurityService.obtenerRolAdmin(user.uid);
         if (success) {
             if ((data.rol === 'admin' || data.rol === 'moderador' || data.rol === 'superadmin') && btnMod) btnMod.style.display = 'block';
-           if (data.rol === 'superadmin' && btnSuper) btnSuper.style.display = 'block';
+            if (data.rol === 'superadmin' && btnSuper) btnSuper.style.display = 'block';
             
             if (data.rol && btnSaldo) {
                 btnSaldo.style.display = 'flex';

@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>QRpido - Aduana Jurídica</title>
+    <meta name="theme-color" content="#0a0a0c">
+    <style>
+        :root {
+            --naranja: #ff6b00;
+            --bg-oscuro: #0a0a0c;
+            --azul-corp: #00aaff;
+            --verde-sui: #00f5d4;
+            --rojo-alerta: #ff4444;
+            --glass-bg: rgba(20, 20, 25, 0.85);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --texto-base: #e0e0e0;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background: var(--bg-oscuro);
+            color: var(--texto-base);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* HEADER */
+        .header-tramites {
+            background: var(--glass-bg); backdrop-filter: blur(15px);
+            border-bottom: 1px solid var(--naranja); padding: 15px 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            position: sticky; top: 0; z-index: 100;
+        }
+        .header-tramites h1 { margin: 0; font-size: 18px; color: var(--naranja); text-transform: uppercase; font-weight: 900; letter-spacing: 1px; }
+        .btn-volver { background: transparent; border: 1px solid #555; color: #aaa; padding: 5px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+
+        /* TABS (Navegación) */
+        .nav-tabs {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 20px;
+        }
+        .tab-btn {
+            background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border);
+            color: #888; padding: 12px; border-radius: 8px; font-size: 13px;
+            font-weight: bold; text-transform: uppercase; cursor: pointer; transition: 0.3s;
+        }
+        .tab-btn.active {
+            background: rgba(255,107,0,0.1); border-color: var(--naranja); color: var(--naranja);
+            box-shadow: 0 0 10px rgba(255,107,0,0.2);
+        }
+
+        .tab-content { display: none; padding: 0 20px 20px 20px; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+
+        /* COMPONENTES GENERALES */
+        .card-boveda {
+            background: var(--glass-bg); border: 1px solid var(--glass-border);
+            border-radius: 12px; padding: 20px; margin-bottom: 20px;
+        }
+        .section-title { font-size: 14px; color: var(--azul-corp); text-transform: uppercase; margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid var(--glass-border); padding-bottom: 8px; }
+        
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 11px; color: #aaa; margin-bottom: 5px; text-transform: uppercase; }
+        .form-control {
+            width: 100%; background: rgba(0,0,0,0.6); border: 1px solid #333;
+            color: white; padding: 12px; border-radius: 8px; outline: none; box-sizing: border-box;
+            font-family: inherit;
+        }
+        .form-control:focus { border-color: var(--naranja); }
+
+        .btn-accion {
+            width: 100%; padding: 15px; background: var(--naranja); border: none;
+            color: black; border-radius: 8px; font-weight: 900; font-size: 14px;
+            text-transform: uppercase; cursor: pointer; transition: 0.3s;
+        }
+        .btn-accion:active { transform: scale(0.98); }
+        .btn-accion:disabled { background: #555; color: #888; cursor: not-allowed; }
+
+        /* CARROUSEL PLANTILLAS */
+        .carrusel-plantillas {
+            display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none;
+        }
+        .plantilla-card {
+            min-width: 140px; background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border);
+            border-radius: 8px; padding: 15px; text-align: center; cursor: pointer; transition: 0.3s;
+        }
+        .plantilla-card.selected { border-color: var(--azul-corp); background: rgba(0,170,255,0.1); }
+        .plantilla-icon { font-size: 24px; margin-bottom: 8px; }
+        .plantilla-title { font-size: 11px; font-weight: bold; color: white; }
+
+        /* BIOMETRÍA Y PRUEBA DE VIDA */
+        .gps-box { background: rgba(0,245,212,0.05); border: 1px dashed var(--verde-sui); padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 15px; }
+        .selfie-container { border: 1px dashed var(--naranja); padding: 20px; border-radius: 8px; text-align: center; background: rgba(255,107,0,0.05); }
+        .codigo-pizarra { font-family: monospace; font-size: 21px; color: var(--naranja); font-weight: bold; letter-spacing: 3px; background: #000; padding: 5px 10px; border-radius: 5px; display: inline-block; margin: 10px 0; }
+        .file-upload-btn { background: var(--azul-corp); color: black; padding: 10px 20px; border-radius: 20px; font-weight: bold; display: inline-block; cursor: pointer; font-size: 12px; }
+        input[type="file"] { display: none; }
+
+        /* LOCK SCREEN */
+        #auth-lock {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-oscuro); z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+        }
+
+        /* TOUR OVERLAY */
+        #tour-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 9000; display: none;
+            flex-direction: column; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;
+        }
+        .tour-box { background: var(--glass-bg); border: 1px solid var(--naranja); padding: 20px; border-radius: 12px; text-align: center; max-width: 300px; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div id="auth-lock">
+        <h2 style="color: var(--naranja); animation: pulse 1.5s infinite;">Aduana Jurídica</h2>
+        <p style="color: #888; font-size: 12px;">Verificando Identidad Digital...</p>
+    </div>
+
+    <div id="tour-overlay">
+        <div class="tour-box">
+            <h3 style="color: var(--naranja); margin-top:0;">Bienvenido a la Aduana</h3>
+            <p style="font-size: 13px; color: #ccc;">1. Elige una plantilla legal.<br>2. Llena los datos requeridos.<br>3. Paga tu firma digital vinculante.</p>
+            <button onclick="cerrarTour()" style="background:var(--naranja); border:none; padding:10px 20px; border-radius:8px; font-weight:bold; cursor:pointer; margin-top:15px;">Entendido</button>
+        </div>
+    </div>
+
+    <header class="header-tramites">
+        <h1>⚖️ Trámites</h1>
+        <button class="btn-volver" onclick="window.location.href='admin.html'">Volver</button>
+    </header>
+
+    <div class="nav-tabs">
+        <button class="tab-btn active" onclick="cambiarTab('nuevo')">Nuevo Trámite</button>
+        <button class="tab-btn" onclick="cambiarTab('boveda')">Mi Bóveda</button>
+    </div>
+
+    <div id="tab-nuevo" class="tab-content active">
+        
+        <div class="card-boveda">
+            <h2 class="section-title">1. Seleccionar Plantilla</h2>
+            <div class="carrusel-plantillas">
+                <div class="plantilla-card selected" onclick="seleccionarPlantilla('mandato', this)">
+                    <div class="plantilla-icon">📦</div>
+                    <div class="plantilla-title">Mandato Logístico</div>
+                </div>
+                <div class="plantilla-card" onclick="seleccionarPlantilla('arrendamiento', this)">
+                    <div class="plantilla-icon">🏢</div>
+                    <div class="plantilla-title">Arrendamiento</div>
+                </div>
+                <div class="plantilla-card" onclick="seleccionarPlantilla('pagare', this)">
+                    <div class="plantilla-icon">💵</div>
+                    <div class="plantilla-title">Pagaré Digital</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-boveda" id="contenedor-formulario">
+            <h2 class="section-title">2. Datos del Documento</h2>
+            <div id="campos-dinamicos">
+                <div class="form-group">
+                    <label>Nombre del Contratante</label>
+                    <input type="text" class="form-control" placeholder="Razón social o nombre completo">
+                </div>
+                <div class="form-group">
+                    <label>Valor / Canon (COP)</label>
+                    <input type="number" class="form-control" placeholder="Ej. 1500000">
+                </div>
+            </div>
+        </div>
+
+        <div class="card-boveda">
+            <h2 class="section-title">3. Contraparte (P2P)</h2>
+            <div class="form-group">
+                <label>Correo Electrónico de la Contraparte</label>
+                <input type="email" class="form-control" placeholder="usuario@email.com">
+                <p style="font-size: 9px; color: #888; margin-top: 5px;">Se enviará un enlace cifrado para que se una a la sala de firma.</p>
+            </div>
+        </div>
+
+       <div class="card-boveda">
+            <h2 class="section-title">4. Firma Electrónica Segura</h2>
+            
+            <div class="form-group" style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; border: 1px solid var(--glass-border);">
+                <label>Código de Seguridad (OTP)</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="input-otp" class="form-control" placeholder="000000" maxlength="6" style="letter-spacing: 5px; text-align: center; font-weight: bold; font-size: 16px;">
+                    <button id="btn-pedir-otp" class="btn-volver" style="width: 40%; font-size: 10px; color: var(--azul-corp); border-color: var(--azul-corp);" onclick="pedirOtpSeguridad()">Solicitar OTP</button>
+                </div>
+
+            </div>
+
+            <div class="gps-box">
+                <p style="font-size: 11px; color: #ccc; margin-top:0;">📍 Geolocalización Requerida</p>
+
+                <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                    <input type="checkbox" id="check-gps" style="width: 18px; height: 18px;">
+                    <label for="check-gps" style="font-size: 12px;">Declaro bajo juramento que firmo desde: <strong id="lbl-ciudad">Calculando...</strong></label>
+                </div>
+            </div>
+
+            <div class="selfie-container">
+                <p style="font-size: 12px; color: white; margin-top: 0;">📸 Prueba de Intención (Proof of Liveness)</p>
+                <p style="font-size: 10px; color: #aaa;">Escribe este código en un papel y tómate una selfie sosteniéndolo junto a tu rostro.</p>
+                <div class="codigo-pizarra" id="codigo-selfie">AX9-K2M-P88</div>
+                <br>
+                <label class="file-upload-btn">
+                    Abrir Cámara Frontal
+                    <input type="file" accept="image/*" capture="user" id="input-selfie">
+                </label>
+                <p id="selfie-status" style="font-size: 10px; color: var(--verde-sui); margin-top: 10px; display: none;">✅ Evidencia capturada y comprimida.</p>
+            </div>
+        </div>
+
+        <button class="btn-accion" id="btn-procesar" onclick="procesarFirma()">Pagar Firma y Sellar (SUI)</button>
+
+    </div>
+
+    <div id="tab-boveda" class="tab-content">
+        
+        <div class="card-boveda" style="border-color: var(--verde-sui);">
+            <h2 class="section-title" style="color: var(--verde-sui);">🔓 Desbloquear Contrato</h2>
+            <p style="font-size: 11px; color: #ccc; margin-bottom: 15px;">La lectura se procesa localmente en tu dispositivo. QRpido no almacena tu Llave Maestra.</p>
+            
+            <div class="form-group">
+                <label>1. Sube el PDF Cifrado</label>
+                <input type="file" class="form-control" accept=".pdf">
+            </div>
+            <div class="form-group">
+                <label>2. Sube tu Llave (Código QR PNG)</label>
+                <input type="file" id="input-llave-qr" class="form-control" accept="image/png, image/jpeg">
+            </div>
+            <button class="btn-accion" style="background: var(--verde-sui);" onclick="desencriptarBoveda()">Desencriptar Contrato</button>
+
+        </div>
+
+        <div class="card-boveda">
+            <h2 class="section-title">📂 Historial de Trámites</h2>
+            
+            <div style="background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 style="margin: 0 0 5px 0; font-size: 13px; color: white;">Mandato #1024</h3>
+                    <p style="margin: 0; font-size: 10px; color: #888;">Fecha: 15 May 2026</p>
+                    <p style="margin: 3px 0 0 0; font-size: 10px; color: var(--verde-sui);">Estado: Sellado en Blockchain</p>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 5px;">
+                    <button style="background: transparent; border: 1px solid var(--azul-corp); color: var(--azul-corp); font-size: 10px; padding: 5px; border-radius: 4px; cursor: pointer;">📄 Descargar PDF</button>
+                    <button style="background: transparent; border: 1px solid var(--naranja); color: var(--naranja); font-size: 10px; padding: 5px; border-radius: 4px; cursor: pointer;">🔑 Recuperar QR</button>
+                </div>
+            </div>
+
+            <p style="text-align: center; font-size: 11px; color: #555; margin-top: 20px;">Fin del historial.</p>
+        </div>
+    </div>
+
+        <script type="module" src="./auth-mando.js"></script>
+    <script type="module">
+        import QRpidoDB from './core-db.js';
+
+        // 1. MURO ZERO-TRUST Y ONBOARDING (Aprovechando el observador nativo)
+        QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
+
+            if (user) {
+                // Verificamos si el usuario ya tiene su Firma Digital (KYC)
+                const perfil = await QRpidoDB.AdminService.obtenerNegocioPorUsuario(user.uid);
+                if (!perfil.data || !perfil.data.kyc_verificado) {
+                    alert("⚠️ Primero debes crear tu Identidad Digital QRpido (KYC).");
+                    window.location.href = 'admin.html?action=kyc';
+                    return;
+                }
+                
+                document.getElementById('auth-lock').style.display = 'none';
+                verificarTour();
+                activarGPS(); 
+                generarCodigoIntencion(); // Generamos el código XXX-XXX-XXX
+            } else {
+
+                window.location.href = 'index.html';
+            }
+        });
+
+        // 2. LÓGICA DE UI (TABS Y CARROUSEL)
+        window.cambiarTab = (tabId) => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+        };
+
+        window.seleccionarPlantilla = (tipo, elemento) => {
+            document.querySelectorAll('.plantilla-card').forEach(c => c.classList.remove('selected'));
+            elemento.classList.add('selected');
+            
+            const contenedor = document.getElementById('campos-dinamicos');
+            // Reciclaje del DOM (Regla < 30MB RAM)
+            if(tipo === 'arrendamiento') {
+                contenedor.innerHTML = `
+                    <div class="form-group"><label>Nombre Arrendador</label><input type="text" class="form-control"></div>
+                    <div class="form-group"><label>Linderos / Dirección</label><input type="text" class="form-control"></div>
+                    <div class="form-group"><label>Canon Mensual (COP)</label><input type="number" class="form-control"></div>
+                `;
+            } else if (tipo === 'mandato') {
+                contenedor.innerHTML = `
+                    <div class="form-group"><label>Razón Social Comercio</label><input type="text" class="form-control"></div>
+                    <div class="form-group"><label>Comisión Base Acordada (%)</label><input type="number" class="form-control" value="10" readonly></div>
+                `;
+            } else {
+                contenedor.innerHTML = `<p style="font-size:11px; color:#888;">Cargando estructura...</p>`;
+            }
+        };
+
+       // 3. CAPTURA Y COMPRESIÓN DE SELFIE (Cero Librerías - Optimizado para 2GB RAM)
+        document.getElementById('input-selfie').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 600; // Redimensionamos para salvar memoria
+                    const scaleSize = MAX_WIDTH / img.width;
+                    canvas.width = MAX_WIDTH;
+                    canvas.height = img.height * scaleSize;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    
+                    // Extracción a WebP hiper-ligero (Calidad 60%)
+                    window.selfieComprimida = canvas.toDataURL('image/webp', 0.6);
+                    document.getElementById('selfie-status').style.display = 'block';
+                    document.getElementById('selfie-status').innerText = "✅ Evidencia biométrica procesada localmente.";
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+
+        // 4. LÓGICA MOCKUP
+        window.verificarTour = () => {
+            if(!localStorage.getItem('qrpido_tramites_tour')) {
+                document.getElementById('tour-overlay').style.display = 'flex';
+            }
+        };
+        window.cerrarTour = () => {
+            localStorage.setItem('qrpido_tramites_tour', 'visto');
+            document.getElementById('tour-overlay').style.display = 'none';
+        };
+       function activarGPS() {
+            if (!navigator.geolocation) {
+                document.getElementById('lbl-ciudad').innerText = "GPS No Soportado";
+                return;
+            }
+            navigator.geolocation.getCurrentPosition((pos) => {
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                // Guardamos en variable global temporal para el paquete de firma
+                window.coordsFirma = { lat, lng };
+                document.getElementById('lbl-ciudad').innerText = `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)} (Verificado)`;
+                document.getElementById('lbl-ciudad').style.color = "var(--verde-sui)";
+            }, (err) => {
+                document.getElementById('lbl-ciudad').innerText = "⚠️ Acceso GPS Denegado";
+                document.getElementById('lbl-ciudad').style.color = "var(--rojo-alerta)";
+            }, { enableHighAccuracy: true, timeout: 10000 });
+        }
+
+    window.procesarFirma = async () => {
+            const btn = document.getElementById('btn-procesar');
+            const check = document.getElementById('check-gps').checked;
+            const otpValue = document.getElementById('input-otp').value;
+            
+            if(otpValue.length !== 6) return alert("Debes ingresar el código OTP de 6 dígitos enviado a tu correo.");
+            if(!check) return alert("Debes confirmar tu ubicación bajo juramento.");
+            if(!window.selfieComprimida) return alert("Debes capturar la selfie con el código de intención.");
+
+            btn.innerText = "Sincronizando con Blockchain SUI...";
+            btn.disabled = true;
+
+          // Empaquetamos la evidencia para el servidor (Cero RAM local)
+            const paqueteEvidencia = {
+                uid: QRpidoDB.auth.currentUser.uid,
+                otp: otpValue,
+                gps: window.coordsFirma,
+                selfie: window.selfieComprimida,
+                codigo: window.codigoActualFirma,
+                timestamp: Date.now()
+            };
+
+                       // Llamada al Oráculo Criptográfico (Cloud Function)
+            const res = await QRpidoDB.SecurityService.sellarTramiteLegal(paqueteEvidencia);
+
+            if(res.success) {
+                // Pasamos el txId real (La semilla de la llave maestra)
+                mostrarExitoFinal(res.txId);
+            } else {
+
+                alert("Error en el Notario SUI: " + res.error);
+                btn.disabled = false;
+                btn.innerText = "Reintentar Sello";
+            }
+        };
+
+// 5. LECTOR QR NATIVO (Zero-Knowledge)
+        window.desencriptarBoveda = async () => {
+            const inputQR = document.getElementById('input-llave-qr');
+            if (!inputQR.files.length) return alert("Sube la imagen PNG de tu Llave QR.");
+            
+            try {
+                // Instanciamos el lector nativo de HTML5
+                const barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+                const imageBitmap = await createImageBitmap(inputQR.files[0]);
+                const codigos = await barcodeDetector.detect(imageBitmap);
+                
+                if (codigos.length === 0) return alert("❌ No se detectó ningún código QR en la imagen.");
+                
+                const llaveMaestra = codigos[0].rawValue;
+                alert(`✅ Llave extraída en local: ${llaveMaestra.substring(0,6)}... \nProcediendo a desbloquear el PDF.`);
+                
+                // Aquí el frontend aplicaría la llave al PDF cifrado
+            } catch (e) {
+                alert("Error al leer el QR. Tu navegador podría no soportar la API nativa de detección.");
+            }
+        };
+function generarCodigoIntencion() {
+            const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            const gen = () => Array.from({length: 3}, () => caracteres.charAt(Math.floor(Math.random() * caracteres.length))).join('');
+            const codigo = `${gen()}-${gen()}-${gen()}`;
+            document.getElementById('codigo-selfie').innerText = codigo;
+            window.codigoActualFirma = codigo; // Lo guardamos para el paquete de firma
+        }
+function mostrarExitoFinal(txId) {
+            const contenedor = document.getElementById('tab-nuevo');
+            // Usamos la Proporción Áurea para el diseño del éxito
+            contenedor.innerHTML = `
+                <div class="card-boveda" style="text-align:center; border-color: var(--verde-sui); animation: fadeIn 0.5s;">
+                    <h2 style="color: var(--verde-sui);">✅ TRÁMITE SELLADO</h2>
+                    <p style="font-size:12px;">El documento ha sido notariado de forma inmutable.</p>
+                    
+                    <div style="background:white; padding:15px; display:inline-block; border-radius:10px; margin:20px 0;">
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${txId}" style="width:150px;">
+                    </div>
+                    
+                    <p style="font-size:10px; color:var(--naranja);"><strong>GUARDA ESTA LLAVE:</strong> Descárgala ahora. La necesitarás para abrir tu PDF cifrado.</p>
+                    
+                    <button class="btn-accion" onclick="descargarLlaveQR('${txId}')">Descargar Llave QR (PNG)</button>
+                    <button class="btn-accion" style="margin-top:10px; background:transparent; border:1px solid var(--azul-corp); color:var(--azul-corp);" onclick="location.reload()">Finalizar</button>
+
+                </div>
+            `;
+        }
+window.descargarLlaveQR = (txId) => {
+            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${txId}`;
+            
+            fetch(qrUrl)
+                .then(response => response.blob())
+                .then(blob => {
+                    const blobUrl = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = blobUrl;
+                    a.download = `QRpido_Llave_Boveda_${Date.now()}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(blobUrl);
+                    alert("✅ Llave guardada en tus descargas/galería.");
+                })
+                .catch(() => alert("Error al descargar. Por favor toma una captura de pantalla del código QR."));
+        };
+        window.pedirOtpSeguridad = async () => {
+            const btn = document.getElementById('btn-pedir-otp');
+            const emailActivo = QRpidoDB.auth.currentUser.email; // Se envía al correo del usuario logueado
+            
+            btn.innerText = "Enviando...";
+            btn.disabled = true;
+
+            const res = await QRpidoDB.SecurityService.solicitarOtpFirma(emailActivo);
+            
+            if (res.success) {
+                alert(`✅ Código OTP enviado a ${emailActivo}`);
+                btn.innerText = "Reenviar OTP (60s)";
+                setTimeout(() => { btn.disabled = false; btn.innerText = "Solicitar OTP"; }, 60000);
+            } else {
+                alert("Error al enviar OTP: " + res.error);
+                btn.innerText = "Solicitar OTP";
+                btn.disabled = false;
+            }
+        };
+
+    </script>
+</body>
+</html>
+

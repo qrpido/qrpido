@@ -185,13 +185,35 @@ perdonarNegocio: async (idNegocio) => {
                     return { success: true, data: { disponible: querySnapshot.empty } };
                 } catch (e) { return { success: false, error: e.message }; }
             },
-            actualizarNegocio: async (idNegocio, dataObj) => {
+                        actualizarNegocio: async (idNegocio, dataObj) => {
                 try {
                     await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, idNegocio), dataObj, { merge: true });
                     return { success: true };
                 } catch (e) { return { success: false, error: e.message }; }
             },
+            guardarPasoIdentidad: async (idNegocio, dataObj) => {
+                try {
+                    const payload = { ...dataObj, progreso_boveda: 38.2 };
+                    await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, idNegocio), payload, { merge: true });
+                    return { success: true };
+                } catch (e) { return { success: false, error: e.message }; }
+            },
+            guardarPasoUbicacion: async (idNegocio, dataObj) => {
+                try {
+                    const payload = { ...dataObj, progreso_boveda: 61.8 };
+                    await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, idNegocio), payload, { merge: true });
+                    return { success: true };
+                } catch (e) { return { success: false, error: e.message }; }
+            },
+            sellarBovedaDefinitiva: async (idNegocio, dataObj) => {
+                try {
+                    const payload = { ...dataObj, progreso_boveda: 100 };
+                    await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, idNegocio), payload, { merge: true });
+                    return { success: true };
+                } catch (e) { return { success: false, error: e.message }; }
+            },
             guardarProducto: async (idNegocio, idProducto, dataObj) => {
+
                 try {
                     const docRef = idProducto 
                         ? doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, idProducto)
@@ -385,7 +407,7 @@ obtenerNegociosEnObservacion: async () => {
                     return { success: true };
                 } catch (e) { return { success: false, error: e.message }; }
             },
-            obtenerEquipoModeradores: async () => {
+                        obtenerEquipoModeradores: async () => {
                 try {
                     const q = query(collection(db, "Usuarios_Admin"), where("rol", "==", "moderador"));
                     const snap = await getDocs(q);
@@ -394,6 +416,17 @@ obtenerNegociosEnObservacion: async () => {
                     return { success: true, data: mods };
                 } catch (e) { return { success: false, error: e.message }; }
             },
+            obtenerHistorialTramites: async (uid) => {
+                try {
+                    // Magia NoSQL: Busca todos los contratos donde su UID esté en el array "participantes"
+                    const q = query(collection(db, "Boveda_Tramites"), where("participantes", "array-contains", uid));
+                    const snap = await getDocs(q);
+                    const resultados = [];
+                    snap.forEach(doc => resultados.push({ id: doc.id, ...doc.data() }));
+                    return { success: true, data: resultados };
+                } catch (e) { return { success: false, error: e.message }; }
+            },
+
                         revocarModerador: async (uid) => {
                 try {
                     // Le quitamos la placa borrando su documento de la colección de permisos
@@ -604,12 +637,68 @@ generarSelloSeguroTOTP: async (codigoReferido, idNegocio) => {
         }
     },
 
+    verificarTOTP: async (email, codigo) => {
+        try {
+            // Delegamos la validación criptográfica estricta al Backend
+            const { httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js');
+            const validadorTOTP = httpsCallable(functions, 'validarRegistroTOTP');
+            const res = await validadorTOTP({ email, codigo });
+            
+            if (res.data && res.data.success) {
+                // Si el código es válido, el backend internamente marca la cuenta como 'verificada'
+                return { success: true, data: res.data };
+            } else {
+                return { success: false, error: res.data.mensaje || "El código TOTP es inválido o ha expirado." };
+            }
+        } catch (e) {
+            console.error("Error en el cortafuegos TOTP:", e);
+            return { success: false, error: e.message };
+        }
+    },
 
+        sellarTramiteLegal: async (paqueteEvidencia) => {
+        try {
+            const { httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js');
+            const notarioCloud = httpsCallable(functions, 'sellarContratoSUI');
+            const res = await notarioCloud(paqueteEvidencia);
+            
+            if (res.data && res.data.success) {
+                return { success: true, txId: res.data.txId };
+            } else {
+                return { success: false, error: res.data.mensaje || "Firma rechazada por el oráculo." };
+            }
+        } catch (e) {
+            console.error("Error Criptográfico:", e);
+            return { success: false, error: e.message };
+        }
+    },
+    
+    // Tubería 1: Disparador de OTP al correo
+    solicitarOtpFirma: async (emailDestino) => {
+        try {
+            const { httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js');
+            const enviarOtp = httpsCallable(functions, 'enviarOtpFirma');
+            const res = await enviarOtp({ email: emailDestino });
+            return { success: true, data: res.data };
+        } catch (e) { return { success: false, error: e.message }; }
+    },
+
+    // Tubería 2: Creador de Sala Asíncrona (P2P)
+    iniciarTramiteP2P: async (datosContrato, emailContraparte) => {
+        try {
+            const { httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js');
+            const iniciarSala = httpsCallable(functions, 'crearBorradorTramiteP2P');
+            const res = await iniciarSala({ datos: datosContrato, contraparte: emailContraparte });
+            return { success: true, salaId: res.data.salaId };
+        } catch (e) { return { success: false, error: e.message }; }
+    },
 
 
 registrarUsuario: async (email, pass, tipoCuenta) => {
+
     try {
         const result = await createUserWithEmailAndPassword(auth, email, pass);
+
         // Creamos su "Bóveda" en Firestore cumpliendo tus Reglas Zero Trust
         await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, result.user.uid), {
             nombre: "Mi Negocio",
@@ -714,8 +803,6 @@ onAuthStateChanged(auth, callback);
 * Mantiene separados los datos públicos del radar y la bóveda secreta.
 */
 LogisticaService: {
-
-
 
 
    registrarIntencionCompra: async (payload) => {

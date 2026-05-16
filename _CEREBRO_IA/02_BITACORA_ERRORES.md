@@ -76,3 +76,31 @@ Logros de la Sesión (Parte 2):
 ​domicilios.html (El Apretón de Manos Digital): Se eliminó el PIN Pad fijo (ahorro de RAM/Nodos DOM). Se implementó el "Teclado Táctil Fantasma" renderizado dinámicamente en Vanilla JS para soportar el código alfanumérico de 5 caracteres. Interfaz conectada a la función de liberación de fondos SUI.
 ​core-db.js (Puente Web3): Inyectados los puentes asíncronos registrarDespachoSUI, liberarFondosSUI y ejecutarKillSwitch para conectar de forma segura los frontends a la Malla de Gas (Realtime Database).
 ​moderacion.html (Aduana KYC): Blindaje legal y anti-lavado en el panel de soporte. Inyección dinámica del botón "🪪 Ver Documento KYC" e insignia de "🔗 Billetera Web3 Activa". Agregada la opción "kyc_invalido" a la lógica de rechazos y al mapeo visual de la Bóveda de Rechazos (Cementerio).
+
+
+mayo en general:
+
+[x] UX Autenticación: Implementar email/password estándar y Google SSO (Cero Magic Links). Ver/ocultar contraseña (👁️) y forzar autocompletado nativo para fricción cero.
+[x] Escudo Legal UI: Casilla obligatoria en el registro con Honeypot anti-bots integrado. El texto de la UI dice explícitamente: "Declaro ser mayor de 18 años y acepto los Términos, Condiciones y el Contrato de Mandato".
+[x] Manifiesto Legal: Crear página o modal terminos.html con el texto de exención de responsabilidad y contrato de mandato para P2P.
+
+**Fase 2: El Orquestador Fintech y Motor Web2**
+[x] El Botón ▶️ Universal: Implementar el saldo global interactivo en UI (Integrar la función abrirPasarelaRecarga() con la llave pub_test... y la referencia RECARGA_uid_timestamp).
+[x] Interfaz de Bóveda Premium (admin.html): Construir la UI donde el cliente/comercio ve su saldo_logistica y tiene el botón integrado para recargar vía Wompi.
+[x] Bifurcación Dinámica Inmobiliaria y SaaS: Lógica frontend para ocultar el carrito flotante si el modelo es 'inmueble' (no redireccionar automáticamente a Negocios al cerrar filtros) y habilitar Wompi si es 'Premium'.
+
+
+
+[x] Interruptor "Dejen de Fregar" (Ley 2300): Toggle en admin.html para desactivar notificaciones de marketing.
+
+
+**Fase 3: El Notario Inmutable (Capa Blockchain Web3)**
+[x] El Oráculo Principal (SUI Network): Contrato logistica.move desplegado. Emisión de eventos inmutables basados en huellas SHA-256.
+[x] Enrutador Multicadena (Los Lazarillos EVM): Contratos NotarioCiego.sol desplegados en Base y Polygon (Matic) vía Remix.
+[x] Adaptador de Redundancia Criptográfica: Lógica en index.js (con ethers.js) que intenta sellar primero en SUI, y si hay timeout/Cold Start, conmuta automáticamente a Base, y como último recurso a Matic.
+
+**Fase 4: Océano Azul (SaaS Freemium / Premium / Inmobiliario)**
+
+[x] Catálogo Freemium: Acceso gratuito a publicación en el mapa, gestión autónoma y logística por cuenta propia.
+[x] Motor Premium Comercial ($39k/mes): Activa gestión de domicilios integrados y administración avanzada con pasarela propia.
+

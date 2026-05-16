@@ -102,9 +102,13 @@
             if (input.files && input.files[0]) {
                 const objectUrl = URL.createObjectURL(input.files[0]);
                 document.getElementById('img-live-preview').src = objectUrl;
-                document.getElementById('texto-logo').innerText = "✔️ Logo Cargado";
+                // Usamos el motor UI nativo para que la cajita también se vea elegante
+                if (typeof window.actualizarNombreImagenUI === 'function') {
+                    window.actualizarNombreImagenUI(input, 'texto-logo');
+                }
             }
         };
+
 
         // El Motor de Renderizado en Vivo
         window.actualizarPinLive = function() {
@@ -113,7 +117,7 @@
             // Recoger valores
             const forma = document.getElementById('select-forma').value;
             const animacion = document.getElementById('select-animacion').value;
-            const efecto = document.getElementById('select-efecto').value;
+            const efectoRaw = document.getElementById('select-efecto').value;
             
             const cMain = document.getElementById('colorMainPicker').value;
             const cSec = document.getElementById('colorSecPicker').value;
@@ -125,8 +129,15 @@
             document.getElementById('val-velocidad').innerText = velocidad + 's';
             document.getElementById('val-intensidad').innerText = intensidad + 'px';
 
+            // Decodificador del Motor de Emojis
+            const [claseEfecto, emojiEfecto] = efectoRaw.split('|');
+
             // Composición del Genoma
-            preview.className = `pin-wrapper ${forma} ${animacion} ${efecto}`;
+            preview.className = `pin-wrapper ${forma} ${animacion} ${claseEfecto || ''}`;
+            
+            // Inyección del Emoji Nativo al DOM
+            if (emojiEfecto) preview.setAttribute('data-emoji', emojiEfecto);
+            else preview.removeAttribute('data-emoji');
             
             // Inyección de Variables CSS Matemáticas
             preview.style.setProperty('--color-main', cMain);
@@ -134,6 +145,7 @@
             preview.style.setProperty('--velocidad-anim', velocidad + 's');
             preview.style.setProperty('--intensidad-neon', intensidad + 'px');
         };
+
 
         // =================================================================
         // 🩺 CRASH REPORTER: Auditoría del Portal de Socios (admin.html)
@@ -180,9 +192,32 @@
 
 
 <body class="boveda-ui">
-
+    <!-- 🌟 MOTOR WIZARD (PROPORCIÓN ÁUREA) -->
+    <div id="wizard-overlay" style="display:none; position:fixed; inset:0; background:var(--bg-oscuro); z-index:10000; overflow:hidden; align-items:center; justify-content:center;">
+        <div id="wiz-step-2" class="boveda-tarjeta wizard-oculto-der" style="display:flex; flex-direction:column; gap:15px; justify-content:center;">
+            <h2 style="color:var(--naranja); text-align:center; margin:0; font-size:24px;">Forjando Identidad</h2>
+            <div class="file-upload-wrapper"><input type="file" id="wiz-logo" class="file-upload-input" onchange="actualizarNombreImagenUI(this,'wiz-txt-logo')"><div class="file-upload-ui" id="wiz-txt-logo">📸 Subir Logo</div></div>
+            <input type="text" id="wiz-nombre" class="input-form" placeholder="Nombre de tu Negocio">
+            <button class="btn-submit" style="margin-top:auto;" onclick="avanzarWizard(2, 3)">Continuar (38.2%)</button>
+            <button class="btn-moderno" style="background:transparent; color:#888; border:none;" onclick="saltarWizard(2)">Saltar este paso por ahora</button>
+        </div>
+        <div id="wiz-step-3" class="boveda-tarjeta wizard-oculto-der" style="display:flex; flex-direction:column; gap:10px; justify-content:center;">
+            <h2 style="color:var(--naranja); text-align:center; margin:0;">Radar y Coordenadas</h2>
+            <div style="display:flex; gap:8px;"><input type="text" id="wiz-busqueda" class="input-form" style="margin-bottom:0;" placeholder="Ej: Unicentro Pereira"><button class="btn-submit" style="width:auto; padding:0 15px; margin:0;" onclick="buscarWiz()">🔍</button></div>
+            <div id="mapa-wizard" style="width:100%; height:220px; border-radius:12px; border:1px solid var(--glass-border); background:#111;"></div>
+            <button class="btn-submit" style="margin-top:auto;" onclick="avanzarWizard(3, 4)">Fijar Coordenadas (61.8%)</button>
+            <button class="btn-moderno" style="background:transparent; color:#888; border:none;" onclick="saltarWizard(3)">Saltar este paso por ahora</button>
+        </div>
+        <div id="wiz-step-4" class="boveda-tarjeta wizard-oculto-der" style="display:flex; flex-direction:column; gap:15px; justify-content:center;">
+            <h2 style="color:var(--naranja); text-align:center; margin:0;">Sellar el Genoma</h2>
+            <div class="wizard-preview-contenedor"><div id="wiz-preview" class="wizard-preview-pin pin-1" style="--color-main:var(--naranja); --color-sec:#0ff;"><img id="wiz-img" src="https://via.placeholder.com/150/0a0a0c/ff6b00?text=LOGO" class="pin-img"></div></div>
+            <select id="wiz-nicho" class="input-form"><option value="">¿A qué te dedicas?</option><option value="restaurante">Restaurante / Comidas</option><option value="tecnologia">Tecnología</option><option value="servicios">Servicios Generales</option></select>
+            <button class="btn-submit" style="margin-top:auto; background:#00ff64; color:black; box-shadow:0 10px 25px rgba(0,255,100,0.4);" onclick="finalizarWizard()">Sellar Bóveda (100%)</button>
+        </div>
+    </div>
 
        <div id="offline-banner" class="offline-banner">⚠️ Sin conexión: Mostrando datos de tu última visita</div>
+
     
     <div class="bottom-sheet-overlay" id="overlay-soporte" onclick="cerrarModal(event, 'overlay-soporte')">
 
@@ -336,9 +371,14 @@
         </div>
 
 
+                                      <div id="banner-aversiones" style="display:none; width:100%; background:rgba(255,107,0,0.1); border:1px dashed var(--naranja); color:white; padding:12px; border-radius:15px; text-align:center; margin-bottom:15px; font-size:12px; cursor:pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.5);" onclick="retomarWizard()">
+            ⚠️ <b>Bóveda al <span id="txt-progreso-boveda">0</span>%.</b> Faltan detalles para destacar en el radar. <u style="color:var(--naranja);">Completar ahora</u>
+        </div>
+
                                <div class="panel-admin">
             
             <div class="oficina-header">
+
                 <img id="ui-logo" src="" class="oficina-logo" style="display:none; background: var(--bg-oscuro); box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
                 
                 <div class="oficina-info">
@@ -559,19 +599,48 @@
                             <input type="range" id="slider-velocidad" min="0.2" max="3.0" step="0.1" value="1.2" class="slider-rango" oninput="actualizarPinLive()">
                         </div>
 
-                        <div id="ribbon-efecto" class="ribbon-content" style="display: none;">
+                                                <div id="ribbon-efecto" class="ribbon-content" style="display: none;">
                             <select id="select-efecto" class="input-form" onchange="actualizarPinLive()" style="margin-bottom: 8px;">
-                                <option value="efecto-neon">Resplandor Neón</option>
-                                <option value="efecto-fuego">Llamas Vivas</option>
-                                <option value="efecto-ojo">Ojo de Horus</option>
-                                <option value="efecto-anillos">Ondas de Radio</option>
+                                <option value="">Sin Decoraciones Extras</option>
+                                <optgroup label="✨ Efectos de Borde">
+                                    <option value="efecto-neon|">Resplandor Neón Clásico</option>
+                                    <option value="efecto-anillos|">Ondas de Radio / Radar</option>
+                                </optgroup>
+                                <optgroup label="🎩 Sombreros y Coronas">
+                                    <option value="efecto-cabeza|👑">Corona Real 👑</option>
+                                    <option value="efecto-cabeza|🎓">Birrete Profesional 🎓</option>
+                                    <option value="efecto-cabeza|🧢">Gorra Urbana 🧢</option>
+                                    <option value="efecto-cabeza|🤠">Sombrero Vaquero 🤠</option>
+                                    <option value="efecto-cabeza|🎩">Sombrero Mágico 🎩</option>
+                                    <option value="efecto-cabeza|🎀">Moño de Regalo 🎀</option>
+                                </optgroup>
+                                <optgroup label="🚗 Vehículos Logísticos">
+                                    <option value="efecto-vehiculo|🚗">Carro Básico 🚗</option>
+                                    <option value="efecto-vehiculo|🚕">Taxi 🚕</option>
+                                    <option value="efecto-vehiculo|🛵">Moto de Reparto 🛵</option>
+                                    <option value="efecto-vehiculo|🚲">Bicicleta 🚲</option>
+                                    <option value="efecto-vehiculo|🚌">Bus 🚌</option>
+                                    <option value="efecto-vehiculo|🚛">Camión 🚛</option>
+                                    <option value="efecto-vehiculo|🚑">Ambulancia 🚑</option>
+                                    <option value="efecto-vehiculo|🚤">Lancha 🚤</option>
+                                    <option value="efecto-vehiculo|🚢">Barco 🚢</option>
+                                    <option value="efecto-vehiculo|🚁">Helicóptero 🚁</option>
+                                    <option value="efecto-vehiculo|✈️">Avión ✈️</option>
+                                </optgroup>
+                                <optgroup label="🌤️ Clima y Magia">
+                                    <option value="efecto-magia|🔥">Fuego / Parrilla 🔥</option>
+                                    <option value="efecto-magia|✨">Destellos Mágicos ✨</option>
+                                    <option value="efecto-clima|⚡">Rayo Rápido ⚡</option>
+                                    <option value="efecto-clima|❄️">Nieve Fría ❄️</option>
+                                    <option value="efecto-cabeza|🌸">Flor de Cerezo 🌸</option>
+                                    <option value="efecto-cabeza|👽">Alien 👽</option>
+                                </optgroup>
                             </select>
                             <label class="section-title" style="font-size: 10px; display: flex; justify-content: space-between;">
-                                Intensidad del Efecto <span id="val-intensidad">15px</span>
+                                Intensidad del Efecto (Solo Neón) <span id="val-intensidad">15px</span>
                             </label>
                             <input type="range" id="slider-intensidad" min="0" max="40" step="1" value="15" class="slider-rango" oninput="actualizarPinLive()">
                         </div>
-
                     </div>
                 </div>
 
@@ -1197,12 +1266,27 @@ import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10
                     await QRpidoDB.SecurityService.cerrarSesion();
                     return;
                 }
-               if (dirData) {
+                               if (dirData) {
                     datosGlobalesNegocio = dirData;
                     idNegocioLogueado = dirData.id || user.uid;
                     isPremium = (datosGlobalesNegocio.premium === "SI" || datosGlobalesNegocio.premium === true);
                     
+                    // 🛡️ GUARDIÁN DEL WIZARD (Con Indulto para Cuentas Antiguas)
+                    let progresoBoveda = dirData.progreso_boveda;
+                    // Si no tiene la variable, pero tiene coordenadas y nicho, lo reconocemos como Veterano (Indulto al 100%)
+                    if (progresoBoveda === undefined) {
+                        if (dirData.Coordenadas && dirData.niche) progresoBoveda = 100;
+                        else progresoBoveda = 0;
+                    }
+
+                    // Si le falta progreso, arranca el Wizard y evitamos que cargue el dashboard de fondo
+                    if (progresoBoveda < 100 && typeof window.arrancarWizard === 'function') {
+                        window.arrancarWizard(progresoBoveda);
+                        return; 
+                    }
+
                     // 🚨 VERDUGO AUTOMÁTICO: Bloqueo de UI por Strikes de Evasión
+
                     if (datosGlobalesNegocio.estado_aliado === 'baneado_temporal' || datosGlobalesNegocio.estado_aliado === 'baneado_permanente') {
                         const txtStrikes = document.getElementById('txt-strikes');
                         if(datosGlobalesNegocio.estado_aliado === 'baneado_permanente') {
@@ -1336,11 +1420,15 @@ import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10
                     }
                 };
 
-                if(datosGlobalesNegocio.logo) {
+                                if(datosGlobalesNegocio.logo) {
                     document.getElementById('ui-logo').src = datosGlobalesNegocio.logo;
                     document.getElementById('ui-logo').style.display = 'block';
                     pintarPreview('texto-logo', datosGlobalesNegocio.logo);
+                    // 💉 INYECCIÓN: Enviar la foto descargada al Live Preview del Pin
+                    const imgLive = document.getElementById('img-live-preview');
+                    if (imgLive) imgLive.src = datosGlobalesNegocio.logo;
                 }
+
                 if(datosGlobalesNegocio.portada) {
                     pintarPreview('texto-portada', datosGlobalesNegocio.portada);
                 }
@@ -2439,14 +2527,46 @@ import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10
                 if (window.pinMiniMapa) window.pinMiniMapa.on('dragend', window.guardarBorradorLocal);
             };
         }
-                const mapProdOld = window.inicializarMiniMapaProd;
+                        const mapProdOld = window.inicializarMiniMapaProd;
         if (mapProdOld) {
             window.inicializarMiniMapaProd = function(l, lg) {
                 mapProdOld(l, lg);
                 if (window.pinMiniMapaProd) window.pinMiniMapaProd.on('dragend', window.guardarBorradorLocal);
             };
         }
+
+        // ==========================================
+        // 🌟 MOTOR DEL ONBOARDING WIZARD (V1.0)
+        // ==========================================
+        window.arrancarWizard = function(progreso) {
+            document.getElementById('login-screen').style.display='none'; document.getElementById('dashboard-screen').style.display='none';
+            document.getElementById('wizard-overlay').style.display='flex';
+            let pAct = progreso < 38.2 ? 2 : (progreso < 61.8 ? 3 : 4);
+            document.getElementById('wiz-step-'+pAct).className = 'boveda-tarjeta wizard-activo';
+            if(pAct===3) setTimeout(()=>{ if(typeof L!=='undefined' && !window.miniWiz){ window.miniWiz = L.map('mapa-wizard',{zoomControl:false}).setView([4.8133,-75.6961],15); L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png').addTo(window.miniWiz); window.marWiz = L.marker([4.8133,-75.6961],{draggable:true}).addTo(window.miniWiz); } else if(window.miniWiz) window.miniWiz.invalidateSize(); }, 400);
+        };
+        window.saltarWizard = function(step) {
+            document.getElementById('wizard-overlay').style.display='none'; document.getElementById('dashboard-screen').style.display='block';
+            document.getElementById('banner-aversiones').style.display='block';
+            document.getElementById('txt-progreso-boveda').innerText = step === 2 ? '0' : (step===3 ? '38.2' : '61.8');
+        };
+        window.avanzarWizard = async function(act, sig) {
+            let data = act===2 ? {nombre: document.getElementById('wiz-nombre').value} : {Coordenadas: {latitude: window.marWiz.getLatLng().lat, longitude: window.marWiz.getLatLng().lng}};
+            if(act===2) await QRpidoDB.AdminService.guardarPasoIdentidad(idNegocioLogueado, data);
+            if(act===3) await QRpidoDB.AdminService.guardarPasoUbicacion(idNegocioLogueado, data);
+            document.getElementById('wiz-step-'+act).className = 'boveda-tarjeta wizard-oculto-izq'; document.getElementById('wiz-step-'+sig).className = 'boveda-tarjeta wizard-activo';
+            if(sig===3) setTimeout(()=>{ if(typeof L!=='undefined' && !window.miniWiz){ window.miniWiz = L.map('mapa-wizard',{zoomControl:false}).setView([4.8133,-75.6961],15); L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png').addTo(window.miniWiz); window.marWiz = L.marker([4.8133,-75.6961],{draggable:true}).addTo(window.miniWiz); } else if(window.miniWiz) window.miniWiz.invalidateSize(); }, 400);
+        };
+        window.finalizarWizard = async function() {
+            await QRpidoDB.AdminService.sellarBovedaDefinitiva(idNegocioLogueado, {niche: document.getElementById('wiz-nicho').value});
+            document.getElementById('wizard-overlay').innerHTML = '<h1 style="color:#00ff64; text-shadow:0 0 20px #00ff64; animation:latidoNeon 1.5s infinite;">¡Bóveda Sellada! 🎉</h1>';
+            for(let i=0; i<40; i++){ let c=document.createElement('div'); c.className='confeti-wizard'; c.style.left=Math.random()*100+'vw'; c.style.animationDelay=Math.random()*1.5+'s'; document.getElementById('wizard-overlay').appendChild(c); }
+            setTimeout(() => { document.getElementById('wizard-overlay').style.display='none'; document.getElementById('dashboard-screen').style.display='block'; document.getElementById('banner-aversiones').style.display='none'; }, 3000);
+        };
+        window.buscarWiz = async () => { const q=document.getElementById('wiz-busqueda').value; if(!q)return; const res=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=co`); const d=await res.json(); if(d&&d.length>0){ window.miniWiz.flyTo([d[0].lat,d[0].lon],17); window.marWiz.setLatLng([d[0].lat,d[0].lon]); } };
+        window.retomarWizard = () => window.arrancarWizard(parseFloat(document.getElementById('txt-progreso-boveda').innerText));
     </script>
+
 </body>
 </html>
 

@@ -1,56 +1,55 @@
-🗺️ Hoja de Ruta QRpido: El Reloj Suizo Autónomo (Frontend & Operaciones)
+**🗺️ Hoja de Ruta QRpido: El Reloj Suizo Autónomo (Frontend & Operaciones) v2.5**
+**Fase 1: Telemetría, Retención y Modales (Cimientos)**
 
-Fase 1: Telemetría, Retención y Modales (Cimientos)
-[x] UX Autenticación: Implementar email/password estándar y Google SSO (Cero Magic Links). Ver/ocultar contraseña (👁️) y forzar autocompletado nativo para fricción cero.
-[x] Escudo Legal UI: Casilla obligatoria en el registro con Honeypot anti-bots integrado. El texto de la UI dice explícitamente: "Declaro ser mayor de 18 años y acepto los Términos, Condiciones y el Contrato de Mandato".
-[x] Manifiesto Legal: Crear página o modal terminos.html con el texto de exención de responsabilidad y contrato de mandato para P2P.
 [ ] Easter Egg V1 & V2: Contador de taps para activar herramientas de diagnóstico ocultas.
+[x] La Aduana Digital (OTP por Correo): Módulo nodemailer inyectado en index.js para generar validaciones de 6 dígitos con caducidad de 5 minutos, ahorrando costos de SMS y esquivando la fricción biométrica.
+**Fase 2: El Orquestador Fintech y Motor Web2**
 
-Fase 2: El Orquestador Fintech y Motor Web2
-[x] El Botón ▶️ Universal: Implementar el saldo global interactivo en UI (Integrar la función abrirPasarelaRecarga() con la llave pub_test... y la referencia RECARGA_uid_timestamp).
-[x] Interfaz de Bóveda Premium (admin.html): Construir la UI donde el cliente/comercio ve su saldo_logistica y tiene el botón integrado para recargar vía Wompi.
-[x] Bifurcación Dinámica Inmobiliaria y SaaS: Lógica frontend para ocultar el carrito flotante si el modelo es 'inmueble' y habilitar la pasarela Wompi si el comercio es 'Premium'.
-[ ] El Fraccionador de Gas (Coin Splitter SUI): Crear un script de mantenimiento local que tome 1 SUI de la Tesorería, lo divida en MIST y pueble la ruta /Sistema/MallaDeGas/libres en RTDB.
-[ ] Batching de Retiros: Lógica de retiros programados (ej. viernes) para agrupar pagos en un lote, capturando el excedente bancario.
-[ ] Preparación Facturación Electrónica (Futuro): Dejar documentado el punto de inyección en el Webhook de Wompi para futura conexión con API de facturación (Alegra/Siigo) ante la DIAN.
-[x] Interruptor "Dejen de Fregar" (Ley 2300): Agregar un toggle en la configuración del perfil (admin.html) para que el usuario pueda desactivar las notificaciones de marketing (Opt-out).
-[ ] Bóveda LA/FT (Límites Transaccionales): Inyectar una regla matemática en la Cloud Function del Webhook de Wompi que rechace automáticamente cualquier recarga individual superior a X monto y bloquee cuentas que superen un tope mensual.
+[ ] Bucle de Retención ("Cashback Logístico"): Lógica en el webhook de Wompi para devolver el costo de las comisiones bancarias inyectando puntos_ecosistema en la bóveda, usables exclusivamente dentro de la plataforma.
+[ ] Tubería Financiera Segura (Anti LA/FT): Batching de retiros programados (ej. martes y viernes) agrupando pagos en lote solo si la bóveda supera los $50,000 COP, capturando el excedente y evitando bloqueos por "pitufeo".
+[ ] El Fraccionador de Gas (Coin Splitter SUI): Script de mantenimiento local que tome 1 SUI de la Tesorería, lo divida en MIST y pueble /Sistema/MallaDeGas/libres en RTDB.
+[ ] Preparación Facturación Electrónica (Futuro): Punto de inyección en Webhook para API de facturación (Alegra/Siigo).
 
-Fase 3: El Notario Inmutable (SUI Blockchain)
-[x] (Fase backend completada. Infraestructura base operativa y documentada en bitácora).
+**Fase 3: El Notario Inmutable (Capa Blockchain Web3)**
 
-Fase 4: Océano Azul (SaaS Freemium / Premium)
-[x] Catálogo Freemium: Acceso gratuito a publicación en el mapa, gestión autónoma por WhatsApp y logística por cuenta propia.
-[x] Motor Premium Comercial ($39k/mes): Activa gestión de domicilios integrados y administración avanzada.
-[x] Pasarela Propia (El Atributo Estrella Premium): Inyección dinámica de la Llave Pública Wompi del comercio en negocio.html.
-[ ] Módulo Premium Conductores ($49k inscrip. / $18.9k mes): Acceso 24/7 al mapa y a solicitudes de despacho (Gratuitos limitados a 6h ON/OFF).
-[ ] Delegación de Reversiones (Estatuto del Consumidor): Inyectar un panel de "PQRs y Contracargos" en la bóveda de los comercios Premium que actúe como un puente directo hacia su propio dashboard de Wompi.
+[ ] Anexos Multimedia Inmutables (Fase Futura): Integración de evidencias (fotos/videos cortos) cifradas en Firebase Storage (Bóveda Ciega) y vinculadas al contrato mediante su Hash SHA-256 estampado en la blockchain.
+**Fase 4: Océano Azul (SaaS Freemium / Premium / Inmobiliario)**
 
-Fase 5: Logística P2P (Proof of Delivery)
-[x] El Cadenero (Validación Backend): Cloud Function blindada con sistema Anti-Fuerza Bruta que valida el código y reparte matemáticamente el saldo.
-[x] Sello SUI Inmutable: Trituradora SHA-256 en backend para registro ciego automático del txID en la blockchain al confirmar la entrega.
-[x] El Apretón de Manos Digital: UI Frontend (domicilios.html) con Teclado Táctil Fantasma para que el domiciliario ingrese el código corto criptográfico y libere entrega.
-​[x] Muro Anti-Spam y Pre-Ticket (Zero-Trust): Implementación de cooldown local y registro asíncrono silencioso del pedido en Firestore (registrarIntencionCompra) antes de lanzar WhatsApp o la pasarela.
-[ ] Ilusión de Fluidez (60s): Sincronización GPS del conductor cada minuto con interpolación visual en el mapa (<12MB RAM).
+[ ] Monetización Inmobiliaria ("Trust-as-a-Service"):
+- *Peaje de Claridad:* Muro de pago ($5k) para abrir un canal de chat asistido por IA/Humano sobre dudas legales del contrato.
+- *Mesa de Negociación:* Tarifa plana técnica que permite a inquilinos y propietarios alterar las cláusulas del documento base bidireccionalmente.
+- *Sello de Inquilino Certificado:* Fast-track premium ($15k) para validación de antecedentes exprés e insignia dorada.
+[ ] Módulo Premium Conductores ($49k inscrip. / $18.9k mes): Acceso 24/7 al mapa y solicitudes de despacho.
+[ ] Delegación de Reversiones (Estatuto del Consumidor): Panel de "PQRs y Contracargos" directo a Wompi.
+**Fase 5: Logística P2P y Contratos (Proof of Delivery / Proof of Location)**
+[x] Geocerca Inquebrantable (Backend): Cálculo de distancia exacta mediante fórmula de Haversine en validarEntrega. Aborto automático si la distancia entre las partes es > 5km.
+[ ] Trampas Anti-Fraude (Frontend): Inyección de exactitud < 2 (Fake GPS) y "Ceguera Temporal" (ocultar OTP display: none si distancia > 50 metros).
+[x] El Cadenero (Validación Backend): Cloud Function blindada con Anti-Fuerza Bruta que valida la intersección de coordenadas en metros y el código OTP, repartiendo matemáticamente el saldo (respetando el 10% fijo de comisión).
+[x] Sello Criptográfico Inmutable: Trituradora SHA-256 en backend para registro ciego del txID.
+[x] Muro Anti-Spam y Pre-Ticket (Zero-Trust): Cooldown local y registro asíncrono silencioso en Firestore.
+[ ] Ilusión de Fluidez (60s): Sincronización GPS del conductor cada minuto con interpolación visual en el mapa para no colapsar los 2GB de RAM.
 [ ] Burbuja Magnética de Chat: Chat efímero 1 a 1 (Limpia mapa + traza ruta OSRM + Kill Switch GPS).
-[ ] El "Camino Triste" (Lógica de Reembolso Virtual): Cloud Function cancelarOrdenLogistica para devolver automáticamente el dinero virtual (monto_total) al saldo_logistica.
-
-Fase 6: Expansión Descentralizada (Embajadores y Moderadores)
-[x] Flujo KYC Manual (Vibecoding): Interfaz para subir foto de cédula a Storage y botón de aprobación/rechazo en moderacion.html (Aduana KYC).
-[ ] Arquitectura de Roles: Diferenciación estricta entre Moderador Base (Soft-Delete) y Embajador.
-[ ] Mina de Oro (Split del 25%): Reparto automático en Firestore del 25% (sobre la comisión fija del 10% de la plataforma) hacia el Embajador de la zona.
-[ ] Dashboard Embajador: Panel en moderadores.html con telemetría en tiempo real de ingresos acumulados.
-[ ] El "Kill Switch" Administrativo (Derecho de Admisión): Implementar en el Cerebro Central la función de Hard-Delete por zonas o fraude.
-[ ] Módulo Editorial (Pulso Urbano): Interfaz para la redacción de noticias y monetización mediante IDs de patrocinadores (sponsor_id), con integración directa a Firestore (publicarArticulo). (Toda la base de esto la acabamos de asegurar en tu core-db.js y admin.html).
-
-Fase 7: Refactorización y Blindaje Final
-[x] Extracción de Módulos (Fase 1 y Final): Fundación del "Golden Design System" en ui-estilos.css con variables globales en español, diseño del Manifiesto Legal y extirpación de lógica pesada de los HTML monolíticos.
+[ ] El "Camino Triste" (Lógica de Reembolso Virtual): Cloud Function cancelarOrdenLogistica.
+**Fase 6: Expansión Descentralizada (Embajadores y Moderadores)**
+[ ] Control de Acceso Basado en Roles (RBAC) Georeferenciado: Lógica de subcolección sucursales en Firestore. Permite a dueños delegar moderadores_uids a administradores locales, forzando a la Geocerca a usar la lat/lng de la sucursal y no la del dueño principal.
+[x] Flujo KYC Manual (Vibecoding): Interfaz para subir foto de cédula a Storage y botón en moderacion.html (Aduana KYC).
+[ ] Mina de Oro (Split del 25%): Reparto automático en Firestore del 25% (sobre el diezmo base de la plataforma) hacia el Embajador de la zona.
+[ ] Dashboard Embajador: Panel en moderadores.html con telemetría en tiempo real.
+[ ] Módulo Editorial (Pulso Urbano): Redacción de noticias y monetización mediante IDs de patrocinadores (sponsor_id).
+**Fase 7: Refactorización y Blindaje Final**
+[x] Golden Design System: Variables globales inyectadas en ui-estilos.css estandarizadas con nomenclatura en español (ej. --texto-base).
 [ ] Zero-Trust Firestore: Reglas de seguridad finales bloqueando accesos globales no autorizados.
-[ ] Contador Distribuido (Sharding) en Firestore: Modificar el ContadorBilleteras para soportar registros masivos concurrentes (>1 escritura/seg).
-
-Fase 8: Proyecto Academia
-[ ] academia.html: Lanzamiento de 15 cupos para enseñar arquitectura de Súper Apps móviles con Firebase usando Acode.
-
-Fase 9: Tokenización y Gobernanza Web3 (El Hito del Unicornio)
-[ ] Emisión de Activo Virtual (Token QRpido): Despliegue de contrato inteligente en la red SUI para representar el patrimonio de la empresa.
-[ ] Distribución de Dividendos en Cadena: Arquitectura de tesorería para liquidar trimestralmente y de forma automática el margen operativo (10% logística + suscripciones Premium + AdSense) hacia las billeteras SUI de los accionistas.
+[ ] Contador Distribuido (Sharding) en Firestore: Modificar el ContadorBilleteras para soportar escrituras masivas concurrentes.
+​[ ] Escudo Criptográfico de Cliente (Firebase App Check): > Por qué: Aún si tu backend es seguro, alguien puede tomar la URL de tu base de datos y hacerle un millón de peticiones desde una terminal (Postman o un bot), disparando tu factura de Google a las nubes.
+​La Solución: Activar App Check (Play Integrity en Android / reCAPTCHA v3 invisible en Web). Esto asegura que Google solo responda a peticiones que vengan exclusivamente de tu código index.html real, rechazando cualquier tráfico de bots antes de que te cobren un centavo.
+​[ ] Modo de Supervivencia Logística (Service Worker Offline-First):
+​Por qué: En LATAM, los domiciliarios entran a sótanos, ascensores o zonas sin cobertura. Si el conductor pierde señal justo al abrir el radar o ver el código OTP, la pantalla blanca (Punto #7 de la lista) arruina la entrega.
+La Solución: Implementar un service-worker.js nativo que almacene en caché la estructura visual de la app (ui-estilos.css, el esqueleto HTML) para que la app cargue en 0.5 segundos incluso sin internet, mostrando un mensaje elegante de "Esperando conexión...".
+​[ ] Protocolo Lázaro (PITR y Alertas de Facturación):
+​Por qué: El Punto #19 y #21 de nuestra lista forense. Un error humano o un pico de tráfico no detectado.
+La Solución: Activar Point-in-Time Recovery (PITR) en Firestore para poder "viajar en el tiempo" y recuperar datos borrados hasta el minuto exacto. Configurar alertas de presupuesto al 50% y 90% en GCP enviadas directo a tu correo.
+**Fase 8: Proyecto Academia**
+[ ] academia.html: Lanzamiento de 15 cupos para enseñar arquitectura de Súper Apps móviles con Firebase usando Acode (Low-end hardware dev).
+**Fase 9: Tokenización y Gobernanza Web3 (El Hito del Unicornio)**
+[ ] Emisión de Activo Virtual (Token QRpido): Contrato en red SUI representando el patrimonio.
+[ ] Distribución de Dividendos en Cadena: Liquidación trimestral automática de márgenes operativos hacia billeteras SUI de accionistas.

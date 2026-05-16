@@ -422,66 +422,64 @@ pinesDibujadosEnEsteFrame++;
 });
 };
 window.descargarNegociosDeFirebase = async function() {
-const btn = document.getElementById('btn-cargar-zona');
-if (btn) {
-btn.innerText = "⏳ Rastreando...";
-btn.style.background = "#ffcc00";
-}
-try {
-const center = [mapa.getCenter().lat, mapa.getCenter().lng];
-const boundsLeaflet = mapa.getBounds();
-let radiusInM = mapa.getCenter().distanceTo(boundsLeaflet.getNorthEast());
-// 🛡️ Límite estricto de radio (Máximo 2000m = 2km)
-if (radiusInM > 2000) radiusInM = 2000;
-// Llamada a la base de datos (Bifurcación: Escanea negocios o escanea casas)
-let success, arrayNegocios, error;
-if (categoriaActivaGlobal === 'inmuebles') {
-const res = await QRpidoDB.RadarService.buscarInmueblesEnRadar(center[0], center[1], radiusInM);
-success = res.success; arrayNegocios = res.data; error = res.error;
-} else {
-const res = await QRpidoDB.RadarService.buscarEnRadar(center[0], center[1], radiusInM);
-success = res.success; arrayNegocios = res.data; error = res.error;
-}
-if (!success) throw new Error(error);
-if (dbDirectorioMap.size > 1500) {
-// Garbage collection manual: Evitamos colapsar la RAM eliminando pines antiguos
-const llaves = Array.from(dbDirectorioMap.keys());
-for(let i = 0; i < 500; i++) {
-dbDirectorioMap.delete(llaves[i]);
-}
-}
-arrayNegocios.forEach(data => {
-const doc = { id: data.id || data.codigo };
-let lat, lng;
-if (data.Coordenadas) {
-if (typeof data.Coordenadas.latitude === 'function' || typeof data.Coordenadas.lat === 'function') {
-lat = data.Coordenadas.latitude ? data.Coordenadas.latitude() : (data.Coordenadas.lat ? data.Coordenadas.lat() : data.Coordenadas._lat);
-lng = data.Coordenadas.longitude ? data.Coordenadas.longitude() : (data.Coordenadas.lng ? data.Coordenadas.lng() : data.Coordenadas._long);
-} else if (data.Coordenadas.latitude !== undefined) {
-lat = data.Coordenadas.latitude; lng = data.Coordenadas.longitude;
-}
-} else if (data.plusCode && typeof OpenLocationCode !== 'undefined') {
-try {
-const decoded = OpenLocationCode.decode(data.plusCode);
-lat = decoded.latitudeCenter; lng = decoded.longitudeCenter;
-} catch (e) {}
-}
-if (!lat || !lng || isNaN(lat) || isNaN(lng)) return;
-if (data.estado_moderacion !== "pendiente" && data.geohash) {
-const distanceInM = calcularDistanciaKm(lat, lng, center[0], center[1]) * 1000;
-if (distanceInM <= radiusInM) {
-const safeData = { ...data, Coordenadas: { latitude: lat, longitude: lng } };
-dbDirectorioMap.set(doc.id, { codigo: doc.id, ...safeData });
-}
-}
-});
+    const btn = document.getElementById('btn-cargar-zona');
+    if (btn) {
+        btn.innerText = "⏳ Rastreando...";
+        btn.style.background = "#ffcc00";
+    }
+    try {
+        const center = [mapa.getCenter().lat, mapa.getCenter().lng];
+        const boundsLeaflet = mapa.getBounds();
+        let radiusInM = mapa.getCenter().distanceTo(boundsLeaflet.getNorthEast());
+        // 🛡️ Límite estricto de radio (Máximo 2000m = 2km)
+        if (radiusInM > 2000) radiusInM = 2000;
+        
+        let success, arrayNegocios, error;
+        if (categoriaActivaGlobal === 'inmuebles') {
+            const res = await QRpidoDB.RadarService.buscarInmueblesEnRadar(center[0], center[1], radiusInM);
+            success = res.success; arrayNegocios = res.data; error = res.error;
+        } else {
+            const res = await QRpidoDB.RadarService.buscarEnRadar(center[0], center[1], radiusInM);
+            success = res.success; arrayNegocios = res.data; error = res.error;
+        }
+        if (!success) throw new Error(error);
+        
+        if (dbDirectorioMap.size > 1500) {
+            const llaves = Array.from(dbDirectorioMap.keys());
+            for(let i = 0; i < 500; i++) {
+                dbDirectorioMap.delete(llaves[i]);
+            }
+        }
+        arrayNegocios.forEach(data => {
+            const doc = { id: data.id || data.codigo };
+            let lat, lng;
+            if (data.Coordenadas) {
+                if (typeof data.Coordenadas.latitude === 'function' || typeof data.Coordenadas.lat === 'function') {
+                    lat = data.Coordenadas.latitude ? data.Coordenadas.latitude() : (data.Coordenadas.lat ? data.Coordenadas.lat() : data.Coordenadas._lat);
+                    lng = data.Coordenadas.longitude ? data.Coordenadas.longitude() : (data.Coordenadas.lng ? data.Coordenadas.lng() : data.Coordenadas._long);
+                } else if (data.Coordenadas.latitude !== undefined) {
+                    lat = data.Coordenadas.latitude; lng = data.Coordenadas.longitude;
+                }
+            } else if (data.plusCode && typeof OpenLocationCode !== 'undefined') {
+                try {
+                    const decoded = OpenLocationCode.decode(data.plusCode);
+                    lat = decoded.latitudeCenter; lng = decoded.longitudeCenter;
+                } catch (e) {}
+            }
+            if (!lat || !lng || isNaN(lat) || isNaN(lng)) return;
+            if (data.estado_moderacion !== "pendiente" && data.geohash) {
+                const distanceInM = calcularDistanciaKm(lat, lng, center[0], center[1]) * 1000;
+                if (distanceInM <= radiusInM) {
+                    const safeData = { ...data, Coordenadas: { latitude: lat, longitude: lng } };
+                    dbDirectorioMap.set(doc.id, { codigo: doc.id, ...safeData });
+                }
+            }
+        });
         dbDirectorio = Array.from(dbDirectorioMap.values());
         datosDescargados = true;
         zonaNecesitaDescarga = false;
         cajaFuerteEspacial = mapa.getBounds().pad(0.5);
 
-
-        // 🧹 EXORCISMO DE CLONES: Borramos los pines del JSON caché porque ya llegaron los reales
         if (typeof marcadoresActivos !== 'undefined') {
             for (let idClon in marcadoresActivos) {
                 if (mapa.hasLayer(marcadoresActivos[idClon])) {
@@ -491,81 +489,95 @@ dbDirectorioMap.set(doc.id, { codigo: doc.id, ...safeData });
             }
         }
 
+        if (btn) {
+            btn.style.display = 'none';
+            btn.innerText = "🔍 Buscar en esta zona";
+            btn.style.background = "linear-gradient(45deg, var(--naranja), #ffcc00)";
+        }
+        const catActualObj = window.categoriasEstaticas ? window.categoriasEstaticas.find(c => c.id === window.categoriaActivaGlobal) : null;
+        if (catActualObj && window.renderizarPanel) {
+            window.renderizarPanel(catActualObj);
+        }
+        if (typeof barridoRadar === "function") {
+            const buscador = document.getElementById('input-buscador');
+            barridoRadar(buscador ? buscador.value : '');
+        }
+    } catch (error) {
+        if (btn) {
+            btn.innerText = "🔍 Buscar en esta zona";
+            btn.style.display = 'block';
+        }
+        console.error("Error en la descarga:", error);
+    }
+}; // <--- ¡Esta llave de cierre era la que se había borrado!
 
-if (btn) {
-btn.style.display = 'none';
-btn.innerText = "🔍 Buscar en esta zona";
-btn.style.background = "linear-gradient(45deg, var(--naranja), #ffcc00)";
-}
-const catActualObj = window.categoriasEstaticas ? window.categoriasEstaticas.find(c => c.id === window.categoriaActivaGlobal) : null;
-if (catActualObj && window.renderizarPanel) {
-window.renderizarPanel(catActualObj);
-}
-// 🚨 RESTAURACIÓN DEL DIBUJADO 🚨
-// Como el JSON inicial de la plataforma está vacío, necesitamos forzar el dibujado de los pines.
-if (typeof barridoRadar === "function") {
-barridoRadar(document.getElementById('input-buscador').value);
-}
-} catch (error) {
-if (btn) {
-btn.innerText = "🔍 Buscar en esta zona";
-btn.style.display = 'block';
-}
-console.error("Error en la descarga:", error);
-}window.construirMapa = function() {
-    // 🛡️ REGLA HIPERLOCAL CORREGIDA: minZoom en 15 (Distancia exacta de "IZ DI")
+window.construirMapa = function() {
+    // 🛡️ REGLA HIPERLOCAL CORREGIDA: minZoom en 15
     mapa = L.map('mapa-qrpido', { zoomControl: false, minZoom: 15, maxZoom: 18 }).setView([4.8133, -75.6961], 16);
     
     capaBase = L.tileLayer('https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.png', {
         maxZoom: 20,
         attribution: '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a>'
     }).addTo(mapa);
-};
-const panel = document.querySelector('.leaflet-tile-pane');
-panel.style.filter = "none";
-capaRadar = L.layerGroup().addTo(mapa);
-let timerMovimiento;
-let ultimoCentroFetch = null;
-const UMBRAL_DISTANCIA_METROS = 1500; // Define un solo umbral estricto
-mapa.on('moveend', () => {
-clearTimeout(timerMovimiento);
-// 1. Dibujo estático gratis (desde caché JSON) Ocurre inmediatamente
-const boundsActuales = mapa.getBounds();
-if (window.dibujarPinesDesdeJSONCache) window.dibujarPinesDesdeJSONCache(boundsActuales);
-if (mapa.getZoom() < 14) return; // Bloqueo de zoom lejano
-timerMovimiento = setTimeout(() => {
-const currentCenter = mapa.getCenter();
-// 2. Escudo Financiero: Verificar si se movió una distancia significativa
-if (ultimoCentroFetch && currentCenter.distanceTo(ultimoCentroFetch) < UMBRAL_DISTANCIA_METROS) {
-if (datosDescargados && !zonaNecesitaDescarga && !document.querySelector('.leaflet-popup')) {
-barridoRadar(document.getElementById('input-buscador').value);
-}
-return;
-}
-ultimoCentroFetch = currentCenter;
-// 3. Validación de la "Caja Fuerte" Espacial
-if (datosDescargados && cajaFuerteEspacial && !cajaFuerteEspacial.contains(mapa.getBounds())) {
-zonaNecesitaDescarga = true;
-}
-if (zonaNecesitaDescarga) {
-document.getElementById('btn-cargar-zona').style.display = 'block';
-if (window.descargarNegociosDeFirebase) window.descargarNegociosDeFirebase();
-} else if (datosDescargados && !document.querySelector('.leaflet-popup')) {
-barridoRadar(document.getElementById('input-buscador').value);
-}
-}, 500);
-});
-mapa.on('zoomend', () => {
-document.getElementById('mapa-qrpido').setAttribute('data-zoom', mapa.getZoom());
-});
-document.getElementById('mapa-qrpido').setAttribute('data-zoom', mapa.getZoom());
-mapa.on('click', () => {
-const panel = document.getElementById('panel-cristal');
-if (panel) panel.classList.add('colapsado');
-});
-};
-}
+    
+    const panel = document.querySelector('.leaflet-tile-pane');
+    if (panel) panel.style.filter = "none";
+    
+    capaRadar = L.layerGroup().addTo(mapa);
+    
+    let timerMovimiento;
+    let ultimoCentroFetch = null;
+    const UMBRAL_DISTANCIA_METROS = 1500; 
+    
+    mapa.on('moveend', () => {
+        clearTimeout(timerMovimiento);
+        const boundsActuales = mapa.getBounds();
+        if (window.dibujarPinesDesdeJSONCache) window.dibujarPinesDesdeJSONCache(boundsActuales);
+        
+        if (mapa.getZoom() < 14) return; 
+        
+        timerMovimiento = setTimeout(() => {
+            const currentCenter = mapa.getCenter();
+            if (ultimoCentroFetch && currentCenter.distanceTo(ultimoCentroFetch) < UMBRAL_DISTANCIA_METROS) {
+                if (datosDescargados && !zonaNecesitaDescarga && !document.querySelector('.leaflet-popup')) {
+                    const buscador = document.getElementById('input-buscador');
+                    if (typeof barridoRadar === "function") barridoRadar(buscador ? buscador.value : '');
+                }
+                return;
+            }
+            ultimoCentroFetch = currentCenter;
+            
+            if (datosDescargados && cajaFuerteEspacial && !cajaFuerteEspacial.contains(mapa.getBounds())) {
+                zonaNecesitaDescarga = true;
+            }
+            
+            if (zonaNecesitaDescarga) {
+                const btnCargar = document.getElementById('btn-cargar-zona');
+                if (btnCargar) btnCargar.style.display = 'block';
+                if (window.descargarNegociosDeFirebase) window.descargarNegociosDeFirebase();
+            } else if (datosDescargados && !document.querySelector('.leaflet-popup')) {
+                const buscador = document.getElementById('input-buscador');
+                if (typeof barridoRadar === "function") barridoRadar(buscador ? buscador.value : '');
+            }
+        }, 500);
+    });
+    
+    mapa.on('zoomend', () => {
+        const mHtml = document.getElementById('mapa-qrpido');
+        if (mHtml) mHtml.setAttribute('data-zoom', mapa.getZoom());
+    });
+    
+    const mHtmlInit = document.getElementById('mapa-qrpido');
+    if (mHtmlInit) mHtmlInit.setAttribute('data-zoom', mapa.getZoom());
+    
+        mapa.on('click', () => {
+        const panelCristal = document.getElementById('panel-cristal');
+        if (panelCristal) panelCristal.classList.add('colapsado');
+    });
+}; // <--- ¡Y esta llave cierra el mapa correctamente!
+
 window.buscarCiudadGlobal = async function() {
+
 const texto = document.getElementById('input-buscador').value.trim();
 if(!texto) return;
 QRpidoDB.LocalService.registrarEventoAnalytics('busqueda_radar', { termino: texto });
@@ -1413,7 +1425,44 @@ window.detonarCelebracionNieves = function() {
     }, 12000);
 
     // Las flores tienen permiso de existir hasta 17 segundos antes de borrarlas de la RAM
-    setTimeout(() => {
+        setTimeout(() => {
         document.querySelectorAll('.flor-voladora').forEach(el => el.remove());
     }, 17000);
+};
+
+// =================================================================
+// 🗺️ MINIMAPA WIZARD BÓVEDA (Aislamiento Arquitectónico)
+// =================================================================
+window.instanciarMinimapaBoveda = function(contenedorId, lat = 4.8133, lng = -75.6961) {
+    if (typeof L === 'undefined') return null;
+    const miniMapa = L.map(contenedorId, { zoomControl: false, attributionControl: false }).setView([lat, lng], 16);
+    L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', { maxZoom: 18 }).addTo(miniMapa);
+    
+    const iconoPin = L.divIcon({
+        html: '<div class="pin-wrapper pin-1" style="--color-main: var(--naranja); --color-sec: #000; width: 34px; height: 34px;"><div class="pin-img" style="background: var(--naranja);"></div></div>',
+        className: '', iconSize: [34, 34], iconAnchor: [17, 17]
+    });
+    const marker = L.marker([lat, lng], { icon: iconoPin, draggable: true }).addTo(miniMapa);
+    marker.on('dragstart', () => document.getElementById(contenedorId).style.transform = 'scale(0.98)');
+    marker.on('dragend', () => document.getElementById(contenedorId).style.transform = 'scale(1)');
+    
+    return { 
+        mapa: miniMapa, marcador: marker,
+        irUbicacionActual: function() {
+            if(navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    const nLat = pos.coords.latitude, nLng = pos.coords.longitude;
+                    miniMapa.flyTo([nLat, nLng], 17); marker.setLatLng([nLat, nLng]);
+                });
+            }
+        },
+        buscarDireccion: async function(texto) {
+            if(!texto) return;
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(texto)}&countrycodes=co`);
+            const data = await res.json();
+            if(data && data.length > 0) {
+                miniMapa.flyTo([data[0].lat, data[0].lon], 17); marker.setLatLng([data[0].lat, data[0].lon]);
+            }
+        }
+    };
 };

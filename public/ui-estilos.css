@@ -5,7 +5,13 @@
 --texto-sm: 10px; --texto-base: 16px; --texto-h3: 26px; --texto-h1: 42px;
 /* Escala Fibonacci Espaciados */
 --sp-micro: 8px; --sp-sm: 13px; --sp-md: 21px; --sp-lg: 34px; --sp-xl: 55px;
+/* Motor Wizard - Proporción Áurea y Bóveda */
+--fondo-boveda: rgba(10, 10, 12, 0.85);
+--naranja-brillo: rgba(255, 107, 0, 0.8);
+--wizard-ancho: 340px;
+--wizard-alto: 550px;
 }
+
 body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: 'Segoe UI', sans-serif; background: var(--bg-oscuro); color: white; overflow: hidden; transition: color 0.4s ease; }
 #mapa-qrpido {
 height: 100%; width: 100%; z-index: 1;
@@ -369,7 +375,19 @@ box-shadow: 0 5px 15px rgba(255,107,0,0.4); /* Resplandor naranja */
 ========================================= */
 body.boveda-ui { background: radial-gradient(circle at 50% 0%, #1a1a1f 0%, var(--bg-oscuro) 100%) !important; display: flex !important; flex-direction: column; align-items: center; overflow-x: hidden !important; overflow-y: auto !important; -webkit-overflow-scrolling: touch !important; overscroll-behavior-y: contain !important; padding: var(--sp-md) !important; box-sizing: border-box; min-height: 100vh; color: white; font-family: 'Segoe UI', sans-serif; }
 
+/* Tarjetas del Wizard (Aceleración GPU estricta y Proporción Áurea) */
+.boveda-tarjeta { width: var(--wizard-ancho); height: var(--wizard-alto); background: var(--fondo-boveda); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--glass-border); border-radius: var(--sp-md); position: absolute; will-change: transform, opacity; transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.4s ease; box-shadow: 0 15px 35px rgba(0,0,0,0.8); padding: var(--sp-md); box-sizing: border-box; }
+.wizard-oculto-izq { transform: translateX(-120%); opacity: 0; pointer-events: none; }
+.wizard-activo { transform: translateX(0); opacity: 1; pointer-events: all; }
+.wizard-oculto-der { transform: translateX(120%); opacity: 0; pointer-events: none; }
+
+/* Contenedor Preview Wizard (Acelerado por GPU) */
+.wizard-preview-contenedor { width: 144px; height: 144px; margin: 21px auto; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle, rgba(255,107,0,0.15) 0%, transparent 70%); border: 1px dashed rgba(255,107,0,0.3); border-radius: 50%; }
+.wizard-preview-pin { width: 55px; height: 55px; transform: scale(1.618); will-change: transform, filter; transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1); pointer-events: none; }
+
 #login-screen, #dashboard-screen { width: 100% !important; max-width: 500px !important; box-sizing: border-box !important; }
+
+
 .panel-admin, .tab-content { background: linear-gradient(135deg, rgba(35, 35, 40, 0.7) 0%, rgba(15, 15, 18, 0.9) 100%) !important; backdrop-filter: blur(21px) !important; -webkit-backdrop-filter: blur(21px); border: 1px solid rgba(255, 255, 255, 0.08) !important; border-radius: 21px !important; box-shadow: 0 13px 34px rgba(0,0,0,0.6), inset 0 1px 2px rgba(255,255,255,0.1) !important; padding: var(--sp-md) !important; margin-bottom: var(--sp-md); }
 
 /* Acordeones (Cajones Metálicos Pulidos) - Fibonacci Spacing */
@@ -491,6 +509,11 @@ label.section-title { font-size: 12px; font-weight: bold; color: #888; text-tran
 
 /* Flotantes y Extras */
 #btn-flotante-ayuda { position: fixed; bottom: 20px; right: 20px; background: var(--naranja); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 12px 20px; border-radius: 25px; font-weight: bold; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.8); z-index: 900; transition: 0.3s; display: flex; align-items: center; gap: 8px; }
+
+/* Confeti Matemático Bóveda (GPU Auto-destructible) */
+.confeti-wizard { position: fixed; width: 8px; height: 8px; background: var(--naranja); z-index: 9998; will-change: transform, opacity; pointer-events: none; animation: caidaConfeti 3s cubic-bezier(0.25, 1, 0.5, 1) forwards; }
+@keyframes caidaConfeti { 0% { transform: translateY(-100%) rotate(0deg); opacity: 1; } 100% { transform: translateY(100vh) rotate(720deg); opacity: 0; } }
+
 #btn-flotante-ayuda:active { transform: scale(0.9); }
 .offline-banner { position: fixed; top: 0; left: 0; width: 100%; background: #ff4444; color: white; text-align: center; padding: 8px; z-index: 10000; font-weight: 900; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(255,68,68,0.4); display: none; }
 .offline-banner.activo { display: block; }
@@ -669,10 +692,62 @@ input:checked + .slider:before { transform: translateX(20px); background-color: 
 .anim-latido { animation: animLatido var(--velocidad-anim, 1s) infinite; }
 
 .efecto-neon { box-shadow: 0 0 var(--intensidad-neon, 15px) var(--color-sec); border-color: var(--color-main); }
-.efecto-anillos::before { content: ''; position: absolute; inset: -4px; border-radius: inherit; border: 2px solid var(--color-sec); animation: animOndas var(--velocidad-anim, 2s) infinite ease-out; }
+.efecto-anillos::before { content: ''; position: absolute; inset: -4px; border-radius: inherit; border: 2px solid var(--color-sec); animation: animOndas var(--velocidad-anim, 2s) infinite ease-out; pointer-events: none; z-index: -1; }
+/* =========================================
+   SISTEMA DE ANCLAJES ANATÓMICOS (Emojis y PNGs)
+   ========================================= */
+/* 1. ANCLAJE SUPERIOR (Sombreros, Coronas, Aureolas) */
+.anclaje-arriba::before { content: attr(data-emoji); position: absolute; top: -20px; left: 0; width: 100%; text-align: center; font-size: 28px; background: transparent !important; box-shadow: none !important; border: none !important; z-index: 5; pointer-events: none; animation: animFlotar var(--velocidad-anim, 2s) infinite alternate ease-in-out; filter: drop-shadow(0 4px 5px rgba(0,0,0,0.7)); }
 
-/* Keyframes base */
+/* 2. ANCLAJE ESQUINA (Moños, Tiaras, Flores laterales) */
+.anclaje-esquina::before { content: attr(data-emoji); position: absolute; top: -8px; right: -12px; font-size: 22px; background: transparent !important; box-shadow: none !important; border: none !important; z-index: 5; pointer-events: none; transform: rotate(15deg); filter: drop-shadow(-2px 4px 4px rgba(0,0,0,0.6)); }
+
+/* 3. ANCLAJE MONTURA (Vehículos, Motos, Animales de carga) */
+/* El pin se incrusta en el asiento del emoji (z-index 5, sube y tapa la base del pin) */
+.anclaje-montura::before { content: attr(data-emoji); position: absolute; bottom: -22px; left: 0; width: 100%; text-align: center; font-size: 38px; background: transparent !important; box-shadow: none !important; border: none !important; z-index: 5; pointer-events: none; animation: reboteCarro 0.4s infinite alternate cubic-bezier(0.25, 1, 0.5, 1); filter: drop-shadow(0 -2px 6px rgba(0,0,0,0.6)); }
+
+/* 4. ANCLAJE CLIMA/ENTORNO (Lluvia, Estrellas, Burbujas detrás del pin) */
+.anclaje-fondo::before { content: attr(data-emoji); position: absolute; top: -15px; right: -15px; font-size: 26px; background: transparent !important; box-shadow: none !important; border: none !important; z-index: -1; pointer-events: none; animation: parpadeoFuego 1.2s infinite alternate ease-in-out; filter: drop-shadow(0 0 8px var(--color-sec)); }
+.anclaje-fondo::after { content: attr(data-emoji-2); position: absolute; bottom: -5px; left: -15px; font-size: 20px; background: transparent !important; box-shadow: none !important; border: none !important; z-index: -1; pointer-events: none; animation: parpadeoFuego 0.8s infinite alternate-reverse ease-in-out; }
+
+/* 🏍️ MODO CUSTOM PNG (Skins dinámicas por Anclaje) */
+.skin-png-arriba::after { content: ''; position: absolute; top: -35px; left: 50%; transform: translateX(-50%); width: 50px; height: 50px; background-image: var(--skin-url); background-size: contain; background-repeat: no-repeat; background-position: center; z-index: 5; pointer-events: none; animation: animFlotar var(--velocidad-anim, 2s) infinite alternate ease-in-out; filter: drop-shadow(0 4px 5px rgba(0,0,0,0.7)); }
+
+.skin-png-esquina::after { content: ''; position: absolute; top: -15px; right: -20px; width: 40px; height: 40px; background-image: var(--skin-url); background-size: contain; background-repeat: no-repeat; background-position: center; z-index: 5; pointer-events: none; transform: rotate(15deg); filter: drop-shadow(-2px 4px 4px rgba(0,0,0,0.6)); }
+
+.skin-png-montura::after { content: ''; position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); width: 60px; height: 50px; background-image: var(--skin-url); background-size: contain; background-repeat: no-repeat; background-position: center; z-index: 5; pointer-events: none; animation: reboteCarro 0.4s infinite alternate cubic-bezier(0.25, 1, 0.5, 1); filter: drop-shadow(0 -2px 6px rgba(0,0,0,0.6)); }
+
+.skin-png-fondo::after { content: ''; position: absolute; top: -20px; right: -20px; width: 60px; height: 60px; background-image: var(--skin-url); background-size: contain; background-repeat: no-repeat; background-position: center; z-index: -1; pointer-events: none; animation: parpadeoFuego 1.2s infinite alternate ease-in-out; filter: drop-shadow(0 0 8px var(--color-sec)); }
+
+
+
+/* =========================================
+   KEYFRAMES GLOBALES (100% GPU ACCELERATED)
+   ========================================= */
+
 @keyframes animSalto { 0% { transform: translateY(0) scale(1, 0.9); } 100% { transform: translateY(-20px) scale(1, 1.1); } }
 @keyframes animFlotar { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
 @keyframes animLatido { 0%, 100% { transform: scale(1); } 15%, 45% { transform: scale(1.15); } 30% { transform: scale(1); } }
 @keyframes animOndas { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(calc(1 + (var(--intensidad-neon) / 20))); opacity: 0; } }
+@keyframes parpadeoFuego { 0% { opacity: 0.6; transform: scale(0.85); } 100% { opacity: 1; transform: scale(1.1); } }
+@keyframes reboteCarro { 0% { transform: translateY(0); } 100% { transform: translateY(-4px); } }
+
+/* =========================================
+   MÓDULO 4: ADUANA JURÍDICA (TRAMITES.HTML)
+   ========================================= */
+
+/* Carrusel de Plantillas Legales */
+.carrusel-plantillas { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none; }
+.carrusel-plantillas::-webkit-scrollbar { display: none; }
+.plantilla-card { min-width: 140px; background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); border-radius: 13px; padding: 15px; text-align: center; cursor: pointer; transition: 0.3s; }
+.plantilla-card.selected { border-color: var(--azul-corp); background: rgba(0,170,255,0.1); box-shadow: inset 0 0 10px rgba(0,170,255,0.2); }
+.plantilla-icon { font-size: 24px; margin-bottom: 8px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); }
+.plantilla-title { font-size: 11px; font-weight: bold; color: white; text-transform: uppercase; }
+
+/* Cajas de Biometría y Evidencia */
+.gps-box { background: rgba(0,245,212,0.05); border: 1px dashed var(--verde-sui); padding: 15px; border-radius: 13px; text-align: center; margin-bottom: 15px; }
+.selfie-container { border: 1px dashed var(--naranja); padding: 20px; border-radius: 13px; text-align: center; background: rgba(255,107,0,0.05); margin-bottom: 15px; }
+.codigo-pizarra { font-family: monospace; font-size: 24px; color: var(--naranja); font-weight: 900; letter-spacing: 4px; background: #000; padding: 8px 15px; border-radius: 8px; display: inline-block; margin: 10px 0; border: 1px solid rgba(255,107,0,0.3); }
+.file-upload-btn { background: var(--azul-corp); color: black; padding: 10px 20px; border-radius: 20px; font-weight: 900; display: inline-block; cursor: pointer; font-size: 12px; text-transform: uppercase; box-shadow: 0 4px 10px rgba(0,170,255,0.3); }
+input[type="file"] { display: none; }
+
