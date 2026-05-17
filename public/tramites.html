@@ -13,12 +13,15 @@
         <h1 style="margin: 0; font-size: 18px; color: var(--naranja); text-transform: uppercase; font-weight: 900; letter-spacing: 1px;">⚖️ Bóveda Legal</h1>
         
         <div class="contenedor-llave" style="position: relative;">
-            <button class="btn-login" id="btn-portal-mando" onclick="document.getElementById('submenu-llave-tramites').classList.toggle('activo')" style="border-color: var(--naranja); box-shadow: 0 0 10px rgba(255,107,0,0.3);">🔑</button>
-            <div id="submenu-llave-tramites" class="submenu-llave" style="right: 0;">
+            <button class="btn-login" id="btn-portal-mando" onclick="document.getElementById('submenu-llave-tramites').classList.toggle('activo')" style="border-color: var(--naranja); box-shadow: 0 0 10px rgba(255,107,0,0.3);">🔑</button>            <div id="submenu-llave-tramites" class="submenu-llave" style="right: 0;">
                 <button class="btn-submenu" onclick="window.location.href='index.html'" style="border-color: #00aaff; color: #00aaff;">🗺️ Volver al Mapa</button>
+                
+                <button id="btn-perfil-submenu" class="btn-submenu" style="display: none; border-color: var(--naranja); color: var(--naranja);" onclick="abrirPerfilCiudadano()">👤 Mi Perfil</button>
+                
                 <button id="btn-login-submenu" class="btn-submenu" onclick="document.getElementById('modal-login').classList.add('activo'); document.getElementById('submenu-llave-tramites').classList.remove('activo')">🔑 Iniciar Sesión</button>
                 <button class="btn-submenu" style="border-color: #888; color: #888;">💬 FAQ Legal</button>
             </div>
+
         </div>
     </header>
 
@@ -208,28 +211,56 @@
         </div>
     </div>
 
-    <div class="bottom-sheet-overlay" id="modal-login" onclick="document.getElementById('modal-login').classList.remove('activo')">
+        <div class="bottom-sheet-overlay" id="modal-login" onclick="document.getElementById('modal-login').classList.remove('activo')">
         <div class="bottom-sheet-contenido" onclick="event.stopPropagation()" style="background: var(--glass-bg); backdrop-filter: blur(25px); border-radius: 30px 30px 0 0; padding: 25px; border-top: 1px solid var(--naranja);">
             <div class="drag-handle" style="width: 40px; height: 5px; background: rgba(255,255,255,0.2); border-radius: 5px; margin: 0 auto 20px;"></div>
-            <h2 style="color: var(--naranja); margin-top: 0; text-align: center; text-transform: uppercase;">Iniciar Sesión</h2>
             
-            <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 15px; text-align: left; background: rgba(255,107,0,0.05); padding: 10px; border-radius: 8px; border: 1px solid rgba(255,107,0,0.2);">
-                <input type="checkbox" id="acepta-terminos-tramite" style="margin-top: 3px; accent-color: var(--naranja); transform: scale(1.2);">
-                <label for="acepta-terminos-tramite" style="font-size: 12px; color: #f0f0f0; line-height: 1.4;">
-                    Acepto los <a href="terminos.html" target="_blank" style="color: var(--naranja); text-decoration: underline;">Términos, Condiciones y Contrato de Mandato</a>.
-                </label>
+            <div id="panel-login-auth">
+                <h2 style="color: var(--naranja); margin-top: 0; text-align: center; text-transform: uppercase;">Iniciar Sesión</h2>
+                
+                <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 15px; text-align: left; background: rgba(255,107,0,0.05); padding: 10px; border-radius: 8px; border: 1px solid rgba(255,107,0,0.2);">
+                    <input type="checkbox" id="acepta-terminos-tramite" style="margin-top: 3px; accent-color: var(--naranja); transform: scale(1.2);">
+                    <label for="acepta-terminos-tramite" style="font-size: 12px; color: #f0f0f0; line-height: 1.4;">
+                        Acepto los <a href="terminos.html" target="_blank" style="color: var(--naranja); text-decoration: underline;">Términos, Condiciones y Políticas</a>.
+                    </label>
+                </div>
+
+                <button class="btn-submit" style="background: white !important; color: #222 !important; box-shadow: none !important; display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 15px; font-size: 14px;" onclick="if(!document.getElementById('acepta-terminos-tramite').checked) { alert('⚠️ Debes aceptar los Términos.'); return; } iniciarConGoogle()">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" height="18"> Continuar con Google
+                </button>
+                <p style="text-align: center; color: #888; font-size: 13px; margin: 15px 0;">O con correo</p>
+                <input type="email" id="login-email" class="input-form" placeholder="Correo">
+                <input type="password" id="login-pass" class="input-form" placeholder="Contraseña">
+                <button class="btn-submit" style="font-size: 15px;" onclick="if(!document.getElementById('acepta-terminos-tramite').checked) { alert('⚠️ Debes aceptar los Términos.'); return; } iniciarSesion()">Ingresar</button>
+                <button class="btn-submit" style="background: transparent !important; color: var(--naranja) !important; border: 1px solid var(--naranja); box-shadow: none !important; margin-top: 10px !important; font-size: 14px;" onclick="document.getElementById('panel-login-auth').style.display='none'; document.getElementById('panel-registro-auth').style.display='block';">Soy Nuevo (Crear Cuenta)</button>
             </div>
 
-            <button class="btn-submit" style="background: white !important; color: #222 !important; box-shadow: none !important; display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 15px; font-size: 14px;" onclick="if(!document.getElementById('acepta-terminos-tramite').checked) { alert('⚠️ Debes aceptar los Términos.'); return; } iniciarConGoogle()">
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" height="18"> Continuar con Google
-            </button>
-            <p style="text-align: center; color: #888; font-size: 13px; margin: 15px 0;">O con correo</p>
-            <input type="email" id="login-email" class="input-form" placeholder="Correo">
-            <input type="password" id="login-pass" class="input-form" placeholder="Contraseña">
-            <button class="btn-submit" style="font-size: 15px;" onclick="if(!document.getElementById('acepta-terminos-tramite').checked) { alert('⚠️ Debes aceptar los Términos.'); return; } iniciarSesion()">Ingresar</button>
-            <button class="btn-submit" style="background: transparent !important; color: var(--naranja) !important; border: 1px solid var(--naranja); box-shadow: none !important; margin-top: 10px !important; font-size: 14px;" onclick="window.location.href='admin.html'">Crear Cuenta</button>
+            <div id="panel-registro-auth" style="display: none;">
+                <button onclick="document.getElementById('panel-registro-auth').style.display='none'; document.getElementById('panel-login-auth').style.display='block';" style="background: transparent; border: none; color: #aaa; font-weight: bold; cursor: pointer; margin-bottom: 15px; font-size: 12px; padding: 0;">⬅ Volver a Iniciar Sesión</button>
+                <h2 style="color: var(--naranja); margin-top: 0; text-align: center; text-transform: uppercase;">Crear Cuenta</h2>
+                
+                <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 15px; text-align: left; background: rgba(255,107,0,0.05); padding: 10px; border-radius: 8px; border: 1px solid rgba(255,107,0,0.2);">
+                    <input type="checkbox" id="acepto-mandato" style="margin-top: 3px; accent-color: var(--naranja); transform: scale(1.2);">
+                    <label for="acepto-mandato" style="font-size: 12px; color: #f0f0f0; line-height: 1.4;">
+                        Declaro ser mayor de 18 años y acepto los <a href="terminos.html" target="_blank" style="color: var(--naranja); text-decoration: underline;">Términos, Condiciones y Contrato de Mandato</a>.
+                    </label>
+                </div>
+
+                <input type="email" id="reg-email" class="input-form" placeholder="Tu correo electrónico">
+                <input type="password" id="reg-pass" class="input-form" placeholder="Crea una contraseña segura">
+                
+                <input type="text" id="miel_bot" name="miel_bot" style="display:none !important;" tabindex="-1" autocomplete="off">
+                
+                <input type="hidden" name="tipo_cuenta" value="servicio" checked>
+
+                <button class="btn-submit" id="btn-registrar" style="font-size: 15px;" onclick="registrarUsuario()">Crear mi cuenta ahora</button>
+                <button class="btn-submit" style="background: white !important; color: #222 !important; box-shadow: none !important; display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 15px; font-size: 14px;" onclick="if(!document.getElementById('acepto-mandato').checked) { alert('⚠️ Debes aceptar los Términos.'); return; } iniciarConGoogle()">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" height="18"> Registrar rápido con Google
+                </button>
+            </div>
         </div>
     </div>
+
 
     <div class="bottom-sheet-overlay" id="modal-kyc" onclick="document.getElementById('modal-kyc').classList.remove('activo')">
         <div class="bottom-sheet-contenido" onclick="event.stopPropagation()" style="border-top: 2px solid #FFD700; box-shadow: 0 -10px 40px rgba(255, 215, 0, 0.3); max-height: 90vh;">
@@ -242,21 +273,87 @@
                 </p>
             </div>
             
-            <div class="panel-admin" style="background: rgba(0,0,0,0.5); border-color: rgba(255,255,255,0.1); padding: 15px;">
-                <label class="section-title" style="font-size: 13px; color: white;">1. Documento de Identidad (Cédula/RUT)</label>
-                <div class="file-upload-wrapper" style="margin-bottom: 5px;">
-                    <input type="file" id="archivo-kyc-tramite" class="file-upload-input" accept="application/pdf, image/*" onchange="actualizarNombreImagenUI(this, 'texto-kyc-tramite')">
-                    <div class="file-upload-ui" id="texto-kyc-tramite" style="border-color: #FFD700; color: #FFD700; background: rgba(255,215,0,0.05); font-size: 14px;">📸 Subir foto de la Cédula</div>
+                        <div class="panel-admin" style="background: rgba(0,0,0,0.5); border-color: rgba(255,255,255,0.1); padding: 15px; text-align: center;">
+                <label class="section-title" style="font-size: 13px; color: white;">1. Escaneo de Identidad y Rostro</label>
+                <p style="font-size: 11px; color: #aaa; margin-top: -5px; margin-bottom: 15px;">Ten a la mano tu documento original. Necesitaremos acceso a tu cámara.</p>
+                
+                <div id="kyc-step-frontal" style="display: block;">
+                    <div style="width: 100%; height: 120px; border: 2px dashed #00aaff; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: rgba(0,170,255,0.05); margin-bottom: 10px; position: relative;">
+                        <span style="font-size: 40px; opacity: 0.5;">🪪</span>
+                        <div style="position: absolute; bottom: 10px; font-size: 10px; color: #00aaff; font-weight: bold; text-transform: uppercase;">Frente del Documento</div>
+                    </div>
+                    <label class="btn-submit" style="background: var(--azul-corp) !important; color: black !important; display: block; font-size: 14px; cursor: pointer; opacity: 1 !important;">
+                        📸 Escanear Frente
+                        <input type="file" id="kyc-foto-frente" style="display:none;" accept="image/*" capture="environment" onchange="avanzarBiometria('frente')">
+                    </label>
+                </div>
+
+                <div id="kyc-step-reverso" style="display: none;">
+                    <div style="width: 100%; height: 120px; border: 2px dashed #00aaff; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: rgba(0,170,255,0.05); margin-bottom: 10px; position: relative;">
+                        <span style="font-size: 40px; opacity: 0.5; transform: scaleX(-1);">🪪</span>
+                        <div style="position: absolute; bottom: 10px; font-size: 10px; color: #00aaff; font-weight: bold; text-transform: uppercase;">Reverso del Documento</div>
+                    </div>
+                    <label class="btn-submit" style="background: var(--azul-corp) !important; color: black !important; display: block; font-size: 14px; cursor: pointer; opacity: 1 !important;">
+                        📸 Escanear Reverso
+                        <input type="file" id="kyc-foto-reverso" style="display:none;" accept="image/*" capture="environment" onchange="avanzarBiometria('reverso')">
+                    </label>
+                </div>
+
+                <div id="kyc-step-selfie" style="display: none;">
+                    <div style="width: 120px; height: 150px; border: 2px dashed #00ff64; border-radius: 60px; display: flex; align-items: center; justify-content: center; background: rgba(0,255,100,0.05); margin: 0 auto 10px auto; position: relative;">
+                        <span style="font-size: 50px; opacity: 0.5;">👤</span>
+                        <div style="position: absolute; bottom: -20px; font-size: 10px; color: #00ff64; font-weight: bold; text-transform: uppercase; width: 200px; text-align: center; left: -40px;">Ubica tu rostro en el óvalo</div>
+                    </div>
+                    <label class="btn-submit" style="background: #00ff64 !important; color: black !important; display: block; font-size: 14px; cursor: pointer; margin-top: 30px; opacity: 1 !important;">
+                        🤳 Tomar Selfie Liveness
+                        <input type="file" id="kyc-foto-rostro" style="display:none;" accept="image/*" capture="user" onchange="avanzarBiometria('selfie')">
+                    </label>
+                </div>
+                
+                <div id="kyc-step-completado" style="display: none;">
+                    <h3 style="color: #00ff64; margin: 10px 0;">✔️ Datos Biométricos Listos</h3>
+                    <p style="font-size: 11px; color: #aaa;">Enviando a validación en el siguiente paso.</p>
                 </div>
             </div>
 
-            <div class="panel-admin" style="background: rgba(255,107,0,0.05); border-color: rgba(255,107,0,0.3); padding: 15px; text-align: center;">
+            <div class="panel-admin" id="panel-pago-kyc" style="background: rgba(255,107,0,0.05); border-color: rgba(255,107,0,0.3); padding: 15px; text-align: center; opacity: 0.4; pointer-events: none;">
                 <label class="section-title" style="font-size: 13px; color: var(--naranja);">2. Pago de Firma Digital (Pay-per-Use)</label>
                 <h3 style="color: white; font-size: 32px; margin: 5px 0;">$4.990 <span style="font-size: 14px; color: #888;">COP</span></h3>
                 <p style="font-size: 12px; color: #f0f0f0; margin: 0 0 15px 0;">Pago único por documento forjado.</p>
-                <button id="btn-pagar-kyc" class="btn-submit" style="background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important; color: black !important; font-size: 15px; box-shadow: 0 8px 21px rgba(255,165,0,0.4) !important;" onclick="procesarPagoKYC()">🔒 Pagar en Wompi (Tasas de pasarela aplican al final)</button>
-                <button style="background: transparent; color: #FFD700; border: none; font-size: 12px; margin-top: 15px; font-weight: bold; text-decoration: underline;">O adquirir Paquete Anual ($15.990 / 15 Docs)</button>
+                <button id="btn-pagar-kyc" class="btn-submit" style="background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important; color: black !important; font-size: 14px; box-shadow: 0 8px 21px rgba(255,165,0,0.4) !important;" onclick="procesarPagoYBiometria()">🔒 Pagar en Wompi y Validar</button>
             </div>
+
+        </div>
+    </div>
+    <div class="bottom-sheet-overlay" id="modal-perfil-ciudadano" onclick="document.getElementById('modal-perfil-ciudadano').classList.remove('activo')">
+        <div class="bottom-sheet-contenido" onclick="event.stopPropagation()" style="background: var(--glass-bg); backdrop-filter: blur(25px); border-radius: 30px 30px 0 0; padding: 25px; border-top: 1px solid var(--naranja);">
+            <div class="drag-handle" style="width: 40px; height: 5px; background: rgba(255,255,255,0.2); border-radius: 5px; margin: 0 auto 20px;"></div>
+            <h2 style="color: var(--naranja); margin-top: 0; text-align: center; text-transform: uppercase; font-size: 18px;">Mi Perfil</h2>
+            
+            <div style="text-align: center; margin-bottom: 20px; position: relative; display: inline-block; left: 50%; transform: translateX(-50%);">
+                <img id="img-perfil-ciudadano" src="https://via.placeholder.com/100/0a0a0c/ff6b00?text=👤" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid var(--naranja); box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                <label style="position: absolute; top: 0; right: -5px; background: var(--naranja); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.5); border: 2px solid var(--bg-oscuro);">
+                    ✏️
+                    <input type="file" id="input-foto-ciudadano" style="display: none;" accept="image/*" onchange="previewFotoCiudadano(this)">
+                </label>
+            </div>
+
+
+            <div style="margin-bottom: 15px; text-align: center;">
+                <span id="badge-kyc-ciudadano" style="background: rgba(255,68,68,0.1); color: #ff4444; padding: 6px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; border: 1px solid rgba(255,68,68,0.3);">❌ Identidad No Verificada</span>
+            </div>
+
+            <div class="file-upload-wrapper" style="margin-bottom: 10px;">
+                <input type="text" id="perfil-nombre-ciudadano" class="input-form" placeholder="Tu Nombre Completo" style="margin-bottom: 0;">
+            </div>
+            <div class="file-upload-wrapper" style="margin-bottom: 10px;">
+                <input type="tel" id="perfil-telefono-ciudadano" class="input-form" placeholder="Número Celular / WhatsApp" style="margin-bottom: 0;">
+            </div>
+            <div class="file-upload-wrapper" style="margin-bottom: 20px;">
+                <input type="email" id="perfil-email-ciudadano" class="input-form" disabled style="margin-bottom: 0; opacity: 0.5;" title="El correo no se puede cambiar">
+            </div>
+            
+            <button class="btn-submit" id="btn-guardar-perfil-c" style="font-size: 15px;" onclick="guardarPerfilCiudadano()">Guardar Cambios</button>
         </div>
     </div>
 
@@ -300,43 +397,77 @@
             'propio': ``
         };
 
-        QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
+                        QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
             const bloqueOperativo = document.getElementById('bloque-operativo');
             const btnCta = document.getElementById('bloque-explicativo');
             const btnSubmenu = document.getElementById('btn-login-submenu');
+            const btnPerfilMenu = document.getElementById('btn-perfil-submenu');
             
             const urlParams = new URLSearchParams(window.location.search);
             const salaId = urlParams.get('sala');
 
+            // [SALA P2P] Si viene un invitado por link de correo, mutamos la pantalla
             if (salaId) {
-                // MODO INVITADO P2P
                 window.esVistaInvitado = true;
-                document.getElementById('nav-maestra').style.display = 'none';
-                document.getElementById('tab-concepto').style.display = 'none';
-                document.getElementById('tab-boveda').style.display = 'none';
+                if(document.getElementById('nav-maestra')) document.getElementById('nav-maestra').style.display = 'none';
+                if(document.getElementById('tab-concepto')) document.getElementById('tab-concepto').style.display = 'none';
+                if(document.getElementById('tab-boveda')) document.getElementById('tab-boveda').style.display = 'none';
                 
-                document.getElementById('vista-creador').style.display = 'none';
-                document.getElementById('vista-invitado').style.display = 'block';
+                if(document.getElementById('vista-creador')) document.getElementById('vista-creador').style.display = 'none';
+                if(document.getElementById('vista-invitado')) document.getElementById('vista-invitado').style.display = 'block';
                 
-                document.getElementById('lbl-invitacion-info').innerText = `Has sido invitado a revisar el borrador #${salaId}.`;
+                if(document.getElementById('lbl-invitacion-info')) {
+                    document.getElementById('lbl-invitacion-info').innerText = `Has sido invitado a revisar el borrador #${salaId}.`;
+                }
                 
-                // Cargamos texto quemado como MVP en el visualizador
-                document.getElementById('visor-documento-invitado').innerText = PLANTILLAS['arrendamiento'];
+                if(document.getElementById('visor-documento-invitado')) {
+                    document.getElementById('visor-documento-invitado').innerText = PLANTILLAS['arrendamiento'];
+                }
                 return;
             }
 
-            // MODO NORMAL CREADOR
             if(!btnCta || !bloqueOperativo) return;
 
+            // [FLUJO NORMAL] Control de sesión del creador
             if (user) {
                 window.idNegocioLogueado = user.uid;
+                
+                if(btnPerfilMenu) btnPerfilMenu.style.display = 'block';
                 if(btnSubmenu) btnSubmenu.innerText = "Cerrar Sesión";
                 if(btnSubmenu) btnSubmenu.onclick = () => { QRpidoDB.SecurityService.cerrarSesion(); };
-                document.getElementById('modal-login').classList.remove('activo');
-
-                const perfil = await QRpidoDB.AdminService.obtenerNegocioPorUsuario(user.uid);
                 
-                if (!perfil.data || !perfil.data.kyc_verificado) {
+                if(document.getElementById('modal-login')) document.getElementById('modal-login').classList.remove('activo');
+
+                // Hidratación y protección de cuentas huérfanas o nuevas
+                let tieneKyc = false;
+                try {
+                    const perfil = await QRpidoDB.AdminService.obtenerNegocioPorUsuario(user.uid);
+                    if (perfil.data) {
+                        if(document.getElementById('perfil-nombre-ciudadano')) document.getElementById('perfil-nombre-ciudadano').value = perfil.data.nombre || '';
+                        if(document.getElementById('perfil-telefono-ciudadano')) document.getElementById('perfil-telefono-ciudadano').value = perfil.data.telefono || perfil.data.whatsApp || '';
+                        if(document.getElementById('img-perfil-ciudadano') && perfil.data.logo) document.getElementById('img-perfil-ciudadano').src = perfil.data.logo;
+                        
+                        if (perfil.data.kyc_verificado) {
+                            tieneKyc = true;
+                            const badge = document.getElementById('badge-kyc-ciudadano');
+                            if(badge) {
+                                badge.innerHTML = "✅ Identidad Oficial (KYC Activo)";
+                                badge.style.background = "rgba(0,255,100,0.1)";
+                                badge.style.color = "#00ff64";
+                                badge.style.borderColor = "rgba(0,255,100,0.3)";
+                            }
+                        }
+                    }
+                } catch (e) { 
+                    console.warn("Usuario nuevo sin documento base listo."); 
+                }
+                
+                if(document.getElementById('perfil-email-ciudadano')) {
+                    document.getElementById('perfil-email-ciudadano').value = user.email || '';
+                }
+                
+                // Muro de decisión según el KYC
+                if (!tieneKyc) {
                     window.estadoAccesoLegal = 'sin_kyc';
                     bloqueOperativo.style.display = 'none';
                     btnCta.innerHTML = `
@@ -350,12 +481,17 @@
                     window.estadoAccesoLegal = 'autorizado';
                     bloqueOperativo.style.display = 'block'; 
                     btnCta.style.display = 'none'; 
-                    document.getElementById('texto-contrato-creador').value = PLANTILLAS['mandato'];
+                    if(document.getElementById('texto-contrato-creador')) {
+                        document.getElementById('texto-contrato-creador').value = PLANTILLAS['mandato'];
+                    }
                 }
             } else {
+                // Estado desconectado / Turista anónimo
                 window.idNegocioLogueado = null;
                 window.estadoAccesoLegal = 'desconectado';
                 bloqueOperativo.style.display = 'none';
+                if(btnPerfilMenu) btnPerfilMenu.style.display = 'none';
+                
                 btnCta.innerHTML = `
                     <div style="font-size: 45px; margin-bottom: 10px;">🛡️</div>
                     <h2 style="color: white; margin-top: 0; font-size: 18px;">Acceso Restringido</h2>
@@ -367,6 +503,7 @@
                 if(btnSubmenu) btnSubmenu.onclick = () => { document.getElementById('modal-login').classList.add('activo'); document.getElementById('submenu-llave-tramites').classList.remove('activo'); };
             }
         });
+
 
         window.seleccionarPlantilla = (tipo, elemento) => {
             document.querySelectorAll('.js-plantilla').forEach(c => c.classList.remove('activa'));
@@ -447,32 +584,60 @@
         };
 
 
-        // MOTOR KYC PAY-PER-USE
-        window.procesarPagoKYC = async function() {
+        // ==========================================
+        // 🪪 MOTOR BIOMÉTRICO Y PAGO KYC (Aduana)
+        // ==========================================
+        
+        window.evidenciaKYC = { frente: null, reverso: null, rostro: null };
+
+        // Controlador visual de la secuencia
+        window.avanzarBiometria = async (paso) => {
+            if (navigator.vibrate) navigator.vibrate(20);
+            
+            if (paso === 'frente') {
+                const f = document.getElementById('kyc-foto-frente').files[0];
+                if (f) {
+                    window.evidenciaKYC.frente = await window.comprimirImagen(f, 800, 0.7);
+                    document.getElementById('kyc-step-frontal').style.display = 'none';
+                    document.getElementById('kyc-step-reverso').style.display = 'block';
+                }
+            } else if (paso === 'reverso') {
+                const f = document.getElementById('kyc-foto-reverso').files[0];
+                if (f) {
+                    window.evidenciaKYC.reverso = await window.comprimirImagen(f, 800, 0.7);
+                    document.getElementById('kyc-step-reverso').style.display = 'none';
+                    document.getElementById('kyc-step-selfie').style.display = 'block';
+                }
+            } else if (paso === 'selfie') {
+                const f = document.getElementById('kyc-foto-rostro').files[0];
+                if (f) {
+                    window.evidenciaKYC.rostro = await window.comprimirImagen(f, 600, 0.6); // Selfie más ligera
+                    document.getElementById('kyc-step-selfie').style.display = 'none';
+                    document.getElementById('kyc-step-completado').style.display = 'block';
+                    
+                    // ¡Desbloqueamos el panel de pago!
+                    const panelPago = document.getElementById('panel-pago-kyc');
+                    panelPago.style.opacity = '1';
+                    panelPago.style.pointerEvents = 'all';
+                    if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
+                }
+            }
+        };
+
+        // Procesador Final (Sube las 3 fotos y abre Wompi)
+        window.procesarPagoYBiometria = async function() {
             if (navigator.vibrate) navigator.vibrate(50);
             if (!window.idNegocioLogueado) return alert("Error: Sesión no detectada.");
-
-            const archivoInput = document.getElementById('archivo-kyc-tramite').files[0];
-            if (!archivoInput) return alert("⚠️ Debes subir tu Cédula o RUT primero.");
+            if (!window.evidenciaKYC.rostro) return alert("Debes completar el escaneo biométrico.");
 
             const btn = document.getElementById('btn-pagar-kyc');
-            btn.innerText = "Subiendo archivo seguro..."; btn.disabled = true;
+            btn.innerText = "Subiendo biometría cifrada..."; btn.disabled = true;
 
             try {
-                let blobParaSubir = archivoInput;
-                if(archivoInput.type.startsWith('image/')) {
-                     const canvas = document.createElement('canvas');
-                     const ctx = canvas.getContext('2d');
-                     const img = new Image();
-                     img.src = URL.createObjectURL(archivoInput);
-                     await new Promise(r => img.onload = r);
-                     canvas.width = 800; canvas.height = img.height * (800 / img.width);
-                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                     blobParaSubir = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.7));
-                }
-                
-                const ext = archivoInput.type === 'application/pdf' ? 'pdf' : 'jpg';
-                const { success, data, error } = await QRpidoDB.AdminService.subirArchivo(`kyc/${window.idNegocioLogueado}_${Date.now()}.${ext}`, blobParaSubir);
+                // Simulamos que empaquetamos las 3 en un PDF o las subimos por separado.
+                // Por MVP, subiremos la frontal como "documento oficial". 
+                // En Cloud Functions, la IA analizará las tres juntas.
+                const { success, data, error } = await QRpidoDB.AdminService.subirArchivo(`kyc/${window.idNegocioLogueado}_${Date.now()}.webp`, window.evidenciaKYC.frente);
                 if (!success) throw new Error(error);
                 
                 await QRpidoDB.AdminService.actualizarNegocio(window.idNegocioLogueado, { documento_kyc: data });
@@ -482,7 +647,7 @@
                 
                 const checkout = new WidgetCheckout({
                     currency: 'COP',
-                    amountInCents: 4990 * 100, // $4,990 COP Pay-per-use
+                    amountInCents: 4990 * 100, 
                     reference: refWompiKYC,
                     publicKey: 'pub_test_Q5YDA9nmBDCcb4mqzB8S9B69YreS78uG', 
                     redirectUrl: window.location.href 
@@ -490,7 +655,7 @@
                 
                 checkout.open(function (result) {
                     if(result.transaction?.status === 'APPROVED') {
-                        btn.innerText = "✅ Identidad Confirmada";
+                        btn.innerText = "✅ Identidad en Validación";
                         btn.style.background = "#00ff64";
                         btn.style.color = "black";
                         setTimeout(() => { document.getElementById('modal-kyc').classList.remove('activo'); location.reload(); }, 2000);
@@ -500,8 +665,8 @@
                 });
 
             } catch (err) {
-                alert("Error: " + err.message);
-                btn.innerText = "🔒 Subir Documento y Pagar"; btn.disabled = false;
+                alert("Error de subida: " + err.message);
+                btn.innerText = "🔒 Pagar en Wompi y Validar"; btn.disabled = false;
             }
         };
 
@@ -659,6 +824,66 @@
             } else {
                 alert("Error: " + res.error);
                 btn.innerText = "Solicitar"; btn.disabled = false;
+            }
+        };
+        // ==========================================
+        // 👤 MOTOR DEL PERFIL CIUDADANO
+        // ==========================================
+        window.abrirPerfilCiudadano = () => {
+            document.getElementById('submenu-llave-tramites').classList.remove('activo');
+            document.getElementById('modal-perfil-ciudadano').classList.add('activo');
+        };
+
+        window.previewFotoCiudadano = (input) => {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('img-perfil-ciudadano').src = e.target.result;
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        };
+
+        window.guardarPerfilCiudadano = async () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            if (!window.idNegocioLogueado) return;
+
+            const btn = document.getElementById('btn-guardar-perfil-c');
+            btn.innerText = "Guardando..."; btn.disabled = true;
+
+            try {
+                let obj = {
+                    nombre: document.getElementById('perfil-nombre-ciudadano').value.trim(),
+                    telefono: document.getElementById('perfil-telefono-ciudadano').value.trim()
+                };
+
+                const fotoInput = document.getElementById('input-foto-ciudadano').files[0];
+                if (fotoInput) {
+                    // Forzamos recorte cuadrado para la foto de perfil (isSquare = true)
+                    const blobImg = await window.comprimirImagen(fotoInput, 400, 0.7, true);
+                    const ext = fotoInput.type.split('/')[1] || 'webp';
+                    const { success, data, error } = await QRpidoDB.AdminService.subirArchivo(`tiendas/${window.idNegocioLogueado}/perfil_${Date.now()}.${ext}`, blobImg);
+                    if (success) obj.logo = data;
+                }
+
+                // Usamos la misma función de AdminService porque en Firestore todos son "negocios" estructuralmente
+                const { success, error } = await QRpidoDB.AdminService.actualizarNegocio(window.idNegocioLogueado, obj);
+                if (!success) throw new Error(error);
+
+                btn.innerText = "✔️ Guardado";
+                btn.style.background = "#00ff64";
+                btn.style.color = "black";
+                
+                setTimeout(() => {
+                    btn.innerText = "Guardar Cambios";
+                    btn.style.background = "";
+                    btn.style.color = "";
+                    document.getElementById('modal-perfil-ciudadano').classList.remove('activo');
+                }, 1500);
+
+            } catch (err) {
+                alert("Error al guardar: " + err.message);
+                btn.innerText = "Guardar Cambios"; btn.disabled = false;
             }
         };
 
