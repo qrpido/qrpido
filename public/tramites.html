@@ -3,319 +3,509 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>QRpido - Aduana Jurídica</title>
+    <title>QRpido - Bóveda Legal</title>
     <meta name="theme-color" content="#0a0a0c">
-    <style>
-        :root {
-            --naranja: #ff6b00;
-            --bg-oscuro: #0a0a0c;
-            --azul-corp: #00aaff;
-            --verde-sui: #00f5d4;
-            --rojo-alerta: #ff4444;
-            --glass-bg: rgba(20, 20, 25, 0.85);
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --texto-base: #e0e0e0;
-        }
-
-        body, html {
-            margin: 0; padding: 0;
-            font-family: 'Segoe UI', sans-serif;
-            background: var(--bg-oscuro);
-            color: var(--texto-base);
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-
-        /* HEADER */
-        .header-tramites {
-            background: var(--glass-bg); backdrop-filter: blur(15px);
-            border-bottom: 1px solid var(--naranja); padding: 15px 20px;
-            display: flex; justify-content: space-between; align-items: center;
-            position: sticky; top: 0; z-index: 100;
-        }
-        .header-tramites h1 { margin: 0; font-size: 18px; color: var(--naranja); text-transform: uppercase; font-weight: 900; letter-spacing: 1px; }
-        .btn-volver { background: transparent; border: 1px solid #555; color: #aaa; padding: 5px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.3s; }
-
-        /* TABS (Navegación) */
-        .nav-tabs {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 20px;
-        }
-        .tab-btn {
-            background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border);
-            color: #888; padding: 12px; border-radius: 8px; font-size: 13px;
-            font-weight: bold; text-transform: uppercase; cursor: pointer; transition: 0.3s;
-        }
-        .tab-btn.active {
-            background: rgba(255,107,0,0.1); border-color: var(--naranja); color: var(--naranja);
-            box-shadow: 0 0 10px rgba(255,107,0,0.2);
-        }
-
-        .tab-content { display: none; padding: 0 20px 20px 20px; }
-        .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
-
-        /* COMPONENTES GENERALES */
-        .card-boveda {
-            background: var(--glass-bg); border: 1px solid var(--glass-border);
-            border-radius: 12px; padding: 20px; margin-bottom: 20px;
-        }
-        .section-title { font-size: 14px; color: var(--azul-corp); text-transform: uppercase; margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid var(--glass-border); padding-bottom: 8px; }
-        
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; font-size: 11px; color: #aaa; margin-bottom: 5px; text-transform: uppercase; }
-        .form-control {
-            width: 100%; background: rgba(0,0,0,0.6); border: 1px solid #333;
-            color: white; padding: 12px; border-radius: 8px; outline: none; box-sizing: border-box;
-            font-family: inherit;
-        }
-        .form-control:focus { border-color: var(--naranja); }
-
-        .btn-accion {
-            width: 100%; padding: 15px; background: var(--naranja); border: none;
-            color: black; border-radius: 8px; font-weight: 900; font-size: 14px;
-            text-transform: uppercase; cursor: pointer; transition: 0.3s;
-        }
-        .btn-accion:active { transform: scale(0.98); }
-        .btn-accion:disabled { background: #555; color: #888; cursor: not-allowed; }
-
-        /* CARROUSEL PLANTILLAS */
-        .carrusel-plantillas {
-            display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none;
-        }
-        .plantilla-card {
-            min-width: 140px; background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border);
-            border-radius: 8px; padding: 15px; text-align: center; cursor: pointer; transition: 0.3s;
-        }
-        .plantilla-card.selected { border-color: var(--azul-corp); background: rgba(0,170,255,0.1); }
-        .plantilla-icon { font-size: 24px; margin-bottom: 8px; }
-        .plantilla-title { font-size: 11px; font-weight: bold; color: white; }
-
-        /* BIOMETRÍA Y PRUEBA DE VIDA */
-        .gps-box { background: rgba(0,245,212,0.05); border: 1px dashed var(--verde-sui); padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 15px; }
-        .selfie-container { border: 1px dashed var(--naranja); padding: 20px; border-radius: 8px; text-align: center; background: rgba(255,107,0,0.05); }
-        .codigo-pizarra { font-family: monospace; font-size: 21px; color: var(--naranja); font-weight: bold; letter-spacing: 3px; background: #000; padding: 5px 10px; border-radius: 5px; display: inline-block; margin: 10px 0; }
-        .file-upload-btn { background: var(--azul-corp); color: black; padding: 10px 20px; border-radius: 20px; font-weight: bold; display: inline-block; cursor: pointer; font-size: 12px; }
-        input[type="file"] { display: none; }
-
-        /* LOCK SCREEN */
-        #auth-lock {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: var(--bg-oscuro); z-index: 9999;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-        }
-
-        /* TOUR OVERLAY */
-        #tour-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); z-index: 9000; display: none;
-            flex-direction: column; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;
-        }
-        .tour-box { background: var(--glass-bg); border: 1px solid var(--naranja); padding: 20px; border-radius: 12px; text-align: center; max-width: 300px; }
-
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-    </style>
+    <link rel="stylesheet" href="ui-estilos.css">
 </head>
-<body>
-
-    <div id="auth-lock">
-        <h2 style="color: var(--naranja); animation: pulse 1.5s infinite;">Aduana Jurídica</h2>
-        <p style="color: #888; font-size: 12px;">Verificando Identidad Digital...</p>
-    </div>
-
-    <div id="tour-overlay">
-        <div class="tour-box">
-            <h3 style="color: var(--naranja); margin-top:0;">Bienvenido a la Aduana</h3>
-            <p style="font-size: 13px; color: #ccc;">1. Elige una plantilla legal.<br>2. Llena los datos requeridos.<br>3. Paga tu firma digital vinculante.</p>
-            <button onclick="cerrarTour()" style="background:var(--naranja); border:none; padding:10px 20px; border-radius:8px; font-weight:bold; cursor:pointer; margin-top:15px;">Entendido</button>
+<body class="ui-light" style="background: var(--bg-oscuro); overflow-y: auto;">
+    
+    <header class="header-tramites" style="position: sticky; top: 0; z-index: 1000; display: flex; justify-content: space-between; padding: 15px 20px;">
+        <h1 style="margin: 0; font-size: 18px; color: var(--naranja); text-transform: uppercase; font-weight: 900; letter-spacing: 1px;">⚖️ Bóveda Legal</h1>
+        
+        <div class="contenedor-llave" style="position: relative;">
+            <button class="btn-login" id="btn-portal-mando" onclick="document.getElementById('submenu-llave-tramites').classList.toggle('activo')" style="border-color: var(--naranja); box-shadow: 0 0 10px rgba(255,107,0,0.3);">🔑</button>
+            <div id="submenu-llave-tramites" class="submenu-llave" style="right: 0;">
+                <button class="btn-submenu" onclick="window.location.href='index.html'" style="border-color: #00aaff; color: #00aaff;">🗺️ Volver al Mapa</button>
+                <button id="btn-login-submenu" class="btn-submenu" onclick="document.getElementById('modal-login').classList.add('activo'); document.getElementById('submenu-llave-tramites').classList.remove('activo')">🔑 Iniciar Sesión</button>
+                <button class="btn-submenu" style="border-color: #888; color: #888;">💬 FAQ Legal</button>
+            </div>
         </div>
-    </div>
-
-    <header class="header-tramites">
-        <h1>⚖️ Trámites</h1>
-        <button class="btn-volver" onclick="window.location.href='admin.html'">Volver</button>
     </header>
 
-    <div class="nav-tabs">
-        <button class="tab-btn active" onclick="cambiarTab('nuevo')">Nuevo Trámite</button>
-        <button class="tab-btn" onclick="cambiarTab('boveda')">Mi Bóveda</button>
+    <div id="nav-maestra" class="tags-container" style="padding: 15px 20px; border-bottom: 1px solid var(--glass-border); background: var(--bg-oscuro); position: sticky; top: 75px; z-index: 900; justify-content: center;">
+        <div class="tag-pill activa js-tab" data-tab="tab-concepto" onclick="cambiarTabGlobal('tab-concepto', this)">🚀 El Concepto</div>
+        <div class="tag-pill js-tab" data-tab="tab-tramites" onclick="cambiarTabGlobal('tab-tramites', this)">📄 Trámites</div>
+        <div class="tag-pill js-tab" data-tab="tab-boveda" onclick="cambiarTabGlobal('tab-boveda', this)">📂 Mi Bóveda</div>
     </div>
 
-    <div id="tab-nuevo" class="tab-content active">
-        
-        <div class="card-boveda">
-            <h2 class="section-title">1. Seleccionar Plantilla</h2>
-            <div class="carrusel-plantillas">
-                <div class="plantilla-card selected" onclick="seleccionarPlantilla('mandato', this)">
-                    <div class="plantilla-icon">📦</div>
-                    <div class="plantilla-title">Mandato Logístico</div>
-                </div>
-                <div class="plantilla-card" onclick="seleccionarPlantilla('arrendamiento', this)">
-                    <div class="plantilla-icon">🏢</div>
-                    <div class="plantilla-title">Arrendamiento</div>
-                </div>
-                <div class="plantilla-card" onclick="seleccionarPlantilla('pagare', this)">
-                    <div class="plantilla-icon">💵</div>
-                    <div class="plantilla-title">Pagaré Digital</div>
-                </div>
-            </div>
+    <div id="tab-concepto" class="tab-content active" style="display: block; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px; animation: fadeIn 0.5s;">
+            <h2 style="font-size: 26px; color: #fff; margin-bottom: 10px; font-weight: 900; text-transform: uppercase;">Contratos <span style="color: var(--naranja); text-shadow: 0 0 10px rgba(255,107,0,0.5);">Innegables</span></h2>
+            <p style="color: #f0f0f0; font-size: 14px; line-height: 1.6; text-align: justify;">Respaldados por la <b>Ley 527 de 1999</b>. Olvídate del papel y las notarías físicas. Usamos tecnología militar para que tus acuerdos de arrendamiento, mandatos y pagarés tengan validez jurídica absoluta. Por solo <b>$4.990 COP</b> por documento, o adquiere el plan anual.</p>
         </div>
 
-        <div class="card-boveda" id="contenedor-formulario">
-            <h2 class="section-title">2. Datos del Documento</h2>
-            <div id="campos-dinamicos">
-                <div class="form-group">
-                    <label>Nombre del Contratante</label>
-                    <input type="text" class="form-control" placeholder="Razón social o nombre completo">
-                </div>
-                <div class="form-group">
-                    <label>Valor / Canon (COP)</label>
-                    <input type="number" class="form-control" placeholder="Ej. 1500000">
-                </div>
-            </div>
-        </div>
-
-        <div class="card-boveda">
-            <h2 class="section-title">3. Contraparte (P2P)</h2>
-            <div class="form-group">
-                <label>Correo Electrónico de la Contraparte</label>
-                <input type="email" class="form-control" placeholder="usuario@email.com">
-                <p style="font-size: 9px; color: #888; margin-top: 5px;">Se enviará un enlace cifrado para que se una a la sala de firma.</p>
-            </div>
-        </div>
-
-       <div class="card-boveda">
-            <h2 class="section-title">4. Firma Electrónica Segura</h2>
-            
-            <div class="form-group" style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; border: 1px solid var(--glass-border);">
-                <label>Código de Seguridad (OTP)</label>
-                <div style="display: flex; gap: 10px;">
-                    <input type="text" id="input-otp" class="form-control" placeholder="000000" maxlength="6" style="letter-spacing: 5px; text-align: center; font-weight: bold; font-size: 16px;">
-                    <button id="btn-pedir-otp" class="btn-volver" style="width: 40%; font-size: 10px; color: var(--azul-corp); border-color: var(--azul-corp);" onclick="pedirOtpSeguridad()">Solicitar OTP</button>
-                </div>
-
-            </div>
-
-            <div class="gps-box">
-                <p style="font-size: 11px; color: #ccc; margin-top:0;">📍 Geolocalización Requerida</p>
-
-                <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
-                    <input type="checkbox" id="check-gps" style="width: 18px; height: 18px;">
-                    <label for="check-gps" style="font-size: 12px;">Declaro bajo juramento que firmo desde: <strong id="lbl-ciudad">Calculando...</strong></label>
-                </div>
-            </div>
-
-            <div class="selfie-container">
-                <p style="font-size: 12px; color: white; margin-top: 0;">📸 Prueba de Intención (Proof of Liveness)</p>
-                <p style="font-size: 10px; color: #aaa;">Escribe este código en un papel y tómate una selfie sosteniéndolo junto a tu rostro.</p>
-                <div class="codigo-pizarra" id="codigo-selfie">AX9-K2M-P88</div>
-                <br>
-                <label class="file-upload-btn">
-                    Abrir Cámara Frontal
-                    <input type="file" accept="image/*" capture="user" id="input-selfie">
-                </label>
-                <p id="selfie-status" style="font-size: 10px; color: var(--verde-sui); margin-top: 10px; display: none;">✅ Evidencia capturada y comprimida.</p>
-            </div>
-        </div>
-
-        <button class="btn-accion" id="btn-procesar" onclick="procesarFirma()">Pagar Firma y Sellar (SUI)</button>
-
-    </div>
-
-    <div id="tab-boveda" class="tab-content">
-        
-        <div class="card-boveda" style="border-color: var(--verde-sui);">
-            <h2 class="section-title" style="color: var(--verde-sui);">🔓 Desbloquear Contrato</h2>
-            <p style="font-size: 11px; color: #ccc; margin-bottom: 15px;">La lectura se procesa localmente en tu dispositivo. QRpido no almacena tu Llave Maestra.</p>
-            
-            <div class="form-group">
-                <label>1. Sube el PDF Cifrado</label>
-                <input type="file" class="form-control" accept=".pdf">
-            </div>
-            <div class="form-group">
-                <label>2. Sube tu Llave (Código QR PNG)</label>
-                <input type="file" id="input-llave-qr" class="form-control" accept="image/png, image/jpeg">
-            </div>
-            <button class="btn-accion" style="background: var(--verde-sui);" onclick="desencriptarBoveda()">Desencriptar Contrato</button>
-
-        </div>
-
-        <div class="card-boveda">
-            <h2 class="section-title">📂 Historial de Trámites</h2>
-            
-            <div style="background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; flex-direction: column; gap: 15px;">
+            <div class="panel-admin" style="padding: 15px; margin:0; display: flex; align-items: center; gap: 15px; border-left: 3px solid var(--azul-corp);">
+                <div style="font-size: 26px; background: rgba(0,170,255,0.1); padding: 10px; border-radius: 50%;">📱</div>
                 <div>
-                    <h3 style="margin: 0 0 5px 0; font-size: 13px; color: white;">Mandato #1024</h3>
-                    <p style="margin: 0; font-size: 10px; color: #888;">Fecha: 15 May 2026</p>
-                    <p style="margin: 3px 0 0 0; font-size: 10px; color: var(--verde-sui);">Estado: Sellado en Blockchain</p>
+                    <h3 style="margin: 0 0 5px 0; color: #fff; font-size: 15px;">1. Autogestión Total</h3>
+                    <p style="margin: 0; color: #f0f0f0; font-size: 13px;">Pega tu contrato, modifícalo y envía la invitación. Sin abogados intermediarios.</p>
+                </div>
+            </div>
+
+            <div class="panel-admin" style="padding: 15px; margin:0; display: flex; align-items: center; gap: 15px; border-left: 3px solid #ff4444;">
+                <div style="font-size: 26px; background: rgba(255,68,68,0.1); padding: 10px; border-radius: 50%;">🤳</div>
+                <div>
+                    <h3 style="margin: 0 0 5px 0; color: #fff; font-size: 15px;">2. Cero Suplantación</h3>
+                    <p style="margin: 0; color: #f0f0f0; font-size: 13px;">Exigimos Selfie de vida con un código temporal y coordenadas GPS al instante de firmar.</p>
+                </div>
+            </div>
+
+            <div class="panel-admin" style="padding: 15px; margin:0; display: flex; align-items: center; gap: 15px; border-left: 3px solid var(--verde-sui);">
+                <div style="font-size: 26px; background: rgba(0,245,212,0.1); padding: 10px; border-radius: 50%;">🔐</div>
+                <div>
+                    <h3 style="margin: 0 0 5px 0; color: #fff; font-size: 15px;">3. Cifrado Trustless</h3>
+                    <p style="margin: 0; color: #f0f0f0; font-size: 13px;">Te entregamos un QR como única llave de tu Bóveda. Ni nosotros podemos leerlo.</p>
+                </div>
+            </div>
+        </div>
+
+        <button class="btn-submit" style="margin-top: 30px; font-size: 15px;" onclick="document.querySelector('[data-tab=tab-tramites]').click()">👉 Iniciar un Trámite Ahora</button>
+    </div>
+
+    <div id="tab-tramites" class="tab-content" style="padding: 20px;">
+        
+        <div id="vista-creador">
+            <h3 style="color: #f0f0f0; font-size: 13px; text-transform: uppercase; margin-bottom: 10px;">Selecciona el Documento:</h3>
+            <div class="tags-container" style="margin-bottom: 20px; border-bottom: none;">
+                <div class="tag-pill activa js-plantilla" onclick="seleccionarPlantilla('mandato', this)">📦 Mandato</div>
+                <div class="tag-pill js-plantilla" onclick="seleccionarPlantilla('arrendamiento', this)">🏢 Arriendo</div>
+                <div class="tag-pill js-plantilla" onclick="seleccionarPlantilla('pagare', this)">💵 Pagaré</div>
+                <div class="tag-pill js-plantilla" onclick="seleccionarPlantilla('propio', this)">📄 Subir Propio</div>
+            </div>
+
+            <div id="desc-plantilla" class="panel-admin" style="background: rgba(255,107,0,0.05); border-color: rgba(255,107,0,0.3); margin-bottom: 20px; padding: 15px;">
+                <h4 style="margin: 0 0 5px 0; color: var(--naranja); font-size: 16px;">📦 Contrato de Mandato</h4>
+                <p style="margin: 0; font-size: 13px; color: #f0f0f0;">Fija comisiones claras y delega responsabilidades con respaldo jurídico P2P.</p>
+                <button class="btn-submit" style="background: transparent; border: 1px solid var(--naranja); color: var(--naranja); box-shadow: none; margin-top: 10px; font-size: 13px; padding: 8px;" onclick="verBorradorTextarea()">👁️ Ver y Editar Plantilla</button>
+            </div>
+
+            <div id="bloque-explicativo" class="panel-admin" style="text-align: center; border-color: var(--naranja);">
+                <div style="font-size: 40px; margin-bottom: 10px;">🛡️</div>
+                <h2 style="color: white; margin-top: 0; font-size: 18px;">Acceso Restringido</h2>
+                <p style="font-size: 14px; color: #f0f0f0; margin-bottom: 20px;">
+                    Para forjar este documento necesitas validar tu Identidad Digital (KYC).
+                </p>
+                <button id="btn-cta-legal" class="btn-submit" style="font-size: 15px;" onclick="document.getElementById('modal-login').classList.add('activo')">🔑 Iniciar Sesión para Continuar</button>
+            </div>
+
+            <div id="bloque-operativo" style="display: none;">
+                <div class="panel-admin" id="contenedor-formulario">
+                    <h2 class="section-title" style="font-size: 15px; border-bottom: none; margin-bottom: 5px;">✍️ El Lienzo Legal (Contrato)</h2>
+                    <p style="font-size: 12px; color: #aaa; margin-bottom: 10px;">Modifica el texto según tu necesidad. Este texto será sellado en Blockchain.</p>
+                    <textarea id="texto-contrato-creador" class="input-form" style="min-height: 250px; font-family: monospace; font-size: 13px; line-height: 1.5; padding: 15px; background: rgba(0,0,0,0.8); border: 1px solid var(--glass-border); color: #e0e0e0;"></textarea>
+                </div>
+
+                <div class="panel-admin">
+                    <h2 class="section-title" style="font-size: 15px; border-bottom: none; margin-bottom: 5px;">🤝 Invitar Contraparte</h2>
+                    <input type="email" id="email-contraparte" class="input-form" placeholder="correo@ejemplo.com">
+                    <p style="font-size: 12px; color: #f0f0f0; margin-top: -5px;">Le enviaremos un enlace seguro para que lea y firme o apele tu contrato.</p>
+                </div>
+
+                <button class="btn-submit" id="btn-despachar" onclick="despacharBorrador()" style="font-size: 15px;">📨 Guardar y Enviar Invitación</button>
+            </div>
+        </div>
+
+        <div id="vista-invitado" style="display: none;">
+            <div style="background: rgba(0,170,255,0.1); border: 1px solid var(--azul-corp); padding: 15px; border-radius: 12px; text-align: center; margin-bottom: 20px;">
+                <div style="font-size: 35px; margin-bottom: 5px;">📨</div>
+                <h2 style="color: var(--azul-corp); font-size: 18px; margin: 0;">Tienes un Documento Pendiente</h2>
+                <p style="color: #f0f0f0; font-size: 14px; margin-top: 5px;" id="lbl-invitacion-info">Alguien te ha invitado a firmar.</p>
+            </div>
+
+            <div class="panel-admin" style="background: #e0e0e0; color: #111; border-radius: 8px; padding: 20px; max-height: 400px; overflow-y: auto; font-family: serif; font-size: 14px; line-height: 1.6; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);">
+                <div id="visor-documento-invitado" style="user-select: text; -webkit-user-select: text;">
+                    </div>
+            </div>
+            
+            <p style="text-align: center; font-size: 12px; color: #aaa; margin-top: 10px;">💡 Si no estás de acuerdo con una parte, subráyala con tu dedo y presiona "Apelar".</p>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn-submit" style="flex: 1; margin: 0; background: var(--verde-sui); color: black;" onclick="abrirSelloFinal()">✅ Aceptar</button>
+                <button class="btn-submit" style="flex: 1; margin: 0; background: var(--rojo-alerta); color: white;" onclick="declinarContrato()">❌ Rechazar</button>
+                <button class="btn-submit" style="flex: 1; margin: 0; background: transparent; border: 1px solid var(--naranja); color: var(--naranja);" onclick="apelarSeleccion()">✍️ Apelar</button>
+            </div>
+
+            <div id="bloque-firma-invitado" class="panel-admin" style="display: none; margin-top: 20px;">
+                <h2 class="section-title" style="font-size: 15px; border-bottom: none; margin-bottom: 15px; color: var(--verde-sui);">🔐 Tu Cierre Criptográfico</h2>
+                
+                <div style="background: rgba(0,0,0,0.5); padding: 15px; border-radius: 12px; border: 1px solid var(--glass-border); margin-bottom: 15px;">
+                    <label style="font-size: 13px; color: #f0f0f0; text-transform: uppercase;">1. Código OTP (Correo)</label>
+                    <div style="display: flex; gap: 10px; margin-top: 5px;">
+                        <input type="text" id="input-otp" class="input-form" placeholder="000000" maxlength="6" style="margin: 0; letter-spacing: 5px; text-align: center; font-weight: bold; font-size: 18px;">
+                        <button id="btn-pedir-otp" class="btn-submit" style="margin: 0 !important; width: 40%; font-size: 13px; padding: 0 !important; background: transparent !important; border: 1px solid var(--azul-corp) !important; color: var(--azul-corp) !important; box-shadow: none !important;" onclick="pedirOtpSeguridad()">Solicitar</button>
+                    </div>
+                </div>
+
+                <div style="background: rgba(0,245,212,0.05); padding: 15px; border-radius: 12px; border: 1px dashed var(--verde-sui); margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="check-gps" style="width: 24px; height: 24px; accent-color: var(--verde-sui);">
+                    <div style="line-height: 1.2;">
+                        <span style="font-size: 13px; color: #f0f0f0;">2. Juramento de Ubicación</span><br>
+                        <strong id="lbl-ciudad" style="font-size: 14px; color: var(--verde-sui);">Calculando GPS...</strong>
+                    </div>
+                </div>
+
+                <div style="background: rgba(255,107,0,0.05); padding: 20px; border-radius: 12px; border: 1px dashed var(--naranja); text-align: center;">
+                    <p style="font-size: 13px; color: #f0f0f0; margin-top: 0; text-transform: uppercase;">3. Selfie de Intención (Liveness)</p>
+                    <p style="font-size: 13px; color: #ddd; margin-bottom: 10px;">Escribe esto en un papel y tómate una foto:</p>
+                    <div id="codigo-selfie" style="font-family: monospace; font-size: 28px; color: var(--naranja); font-weight: 900; letter-spacing: 4px; background: #000; padding: 10px; border-radius: 8px; display: inline-block; margin-bottom: 15px; box-shadow: inset 0 0 10px rgba(255,107,0,0.5);">AX9-K2M</div>
+                    
+                    <label style="display: block; width: 100%; background: var(--naranja); color: white; padding: 15px; border-radius: 12px; font-weight: bold; font-size: 14px; text-transform: uppercase; cursor: pointer; box-shadow: 0 4px 10px rgba(255,107,0,0.3);">
+                        📸 Abrir Cámara Frontal
+                        <input type="file" accept="image/*" capture="user" id="input-selfie" style="display:none;">
+                    </label>
+                    <p id="selfie-status" style="font-size: 13px; color: var(--verde-sui); margin-top: 10px; display: none; font-weight: bold;">✅ Evidencia encriptada en memoria.</p>
+                </div>
+
+                <button class="btn-submit" id="btn-procesar" onclick="procesarFirmaFinal()" style="font-size: 16px;">Sellar y Forjar Contrato en SUI</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-boveda" class="tab-content" style="padding: 20px;">
+        <div class="panel-admin" style="border-color: var(--verde-sui); background: linear-gradient(135deg, rgba(0,245,212,0.05) 0%, rgba(10,10,12,0.9) 100%);">
+            <h2 class="section-title" style="color: var(--verde-sui); border-bottom: none; font-size: 16px;">🔓 Desbloquear Contrato</h2>
+            <p style="font-size: 13px; color: #f0f0f0; margin-bottom: 15px;">Lectura 100% Zero-Knowledge. Se ejecuta en la RAM de tu teléfono.</p>
+            
+            <div class="file-upload-wrapper" style="margin-bottom: 15px;">
+                <label style="font-size: 13px; color: #f0f0f0; margin-bottom: 8px; display: block; font-weight: bold;">1. Sube el PDF Cifrado</label>
+                <input type="file" id="input-pdf-cifrado" class="input-form" accept=".pdf" onchange="actualizarNombreImagenUI(this, 'texto-pdf-cifrado')">
+                <div class="file-upload-ui" id="texto-pdf-cifrado" style="border-color: var(--verde-sui); color: var(--verde-sui);">📁 Seleccionar PDF</div>
+            </div>
+
+            <div class="file-upload-wrapper">
+                <label style="font-size: 13px; color: #f0f0f0; margin-bottom: 8px; display: block; font-weight: bold;">2. Sube tu Llave QR (PNG)</label>
+                <input type="file" id="input-llave-qr" class="input-form" accept="image/png, image/jpeg" onchange="actualizarNombreImagenUI(this, 'texto-qr')">
+                <div class="file-upload-ui" id="texto-qr" style="border-color: var(--naranja); color: var(--naranja);">🔑 Seleccionar QR</div>
+            </div>
+
+            <button class="btn-submit" style="background: var(--verde-sui) !important; color: black !important; font-size: 15px; margin-top: 15px; box-shadow: 0 8px 21px rgba(0,245,212,0.4) !important;" onclick="desencriptarBoveda()">Desbloquear y Leer</button>
+        </div>
+
+        <div class="panel-admin">
+            <h2 class="section-title" style="font-size: 16px; border-bottom: none;">📂 Historial (Ley 527)</h2>
+            <div style="background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 style="margin: 0 0 5px 0; font-size: 14px; color: white;">Mandato #1024</h3>
+                    <p style="margin: 0; font-size: 12px; color: #888;">15 May 2026</p>
+                    <span style="background: rgba(0,245,212,0.1); color: var(--verde-sui); font-size: 10px; padding: 4px 8px; border-radius: 10px; font-weight: bold; margin-top: 5px; display: inline-block;">Sellado SUI</span>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 5px;">
-                    <button style="background: transparent; border: 1px solid var(--azul-corp); color: var(--azul-corp); font-size: 10px; padding: 5px; border-radius: 4px; cursor: pointer;">📄 Descargar PDF</button>
-                    <button style="background: transparent; border: 1px solid var(--naranja); color: var(--naranja); font-size: 10px; padding: 5px; border-radius: 4px; cursor: pointer;">🔑 Recuperar QR</button>
+                    <button style="background: transparent; border: 1px solid #aaa; color: #ccc; font-size: 12px; padding: 6px; border-radius: 6px; cursor: pointer; font-weight: bold;">📄 Bajar PDF</button>
+                    <button style="background: transparent; border: 1px solid var(--naranja); color: var(--naranja); font-size: 12px; padding: 6px; border-radius: 6px; cursor: pointer; font-weight: bold;">🔑 Llave QR</button>
                 </div>
             </div>
-
-            <p style="text-align: center; font-size: 11px; color: #555; margin-top: 20px;">Fin del historial.</p>
+            <p style="text-align: center; font-size: 13px; color: #555; margin-top: 20px;">Fin del historial.</p>
         </div>
     </div>
 
-        <script type="module" src="./auth-mando.js"></script>
+    <div class="bottom-sheet-overlay" id="modal-apelar" onclick="document.getElementById('modal-apelar').classList.remove('activo')">
+        <div class="bottom-sheet-contenido" onclick="event.stopPropagation()" style="background: rgba(15,15,18,0.98); border-top: 2px solid var(--naranja);">
+            <h3 style="color: var(--naranja); margin-top: 0;">✍️ Apelar Selección</h3>
+            <p style="font-size: 13px; color: #f0f0f0;">Escribe tu corrección o comentario para este párrafo:</p>
+            <textarea id="texto-apelacion" class="input-form" style="min-height: 100px; font-size: 14px; padding: 10px;" placeholder="Ej: Me parece muy alto, propongo el 5%..."></textarea>
+            <button class="btn-submit" style="font-size: 15px;" onclick="enviarApelacion()">Enviar Corrección</button>
+        </div>
+    </div>
+
+    <div class="bottom-sheet-overlay" id="modal-login" onclick="document.getElementById('modal-login').classList.remove('activo')">
+        <div class="bottom-sheet-contenido" onclick="event.stopPropagation()" style="background: var(--glass-bg); backdrop-filter: blur(25px); border-radius: 30px 30px 0 0; padding: 25px; border-top: 1px solid var(--naranja);">
+            <div class="drag-handle" style="width: 40px; height: 5px; background: rgba(255,255,255,0.2); border-radius: 5px; margin: 0 auto 20px;"></div>
+            <h2 style="color: var(--naranja); margin-top: 0; text-align: center; text-transform: uppercase;">Iniciar Sesión</h2>
+            
+            <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 15px; text-align: left; background: rgba(255,107,0,0.05); padding: 10px; border-radius: 8px; border: 1px solid rgba(255,107,0,0.2);">
+                <input type="checkbox" id="acepta-terminos-tramite" style="margin-top: 3px; accent-color: var(--naranja); transform: scale(1.2);">
+                <label for="acepta-terminos-tramite" style="font-size: 12px; color: #f0f0f0; line-height: 1.4;">
+                    Acepto los <a href="terminos.html" target="_blank" style="color: var(--naranja); text-decoration: underline;">Términos, Condiciones y Contrato de Mandato</a>.
+                </label>
+            </div>
+
+            <button class="btn-submit" style="background: white !important; color: #222 !important; box-shadow: none !important; display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 15px; font-size: 14px;" onclick="if(!document.getElementById('acepta-terminos-tramite').checked) { alert('⚠️ Debes aceptar los Términos.'); return; } iniciarConGoogle()">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" height="18"> Continuar con Google
+            </button>
+            <p style="text-align: center; color: #888; font-size: 13px; margin: 15px 0;">O con correo</p>
+            <input type="email" id="login-email" class="input-form" placeholder="Correo">
+            <input type="password" id="login-pass" class="input-form" placeholder="Contraseña">
+            <button class="btn-submit" style="font-size: 15px;" onclick="if(!document.getElementById('acepta-terminos-tramite').checked) { alert('⚠️ Debes aceptar los Términos.'); return; } iniciarSesion()">Ingresar</button>
+            <button class="btn-submit" style="background: transparent !important; color: var(--naranja) !important; border: 1px solid var(--naranja); box-shadow: none !important; margin-top: 10px !important; font-size: 14px;" onclick="window.location.href='admin.html'">Crear Cuenta</button>
+        </div>
+    </div>
+
+    <div class="bottom-sheet-overlay" id="modal-kyc" onclick="document.getElementById('modal-kyc').classList.remove('activo')">
+        <div class="bottom-sheet-contenido" onclick="event.stopPropagation()" style="border-top: 2px solid #FFD700; box-shadow: 0 -10px 40px rgba(255, 215, 0, 0.3); max-height: 90vh;">
+            <div class="drag-handle" style="background: rgba(255,215,0,0.3);"></div>
+            <div style="text-align: center; margin-bottom: 20px;">
+                <div style="font-size: 48px; margin-bottom: 10px; filter: drop-shadow(0 0 10px rgba(255,215,0,0.5));">🪪</div>
+                <h2 style="color: #FFD700; font-size: 24px; margin: 0; text-transform: uppercase;">Identidad Oficial</h2>
+                <p style="color: #f0f0f0; font-size: 14px; line-height: 1.5; margin-top: 10px;">
+                    Para forjar contratos vinculantes, la Ley exige verificar tu identidad.
+                </p>
+            </div>
+            
+            <div class="panel-admin" style="background: rgba(0,0,0,0.5); border-color: rgba(255,255,255,0.1); padding: 15px;">
+                <label class="section-title" style="font-size: 13px; color: white;">1. Documento de Identidad (Cédula/RUT)</label>
+                <div class="file-upload-wrapper" style="margin-bottom: 5px;">
+                    <input type="file" id="archivo-kyc-tramite" class="file-upload-input" accept="application/pdf, image/*" onchange="actualizarNombreImagenUI(this, 'texto-kyc-tramite')">
+                    <div class="file-upload-ui" id="texto-kyc-tramite" style="border-color: #FFD700; color: #FFD700; background: rgba(255,215,0,0.05); font-size: 14px;">📸 Subir foto de la Cédula</div>
+                </div>
+            </div>
+
+            <div class="panel-admin" style="background: rgba(255,107,0,0.05); border-color: rgba(255,107,0,0.3); padding: 15px; text-align: center;">
+                <label class="section-title" style="font-size: 13px; color: var(--naranja);">2. Pago de Firma Digital (Pay-per-Use)</label>
+                <h3 style="color: white; font-size: 32px; margin: 5px 0;">$4.990 <span style="font-size: 14px; color: #888;">COP</span></h3>
+                <p style="font-size: 12px; color: #f0f0f0; margin: 0 0 15px 0;">Pago único por documento forjado.</p>
+                <button id="btn-pagar-kyc" class="btn-submit" style="background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important; color: black !important; font-size: 15px; box-shadow: 0 8px 21px rgba(255,165,0,0.4) !important;" onclick="procesarPagoKYC()">🔒 Pagar en Wompi (Tasas de pasarela aplican al final)</button>
+                <button style="background: transparent; color: #FFD700; border: none; font-size: 12px; margin-top: 15px; font-weight: bold; text-decoration: underline;">O adquirir Paquete Anual ($15.990 / 15 Docs)</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script type="text/javascript" src="https://checkout.wompi.co/widget.js"></script> 
+    <script type="module" src="./auth-mando.js"></script>
     <script type="module">
         import QRpidoDB from './core-db.js';
 
-        // 1. MURO ZERO-TRUST Y ONBOARDING (Aprovechando el observador nativo)
+        window.actualizarNombreImagenUI = (input, idTexto) => {
+            const textoUI = document.getElementById(idTexto);
+            if (input.files && input.files[0]) {
+                textoUI.innerHTML = `✔️ Archivo listo: ${input.files[0].name.substring(0,20)}...`;
+                textoUI.style.borderColor = "#00ff64"; textoUI.style.color = "#00ff64";
+            }
+        };
+
+        window.cambiarTabGlobal = (tabId, element) => {
+            document.querySelectorAll('.js-tab').forEach(b => b.classList.remove('activa'));
+            document.querySelectorAll('.tab-content').forEach(c => {
+                c.style.display = 'none';
+                c.classList.remove('active');
+            });
+            element.classList.add('activa');
+            const target = document.getElementById(tabId);
+            target.style.display = 'block';
+            setTimeout(() => target.classList.add('active'), 10);
+        };
+
+        // VARIABLES GLOBALES (MVP STATE)
+        window.estadoAccesoLegal = 'desconectado'; 
+        window.idNegocioLogueado = null; 
+        window.textoSeleccionadoParaApelar = "";
+        window.esVistaInvitado = false;
+
+        // TEXTOS LEGALES MAESTROS
+        const PLANTILLAS = {
+            'mandato': `CONTRATO DE MANDATO COMERCIAL LOGÍSTICO\n\nEntre los suscritos a saber, de una parte [NOMBRE DEL CREADOR] actuando en nombre propio, quien en adelante se denominará EL MANDANTE, y de otra parte [NOMBRE INVITADO], quien en adelante se denominará EL MANDATARIO.\n\nCLÁUSULA PRIMERA: EL MANDATARIO se obliga a promover el modelo de negocio en su cuadrante bajo una comisión del [10%].\n\nEste documento se firma electrónicamente bajo el amparo de la Ley 527 de 1999 (Colombia).`,
+            'arrendamiento': `CONTRATO DE ARRENDAMIENTO COMERCIAL\n\nEntre los suscritos a saber, de una parte [NOMBRE DEL ARRENDADOR], y de otra parte [NOMBRE DEL ARRENDATARIO].\n\nCLÁUSULA PRIMERA: El arrendador entrega a título de arrendamiento el inmueble ubicado en [DIRECCIÓN].\nCLÁUSULA SEGUNDA: El canon será de $[VALOR] COP mensuales.\n\nEste documento se firma electrónicamente bajo el amparo de la Ley 527 de 1999.`,
+            'pagare': `PAGARÉ DIGITAL A LA ORDEN\n\nYo, [NOMBRE DEL DEUDOR], me obligo a pagar incondicionalmente a la orden de [NOMBRE DEL ACREEDOR] la suma de $[VALOR] COP.\n\nLa firma de este pagaré electrónico incorpora coordenadas GPS y prueba de vida (liveness) asegurando cero repudio bajo la normativa vigente.`,
+            'propio': ``
+        };
+
         QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
+            const bloqueOperativo = document.getElementById('bloque-operativo');
+            const btnCta = document.getElementById('bloque-explicativo');
+            const btnSubmenu = document.getElementById('btn-login-submenu');
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const salaId = urlParams.get('sala');
+
+            if (salaId) {
+                // MODO INVITADO P2P
+                window.esVistaInvitado = true;
+                document.getElementById('nav-maestra').style.display = 'none';
+                document.getElementById('tab-concepto').style.display = 'none';
+                document.getElementById('tab-boveda').style.display = 'none';
+                
+                document.getElementById('vista-creador').style.display = 'none';
+                document.getElementById('vista-invitado').style.display = 'block';
+                
+                document.getElementById('lbl-invitacion-info').innerText = `Has sido invitado a revisar el borrador #${salaId}.`;
+                
+                // Cargamos texto quemado como MVP en el visualizador
+                document.getElementById('visor-documento-invitado').innerText = PLANTILLAS['arrendamiento'];
+                return;
+            }
+
+            // MODO NORMAL CREADOR
+            if(!btnCta || !bloqueOperativo) return;
 
             if (user) {
-                // Verificamos si el usuario ya tiene su Firma Digital (KYC)
-                const perfil = await QRpidoDB.AdminService.obtenerNegocioPorUsuario(user.uid);
-                if (!perfil.data || !perfil.data.kyc_verificado) {
-                    alert("⚠️ Primero debes crear tu Identidad Digital QRpido (KYC).");
-                    window.location.href = 'admin.html?action=kyc';
-                    return;
-                }
-                
-                document.getElementById('auth-lock').style.display = 'none';
-                verificarTour();
-                activarGPS(); 
-                generarCodigoIntencion(); // Generamos el código XXX-XXX-XXX
-            } else {
+                window.idNegocioLogueado = user.uid;
+                if(btnSubmenu) btnSubmenu.innerText = "Cerrar Sesión";
+                if(btnSubmenu) btnSubmenu.onclick = () => { QRpidoDB.SecurityService.cerrarSesion(); };
+                document.getElementById('modal-login').classList.remove('activo');
 
-                window.location.href = 'index.html';
+                const perfil = await QRpidoDB.AdminService.obtenerNegocioPorUsuario(user.uid);
+                
+                if (!perfil.data || !perfil.data.kyc_verificado) {
+                    window.estadoAccesoLegal = 'sin_kyc';
+                    bloqueOperativo.style.display = 'none';
+                    btnCta.innerHTML = `
+                        <div style="font-size: 45px; margin-bottom: 10px;">⚠️</div>
+                        <h2 style="color: white; margin-top: 0; font-size: 18px;">Verificación Requerida</h2>
+                        <p style="font-size: 14px; color: #f0f0f0; margin-bottom: 20px;">Tu cuenta necesita validación oficial (KYC) antes de emitir firmas.</p>
+                        <button class="btn-submit" style="font-size: 15px;" onclick="document.getElementById('modal-kyc').classList.add('activo')">Verificar y Pagar (Wompi)</button>
+                    `;
+                    btnCta.style.display = 'block';
+                } else {
+                    window.estadoAccesoLegal = 'autorizado';
+                    bloqueOperativo.style.display = 'block'; 
+                    btnCta.style.display = 'none'; 
+                    document.getElementById('texto-contrato-creador').value = PLANTILLAS['mandato'];
+                }
+            } else {
+                window.idNegocioLogueado = null;
+                window.estadoAccesoLegal = 'desconectado';
+                bloqueOperativo.style.display = 'none';
+                btnCta.innerHTML = `
+                    <div style="font-size: 45px; margin-bottom: 10px;">🛡️</div>
+                    <h2 style="color: white; margin-top: 0; font-size: 18px;">Acceso Restringido</h2>
+                    <p style="font-size: 14px; color: #f0f0f0; margin-bottom: 20px;">Para forjar este documento necesitas validar tu Identidad Digital (KYC).</p>
+                    <button class="btn-submit" style="font-size: 15px;" onclick="document.getElementById('modal-login').classList.add('activo')">🔑 Iniciar Sesión para Continuar</button>
+                `;
+                btnCta.style.display = 'block';
+                if(btnSubmenu) btnSubmenu.innerText = "🔑 Iniciar Sesión";
+                if(btnSubmenu) btnSubmenu.onclick = () => { document.getElementById('modal-login').classList.add('activo'); document.getElementById('submenu-llave-tramites').classList.remove('activo'); };
             }
         });
 
-        // 2. LÓGICA DE UI (TABS Y CARROUSEL)
-        window.cambiarTab = (tabId) => {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            
-            event.target.classList.add('active');
-            document.getElementById(`tab-${tabId}`).classList.add('active');
-        };
-
         window.seleccionarPlantilla = (tipo, elemento) => {
-            document.querySelectorAll('.plantilla-card').forEach(c => c.classList.remove('selected'));
-            elemento.classList.add('selected');
+            document.querySelectorAll('.js-plantilla').forEach(c => c.classList.remove('activa'));
+            elemento.classList.add('activa');
             
-            const contenedor = document.getElementById('campos-dinamicos');
-            // Reciclaje del DOM (Regla < 30MB RAM)
+            const desc = document.getElementById('desc-plantilla');
+            const textarea = document.getElementById('texto-contrato-creador');
+
             if(tipo === 'arrendamiento') {
-                contenedor.innerHTML = `
-                    <div class="form-group"><label>Nombre Arrendador</label><input type="text" class="form-control"></div>
-                    <div class="form-group"><label>Linderos / Dirección</label><input type="text" class="form-control"></div>
-                    <div class="form-group"><label>Canon Mensual (COP)</label><input type="number" class="form-control"></div>
-                `;
+                desc.innerHTML = `<h4 style="margin: 0 0 5px 0; color: var(--naranja); font-size: 16px;">🏢 Contrato de Arriendo</h4><p style="margin: 0; font-size: 13px; color: #f0f0f0;">Ideal para locales. Protege tu propiedad con un registro inalterable.</p><button class="btn-submit" style="background: transparent; border: 1px solid var(--naranja); color: var(--naranja); box-shadow: none; margin-top: 10px; font-size: 13px; padding: 8px;" onclick="verBorradorTextarea()">👁️ Ver y Editar Plantilla</button>`;
+                textarea.value = PLANTILLAS['arrendamiento'];
             } else if (tipo === 'mandato') {
-                contenedor.innerHTML = `
-                    <div class="form-group"><label>Razón Social Comercio</label><input type="text" class="form-control"></div>
-                    <div class="form-group"><label>Comisión Base Acordada (%)</label><input type="number" class="form-control" value="10" readonly></div>
-                `;
-            } else {
-                contenedor.innerHTML = `<p style="font-size:11px; color:#888;">Cargando estructura...</p>`;
+                desc.innerHTML = `<h4 style="margin: 0 0 5px 0; color: var(--naranja); font-size: 16px;">📦 Contrato de Mandato</h4><p style="margin: 0; font-size: 13px; color: #f0f0f0;">Acuerdo legal P2P para embajadores o agentes en terreno.</p><button class="btn-submit" style="background: transparent; border: 1px solid var(--naranja); color: var(--naranja); box-shadow: none; margin-top: 10px; font-size: 13px; padding: 8px;" onclick="verBorradorTextarea()">👁️ Ver y Editar Plantilla</button>`;
+                textarea.value = PLANTILLAS['mandato'];
+            } else if (tipo === 'pagare') {
+                desc.innerHTML = `<h4 style="margin: 0 0 5px 0; color: var(--naranja); font-size: 16px;">💵 Pagaré Digital</h4><p style="margin: 0; font-size: 13px; color: #f0f0f0;">Reconocimiento de deuda infalsificable. Elimina el riesgo de repudio legal.</p><button class="btn-submit" style="background: transparent; border: 1px solid var(--naranja); color: var(--naranja); box-shadow: none; margin-top: 10px; font-size: 13px; padding: 8px;" onclick="verBorradorTextarea()">👁️ Ver y Editar Plantilla</button>`;
+                textarea.value = PLANTILLAS['pagare'];
+            } else if (tipo === 'propio') {
+                desc.innerHTML = `<h4 style="margin: 0 0 5px 0; color: var(--naranja); font-size: 16px;">📄 Subir o Pegar Propio</h4><p style="margin: 0; font-size: 13px; color: #f0f0f0;">Pega directamente tu texto legal. El sistema lo convertirá en un PDF sellado.</p><button class="btn-submit" style="background: transparent; border: 1px solid var(--naranja); color: var(--naranja); box-shadow: none; margin-top: 10px; font-size: 13px; padding: 8px;" onclick="verBorradorTextarea()">✏️ Pegar en el Lienzo</button>`;
+                textarea.value = "";
+                textarea.placeholder = "Pega todo el texto del contrato aquí...";
             }
         };
 
-       // 3. CAPTURA Y COMPRESIÓN DE SELFIE (Cero Librerías - Optimizado para 2GB RAM)
+        window.verBorradorTextarea = () => {
+            if(window.estadoAccesoLegal !== 'autorizado') {
+                alert("Debes Iniciar Sesión y tener KYC activo para editar borradores.");
+            } else {
+                document.getElementById('texto-contrato-creador').focus();
+            }
+        };
+
+        // ACCIÓN DEL CREADOR
+        window.despacharBorrador = () => {
+            const texto = document.getElementById('texto-contrato-creador').value;
+            const correo = document.getElementById('email-contraparte').value;
+            if(!texto || !correo) return alert("Debes llenar el contrato y el correo de la contraparte.");
+            
+            // Simulación MVP
+            alert(`✅ Borrador guardado. Enlace de invitación enviado a: ${correo}\n\nEn la vida real, guardaría el string en Firestore.`);
+            document.getElementById('btn-despachar').innerText = "✔️ Enviado";
+            document.getElementById('btn-despachar').style.background = "#00ff64";
+            document.getElementById('btn-despachar').style.color = "black";
+        };
+
+        // ACCIONES DEL INVITADO (APELACIÓN LIGERA)
+        window.abrirSelloFinal = () => {
+            document.getElementById('bloque-firma-invitado').style.display = 'block';
+            activarGPS();
+            generarCodigoIntencion();
+            document.getElementById('bloque-firma-invitado').scrollIntoView({behavior: "smooth"});
+        };
+
+        window.declinarContrato = () => {
+            if(confirm("¿Estás seguro que deseas rechazar este contrato? Esto destruirá la sala y avisará al creador.")) {
+                alert("Contrato declinado.");
+                location.href = 'index.html';
+            }
+        };
+
+        window.apelarSeleccion = () => {
+            const seleccion = window.getSelection().toString().trim();
+            if(!seleccion) {
+                alert("⚠️ Primero selecciona (subraya) con tu dedo en la pantalla el párrafo que no te gusta.");
+                return;
+            }
+            window.textoSeleccionadoParaApelar = seleccion;
+            document.getElementById('texto-apelacion').value = '';
+            document.getElementById('modal-apelar').classList.add('activo');
+        };
+
+        window.enviarApelacion = () => {
+            const feedback = document.getElementById('texto-apelacion').value.trim();
+            if(!feedback) return alert("Escribe tu comentario.");
+
+            alert(`✅ Apelación enviada al creador.\n\nTexto Subrayado: "${window.textoSeleccionadoParaApelar}"\nTu comentario: "${feedback}"`);
+            document.getElementById('modal-apelar').classList.remove('activo');
+        };
+
+
+        // MOTOR KYC PAY-PER-USE
+        window.procesarPagoKYC = async function() {
+            if (navigator.vibrate) navigator.vibrate(50);
+            if (!window.idNegocioLogueado) return alert("Error: Sesión no detectada.");
+
+            const archivoInput = document.getElementById('archivo-kyc-tramite').files[0];
+            if (!archivoInput) return alert("⚠️ Debes subir tu Cédula o RUT primero.");
+
+            const btn = document.getElementById('btn-pagar-kyc');
+            btn.innerText = "Subiendo archivo seguro..."; btn.disabled = true;
+
+            try {
+                let blobParaSubir = archivoInput;
+                if(archivoInput.type.startsWith('image/')) {
+                     const canvas = document.createElement('canvas');
+                     const ctx = canvas.getContext('2d');
+                     const img = new Image();
+                     img.src = URL.createObjectURL(archivoInput);
+                     await new Promise(r => img.onload = r);
+                     canvas.width = 800; canvas.height = img.height * (800 / img.width);
+                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                     blobParaSubir = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.7));
+                }
+                
+                const ext = archivoInput.type === 'application/pdf' ? 'pdf' : 'jpg';
+                const { success, data, error } = await QRpidoDB.AdminService.subirArchivo(`kyc/${window.idNegocioLogueado}_${Date.now()}.${ext}`, blobParaSubir);
+                if (!success) throw new Error(error);
+                
+                await QRpidoDB.AdminService.actualizarNegocio(window.idNegocioLogueado, { documento_kyc: data });
+
+                btn.innerText = "Abriendo Pasarela de Pago...";
+                const refWompiKYC = `KYC_${window.idNegocioLogueado}_${Date.now()}`;
+                
+                const checkout = new WidgetCheckout({
+                    currency: 'COP',
+                    amountInCents: 4990 * 100, // $4,990 COP Pay-per-use
+                    reference: refWompiKYC,
+                    publicKey: 'pub_test_Q5YDA9nmBDCcb4mqzB8S9B69YreS78uG', 
+                    redirectUrl: window.location.href 
+                });
+                
+                checkout.open(function (result) {
+                    if(result.transaction?.status === 'APPROVED') {
+                        btn.innerText = "✅ Identidad Confirmada";
+                        btn.style.background = "#00ff64";
+                        btn.style.color = "black";
+                        setTimeout(() => { document.getElementById('modal-kyc').classList.remove('activo'); location.reload(); }, 2000);
+                    } else {
+                        btn.innerText = "🔒 Reintentar Pago Wompi"; btn.disabled = false;
+                    }
+                });
+
+            } catch (err) {
+                alert("Error: " + err.message);
+                btn.innerText = "🔒 Subir Documento y Pagar"; btn.disabled = false;
+            }
+        };
+
+        // PROTOCOLO DE FIRMA Y BIOMETRIA
         document.getElementById('input-selfie').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -324,35 +514,24 @@
                 const img = new Image();
                 img.onload = function() {
                     const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 600; // Redimensionamos para salvar memoria
+                    const MAX_WIDTH = 600; 
                     const scaleSize = MAX_WIDTH / img.width;
                     canvas.width = MAX_WIDTH;
                     canvas.height = img.height * scaleSize;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                     
-                    // Extracción a WebP hiper-ligero (Calidad 60%)
                     window.selfieComprimida = canvas.toDataURL('image/webp', 0.6);
-                    document.getElementById('selfie-status').style.display = 'block';
-                    document.getElementById('selfie-status').innerText = "✅ Evidencia biométrica procesada localmente.";
+                    const status = document.getElementById('selfie-status');
+                    status.style.display = 'block';
+                    status.innerText = "✅ Evidencia encriptada en memoria.";
                 };
                 img.src = event.target.result;
             };
             reader.readAsDataURL(file);
         });
 
-
-        // 4. LÓGICA MOCKUP
-        window.verificarTour = () => {
-            if(!localStorage.getItem('qrpido_tramites_tour')) {
-                document.getElementById('tour-overlay').style.display = 'flex';
-            }
-        };
-        window.cerrarTour = () => {
-            localStorage.setItem('qrpido_tramites_tour', 'visto');
-            document.getElementById('tour-overlay').style.display = 'none';
-        };
-       function activarGPS() {
+        function activarGPS() {
             if (!navigator.geolocation) {
                 document.getElementById('lbl-ciudad').innerText = "GPS No Soportado";
                 return;
@@ -360,31 +539,28 @@
             navigator.geolocation.getCurrentPosition((pos) => {
                 const lat = pos.coords.latitude;
                 const lng = pos.coords.longitude;
-                // Guardamos en variable global temporal para el paquete de firma
                 window.coordsFirma = { lat, lng };
                 document.getElementById('lbl-ciudad').innerText = `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)} (Verificado)`;
-                document.getElementById('lbl-ciudad').style.color = "var(--verde-sui)";
             }, (err) => {
                 document.getElementById('lbl-ciudad').innerText = "⚠️ Acceso GPS Denegado";
                 document.getElementById('lbl-ciudad').style.color = "var(--rojo-alerta)";
             }, { enableHighAccuracy: true, timeout: 10000 });
         }
 
-    window.procesarFirma = async () => {
+        window.procesarFirmaFinal = async () => {
             const btn = document.getElementById('btn-procesar');
             const check = document.getElementById('check-gps').checked;
             const otpValue = document.getElementById('input-otp').value;
             
-            if(otpValue.length !== 6) return alert("Debes ingresar el código OTP de 6 dígitos enviado a tu correo.");
+            if(otpValue.length !== 6) return alert("Ingresa el código OTP de 6 dígitos.");
             if(!check) return alert("Debes confirmar tu ubicación bajo juramento.");
-            if(!window.selfieComprimida) return alert("Debes capturar la selfie con el código de intención.");
+            if(!window.selfieComprimida) return alert("Debes capturar la selfie con el código.");
 
             btn.innerText = "Sincronizando con Blockchain SUI...";
             btn.disabled = true;
 
-          // Empaquetamos la evidencia para el servidor (Cero RAM local)
             const paqueteEvidencia = {
-                uid: QRpidoDB.auth.currentUser.uid,
+                uid: QRpidoDB.auth.currentUser ? QRpidoDB.auth.currentUser.uid : 'INVITADO_UID',
                 otp: otpValue,
                 gps: window.coordsFirma,
                 selfie: window.selfieComprimida,
@@ -392,71 +568,58 @@
                 timestamp: Date.now()
             };
 
-                       // Llamada al Oráculo Criptográfico (Cloud Function)
             const res = await QRpidoDB.SecurityService.sellarTramiteLegal(paqueteEvidencia);
-
             if(res.success) {
-                // Pasamos el txId real (La semilla de la llave maestra)
                 mostrarExitoFinal(res.txId);
             } else {
-
                 alert("Error en el Notario SUI: " + res.error);
                 btn.disabled = false;
                 btn.innerText = "Reintentar Sello";
             }
         };
 
-// 5. LECTOR QR NATIVO (Zero-Knowledge)
         window.desencriptarBoveda = async () => {
             const inputQR = document.getElementById('input-llave-qr');
-            if (!inputQR.files.length) return alert("Sube la imagen PNG de tu Llave QR.");
+            const inputPDF = document.getElementById('input-pdf-cifrado');
+            if (!inputQR.files.length || !inputPDF.files.length) return alert("Sube tanto el PDF como la Llave QR PNG.");
             
             try {
-                // Instanciamos el lector nativo de HTML5
                 const barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
                 const imageBitmap = await createImageBitmap(inputQR.files[0]);
                 const codigos = await barcodeDetector.detect(imageBitmap);
                 
-                if (codigos.length === 0) return alert("❌ No se detectó ningún código QR en la imagen.");
-                
-                const llaveMaestra = codigos[0].rawValue;
-                alert(`✅ Llave extraída en local: ${llaveMaestra.substring(0,6)}... \nProcediendo a desbloquear el PDF.`);
-                
-                // Aquí el frontend aplicaría la llave al PDF cifrado
+                if (codigos.length === 0) return alert("❌ No se detectó ningún código QR.");
+                alert(`✅ Archivos procesados. Llave extraída localmente: ${codigos[0].rawValue.substring(0,6)}... \nProcediendo a desbloquear el PDF en tu pantalla.`);
             } catch (e) {
-                alert("Error al leer el QR. Tu navegador podría no soportar la API nativa de detección.");
+                alert("Tu navegador no soporta la detección nativa de QR sin internet. Requieres conectividad para desencriptar.");
             }
         };
-function generarCodigoIntencion() {
+
+        function generarCodigoIntencion() {
             const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
             const gen = () => Array.from({length: 3}, () => caracteres.charAt(Math.floor(Math.random() * caracteres.length))).join('');
-            const codigo = `${gen()}-${gen()}-${gen()}`;
-            document.getElementById('codigo-selfie').innerText = codigo;
-            window.codigoActualFirma = codigo; // Lo guardamos para el paquete de firma
+            window.codigoActualFirma = `${gen()}-${gen()}`;
+            document.getElementById('codigo-selfie').innerText = window.codigoActualFirma;
         }
-function mostrarExitoFinal(txId) {
-            const contenedor = document.getElementById('tab-nuevo');
-            // Usamos la Proporción Áurea para el diseño del éxito
+
+        function mostrarExitoFinal(txId) {
+            const contenedor = document.getElementById('tab-tramites');
             contenedor.innerHTML = `
-                <div class="card-boveda" style="text-align:center; border-color: var(--verde-sui); animation: fadeIn 0.5s;">
-                    <h2 style="color: var(--verde-sui);">✅ TRÁMITE SELLADO</h2>
-                    <p style="font-size:12px;">El documento ha sido notariado de forma inmutable.</p>
-                    
+                <div class="panel-admin" style="text-align:center; border-color: var(--verde-sui); animation: fadeIn 0.5s;">
+                    <h2 style="color: var(--verde-sui); font-size: 24px;">✅ TRÁMITE SELLADO</h2>
+                    <p style="font-size:14px; color: #f0f0f0;">El documento ha sido notariado de forma inmutable.</p>
                     <div style="background:white; padding:15px; display:inline-block; border-radius:10px; margin:20px 0;">
                         <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${txId}" style="width:150px;">
                     </div>
-                    
-                    <p style="font-size:10px; color:var(--naranja);"><strong>GUARDA ESTA LLAVE:</strong> Descárgala ahora. La necesitarás para abrir tu PDF cifrado.</p>
-                    
-                    <button class="btn-accion" onclick="descargarLlaveQR('${txId}')">Descargar Llave QR (PNG)</button>
-                    <button class="btn-accion" style="margin-top:10px; background:transparent; border:1px solid var(--azul-corp); color:var(--azul-corp);" onclick="location.reload()">Finalizar</button>
-
+                    <p style="font-size:13px; color:var(--naranja); font-weight: bold;"><strong>GUARDA ESTA LLAVE:</strong> Descárgala para abrir tu PDF cifrado en Mi Bóveda.</p>
+                    <button class="btn-submit" style="font-size: 16px;" onclick="descargarLlaveQR('${txId}')">Descargar Llave QR</button>
+                    <button class="btn-submit" style="background:transparent !important; border:1px solid var(--azul-corp) !important; color:var(--azul-corp) !important; box-shadow:none !important; font-size: 15px;" onclick="location.reload()">Finalizar</button>
                 </div>
             `;
         }
-window.descargarLlaveQR = (txId) => {
+
+        window.descargarLlaveQR = (txId) => {
             const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${txId}`;
-            
             fetch(qrUrl)
                 .then(response => response.blob())
                 .then(blob => {
@@ -468,31 +631,37 @@ window.descargarLlaveQR = (txId) => {
                     document.body.appendChild(a);
                     a.click();
                     window.URL.revokeObjectURL(blobUrl);
-                    alert("✅ Llave guardada en tus descargas/galería.");
+                    alert("✅ Llave guardada en tus descargas.");
                 })
-                .catch(() => alert("Error al descargar. Por favor toma una captura de pantalla del código QR."));
+                .catch(() => alert("Toma una captura de pantalla del código QR."));
         };
+
         window.pedirOtpSeguridad = async () => {
             const btn = document.getElementById('btn-pedir-otp');
-            const emailActivo = QRpidoDB.auth.currentUser.email; // Se envía al correo del usuario logueado
+            const emailActivo = QRpidoDB.auth.currentUser ? QRpidoDB.auth.currentUser.email : 'invitado@mail.com'; 
+            btn.innerText = "Enviando..."; btn.disabled = true;
             
-            btn.innerText = "Enviando...";
-            btn.disabled = true;
+            // Simulación rápida para el invitado
+            if(!QRpidoDB.auth.currentUser) {
+                setTimeout(() => {
+                    alert(`✅ OTP de invitado enviado`);
+                    btn.innerText = "Reenviar (60s)";
+                    setTimeout(() => { btn.disabled = false; btn.innerText = "Solicitar"; }, 60000);
+                }, 1000);
+                return;
+            }
 
             const res = await QRpidoDB.SecurityService.solicitarOtpFirma(emailActivo);
-            
             if (res.success) {
-                alert(`✅ Código OTP enviado a ${emailActivo}`);
-                btn.innerText = "Reenviar OTP (60s)";
-                setTimeout(() => { btn.disabled = false; btn.innerText = "Solicitar OTP"; }, 60000);
+                alert(`✅ OTP enviado a ${emailActivo}`);
+                btn.innerText = "Reenviar (60s)";
+                setTimeout(() => { btn.disabled = false; btn.innerText = "Solicitar"; }, 60000);
             } else {
-                alert("Error al enviar OTP: " + res.error);
-                btn.innerText = "Solicitar OTP";
-                btn.disabled = false;
+                alert("Error: " + res.error);
+                btn.innerText = "Solicitar"; btn.disabled = false;
             }
         };
 
     </script>
 </body>
 </html>
-

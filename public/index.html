@@ -124,6 +124,68 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
 </script>
 </head>
 <body class="ui-light">
+
+<div id="btn-firmas-magnetico" class="btn-flotante-gps" style="bottom: auto; right: auto; top: 180px; left: 15px; width: 45px; height: 45px; border-radius: 50%; border: 1px solid rgba(255,215,0,0.5); box-shadow: 0 8px 25px rgba(0,0,0,0.8), 0 0 15px rgba(255,215,0,0.2); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column;" onclick="if(!window.isDraggingFirmas) window.location.href='tramites.html'">
+    <span style="font-size: 16px; filter: drop-shadow(0 0 5px rgba(255,215,0,0.5)); line-height: 1; margin-bottom: 2px;">✍️</span>
+    <span style="font-size: 7px; color: #FFD700; font-weight: 900; text-transform: uppercase; text-shadow: 0 0 8px rgba(255,215,0,0.5); line-height: 1; text-align: center;">Firmas</span>
+</div>
+
+<script>
+    // 🧲 MOTOR FÍSICO: Satélite Magnético (Curvatura 360° intacta)
+    (function() {
+        const btnFirma = document.getElementById('btn-firmas-magnetico');
+        if(!btnFirma) return;
+        
+        let isDragging = false;
+        let startY, startX, initialTop, initialLeft;
+        const MARGEN_X = 15; // Mismo margen del botón verde
+        
+        btnFirma.addEventListener('touchstart', (e) => {
+            isDragging = false;
+            window.isDraggingFirmas = false;
+            startY = e.touches[0].clientY;
+            startX = e.touches[0].clientX;
+            initialTop = btnFirma.getBoundingClientRect().top;
+            initialLeft = btnFirma.getBoundingClientRect().left;
+            btnFirma.style.transition = 'none'; 
+        }, {passive: true});
+
+        btnFirma.addEventListener('touchmove', (e) => {
+            const deltaY = e.touches[0].clientY - startY;
+            const deltaX = e.touches[0].clientX - startX;
+            if (Math.abs(deltaY) > 5 || Math.abs(deltaX) > 5) {
+                isDragging = true;
+                window.isDraggingFirmas = true;
+                btnFirma.style.top = (initialTop + deltaY) + 'px';
+                btnFirma.style.left = (initialLeft + deltaX) + 'px';
+                btnFirma.style.right = 'auto'; 
+            }
+        }, {passive: true});
+
+        btnFirma.addEventListener('touchend', (e) => {
+            btnFirma.style.transition = 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
+            if (!isDragging) return;
+            
+            const rect = btnFirma.getBoundingClientRect();
+            const midScreen = window.innerWidth / 2;
+            
+            if (rect.left + (rect.width/2) < midScreen) {
+                btnFirma.style.left = MARGEN_X + 'px';
+                btnFirma.style.right = 'auto';
+            } else {
+                btnFirma.style.left = 'auto';
+                btnFirma.style.right = MARGEN_X + 'px';
+            }
+            
+            if (rect.top < 80) btnFirma.style.top = '80px';
+            if (rect.bottom > window.innerHeight - 100) btnFirma.style.top = (window.innerHeight - 100 - rect.height) + 'px';
+            
+            setTimeout(() => window.isDraggingFirmas = false, 50);
+        });
+    })();
+</script>
+
+
 <div id="pantalla-carga">
 <img id="logo-carga" class="logo-palpitante" src="" style="max-width: 220px; display: none; margin-bottom: 10px; filter: drop-shadow(0 0 15px var(--naranja));">
 <h1 id="texto-logo-fallback" class="logo-palpitante" style="font-size: 48px; margin: 0; color: var(--naranja); letter-spacing: 6px; text-shadow: 0 0 15px var(--naranja);">QRPIDO</h1>

@@ -132,11 +132,22 @@
             // Decodificador del Motor de Emojis
             const [claseEfecto, emojiEfecto] = efectoRaw.split('|');
 
+            let claseFinal = claseEfecto || '';
+            
+            // Si elige un PNG, verificamos si tiene permiso (isPremium)
+            if (claseEfecto === 'skin-custom-png') {
+                if (window.isPremium) {
+                    claseFinal = document.getElementById('skinCustomAnclaje') ? document.getElementById('skinCustomAnclaje').value : 'skin-png-montura';
+                } else {
+                    claseFinal = ''; // Bloqueado visualmente
+                }
+            }
+
             // Composición del Genoma
-            preview.className = `pin-wrapper ${forma} ${animacion} ${claseEfecto || ''}`;
+            preview.className = `pin-wrapper ${forma} ${animacion} ${claseFinal}`;
             
             // Inyección del Emoji Nativo al DOM
-            if (emojiEfecto) preview.setAttribute('data-emoji', emojiEfecto);
+            if (emojiEfecto && claseEfecto !== 'skin-custom-png') preview.setAttribute('data-emoji', emojiEfecto);
             else preview.removeAttribute('data-emoji');
             
             // Inyección de Variables CSS Matemáticas
@@ -144,7 +155,61 @@
             preview.style.setProperty('--color-sec', cSec);
             preview.style.setProperty('--velocidad-anim', velocidad + 's');
             preview.style.setProperty('--intensidad-neon', intensidad + 'px');
+            
+            // Renderizado del PNG Custom si existe
+            const skinUrl = document.getElementById('skinCustomUrl')?.value;
+            if (claseEfecto === 'skin-custom-png' && skinUrl) {
+                preview.style.setProperty('--skin-url', `url(${skinUrl})`);
+            }
         };
+
+        // 🧠 MOTOR DE EMOJIS EN RAM (Se ejecuta al cargar para no saturar el DOM)
+        window.cargarDiccionarioEmojis = function() {
+            const diccionario = [
+                { grupo: "🎩 Coronas y Sombreros", anclaje: "anclaje-arriba", iconos: "👑,🎓,🤠,🎩,🧢,🪖,🌸,👽,👻,🎃" },
+                { grupo: "🎀 Esquinas y Tiaras", anclaje: "anclaje-esquina", iconos: "🎀,🏵️,🌺,🦇,🕷️,🦋,🐞,✨,⭐" },
+                { grupo: "🚗 Monturas y Vehículos", anclaje: "anclaje-montura", iconos: "🚗,🚕,🚙,🚌,🚑,🚒,🚓,🚕,🛵,🏍️,🚲,🛴,🚜,🚚,🚛,🚤,🚢,🛥️,🚀,🛸,🚁,✈️,🐎,🐪,🐘" },
+                { grupo: "☁️ Clima y Entorno", anclaje: "anclaje-fondo", iconos: "☁️,⛈️,🌦️,🌧️,🌩️,🌨️,🌈,☀️,🌙,❄️,🔥,🫧" },
+                { grupo: "🍔 Comida (Flotante)", anclaje: "anclaje-arriba", iconos: "🍔,🍕,🌭,🥪,🌮,🌯,🥙,🍟,🍗,🥩,🍤,🍣,🍱,🍛,🍜,🍝,🍠,🍢,🍘,🍧,🍨,🍦,🥧,🍰,🍮,🎂,🧁,🍭,🍬,🍫,🍿,🍩,🍪,🍯,🍎,🍓,🍒,🍉,🥑,🌽,🌶️,🍷,🍻,🍹,🍸,🍾,☕,🧋,🧉" },
+                { grupo: "🐾 Animales (Montura)", anclaje: "anclaje-montura", iconos: "🐕,🐩,🐕‍🦺,🐈,🐈‍⬛,🐖,🐏,🐑,🐐,🦌,🦍,🦏,🦛,🐂,🐃,🐄,🐎,🐖,🐪,🐫,🦒,🦘,🐓,🦃,🦚,🦜,🦢,🦩,🕊️,🦅,🦆,🐧,🦉,🦇,🐺,🐗,🐴,🦄,🐝,🐛,🦋,🐌,🐞,🐜,🦟,🦗,🕷️,🦂,🐢,🐍,🦎,🦖,🦕,🐙,🦑,🦐,🦞,🦀,🐡,🐠,🐟,🐬,🐳,🐋,🦈,🐊,🐅,🐆,🦓,🐘,🦛,🦏,🐪,🐫,🦒,🦘,🐃,🐂,🐄,🐎,🐖,🐏,🐑,lama,alpaca" }
+            ];
+            
+            const select = document.getElementById('select-efecto');
+            if(!select) return;
+            
+            // Limpiamos y agregamos las opciones base
+            select.innerHTML = `<option value="">Sin Decoraciones Extras</option>
+                                <option value="efecto-neon|">Resplandor Neón Clásico</option>
+                                <option value="efecto-anillos|">Radar / Emisión</option>
+                                <option value="skin-custom-png|" style="color:var(--naranja); font-weight:bold;">📸 Usar mi Skin PNG (Moto/Auto)</option>`;
+
+            // Inyectamos el diccionario de la memoria RAM
+            diccionario.forEach(cat => {
+                let optgroup = document.createElement('optgroup');
+                optgroup.label = cat.grupo;
+                const emojis = cat.iconos.split(',');
+                emojis.forEach(emoji => {
+                    let opt = document.createElement('option');
+                    opt.value = `${cat.anclaje}|${emoji}`;
+                    opt.text = `${emoji} ${cat.anclaje.replace('anclaje-','')}`;
+                    optgroup.appendChild(opt);
+                });
+                select.appendChild(optgroup);
+            });
+        };
+        // Ejecutamos al cargar la página
+        document.addEventListener("DOMContentLoaded", window.cargarDiccionarioEmojis);
+
+
+            // Renderizado del PNG Custom solo si tiene acceso
+            const skinUrl = document.getElementById('skinCustomUrl')?.value;
+            if (claseEfecto === 'skin-custom-png' && skinUrl && window.isPremium) {
+                preview.style.setProperty('--skin-url', `url(${skinUrl})`);
+            } else {
+                preview.style.removeProperty('--skin-url');
+            }
+        };
+
 
 
         // =================================================================
@@ -599,10 +664,38 @@
                             <input type="range" id="slider-velocidad" min="0.2" max="3.0" step="0.1" value="1.2" class="slider-rango" oninput="actualizarPinLive()">
                         </div>
 
-                                                <div id="ribbon-efecto" class="ribbon-content" style="display: none;">
+                                                                        <div id="ribbon-efecto" class="ribbon-content" style="display: none;">
                             <select id="select-efecto" class="input-form" onchange="actualizarPinLive()" style="margin-bottom: 8px;">
-                                <option value="">Sin Decoraciones Extras</option>
-                                <optgroup label="✨ Efectos de Borde">
+                                </select>
+                            
+                            <div id="panel-skin-png" style="display: none; padding: 10px; background: rgba(255,107,0,0.1); border-radius: 8px; border: 1px dashed var(--naranja); margin-bottom: 10px;">
+                                <label style="font-size:10px; color:#fff; font-weight:bold;">Tu Vehículo / Skin (PNG sin fondo)</label>
+                                <input type="file" id="skinCustomFile" accept="image/png" style="font-size:10px; margin-top:5px; color:#aaa;">
+                                <input type="hidden" id="skinCustomUrl">
+                            </div>
+
+                            <script>
+                                // Escuchador para mostrar el panel de carga de PNG solo si lo eligen en el select
+                                document.getElementById('select-efecto').addEventListener('change', function(e) {
+                                    document.getElementById('panel-skin-png').style.display = e.target.value.includes('skin-custom-png') ? 'block' : 'none';
+                                });
+
+                                // Cargador de PNG en vivo (Memoria local)
+                                document.getElementById('skinCustomFile').addEventListener('change', function(e) {
+                                    if(e.target.files && e.target.files[0]) {
+                                        const objUrl = URL.createObjectURL(e.target.files[0]);
+                                        document.getElementById('skinCustomUrl').value = objUrl;
+                                        window.actualizarPinLive(); // Fuerza el renderizado de la moto
+                                    }
+                                });
+                            </script>
+
+                            <label class="section-title" style="font-size: 10px; display: flex; justify-content: space-between;">
+                                Intensidad del Efecto <span id="val-intensidad">15px</span>
+                            </label>
+                            <input type="range" id="slider-intensidad" min="0" max="40" step="1" value="15" class="slider-rango" oninput="actualizarPinLive()">
+                        </div>
+
                                     <option value="efecto-neon|">Resplandor Neón Clásico</option>
                                     <option value="efecto-anillos|">Ondas de Radio / Radar</option>
                                 </optgroup>
@@ -632,15 +725,51 @@
                                     <option value="efecto-magia|✨">Destellos Mágicos ✨</option>
                                     <option value="efecto-clima|⚡">Rayo Rápido ⚡</option>
                                     <option value="efecto-clima|❄️">Nieve Fría ❄️</option>
-                                    <option value="efecto-cabeza|🌸">Flor de Cerezo 🌸</option>
+                                                                        <option value="efecto-cabeza|🌸">Flor de Cerezo 🌸</option>
                                     <option value="efecto-cabeza|👽">Alien 👽</option>
                                 </optgroup>
+                                <optgroup label="💎 Skins Premium">
+                                    <option value="skin-custom-png|" style="color: #FFD700; font-weight:bold;">✨ Moto Custom (Premium)</option>
+                                </optgroup>
                             </select>
+
+                            <div id="panel-skin-premium" style="display: none; padding: 15px; background: rgba(255,215,0,0.05); border-radius: 12px; border: 1px solid rgba(255,215,0,0.3); margin-bottom: 15px; text-align: center; position: relative; overflow: hidden;">
+                                <div id="candado-skin" class="lock-overlay" style="background: rgba(15,15,18,0.9) !important; z-index: 10;">
+                                    <span style="font-size:24px; margin-bottom: 5px;">💎</span>
+                                    <p style="color: #FFD700; font-size: 10px; margin: 0 0 10px 0;">Diseño Exclusivo Premium</p>
+                                    <button class="btn-upgrade" style="padding: 6px 12px; font-size: 9px;" onclick="convertirPremium()">Desbloquear Catálogo</button>
+                                </div>
+                                <img id="preview-skin-premium" src="https://cdn-icons-png.flaticon.com/512/3085/3085330.png" style="width: 50px; height: 50px; object-fit: contain; filter: drop-shadow(0 5px 5px rgba(0,0,0,0.8)); margin-bottom: 5px;">
+                                <p id="nombre-skin-premium" style="margin: 0; font-size: 11px; font-weight: bold; color: white;">Moto Custom (Ejemplo)</p>
+                                
+                                <input type="hidden" id="skinCustomUrl" value="https://cdn-icons-png.flaticon.com/512/3085/3085330.png">
+                                <input type="hidden" id="skinCustomAnclaje" value="skin-png-montura">
+                            </div>
+
+                            <script>
+                                // 👁️ Controlador del Escaparate
+                                document.getElementById('select-efecto').addEventListener('change', function(e) {
+                                    const panelSkins = document.getElementById('panel-skin-premium');
+                                    const candado = document.getElementById('candado-skin');
+                                    
+                                    if (e.target.value.includes('skin-custom-png')) {
+                                        panelSkins.style.display = 'block';
+                                        // Si el usuario es Premium, quitamos el candado
+                                        candado.style.display = window.isPremium ? 'none' : 'flex';
+                                    } else {
+                                        panelSkins.style.display = 'none';
+                                    }
+                                    window.actualizarPinLive();
+                                });
+                            </script>
+
+
                             <label class="section-title" style="font-size: 10px; display: flex; justify-content: space-between;">
                                 Intensidad del Efecto (Solo Neón) <span id="val-intensidad">15px</span>
                             </label>
                             <input type="range" id="slider-intensidad" min="0" max="40" step="1" value="15" class="slider-rango" oninput="actualizarPinLive()">
                         </div>
+
                     </div>
                 </div>
 
@@ -1399,7 +1528,7 @@ import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10
                             } catch (error) {
                                 alert("⚠️ ALGO SALIÓ MAL: " + error.message);
                                 const botonRescate = document.getElementById("btn-subir-nieves");
-                                if(botonRescate) {
+                                                                if(botonRescate) {
                                     botonRescate.innerText = "Intentar Nuevamente";
                                     botonRescate.disabled = false;
                                 }
@@ -1408,10 +1537,62 @@ import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10
                     }
                 }
 
+                // 🏭 MÓDULO 2 SUPERADMIN: LA FÁBRICA DE SKINS
+                if (userRole === "superadmin" || userRole === "super_admin" || user.email === "zamyrsuarez@gmail.com") {
+                    if (!document.getElementById('modulo-fabrica-skins')) {
+                        const fabrica = document.createElement('div');
+                        fabrica.id = 'modulo-fabrica-skins';
+                        fabrica.className = 'modulo-premium';
+                        fabrica.style.borderColor = '#8a2be2';
+                        fabrica.style.background = 'rgba(138, 43, 226, 0.05)';
+                        fabrica.style.marginTop = '15px';
+                        fabrica.innerHTML = `
+                            <label class="section-title" style="color: #d8b4fe; text-align:center; font-size: 14px;">🏭 Fábrica de Skins (SuperAdmin)</label>
+                            <p style="font-size: 11px; color: #aaa; text-align: center; margin-top: -10px; margin-bottom: 15px;">Añade diseños PNG al Escaparate Global.</p>
+                            
+                            <input type="text" id="fabrica-nombre" class="input-form" placeholder="Nombre (Ej: Harley Clásica)">
+                            <select id="fabrica-anclaje" class="input-form">
+                                <option value="skin-png-montura">🚗 Montura (Soporte Base)</option>
+                                <option value="skin-png-arriba">👑 Sombrero (Punta Superior)</option>
+                                <option value="skin-png-esquina">🎀 Esquina (Superior Derecha)</option>
+                                <option value="skin-png-fondo">☁️ Entorno (Fondo Trasero)</option>
+                            </select>
+                            <select id="fabrica-coleccion" class="input-form">
+                                <option value="premium">💎 Bloqueado (Solo Premium)</option>
+                                <option value="pago_unico">🛒 Venta Individual ($1 USD)</option>
+                                <option value="gratis">🎁 Gratis para todos</option>
+                            </select>
+                            
+                            <div class="file-upload-wrapper" style="margin-bottom: 15px;">
+                                <input type="file" id="fabrica-png" class="file-upload-input" accept="image/png">
+                                <div class="file-upload-ui" id="ui-texto-fabrica" style="border-color: #d8b4fe; color: #d8b4fe;">📸 Subir PNG Transparente</div>
+                            </div>
+                            
+                            <button id="btn-crear-skin" class="btn-submit" style="background:#8a2be2; color:white; margin-top:0; box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);">Subir a la Bóveda Global</button>
+                        `;
+                        
+                        // Lo insertamos justo antes de las Pestañas (Tabs)
+                        const tabsEl = document.querySelector('.tabs');
+                        if(tabsEl) tabsEl.insertAdjacentElement('beforebegin', fabrica);
+                        
+                        document.getElementById("fabrica-png").addEventListener("change", (e) => {
+                            const f = e.target.files[0];
+                            if (f) {
+                                document.getElementById("ui-texto-fabrica").innerText = "✔️ " + f.name;
+                                document.getElementById("ui-texto-fabrica").style.borderColor = "#00ff64";
+                                document.getElementById("ui-texto-fabrica").style.color = "#00ff64";
+                            }
+                        });
 
+                        document.getElementById("btn-crear-skin").addEventListener("click", async () => {
+                            alert("¡Fábrica lista! 🚀 En el siguiente paso conectaremos esto con Firebase Storage.");
+                        });
+                    }
+                }
 
                      
                 // Función táctica para pintar previsualizaciones de la base de datos
+
                 const pintarPreview = (idCaja, urlImg) => {
                     const caja = document.getElementById(idCaja);
                     if(caja && urlImg) {
