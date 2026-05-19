@@ -1,11 +1,15 @@
 
 
+
+
 import { doc, getDoc, setDoc, collection, writeBatch, getDocs, query, where, limit, startAfter, orderBy, startAt, endAt, collectionGroup, deleteDoc, getCountFromServer, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, getAdditionalUserInfo, setPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { getAnalytics, logEvent } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js';
 import * as geofire from "https://cdn.jsdelivr.net/npm/geofire-common@5.2.0/+esm";
 // INYECTAMOS EL IMPORT DE STORAGE, RTDB Y FUNCTIONS AQUÍ:
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
+
+
 
 
 import { getDatabase, ref as rtdbRef, set, get, onValue, child, serverTimestamp, query as queryRTDB, limitToLast, orderByChild } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
@@ -15,11 +19,19 @@ import { db } from './firebase-config.js'; // Ajusta la ruta a tu inicializació
 
 
 
+
+
+
+
 // Extraemos las instancias nativas desde tu base de datos ya inicializada
 const auth = getAuth(db.app);
 const storage = getStorage(db.app); 
 const realtimeDb = getDatabase(db.app); // 🔥 MOTOR DEL RADAR P2P ACTIVADO
 const functions = getFunctions(db.app); // 🚨 SALVAVIDAS: Inicialización vital para Web3 y TOTP
+
+
+
+
 
 
 
@@ -119,6 +131,10 @@ return { success: false, error: error.message };
 
 
 
+
+
+
+
         /**
          * @namespace AdminService
          * Operaciones de escritura optimizadas e inteligentes para administradores.
@@ -157,6 +173,8 @@ perdonarNegocio: async (idNegocio) => {
                     return { success: false, error: "Error subiendo archivo a la bodega", details: e.message };
                 }
             },
+
+
 
 
             updateCatalog: async (idReferencia, arrayProductos, esFranquicia = false) => {
@@ -214,6 +232,7 @@ perdonarNegocio: async (idNegocio) => {
             },
             guardarProducto: async (idNegocio, idProducto, dataObj) => {
 
+
                 try {
                     const docRef = idProducto 
                         ? doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, idProducto)
@@ -234,6 +253,8 @@ perdonarNegocio: async (idNegocio) => {
                     return { success: true, data: resultados, ultimoDoc: null };
                 } catch (e) { return { success: false, error: e.message }; }
             },
+
+
 
 
             actualizarProducto: async (idNegocio, idProducto, dataObj) => {
@@ -362,6 +383,8 @@ obtenerNegociosEnObservacion: async () => {
             },
 
 
+
+
             obtenerEstadisticasGlobales: async () => {
                 try {
                     // Magia de Ahorro: getCountFromServer cuenta en la nube, casi no cuesta lecturas
@@ -427,6 +450,7 @@ obtenerNegociosEnObservacion: async () => {
                 } catch (e) { return { success: false, error: e.message }; }
             },
 
+
                         revocarModerador: async (uid) => {
                 try {
                     // Le quitamos la placa borrando su documento de la colección de permisos
@@ -471,6 +495,8 @@ if (!d.eliminado) resultados.push({ id_prod: doc.id, ...d });
 });
 }
 return { success: true, data: resultados, ultimoDoc: ultimoDoc };
+
+
 
 
 } catch (e) {
@@ -581,6 +607,10 @@ buscarEnRadar: async (lat, lng, radiusInM) => {
 
 
 
+
+
+
+
 /**
 * @namespace MediaService
 * Gestiona el feed de noticias (Pulso Urbano) protegiendo la lectura de Firebase y manejando la paginación.
@@ -637,6 +667,7 @@ generarSelloSeguroTOTP: async (codigoReferido, idNegocio) => {
         }
     },
 
+
     verificarTOTP: async (email, codigo) => {
         try {
             // Delegamos la validación criptográfica estricta al Backend
@@ -655,6 +686,7 @@ generarSelloSeguroTOTP: async (codigoReferido, idNegocio) => {
             return { success: false, error: e.message };
         }
     },
+
 
         sellarTramiteLegal: async (paqueteEvidencia) => {
         try {
@@ -683,6 +715,7 @@ generarSelloSeguroTOTP: async (codigoReferido, idNegocio) => {
         } catch (e) { return { success: false, error: e.message }; }
     },
 
+
     // Tubería 2: Creador de Sala Asíncrona (P2P)
     iniciarTramiteP2P: async (datosContrato, emailContraparte) => {
         try {
@@ -694,10 +727,49 @@ generarSelloSeguroTOTP: async (codigoReferido, idNegocio) => {
     },
 
 
-registrarUsuario: async (email, pass, tipoCuenta) => {
+    // 🚨 TUBERÍA KYC (NIVEL BANCARIO): Pasa la biometría por el Búnker de Cloud Functions
+    sellarEvidenciaKYC: async (idNegocio, fotosEnBase64) => {
+        try {
+            const { httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js');
+            
+            // Llamamos al Oráculo (Cloud Function)
+            const procesarKycFunction = httpsCallable(functions, 'procesarKycBiometrico');
+            
+            // Le mandamos las fotos ya comprimidas (Base64) para que la Nube las guarde en Storage
+            const payload = {
+                uid: idNegocio,
+                frente: fotosEnBase64.frente,
+                reverso: fotosEnBase64.reverso,
+                rostro: fotosEnBase64.rostro
+            };
+
+
+            const res = await procesarKycFunction(payload);
+            
+            if (res.data && res.data.success) {
+                return { success: true };
+            } else {
+                return { success: false, error: res.data.mensaje || "La bóveda rechazó la biometría." };
+            }
+
+
+        } catch (e) {
+            console.error("Error sellando KYC en la Nube:", e);
+            return { success: false, error: e.message };
+        }
+    },
+
+
+
+
+    registrarUsuario: async (email, pass, tipoCuenta) => {
+
+
+
 
     try {
         const result = await createUserWithEmailAndPassword(auth, email, pass);
+
 
         // Creamos su "Bóveda" en Firestore cumpliendo tus Reglas Zero Trust
         await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, result.user.uid), {
@@ -777,6 +849,10 @@ return { success: false, error: e.message };
 
 
 
+
+
+
+
 cerrarSesion: async () => {
 try {
 await signOut(auth);
@@ -789,10 +865,18 @@ return { success: false, error: e.message };
 
 
 
+
+
+
+
 observarEstadoSesion: (callback) => {
 onAuthStateChanged(auth, callback);
 }
 }, // <-- Cierre de SecurityService
+
+
+
+
 
 
 
@@ -803,6 +887,8 @@ onAuthStateChanged(auth, callback);
 * Mantiene separados los datos públicos del radar y la bóveda secreta.
 */
 LogisticaService: {
+
+
 
 
    registrarIntencionCompra: async (payload) => {
@@ -822,6 +908,10 @@ LogisticaService: {
 
 
 
+
+
+
+
             // Zero-Trust: Guardamos el pre-ticket en Firestore dentro de la bóveda del negocio
             const docRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${payload.idNegocio}/pedidos_entrantes`, payload.ticket);
             await setDoc(docRef, payload);
@@ -831,10 +921,18 @@ LogisticaService: {
 
 
 
+
+
+
+
             console.warn("CoreDB: Fallo al registrar la intención de compra", e);
             return { success: false, error: e.message };
         }
     },
+
+
+
+
 
 
 
@@ -854,6 +952,10 @@ LogisticaService: {
 
 
 
+
+
+
+
         inyectarOrdenComercio: async (idOrden, datosRadar, datosSecretos) => {
         try {
             // El comercio inyecta la orden en ambos nodos de forma simultánea
@@ -864,6 +966,10 @@ LogisticaService: {
             return { success: false, error: e.message };
         }
     },
+
+
+
+
 
 
 
@@ -889,8 +995,16 @@ LogisticaService: {
 
 
 
+
+
+
+
             const funcionRespuesta = await crearOrdenLogistica(requestData);
             const dataBackend = funcionRespuesta.data;
+
+
+
+
 
 
 
@@ -902,7 +1016,15 @@ LogisticaService: {
 
 
 
+
+
+
+
             console.log("🔒 Escrow asegurado. ID Interno:", dataBackend.ordenId);
+
+
+
+
 
 
 
@@ -930,6 +1052,14 @@ LogisticaService: {
 
 
 
+
+
+
+
+
+
+
+
     liberarFondosSUI: async (payload) => {
         try {
             console.log("🌐 [Oráculo SUI] Validando Apretón de Manos Criptográfico...", payload);
@@ -943,6 +1073,10 @@ LogisticaService: {
             return { success: false, error: e.message };
         }
     },
+
+
+
+
 
 
 
@@ -968,11 +1102,27 @@ LogisticaService: {
 
 
 
+
+
+
+
+
+
+
+
 // ==========================================
 // EXPORTACIÓN ESTRICTA (Singleton)
 // ==========================================
 // Evita que la UI tenga acceso a _SCHEMA o _cacheLocales.
 export default QRpidoDB;
+
+
+
+
+
+
+
+
 
 
 

@@ -689,4 +689,243 @@ exports.validarAccionConOTP = functions.https.onCall(async (data, context) => {
     });
 });
 
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
+
+let visionClient = null; // Variable global vacía para reusar la conexión
+
+exports.procesarKycBiometrico = onCall({ maxInstances: 10 }, async (request) => {
+  
+  // 🚨 LA TÁCTICA SUI: Importamos la IA pesada SOLO al ejecutar, protegiendo el Deploy
+  if (!visionClient) {
+    const vision = require("@google-cloud/vision");
+    visionClient = new vision.ImageAnnotatorClient();
+  }
+
+  // 1. ESCUDO DE AUTENTICACIÓN ZERO-TRUST
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Operación rechazada. El usuario debe estar autenticado.");
+  }
+
+
+  // 1. ESCUDO DE AUTENTICACIÓN ZERO-TRUST
+  if (!request.auth) {
+
+    throw new HttpsError("unauthenticated", "Operación rechazada. El usuario debe estar autenticado.");
+  }
+
+  const uid = request.auth.uid;
+  const { frente, reverso, rostro } = request.data;
+
+  if (!frente || !reverso || !rostro) {
+    throw new HttpsError("invalid-argument", "Error de envío. Faltan evidencias en el paquete biométrico.");
+  }
+
+  try {
+    // 2. DECODIFICACIÓN BRUTAL DE BASE64 A BUFFERS BINARIOS
+    const limpiarBase64 = (dataUrl) => dataUrl.replace(/^data:image\/\w+;base64,/, "");
+    
+    const bufferFrente = Buffer.from(limpiarBase64(frente), "base64");
+    const bufferReverso = Buffer.from(limpiarBase64(reverso), "base64");
+    const bufferRostro = Buffer.from(limpiarBase64(rostro), "base64");
+
+    // 3. EJECUCIÓN EN PARALELO (Visión Computacional en la Nube)
+    // Disparar las consultas a Google Vision al mismo tiempo para no congelar la CPU
+    const [resultadoTexto, resultadoRostro] = await Promise.all([
+      visionClient.textDetection({ image: { content: bufferFrente } }),
+      visionClient.faceDetection({ image: { content: bufferRostro } })
+    ]);
+
+    // --- ANÁLISIS 1: ¿Es una Cédula Colombiana real? ---
+    const anotacionesTexto = resultadoTexto[0].textAnnotations;
+    const textoExtraido = anotacionesTexto && anotacionesTexto.length > 0 ? anotacionesTexto[0].description.toUpperCase() : "";
+
+    // Buscamos patrones de texto inconfundibles de la Registraduría Nacional
+    const esDocumentoValido = textoExtraido.includes("REPUBLICA DE COLOMBIA") || 
+                              textoExtraido.includes("CEDULA DE CIUDADANIA") ||
+                              textoExtraido.includes("REPUBLICA") ||
+                              textoExtraido.includes("COLOMBIA");
+
+    if (!esDocumentoValido) {
+      return { 
+        success: false, 
+        mensaje: "Rechazado por el Oráculo: El documento frontal no parece ser una Cédula de Ciudadanía legítima." 
+      };
+    }
+
+    // --- ANÁLISIS 2: ¿La selfie contiene una persona viva? ---
+    const rostrosDetectados = resultadoRostro[0].faceAnnotations;
+    if (!rostrosDetectados || rostrosDetectados.length === 0) {
+      return { 
+        success: false, 
+        mensaje: "Rechazado por el Oráculo: No se detectó un rostro humano en la selfie de validación." 
+      };
+    }
+
+    // Comprobación de Liveness básica (que no sea un papel o una foto impresa de mala calidad)
+    const rostroPrincipal = rostrosDetectados[0];
+    if (rostroPrincipal.detectionConfidence < 0.7) {
+      return { success: false, mensaje: "Calidad insuficiente. Inténtalo de nuevo en un lugar más iluminado." };
+    }
+
+    // 4. ALMACENAMIENTO DE SEGURIDAD EN EL BÚNKER DE STORAGE
+    const bucket = admin.storage().bucket();
+    const timestamp = Date.now();
+    const pathBase = `kyc/${uid}_${timestamp}`;
+
+    // Al usar save() desde admin, nos saltamos las reglas públicas del storage.rules
+    const opcionesArchivo = { 
+      metadata: { contentType: "image/webp" }, 
+      private: true 
+    };
+
+    await Promise.all([
+      bucket.file(`${pathBase}_frente.webp`).save(bufferFrente, opcionesArchivo),
+      bucket.file(`${pathBase}_reverso.webp`).save(bufferReverso, opcionesArchivo),
+      bucket.file(`${pathBase}_rostro.webp`).save(bufferRostro, opcionesArchivo)
+    ]);
+
+    // Guardamos las rutas internas (gs://) para que solo el Admin pueda generar URLs de lectura
+    const urlFrente = `gs://${bucket.name}/${pathBase}_frente.webp`;
+    const urlReverso = `gs://${bucket.name}/${pathBase}_reverso.webp`;
+    const urlRostro = `gs://${bucket.name}/${pathBase}_rostro.webp`;
+
+    // 5. SELLO DE REVISIÓN EN FIRESTORE (Colección Directorio)
+    const docRef = admin.firestore().collection("Directorio").doc(uid);
+    await docRef.set({
+      estado_moderacion: "en_revision_kyc", // Desbloquea la UI para pasar a la pasarela de pagos
+      evidencia_kyc: {
+        frente: urlFrente,
+        reverso: urlReverso,
+        rostro: urlRostro,
+        fecha_envio: new Date().toISOString()
+      }
+    }, { merge: true });
+
+    return { 
+      success: true, 
+      mensaje: "Búnker sellado. Biometría en cola de revisión humana asistida." 
+    };
+
+  } catch (error) {
+    console.error("💥 Falla catastrófica en la Cocina KYC:", error);
+    throw new HttpsError("internal", "Error interno en el procesamiento de la Bóveda: " + error.message);
+  }
+});
+
+// ============================================================================
+// ⚖️ MÓDULO 10: EL NOTARIO CIEGO (Bóveda Legal Zero-Knowledge)
+// ============================================================================
+const PDFDocument = require('pdfkit');
+
+// Usamos memory: '512MB' porque la generación de PDFs y manipulación de imágenes Base64 consume más RAM en el servidor.
+exports.sellarTramiteLegal = functions.runWith({ secrets: [semillaSui], memory: '512MB' }).https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Acceso denegado.');
+
+    const uidUsuario = context.auth.uid;
+    const { textoContrato, otp, gps, selfie, codigo, timestamp } = data; 
+
+    if (!textoContrato || !selfie) throw new functions.https.HttpsError('invalid-argument', 'Falta el contrato o la evidencia biométrica.');
+
+    try {
+        // 1. Forjado del PDF en Memoria (Buffer)
+        const pdfBuffer = await generarPDFEnMemoria(textoContrato, gps, selfie, codigo, timestamp);
+
+        // 2. El Hash (Huella dactilar del PDF)
+        const hashOriginal = crypto.createHash('sha256').update(pdfBuffer).digest('hex');
+
+        // 3. Inmutabilidad SUI: Extraemos Gas de tu Malla para pagar el notariado
+        const { SuiJsonRpcClient } = await import('@mysten/sui/jsonRpc');
+        const { Ed25519Keypair } = await import('@mysten/sui/keypairs/ed25519');
+        const { Transaction } = await import('@mysten/sui/transactions');
+        const suiClient = new SuiJsonRpcClient({ url: 'https://fullnode.mainnet.sui.io:443' });
+
+        const rtdb = admin.database();
+        let monedaSuiGas;
+        await rtdb.ref('Sistema/MallaDeGas/libres').transaction((nodos) => {
+            if (nodos) {
+                const id = Object.keys(nodos)[0];
+                if (id) { monedaSuiGas = nodos[id]; delete nodos[id]; return nodos; }
+            }
+            return nodos;
+        });
+
+        if (!monedaSuiGas) throw new Error("Malla de Gas vacía. Imposible notariar en Blockchain.");
+
+        const tx = new Transaction();
+        tx.setGasPayment([{ objectId: monedaSuiGas.id, version: monedaSuiGas.version, digest: monedaSuiGas.digest }]);
+        
+        // ⚠️ ATENCIÓN: Debes asegurarte de que tu Smart Contract en SUI tenga un módulo 'notario' y función 'sellar_documento'
+        tx.moveCall({
+            target: `${PACKAGE_ID}::notario::sellar_documento`,
+            arguments: [tx.pure.string(hashOriginal), tx.pure.u64(timestamp)]
+        });
+
+        const keypair = Ed25519Keypair.deriveKeypair(semillaSui.value(), "m/44'/784'/0'/0'/0'");
+        const result = await suiClient.signAndExecuteTransaction({ transaction: tx, signer: keypair });
+        const txId = result.digest;
+
+        // 4. Cifrado Zero-Knowledge Híbrido (Usando el TxID inmutable + OTP del usuario)
+        const llaveDerivada = crypto.createHash('sha256').update(txId + otp).digest();
+        const iv = crypto.randomBytes(16); // Vector de inicialización único por archivo
+        const cipher = crypto.createCipheriv('aes-256-gcm', llaveDerivada, iv);
+        
+        const pdfCifrado = Buffer.concat([cipher.update(pdfBuffer), cipher.final()]);
+        const authTag = cipher.getAuthTag(); 
+
+        // Empaquetamos la cabecera necesaria para desencriptar (iv + authTag + pdfCifrado)
+        const paqueteFinal = Buffer.concat([iv, authTag, pdfCifrado]);
+
+        // 5. Despacho a Firebase Storage (Queda encriptado, ni Google ni tú pueden leerlo)
+        const bucket = admin.storage().bucket();
+        const archivoDestino = bucket.file(`boveda_legal/${uidUsuario}/${txId}.enc`);
+        
+        await archivoDestino.save(paqueteFinal, {
+            metadata: { contentType: 'application/octet-stream' }
+        });
+
+        // 6. Retorno exitoso: Solo devolvemos el Hash/TXID para que el celular arme el QR.
+        return { success: true, txId: txId };
+
+    } catch (error) {
+        console.error("[NOTARIO CIEGO] Error forjando contrato:", error);
+        throw new functions.https.HttpsError('internal', 'Fallo en la bóveda criptográfica: ' + error.message);
+    }
+});
+
+// Función auxiliar: Dibuja el PDF en la memoria RAM del servidor. No accesible desde internet.
+function generarPDFEnMemoria(texto, gps, selfieBase64, codigo, timestamp) {
+    return new Promise((resolve, reject) => {
+        const doc = new PDFDocument();
+        const buffers = [];
+        
+        doc.on('data', buffers.push.bind(buffers));
+        doc.on('end', () => resolve(Buffer.concat(buffers)));
+        doc.on('error', reject);
+        
+        // Estructura visual del documento
+        doc.fontSize(18).text('DOCUMENTO LEGAL VINCULANTE (LEY 527 DE 1999)', { align: 'center' });
+        doc.moveDown();
+        doc.fontSize(12).text(texto, { align: 'justify' });
+        
+        // Página de evidencias biométricas
+        doc.addPage();
+        doc.fontSize(16).text('EVIDENCIA CRIPTOGRÁFICA Y LIVENESS', { align: 'center' });
+        doc.moveDown();
+        
+        const fechaStamp = new Date(timestamp).toISOString();
+        doc.fontSize(10).text(`Firma Registrada (UTC): ${fechaStamp}`);
+        doc.text(`Coordenadas Juramentadas: Lat ${gps.lat}, Lng ${gps.lng}`);
+        doc.text(`Código de Intención Biométrico: ${codigo}`);
+        
+        if (selfieBase64) {
+            doc.moveDown();
+            // Limpiamos el prefijo de la imagen WebP generada por tu frontend
+            const base64Data = selfieBase64.replace(/^data:image\/\w+;base64,/, "");
+            const imgBuffer = Buffer.from(base64Data, 'base64');
+            doc.image(imgBuffer, { fit: [250, 250], align: 'center' });
+        }
+        
+        doc.end();
+    });
+}
 

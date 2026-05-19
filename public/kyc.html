@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Motor Biométrico KYC</title>
+    <meta name="theme-color" content="#0a0a0c">
+    <style>
+        :root {
+            --naranja: #ff6b00;
+            --bg-oscuro: #0a0a0c;
+            --azul-corp: #00aaff;
+            --verde-sui: #00f5d4;
+            --rojo-alerta: #ff4444;
+            --texto-mate: #f0f0f0;
+        }
+
+        * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+        body, html { margin: 0; padding: 0; background: var(--bg-oscuro); color: var(--texto-mate); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+        /* CABECERA */
+        header { padding: 15px 20px; background: rgba(10,10,12,0.9); z-index: 10; display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        h1 { margin: 0; font-size: 16px; color: var(--naranja); text-transform: uppercase; letter-spacing: 1px; }
+
+        /* CONTENEDOR DE LA CÁMARA EN VIVO */
+        #visor-camara { flex: 1; position: relative; width: 100%; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        video { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; transform: scaleX(-1); /* Efecto espejo por defecto para selfie */ }
+        video.trasera { transform: scaleX(1); /* Sin espejo para la cédula */ }
+        canvas { display: none; } /* Canvas oculto para capturar frames */
+
+        /* MÁSCARAS (GUIAS VISUALES) */
+        .mascara { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+        
+        /* 1. Máscara Cédula (Rectángulo) */
+        .svg-cedula { width: 100%; height: 100%; fill: rgba(0,0,0,0.7); }
+        .svg-cedula rect { stroke: var(--azul-corp); stroke-width: 2; stroke-dasharray: 10 5; animation: dash 2s linear infinite; }
+
+        /* 2. Máscara Rostro (Óvalo) */
+        .svg-rostro { width: 100%; height: 100%; fill: rgba(0,0,0,0.7); display: none; }
+        .svg-rostro ellipse { stroke: var(--verde-sui); stroke-width: 3; stroke-dasharray: 15 10; animation: dash 2s linear infinite; }
+
+        @keyframes dash { to { stroke-dashoffset: 40; } }
+
+        /* INTERFAZ DE CONTROL (TEXTOS Y BOTONES) */
+        .panel-control { padding: 20px; background: rgba(10,10,12,0.9); z-index: 10; text-align: center; border-top: 1px solid var(--naranja); box-shadow: 0 -10px 20px rgba(0,0,0,0.5); }
+        h2 { margin: 0 0 5px 0; font-size: 18px; text-transform: uppercase; color: var(--texto-mate); }
+        p { margin: 0 0 15px 0; font-size: 13px; color: #aaa; line-height: 1.4; }
+
+        .alerta-luz { color: var(--rojo-alerta); font-size: 11px; font-weight: bold; background: rgba(255,0,0,0.1); padding: 5px; border-radius: 8px; margin-bottom: 10px; display: none; }
+
+        .btn-capturar { background: var(--naranja); color: white; border: none; padding: 15px 30px; font-size: 16px; font-weight: 900; border-radius: 30px; width: 100%; max-width: 300px; cursor: pointer; text-transform: uppercase; box-shadow: 0 5px 15px rgba(255,107,0,0.4); transition: 0.2s; }
+        .btn-capturar:active { transform: scale(0.95); }
+        .btn-capturar:disabled { background: #333; color: #666; box-shadow: none; cursor: not-allowed; }
+
+        /* RESULTADOS (Galería final antes de enviar) */
+        #panel-resultados { position: absolute; inset: 0; background: var(--bg-oscuro); z-index: 20; padding: 20px; display: none; flex-direction: column; overflow-y: auto; }
+        .grid-fotos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        .foto-preview { width: 100%; border-radius: 8px; border: 1px solid var(--glass-border); background: #111; object-fit: cover; aspect-ratio: 4/3; }
+        .foto-preview.rostro { grid-column: span 2; aspect-ratio: 3/4; max-height: 250px; margin: 0 auto; width: auto; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>👁️ Biometría Avanzada</h1>
+        <button style="background:transparent; border:none; color:#888; font-weight:bold; cursor:pointer;" onclick="window.history.back()">X Cancelar</button>
+    </header>
+
+    <!-- ESTADO 1: CÁMARA EN VIVO -->
+    <div id="visor-camara">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas-procesador"></canvas>
+        
+        <!-- MÁSCARA 1: CÉDULA -->
+        <svg class="mascara svg-cedula" id="mask-cedula" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <mask id="cutout-cedula">
+                    <rect width="100%" height="100%" fill="white" />
+                    <!-- El rectángulo transparente en el centro -->
+                    <rect x="10%" y="30%" width="80%" height="30%" rx="10" fill="black" />
+                </mask>
+            </defs>
+            <rect width="100%" height="100%" mask="url(#cutout-cedula)" />
+            <!-- Borde decorativo neón -->
+            <rect x="10%" y="30%" width="80%" height="30%" rx="10" fill="none" />
+        </svg>
+
+        <!-- MÁSCARA 2: ROSTRO -->
+        <svg class="mascara svg-rostro" id="mask-rostro" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <mask id="cutout-rostro">
+                    <rect width="100%" height="100%" fill="white" />
+                    <!-- El óvalo transparente en el centro -->
+                    <ellipse cx="50%" cy="45%" rx="35%" ry="25%" fill="black" />
+                </mask>
+            </defs>
+            <rect width="100%" height="100%" mask="url(#cutout-rostro)" />
+            <!-- Borde decorativo neón -->
+            <ellipse cx="50%" cy="45%" rx="35%" ry="25%" fill="none" />
+        </svg>
+    </div>
+
+    <div class="panel-control" id="panel-interactivo">
+        <h2 id="lbl-titulo">1. Frente de la Cédula</h2>
+        <p id="lbl-instruccion">Alinea tu documento dentro del cuadro azul. Asegúrate de que no haya reflejos.</p>
+        
+        <div id="alerta-luz" class="alerta-luz">⚠️ Hay muy poca luz. Ilumina el documento.</div>
+        
+        <button id="btn-foto" class="btn-capturar" onclick="tomarFoto()">Capturar Frente</button>
+    </div>
+
+    <!-- ESTADO 2: REVISIÓN DE RESULTADOS -->
+    <div id="panel-resultados">
+        <h2 style="color: var(--verde-sui); text-align: center; margin-top: 10px;">✔️ Escaneo Completado</h2>
+        <p style="text-align: center;">Revisa que los datos sean legibles antes de enviar a validación.</p>
+        
+        <div class="grid-fotos">
+            <div><p style="font-size: 11px; text-align: center; margin-bottom: 5px;">Frente</p><img id="res-frente" class="foto-preview"></div>
+            <div><p style="font-size: 11px; text-align: center; margin-bottom: 5px;">Reverso</p><img id="res-reverso" class="foto-preview"></div>
+            <div style="grid-column: span 2;"><p style="font-size: 11px; text-align: center; margin-bottom: 5px;">Rostro (Liveness)</p><img id="res-rostro" class="foto-preview rostro"></div>
+        </div>
+
+        <button class="btn-capturar" style="background: var(--verde-sui); color: black; max-width: 100%; margin-bottom: 10px;" onclick="enviarAlBunker()">Sellar y Subir a Validación</button>
+        <button class="btn-capturar" style="background: transparent; border: 1px solid #555; color: #aaa; box-shadow: none; max-width: 100%;" onclick="location.reload()">Reintentar Escaneo</button>
+    </div>
+
+    <!-- CEREBRO ARCAICO DE VISIÓN (JS) -->
+    <script type="module">
+        import QRpidoDB from './core-db.js';
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas-procesador');
+        const ctx = canvas.getContext('2d');
+        const alertaLuz = document.getElementById('alerta-luz');
+        const btnFoto = document.getElementById('btn-foto');
+
+        let pasoActual = 1; // 1: Frente, 2: Reverso, 3: Rostro
+        let streamActual = null;
+        let loopAnalisisLuz = null;
+
+        // Bóveda temporal en RAM
+        const fotosEnRAM = { frente: null, reverso: null, rostro: null };
+
+        async function encenderCamara(esFrontal = false) {
+            // Apagamos la cámara anterior si existe
+            if (streamActual) {
+                streamActual.getTracks().forEach(track => track.stop());
+            }
+
+            try {
+                // Configuración: Trasera para cédula, Frontal para selfie
+                const constraints = {
+                    video: { facingMode: esFrontal ? "user" : "environment" }
+                };
+                
+                streamActual = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = streamActual;
+                
+                // Ajustamos el CSS del video (espejo o normal)
+                if (esFrontal) {
+                    video.classList.remove('trasera');
+                } else {
+                    video.classList.add('trasera');
+                }
+
+                // Iniciar análisis de luz constante
+                video.onloadeddata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    analizarBrilloFrame();
+                };
+            } catch (err) {
+                alert("Error al acceder a la cámara. Revisa los permisos.");
+                console.error(err);
+            }
+        }
+
+        // ==========================================
+        // 🧙‍♂️ ALGORITMO ARCAICO DE LUMINANCIA
+        // ==========================================
+        function analizarBrilloFrame() {
+            if (pasoActual > 3) return; // Si ya terminó, detenemos el loop
+            
+            // Dibujamos el frame actual en el canvas oculto
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // Extraemos los píxeles
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            
+            let colorSum = 0;
+            // Evaluamos solo 1 de cada 100 píxeles para no quemar la RAM del celular
+            for (let i = 0; i < data.length; i += 400) {
+                const r = data[i];
+                const g = data[i+1];
+                const b = data[i+2];
+                // Fórmula de Luminancia Relativa
+                const brillo = 0.299 * r + 0.587 * g + 0.114 * b; 
+                colorSum += brillo;
+            }
+            
+            const brilloPromedio = colorSum / (data.length / 400);
+
+            // Umbral estricto: Si está muy oscuro (brillo < 40), bloqueamos
+            if (brilloPromedio < 40) {
+                alertaLuz.style.display = 'block';
+                btnFoto.disabled = true;
+                btnFoto.innerText = "❌ Muy Oscuro";
+            } else {
+                alertaLuz.style.display = 'none';
+                btnFoto.disabled = false;
+                // Restauramos el texto según el paso
+                if(pasoActual === 1) btnFoto.innerText = "Capturar Frente";
+                if(pasoActual === 2) btnFoto.innerText = "Capturar Reverso";
+                if(pasoActual === 3) btnFoto.innerText = "Tomar Selfie";
+            }
+
+            // Loop 10 veces por segundo
+            loopAnalisisLuz = setTimeout(analizarBrilloFrame, 100);
+        }
+
+        // CONTROLADOR DE PASOS
+        window.tomarFoto = () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            
+            // Forzamos un destello visual rápido (Flash CSS)
+            document.body.style.background = "white";
+            setTimeout(() => document.body.style.background = "var(--bg-oscuro)", 100);
+
+            // Dibujamos y extraemos compresión WebP
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            // Comprimimos brutalmente al 60% para ahorrar datos
+            const fotoWebp = canvas.toDataURL('image/webp', 0.6); 
+
+            if (pasoActual === 1) {
+                fotosEnRAM.frente = fotoWebp;
+                pasoActual = 2;
+                document.getElementById('lbl-titulo').innerText = "2. Reverso de la Cédula";
+                document.getElementById('lbl-instruccion').innerText = "Voltea el documento. Asegúrate de capturar el código de barras y holograma.";
+            } 
+            else if (pasoActual === 2) {
+                fotosEnRAM.reverso = fotoWebp;
+                pasoActual = 3;
+                
+                // Cambiamos a cámara frontal y ajustamos máscaras
+                document.getElementById('mask-cedula').style.display = 'none';
+                document.getElementById('mask-rostro').style.display = 'block';
+                
+                document.getElementById('lbl-titulo').innerText = "3. Prueba de Vida (Liveness)";
+                document.getElementById('lbl-instruccion').innerText = "Ubica tu rostro dentro del óvalo verde. Mira fijamente y no uses gafas oscuras.";
+                document.getElementById('btn-foto').style.background = "var(--verde-sui)";
+                document.getElementById('btn-foto').style.color = "black";
+                
+                encenderCamara(true); // Enciende frontal
+            }
+            else if (pasoActual === 3) {
+                fotosEnRAM.rostro = fotoWebp;
+                pasoActual = 4;
+                
+                // Detenemos cámara y loop
+                if (streamActual) streamActual.getTracks().forEach(track => track.stop());
+                clearTimeout(loopAnalisisLuz);
+
+                // Mostramos resultados
+                document.getElementById('visor-camara').style.display = 'none';
+                document.getElementById('panel-interactivo').style.display = 'none';
+                
+                document.getElementById('res-frente').src = fotosEnRAM.frente;
+                document.getElementById('res-reverso').src = fotosEnRAM.reverso;
+                document.getElementById('res-rostro').src = fotosEnRAM.rostro;
+                
+                document.getElementById('panel-resultados').style.display = 'flex';
+            }
+        }
+
+        // PROCESADOR REAL DE ENVÍO (Nivel Bancario)
+        window.enviarAlBunker = async () => {
+            if (navigator.vibrate) navigator.vibrate(100);
+            const btn = document.querySelector('#panel-resultados .btn-capturar');
+            
+            // Verificación de seguridad
+            let idLogueado = null;
+            if (QRpidoDB.auth && QRpidoDB.auth.currentUser) {
+                idLogueado = QRpidoDB.auth.currentUser.uid;
+            } else {
+                return alert("⚠️ Error Crítico: No hay una sesión activa. Vuelve a iniciar sesión.");
+            }
+
+            btn.innerText = "Sincronizando con el Búnker (Nube)...";
+            btn.disabled = true;
+
+            try {
+                // Invocamos la Tubería Segura (Cloud Function)
+                const result = await QRpidoDB.SecurityService.sellarEvidenciaKYC(idLogueado, fotosEnRAM);
+
+            if (!result.success) throw new Error(result.error);
+
+                btn.innerText = "✔️ Biometría Sellada";
+                btn.style.background = "var(--verde-sui)";
+                btn.style.color = "black";
+
+                // 🧹 GARBAGE COLLECTION: Destruir las 3 imágenes de la RAM
+                fotosEnRAM.frente = null;
+                fotosEnRAM.reverso = null;
+                fotosEnRAM.rostro = null;
+
+                setTimeout(() => {
+                    window.location.href = 'tramites.html?action=kyc_pagar';
+                }, 1500);
+
+
+            } catch (err) {
+                alert("Error de subida: " + err.message);
+                btn.innerText = "Sellar y Subir a Validación";
+                btn.disabled = false;
+            }
+        };
+
+        
+        // Encender la trasera por defecto al abrir
+        window.onload = () => encenderCamara(false);
+    </script>
+</body>
+</html>
+
