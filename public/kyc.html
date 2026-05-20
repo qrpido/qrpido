@@ -58,6 +58,9 @@
         .foto-preview { width: 100%; border-radius: 8px; border: 1px solid var(--glass-border); background: #111; object-fit: cover; aspect-ratio: 4/3; }
         .foto-preview.rostro { grid-column: span 2; aspect-ratio: 3/4; max-height: 250px; margin: 0 auto; width: auto; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+</head>
+
 </head>
 <body>
 
@@ -71,33 +74,28 @@
         <video id="video" autoplay playsinline></video>
         <canvas id="canvas-procesador"></canvas>
         
-        <!-- MÁSCARA 1: CÉDULA -->
-        <svg class="mascara svg-cedula" id="mask-cedula" xmlns="http://www.w3.org/2000/svg">
+               <svg class="mascara svg-cedula" id="mask-cedula" xmlns="http://www.w3.org/2000/svg">
             <defs>
                 <mask id="cutout-cedula">
                     <rect width="100%" height="100%" fill="white" />
-                    <!-- El rectángulo transparente en el centro -->
-                    <rect x="10%" y="30%" width="80%" height="30%" rx="10" fill="black" />
+                    <rect x="5%" y="25%" width="90%" height="50%" rx="15" fill="black" />
                 </mask>
             </defs>
             <rect width="100%" height="100%" mask="url(#cutout-cedula)" />
-            <!-- Borde decorativo neón -->
-            <rect x="10%" y="30%" width="80%" height="30%" rx="10" fill="none" />
+            <rect x="5%" y="25%" width="90%" height="50%" rx="15" fill="none" />
         </svg>
-
-        <!-- MÁSCARA 2: ROSTRO -->
+<!-- MÁSCARA 2: ROSTRO →
         <svg class="mascara svg-rostro" id="mask-rostro" xmlns="http://www.w3.org/2000/svg">
             <defs>
                 <mask id="cutout-rostro">
                     <rect width="100%" height="100%" fill="white" />
-                    <!-- El óvalo transparente en el centro -->
-                    <ellipse cx="50%" cy="45%" rx="35%" ry="25%" fill="black" />
+                    <ellipse cx="50%" cy="45%" rx="28%" ry="38%" fill="black" />
                 </mask>
             </defs>
             <rect width="100%" height="100%" mask="url(#cutout-rostro)" />
-            <!-- Borde decorativo neón -->
-            <ellipse cx="50%" cy="45%" rx="35%" ry="25%" fill="none" />
+            <ellipse cx="50%" cy="45%" rx="28%" ry="38%" fill="none" />
         </svg>
+
     </div>
 
     <div class="panel-control" id="panel-interactivo">
@@ -217,58 +215,115 @@
             // Loop 10 veces por segundo
             loopAnalisisLuz = setTimeout(analizarBrilloFrame, 100);
         }
-
-        // CONTROLADOR DE PASOS
-        window.tomarFoto = () => {
+        // CONTROLADOR DE PASOS CON OCR Y DETECCIÓN DE BARRAS
+        window.tomarFoto = async () => {
             if (navigator.vibrate) navigator.vibrate(50);
             
-            // Forzamos un destello visual rápido (Flash CSS)
             document.body.style.background = "white";
             setTimeout(() => document.body.style.background = "var(--bg-oscuro)", 100);
 
-            // Dibujamos y extraemos compresión WebP
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            // Comprimimos brutalmente al 60% para ahorrar datos
             const fotoWebp = canvas.toDataURL('image/webp', 0.6); 
 
-            if (pasoActual === 1) {
-                fotosEnRAM.frente = fotoWebp;
-                pasoActual = 2;
-                document.getElementById('lbl-titulo').innerText = "2. Reverso de la Cédula";
-                document.getElementById('lbl-instruccion').innerText = "Voltea el documento. Asegúrate de capturar el código de barras y holograma.";
-            } 
-            else if (pasoActual === 2) {
-                fotosEnRAM.reverso = fotoWebp;
-                pasoActual = 3;
-                
-                // Cambiamos a cámara frontal y ajustamos máscaras
-                document.getElementById('mask-cedula').style.display = 'none';
-                document.getElementById('mask-rostro').style.display = 'block';
-                
-                document.getElementById('lbl-titulo').innerText = "3. Prueba de Vida (Liveness)";
-                document.getElementById('lbl-instruccion').innerText = "Ubica tu rostro dentro del óvalo verde. Mira fijamente y no uses gafas oscuras.";
-                document.getElementById('btn-foto').style.background = "var(--verde-sui)";
-                document.getElementById('btn-foto').style.color = "black";
-                
-                encenderCamara(true); // Enciende frontal
-            }
-            else if (pasoActual === 3) {
-                fotosEnRAM.rostro = fotoWebp;
-                pasoActual = 4;
-                
-                // Detenemos cámara y loop
-                if (streamActual) streamActual.getTracks().forEach(track => track.stop());
-                clearTimeout(loopAnalisisLuz);
+            // Bloqueamos el botón mientras la IA piensa
+            btnFoto.disabled = true;
+            btnFoto.innerText = "⏳ Analizando seguridad...";
+            btnFoto.style.background = "#555";
 
-                // Mostramos resultados
-                document.getElementById('visor-camara').style.display = 'none';
-                document.getElementById('panel-interactivo').style.display = 'none';
+            try {
+                if (pasoActual === 1) {
+                    // VALIDACIÓN 1: FRENTE DE CÉDULA (OCR)
+                    const esValido = await validarFrenteConIA(canvas);
+                    if (!esValido) throw new Error("⚠️ No detectamos el frente de una cédula. Asegúrate de que el texto sea legible y no haya reflejos.");
+
+                    fotosEnRAM.frente = fotoWebp;
+                    pasoActual = 2;
+                    document.getElementById('lbl-titulo').innerText = "2. Reverso de la Cédula";
+                    document.getElementById('lbl-instruccion').innerText = "Voltea el documento. Asegúrate de enfocar el código de barras trasero.";
                 
-                document.getElementById('res-frente').src = fotosEnRAM.frente;
-                document.getElementById('res-reverso').src = fotosEnRAM.reverso;
-                document.getElementById('res-rostro').src = fotosEnRAM.rostro;
+                } else if (pasoActual === 2) {
+                    // VALIDACIÓN 2: REVERSO DE CÉDULA (Código de Barras / OCR)
+                    const esValido = await validarReversoConIA(canvas);
+                    if (!esValido) throw new Error("⚠️ No detectamos el reverso (código de barras o huellas). Voltea tu cédula.");
+
+                    fotosEnRAM.reverso = fotoWebp;
+                    pasoActual = 3;
+                    
+                    document.getElementById('mask-cedula').style.display = 'none';
+                    document.getElementById('mask-rostro').style.display = 'block';
+                    document.getElementById('lbl-titulo').innerText = "3. Prueba de Vida (Liveness)";
+                    document.getElementById('lbl-instruccion').innerText = "Ubica tu rostro dentro del óvalo verde. Mira fijamente y no uses gafas oscuras.";
+                    
+                    encenderCamara(true); 
                 
-                document.getElementById('panel-resultados').style.display = 'flex';
+                } else if (pasoActual === 3) {
+                    // VALIDACIÓN 3: SELFIE (Pasa directo, la validación facial real se hace en backend por seguridad)
+                    fotosEnRAM.rostro = fotoWebp;
+                    pasoActual = 4;
+                    
+                    if (streamActual) streamActual.getTracks().forEach(track => track.stop());
+                    clearTimeout(loopAnalisisLuz);
+
+                    document.getElementById('visor-camara').style.display = 'none';
+                    document.getElementById('panel-interactivo').style.display = 'none';
+                    
+                    document.getElementById('res-frente').src = fotosEnRAM.frente;
+                    document.getElementById('res-reverso').src = fotosEnRAM.reverso;
+                    document.getElementById('res-rostro').src = fotosEnRAM.rostro;
+                    
+                    document.getElementById('panel-resultados').style.display = 'flex';
+                }
+            } catch (err) {
+                alert(err.message);
+            } finally {
+                // Restaurar botón si no hemos terminado
+                if (pasoActual <= 3) {
+                    btnFoto.disabled = false;
+                    btnFoto.style.background = (pasoActual === 3) ? "var(--verde-sui)" : "var(--naranja)";
+                    btnFoto.style.color = (pasoActual === 3) ? "black" : "white";
+                    btnFoto.innerText = (pasoActual === 1) ? "Capturar Frente" : (pasoActual === 2) ? "Capturar Reverso" : "Tomar Selfie";
+                }
+            }
+        };
+
+        // 🧠 MOTORES DE VALIDACIÓN CLIENT-SIDE
+        async function validarFrenteConIA(canvasEl) {
+            try {
+                // Iniciamos Tesseract, leemos rápido y lo aniquilamos de la memoria
+                const worker = await Tesseract.createWorker('spa');
+                const { data: { text } } = await worker.recognize(canvasEl);
+                await worker.terminate(); // 🧹 EXTREMADAMENTE IMPORTANTE PARA EL REDMI NOTE 3
+
+                const textoUpper = text.toUpperCase();
+                // Buscamos firmas visuales de la cédula colombiana
+                return textoUpper.includes("COLOMBIA") || textoUpper.includes("CEDULA") || textoUpper.includes("NOMBRES") || textoUpper.includes("APELLIDOS");
+            } catch(e) {
+                console.error("Error OCR Frente:", e);
+                return false; 
+            }
+        }
+
+        async function validarReversoConIA(canvasEl) {
+            // ⚡ ESTRATEGIA 1: Lector de Barras Nativo (Consume 0 RAM y es instantáneo)
+            if ('BarcodeDetector' in window) {
+                try {
+                    const detector = new BarcodeDetector({ formats: ['pdf417'] }); // El reverso tiene PDF417
+                    const barcodes = await detector.detect(canvasEl);
+                    if (barcodes.length > 0) return true; // ¡Código de barras detectado!
+                } catch(e) { console.warn("Lector nativo falló, pasando a OCR..."); }
+            }
+
+            // 🐢 ESTRATEGIA 2: Fallback a OCR si el navegador no soporta BarcodeDetector
+            try {
+                const worker = await Tesseract.createWorker('spa');
+                const { data: { text } } = await worker.recognize(canvasEl);
+                await worker.terminate(); // 🧹 Limpieza de RAM
+
+                const textoUpper = text.toUpperCase();
+                return textoUpper.includes("INDICE") || textoUpper.includes("SANGRE") || textoUpper.includes("FECHA") || textoUpper.includes("LUGAR");
+            } catch(e) {
+                console.error("Error OCR Reverso:", e);
+                return false;
             }
         }
 
