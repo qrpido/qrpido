@@ -132,37 +132,51 @@ html { scroll-padding-top: 140px; } /* Compensa la altura del header + nav */
 </div>
 </div>
 <div id="tab-boveda" class="tab-content" style="padding: 20px; display: none;">
-<div class="panel-admin" style="border-color: var(--verde-sui); background: linear-gradient(135deg, rgba(0,245,212,0.05) 0%, rgba(10,10,12,0.9) 100%);">
-<h2 class="section-title" style="color: var(--verde-sui); border-bottom: none; font-size: 16px;">🔓 Desbloquear Contrato</h2>
-<p style="font-size: 13px; color: #f0f0f0; margin-bottom: 15px;">Lectura 100% Zero-Knowledge. Se ejecuta en la RAM de tu teléfono.</p>
-<div class="file-upload-wrapper" style="margin-bottom: 15px;">
-<label style="font-size: 13px; color: #f0f0f0; margin-bottom: 8px; display: block; font-weight: bold;">1. Sube el PDF Cifrado</label>
-<input type="file" id="input-pdf-cifrado" class="input-form" accept=".pdf" onchange="actualizarNombreImagenUI(this, 'texto-pdf-cifrado')">
-<div class="file-upload-ui" id="texto-pdf-cifrado" style="border-color: var(--verde-sui); color: var(--verde-sui);">📁 Seleccionar PDF</div>
+    <div class="panel-admin" style="border-color: var(--verde-sui); background: linear-gradient(135deg, rgba(0,245,212,0.05) 0%, rgba(10,10,12,0.9) 100%);">
+        <h2 class="section-title" style="color: var(--verde-sui); border-bottom: none; font-size: 16px;">🔓 Desbloquear Contrato</h2>
+        <p style="font-size: 13px; color: #f0f0f0; margin-bottom: 15px;">Lectura 100% Zero-Knowledge. Se ejecuta en la RAM de tu teléfono.</p>
+        
+        <input type="file" id="input-pdf-cifrado" accept=".pdf" style="display: none;">
+        <input type="file" id="input-llave-qr" accept="image/png, image/jpeg" style="display: none;">
+
+        <div class="file-upload-wrapper" style="margin-bottom: 15px;">
+            <label style="font-size: 13px; color: #f0f0f0; margin-bottom: 8px; display: block; font-weight: bold;">1. Sube el PDF Cifrado</label>
+            <div class="file-upload-ui" id="texto-pdf-cifrado" style="border-color: var(--verde-sui); color: var(--verde-sui); cursor: pointer;" onclick="document.getElementById('input-pdf-cifrado').click()">📁 Seleccionar PDF</div>
+        </div>
+        <div class="file-upload-wrapper">
+            <label style="font-size: 13px; color: #f0f0f0; margin-bottom: 8px; display: block; font-weight: bold;">2. Sube tu Llave QR (PNG)</label>
+            <div class="file-upload-ui" id="texto-qr" style="border-color: var(--naranja); color: var(--naranja); cursor: pointer;" onclick="document.getElementById('input-llave-qr').click()">🔑 Seleccionar QR</div>
+        </div>
+        <button class="btn-submit" style="background: var(--verde-sui) !important; color: black !important; font-size: 15px; margin-top: 15px; box-shadow: 0 8px 21px rgba(0,245,212,0.4) !important;" onclick="desencriptarBoveda()">Desbloquear y Leer</button>
+    </div>
+
+    <div class="panel-admin">
+        <h2 class="section-title" style="font-size: 16px; border-bottom: none; margin-bottom: 10px;">📂 Historial de Mandatos (Ley 527)</h2>
+        
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;">
+            <div style="position: relative; width: 100%;">
+                <input type="text" id="buscador-codigo" placeholder="🔍 Buscar por código o tipo..." 
+                       style="width: 100%; padding: 10px 12px; background: rgba(0,0,0,0.6); border: 1px solid var(--glass-border); color: #fff; border-radius: 8px; font-size: 13px; outline: none;">
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <select id="filtro-fecha" style="background: #0a0a0c; border: 1px solid var(--glass-border); color: #ccc; padding: 10px; border-radius: 8px; font-size: 12px; outline: none;">
+                    <option value="recientes">Más recientes primero</option>
+                    <option value="antiguos">Más antiguos primero</option>
+                </select>
+                <select id="filtro-lugar" style="background: #0a0a0c; border: 1px solid var(--glass-border); color: #ccc; padding: 10px; border-radius: 8px; font-size: 12px; outline: none;">
+                    <option value="todos">Todos los lugares</option>
+                    <option value="Pereira">Pereira</option>
+                    <option value="Dosquebradas">Dosquebradas</option>
+                    <option value="Medellin">Medellín</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="lista-documentos-dinamica"></div>
+        <p style="text-align: center; font-size: 12px; color: #444; margin-top: 15px; letter-spacing: 0.5px;">SEGURIDAD AUDITADA POR SISTEMA DISTRIBUIDO</p>
+    </div>
 </div>
-<div class="file-upload-wrapper">
-<label style="font-size: 13px; color: #f0f0f0; margin-bottom: 8px; display: block; font-weight: bold;">2. Sube tu Llave QR (PNG)</label>
-<input type="file" id="input-llave-qr" class="input-form" accept="image/png, image/jpeg" onchange="actualizarNombreImagenUI(this, 'texto-qr')">
-<div class="file-upload-ui" id="texto-qr" style="border-color: var(--naranja); color: var(--naranja);">🔑 Seleccionar QR</div>
-</div>
-<button class="btn-submit" style="background: var(--verde-sui) !important; color: black !important; font-size: 15px; margin-top: 15px; box-shadow: 0 8px 21px rgba(0,245,212,0.4) !important;" onclick="desencriptarBoveda()">Desbloquear y Leer</button>
-</div>
-<div class="panel-admin">
-<h2 class="section-title" style="font-size: 16px; border-bottom: none;">📂 Historial (Ley 527)</h2>
-<div style="background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
-<div>
-<h3 style="margin: 0 0 5px 0; font-size: 14px; color: white;">Mandato #1024</h3>
-<p style="margin: 0; font-size: 12px; color: #888;">15 May 2026</p>
-<span style="background: rgba(0,245,212,0.1); color: var(--verde-sui); font-size: 10px; padding: 4px 8px; border-radius: 10px; font-weight: bold; margin-top: 5px; display: inline-block;">Sellado SUI</span>
-</div>
-<div style="display: flex; flex-direction: column; gap: 5px;">
-<button style="background: transparent; border: 1px solid #aaa; color: #ccc; font-size: 12px; padding: 6px; border-radius: 6px; cursor: pointer; font-weight: bold;">📄 Bajar PDF</button>
-<button style="background: transparent; border: 1px solid var(--naranja); color: var(--naranja); font-size: 12px; padding: 6px; border-radius: 6px; cursor: pointer; font-weight: bold;">🔑 Llave QR</button>
-</div>
-</div>
-<p style="text-align: center; font-size: 13px; color: #555; margin-top: 20px;">Fin del historial.</p>
-</div>
-</div>
+
 <div class="bottom-sheet-overlay" id="modal-apelar" onclick="document.getElementById('modal-apelar').classList.remove('activo')">
 <div class="bottom-sheet-contenido" onclick="event.stopPropagation()" style="background: rgba(15,15,18,0.98); border-top: 2px solid var(--naranja);">
 <h3 style="color: var(--naranja); margin-top: 0;">✍️ Apelar Selección</h3>
@@ -717,8 +731,12 @@ window.pedirOtpSeguridad = async () => {
 // 💾 SISTEMA DE PERSISTENCIA EN CACHÉ LOCAL (ZERO-KNOWLEDGE)
 // =====================================================================
 window.guardarProgresoDocumentoEnCache = () => {
+    // Captura dinámicamente el tipo desde la píldora activa de la UI
+    const píldoraActiva = document.querySelector('.js-plantilla.activa');
+    const tipoContrato = píldoraActiva ? píldoraActiva.innerText : 'mandato';
+
     const datosDocumento = {
-        tipo: document.getElementById('select-tipo-contrato')?.value || '',
+        tipo: tipoContrato,
         campos: {},
         timestamp: Date.now()
     };
@@ -729,6 +747,7 @@ window.guardarProgresoDocumentoEnCache = () => {
     });
     localStorage.setItem('qrpido_cache_documento_en_edicion', JSON.stringify(datosDocumento));
 };
+
 
 window.cargarProgresoDocumentoDesdeCache = () => {
     const cacheRaw = localStorage.getItem('qrpido_cache_documento_en_edicion');
@@ -926,6 +945,100 @@ window.guardarPerfilCiudadano = async () => {
         btn.innerText = "Guardar Cambios"; btn.disabled = false;
     }
 };
+// =====================================================================
+// 🔌 MANEJADORES DE CARGA PÚBLICA (SOLUCIÓN AL COMPORTAMIENTO ROTO)
+// =====================================================================
+document.addEventListener('DOMContentLoaded', () => {
+    const inputPDF = document.getElementById('input-pdf-cifrado');
+    const inputQR = document.getElementById('input-llave-qr');
+
+    if (inputPDF) {
+        inputPDF.addEventListener('change', function() {
+            window.actualizarNombreImagenUI(this, 'texto-pdf-cifrado');
+        });
+    }
+    if (inputQR) {
+        inputQR.addEventListener('change', function() {
+            window.actualizarNombreImagenUI(this, 'texto-qr');
+        });
+    }
+    
+    // Iniciar renderizado por defecto de los documentos al cargar
+    window.renderizarHistorialFiltrado();
+});
+
+// =====================================================================
+// 🗂️ MOTOR DE INDEXACIÓN E HISTORIAL DE MÁXIMO VOLUMEN (INMOBILIARIAS)
+// =====================================================================
+// Base de datos simulada local en RAM para el renderizado responsivo (Fricción Cero)
+const coleccionDocumentosInmobiliaria = [
+    { id: "1024", tipo: "Mandato", lugar: "Pereira", fecha: "2026-05-15", estado: "Sellado SUI" },
+    { id: "1085", tipo: "Arrendamiento", lugar: "Medellin", fecha: "2026-05-19", estado: "Sellado SUI" },
+    { id: "1102", tipo: "Pagaré", lugar: "Dosquebradas", fecha: "2026-05-22", estado: "Sellado SUI" }
+];
+
+window.renderizarHistorialFiltrado = () => {
+    const buscador = document.getElementById('buscador-codigo');
+    const fFecha = document.getElementById('filtro-fecha');
+    const fLugar = document.getElementById('filtro-lugar');
+    const contenedorLista = document.getElementById('lista-documentos-dinamica');
+
+    if (!contenedorLista) return;
+
+    const textoBusqueda = buscador ? buscador.value.toLowerCase() : "";
+    const ordenFecha = fFecha ? fFecha.value : "recientes";
+    const lugarSeleccionado = fLugar ? fLugar.value : "todos";
+
+    // 1. Algoritmo combinado de filtrado lineal en memoria
+    let documentosFiltrados = coleccionDocumentosInmobiliaria.filter(doc => {
+        const coincideFiltro = doc.id.includes(textoBusqueda) || doc.tipo.toLowerCase().includes(textoBusqueda);
+        const coincideLugar = lugarSeleccionado === "todos" || doc.lugar === lugarSeleccionado;
+        return coincideFiltro && coincideLugar;
+    });
+
+    // 2. Ordenamiento temporal de alta velocidad
+    documentosFiltrados.sort((a, b) => {
+        const dateA = new Date(a.fecha);
+        const dateB = new Date(b.fecha);
+        return ordenFecha === "recientes" ? dateB - dateA : dateA - dateB;
+    });
+
+    // 3. Renderizado asíncrono limpio con reciclaje del DOM
+    contenedorLista.innerHTML = "";
+    
+    if (documentosFiltrados.length === 0) {
+        contenedorLista.innerHTML = `<p style="text-align:center; color:#555; font-size:12px; margin:20px 0;">No se encontraron registros en la Bóveda.</p>`;
+        return;
+    }
+
+    documentosFiltrados.forEach(doc => {
+        contenedorLista.innerHTML += `
+            <div style="background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; animation: fadeIn 0.2s;">
+                <div>
+                    <h3 style="margin: 0 0 5px 0; font-size: 14px; color: white;">${doc.tipo} #${doc.id}</h3>
+                    <div style="display:flex; gap:10px; color:#888; font-size:12px; margin-bottom:5px;">
+                        <span>📍 ${doc.lugar}</span>
+                        <span>📅 ${doc.fecha}</span>
+                    </div>
+                    <span style="background: rgba(0,245,212,0.1); color: var(--verde-sui); font-size: 10px; padding: 4px 8px; border-radius: 10px; font-weight: bold; display: inline-block;">${doc.estado}</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 5px;">
+                    <button style="background: transparent; border: 1px solid #aaa; color: #ccc; font-size: 12px; padding: 6px; border-radius: 6px; cursor: pointer; font-weight: bold;">📄 Bajar PDF</button>
+                    <button style="background: transparent; border: 1px solid var(--naranja); color: var(--naranja); font-size: 12px; padding: 6px; border-radius: 6px; cursor: pointer; font-weight: bold;" onclick="window.descargarLlaveQR('${doc.id}')">🔑 Llave QR</button>
+                </div>
+            </div>
+        `;
+    });
+};
+
+// Vinculación reactiva de eventos en la barra de herramientas para filtrado instantáneo sin latencia
+document.body.addEventListener('input', (e) => {
+    if (e.target.id === 'buscador-codigo') window.renderizarHistorialFiltrado();
+});
+document.body.addEventListener('change', (e) => {
+    if (e.target.id === 'filtro-fecha' || e.target.id === 'filtro-lugar') window.renderizarHistorialFiltrado();
+});
+
 </script>
 </body>
 </html>
