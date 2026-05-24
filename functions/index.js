@@ -11,7 +11,7 @@ const secretoWebhooks = defineSecret('WOMPI_SECRET_EVENTS');
 const semillaSui = defineSecret('SUI_SEED_PHRASE'); 
 const semillaBase = defineSecret('BASE_SEED_PHRASE');
 const PACKAGE_ID = "0x577a653ddc6827118e626c490a4ed11f11d7571852be3a4db8ebb36c5b48bac1";
-const BASE_CONTRACT_ID = "0xEBC3D776557C72Ae9e42309eAc761866212421a9"; // Tu contrato en Base
+const BASE_CONTRACT_ID = "0xEBC3D776557C72Ae9e42309eAc761866212421a9"; 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: { user: 'qrpido@gmail.com', pass: 'khxvkeufgicxcrsh' }
@@ -24,7 +24,7 @@ exports.forjarBilletera = functions.runWith({ secrets: [semillaMaestra] }).auth.
     const MNEMONIC_MAESTRA = semillaMaestra.value();
     const uid = user.uid;
     const db = admin.firestore();
-        const { Ed25519Keypair } = await import('@mysten/sui/keypairs/ed25519');
+    const { Ed25519Keypair } = await import('@mysten/sui/keypairs/ed25519');
 
     const NUM_ESQUIRLAS = 10;
     const shardId = Math.floor(Math.random() * NUM_ESQUIRLAS);
@@ -74,8 +74,7 @@ exports.vigilanteTesoreria = functions.pubsub.schedule('every 12 hours').onRun(a
     const direccionTesoreria = process.env.DIRECCION_TESORERIA || "0x966bb847123c0999b3b02eca0456349558363b76148f5c4edf8d7d831b1a7d84";
     const UMBRAL_CRITICO = 5.0; 
 
-    // Encendemos el motor SUI solo cuando el vigilante despierta
-        const { SuiJsonRpcClient } = await import('@mysten/sui/jsonRpc');
+    const { SuiJsonRpcClient } = await import('@mysten/sui/jsonRpc');
     const suiClient = new SuiJsonRpcClient({ url: 'https://fullnode.mainnet.sui.io:443' });
 
     try {
@@ -99,7 +98,7 @@ exports.vigilanteTesoreria = functions.pubsub.schedule('every 12 hours').onRun(a
             const monedasEnMalla = snapshot.numChildren();
 
             if (monedasEnMalla < 50) {
-                console.log(`[FRACCIONADOR] Malla con stock bajo (${monedasEnMalla}). Generando 100 fragmentos...`);
+                console.log(`[FRACCIONADOR] Malla con stock bajo (${monedasEnMalla}). Generating 100 fragmentos...`);
                 
                 let nuevosFragmentos = {};
                 for(let i=0; i<100; i++) {
@@ -128,7 +127,6 @@ exports.vigilanteTesoreria = functions.pubsub.schedule('every 12 hours').onRun(a
 // MÓDULO 3: EL CADENERO (Validación Inmutable y Liberación de Fondos)
 // -------------------------------------------------------------------
 exports.validarEntrega = functions.runWith({ secrets: [semillaSui, semillaBase] }).https.onCall(async (data, context) => {
-
     if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Acceso denegado.');
 
     const uidDomiciliario = context.auth.uid;
@@ -159,15 +157,12 @@ exports.validarEntrega = functions.runWith({ secrets: [semillaSui, semillaBase] 
             const pagoEmbajador = comisionPlataforma * 0.25;
             const pagoDomiciliario = montoTotal - comisionPlataforma;
 
-            // 3. LA MALLA DE GAS Y EL NOTARIO SUI (WEB3 REAL)
             let txID_Generado;
             
-            // Encendemos el motor SUI solo cuando se va a entregar un pedido
-                        const { SuiJsonRpcClient } = await import('@mysten/sui/jsonRpc');
+            const { SuiJsonRpcClient } = await import('@mysten/sui/jsonRpc');
             const { Ed25519Keypair } = await import('@mysten/sui/keypairs/ed25519');
             const { Transaction } = await import('@mysten/sui/transactions');
             const suiClient = new SuiJsonRpcClient({ url: 'https://fullnode.mainnet.sui.io:443' });
-
 
             try {
                 const rtdb = admin.database();
@@ -225,7 +220,7 @@ exports.validarEntrega = functions.runWith({ secrets: [semillaSui, semillaBase] 
 });
 
 // -------------------------------------------------------------------
-// MÓDULO DE ANCLAJE: CREAR ORDEN (El origen de la transacción)
+// MÓDULO DE ANCLAJE: CREAR ORDEN 
 // -------------------------------------------------------------------
 function validarSelloTOTP(codigoDinamico, idNegocio, secretoMaestro) {
     if (!codigoDinamico || !codigoDinamico.startsWith('REF-')) return null;
@@ -292,7 +287,7 @@ exports.crearOrdenLogistica = functions.https.onCall(async (data, context) => {
 
         const nuevaOrdenRef = db.collection('Logistica_Ordenes').doc(); 
         
-       const ordenEstructura = {
+        const ordenEstructura = {
             comerciante_uid: uidComerciante,
             domiciliario_uid: domiciliario_uid,
             embajador_uid: embajadorValidado, 
@@ -310,11 +305,7 @@ exports.crearOrdenLogistica = functions.https.onCall(async (data, context) => {
 
         await nuevaOrdenRef.set(ordenEstructura);
 
-        return {
-            success: true,
-            ordenId: nuevaOrdenRef.id,
-            mensaje: "Orden creada y anclada exitosamente."
-        };
+        return { success: true, ordenId: nuevaOrdenRef.id, mensaje: "Orden creada y anclada exitosamente." };
 
     } catch (error) {
         console.error("Fallo al crear la orden logística:", error);
@@ -355,57 +346,73 @@ exports.wompiWebhook = functions.runWith({ secrets: [secretoWebhooks] }).https.o
         if (evento.event === "transaction.updated" && evento.data.transaction.status === "APPROVED") {
             const transaccion = evento.data.transaction;
             const referenciaPartes = transaccion.reference.split('_');
-            if (referenciaPartes[0] !== "RECARGA" || referenciaPartes.length < 2) {
-                console.log("Transacción ignorada: No pertenece al flujo de recarga de bóvedas.");
+            
+            const db = admin.firestore();
+            const montoCOP = transaccion.amount_in_cents / 100;
+
+            if (referenciaPartes[0] === "QRPIDO" || transaccion.reference.includes("-")) {
+                const partesGuion = transaccion.reference.split('-');
+                const uidUsuario = partesGuion[2] || referenciaPartes[2];
+                const tipoPago = transaccion.amount_in_cents === 699000 ? "REGISTRO_FIRMA" : "CREACION_DOCUMENTO";
+
+                console.log(`[PASARELA] Pago aprobado de $${montoCOP} COP para el trámite del UID: ${uidUsuario} (${tipoPago})`);
+
+                const tramiteRef = db.collection('Tramites_Activos').doc(transaccion.reference);
+                await tramiteRef.set({
+                    estado_pago: "APROBADO",
+                    wompi_id: transaccion.id,
+                    monto: montoCOP,
+                    tipo_servicio: tipoPago,
+                    fecha_pago: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+
+                if (tipoPago === "REGISTRO_FIRMA") {
+                    await db.collection('Directorio').doc(uidUsuario).set({
+                        firma_registrada_paga: true,
+                        fecha_registro_firma: admin.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                }
                 return;
             }
 
-            const uidUsuario = referenciaPartes[1];
-            const montoCOP = transaccion.amount_in_cents / 100; 
+            if (referenciaPartes[0] === "RECARGA") {
+                const uidUsuario = referenciaPartes[1];
+                const negocioSnap = await db.collection('Directorio').doc(uidUsuario).get();
+                
+                if (negocioSnap.exists) {
+                    const datosNegocio = negocioSnap.data();
+                    if (!datosNegocio.kyc_aprobado && montoCOP > 100000) {
+                        console.error(`🚨 ALERTA FRAUDE LOGÍSTICO: UID: ${uidUsuario} sin KYC.`);
+                        await db.collection('Lista_Negra').doc(uidUsuario).set({
+                            motivo: 'Intento de recarga anómala sin KYC.',
+                            monto_intentado: montoCOP,
+                            fecha: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                        return; 
+                    }
+                }
 
-            const db = admin.firestore();
-            const negocioSnap = await db.collection('Directorio').doc(uidUsuario).get();
-            
-            if (negocioSnap.exists) {
-                const datosNegocio = negocioSnap.data();
-                if (!datosNegocio.kyc_aprobado && montoCOP > 100000) {
-                    console.error(`🚨 ALERTA FRAUDE: Intento de recarga masiva ($${montoCOP}) del UID: ${uidUsuario} sin KYC.`);
-                    await db.collection('Lista_Negra').doc(uidUsuario).set({
-                        motivo: 'Intento de recarga anómala (Posible tarjeta robada/Fraude)',
-                        monto_intentado: montoCOP,
+                const usuarioRef = db.collection('Directorio').doc(uidUsuario);
+                await db.runTransaction(async (t) => {
+                    const doc = await t.get(usuarioRef);
+                    if (!doc.exists) throw new Error("Usuario no encontrado.");
+                    const saldoActual = doc.data().saldo_logistica || 0;
+                    t.update(usuarioRef, { 
+                        saldo_logistica: saldoActual + montoCOP,
+                        ultima_recarga: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                    t.set(db.collection('Historial_Recargas').doc(transaccion.id), {
+                        uid: uidUsuario,
+                        monto: montoCOP,
+                        metodo: transaccion.payment_method_type,
                         fecha: admin.firestore.FieldValue.serverTimestamp()
                     });
-                    return res.status(200).send({ success: true, nota: "Ignorado por seguridad LA/FT" }); 
-                }
+                });
+                console.log(`[TESORERÍA] Éxito: Recarga logística procesada para UID: ${uidUsuario}.`);
             }
-
-            const usuarioRef = db.collection('Directorio').doc(uidUsuario);
-
-            await db.runTransaction(async (t) => {
-                const doc = await t.get(usuarioRef);
-                if (!doc.exists) throw new Error("Bóveda de usuario no encontrada.");
-
-                const saldoActual = doc.data().saldo_logistica || 0;
-                const nuevoSaldo = saldoActual + montoCOP;
-
-                t.update(usuarioRef, { 
-                    saldo_logistica: nuevoSaldo,
-                    ultima_recarga: admin.firestore.FieldValue.serverTimestamp()
-                });
-
-                const reciboRef = db.collection('Historial_Recargas').doc(transaccion.id);
-                t.set(reciboRef, {
-                    uid: uidUsuario,
-                    monto: montoCOP,
-                    metodo: transaccion.payment_method_type,
-                    fecha: admin.firestore.FieldValue.serverTimestamp()
-                });
-            });
-
-            console.log(`[TESORERÍA] Éxito: $${montoCOP} COP recargados a la bóveda de UID: ${uidUsuario}.`);
         }
     } catch (error) {
-        console.error("Fallo crítico procesando el Webhook de Wompi:", error);
+        console.error("Fallo crítico en Webhook Wompi:", error);
     }
 });
 
@@ -689,27 +696,19 @@ exports.validarAccionConOTP = functions.https.onCall(async (data, context) => {
     });
 });
 
+// ============================================================================
+// 🤖 MÓDULO: KYC BIOMÉTRICO (Google Vision - V2)
+// ============================================================================
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+let visionClient = null; 
 
-let visionClient = null; // Variable global vacía para reusar la conexión
-
-exports.procesarKycBiometrico = onCall({ maxInstances: 10 }, async (request) => {
-  
-  // 🚨 LA TÁCTICA SUI: Importamos la IA pesada SOLO al ejecutar, protegiendo el Deploy
+exports.procesarKycBiometrico = onCall({ memory: '512MB', maxInstances: 10 }, async (request) => {
   if (!visionClient) {
     const vision = require("@google-cloud/vision");
     visionClient = new vision.ImageAnnotatorClient();
   }
 
-  // 1. ESCUDO DE AUTENTICACIÓN ZERO-TRUST
   if (!request.auth) {
-    throw new HttpsError("unauthenticated", "Operación rechazada. El usuario debe estar autenticado.");
-  }
-
-
-  // 1. ESCUDO DE AUTENTICACIÓN ZERO-TRUST
-  if (!request.auth) {
-
     throw new HttpsError("unauthenticated", "Operación rechazada. El usuario debe estar autenticado.");
   }
 
@@ -721,62 +720,44 @@ exports.procesarKycBiometrico = onCall({ maxInstances: 10 }, async (request) => 
   }
 
   try {
-    // 2. DECODIFICACIÓN BRUTAL DE BASE64 A BUFFERS BINARIOS
     const limpiarBase64 = (dataUrl) => dataUrl.replace(/^data:image\/\w+;base64,/, "");
     
     const bufferFrente = Buffer.from(limpiarBase64(frente), "base64");
     const bufferReverso = Buffer.from(limpiarBase64(reverso), "base64");
     const bufferRostro = Buffer.from(limpiarBase64(rostro), "base64");
 
-    // 3. EJECUCIÓN EN PARALELO (Visión Computacional en la Nube)
-    // Disparar las consultas a Google Vision al mismo tiempo para no congelar la CPU
     const [resultadoTexto, resultadoRostro] = await Promise.all([
       visionClient.textDetection({ image: { content: bufferFrente } }),
       visionClient.faceDetection({ image: { content: bufferRostro } })
     ]);
 
-    // --- ANÁLISIS 1: ¿Es una Cédula Colombiana real? ---
     const anotacionesTexto = resultadoTexto[0].textAnnotations;
     const textoExtraido = anotacionesTexto && anotacionesTexto.length > 0 ? anotacionesTexto[0].description.toUpperCase() : "";
 
-    // Buscamos patrones de texto inconfundibles de la Registraduría Nacional
     const esDocumentoValido = textoExtraido.includes("REPUBLICA DE COLOMBIA") || 
                               textoExtraido.includes("CEDULA DE CIUDADANIA") ||
                               textoExtraido.includes("REPUBLICA") ||
                               textoExtraido.includes("COLOMBIA");
 
     if (!esDocumentoValido) {
-      return { 
-        success: false, 
-        mensaje: "Rechazado por el Oráculo: El documento frontal no parece ser una Cédula de Ciudadanía legítima." 
-      };
+      return { success: false, mensaje: "Rechazado: El documento frontal no parece ser una Cédula legítima." };
     }
 
-    // --- ANÁLISIS 2: ¿La selfie contiene una persona viva? ---
     const rostrosDetectados = resultadoRostro[0].faceAnnotations;
     if (!rostrosDetectados || rostrosDetectados.length === 0) {
-      return { 
-        success: false, 
-        mensaje: "Rechazado por el Oráculo: No se detectó un rostro humano en la selfie de validación." 
-      };
+      return { success: false, mensaje: "Rechazado: No se detectó un rostro humano en la selfie." };
     }
 
-    // Comprobación de Liveness básica (que no sea un papel o una foto impresa de mala calidad)
     const rostroPrincipal = rostrosDetectados[0];
     if (rostroPrincipal.detectionConfidence < 0.7) {
-      return { success: false, mensaje: "Calidad insuficiente. Inténtalo de nuevo en un lugar más iluminado." };
+      return { success: false, mensaje: "Calidad insuficiente. Inténtalo de nuevo con mejor iluminación." };
     }
 
-    // 4. ALMACENAMIENTO DE SEGURIDAD EN EL BÚNKER DE STORAGE
     const bucket = admin.storage().bucket();
     const timestamp = Date.now();
     const pathBase = `kyc/${uid}_${timestamp}`;
 
-    // Al usar save() desde admin, nos saltamos las reglas públicas del storage.rules
-    const opcionesArchivo = { 
-      metadata: { contentType: "image/webp" }, 
-      private: true 
-    };
+    const opcionesArchivo = { metadata: { contentType: "image/webp" }, private: true };
 
     await Promise.all([
       bucket.file(`${pathBase}_frente.webp`).save(bufferFrente, opcionesArchivo),
@@ -784,15 +765,12 @@ exports.procesarKycBiometrico = onCall({ maxInstances: 10 }, async (request) => 
       bucket.file(`${pathBase}_rostro.webp`).save(bufferRostro, opcionesArchivo)
     ]);
 
-    // Guardamos las rutas internas (gs://) para que solo el Admin pueda generar URLs de lectura
     const urlFrente = `gs://${bucket.name}/${pathBase}_frente.webp`;
     const urlReverso = `gs://${bucket.name}/${pathBase}_reverso.webp`;
     const urlRostro = `gs://${bucket.name}/${pathBase}_rostro.webp`;
 
-    // 5. SELLO DE REVISIÓN EN FIRESTORE (Colección Directorio)
-    const docRef = admin.firestore().collection("Directorio").doc(uid);
-    await docRef.set({
-      estado_moderacion: "en_revision_kyc", // Desbloquea la UI para pasar a la pasarela de pagos
+    await admin.firestore().collection("Directorio").doc(uid).set({
+      estado_moderacion: "en_revision_kyc", 
       evidencia_kyc: {
         frente: urlFrente,
         reverso: urlReverso,
@@ -801,39 +779,32 @@ exports.procesarKycBiometrico = onCall({ maxInstances: 10 }, async (request) => 
       }
     }, { merge: true });
 
-    return { 
-      success: true, 
-      mensaje: "Búnker sellado. Biometría en cola de revisión humana asistida." 
-    };
+    return { success: true, mensaje: "Búnker sellado. Biometría enviada exitosamente." };
 
   } catch (error) {
-    console.error("💥 Falla catastrófica en la Cocina KYC:", error);
-    throw new HttpsError("internal", "Error interno en el procesamiento de la Bóveda: " + error.message);
+    console.error("Falla en la Cocina KYC:", error);
+    throw new HttpsError("internal", "Error interno en el procesamiento: " + error.message);
   }
 });
 
 // ============================================================================
-// ⚖️ MÓDULO 10: EL NOTARIO CIEGO (Bóveda Legal Zero-Knowledge)
+// ⚖️ MÓDULO 10: EL NOTARIO CIEGO (SUI + RECAUDO + PDF - ASÍNCRONO TRUSTLESS)
 // ============================================================================
-const PDFDocument = require('pdfkit');
-
-// Usamos memory: '512MB' porque la generación de PDFs y manipulación de imágenes Base64 consume más RAM en el servidor.
 exports.sellarTramiteLegal = functions.runWith({ secrets: [semillaSui], memory: '512MB' }).https.onCall(async (data, context) => {
     if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Acceso denegado.');
 
     const uidUsuario = context.auth.uid;
     const { textoContrato, otp, gps, selfie, codigo, timestamp } = data; 
 
-    if (!textoContrato || !selfie) throw new functions.https.HttpsError('invalid-argument', 'Falta el contrato o la evidencia biométrica.');
+    if (!textoContrato || !selfie) {
+        throw new functions.https.HttpsError('invalid-argument', 'El paquete probatorio está incompleto.');
+    }
 
     try {
-        // 1. Forjado del PDF en Memoria (Buffer)
         const pdfBuffer = await generarPDFEnMemoria(textoContrato, gps, selfie, codigo, timestamp);
-
-        // 2. El Hash (Huella dactilar del PDF)
         const hashOriginal = crypto.createHash('sha256').update(pdfBuffer).digest('hex');
 
-        // 3. Inmutabilidad SUI: Extraemos Gas de tu Malla para pagar el notariado
+        // 🔥 LA TÁCTICA GANADORA: Carga asíncrona dinámica idéntica al Módulo 3
         const { SuiJsonRpcClient } = await import('@mysten/sui/jsonRpc');
         const { Ed25519Keypair } = await import('@mysten/sui/keypairs/ed25519');
         const { Transaction } = await import('@mysten/sui/transactions');
@@ -849,12 +820,11 @@ exports.sellarTramiteLegal = functions.runWith({ secrets: [semillaSui], memory: 
             return nodos;
         });
 
-        if (!monedaSuiGas) throw new Error("Malla de Gas vacía. Imposible notariar en Blockchain.");
+        if (!monedaSuiGas) throw new Error("Malla de Gas sin liquidez temporal.");
 
         const tx = new Transaction();
         tx.setGasPayment([{ objectId: monedaSuiGas.id, version: monedaSuiGas.version, digest: monedaSuiGas.digest }]);
         
-        // ⚠️ ATENCIÓN: Debes asegurarte de que tu Smart Contract en SUI tenga un módulo 'notario' y función 'sellar_documento'
         tx.moveCall({
             target: `${PACKAGE_ID}::notario::sellar_documento`,
             arguments: [tx.pure.string(hashOriginal), tx.pure.u64(timestamp)]
@@ -864,37 +834,42 @@ exports.sellarTramiteLegal = functions.runWith({ secrets: [semillaSui], memory: 
         const result = await suiClient.signAndExecuteTransaction({ transaction: tx, signer: keypair });
         const txId = result.digest;
 
-        // 4. Cifrado Zero-Knowledge Híbrido (Usando el TxID inmutable + OTP del usuario)
         const llaveDerivada = crypto.createHash('sha256').update(txId + otp).digest();
-        const iv = crypto.randomBytes(16); // Vector de inicialización único por archivo
+        const iv = crypto.randomBytes(16); 
         const cipher = crypto.createCipheriv('aes-256-gcm', llaveDerivada, iv);
         
         const pdfCifrado = Buffer.concat([cipher.update(pdfBuffer), cipher.final()]);
         const authTag = cipher.getAuthTag(); 
 
-        // Empaquetamos la cabecera necesaria para desencriptar (iv + authTag + pdfCifrado)
         const paqueteFinal = Buffer.concat([iv, authTag, pdfCifrado]);
 
-        // 5. Despacho a Firebase Storage (Queda encriptado, ni Google ni tú pueden leerlo)
+                // 5. Carga blindada a Storage privado con Metadato de Descarga Amigable
         const bucket = admin.storage().bucket();
         const archivoDestino = bucket.file(`boveda_legal/${uidUsuario}/${txId}.enc`);
         
+        // El parámetro 'otp' de la función recibe tu código de 9 dígitos escrito a mano
+        const nombreDescargaAmigable = `${otp}.pdf`;
+
         await archivoDestino.save(paqueteFinal, {
-            metadata: { contentType: 'application/octet-stream' }
+            metadata: { 
+                contentType: 'application/octet-stream',
+                contentDisposition: `attachment; filename="${nombreDescargaAmigable}"` // <-- Fuerza el nombre exacto al descargar
+            },
+            private: true
         });
 
-        // 6. Retorno exitoso: Solo devolvemos el Hash/TXID para que el celular arme el QR.
-        return { success: true, txId: txId };
+        return { success: true, txId: txId, hashPdf: hashOriginal };
+
 
     } catch (error) {
-        console.error("[NOTARIO CIEGO] Error forjando contrato:", error);
-        throw new functions.https.HttpsError('internal', 'Fallo en la bóveda criptográfica: ' + error.message);
+        console.error("[NOTARIO CIEGO CRÍTICO]:", error);
+        throw new functions.https.HttpsError('internal', error.message);
     }
 });
 
-// Función auxiliar: Dibuja el PDF en la memoria RAM del servidor. No accesible desde internet.
 function generarPDFEnMemoria(texto, gps, selfieBase64, codigo, timestamp) {
     return new Promise((resolve, reject) => {
+        const PDFDocument = require('pdfkit'); 
         const doc = new PDFDocument();
         const buffers = [];
         
@@ -902,24 +877,21 @@ function generarPDFEnMemoria(texto, gps, selfieBase64, codigo, timestamp) {
         doc.on('end', () => resolve(Buffer.concat(buffers)));
         doc.on('error', reject);
         
-        // Estructura visual del documento
         doc.fontSize(18).text('DOCUMENTO LEGAL VINCULANTE (LEY 527 DE 1999)', { align: 'center' });
         doc.moveDown();
         doc.fontSize(12).text(texto, { align: 'justify' });
         
-        // Página de evidencias biométricas
         doc.addPage();
         doc.fontSize(16).text('EVIDENCIA CRIPTOGRÁFICA Y LIVENESS', { align: 'center' });
         doc.moveDown();
         
         const fechaStamp = new Date(timestamp).toISOString();
         doc.fontSize(10).text(`Firma Registrada (UTC): ${fechaStamp}`);
-        doc.text(`Coordenadas Juramentadas: Lat ${gps.lat}, Lng ${gps.lng}`);
-        doc.text(`Código de Intención Biométrico: ${codigo}`);
+        doc.text(`Coordenadas Juramentadas: Lat ${gps?.lat || 'N/D'}, Lng ${gps?.lng || 'N/D'}`);
+        doc.text(`Código de Intención Biométrico: ${codigo || 'N/D'}`);
         
         if (selfieBase64) {
             doc.moveDown();
-            // Limpiamos el prefijo de la imagen WebP generada por tu frontend
             const base64Data = selfieBase64.replace(/^data:image\/\w+;base64,/, "");
             const imgBuffer = Buffer.from(base64Data, 'base64');
             doc.image(imgBuffer, { fit: [250, 250], align: 'center' });
@@ -928,4 +900,3 @@ function generarPDFEnMemoria(texto, gps, selfieBase64, codigo, timestamp) {
         doc.end();
     });
 }
-

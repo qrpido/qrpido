@@ -12,9 +12,21 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstati
 
 
 
+
+
+
+
 import { getDatabase, ref as rtdbRef, set, get, onValue, child, serverTimestamp, query as queryRTDB, limitToLast, orderByChild } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js'; 
 import { db } from './firebase-config.js'; // Ajusta la ruta a tu inicialización de Firebase
+
+
+
+
+
+
+
+
 
 
 
@@ -28,6 +40,14 @@ const auth = getAuth(db.app);
 const storage = getStorage(db.app); 
 const realtimeDb = getDatabase(db.app); // 🔥 MOTOR DEL RADAR P2P ACTIVADO
 const functions = getFunctions(db.app); // 🚨 SALVAVIDAS: Inicialización vital para Web3 y TOTP
+
+
+
+
+
+
+
+
 
 
 
@@ -135,6 +155,14 @@ return { success: false, error: error.message };
 
 
 
+
+
+
+
+
+
+
+
         /**
          * @namespace AdminService
          * Operaciones de escritura optimizadas e inteligentes para administradores.
@@ -173,6 +201,10 @@ perdonarNegocio: async (idNegocio) => {
                     return { success: false, error: "Error subiendo archivo a la bodega", details: e.message };
                 }
             },
+
+
+
+
 
 
 
@@ -233,6 +265,8 @@ perdonarNegocio: async (idNegocio) => {
             guardarProducto: async (idNegocio, idProducto, dataObj) => {
 
 
+
+
                 try {
                     const docRef = idProducto 
                         ? doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, idProducto)
@@ -253,6 +287,10 @@ perdonarNegocio: async (idNegocio) => {
                     return { success: true, data: resultados, ultimoDoc: null };
                 } catch (e) { return { success: false, error: e.message }; }
             },
+
+
+
+
 
 
 
@@ -385,6 +423,10 @@ obtenerNegociosEnObservacion: async () => {
 
 
 
+
+
+
+
             obtenerEstadisticasGlobales: async () => {
                 try {
                     // Magia de Ahorro: getCountFromServer cuenta en la nube, casi no cuesta lecturas
@@ -451,6 +493,8 @@ obtenerNegociosEnObservacion: async () => {
             },
 
 
+
+
                         revocarModerador: async (uid) => {
                 try {
                     // Le quitamos la placa borrando su documento de la colección de permisos
@@ -495,6 +539,10 @@ if (!d.eliminado) resultados.push({ id_prod: doc.id, ...d });
 });
 }
 return { success: true, data: resultados, ultimoDoc: ultimoDoc };
+
+
+
+
 
 
 
@@ -611,6 +659,14 @@ buscarEnRadar: async (lat, lng, radiusInM) => {
 
 
 
+
+
+
+
+
+
+
+
 /**
 * @namespace MediaService
 * Gestiona el feed de noticias (Pulso Urbano) protegiendo la lectura de Firebase y manejando la paginación.
@@ -654,10 +710,8 @@ return { success: false, error: e.message };
 * Motor Zero Trust para validación y autenticación aislada de la UI.
 */
 SecurityService: {
-generarSelloSeguroTOTP: async (codigoReferido, idNegocio) => {
+    generarSelloSeguroTOTP: async (codigoReferido, idNegocio) => {
         try {
-            const { httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js');
-            // Nota: 'functions' debe estar inicializado en la cabecera de core-db.js
             const generarSello = httpsCallable(functions, 'generarSelloSeguro');
             const res = await generarSello({ codigoReferido, idNegocio });
             return { success: true, data: res.data };
@@ -670,13 +724,10 @@ generarSelloSeguroTOTP: async (codigoReferido, idNegocio) => {
 
     verificarTOTP: async (email, codigo) => {
         try {
-            // Delegamos la validación criptográfica estricta al Backend
-            const { httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js');
             const validadorTOTP = httpsCallable(functions, 'validarRegistroTOTP');
             const res = await validadorTOTP({ email, codigo });
             
             if (res.data && res.data.success) {
-                // Si el código es válido, el backend internamente marca la cuenta como 'verificada'
                 return { success: true, data: res.data };
             } else {
                 return { success: false, error: res.data.mensaje || "El código TOTP es inválido o ha expirado." };
@@ -688,19 +739,22 @@ generarSelloSeguroTOTP: async (codigoReferido, idNegocio) => {
     },
 
 
-        sellarTramiteLegal: async (paqueteEvidencia) => {
+    // ==========================================
+    // VÍNCULO SINCRO-VIVIENTE CON EL NOTARIO SUI
+    // ==========================================
+    sellarTramiteLegal: async (paqueteEvidencia) => {
         try {
-            const { httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js');
-            const notarioCloud = httpsCallable(functions, 'sellarContratoSUI');
+            // CORRECCIÓN: Apunta con precisión milimétrica al export real de index.js
+            const notarioCloud = httpsCallable(functions, 'sellarTramiteLegal');
             const res = await notarioCloud(paqueteEvidencia);
             
             if (res.data && res.data.success) {
-                return { success: true, txId: res.data.txId };
+                return { success: true, txId: res.data.txId, hashPdf: res.data.hashPdf };
             } else {
-                return { success: false, error: res.data.mensaje || "Firma rechazada por el oráculo." };
+                return { success: false, error: res.data.mensaje || "Firma rechazada por el oráculo legal." };
             }
         } catch (e) {
-            console.error("Error Criptográfico:", e);
+            console.error("Error Criptográfico en Sellar Trámite:", e);
             return { success: false, error: e.message };
         }
     },
@@ -708,9 +762,9 @@ generarSelloSeguroTOTP: async (codigoReferido, idNegocio) => {
     // Tubería 1: Disparador de OTP al correo
     solicitarOtpFirma: async (emailDestino) => {
         try {
-            const { httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js');
-            const enviarOtp = httpsCallable(functions, 'enviarOtpFirma');
-            const res = await enviarOtp({ email: emailDestino });
+            // CORRECCIÓN: Sincronizado con exports.solicitarOTP del backend
+            const enviarOtp = httpsCallable(functions, 'solicitarOTP');
+            const res = await enviarOtp({ email: emailDestino, accion: "Firma de Contrato Electrónico" });
             return { success: true, data: res.data };
         } catch (e) { return { success: false, error: e.message }; }
     },
@@ -719,7 +773,6 @@ generarSelloSeguroTOTP: async (codigoReferido, idNegocio) => {
     // Tubería 2: Creador de Sala Asíncrona (P2P)
     iniciarTramiteP2P: async (datosContrato, emailContraparte) => {
         try {
-            const { httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js');
             const iniciarSala = httpsCallable(functions, 'crearBorradorTramiteP2P');
             const res = await iniciarSala({ datos: datosContrato, contraparte: emailContraparte });
             return { success: true, salaId: res.data.salaId };
@@ -727,17 +780,16 @@ generarSelloSeguroTOTP: async (codigoReferido, idNegocio) => {
     },
 
 
-    // 🚨 TUBERÍA KYC (NIVEL BANCARIO): Pasa la biometría por el Búnker de Cloud Functions
+    // ==========================================
+    // VÍNCULO CORREGIDO PARA KYC (PRODUCCIÓN)
+    // ==========================================
     sellarEvidenciaKYC: async (idNegocio, fotosEnBase64) => {
         try {
-            const { httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js');
-            
-            // Llamamos al Oráculo (Cloud Function)
             const procesarKycFunction = httpsCallable(functions, 'procesarKycBiometrico');
             
-            // Le mandamos las fotos ya comprimidas (Base64) para que la Nube las guarde en Storage
+            // CORRECCIÓN DE PAYLOAD: Eliminamos la envoltura para que las variables 
+            // viajen libres y alineadas con el destructuring de Cloud Functions v1.
             const payload = {
-                uid: idNegocio,
                 frente: fotosEnBase64.frente,
                 reverso: fotosEnBase64.reverso,
                 rostro: fotosEnBase64.rostro
@@ -760,91 +812,109 @@ generarSelloSeguroTOTP: async (codigoReferido, idNegocio) => {
     },
 
 
-
-
     registrarUsuario: async (email, pass, tipoCuenta) => {
-
-
-
-
-    try {
-        const result = await createUserWithEmailAndPassword(auth, email, pass);
-
-
-        // Creamos su "Bóveda" en Firestore cumpliendo tus Reglas Zero Trust
-        await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, result.user.uid), {
-            nombre: "Mi Negocio",
-            email: email,
-            tipo_modelo: tipoCuenta,
-            estado_moderacion: 'pendiente',
-            premium: false,
-            fecha_registro: new Date().toISOString()
-        });
-        return { success: true, data: result.user };
-    } catch (e) {
-        return { success: false, error: e.message };
-    }
-},
-obtenerRolAdmin: async (uid) => {
-    try {
-        const snap = await getDoc(doc(db, "Usuarios_Admin", uid));
-        return { success: true, data: snap.exists() ? snap.data() : { rol: 'estandar' } };
-    } catch (e) {
-        return { success: false, error: e.message };
-    }
-},
-validateCartIntegrity: (carritoLocal, memoriaProductos) => {
-try {
-let totalReal = 0;
-const carritoSeguro = [];
-for (const itemCliente of carritoLocal) {
-const productoInmutable = memoriaProductos.find(p => p.id === itemCliente.id);
-if (!productoInmutable) throw new Error(`Producto inválido detectado (ID: ${itemCliente.id})`);
-const subtotal = productoInmutable.precio * itemCliente.cantidad;
-totalReal += subtotal;
-carritoSeguro.push({
-id: productoInmutable.id,
-cantidad: itemCliente.cantidad,
-precioValidado: productoInmutable.precio,
-subtotal: subtotal
-});
-}
-return { success: true, data: { totalAprobado: totalReal, carritoLimpio: carritoSeguro } };
-} catch (e) {
-return { success: false, error: "Violación de integridad detectada", details: e.message };
-}
-},
-iniciarConGoogle: async () => {
-    try {
-        await setPersistence(auth, browserLocalPersistence);
-        const provider = new GoogleAuthProvider();
-        const result = await signInWithPopup(auth, provider);
-        
-        // Magia Zero Trust: Validamos si es la primera vez que entra con Google
-        const infoExtra = getAdditionalUserInfo(result);
-        if (infoExtra && infoExtra.isNewUser) {
+        try {
+            const result = await createUserWithEmailAndPassword(auth, email, pass);
             await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, result.user.uid), {
-              nombre: result.user.displayName || "Mi Negocio",
-                email: result.user.email,
-                tipo_modelo: 'negocio', // Por defecto
+                nombre: "Mi Negocio",
+                email: email,
+                tipo_modelo: tipoCuenta,
                 estado_moderacion: 'pendiente',
                 premium: false,
                 fecha_registro: new Date().toISOString()
             });
+            return { success: true, data: result.user };
+        } catch (e) {
+            return { success: false, error: e.message };
         }
-        return { success: true, data: result.user };
-    } catch (e) {
-        return { success: false, error: e.message };
+    },
+
+
+    obtenerRolAdmin: async (uid) => {
+        try {
+            const snap = await getDoc(doc(db, "Usuarios_Admin", uid));
+            return { success: true, data: snap.exists() ? snap.data() : { rol: 'estandar' } };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    },
+
+
+    validateCartIntegrity: (carritoLocal, memoriaProductos) => {
+        try {
+            let totalReal = 0;
+            const carritoSeguro = [];
+            for (const itemCliente of carritoLocal) {
+                const productoInmutable = memoriaProductos.find(p => p.id === itemCliente.id);
+                if (!productoInmutable) throw new Error(`Producto inválido detectado (ID: ${itemCliente.id})`);
+                const subtotal = productoInmutable.precio * itemCliente.cantidad;
+                totalReal += subtotal;
+                carritoSeguro.push({
+                    id: productoInmutable.id,
+                    cantidad: itemCliente.cantidad,
+                    precioValidado: productoInmutable.precio,
+                    subtotal: subtotal
+                });
+            }
+            return { success: true, data: { totalAprobado: totalReal, carritoLimpio: carritoSeguro } };
+        } catch (e) {
+            return { success: false, error: "Violación de integridad detectada", details: e.message };
+        }
+    },
+
+
+    iniciarConGoogle: async () => {
+        try {
+            await setPersistence(auth, browserLocalPersistence);
+            const provider = new GoogleAuthProvider();
+            const result = await signInWithPopup(auth, provider);
+            const infoExtra = getAdditionalUserInfo(result);
+            if (infoExtra && infoExtra.isNewUser) {
+                await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, result.user.uid), {
+                    nombre: result.user.displayName || "Mi Negocio",
+                    email: result.user.email,
+                    tipo_modelo: 'negocio',
+                    estado_moderacion: 'pendiente',
+
+
+                    premium: false,
+                    fecha_registro: new Date().toISOString()
+                });
+            }
+            return { success: true, data: result.user };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    },
+
+
+    iniciarSesion: async (email, pass) => {
+        try {
+            const result = await signInWithEmailAndPassword(auth, email, pass);
+            return { success: true, data: result.user };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    },
+
+
+    cerrarSesion: async () => {
+        try {
+            await signOut(auth);
+            return { success: true };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    },
+
+
+    observarEstadoSesion: (callback) => {
+        onAuthStateChanged(auth, callback);
     }
 },
-iniciarSesion: async (email, pass) => {
-try {
-const result = await signInWithEmailAndPassword(auth, email, pass);
-return { success: true, data: result.user };
-} catch (e) {
-return { success: false, error: e.message };
-}
-},
+
+
+ // <-- Cierre de SecurityService
 
 
 
@@ -853,26 +923,6 @@ return { success: false, error: e.message };
 
 
 
-cerrarSesion: async () => {
-try {
-await signOut(auth);
-return { success: true };
-} catch (e) {
-return { success: false, error: e.message };
-}
-},
-
-
-
-
-
-
-
-
-observarEstadoSesion: (callback) => {
-onAuthStateChanged(auth, callback);
-}
-}, // <-- Cierre de SecurityService
 
 
 
@@ -887,6 +937,10 @@ onAuthStateChanged(auth, callback);
 * Mantiene separados los datos públicos del radar y la bóveda secreta.
 */
 LogisticaService: {
+
+
+
+
 
 
 
@@ -912,6 +966,14 @@ LogisticaService: {
 
 
 
+
+
+
+
+
+
+
+
             // Zero-Trust: Guardamos el pre-ticket en Firestore dentro de la bóveda del negocio
             const docRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${payload.idNegocio}/pedidos_entrantes`, payload.ticket);
             await setDoc(docRef, payload);
@@ -925,10 +987,26 @@ LogisticaService: {
 
 
 
+
+
+
+
+
+
+
+
             console.warn("CoreDB: Fallo al registrar la intención de compra", e);
             return { success: false, error: e.message };
         }
     },
+
+
+
+
+
+
+
+
 
 
 
@@ -956,6 +1034,14 @@ LogisticaService: {
 
 
 
+
+
+
+
+
+
+
+
         inyectarOrdenComercio: async (idOrden, datosRadar, datosSecretos) => {
         try {
             // El comercio inyecta la orden en ambos nodos de forma simultánea
@@ -966,6 +1052,14 @@ LogisticaService: {
             return { success: false, error: e.message };
         }
     },
+
+
+
+
+
+
+
+
 
 
 
@@ -999,8 +1093,24 @@ LogisticaService: {
 
 
 
+
+
+
+
+
+
+
+
             const funcionRespuesta = await crearOrdenLogistica(requestData);
             const dataBackend = funcionRespuesta.data;
+
+
+
+
+
+
+
+
 
 
 
@@ -1020,7 +1130,23 @@ LogisticaService: {
 
 
 
+
+
+
+
+
+
+
+
             console.log("🔒 Escrow asegurado. ID Interno:", dataBackend.ordenId);
+
+
+
+
+
+
+
+
 
 
 
@@ -1060,6 +1186,22 @@ LogisticaService: {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     liberarFondosSUI: async (payload) => {
         try {
             console.log("🌐 [Oráculo SUI] Validando Apretón de Manos Criptográfico...", payload);
@@ -1073,6 +1215,14 @@ LogisticaService: {
             return { success: false, error: e.message };
         }
     },
+
+
+
+
+
+
+
+
 
 
 
@@ -1110,21 +1260,24 @@ LogisticaService: {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // ==========================================
 // EXPORTACIÓN ESTRICTA (Singleton)
 // ==========================================
 // Evita que la UI tenga acceso a _SCHEMA o _cacheLocales.
 export default QRpidoDB;
-
-
-
-
-
-
-
-
-
-
-
-
-
