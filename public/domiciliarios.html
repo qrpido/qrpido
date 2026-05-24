@@ -82,7 +82,7 @@
             <p style="text-align: center; color: #ccc; font-size: 13px;">Ingresa el código que te dicte el cliente:</p>
             
                         <div style="display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; max-width: 320px; margin-left: auto; margin-right: auto;">
-                <input type="text" id="input-secreto" maxlength="5" placeholder="SSSSS" style="flex: 1; outline: none; background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); color: var(--naranja); text-transform: uppercase; text-align: center; font-family: monospace; font-size: 32px; letter-spacing: 5px; padding: 15px; border-radius: 10px; transition: border-color 0.3s;">
+                <input type="text" id="input-secreto" maxlength="10" placeholder="QRP-XXXXXX" style="flex: 1; outline: none; background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); color: var(--naranja); text-transform: uppercase; text-align: center; font-family: monospace; font-size: 24px; letter-spacing: 2px; padding: 15px; border-radius: 10px; transition: border-color 0.3s;">
                 
                 <button id="btn-toggle-teclado" onclick="alternarTecladoTactico()" style="background: transparent; border: 1px solid var(--glass-border); border-radius: 10px; width: 60px; cursor: pointer; transition: 0.3s; display: flex; align-items: center; justify-content: center;">
                     <span style="opacity: 0.2; font-size: 20px;">⌨️</span>
@@ -124,8 +124,11 @@
             btn.style.cssText = 'padding: 10px; font-size: 14px; border-radius: 8px;';
             btn.innerText = c;
             btn.onclick = () => {
-                if (navigator.vibrate) navigator.vibrate(15);
-                if (inputSecreto.value.length < 5) inputSecreto.value += c;
+             if (navigator.vibrate) navigator.vibrate(15);
+// CAMBIO: Separación limpia del comentario para evitar truncado sintáctico
+if (inputSecreto.value.length < 10) {
+    inputSecreto.value += c;
+}
             };
             contenedorTeclado.appendChild(btn);
         });
@@ -155,43 +158,49 @@
             }
         };
 
-                // Lógica Zero-Trust (Handshake Criptográfico Fase 5)
-        window.validarEntrega = async () => {
-            if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
-            if (document.getElementById('miel-domi').value !== "") return; // Honeypot anti-bots
-            
-            const codigoSecreto = inputSecreto.value.toUpperCase().trim();
+              // Lógica Zero-Trust (Handshake Criptográfico Adaptado al contrato estricto de index.js en la Nube)
+window.validarEntrega = async () => {
+    if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+    if (document.getElementById('miel-domi').value !== "") return; // Honeypot anti-bots
 
-            if (codigoSecreto.length === 5 && ticketPublicoCazado) {
-                const btn = document.querySelector('.bottom-sheet-contenido .btn-cazar');
-                const textoOriginal = btn.innerText;
-                btn.innerText = "⏳ DESBLOQUEANDO FONDOS...";
-                btn.disabled = true;
+    const codigoSecreto = inputSecreto.value.toUpperCase().trim();
 
-                try {
-                    // Puente Blockchain SUI: El Conductor valida el ticket contra el Oráculo
-                    const { success, error } = await QRpidoDB.LogisticaService.liberarFondosSUI({
-                        ticketPublico: ticketPublicoCazado,
-                        ticketSecreto: codigoSecreto
-                    });
+    // Validamos una longitud coherente para producción (Mínimo 6 caracteres o la cadena completa)
+    if (codigoSecreto.length >= 6 && ticketPublicoCazado) {
+        const btn = document.querySelector('.bottom-sheet-contenido .btn-cazar');
+        const textoOriginal = btn.innerText;
+        btn.innerText = "⏳ COBRANDO EN SUI BLOCKCHAIN...";
+        btn.disabled = true;
 
-                    if (success) {
-                        alert("✅ ¡Apretón de Manos Exitoso! Fondos liberados a tu bóveda.");
-                        document.getElementById('modal-apreton').classList.remove('activo');
-                        inputSecreto.value = "";
-                        contenedorTeclado.style.display = 'none';
-                    } else {
-                        alert("❌ Error en validación criptográfica: " + error);
-                    }
-                } catch(e) {
-                    alert("❌ Fallo de conexión con el Oráculo Web3.");
-                }
-                btn.innerText = textoOriginal;
-                btn.disabled = false;
+        try {
+            // Puente Criptográfico Directo: Cumple el contrato del Módulo 3 (validarEntrega en index.js)
+            const res = await QRpidoDB.LogisticaService.validarEntrega({
+                ordenId: ticketPublicoCazado,           // Mapeado a 'ordenId' tal como lo exige el backend
+                codigoSuministrado: codigoSecreto       // Mapeado a 'codigoSuministrado' tal como lo exige el backend
+            });
+
+            // El backend retorna un HttpsCallableResult, evaluamos la respuesta interna .data o directa
+            const resultado = res.data || res;
+
+            if (resultado && resultado.success) {
+                alert(`✅ ¡ENTREGA VALIDADA!\nSello Web3: ${resultado.txID.substring(0,10)}...\n\nFondos de la orden liberados a tu saldo.`);
+                document.getElementById('modal-apreton').classList.remove('activo');
+                inputSecreto.value = "";
+                if (contenedorTeclado) contenedorTeclado.style.display = 'none';
             } else {
-                alert("⚠️ El código secreto debe tener exactamente 5 caracteres alfanuméricos.");
+                alert("❌ Rechazado por el Cadenero Backend: " + (resultado ? resultado.error : "Código Inválido"));
             }
-        };
+        } catch(e) {
+            console.error(e);
+            alert("❌ Fallo crítico de conexión con la Malla de Gas Web3: " + e.message);
+        }
+        btn.innerText = textoOriginal;
+        btn.disabled = false;
+    } else {
+        alert("⚠️ Ingresa el código de entrega completo (Ej: QRP-A1B2C3).");
+    }
+};
+
 
         window.aceptarOrden = (ticketId = 'TKT-DEMO') => {
             ticketPublicoCazado = ticketId; // Fundimos el ticket a la memoria

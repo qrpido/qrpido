@@ -142,7 +142,9 @@
     <div class="tabs-container">
         <button class="tab-btn activo" onclick="cambiarTab('pendientes', this)">Pendientes</button>
         <button class="tab-btn" onclick="cambiarTab('historial', this)">Historial</button>
+        <button class="tab-btn" style="border-color: var(--rojo-alerta); color: var(--rojo-alerta);" onclick="cambiarTab('tribunal', this)">⚖️ Tribunal</button>
     </div>
+
     <main id="tab-pendientes" class="tab-content activo">
         <div id="contenedor-pendientes">
             <div class="mensaje-vacio">Buscando negocios en cola... ⏳</div>
@@ -225,9 +227,17 @@
                 const mensajeWsp = encodeURIComponent(`Hola ${nombreLimpio}, soy del equipo de verificación de QRpido. Nos comunicamos para validar tu catálogo y habilitar tu negocio en el mapa.`);
                 const linkWsp = telefonoLimpio ? `https://wa.me/${telefonoLimpio}?text=${mensajeWsp}` : '#';
                                 const linkIg = n.instagram ? sanitizarTexto(n.instagram) : null;
-                const linkTienda = `negocio.html?id=${encodeURIComponent(n.id)}`;
-                const linkKyc = n.documento_kyc ? sanitizarTexto(n.documento_kyc) : null;
-                const badgeWeb3 = n.sui_wallet ? `<div class="badge-tipo" style="background: rgba(0, 255, 100, 0.1); color: var(--verde-neon); border: 1px solid var(--verde-neon); box-shadow: 0 0 8px rgba(0,255,100,0.3);">🔗 Billetera Web3 Activa</div>` : '';
+               const linkTienda = `negocio.html?id=${encodeURIComponent(n.id)}`;
+
+// CORRECCIÓN: Adaptación atómica al payload estructurado de la selfie y cédulas de index.js
+const kycObj = n.evidencia_kyc || {};
+const linkFrente = kycObj.frente ? sanitizarTexto(kycObj.frente) : null;
+const linkRostro = kycObj.rostro ? sanitizarTexto(kycObj.rostro) : null;
+
+// El badge se activa si el estado_moderacion en Firestore es el correcto
+const badgeKycPendiente = n.estado_moderacion === "en_revision_kyc" ? `<div class="badge-tipo" style="background: rgba(255, 107, 0, 0.1); color: var(--naranja); border: 1px solid var(--naranja);">⏳ KYC Por Verificar</div>` : '';
+const badgeWeb3 = n.wallet_sui ? `<div class="badge-tipo" style="background: rgba(0, 255, 100, 0.1); color: var(--verde-neon); border: 1px solid var(--verde-neon); box-shadow: 0 0 8px rgba(0,255,100,0.3);">🔗 Billetera SUI Forjada</div>` : '';
+
                 htmlCards += `
                 <div class="card-moderacion" id="card-${n.id}">
                     <div class="card-header">
@@ -249,7 +259,10 @@
                         </a>
                         ${linkIg ? `<a href="${linkIg}" target="_blank" class="btn-tool tool-ig">📸 Instagram</a>` : `<div class="btn-tool" style="opacity:0.3;">Sin IG</div>`}
                         <a href="${linkTienda}" target="_blank" class="btn-tool tool-vitrina">🔍 Visualizar Catálogo</a>
-                        ${linkKyc ? `<a href="${linkKyc}" target="_blank" class="btn-tool" style="background: rgba(255,255,255,0.05); color: white; grid-column: span 2;">🪪 Ver Documento KYC</a>` : `<div class="btn-tool" style="opacity:0.3; grid-column: span 2;">🪪 Sin Documento KYC</div>`}
+                        ${linkFrente ? `<a href="${linkFrente}" target="_blank" class="btn-tool" style="background: rgba(0,170,255,0.1); color: #00aaff; border-color: rgba(0,170,255,0.3);">🪪 Ver Cédula</a>` : `<div class="btn-tool" style="opacity:0.3;">Falta Cédula</div>`} 
+// CAMBIO: Corrección en el cierre de etiquetas HTML para evitar desbordes en el Tools-Grid
+${linkRostro ? `<a href="${linkRostro}" target="_blank" class="btn-tool" style="background: rgba(255,107,0,0.1); color: var(--naranja); border-color: rgba(255,107,0,0.3);">🤳 Ver Selfie</a>` : `<div class="btn-tool" style="opacity:0.3;">Falta Selfie</div>`}
+
                     </div>
 
                     <div class="action-box">
@@ -279,7 +292,14 @@
             
             const btn = document.querySelector(`#card-${id} .btn-aprobar`);
             btn.innerText = '⏳...'; btn.disabled = true;
-            const { success, error } = await QRpidoDB.AdminService.aprobarNegocio(id);
+          // CAMBIO: Separación sintáctica del comentario para ejecución asíncrona limpia
+const { success, error } = await QRpidoDB.AdminService.actualizarNegocio(id, { 
+    estado_moderacion: "aprobado_activo", 
+    kyc_verificado: true, 
+    estado_aliado: "activo", 
+    fecha_aprobacion: new Date().toISOString() 
+});
+
             if(success) {
                 document.getElementById(`card-${id}`).remove();
                 // Si la pantalla se queda vacía, recargamos para ver si hay más
@@ -363,7 +383,83 @@
                 </div>
             </div>`;
         };
+
+        // 6. FUNCIONES DEL TRIBUNAL P2P (Auditoría en Sombra)
+        window.buscarEnTribunal = async () => {
+            const input = document.getElementById('input-buscar-tribunal');
+            const idComercio = input.value.trim();
+            const contenedor = document.getElementById('resultado-tribunal');
+            
+            if(!idComercio) return;
+            contenedor.innerHTML = '<div class="mensaje-vacio">Analizando métricas atómicas de evasión... ⏳</div>';
+            
+            const { success, data, error } = await QRpidoDB.LocalService.getDetails(idComercio);
+            if(!success || !data) {
+                contenedor.innerHTML = '<div class="mensaje-vacio" style="color:var(--rojo-alerta);">Comercio no encontrado en el Directorio.</div>';
+                return;
+            }
+            
+            const intentos = data.intentos_whatsapp || 0;
+            const validadas = data.ordenes_validadas || 0;
+            const fugas = intentos - validadas;
+            const apelaciones = data.apelaciones_ganadas || 0;
+            const limite = apelaciones > 0 ? 9 : 50;
+            const estado = data.estado_aliado || 'activo';
+            
+            contenedor.innerHTML = `
+            <div class="card-moderacion">
+                <div class="card-header">
+                    <h3 class="card-title">${sanitizarTexto(data.nombre)}</h3>
+                    <div class="badge-tipo" style="background: ${estado.includes('baneado') ? 'rgba(255,68,68,0.2)' : 'rgba(0,255,100,0.2)'}; color: ${estado.includes('baneado') ? 'var(--rojo-alerta)' : 'var(--verde-neon)'};">${estado.toUpperCase()}</div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <div style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px; text-align: center;">
+                        <p style="font-size: 10px; color: #888; margin: 0 0 5px 0;">INTENTOS WSP</p>
+                        <h3 style="margin: 0; color: white;">${intentos}</h3>
+                    </div>
+                    <div style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px; text-align: center;">
+                        <p style="font-size: 10px; color: #888; margin: 0 0 5px 0;">ORDENES VALIDADAS</p>
+                        <h3 style="margin: 0; color: var(--verde-neon);">${validadas}</h3>
+                    </div>
+                </div>
+                <p style="font-size: 13px; color: #ddd; text-align: center;">Fugas Detectadas: <span style="color: ${fugas >= limite ? 'var(--rojo-alerta)' : 'var(--naranja)'}; font-weight: bold; font-size: 16px;">${fugas}</span> / Límite: ${limite}</p>
+                <p style="font-size: 11px; color: #aaa; text-align: center;">Apelaciones ganadas previas: ${apelaciones}</p>
+                
+                <div class="action-buttons" style="margin-top: 15px;">
+                    <button class="btn-action btn-rechazar" onclick="ejecutarHardBan('${idComercio}')">Hard Ban</button>
+                    <button class="btn-action btn-aprobar" onclick="perdonarComercio('${idComercio}', ${apelaciones})">Perdonar (Strike 2)</button>
+                </div>
+            </div>`;
+        };
+
+        window.perdonarComercio = async (id, apelacionesActuales) => {
+            if(!confirm("¿Aprobar apelación? El umbral de tolerancia bajará a 9 fugas para este comercio.")) return;
+            const payload = { estado_aliado: 'activo', apelaciones_ganadas: apelacionesActuales + 1, ordenes_validadas: 0, intentos_whatsapp: 0 };
+            const { success, error } = await QRpidoDB.AdminService.actualizarNegocio(id, payload);
+            if(success) { alert("Comercio perdonado."); buscarEnTribunal(); } else { alert("Error: " + error); }
+        };
+
+        window.ejecutarHardBan = async (id) => {
+            if(!confirm("¿Seguro? El negocio perderá acceso total por evasión y quedará marcado en la base de datos de infractores.")) return;
+            const { success, error } = await QRpidoDB.AdminService.actualizarNegocio(id, { estado_aliado: 'baneado_permanente' });
+            if(success) { alert("Hard Ban ejecutado con éxito."); buscarEnTribunal(); } else { alert("Error: " + error); }
+        };
     </script>
+
+    <main id="tab-tribunal" class="tab-content">
+        <div style="background: rgba(255, 68, 68, 0.1); border: 1px solid var(--rojo-alerta); padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+            <h3 style="color: var(--rojo-alerta); margin-top: 0; margin-bottom: 5px;">🚨 Disputas por Evasión</h3>
+            <p style="font-size: 12px; color: #ddd; margin: 0;">Revisa los casos de comercios marcados por el algoritmo. Exige pruebas del chat de WhatsApp antes de Perdonar.</p>
+        </div>
+        <div class="search-container">
+            <input type="text" id="input-buscar-tribunal" class="input-search" placeholder="ID del Negocio a auditar...">
+            <button class="btn-search" style="background: var(--rojo-alerta);" onclick="buscarEnTribunal()">Auditar</button>
+        </div>
+        <div id="resultado-tribunal">
+            <div class="mensaje-vacio">Busca un ID para ver sus métricas atómicas de evasión.</div>
+        </div>
+    </main>
 </body>
 </html>
+
 
