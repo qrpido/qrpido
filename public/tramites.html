@@ -4,13 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>QRpido - Bóveda Legal</title>
-<style>
-html { scroll-padding-top: 140px; } /* Compensa la altura del header + nav */
-</style>
+<link rel="stylesheet" href="ui-estilos.css">
+
 <meta name="theme-color" content="#0a0a0c">
 <link rel="stylesheet" href="ui-estilos.css">
 </head>
-<body class="ui-light" style="background: var(--bg-oscuro); margin: 0; padding-bottom: 50px;">
+<body class="ui-dark" style="background: var(--bg-oscuro); margin: 0; padding-bottom: 50px;">
 <header class="header-tramites" style="position: sticky; top: 0; z-index: 1000; display: flex; justify-content: space-between; padding: 15px 20px; background: var(--bg-oscuro);">
 <h1 style="margin: 0; font-size: 18px; color: var(--naranja); text-transform: uppercase; font-weight: 900; letter-spacing: 1px;">⚖️ Bóveda Legal</h1>
 <div class="contenedor-llave" style="position: relative;">
@@ -148,7 +147,8 @@ html { scroll-padding-top: 140px; } /* Compensa la altura del header + nav */
             <label style="font-size: 13px; color: #f0f0f0; margin-bottom: 8px; display: block; font-weight: bold;">2. Sube tu Llave QR (PNG)</label>
             <div class="file-upload-ui" id="texto-qr" style="border-color: var(--naranja); color: var(--naranja); cursor: pointer;" onclick="document.getElementById('input-llave-qr').click()">🔑 Seleccionar QR</div>
         </div>
-        <button class="btn-submit" style="background: var(--verde-sui) !important; color: black !important; font-size: 15px; margin-top: 15px; box-shadow: 0 8px 21px rgba(0,245,212,0.4) !important;" onclick="desencriptarBoveda()">Desbloquear y Leer</button>
+       <button class="btn-submit btn-desbloquear-boveda" style="font-size: 15px; margin-top: 15px;" onclick="desencriptarBoveda()">Desbloquear y Leer</button>
+
     </div>
 
     <div class="panel-admin">
@@ -334,7 +334,6 @@ QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
         if(document.getElementById('visor-documento-invitado')) {
             document.getElementById('visor-documento-invitado').innerText = PLANTILLAS['arrendamiento'];
         }
-        return;
     }
 
     if(!btnCta || !bloqueOperativo) return;
@@ -622,18 +621,17 @@ window.procesarFirmaFinal = async () => {
             let uidSeguro = 'INVITADO_UID';
             await new Promise(r => QRpidoDB.SecurityService.observarEstadoSesion(u => { if(u) uidSeguro = u.uid; r(); }));
 
-                        const paqueteEvidenciaEvidencial = {
+                       // CORRECCIÓN MULTI-SALA: Alineación absoluta con el contrato strict del index.js en la nube
+            const paqueteEvidenciaEvidencial = {
                 textoContrato: textoFinalContrato,
-                uid: uidSeguro,
-                otp: otpValue,
+                otp: String(otpValue || '').trim(), // Blindaje anti-TypeError para el hash SHA-256 del backend
                 gps: window.coordsFirma,
-                firma_digital_dedo: window.firmaDedoBase64,
-                // CORRECCIÓN: Adjuntamos la selfie real comprimida en RAM y el token de texto en paralelo
-                selfie_evidencia_base64: window.selfieComprimida, 
-                token_selfie_codigo: window.codigoActualFirma || document.getElementById('codigo-selfie').innerText,
+                selfie: window.selfieComprimida,    // Cambiado para que index.js lo reciba como 'selfie'
+                codigo: window.codigoActualFirma || document.getElementById('codigo-selfie').innerText, // Cambiado para que index.js lo reciba como 'codigo'
                 wompi_ref: idReferenciaWompi,
                 timestamp: Date.now()
             };
+
 
 
             const res = await QRpidoDB.SecurityService.sellarTramiteLegal(paqueteEvidenciaEvidencial);
@@ -1071,26 +1069,25 @@ window.renderizarHistorialFiltrado = () => {
         return;
     }
 
-    documentosFiltrados.forEach(doc => {
+        documentosFiltrados.forEach(doc => {
         contenedorLista.innerHTML += `
-            <div style="background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; animation: fadeIn 0.2s;">
+            <div style="background: rgba(22,22,26,0.95); border: 1px solid rgba(255,255,255,0.08); padding: 15px; border-radius: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; animation: fadeIn 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
                 <div>
-                    <h3 style="margin: 0 0 5px 0; font-size: 14px; color: white;">${doc.tipo} #${doc.id}</h3>
-                    <div style="display:flex; gap:10px; color:#888; font-size:12px; margin-bottom:5px;">
+                    <h3 style="margin: 0 0 5px 0; font-size: 14px; color: #ffffff; font-weight: bold;">${doc.tipo} #${doc.id}</h3>
+                    <div style="display:flex; gap:10px; color:#b0b0b0; font-size:12px; margin-bottom:5px;">
                         <span>📍 ${doc.lugar}</span>
                         <span>📅 ${doc.fecha}</span>
                     </div>
                     <span style="background: rgba(0,245,212,0.1); color: var(--verde-sui); font-size: 10px; padding: 4px 8px; border-radius: 10px; font-weight: bold; display: inline-block;">${doc.estado}</span>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 5px;">
-                    <button style="background: transparent; border: 1px solid #aaa; color: #ccc; font-size: 12px; padding: 6px; border-radius: 6px; cursor: pointer; font-weight: bold;">📄 Bajar PDF</button>
-                    <button style="background: transparent; border: 1px solid var(--naranja); color: var(--naranja); font-size: 12px; padding: 6px; border-radius: 6px; cursor: pointer; font-weight: bold;" onclick="window.descargarLlaveQR('${doc.id}')">🔑]ec- Llave QR</button>
+                <div style="display: flex; flex-direction: column; gap: 6px; width: 40%; max-width: 120px;">
+                    <button style="background: #ffffff; border: none; color: #000000; font-size: 11px; padding: 8px; border-radius: 8px; cursor: pointer; font-weight: 900; text-transform: uppercase;">📄 PDF</button>
+                    <button style="background: var(--naranja); border: none; color: #ffffff; font-size: 11px; padding: 8px; border-radius: 8px; cursor: pointer; font-weight: 900; text-transform: uppercase; box-shadow: 0 2px 8px rgba(255,107,0,0.3);" onclick="window.descargarLlaveQR('${doc.id}')">🔑 Llave QR</button>
                 </div>
             </div>
         `;
     });
-};
-
+}; // <-- ESTA ES LA LLAVE QUIRÚRGICA QUE CIERRA LA FUNCIÓN RENDERIZAR
 // Vinculación reactiva de eventos en la barra de herramientas para filtrado instantáneo sin latencia
 document.body.addEventListener('input', (e) => {
     if (e.target.id === 'buscador-codigo') window.renderizarHistorialFiltrado();
@@ -1102,7 +1099,4 @@ document.body.addEventListener('change', (e) => {
 </script>
 </body>
 </html>
-
-
-
 
