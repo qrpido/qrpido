@@ -4,7 +4,64 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>QRpido - Bóveda Legal</title>
-<link rel="stylesheet" href="ui-estilos.css">
+<style>
+html { 
+    scroll-padding-top: 160px; 
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+}
+/* Forzado del Genoma Base: Botones de Bóveda con Branding */
+.file-upload-ui {
+    background: rgba(255,107,0,0.03) !important;
+    color: var(--naranja) !important;
+    border: 2px dashed var(--naranja) !important;
+    font-weight: bold !important;
+    text-shadow: none !important;
+}
+#texto-pdf-cifrado {
+    border-color: #00f5d4 !important;
+    color: #00f5d4 !important;
+    background: rgba(0,245,212,0.03) !important;
+}
+/* Forzado absoluto del botón principal de desbloqueo */
+.btn-desbloquear-boveda {
+    background: #ff6b00 !important; /* Naranja Áureo Puro */
+    color: #ffffff !important; /* Texto Blanco de alto contraste */
+    font-weight: 900 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+    box-shadow: 0 4px 20px rgba(255,107,0,0.4) !important;
+    border: none !important;
+}
+/* Optimización de capas para scroll natural y elástico en hardware móvil */
+@media (max-width: 480px) {
+    header.header-tramites { 
+        position: fixed !important; 
+        top: 0 !important; 
+        left: 0 !important;
+        width: 100% !important;
+        z-index: 1000 !important;
+    }
+    #nav-maestra {
+        position: fixed !important;
+        top: 55px !important;
+        left: 0 !important;
+        width: 100% !important;
+        z-index: 900 !important;
+    }
+    /* Empuja el contenido hacia abajo para liberarlo del bloque de la cabecera */
+    .tab-content {
+        margin-top: 160px !important;
+        padding: 15px !important;
+        box-sizing: border-box !important;
+    }
+    .file-upload-ui, .btn-submit, .input-form, .btn-desbloquear-boveda {
+        box-sizing: border-box !important;
+        width: 100% !important;
+    }
+}
+</style>
+
 
 <meta name="theme-color" content="#0a0a0c">
 <link rel="stylesheet" href="ui-estilos.css">
@@ -294,6 +351,17 @@ window.cambiarTabGlobal = (tabId, element) => {
     setTimeout(() => target.classList.add('active'), 10);
 };
 
+// 📡 RADAR DE ENTORNO: Detección PWA vs App Nativa
+window.obtenerEntornoNavegacion = function() {
+    const isTWA = document.referrer.includes('android-app://');
+    const isWebView = /(iPhone|iPod|iPad).*AppleWebKit(?!.*Safari)/i.test(navigator.userAgent) || 
+                      /Android.*wv/.test(navigator.userAgent);
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+    if (isTWA || isWebView) return 'APP_NATIVA'; // Territorio Monopolio
+    if (isPWA) return 'PWA_INSTALADA'; // Territorio Libre
+    return 'NAVEGADOR_WEB'; // Territorio Libre
+};
 
 // --- MÁQUINA DE ESTADOS (VARIABLES GLOBALES) ---
 window.estadoAccesoLegal = 'desconectado';
@@ -579,6 +647,19 @@ window.procesarFirmaFinal = async () => {
     btn.innerText = "⏳ Abriendo pasarela de pago segura...";
     btn.disabled = true;
 
+    // 🛡️ INTERCEPCIÓN DEL ENTORNO: El Escudo Legal
+    const entorno = window.obtenerEntornoNavegacion();
+    if (entorno === 'APP_NATIVA') {
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        const mensajeSeguridad = `🔒 PROTOCOLO DE SEGURIDAD REQUERIDO\n\nPor estrictas regulaciones de cifrado biométrico y validación bajo la Ley 527 de 1999, la emisión de firmas electrónicas vinculantes debe aislarse de aplicaciones de terceros.\n\nPor favor, ingresa a tuqrpido.com desde el navegador web de tu celular o PC para finalizar la firma de manera segura.`;
+        
+        alert(mensajeSeguridad);
+        btn.innerText = "Sellar y Forjar Contrato en SUI";
+        btn.disabled = false;
+        return; // Matamos el proceso aquí. Wompi jamás se abrirá.
+    }
+
+    // 🌐 FLUJO PWA / WEB (Wompi libre de comisiones monopolísticas)
     const totalPagar = window.esVistaInvitado ? 6990 : 4990;
     const idReferenciaWompi = `QRPIDO-${Date.now()}-${window.idNegocioLogueado || 'INVITADO'}`;
 
@@ -586,11 +667,12 @@ window.procesarFirmaFinal = async () => {
         currency: 'COP',
         amountInCents: totalPagar * 100,
         reference: idReferenciaWompi,
-        publicKey: 'pub_prod_X2Y3Z4...',
+        publicKey: 'pub_prod_X2Y3Z4...', // ⚠️ ASEGÚRATE DE USAR TU LLAVE REAL AQUÍ
         redirectUrl: window.location.href
     });
 
     checkout.open(async (result) => {
+
         const transaction = result.transaction;
         if (transaction.status !== 'APPROVED') {
             alert("⚠️ El pago no pudo ser procesado. Reintenta.");
@@ -635,15 +717,35 @@ window.procesarFirmaFinal = async () => {
 
 
             const res = await QRpidoDB.SecurityService.sellarTramiteLegal(paqueteEvidenciaEvidencial);
-
-            if (res.success) {
+if (res.success) {
                 window.firmaDedoBase64 = null;
                 if(window.clearCanvasFirmaDedo) window.clearCanvasFirmaDedo();
                 localStorage.removeItem('qrpido_cache_documento_en_edicion'); 
 
-                alert("💥 ¡CONTRATO FORJADO JURÍDICAMENTE!\nSello inmutable anclado a la Blockchain SUI.");
-                if (window.mostrarExitoFinal) window.mostrarExitoFinal(res.txId);
+                // VISTA DE ÉXITO (Doble opción para eliminar fricción)
+                const contenedorBloque = document.getElementById('bloque-operativo');
+                contenedorBloque.innerHTML = `
+                    <div style="text-align: center; background: rgba(0,255,100,0.1); border: 2px solid var(--verde-sui); padding: 25px; border-radius: 15px; margin-bottom: 20px;">
+                        <div style="font-size: 50px; margin-bottom: 10px;">✅</div>
+                        <h2 style="color: var(--verde-sui); margin-top: 0; text-transform: uppercase;">Contrato Forjado</h2>
+                        <p style="color: #f0f0f0; font-size: 13px;">Hash Inmutable inyectado en SUI Network: <br><span style="color:#888; font-family:monospace;">${res.txId}</span></p>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 25px;">
+                            <a href="${res.urlDescargaLibre}" target="_blank" style="text-decoration: none;">
+                                <button class="btn-submit" style="margin:0; background: #fff; color: black; font-weight: 900; box-shadow: 0 5px 15px rgba(255,255,255,0.4);">
+                                    📥 DESCARGAR PDF (Acceso Rápido)
+                                </button>
+                            </a>
+                            <p style="font-size: 11px; color: #aaa; margin: -10px 0 0 0;">Este enlace se autodestruirá en 15 minutos.</p>
+
+                            <button class="btn-submit" style="margin:0; background: transparent; border: 1px solid var(--naranja); color: var(--naranja);" onclick="window.descargarLlaveQR('${res.txId}')">
+                                🔑 Descargar Llave de Bóveda (QR)
+                            </button>
+                        </div>
+                    </div>
+                `;
             } else {
+
                 alert("Error en el Notario SUI backend: " + res.error);
                 btn.disabled = false;
                 btn.innerText = "Reintentar Sello";
@@ -716,6 +818,65 @@ window.destruirBovedaMemoria = (url) => {
     document.getElementById('texto-qr').innerText = '🔑 Seleccionar QR';
     alert("Memoria purgada. El rastro del contrato ha sido destruido.");
 };
+// =====================================================================
+// 🔓 LECTURA FRICCIÓN CERO (ON-THE-FLY)
+// =====================================================================
+window.abrirPdfFriccionCero = async (contratoId, btnElement) => {
+    if (navigator.vibrate) navigator.vibrate(50);
+    const textoOriginal = btnElement.innerText;
+    btnElement.innerText = "⏳ Abriendo...";
+    btnElement.disabled = true;
+
+    try {
+        const res = await QRpidoDB.SecurityService.descargarContratoDesbloqueado(contratoId);
+        
+        if (!res.success) throw new Error(res.error);
+
+        // Transformamos la magia pura de Base64 (del backend) a un Blob temporal en RAM
+        const base64Data = res.pdfData.split(',')[1];
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blobPDF = new Blob([byteArray], { type: 'application/pdf' });
+        const urlSegura = URL.createObjectURL(blobPDF);
+
+        // Construimos el teatro visual seguro (Igual que la boveda manual)
+        const idBoveda = 'contenedor-lectura-segura';
+        let contenedorDiv = document.getElementById(idBoveda);
+        
+        if(!contenedorDiv) {
+            contenedorDiv = document.createElement('div');
+            contenedorDiv.id = idBoveda;
+            contenedorDiv.className = 'panel-admin';
+            contenedorDiv.style.borderColor = 'var(--verde-sui)';
+            contenedorDiv.style.marginTop = '20px';
+            document.getElementById('tab-boveda').appendChild(contenedorDiv);
+        }
+        
+        contenedorDiv.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 style="color: var(--verde-sui); margin:0;">🔓 Lectura Rápida Autorizada</h3>
+                <span style="font-size: 10px; background: var(--verde-sui); color: black; padding: 2px 6px; border-radius: 4px;">RAM Only</span>
+            </div>
+            <p style="font-size: 12px; color: #aaa;">Documento desencriptado en vivo por ser participante legítimo.</p>
+            <iframe src="${urlSegura}#toolbar=0" style="width:100%; height: 50vh; border:none; border-radius: 8px; background: white;"></iframe>
+            <button class="btn-submit" style="margin-top:15px; background: transparent !important; border: 1px solid var(--rojo-alerta); color: var(--rojo-alerta);" onclick="destruirBovedaMemoria('${urlSegura}')">☢️ Destruir de la Memoria</button>
+        `;
+        
+        // Hacemos scroll suave hasta el documento
+        contenedorDiv.scrollIntoView({ behavior: 'smooth' });
+
+    } catch (e) {
+        alert("Error de Seguridad: " + e.message);
+    } finally {
+        btnElement.innerText = textoOriginal;
+        btnElement.disabled = false;
+    }
+};
+
 
 
 window.descargarLlaveQR = (txId) => {
@@ -1080,10 +1241,11 @@ window.renderizarHistorialFiltrado = () => {
                     </div>
                     <span style="background: rgba(0,245,212,0.1); color: var(--verde-sui); font-size: 10px; padding: 4px 8px; border-radius: 10px; font-weight: bold; display: inline-block;">${doc.estado}</span>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 6px; width: 40%; max-width: 120px;">
-                    <button style="background: #ffffff; border: none; color: #000000; font-size: 11px; padding: 8px; border-radius: 8px; cursor: pointer; font-weight: 900; text-transform: uppercase;">📄 PDF</button>
+               <div style="display: flex; flex-direction: column; gap: 6px; width: 40%; max-width: 120px;">
+                    <button style="background: #ffffff; border: none; color: #000000; font-size: 11px; padding: 8px; border-radius: 8px; cursor: pointer; font-weight: 900; text-transform: uppercase;" onclick="window.abrirPdfFriccionCero('${doc.id}', this)">📄 LEER PDF</button>
                     <button style="background: var(--naranja); border: none; color: #ffffff; font-size: 11px; padding: 8px; border-radius: 8px; cursor: pointer; font-weight: 900; text-transform: uppercase; box-shadow: 0 2px 8px rgba(255,107,0,0.3);" onclick="window.descargarLlaveQR('${doc.id}')">🔑 Llave QR</button>
                 </div>
+
             </div>
         `;
     });
@@ -1099,4 +1261,3 @@ document.body.addEventListener('change', (e) => {
 </script>
 </body>
 </html>
-

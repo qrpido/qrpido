@@ -80,6 +80,27 @@
     <script src="profiler.js"></script>
     <script type="module" src="auth-mando.js"></script>
 
+// PROTECTOR DE ACCESO (admin.html - Al puro inicio de tus scripts)
+window.addEventListener('DOMContentLoaded', async () => {
+    const isValidaded = localStorage.getItem('qrpido_session_validated');
+    
+    // Si no tiene la llave, expulsión inmediata
+    if (!isValidaded) {
+        window.location.href = 'index.html'; // O redirige al login
+        return;
+    }
+
+    // Si tiene llave, re-valida con Firebase en segundo plano
+    QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
+        if (!user) {
+            window.location.href = 'index.html';
+        } else {
+            // Usuario autenticado, ahora renderiza la interfaz
+            // Aquí llamarías a window.inicializarPanelesSuperAdmin()
+        }
+    });
+});
+
 
     <script>
               // Lógica de Navegación del Laboratorio
@@ -745,24 +766,100 @@
                                 <input type="hidden" id="skinCustomUrl" value="https://cdn-icons-png.flaticon.com/512/3085/3085330.png">
                                 <input type="hidden" id="skinCustomAnclaje" value="skin-png-montura">
                             </div>
+<div id="panel-forja-avatar" class="panel-admin" style="display: none; border-color: #ff6b00; background: rgba(255,107,0,0.05); margin-top: 15px;">
+                                <h2 class="section-title" style="color: #ff6b00; border-bottom: none; margin-bottom: 5px; display: flex; justify-content: space-between;">
+                                    <span>🛠️ Forjar Avatar 3D</span>
+                                    <span style="font-size: 10px; background: #ff6b00; color: white; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">Laboratorio</span>
+                                </h2>
+                                <p style="font-size: 13px; color: #f0f0f0; margin-bottom: 15px; line-height: 1.4;">
+                                    Da vida a tu negocio en el mapa. Graba un video continuo de <strong>10 segundos</strong> dando una vuelta completa (360°) alrededor de tu carrito o foodtruck mientras lo empujas o simulas movimiento.
+                                </p>
 
-                            <script>
-                                // 👁️ Controlador del Escaparate
-                                document.getElementById('select-efecto').addEventListener('change', function(e) {
+                                <div style="background: rgba(0,0,0,0.5); padding: 20px; border-radius: 12px; border: 1px dashed var(--naranja); text-align: center; margin-bottom: 15px;">
+                                    <div style="font-size: 30px; margin-bottom: 10px; animation: pulse 2s infinite;">🎥</div>
+                                    <label style="display: block; width: 100%; background: var(--naranja); color: white; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; cursor: pointer; box-shadow: 0 4px 10px rgba(255,107,0,0.3);">
+                                        SELECCIONAR VIDEO 360°
+                                        <input type="file" id="input-video-avatar" accept="video/mp4,video/quicktime,video/webm" style="display:none;" onchange="window.prepararVideoAvatar(this)">
+                                    </label>
+                                    <p id="nombre-video-seleccionado" style="font-size: 11px; color: #00f5d4; margin-top: 10px; display: none; font-weight: bold; word-break: break-all;"></p>
+                                </div>
+
+                                <div id="contenedor-progreso-video" style="display: none; margin-bottom: 15px;">
+                                    <div style="display: flex; justify-content: space-between; font-size: 11px; color: #ccc; margin-bottom: 5px;">
+                                        <span>Subiendo al laboratorio...</span>
+                                        <span id="porcentaje-video">0%</span>
+                                    </div>
+                                    <div style="width: 100%; background: rgba(255,255,255,0.1); border-radius: 5px; height: 8px; overflow: hidden;">
+                                        <div id="barra-progreso-video" style="height: 100%; width: 0%; background: #00f5d4; transition: width 0.3s ease;"></div>
+                                    </div>
+                                </div>
+
+                                <button id="btn-subir-avatar" class="btn-submit" style="width: 100%; font-size: 14px; background: #333; color: #888; cursor: not-allowed;" disabled onclick="window.iniciarForjaAvatar()">
+                                    ENVIAR AL LABORATORIO
+                                </button>
+                            </div>
+
+                           <script>
+                                document.getElementById('select-efecto').addEventListener('change', async function(e) {
                                     const panelSkins = document.getElementById('panel-skin-premium');
                                     const candado = document.getElementById('candado-skin');
-                                    
-                                    if (e.target.value.includes('skin-custom-png')) {
-                                        panelSkins.style.display = 'block';
-                                        // Si el usuario es Premium, quitamos el candado
-                                        candado.style.display = window.isPremium ? 'none' : 'flex';
-                                    } else {
+                                    const btnCandado = candado.querySelector('.btn-upgrade');
+
+                                    // Si no es un Skin Custom, cerramos el panel
+                                    if (!e.target.value.includes('skin-custom-png')) {
                                         panelSkins.style.display = 'none';
+                                        if(typeof window.actualizarPinLive === 'function') window.actualizarPinLive();
+                                        return;
                                     }
-                                    window.actualizarPinLive();
+
+                                    // Es un Skin: Mostramos el panel y BLOQUEAMOS por defecto
+                                    panelSkins.style.display = 'block';
+                                    candado.style.display = 'flex'; 
+
+                                    // UI de carga
+                                    btnCandado.innerText = "Consultando Bóveda... ⏳";
+                                    btnCandado.onclick = null; 
+                                    
+                                    try {
+                                        // 1. Identificamos qué Skin Pack seleccionó el usuario del select
+                                        // Extraemos el identificador único del option. Ejemplo: "skin-custom-png|PACK_MOTOS_01"
+                                        const partesValor = e.target.value.split('|');
+                                        const idSkinPack = partesValor[1] || 'SKIN_PREMIUM_GENERICO'; 
+
+                                        // 2. Extraemos el UID y preguntamos a la Base de Datos
+                                        const uid = auth.currentUser ? auth.currentUser.uid : null;
+                                        if (!uid) throw new Error("Sin sesión");
+
+                                        const snap = await window.QRpidoDB.AdminService.obtenerNegocioPorUsuario(uid);
+                                        
+                                        if (snap.success && snap.data) {
+                                            const datosNegocio = snap.data;
+                                            
+                                            // 3. LA LÓGICA COMERCIAL FREEMIUM
+                                            // Si el usuario es Premium, todo está desbloqueado
+                                            const esPremiumTotal = datosNegocio.premium === true;
+                                            
+                                            // Si no es premium, revisamos su "Inventario de Skins Compradas"
+                                            const skinsCompradas = datosNegocio.skins_compradas || [];
+                                            const tieneEsteSkin = skinsCompradas.includes(idSkinPack);
+
+                                            if (esPremiumTotal || tieneEsteSkin) {
+                                                candado.style.display = 'none'; // 🔓 Acceso Concedido
+                                            } else {
+                                                // 🔒 El usuario no lo tiene. Le ofrecemos comprarlo.
+                                                // Botón ajustado a $2,790 COP
+                                                btnCandado.innerHTML = `Comprar Pack <br> $2.790 COP 🛒`;
+                                                btnCandado.onclick = () => window.comprarSkinPack(idSkinPack, 2790);
+                                            }
+                                        }
+                                    } catch (error) {
+                                        console.error("Error validando acceso a Skins:", error);
+                                        btnCandado.innerText = "Error de conexión";
+                                    }
+                                    
+                                    if(typeof window.actualizarPinLive === 'function') window.actualizarPinLive();
                                 });
                             </script>
-
 
                             <label class="section-title" style="font-size: 10px; display: flex; justify-content: space-between;">
                                 Intensidad del Efecto (Solo Neón) <span id="val-intensidad">15px</span>
@@ -990,6 +1087,22 @@ import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10
             return div.innerHTML;
         };
 
+// 📡 RADAR DE ENTORNO: Detección PWA vs App Nativa
+        window.obtenerEntornoNavegacion = function() {
+            // 1. TWA (Trusted Web Activity) - Android App
+            const isTWA = document.referrer.includes('android-app://');
+            
+            // 2. WebViews empaquetados en iOS o Android
+            const isWebView = /(iPhone|iPod|iPad).*AppleWebKit(?!.*Safari)/i.test(navigator.userAgent) || 
+                              /Android.*wv/.test(navigator.userAgent);
+            
+            // 3. PWA Instalada libremente desde el navegador
+            const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+            if (isTWA || isWebView) return 'APP_NATIVA'; // Territorio Monopolio
+            if (isPWA) return 'PWA_INSTALADA'; // Territorio Libre
+            return 'NAVEGADOR_WEB'; // Territorio Libre
+        };
 
                 window.formatearMoneda = function(valor) {
             return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(valor);
@@ -1305,29 +1418,139 @@ import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10
         }
 
 
-        window.convertirPremium = function() {
+       window.convertirPremium = function() {
             if (navigator.vibrate) navigator.vibrate(50);
             if (!idNegocioLogueado) return alert("Error: Bóveda no identificada.");
 
+            const entorno = window.obtenerEntornoNavegacion();
 
-            // Generamos referencia atómica exclusiva para PREMIUM
-            // El Webhook en backend leerá "PREMIUM_" y sabrá que debe actualizar la cuenta, no el saldo logístico
+            if (entorno === 'APP_NATIVA') {
+                // 📱 FLUJO TIENDAS - Suscripción Mensual
+                if (window.MobileBridge && window.MobileBridge.suscribirPremium) {
+                    window.MobileBridge.suscribirPremium();
+                } else {
+                    alert("Procesando suscripción Premium con tu cuenta de la tienda de apps...");
+                }
+                return;
+            }
+
+            // 🌐 FLUJO PWA / WEB (Wompi) - $39.000 COP
             const refWompiPremium = `PREMIUM_${idNegocioLogueado}_${Date.now()}`;
-            
             const checkout = new WidgetCheckout({
                 currency: 'COP',
-                amountInCents: 39000 * 100, // $39.000 COP en centavos
+                amountInCents: 39000 * 100,
                 reference: refWompiPremium,
-                publicKey: 'pub_test_XXXXXXXXXXXXXXXXXXXXX', // ⚠️ TU LLAVE PUBLICA DE TEST AQUÍ
+                publicKey: 'pub_test_XXXXXXXXXXXXXXXXXXXXX', // ⚠️ TU LLAVE PUBLICA
                 redirectUrl: window.location.href 
             });
             
             checkout.open(function (result) {
-                const transaction = result.transaction;
-                if(transaction.status === 'APPROVED') {
+                if(result.transaction.status === 'APPROVED') {
                     alert("¡Bienvenido al nivel Premium! Tu bóveda se está desbloqueando.");
-                    // Aquí podrías hacer un reload forzado tras unos segundos, 
-                    // o dejar que el Webhook despierte a la UI en tiempo real vía Firebase
+                }
+            });
+        };
+
+// =====================================================================
+        // 🛠️ CONTROLADOR: FORJA DE AVATARES 3D (VIDEO 360)
+        // =====================================================================
+        window.archivoVideoAvatar = null;
+
+        window.prepararVideoAvatar = (input) => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            
+            const file = input.files[0];
+            if (!file) return;
+
+            const maxSizeMB = 50;
+            if (file.size > maxSizeMB * 1024 * 1024) {
+                alert(`⚠️ El video es muy pesado. El tamaño máximo es ${maxSizeMB}MB.`);
+                input.value = '';
+                return;
+            }
+
+            window.archivoVideoAvatar = file;
+            
+            const lblNombre = document.getElementById('nombre-video-seleccionado');
+            lblNombre.innerText = `✔️ ${file.name} listo para enviar.`;
+            lblNombre.style.display = 'block';
+
+            const btnSubir = document.getElementById('btn-subir-avatar');
+            btnSubir.style.background = "#ff6b00";
+            btnSubir.style.color = "white";
+            btnSubir.style.cursor = "pointer";
+            btnSubir.disabled = false;
+        };
+
+        window.iniciarForjaAvatar = async () => {
+            if (!window.archivoVideoAvatar || !window.idNegocioLogueado) return;
+
+            const btnSubir = document.getElementById('btn-subir-avatar');
+            const contenedorProgreso = document.getElementById('contenedor-progreso-video');
+            
+            btnSubir.disabled = true;
+            btnSubir.innerText = "⏳ TRANSMITIENDO...";
+            btnSubir.style.background = "#333";
+            contenedorProgreso.style.display = 'block';
+
+            try {
+                const res = await window.QRpidoDB.AdminService.subirVideoConProgreso(
+                    window.idNegocioLogueado,
+                    window.archivoVideoAvatar,
+                    (progreso) => {
+                        document.getElementById('barra-progreso-video').style.width = `${progreso}%`;
+                        document.getElementById('porcentaje-video').innerText = `${Math.round(progreso)}%`;
+                    }
+                );
+
+                if (res.success) {
+                    alert("✅ ¡Material recibido!\n\nTu video está en el laboratorio de QRpido. Nuestro equipo procesará tu avatar 2.5D y en las próximas horas se inyectará en la ciudad.");
+                    document.getElementById('contenedor-progreso-video').style.display = 'none';
+                    document.getElementById('nombre-video-seleccionado').style.display = 'none';
+                    btnSubir.innerText = "ENVIAR AL LABORATORIO";
+                    window.archivoVideoAvatar = null;
+                } else {
+                    throw new Error(res.error);
+                }
+            } catch (error) {
+                alert("❌ Error en la transmisión: " + error.message);
+                btnSubir.disabled = false;
+                btnSubir.innerText = "REINTENTAR ENVÍO";
+                btnSubir.style.background = "#ff6b00";
+            }
+        };
+
+// 🛒 MOTOR DE MICRO-TRANSACCIONES (SKINS Y DISEÑOS)
+        window.comprarSkinPack = function(idSkinPack, precioCOP) {
+            if (navigator.vibrate) navigator.vibrate(50);
+            if (!idNegocioLogueado) return alert("Error: Bóveda no identificada.");
+
+            const entorno = window.obtenerEntornoNavegacion();
+
+            if (entorno === 'APP_NATIVA') {
+                // 📱 FLUJO TIENDAS (Google Play / App Store) - $0.99 USD
+                if (window.MobileBridge && window.MobileBridge.comprarInApp) {
+                    window.MobileBridge.comprarInApp(idSkinPack);
+                } else {
+                    console.log("Levantando pasarela nativa para: " + idSkinPack);
+                    alert("Procesando compra de $0.99 USD con tu cuenta de la tienda de apps...");
+                }
+                return; 
+            }
+
+            // 🌐 FLUJO PWA / WEB (Wompi) - $2.790 COP
+            const refWompiSkin = `SKINPACK-${idSkinPack}-${idNegocioLogueado}-${Date.now()}`;
+            const checkout = new WidgetCheckout({
+                currency: 'COP',
+                amountInCents: precioCOP * 100, // Wompi lee en centavos
+                reference: refWompiSkin,
+                publicKey: 'pub_test_XXXXXXXXXXXXXXXXXXXXX', // ⚠️ TU LLAVE PUBLICA
+                redirectUrl: window.location.href 
+            });
+            
+            checkout.open(function (result) {
+                if(result.transaction.status === 'APPROVED') {
+                    alert("¡Compra procesada! El diseño se está añadiendo a tu catálogo.");
                 }
             });
         };
@@ -1384,7 +1607,7 @@ import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10
             }
         }
        
-        QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
+ QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
             if (user) {
                 const { success: adminSuccess, data: adminData } = await QRpidoDB.SecurityService.obtenerRolAdmin(user.uid);
                 let userRole = adminSuccess && adminData ? adminData.rol : "estandar";
@@ -1395,10 +1618,24 @@ import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10
                     await QRpidoDB.SecurityService.cerrarSesion();
                     return;
                 }
-                               if (dirData) {
+                
+                if (dirData) {
                     datosGlobalesNegocio = dirData;
                     idNegocioLogueado = dirData.id || user.uid;
                     isPremium = (datosGlobalesNegocio.premium === "SI" || datosGlobalesNegocio.premium === true);
+                    
+                    // -------------------------------------------------------------
+                    // 🛠️ INYECCIÓN: Visibilidad del Panel de Forja 3D (Modo Nómada)
+                    // -------------------------------------------------------------
+                    const panelForjaAvatar = document.getElementById('panel-forja-avatar');
+                    if (panelForjaAvatar) {
+                        if (isPremium) {
+                            panelForjaAvatar.style.display = 'block';
+                        } else {
+                            panelForjaAvatar.style.display = 'none';
+                        }
+                    }
+                    // -------------------------------------------------------------
                     
                     // 🛡️ GUARDIÁN DEL WIZARD (Con Indulto para Cuentas Antiguas)
                     let progresoBoveda = dirData.progreso_boveda;
@@ -1413,6 +1650,7 @@ import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10
                         window.arrancarWizard(progresoBoveda);
                         return; 
                     }
+
 
                     // 🚨 VERDUGO AUTOMÁTICO: Bloqueo de UI por Strikes de Evasión
 
@@ -1584,8 +1822,82 @@ import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10
                             }
                         });
 
-                        document.getElementById("btn-crear-skin").addEventListener("click", async () => {
-                            alert("¡Fábrica lista! 🚀 En el siguiente paso conectaremos esto con Firebase Storage.");
+                       document.getElementById("btn-crear-skin").addEventListener("click", async (e) => {
+                            e.preventDefault();
+                            const btn = document.getElementById("btn-crear-skin");
+                            const nombre = document.getElementById('fabrica-nombre').value;
+                            const anclaje = document.getElementById('fabrica-anclaje').value;
+                            const coleccion = document.getElementById('fabrica-coleccion').value;
+                            const fileInput = document.getElementById('fabrica-png');
+                            const file = fileInput.files[0];
+
+                            if (!nombre || !file) {
+                                alert("⚠️ Alto ahí. Necesitas un nombre y el archivo PNG para forjar el Skin.");
+                                return;
+                            }
+
+                            const textoOriginal = btn.innerText;
+                            btn.innerText = "Subiendo a Storage... ⏳";
+                            btn.disabled = true;
+                            btn.style.opacity = "0.7";
+
+                            try {
+                                // 1. Inyectar PNG a Firebase Storage (Usando tu core-db.js)
+                                const ext = file.name.split('.').pop();
+                                const nombreSeguro = nombre.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                                const pathStorage = `Skins_Escaparate/${Date.now()}_${nombreSeguro}.${ext}`;
+                                
+                                // Asumiendo que QRpidoDB está importado globalmente en admin.html
+                                const resUpload = await window.QRpidoDB.AdminService.subirArchivo(pathStorage, file);
+                                
+                                if (!resUpload.success) throw new Error(resUpload.error);
+                                const urlImagen = resUpload.data;
+
+                                btn.innerText = "Sellando en Firestore... ⏳";
+
+                                // 2. Escribir el Genoma del Skin en la Base de Datos
+                                const idDoc = `skin_${Date.now()}`;
+                                const skinData = {
+                                    id: idDoc,
+                                    nombre: nombre,
+                                    clase_anclaje: anclaje,
+                                    categoria_venta: coleccion,
+                                    url_imagen: urlImagen,
+                                    fecha_creacion: new Date().toISOString(),
+                                    activo: true
+                                };
+
+                                // Utilizamos la instancia 'db' de Firebase Firestore ya inicializada en tu entorno
+                                await window.setDoc(window.doc(window.db, "Skins_Escaparate", idDoc), skinData);
+
+                                // 3. Éxito Visual
+                                btn.style.background = "#00ff64";
+                                btn.style.color = "#0f0f12";
+                                btn.innerText = "¡Skin Forjado y Activo! ✅";
+                                
+                                // Limpieza de la Fábrica
+                                setTimeout(() => {
+                                    document.getElementById('fabrica-nombre').value = '';
+                                    fileInput.value = '';
+                                    document.getElementById("ui-texto-fabrica").innerText = "📸 Subir PNG Transparente";
+                                    document.getElementById("ui-texto-fabrica").style.borderColor = "#d8b4fe";
+                                    document.getElementById("ui-texto-fabrica").style.color = "#d8b4fe";
+                                    
+                                    btn.style.background = "#8a2be2";
+                                    btn.style.color = "white";
+                                    btn.style.opacity = "1";
+                                    btn.innerText = textoOriginal;
+                                    btn.disabled = false;
+                                }, 3000);
+
+                            } catch (error) {
+                                console.error("Error forjando Skin:", error);
+                                alert("Error crítico en la forja: " + error.message);
+                                btn.style.background = "#ff3333";
+                                btn.innerText = "Error - Reintentar";
+                                btn.disabled = false;
+                                btn.style.opacity = "1";
+                            }
                         });
                     }
                 }
@@ -2750,4 +3062,3 @@ import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10
 
 </body>
 </html>
-

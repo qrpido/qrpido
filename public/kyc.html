@@ -144,10 +144,15 @@
         let pasoActual = 1; 
         let streamActual = null;
         let loopAnalisisLuz = null;
+        let uidCiudadanoSecreto = null; // 🛡️ Sello de acoplamiento de sesión
         const fotosEnRAM = { frente: null, reverso: null, rostro: null };
 
+        // Escuchamos la sesión de forma reactiva al inicializar
+        QRpidoDB.SecurityService.observarEstadoSesion((user) => {
+            if (user) uidCiudadanoSecreto = user.uid;
+        });
+
         async function encenderCamara(esFrontal = false) {
-            // Sincronizar visibilidad del flash según el tipo de cámara
             flashEncendido = false;
             if(btnFlash) {
                 btnFlash.innerText = "FH";
@@ -176,7 +181,6 @@
                     video.classList.add('trasera');
                 }
 
-                // 🎯 RECALIBRACIÓN ÓPTICA TOTAL POR TOQUE DIRECTO AL VISOR
                 document.getElementById('visor-camara').onclick = async () => {
                     const track = streamActual.getVideoTracks()[0];
                     if (track && typeof track.getCapabilities === 'function') {
@@ -257,7 +261,6 @@
             if(pasoActual <= 2) {
                 fxEscaneo.style.display = "block";
             } else {
-                // Adaptación Matrix al óvalo de la selfie
                 fxEscaneo.style.top = "14%";
                 fxEscaneo.style.height = "64%";
                 fxEscaneo.style.borderRadius = "50%";
@@ -300,11 +303,10 @@
                     await encenderCamara(true); 
                 
                 } else if (pasoActual === 3) {
-                    // VALIDACIÓN 3: CRUCES BIOMÉTRICOS CLIENT-SIDE COMPLETO
                     const tokenValido = await validarTokenSelfieConIA(canvas);
                     if (!tokenValido) throw new Error("⚠️ No logramos leer el código manuscrito en el papel. Escríbelo en mayúsculas, acércalo un poco más al recuadro y evita tapar tu rostro.");
 
-                    fotosEnRAM.rostro = fotoWebp; // 💥 SOLUCIÓN AL CARGADO HISTÓRICO EN MEMORIA RAM
+                    fotosEnRAM.rostro = fotoWebp;
                     pasoActual = 4;
                     
                     if (streamActual) streamActual.getTracks().forEach(track => track.stop());
@@ -316,7 +318,7 @@
                     
                     document.getElementById('res-frente').src = fotosEnRAM.frente;
                     document.getElementById('res-reverso').src = fotosEnRAM.reverso;
-                    document.getElementById('res-rostro').src = fotosEnRAM.rostro; // Hidratación limpia
+                    document.getElementById('res-rostro').src = fotosEnRAM.rostro;
                     
                     btnFoto.style.display = "none";
                     document.getElementById('panel-resultados').style.display = 'flex';
@@ -398,12 +400,15 @@
         window.enviarAlBunker = async () => {
             if (navigator.vibrate) navigator.vibrate(100);
             const btn = document.querySelector('#panel-resultados .btn-capturar');
-            let idLogueado = (QRpidoDB.auth && QRpidoDB.auth.currentUser) ? QRpidoDB.auth.currentUser.uid : null;
-            if (!idLogueado) return alert("⚠️ Error: Inicia sesión nuevamente.");
+            
+            // CORRECCIÓN: Usamos la variable reactiva blindada para evitar fallos NoSQL
+            if (!uidCiudadanoSecreto) return alert("⚠️ Error de Bóveda: No detectamos una sesión activa. Reingresa.");
+            
             btn.innerText = "Sincronizando con el Búnker...";
             btn.disabled = true;
             try {
-                const result = await QRpidoDB.SecurityService.sellarEvidenciaKYC(idLogueado, fotosEnRAM);
+                // El payload viaja alineado: core-db lo recibe y remueve el uid antes de enviarlo a la Cloud Function v1
+                const result = await QRpidoDB.SecurityService.sellarEvidenciaKYC(uidCiudadanoSecreto, fotosEnRAM);
                 if (!result.success) throw new Error(result.error);
                 btn.innerText = "✔️ Biometría Sellada";
                 btn.style.background = "var(--verde-sui)"; btn.style.color = "black";

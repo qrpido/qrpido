@@ -235,9 +235,9 @@ window.marcadoresRadar[codigo].openPopup();
 };
 window.arrancarMotor = async function() {
 try {
-if (typeof L === 'undefined') throw new Error("Leaflet no se descargó.");
+if (typeof maplibregl === 'undefined') throw new Error("MapLibre no se descargó.");
 construirMapa();
-construirCarrusel();
+
             setTimeout(() => {
                 document.getElementById('pantalla-carga').style.opacity = '0';
                 setTimeout(() => {
@@ -512,18 +512,65 @@ window.descargarNegociosDeFirebase = async function() {
 }; // <--- ¡Esta llave de cierre era la que se había borrado!
 
 window.construirMapa = function() {
-    // 🛡️ REGLA HIPERLOCAL CORREGIDA: minZoom en 15
-    mapa = L.map('mapa-qrpido', { zoomControl: false, minZoom: 15, maxZoom: 18 }).setView([4.8133, -75.6961], 16);
+    // ========================================================================
+    // 🌃 MOTOR WEBGL: GENERACIÓN PROCEDURAL DE LA CIUDAD (MODO SYPHON FILTER)
+    // ========================================================================
+    const PEREIRA_ZONA_CENTRO = [-75.6961, 4.8133]; 
+
+    // Inicialización de la cámara cenital WebGL
+    window.mapa = new maplibregl.Map({
+        container: 'mapa-qrpido', // ID exacto de tu div en index.html
+        style: 'https://tiles.stadiamaps.com/styles/alidade_smooth_dark.json', // Estilo oscuro vectorial
+        center: PEREIRA_ZONA_CENTRO,
+        zoom: 15,
+        pitch: 0, 
+        bearing: 0, 
+        antialias: true 
+    });
     
-    capaBase = L.tileLayer('https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.png', {
-        maxZoom: 20,
-        attribution: '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a>'
-    }).addTo(mapa);
-    
-    const panel = document.querySelector('.leaflet-tile-pane');
-    if (panel) panel.style.filter = "none";
-    
-    capaRadar = L.layerGroup().addTo(mapa);
+    // Vinculamos la variable local para mantener compatibilidad con las funciones inferiores
+    mapa = window.mapa; 
+
+    // Cuando la estructura base termina de cargar, levantamos la extrusión 3D
+    window.mapa.on('load', () => {
+        console.log("🟢 [WebGL Engine] Mapa base cargado. Construyendo geometría urbana...");
+
+        // Añadimos la fuente de datos vectoriales de edificios desde Stadia Maps
+        window.mapa.addSource('edificios_3d', {
+            'type': 'vector',
+            'url': 'https://tiles.stadiamaps.com/data/buildings.json' 
+        });
+
+        // Extrusión de polígonos (Fachadas Oníricas / Syphon Filter)
+        window.mapa.addLayer({
+            'id': 'edificios-extrusion',
+            'type': 'fill-extrusion',
+            'source': 'edificios_3d',
+            'source-layer': 'building',
+            'paint': {
+                'fill-extrusion-color': '#051005', 
+                'fill-extrusion-height': [
+                    'interpolate', ['linear'], ['zoom'],
+                    15, 0,
+                    15.05, ['get', 'height']
+                ],
+                'fill-extrusion-base': [
+                    'interpolate', ['linear'], ['zoom'],
+                    15, 0,
+                    15.05, ['get', 'min_height']
+                ],
+                'fill-extrusion-opacity': 0.85
+            }
+        });
+
+        // Ocultamos las etiquetas de texto por defecto de las calles
+        window.mapa.getStyle().layers.forEach((layer) => {
+            if (layer.id.includes('label')) {
+                window.mapa.setLayoutProperty(layer.id, 'visibility', 'none');
+            }
+        });
+    });
+
     
     let timerMovimiento;
     let ultimoCentroFetch = null;
@@ -1164,44 +1211,51 @@ mapaContenedor.style.transform = `translate3d(0,0,0) scale(1.15) rotateZ(${-curr
 }
 rafGyroId = requestAnimationFrame(animarRadar);
 }
-window.toggleRadarInmersivo = async function(btn) {
-if (gyroActivo) {
-gyroActivo = false;
-window.removeEventListener('deviceorientation', manejarGiroscopio);
-if (rafGyroId) cancelAnimationFrame(rafGyroId);
-const mapaContenedor = document.getElementById('mapa-qrpido');
-if (mapaContenedor) {
-mapaContenedor.style.transition = "transform 0.5s cubic-bezier(0.25, 1, 0.5, 1)";
-mapaContenedor.style.transform = `scale(1) rotateZ(0deg)`;
-setTimeout(() => { if (!gyroActivo) mapaContenedor.style.transition = "none"; }, 500);
-}
-currentGamma = 0; targetGamma = 0;
-btn.innerText = "🧭 Activar Radar 3D";
-btn.style.background = "rgba(0, 255, 255, 0.1)";
-} else {
-if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-try {
-const permissionState = await DeviceOrientationEvent.requestPermission();
-if (permissionState !== 'granted') {
-alert("Se requiere permiso de sensores para el Radar 3D.");
-return;
-}
-} catch (error) {
-alert("Tu navegador bloquea el sensor en modo local o no seguro.");
-return;
-}
-}
-gyroActivo = true;
-const mapaContenedor = document.getElementById('mapa-qrpido');
-if (mapaContenedor) mapaContenedor.style.transition = 'none';
-window.addEventListener('deviceorientation', manejarGiroscopio, { passive: true });
-rafGyroId = requestAnimationFrame(animarRadar);
-btn.innerText = "🛑 Detener Radar";
-btn.style.background = "var(--naranja)";
-btn.style.borderColor = "var(--naranja)";
-btn.style.color = "white";
-}
+// ========================================================================
+// 🎥 CINEMÁTICA DE CÁMARA (TRANSICIÓN 2D A 2.5D)
+// ========================================================================
+window.isRadar3DActivo = false;
+
+window.toggleRadarInmersivo = function(btnElement) {
+    if (!window.mapa) return;
+    
+    if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+
+    window.isRadar3DActivo = !window.isRadar3DActivo;
+
+    if (window.isRadar3DActivo) {
+        // BAJAR A MODO SYPHON FILTER (Street Level)
+        btnElement.innerText = "🚁 Vista Aérea";
+        btnElement.style.background = "rgba(255, 107, 0, 0.2)";
+        btnElement.style.borderColor = "#ff6b00";
+        btnElement.style.color = "#ff6b00";
+
+        // Vuelo de cámara cinematográfico (FlyTo)
+        window.mapa.flyTo({
+            pitch: 65, 
+            bearing: -45, 
+            zoom: 17.5, 
+            duration: 2500, 
+            essential: true
+        });
+
+    } else {
+        // SUBIR A MODO 2D CLÁSICO (Modo Dios)
+        btnElement.innerText = "🧭 Activar Radar 3D";
+        btnElement.style.background = "rgba(0, 255, 255, 0.1)";
+        btnElement.style.borderColor = "#0ff";
+        btnElement.style.color = "#0ff";
+
+        window.mapa.flyTo({
+            pitch: 0, 
+            bearing: 0, 
+            zoom: 15, 
+            duration: 2000,
+            essential: true
+        });
+    }
 };
+
 window.cambiarMapa = function(tipo, el) {
 const servers = {
 'clasico': 'https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.png',

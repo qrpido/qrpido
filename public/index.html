@@ -8,10 +8,14 @@
     window.qrpidoErrorLog = []; 
 
 
+
+
     function mostrarCartelErrorYDescargar(titulo, detalle) {
         const timestamp = new Date().toISOString();
         const textoError = `[${timestamp}] ${titulo}\n${detalle}\n\n`;
         window.qrpidoErrorLog.push(textoError);
+
+
 
 
         if (!document.body) {
@@ -22,13 +26,19 @@
     }
 
 
+
+
     function renderizarCartel(titulo, detalle) {
         if (document.getElementById('cartel-error-critico')) return;
+
+
 
 
         const errDiv = document.createElement('div');
         errDiv.id = 'cartel-error-critico';
         errDiv.style.cssText = "position:fixed; top:10%; left:5%; width:90%; background:rgba(20,0,0,0.95); backdrop-filter:blur(10px); color:white; padding:20px; z-index:999999; font-family:monospace; border-radius:15px; border: 2px solid #ff4444; box-shadow: 0 10px 40px rgba(255,0,0,0.5); font-size: 12px; max-height: 80vh; overflow-y: auto;";
+
+
 
 
         errDiv.innerHTML = `
@@ -39,6 +49,8 @@
             <button onclick="this.parentElement.remove()" style="background:transparent; color:#888; border:1px solid #888; padding:8px; width:100%; font-weight:bold; border-radius:8px; cursor:pointer; margin-top:10px;">CERRAR AVISO</button>
         `;
         document.body.appendChild(errDiv);
+
+
 
 
         document.getElementById('btn-bajar-error').onclick = () => {
@@ -53,6 +65,8 @@
     }
 
 
+
+
     // IGNORAR EL ERROR FANTASMA DE LEAFLET:
     window.onerror = function(message, source, lineno, colno, error) {
         if (message.includes("Failed to execute 'removeChild' on 'Node'")) {
@@ -63,6 +77,8 @@
         mostrarCartelErrorYDescargar('ERROR DE SINTAXIS / EJECUCIÓN', detalle);
         return false;
     };
+
+
 
 
     window.addEventListener('unhandledrejection', function(event) {
@@ -87,6 +103,14 @@
 /* Control de visibilidad para la (X) de inmuebles guiado por CSS puro */
 #lista-inmuebles-sheet.activo ~ #btn-cerrar-inmuebles { display: flex !important; }
 </style>
+
+
+
+
+
+
+
+
 
 
 
@@ -121,14 +145,26 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
 };
 
 
+
+
 </script>
 </head>
 <body class="ui-light">
+
 
 <div id="btn-firmas-magnetico" class="btn-flotante-gps" style="bottom: auto; right: auto; top: 180px; left: 15px; width: 45px; height: 45px; border-radius: 50%; border: 1px solid rgba(255,215,0,0.5); box-shadow: 0 8px 25px rgba(0,0,0,0.8), 0 0 15px rgba(255,215,0,0.2); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column;" onclick="if(!window.isDraggingFirmas) window.location.href='tramites.html'">
     <span style="font-size: 16px; filter: drop-shadow(0 0 5px rgba(255,215,0,0.5)); line-height: 1; margin-bottom: 2px;">✍️</span>
     <span style="font-size: 7px; color: #FFD700; font-weight: 900; text-transform: uppercase; text-shadow: 0 0 8px rgba(255,215,0,0.5); line-height: 1; text-align: center;">Firmas</span>
 </div>
+<div id="btn-transporte-magnetico" class="btn-flotante-gps" style="bottom: auto; right: auto; top: 240px; left: 15px; width: 45px; height: 45px; border-radius: 50%; border: 1px solid rgba(0,245,212,0.5); box-shadow: 0 8px 25px rgba(0,0,0,0.8), 0 0 15px rgba(0,245,212,0.2); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column;" onclick="if(!window.isDraggingTransporte) window.conmutarVistaEcosistema('transporte')">
+    <span style="font-size: 16px; filter: drop-shadow(0 0 5px rgba(0,245,212,0.5)); line-height: 1; margin-bottom: 2px;">🚌</span>
+    <span style="font-size: 7px; color: #00f5d4; font-weight: 900; text-transform: uppercase; text-shadow: 0 0 8px rgba(0,245,212,0.5); line-height: 1; text-align: center;">Rutas</span>
+</div>
+
+
+
+
+
 
 <script>
     // 🧲 MOTOR FÍSICO: Satélite Magnético (Curvatura 360° intacta)
@@ -150,6 +186,7 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
             btnFirma.style.transition = 'none'; 
         }, {passive: true});
 
+
         btnFirma.addEventListener('touchmove', (e) => {
             const deltaY = e.touches[0].clientY - startY;
             const deltaX = e.touches[0].clientX - startX;
@@ -161,6 +198,7 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
                 btnFirma.style.right = 'auto'; 
             }
         }, {passive: true});
+
 
         btnFirma.addEventListener('touchend', (e) => {
             btnFirma.style.transition = 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
@@ -183,6 +221,62 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
             setTimeout(() => window.isDraggingFirmas = false, 50);
         });
     })();
+    // 🧲 MOTOR FÍSICO: Satélite de Transporte Público (Independiente y Fluido)
+    (function() {
+        const btnTrans = document.getElementById('btn-transporte-magnetico');
+        if(!btnTrans) return;
+        
+        let isDragging = false;
+        let startY, startX, initialTop, initialLeft;
+        const MARGEN_X = 15;
+        
+        btnTrans.addEventListener('touchstart', (e) => {
+            isDragging = false;
+            window.isDraggingTransporte = false;
+            startY = e.touches[0].clientY;
+            startX = e.touches[0].clientX;
+            initialTop = btnTrans.getBoundingClientRect().top;
+            initialLeft = btnTrans.getBoundingClientRect().left;
+            btnTrans.style.transition = 'none'; 
+        }, {passive: true});
+
+
+        btnTrans.addEventListener('touchmove', (e) => {
+            const deltaY = e.touches[0].clientY - startY;
+            const deltaX = e.touches[0].clientX - startX;
+            if (Math.abs(deltaY) > 5 || Math.abs(deltaX) > 5) {
+                isDragging = true;
+                window.isDraggingTransporte = true;
+                btnTrans.style.top = (initialTop + deltaY) + 'px';
+                btnTrans.style.left = (initialLeft + deltaX) + 'px';
+                btnTrans.style.right = 'auto'; 
+            }
+        }, {passive: true});
+
+
+        btnTrans.addEventListener('touchend', (e) => {
+            btnTrans.style.transition = 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
+            if (!isDragging) return;
+            
+            const rect = btnTrans.getBoundingClientRect();
+            const midScreen = window.innerWidth / 2;
+            
+            if (rect.left + (rect.width/2) < midScreen) {
+                btnTrans.style.left = MARGEN_X + 'px';
+                btnTrans.style.right = 'auto';
+            } else {
+                btnTrans.style.left = 'auto';
+                btnTrans.style.right = MARGEN_X + 'px';
+            }
+            
+            if (rect.top < 80) btnTrans.style.top = '80px';
+            if (rect.bottom > window.innerHeight - 100) btnTrans.style.top = (window.innerHeight - 100 - rect.height) + 'px';
+            
+            setTimeout(() => window.isDraggingTransporte = false, 50);
+        });
+    })();
+
+
 </script>
 
 
@@ -226,10 +320,20 @@ No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.
 </div>
 
 
+
+
 <button id="btn-filtro-corazon" class="btn-login" style="background: rgba(255, 68, 68, 0.2); border-color: #ff4444; color: #ff4444;" onclick="toggleMapaFavoritos()" title="Filtrar Mis Guardados">🤍</button>
 
 
+
+
 <button id="btn-nieves" class="btn-login" style="background: rgba(255, 215, 0, 0.1); border-color: #FFD700; color: #FFD700; margin-left: 5px; font-size: 14px; animation: latidoNeon 2s infinite;" onclick="if(window.activarProtocoloNieves) window.activarProtocoloNieves(); else alert('El motor de mapa aún está cargando...');" title="Sorpresa Mamá">🌸</button>
+
+
+
+
+
+
 
 
 
@@ -243,23 +347,30 @@ No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.
 </div>
 
 
+
+
 <div class="contenedor-llave" id="btn-portal-mando-contenedor" style="border-radius: 50%;">
-
-
 <button class="btn-login" id="btn-portal-mando" onclick="toggleSubmenu()">🔑</button>
 <div id="submenu-llave" class="submenu-llave">
 <button id="btn-login-submenu" class="btn-submenu" onclick="abrirModal('modal-login'); toggleSubmenu()">🔑 Iniciar Sesión</button>
 <button id="btn-mi-oficina" class="btn-submenu" onclick="window.location.href='admin.html'" style="display:none; background: var(--naranja); color: white; border: none; font-weight: bold;">🏪 Ir a Mi Oficina</button>
+
+
+<button id="btn-panel-empresa" class="btn-submenu" onclick="window.abrirModal('modal-crm-corporativo'); toggleSubmenu()" style="display:none; background: #00f5d4; color: black; font-weight: bold; border: none;">💼 Consola Empresa</button>
+<button id="btn-panel-conductor" class="btn-submenu" onclick="window.abrirModal('modal-panel-chofer'); toggleSubmenu()" style="display:none; background: var(--naranja); color: white; font-weight: bold; border: none;">🚖 Modo Conductor</button>
+
+
 <button id="btn-acceso-moderacion" class="btn-submenu" onclick="window.location.href='moderacion.html'" style="display:none; border-color: #00ff64; color: #00ff64;">⚖️ Panel Moderación</button>
-
-
 <button id="btn-acceso-superadmin" class="btn-submenu" onclick="window.location.href='qrpido.html'" style="display:none; border-color: #00aaff; color: #00aaff;">👁️ Cerebro Central</button>
 <button class="btn-submenu" onclick="abrirModal('modal-soporte'); toggleSubmenu()" style="border-color: var(--naranja); color: var(--naranja);">💬 Centro de Ayuda</button>
 </div>
-</div> </div> <div id="contenedor-etiquetas" class="tags-container shimmer-box" style="min-height: 30px;">
+</div>
+</div> <div id="contenedor-etiquetas" class="tags-container shimmer-box" style="min-height: 30px;">
 </div>
 <div id="panel-cristal" class="panel-cristal colapsado" style="display: none;">
 <button class="btn-cerrar-panel" onclick="cerrarPanelCristal(event)" title="Cerrar panel">✖</button>
+
+
 
 
 <div id="panel-filtros" class="panel-seccion" style="display: flex; gap: 8px;"></div>
@@ -297,6 +408,8 @@ No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.
 </div>
 
 
+
+
 <div class="bottom-sheet-overlay" id="modal-kill-switch" onclick="cerrarModalFuera(event, 'modal-kill-switch')">
 <div class="bottom-sheet-contenido" style="text-align: center;">
 <div class="drag-handle"></div>
@@ -307,13 +420,19 @@ No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.
 </div>
 
 
+
+
 <div id="mapa-qrpido"></div>
+
+
 
 
 <div style="position: fixed; bottom: 50px; left: 0; width: 100%; z-index: 1000; pointer-events: none;">
 <div id="lista-inmuebles-sheet" class="bottom-sheet-hibrido" style="display:none; position: relative; bottom: 0;"></div>
 <button id="btn-cerrar-inmuebles" onclick="cerrarSheetInmuebles()" style="display: none; pointer-events: all; position: absolute; top: -45px; right: 15px; background: rgba(10,10,12,0.95); color: white; border: 1px solid var(--naranja); border-radius: 50%; width: 32px; height: 32px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1001; cursor: pointer; transition: transform 0.2s;">✖</button>
 </div>
+
+
 
 
 <div class="map-options">
@@ -337,12 +456,16 @@ Declaro ser mayor de 18 años y acepto los <a href="terminos.html" target="_blan
 </div>
 
 
+
+
 <button class="btn-auth" style="background: white; color: #222; display: flex; align-items: center; justify-content: center; gap: 10px; border: 1px solid #ddd; box-shadow: 0 4px 10px rgba(0,0,0,0.15); transition: 0.3s;" onclick="if(!document.getElementById('acepta-terminos-mando').checked) { alert('⚠️ Debes aceptar los Términos y el Contrato de Mandato.'); return; } iniciarConGoogle();">
 <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" height="18"> Iniciar sesión con tu cuenta de Google
 </button>
 <div style="text-align: center; margin: 10px 0; color: #888; font-size: 12px;">O INGRESA CON TU CORREO</div>
 <form id="form-login-portal" onsubmit="event.preventDefault(); if(document.getElementById('miel-mando').value !== '') return; if(!document.getElementById('acepta-terminos-mando').checked) { alert('⚠️ Debes aceptar los Términos y el Contrato de Mandato.'); return; } iniciarSesion();">
 <input type="text" id="miel-mando" name="miel_bot" style="position:absolute; left:-9999px; opacity:0;" tabindex="-1" autocomplete="off">
+
+
 
 
 <input type="email" id="login-email" name="email" class="input-login" placeholder="Correo electrónico" autocomplete="username" required>
@@ -352,6 +475,10 @@ Declaro ser mayor de 18 años y acepto los <a href="terminos.html" target="_blan
 </div>
 <button type="submit" class="btn-auth btn-ingresar" id="btn-login-accion">Ingresar a mi Oficina</button>
 </form>
+
+
+
+
 
 
 
@@ -405,12 +532,16 @@ Declaro ser mayor de 18 años y acepto los <a href="terminos.html" target="_blan
 </div>
 
 
+
+
 <button onclick="if(!document.getElementById('acepta-terminos-radar').checked) { alert('⚠️ Debes aceptar los Términos y el Contrato de Mandato.'); return; } loginGoogleRadar()" style="width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #ddd; font-weight: bold; cursor: pointer; background: white; color: #222; display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.15); transition: 0.3s;">
 <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" width="18" height="18"> Iniciar sesión con tu cuenta de Google
 </button>
 <div style="text-align: center; margin: 10px 0 15px; color: #888; font-size: 12px;">O INGRESA CON TU CORREO</div>
 <form onsubmit="event.preventDefault(); if(document.getElementById('miel-radar').value !== '') return; if(!document.getElementById('acepta-terminos-radar').checked) { alert('⚠️ Debes aceptar los Términos y el Contrato de Mandato.'); return; } loginTradicionalRadar();">
 <input type="text" id="miel-radar" name="miel_bot" style="position:absolute; left:-9999px; opacity:0;" tabindex="-1" autocomplete="off">
+
+
 
 
 <input type="email" id="radar-email" name="email" placeholder="Correo electrónico" autocomplete="username" required style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 12px; border-radius: 12px; margin-bottom: 10px; box-sizing: border-box;">
@@ -422,20 +553,27 @@ Declaro ser mayor de 18 años y acepto los <a href="terminos.html" target="_blan
 </form>
 
 
+
+
 <button onclick="document.getElementById('modal-login-radar').style.display='none'" style="width: 100%; background: transparent; color: #aaa; border: none; margin-top: 10px; cursor: pointer;">Cancelar</button>
 </div>
 </div>
 <script type="module">
 import './auth-mando.js'; 
 import './motor-mapa.js'; 
+import './motor-movilidad.js'; // 📡 CONEXIÓN QUIRÚRGICA: Hilo aislado de telemetría P2P
 
 
 // 🛡️ PUENTE DE MÓDULOS: Las funciones de login viven en auth-mando.js. 
 // Asegúrate de que auth-mando.js asigne 'window.loginGoogleRadar = ...' internamente para que el HTML las vea.
 
 
+
+
 // --- 📊 MICRO-PROFILER QRPIDO (LÍNEA BASE ANDROID 1.5GB) ---
 window.qrpidoLog = [];
+
+
 
 
 window.tiempoArranque = performance.now();
@@ -457,7 +595,11 @@ window.qrpidoLog.push(`[${t}ms] 📍 ${mensaje}`);
 };
 
 
+
+
 if ('serviceWorker' in navigator) {
+
+
 
 
 window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').then(reg => console.log('PWA lista y blindada.', reg.scope)).catch(err => console.log('PWA falló:', err)); });
@@ -467,10 +609,16 @@ window.addEventListener('online', () => document.getElementById('offline-banner'
 if (!navigator.onLine) document.getElementById('offline-banner').classList.add('activo');
 
 
+
+
 window.arrancarMotor();
 
 
+
+
 // EL CEREBRO CENTRAL DE ACCIONES DEL MAPA (Event Delegation)
+
+
 
 
 document.body.addEventListener('click', (e) => {
@@ -512,6 +660,8 @@ window.registrarClicVerDetalles(codigo, nicho);
 import './profiler.js';
 
 
+
+
 // ⚡ Lógica Fintech: Pasarela de Recarga (Wompi) con Sincronía Saga Correcta
 window.abrirPasarelaRecarga = async function() {
     const { default: QRpidoDB } = await import('./core-db.js');
@@ -543,6 +693,8 @@ window.abrirPasarelaRecarga = async function() {
 };
 
 
+
+
 // 🛡️ Lógica UX: Cerrar Inmuebles respetando la Regla Estricta (No resetear categoría)
 window.cerrarSheetInmuebles = function() {
     const sheet = document.getElementById('lista-inmuebles-sheet');
@@ -550,6 +702,8 @@ window.cerrarSheetInmuebles = function() {
     if(navigator.vibrate) navigator.vibrate(20);
     // Categoría intacta, el usuario sigue viendo inmuebles en el mapa.
 };
+
+
 
 
 // 👆 Físicas de Swipe (Deslizar arriba/abajo para cerrar)
@@ -588,8 +742,71 @@ setTimeout(() => {
 </script>
 
 
+<div class="bottom-sheet-overlay" id="modal-apreton">
+    <div class="bottom-sheet-contenido">
+        <div class="drag-handle"></div>
+        <h2 style="color: #ff6b00; text-align: center; margin-top: 0; font-size: 18px; font-weight: 900;">ENTREGA FINAL BLOCKCHAIN</h2>
+        <p style="text-align: center; color: #aaaaaa; font-size: 13px; margin-bottom: 15px;">Solicita el código al ciudadano para liberar el saldo:</p>
+        <div style="display: flex; justify-content: center; gap: 10px; margin-bottom: 15px; max-width: 320px; margin-left: auto; margin-right: auto;">
+            <input type="text" id="input-secreto" maxlength="10" readonly placeholder="QRP-XXXXXX" style="flex: 1; outline: none; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,107,0,0.4); color: #ff6b00; text-transform: uppercase; text-align: center; font-family: monospace; font-size: 22px; padding: 12px; border-radius: 10px;">
+            <button id="btn-toggle-teclado" onclick="window.alternarTecladoTactico()" style="background: transparent; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; width: 55px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                <span style="opacity: 0.4; font-size: 20px;">⌨️</span>
+            </button>
+        </div>
+        <div id="teclado-tactico" style="display: none; grid-template-columns: repeat(6, 1fr); gap: 6px; max-width: 350px; margin: 0 auto 15px auto;"></div>
+        <button class="btn-cazar" style="width: 100%; max-width: 320px; display: block; margin: 0 auto 10px auto; font-size: 15px; padding: 14px;" onclick="window.ejecutarHandshakeWeb3()">🔗 VERIFICAR Y LIQUIDAR FONDOS</button>
+        <button class="pin-btn" style="width: 100%; max-width: 320px; display: block; margin: 0 auto; background: transparent; border: none; color: #888;" onclick="window.cerrarModal('modal-apreton')">Cancelar</button>
+        <input type="text" id="miel-domi" style="position:absolute; left:-9999px; opacity:0;" tabindex="-1">
+    </div>
+</div>
+
+
+<div class="bottom-sheet-overlay" id="modal-unidad-info">
+    <div class="bottom-sheet-contenido">
+        <div class="drag-handle"></div>
+        <h2 style="color: #ff6b00; margin-top: 0; font-size: 18px; font-weight: 900; text-transform: uppercase;" id="modal-unidad-titulo">Ficha de Unidad</h2>
+        <div style="background: rgba(255,255,255,0.03); padding: 13px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 15px;">
+            <p style="margin: 5px 0; color: #eee; font-size: 14px;"><b>Cooperativa:</b> <span id="txt-unidad-empresa">-</span></p>
+            <p style="margin: 5px 0; color: #eee; font-size: 14px;"><b>Identificador Placa:</b> <span id="txt-unidad-placa" style="color:#00f5d4; font-family:monospace; font-weight:bold;">-</span></p>
+            <p style="margin: 5px 0; color: #eee; font-size: 14px;"><b>Ruta Operativa:</b> <span id="txt-unidad-ruta">-</span></p>
+        </div>
+        <button class="btn-alerta-roja" id="btn-disparar-alerta-dirigida">MANDAR ALERTA DIRIGIDA 🚨</button>
+        <button class="pin-btn" style="width: 100%; background: transparent; border: none; color: #888; margin-top: 10px;" onclick="window.cerrarModal('modal-unidad-info')">Cerrar Monitor</button>
+    </div>
+</div>
+
+
+<div class="bottom-sheet-overlay" id="modal-onboarding-biometrico">
+    <div class="bottom-sheet-contenido" style="max-height: 90vh; overflow-y: auto;">
+        <div class="drag-handle"></div>
+        <h2 style="color:#ff6b00; margin-top:0; font-size:16px; text-transform:uppercase; font-weight:900; text-align:center;">Onboarding Digital Nómina</h2>
+        <p style="color:#ccc; font-size:12px; text-align:center; margin-bottom:15px;">Para habilitar tu cuenta en la flota, completa la biometría y firma de datos (Ley 1581 de 2012).</p>
+        <button class="btn-cazar" style="width:100%; padding:12px; margin-bottom:10px; background:#00f5d4; color:black;" id="btn-trigger-biometria" onclick="window.ejecutarCapturaBiometricaNativa()">📸 ESCANEAR CÉDULA Y SELFIE LIVENESS</button>
+        <div style="text-align:left; margin-top:10px;">
+            <label style="color:#fff; font-size:11px; font-weight:bold;">Firma de Consentimiento Dactilar:</label>
+            <canvas id="canvas-firma-onboarding" class="canvas-firma" width="300" height="120"></canvas>
+            <button class="pin-btn" style="padding:5px 10px; font-size:11px; margin-top:5px; float:right;" onclick="window.limpiarCanvasFirma()">Borrar Trazo</button>
+        </div>
+        <button class="btn-cazar" style="width:100%; padding:14px; margin-top:25px;" id="btn-guardar-onboarding" onclick="window.finalizarGuardadoOnboardingCRM()">CONSOLIDAR E INICIAR SESIÓN</button>
+    </div>
+</div>
+
+
+<div class="bottom-sheet-overlay" id="modal-cierre-legal">
+    <div class="bottom-sheet-contenido">
+        <div class="drag-handle"></div>
+        <h2 style="color:#ff6b00; margin-top:0; font-size:16px; text-transform:uppercase; font-weight:900; text-align:center;">Declaración Legal de Jornada</h2>
+        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:13px; border-radius:10px; margin-bottom:15px;">
+            <label style="color:#fff; font-size:13px; display:flex; gap:10px; align-items:flex-start; cursor:pointer;">
+                <input type="checkbox" id="chk-terminos-legales" style="margin-top:3px; accent-color:#ff6b00;">
+                <span>Acepto los Términos, Condiciones y Reporte de Cumplimiento de Jornada Electrónica. Certifico que los datos son verídicos bajo la Ley 527.</span>
+            </label>
+        </div>
+        <button class="btn-alerta-roja" id="btn-enviar-sello-web3" style="background:#ff6b00;" onclick="window.confirmarSelloLegalBlockchain()">FIRMAR Y TRANSMITIR CIERRE</button>
+        <button class="pin-btn" style="width:100%; margin-top:10px; background:transparent; border:none; color:#777;" onclick="window.cerrarModal('modal-cierre-legal')">Volver al Turno</button>
+    </div>
+</div>
+
+
 </body>
 </html>
-
-
-

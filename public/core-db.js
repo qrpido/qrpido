@@ -1,17 +1,10 @@
 
-
-
-
 import { doc, getDoc, setDoc, collection, writeBatch, getDocs, query, where, limit, startAfter, orderBy, startAt, endAt, collectionGroup, deleteDoc, getCountFromServer, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, getAdditionalUserInfo, setPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { getAnalytics, logEvent } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js';
 import * as geofire from "https://cdn.jsdelivr.net/npm/geofire-common@5.2.0/+esm";
 // INYECTAMOS EL IMPORT DE STORAGE, RTDB Y FUNCTIONS AQUÍ:
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
-
-
-
-
 
 
 
@@ -30,26 +23,11 @@ import { db } from './firebase-config.js'; // Ajusta la ruta a tu inicializació
 
 
 
-
-
-
-
-
 // Extraemos las instancias nativas desde tu base de datos ya inicializada
 const auth = getAuth(db.app);
 const storage = getStorage(db.app); 
 const realtimeDb = getDatabase(db.app); // 🔥 MOTOR DEL RADAR P2P ACTIVADO
 const functions = getFunctions(db.app); // 🚨 SALVAVIDAS: Inicialización vital para Web3 y TOTP
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -82,8 +60,22 @@ const _cacheLocales = {};
 // ==========================================
 // 3. CAPA DE ABSTRACCIÓN (Singleton Exportable)
 // ==========================================
+// 🛡️ GUARDIÁN DE SESIÓN (Capa Zero-Trust en Cliente)
+const _verificarAcceso = () => {
+    const sesionValida = localStorage.getItem('qrpido_session_validated');
+    if (!sesionValida) {
+        console.error("🚨 Intento de acceso bloqueado: Sesión no validada.");
+        return false;
+    }
+    return true;
+};
+
+
 const QRpidoDB = {
 /**
+...
+
+
 * @namespace LocalService
 * Gestiona la lectura de datos de negocios y enruta sucursales a su catálogo matriz.
 */
@@ -159,10 +151,6 @@ return { success: false, error: error.message };
 
 
 
-
-
-
-
         /**
          * @namespace AdminService
          * Operaciones de escritura optimizadas e inteligentes para administradores.
@@ -209,6 +197,14 @@ perdonarNegocio: async (idNegocio) => {
 
 
 
+
+
+
+
+
+
+
+
             updateCatalog: async (idReferencia, arrayProductos, esFranquicia = false) => {
                 try {
                     const batch = writeBatch(db);
@@ -235,12 +231,15 @@ perdonarNegocio: async (idNegocio) => {
                     return { success: true, data: { disponible: querySnapshot.empty } };
                 } catch (e) { return { success: false, error: e.message }; }
             },
-                        actualizarNegocio: async (idNegocio, dataObj) => {
+                       actualizarNegocio: async (idNegocio, dataObj) => {
                 try {
                     await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, idNegocio), dataObj, { merge: true });
+                    delete _cacheLocales[idNegocio]; // 🧟‍♂️ Destruimos el caché zombi
                     return { success: true };
                 } catch (e) { return { success: false, error: e.message }; }
             },
+
+
             guardarPasoIdentidad: async (idNegocio, dataObj) => {
                 try {
                     const payload = { ...dataObj, progreso_boveda: 38.2 };
@@ -255,14 +254,21 @@ perdonarNegocio: async (idNegocio) => {
                     return { success: true };
                 } catch (e) { return { success: false, error: e.message }; }
             },
-            sellarBovedaDefinitiva: async (idNegocio, dataObj) => {
+           sellarBovedaDefinitiva: async (idNegocio, dataObj) => {
                 try {
                     const payload = { ...dataObj, progreso_boveda: 100 };
                     await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, idNegocio), payload, { merge: true });
+                    delete _cacheLocales[idNegocio]; // 🧟‍♂️ Forzamos recarga de UI al terminar el onboarding
                     return { success: true };
                 } catch (e) { return { success: false, error: e.message }; }
             },
+
+
             guardarProducto: async (idNegocio, idProducto, dataObj) => {
+
+
+
+
 
 
 
@@ -287,6 +293,14 @@ perdonarNegocio: async (idNegocio) => {
                     return { success: true, data: resultados, ultimoDoc: null };
                 } catch (e) { return { success: false, error: e.message }; }
             },
+
+
+
+
+
+
+
+
 
 
 
@@ -408,7 +422,8 @@ obtenerNegociosEnObservacion: async () => {
             escucharHashesSUI: (callback) => {
                 try {
                     const q = query(collection(db, "Logistica_Ordenes"), orderBy("timestamp_entrega", "desc"), limit(10));
-                    onSnapshot(q, (snap) => {
+                    // Retornamos el listener
+                    return onSnapshot(q, (snap) => {
                         snap.docChanges().forEach((change) => {
                             if (change.type === "added" || change.type === "modified") {
                                 callback(change.doc.data());
@@ -417,8 +432,10 @@ obtenerNegociosEnObservacion: async () => {
                     });
                 } catch (e) {
                     console.error("Error al conectar con SUI Logs:", e);
+                    return () => {}; // Retorna una función vacía para evitar errores de "is not a function" en la UI al desmontar
                 }
             },
+
 
 
 
@@ -495,6 +512,7 @@ obtenerNegociosEnObservacion: async () => {
 
 
 
+
                         revocarModerador: async (uid) => {
                 try {
                     // Le quitamos la placa borrando su documento de la colección de permisos
@@ -539,8 +557,6 @@ if (!d.eliminado) resultados.push({ id_prod: doc.id, ...d });
 });
 }
 return { success: true, data: resultados, ultimoDoc: ultimoDoc };
-
-
 
 
 
@@ -661,12 +677,6 @@ buscarEnRadar: async (lat, lng, radiusInM) => {
 
 
 
-
-
-
-
-
-
 /**
 * @namespace MediaService
 * Gestiona el feed de noticias (Pulso Urbano) protegiendo la lectura de Firebase y manejando la paginación.
@@ -722,6 +732,8 @@ SecurityService: {
     },
 
 
+
+
     verificarTOTP: async (email, codigo) => {
         try {
             const validadorTOTP = httpsCallable(functions, 'validarRegistroTOTP');
@@ -739,25 +751,21 @@ SecurityService: {
     },
 
 
+
     // ==========================================
     // VÍNCULO SINCRO-VIVIENTE CON EL NOTARIO SUI
     // ==========================================
     sellarTramiteLegal: async (paqueteEvidencia) => {
-        try {
-            // CORRECCIÓN: Apunta con precisión milimétrica al export real de index.js
-            const notarioCloud = httpsCallable(functions, 'sellarTramiteLegal');
-            const res = await notarioCloud(paqueteEvidencia);
-            
-            if (res.data && res.data.success) {
-                return { success: true, txId: res.data.txId, hashPdf: res.data.hashPdf };
-            } else {
-                return { success: false, error: res.data.mensaje || "Firma rechazada por el oráculo legal." };
-            }
-        } catch (e) {
-            console.error("Error Criptográfico en Sellar Trámite:", e);
-            return { success: false, error: e.message };
-        }
-    },
+    try {
+        const notarioCloud = httpsCallable(functions, 'sellarTramiteLegal');
+        const res = await notarioCloud(paqueteEvidencia);
+        return { success: res.data.success, txId: res.data.txId };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+},
+
+
     
     // Tubería 1: Disparador de OTP al correo
     solicitarOtpFirma: async (emailDestino) => {
@@ -770,6 +778,8 @@ SecurityService: {
     },
 
 
+
+
     // Tubería 2: Creador de Sala Asíncrona (P2P)
     iniciarTramiteP2P: async (datosContrato, emailContraparte) => {
         try {
@@ -780,151 +790,138 @@ SecurityService: {
     },
 
 
-    // ==========================================
-    // VÍNCULO CORREGIDO PARA KYC (PRODUCCIÓN)
-    // ==========================================
-    sellarEvidenciaKYC: async (idNegocio, fotosEnBase64) => {
-        try {
-            const procesarKycFunction = httpsCallable(functions, 'procesarKycBiometrico');
-            
-            // CORRECCIÓN DE PAYLOAD: Eliminamos la envoltura para que las variables 
-            // viajen libres y alineadas con el destructuring de Cloud Functions v1.
-            const payload = {
-                frente: fotosEnBase64.frente,
-                reverso: fotosEnBase64.reverso,
-                rostro: fotosEnBase64.rostro
-            };
 
 
-            const res = await procesarKycFunction(payload);
-            
-            if (res.data && res.data.success) {
-                return { success: true };
-            } else {
-                return { success: false, error: res.data.mensaje || "La bóveda rechazó la biometría." };
+   // ==========================================
+        // VÍNCULO CORREGIDO PARA KYC (PRODUCCIÓN)
+        // ==========================================
+        sellarEvidenciaKYC: async (idNegocio, fotosEnBase64) => {
+            try {
+                const procesarKycFunction = httpsCallable(functions, 'procesarKycBiometrico');
+                const payload = {
+                    frente: fotosEnBase64.frente,
+                    reverso: fotosEnBase64.reverso,
+                    rostro: fotosEnBase64.rostro
+                };
+                const res = await procesarKycFunction(payload);
+                return { success: res.data.success, mensaje: res.data.mensaje };
+            } catch (e) {
+                return { success: false, error: e.message };
             }
+        },
 
 
-        } catch (e) {
-            console.error("Error sellando KYC en la Nube:", e);
-            return { success: false, error: e.message };
-        }
-    },
-
-
-    registrarUsuario: async (email, pass, tipoCuenta) => {
-        try {
-            const result = await createUserWithEmailAndPassword(auth, email, pass);
-            await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, result.user.uid), {
-                nombre: "Mi Negocio",
-                email: email,
-                tipo_modelo: tipoCuenta,
-                estado_moderacion: 'pendiente',
-                premium: false,
-                fecha_registro: new Date().toISOString()
-            });
-            return { success: true, data: result.user };
-        } catch (e) {
-            return { success: false, error: e.message };
-        }
-    },
-
-
-    obtenerRolAdmin: async (uid) => {
-        try {
-            const snap = await getDoc(doc(db, "Usuarios_Admin", uid));
-            return { success: true, data: snap.exists() ? snap.data() : { rol: 'estandar' } };
-        } catch (e) {
-            return { success: false, error: e.message };
-        }
-    },
-
-
-    validateCartIntegrity: (carritoLocal, memoriaProductos) => {
-        try {
-            let totalReal = 0;
-            const carritoSeguro = [];
-            for (const itemCliente of carritoLocal) {
-                const productoInmutable = memoriaProductos.find(p => p.id === itemCliente.id);
-                if (!productoInmutable) throw new Error(`Producto inválido detectado (ID: ${itemCliente.id})`);
-                const subtotal = productoInmutable.precio * itemCliente.cantidad;
-                totalReal += subtotal;
-                carritoSeguro.push({
-                    id: productoInmutable.id,
-                    cantidad: itemCliente.cantidad,
-                    precioValidado: productoInmutable.precio,
-                    subtotal: subtotal
-                });
+        // 🔓 PUENTE FRICCIÓN CERO: Desencriptación en Vivo (Ley 527)
+        descargarContratoDesbloqueado: async (contratoId) => {
+            try {
+                const funcDesbloqueo = httpsCallable(functions, 'descargarContratoDesbloqueado');
+                const res = await funcDesbloqueo({ contratoId: contratoId });
+                return { success: true, pdfData: res.data.pdfData };
+            } catch (e) {
+                console.error("Fallo al contactar al notario para desencriptar:", e);
+                return { success: false, error: e.message };
             }
-            return { success: true, data: { totalAprobado: totalReal, carritoLimpio: carritoSeguro } };
-        } catch (e) {
-            return { success: false, error: "Violación de integridad detectada", details: e.message };
-        }
-    },
+        },
 
 
-    iniciarConGoogle: async () => {
-        try {
-            await setPersistence(auth, browserLocalPersistence);
-            const provider = new GoogleAuthProvider();
-            const result = await signInWithPopup(auth, provider);
-            const infoExtra = getAdditionalUserInfo(result);
-            if (infoExtra && infoExtra.isNewUser) {
+        registrarUsuario: async (email, pass, tipoCuenta) => {
+            try {
+                const result = await createUserWithEmailAndPassword(auth, email, pass);
                 await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, result.user.uid), {
-                    nombre: result.user.displayName || "Mi Negocio",
-                    email: result.user.email,
-                    tipo_modelo: 'negocio',
+                    nombre: "Mi Negocio",
+                    email: email,
+                    tipo_modelo: tipoCuenta,
                     estado_moderacion: 'pendiente',
-
-
                     premium: false,
                     fecha_registro: new Date().toISOString()
                 });
+                return { success: true, data: result.user };
+            } catch (e) {
+                return { success: false, error: e.message };
             }
-            return { success: true, data: result.user };
-        } catch (e) {
-            return { success: false, error: e.message };
+        },
+
+
+        obtenerRolAdmin: async (uid) => {
+            try {
+                const snap = await getDoc(doc(db, "Usuarios_Admin", uid));
+                return { success: true, data: snap.exists() ? snap.data() : { rol: 'estandar' } };
+            } catch (e) {
+                return { success: false, error: e.message };
+            }
+        },
+
+
+        validateCartIntegrity: (carritoLocal, memoriaProductos) => {
+            try {
+                let totalReal = 0;
+                const carritoSeguro = [];
+                for (const itemCliente of carritoLocal) {
+                    const productoInmutable = memoriaProductos.find(p => p.id === itemCliente.id);
+                    if (!productoInmutable) throw new Error(`Producto inválido detectado (ID: ${itemCliente.id})`);
+                    const subtotal = productoInmutable.precio * itemCliente.cantidad;
+                    totalReal += subtotal;
+                    carritoSeguro.push({
+                        id: productoInmutable.id,
+                        cantidad: itemCliente.cantidad,
+                        precioValidado: productoInmutable.precio,
+                        subtotal: subtotal
+                    });
+                }
+                return { success: true, data: { totalAprobado: totalReal, carritoLimpio: carritoSeguro } };
+            } catch (e) {
+                return { success: false, error: "Violación de integridad detectada", details: e.message };
+            }
+        },
+
+
+        iniciarConGoogle: async () => {
+            try {
+                await setPersistence(auth, browserLocalPersistence);
+                const provider = new GoogleAuthProvider();
+                const result = await signInWithPopup(auth, provider);
+                const infoExtra = getAdditionalUserInfo(result);
+                if (infoExtra && infoExtra.isNewUser) {
+                    await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, result.user.uid), {
+                        nombre: result.user.displayName || "Mi Negocio",
+                        email: result.user.email,
+                        tipo_modelo: 'negocio',
+                        estado_moderacion: 'pendiente',
+                        premium: false,
+                        fecha_registro: new Date().toISOString()
+                    });
+                }
+                return { success: true, data: result.user };
+            } catch (e) {
+                return { success: false, error: e.message };
+            }
+        },
+
+
+        iniciarSesion: async (email, pass) => {
+            try {
+                const result = await signInWithEmailAndPassword(auth, email, pass);
+                return { success: true, data: result.user };
+            } catch (e) {
+                return { success: false, error: e.message };
+            }
+        },
+
+
+        cerrarSesion: async () => {
+            try {
+                await signOut(auth);
+                return { success: true };
+            } catch (e) {
+                return { success: false, error: e.message };
+            }
+        },
+
+
+        observarEstadoSesion: (callback) => {
+            onAuthStateChanged(auth, callback);
         }
-    },
-
-
-    iniciarSesion: async (email, pass) => {
-        try {
-            const result = await signInWithEmailAndPassword(auth, email, pass);
-            return { success: true, data: result.user };
-        } catch (e) {
-            return { success: false, error: e.message };
-        }
-    },
-
-
-    cerrarSesion: async () => {
-        try {
-            await signOut(auth);
-            return { success: true };
-        } catch (e) {
-            return { success: false, error: e.message };
-        }
-    },
-
-
-    observarEstadoSesion: (callback) => {
-        onAuthStateChanged(auth, callback);
-    }
-},
-
-
- // <-- Cierre de SecurityService
-
-
-
-
-
-
-
-
-
-
+    }, // <-- CIERRE EXCLUSIVO Y CORRECTO DE SECURITYSERVICE
 
 
 
@@ -943,9 +940,8 @@ LogisticaService: {
 
 
 
-
-
-   registrarIntencionCompra: async (payload) => {
+  registrarIntencionCompra: async (payload) => {
+        if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
         try {
             // 🕰️ Reloj TOTP: Atrapamos la Firma Dinámica del caché (Vendedor o Domiciliario)
             const firmaCache = localStorage.getItem('qrpido_totp_ref');
@@ -963,30 +959,11 @@ LogisticaService: {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
             // Zero-Trust: Guardamos el pre-ticket en Firestore dentro de la bóveda del negocio
             const docRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${payload.idNegocio}/pedidos_entrantes`, payload.ticket);
             await setDoc(docRef, payload);
             return { success: true };
         } catch (e) {
-
-
-
-
-
-
-
-
 
 
 
@@ -1008,32 +985,18 @@ LogisticaService: {
 
 
 
-
-
-
-
-
-
-
-    escucharRadarActivo: (callback) => {
+   escucharRadarActivo: (callback) => {
         // 🚨 FINOPS: Solo descargamos las últimas 50 órdenes para no fundir el ancho de banda
         const radarRef = queryRTDB(rtdbRef(realtimeDb, 'malla_de_gas/ordenes_activas'), orderByChild('timestamp'), limitToLast(50));
         
-        onValue(radarRef, (snapshot) => {
+        // Retornamos la función de desuscripción para que la UI pueda matar el hilo
+        return onValue(radarRef, (snapshot) => {
             const data = snapshot.val() || {};
             callback({ success: true, data: data });
         }, (error) => {
             callback({ success: false, error: error.message });
         });
     },
-
-
-
-
-
-
-
-
 
 
 
@@ -1060,6 +1023,19 @@ LogisticaService: {
 
 
 
+registrarCierreJornada: async (payload) => {
+        if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+        try {
+            // Guardamos el historial limpio en Firestore para que lo consuma el Dashboard
+            const docRef = doc(collection(db, "Historial_Jornadas"));
+            await setDoc(docRef, payload);
+            return { success: true };
+        } catch (e) {
+            console.warn("Fallo al registrar la jornada operativa:", e);
+            return { success: false, error: e.message };
+        }
+    },
+
 
 
 
@@ -1073,6 +1049,7 @@ LogisticaService: {
     // ==========================================
     
  registrarDespachoSUI: async (payload) => {
+        if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
         try {
             console.log("🌐 [Oráculo SUI] Iniciando Escrow y Bloqueo de Fondos...", payload);
             
@@ -1090,28 +1067,8 @@ LogisticaService: {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
             const funcionRespuesta = await crearOrdenLogistica(requestData);
             const dataBackend = funcionRespuesta.data;
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1128,28 +1085,7 @@ LogisticaService: {
 
 
 
-
-
-
-
-
-
-
-
-
-
             console.log("🔒 Escrow asegurado. ID Interno:", dataBackend.ordenId);
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1170,6 +1106,38 @@ LogisticaService: {
             return { success: false, error: e.message };
         }
     },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1231,6 +1199,22 @@ LogisticaService: {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     ejecutarKillSwitch: async (ticketPublico, conductorUid) => {
         try {
             console.log("🚨 [SUI Kill-Switch] Reversando orden y penalizando a:", conductorUid);
@@ -1241,39 +1225,93 @@ LogisticaService: {
         } catch (e) {
             return { success: false, error: e.message };
         }
+    },
+// ============================================================================
+// 📡 ECOISTEMA MULTI-MOVILIDAD Y TRANSMISIÓN DE TELEMETRÍA (INYECCIÓN DE CORE-DB)
+// ============================================================================
+
+
+/**
+ * Transmite las coordenadas actuales de una unidad de transporte a la malla de telemetría en tiempo real.
+ * Diseñado con una política estricta de mínimo impacto en ancho de banda.
+ * @param {string} tipoUnidad - 'domicilio' | 'taxi' | 'bus'
+ * @param {string} placaId - Identificador único de la unidad (Placa o ID de Conductor)
+ * @param {object} dataCoordenadas - Objeto con { lat, lng, ruta, razonSocial }
+ */
+transmitirCoordenadasUnidad: async (tipoUnidad, placaId, dataCoordenadas) => {
+    try {
+        const nodoRef = rtdbRef(realtimeDb, `malla_de_gas/telemetria_activa/${tipoUnidad}/${placaId}`);
+        await set(nodoRef, {
+            lat: dataCoordenadas.lat,
+            lng: dataCoordenadas.lng,
+            ruta: dataCoordenadas.ruta || "N/A",
+            razonSocial: dataCoordenadas.razonSocial || "Independiente",
+            timestamp: serverTimestamp()
+        });
+        return { success: true };
+    } catch (e) {
+        console.warn("Error en transmisión de telemetría:", e.message);
+        return { success: false, error: e.message };
+    }
+},
+
+
+/**
+ * Establece una escucha en tiempo real sobre la flota completa de vehículos activos en la calle.
+ * @param {function} callback - Función receptora de los cambios en la matriz gráfica de transporte.
+ */
+escucharFlotaActiva: (callback) => {
+    const flotaRef = rtdbRef(realtimeDb, 'malla_de_gas/telemetria_activa');
+    return onValue(flotaRef, (snapshot) => {
+        const data = snapshot.val() || {};
+        callback({ success: true, data: data });
+    }, (error) => {
+        callback({ success: false, error: error.message });
+    });
+},
+
+
+/**
+ * Envía una alerta dirigida inmutable de forma directa al canal privado del conductor en Realtime Database.
+ * Elimina consultas masivas geoespaciales inyectando el punto de recojo exacto del usuario.
+ * @param {string} tipoUnidad - 'taxi' | 'bus' | 'domicilio'
+ * @param {string} placaId - Identificador único de la unidad receptora
+ * @param {object} puntoOrigen - Coordenadas del pasajero { lat, lng }
+ */
+mandarAlertaDirigida: async (tipoUnidad, placaId, puntoOrigen) => {
+    try {
+        const alertaRef = rtdbRef(realtimeDb, `malla_de_gas/alertas_conductores/${placaId}`);
+        await set(alertaRef, {
+            latOrigen: puntoOrigen.lat,
+            lngOrigen: puntoOrigen.lng,
+            timestamp: serverTimestamp(),
+            atendida: false
+        });
+        return { success: true };
+    } catch (e) {
+        console.error("Fallo crítico inyectando alerta dirigida:", e);
+        return { success: false, error: e.message };
+    }
+},
+
+
+/**
+ * Enlace directo al puente del Cadenero en la nube para validar la entrega final a nivel de Blockchain.
+ */
+validarEntregaWeb3: async (ordenId, codigoSecreto) => {
+    try {
+        const llamarCadenero = httpsCallable(functions, 'validarEntrega');
+        const res = await llamarCadenero({ ordenId: ordenId, codigoSuministrado: codigoSecreto });
+        return { success: true, data: res.data };
+    } catch (e) {
+        console.error("Error de pasarela en validación Web3:", e);
+        return { success: false, error: e.message };
     }
 }
+
+
+}
 }; // <-- Cierre de QRpidoDB
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 // ==========================================

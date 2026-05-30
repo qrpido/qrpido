@@ -3,8 +3,12 @@ const functions = require('firebase-functions/v1');
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
 const { defineSecret } = require('firebase-functions/params');
+const { onCall, HttpsError } = require("firebase-functions/v2/https"); // <-- Movido aquí
 
 admin.initializeApp();
+
+let visionClient = null; // <-- Movido aquí para que ambos módulos lo compartan
+
 
 const semillaMaestra = defineSecret('SEMILLA_MAESTRA');
 const secretoWebhooks = defineSecret('WOMPI_SECRET_EVENTS');
@@ -97,23 +101,35 @@ exports.vigilanteTesoreria = functions.pubsub.schedule('every 12 hours').onRun(a
             const snapshot = await mallaRef.once('value');
             const monedasEnMalla = snapshot.numChildren();
 
-            if (monedasEnMalla < 50) {
-                console.log(`[FRACCIONADOR] Malla con stock bajo (${monedasEnMalla}). Generating 100 fragmentos...`);
+           if (monedasEnMalla < 50) {
+                console.log(`[FRACCIONADOR] Malla baja (${monedasEnMalla}). Extrayendo monedas reales de SUI...`);
                 
-                let nuevosFragmentos = {};
-                for(let i=0; i<100; i++) {
-                    const idFalso = "coin_" + Math.random().toString(36).substring(2, 10);
-                    nuevosFragmentos[idFalso] = {
-                        id: "0x" + Math.random().toString(16).slice(2, 32),
-                        monto: 10000000,
-                        version: 1,
-                        digest: "pending_sync"
-                    };
+                // Extraemos las monedas reales directamente de la wallet de Tesorería en la Blockchain
+                const { data: monedasReales } = await suiClient.getCoins({
+                    owner: direccionTesoreria,
+                    coinType: '0x2::sui::SUI',
+                    limit: 50
+                });
+
+                if (monedasReales.length === 0) {
+                    console.error("[ALERTA CRÍTICA] La Tesorería no tiene objetos de moneda disponibles para la malla.");
+                    return null;
                 }
+
+                let nuevosFragmentos = {};
+                monedasReales.forEach((coin) => {
+                    nuevosFragmentos[`coin_${coin.coinObjectId}`] = {
+                        id: coin.coinObjectId,
+                        monto: parseInt(coin.balance),
+                        version: coin.version,
+                        digest: coin.digest
+                    };
+                });
                 
                 await mallaRef.update(nuevosFragmentos);
-                console.log("[FRACCIONADOR] 100 monedas de gas inyectadas exitosamente.");
+                console.log(`[FRACCIONADOR] ${monedasReales.length} monedas de gas REALES inyectadas a la Malla.`);
             }
+
         }
         return null;
 
@@ -132,9 +148,29 @@ exports.validarEntrega = functions.runWith({ secrets: [semillaSui, semillaBase] 
     const uidDomiciliario = context.auth.uid;
     const { ordenId, codigoSuministrado } = data;
     const db = admin.firestore();
+    const rtdb = admin.database();
     const ordenRef = db.collection('Logistica_Ordenes').doc(ordenId);
 
+    // 1. ⛽ EXTRACCIÓN DE GAS AISLADA: Ocurre UNA sola vez antes de la transacción de Firestore
+    let monedaSuiGas = null;
+    let idNodoGas = null;
+    await rtdb.ref('Sistema/MallaDeGas/libres').transaction((nodos) => {
+        if (nodos) {
+            const id = Object.keys(nodos)[0];
+            if (id) { 
+                monedaSuiGas = nodos[id]; 
+                idNodoGas = id;
+                delete nodos[id]; 
+                return nodos; 
+            }
+        }
+        return nodos;
+    });
+
+    if (!monedaSuiGas) throw new functions.https.HttpsError('resource-exhausted', 'Malla de Gas vacía.');
+
     try {
+        // 2. 🛡️ LÓGICA TRANSACCIONAL: Si esto colisiona, se reintenta reusando la misma monedaSuiGas
         return await db.runTransaction(async (transaction) => {
             const ordenDoc = await transaction.get(ordenRef);
             if (!ordenDoc.exists) throw new functions.https.HttpsError('not-found', 'La orden no existe.');
@@ -165,19 +201,6 @@ exports.validarEntrega = functions.runWith({ secrets: [semillaSui, semillaBase] 
             const suiClient = new SuiJsonRpcClient({ url: 'https://fullnode.mainnet.sui.io:443' });
 
             try {
-                const rtdb = admin.database();
-                let monedaSuiGas;
-
-                await rtdb.ref('Sistema/MallaDeGas/libres').transaction((nodos) => {
-                    if (nodos) {
-                        const id = Object.keys(nodos)[0];
-                        if (id) { monedaSuiGas = nodos[id]; delete nodos[id]; return nodos; }
-                    }
-                    return nodos;
-                });
-
-                if (!monedaSuiGas) throw new Error("Malla de Gas vacía.");
-
                 const datosCrudos = `ORDEN:${ordenId}|MONTO:${montoTotal}|COMISION:${comisionPlataforma}|EMBAJADOR:${pagoEmbajador}`;
                 const huella = crypto.createHash('sha256').update(datosCrudos).digest('hex');
 
@@ -215,9 +238,15 @@ exports.validarEntrega = functions.runWith({ secrets: [semillaSui, semillaBase] 
             return { success: true, txID: txID_Generado, ganancia: pagoDomiciliario };
         });
     } catch (e) {
+        // 3. 🚨 PROTOCOLO DE REEMBOLSO: Si algo falla (código mal, timeout SUI), devolvemos el Gas a la RTDB
+        if (monedaSuiGas && idNodoGas) {
+            await rtdb.ref(`Sistema/MallaDeGas/libres/${idNodoGas}`).set(monedaSuiGas);
+            console.log(`[ROLLBACK DE GAS] Moneda devuelta a la malla tras fallo en orden: ${ordenId}`);
+        }
         throw new functions.https.HttpsError('internal', e.message);
     }
 });
+
 
 // -------------------------------------------------------------------
 // MÓDULO DE ANCLAJE: CREAR ORDEN 
@@ -253,7 +282,8 @@ exports.generarSelloSeguro = functions.runWith({ secrets: [semillaMaestra] }).ht
     return { firma: `REF-${codigoReferido}-${firma}`, timestamp: Date.now() };
 });
 
-exports.crearOrdenLogistica = functions.https.onCall(async (data, context) => {
+// Añadimos el contenedor de secretos para poder leer la semillaMaestra
+exports.crearOrdenLogistica = functions.runWith({ secrets: [semillaMaestra] }).https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'Debes iniciar sesión para crear una orden.');
     }
@@ -261,57 +291,82 @@ exports.crearOrdenLogistica = functions.https.onCall(async (data, context) => {
     const uidComerciante = context.auth.uid;
     const { domiciliario_uid, monto_total, ticketReferido, ticketPublico } = data;
 
-    if (!domiciliario_uid || !monto_total || monto_total <= 0) {
-         throw new functions.https.HttpsError('invalid-argument', 'Datos de orden incompletos o inválidos.');
+    // 1. LÍMITES LÓGICOS DE MERCADO (Torniquete y Techo)
+    const DOMICILIO_MINIMO = 3000;
+    const DOMICILIO_MAXIMO = 50000; // Margen futuro para fletes ligeros
+
+    if (!domiciliario_uid || typeof monto_total !== 'number' || monto_total < DOMICILIO_MINIMO || monto_total > DOMICILIO_MAXIMO) {
+         console.warn(`[SEGURIDAD] Intento de orden fuera de límites lógicos. Monto: ${monto_total}`);
+         throw new functions.https.HttpsError('invalid-argument', 'El valor del domicilio está fuera de los límites permitidos.');
     }
 
     const db = admin.firestore();
 
     try {
         const comercioRef = db.collection('Directorio').doc(uidComerciante);
-        await comercioRef.update({
-            ordenes_validadas: admin.firestore.FieldValue.increment(1)
-        });
+        const nuevaOrdenRef = db.collection('Logistica_Ordenes').doc(); 
 
         let embajadorValidado = null;
-        if (ticketReferido) {
-            const secreto = semillaMaestra.value();
-            embajadorValidado = validarSelloTOTP(ticketReferido, uidComerciante, secreto);
-            if (!embajadorValidado) {
-                console.warn(`[FRAUDE EVITADO] Firma TOTP inválida en comercio: ${uidComerciante}`);
+
+        // 2. TRANSACCIÓN ATÓMICA: Validar saldo y retener fondos (Escrow) en tiempo real
+        await db.runTransaction(async (transaction) => {
+            const comercioDoc = await transaction.get(comercioRef);
+            if (!comercioDoc.exists) throw new functions.https.HttpsError('not-found', 'Comercio no encontrado en el directorio.');
+
+            const datosComercio = comercioDoc.data();
+            const saldoActual = datosComercio.saldo_logistica || 0;
+
+            // Bloqueo estricto: El dinero debe existir para generar la orden
+            if (saldoActual < monto_total) {
+                throw new functions.https.HttpsError('failed-precondition', 'Saldo insuficiente en bóveda para cubrir el domicilio.');
             }
-        }
 
-        const randomBytes = crypto.randomBytes(3).toString('hex').toUpperCase();
-        const codigoEntrega = `QRP-${randomBytes}`;
+            // Validación TOTP para referidos
+            if (ticketReferido) {
+                const secreto = semillaMaestra.value();
+                embajadorValidado = validarSelloTOTP(ticketReferido, uidComerciante, secreto);
+                if (!embajadorValidado) {
+                    console.warn(`[FRAUDE EVITADO] Firma TOTP inválida en comercio: ${uidComerciante}`);
+                }
+            }
 
-        const nuevaOrdenRef = db.collection('Logistica_Ordenes').doc(); 
-        
-        const ordenEstructura = {
-            comerciante_uid: uidComerciante,
-            domiciliario_uid: domiciliario_uid,
-            embajador_uid: embajadorValidado, 
-            ticket_publico: ticketPublico || "DESCONOCIDO",
-            monto_total: monto_total,
-            estado: "en_transito",
-            seguridad_web3: {
-                codigo_entrega: codigoEntrega, 
-                intentos_fallidos: 0,
-                bloqueado_hasta: null,
-                txID_escrow: "pendiente_de_blockchain" 
-            },
-            timestamp_creacion: admin.firestore.FieldValue.serverTimestamp()
-        };
+            // Retenemos los fondos inmediatamente para evitar doble gasto
+            transaction.update(comercioRef, {
+                saldo_logistica: saldoActual - monto_total,
+                ordenes_validadas: admin.firestore.FieldValue.increment(1)
+            });
 
-        await nuevaOrdenRef.set(ordenEstructura);
+            // 3. CREAR LA ORDEN RESPALDADA
+            const randomBytes = crypto.randomBytes(3).toString('hex').toUpperCase();
+            const codigoEntrega = `QRP-${randomBytes}`;
 
-        return { success: true, ordenId: nuevaOrdenRef.id, mensaje: "Orden creada y anclada exitosamente." };
+            const ordenEstructura = {
+                comerciante_uid: uidComerciante,
+                domiciliario_uid: domiciliario_uid,
+                embajador_uid: embajadorValidado, 
+                ticket_publico: ticketPublico || "DESCONOCIDO",
+                monto_total: monto_total,
+                estado: "en_transito",
+                seguridad_web3: {
+                    codigo_entrega: codigoEntrega, 
+                    intentos_fallidos: 0,
+                    bloqueado_hasta: null,
+                    txID_escrow: "pendiente_de_blockchain" 
+                },
+                timestamp_creacion: admin.firestore.FieldValue.serverTimestamp()
+            };
+
+            transaction.set(nuevaOrdenRef, ordenEstructura);
+        });
+
+        return { success: true, ordenId: nuevaOrdenRef.id, mensaje: "Orden creada y fondos retenidos en escrow." };
 
     } catch (error) {
         console.error("Fallo al crear la orden logística:", error);
-        throw new functions.https.HttpsError('internal', 'Error procesando la orden de logística.');
+        throw new functions.https.HttpsError('internal', error.message || 'Error procesando la orden de logística.');
     }
 });
+
 
 // -------------------------------------------------------------------
 // MÓDULO 4: LA BOCA DE ENTRADA (Webhook Wompi para Recargas)
@@ -516,64 +571,69 @@ exports.reconciliacionWeb3 = functions.pubsub.schedule('every 10 minutes').onRun
 // MÓDULO 7: EL SALVAVIDAS (Reembolso Virtual / El Camino Triste)
 // -------------------------------------------------------------------
 exports.cancelarOrdenLogistica = functions.https.onCall(async (data, context) => {
-    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Acceso denegado.');
-    
-    const { ordenId, idNegocio } = data;
-    if (!ordenId || !idNegocio) throw new functions.https.HttpsError('invalid-argument', 'Faltan parámetros.');
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'Acceso denegado.');
+    }
 
     const uidSolicitante = context.auth.uid;
+    const { ordenId } = data;
+
+    if (!ordenId) {
+        throw new functions.https.HttpsError('invalid-argument', 'Falta el ID de la orden.');
+    }
+
     const db = admin.firestore();
+    const ordenRef = db.collection('Logistica_Ordenes').doc(ordenId);
 
     try {
-        return await db.runTransaction(async (transaction) => {
-            const ordenRef = db.collection('Logistica_Ordenes').doc(ordenId);
-            const ordenSnap = await transaction.get(ordenRef);
-
-            if (!ordenSnap.exists) throw new functions.https.HttpsError('not-found', 'Orden no existe.');
-            const ordenData = ordenSnap.data();
-
-            if (ordenData.estado === 'ENTREGADO' || ordenData.estado === 'CANCELADO_REEMBOLSADO') {
-                throw new functions.https.HttpsError('failed-precondition', 'La orden ya fue entregada o reembolsada previamente.');
+        await db.runTransaction(async (transaction) => {
+            const ordenDoc = await transaction.get(ordenRef);
+            if (!ordenDoc.exists) {
+                throw new functions.https.HttpsError('not-found', 'La orden no existe.');
             }
 
-            const adminSnap = await transaction.get(db.collection('Usuarios_Admin').doc(uidSolicitante));
-            const esSuperAdmin = adminSnap.exists && adminSnap.data().rol === 'superadmin';
+            const orden = ordenDoc.data();
+
+            // Solo el dueño del comercio o un admin puede cancelar
+            if (orden.comerciante_uid !== uidSolicitante) {
+                throw new functions.https.HttpsError('permission-denied', 'No tienes permiso para cancelar esta orden.');
+            }
+
+            // Solo se puede cancelar si no ha sido entregada
+            if (orden.estado === 'ENTREGADO' || orden.estado === 'cancelada') {
+                throw new functions.https.HttpsError('failed-precondition', 'La orden ya fue entregada o cancelada previamente.');
+            }
+
+            // 1. REEMBOLSO (ESCROW REFUND)
+            // Le devolvemos el dinero exacto que se le retuvo al crearla
+            const comercioRef = db.collection('Directorio').doc(orden.comerciante_uid);
             
-            if (ordenData.comerciante_uid !== uidSolicitante && !esSuperAdmin) {
-                throw new functions.https.HttpsError('permission-denied', 'No eres el dueño de esta orden.');
-            }
-
-            const negocioRef = db.collection('Directorio').doc(idNegocio);
-            const montoADevolver = ordenData.monto_total || 0;
-
-            transaction.update(negocioRef, {
-                saldo_logistica: admin.firestore.FieldValue.increment(montoADevolver)
+            transaction.update(comercioRef, {
+                saldo_logistica: admin.firestore.FieldValue.increment(orden.monto_total)
             });
 
+            // 2. ACTUALIZAR ESTADO DE LA ORDEN
             transaction.update(ordenRef, {
-                estado: 'CANCELADO_REEMBOLSADO',
-                fecha_cancelacion: admin.firestore.FieldValue.serverTimestamp(),
-                cancelado_por: uidSolicitante
+                estado: 'cancelada',
+                timestamp_cancelacion: admin.firestore.FieldValue.serverTimestamp(),
+                motivo_cancelacion: "Cancelada por el comercio. Fondos reembolsados."
             });
-
-            if (ordenData.ticket_publico) {
-                const rtdbOrdenRef = admin.database().ref(`malla_de_gas/ordenes_activas/${ordenData.ticket_publico}`);
-                await rtdbOrdenRef.remove(); 
-            }
-
-            return { success: true, mensaje: `Orden cancelada. $${montoADevolver} devueltos al saldo de tu bóveda.` };
         });
+
+        return { success: true, mensaje: "Orden cancelada y fondos devueltos a la bóveda exitosamente." };
+
     } catch (error) {
-        console.error("Fallo en el salvavidas:", error);
-        throw new functions.https.HttpsError('internal', error.message || 'Error procesando el reembolso.');
+        console.error(`Fallo al cancelar la orden ${ordenId}:`, error);
+        throw new functions.https.HttpsError('internal', error.message || 'Error procesando la cancelación.');
     }
 });
 
+
 // ============================================================================
-// 🧹 MÓDULO 8: EL BARRENDERO CRIPTOGRÁFICO (SUI DUST SWEEPER)
+// 🧹 MÓDULO 8: EL BARRENDERO CRIPTOGRÁFICO (SUI PTB MERGE - NATIVO)
 // ============================================================================
-exports.barrenderoCriptografico = functions.pubsub.schedule('every 24 hours').onRun(async (context) => {
-    console.log("[DUST SWEEPER] Iniciando barrido de polvo criptográfico...");
+exports.barrenderoCriptografico = functions.runWith({ secrets: [semillaSui] }).pubsub.schedule('every 24 hours').onRun(async (context) => {
+    console.log("[DUST SWEEPER] Iniciando barrido de polvo criptográfico en SUI...");
     
     const rtdb = admin.database();
     const mallaRef = rtdb.ref('Sistema/MallaDeGas/libres');
@@ -585,45 +645,96 @@ exports.barrenderoCriptografico = functions.pubsub.schedule('every 24 hours').on
         const monedas = snapshot.val();
         const idsMonedas = Object.keys(monedas);
         
-        let polvoAcumuladoMIST = 0;
-        let monedasBorradas = 0;
-        let actualizacionesBatch = {};
-
-        const UMBRAL_BASURA = 5000000; 
+        const UMBRAL_BASURA = 5000000; // 0.005 SUI (Ajusta según tu economía)
+        let monedasPolvo = [];
 
         idsMonedas.forEach(id => {
             const moneda = monedas[id];
             if (moneda.monto < UMBRAL_BASURA) {
-                polvoAcumuladoMIST += moneda.monto;
-                actualizacionesBatch[id] = null; 
-                monedasBorradas++;
+                monedasPolvo.push({ rtdbId: id, ...moneda });
             }
         });
 
-        if (polvoAcumuladoMIST > 0) {
-            console.log(`[DUST SWEEPER] Se recogieron ${monedasBorradas} micro-fracciones. Polvo total: ${polvoAcumuladoMIST} MIST.`);
-            
-            const idLingote = "coin_gold_" + Math.random().toString(36).substring(2, 10);
-            actualizacionesBatch[idLingote] = {
-                id: "0x" + crypto.randomBytes(16).toString('hex'), 
-                monto: polvoAcumuladoMIST,
-                version: 1,
-                digest: "merged_by_sweeper",
-                tipo: "lingote_reciclado"
-            };
-
-            await mallaRef.update(actualizacionesBatch);
-            console.log(`[DUST SWEEPER] Barrido exitoso. Lingote de ${polvoAcumuladoMIST / 1000000000} SUI devuelto a la Malla.`);
-        } else {
-            console.log("[DUST SWEEPER] La Malla está limpia. No hay polvo para recoger.");
+        // Necesitamos al menos 2 monedas para que exista una fusión
+        if (monedasPolvo.length < 2) {
+            console.log("[DUST SWEEPER] La Malla está limpia o no hay suficiente polvo para fusionar.");
+            return null;
         }
 
+        // 1. PREPARACIÓN DEL LOTE (Max 50 para no saturar los límites de PTB de SUI)
+        const lote = monedasPolvo.slice(0, 50);
+        const monedaDestino = lote[0]; // El "contenedor" que absorberá el resto
+        const monedasOrigen = lote.slice(1); // El polvo que será destruido
+
+        console.log(`[DUST SWEEPER] Empaquetando ${monedasOrigen.length} fracciones. Destino: ${monedaDestino.id}`);
+
+        const { SuiJsonRpcClient } = await import('@mysten/sui/jsonRpc');
+        const { Ed25519Keypair } = await import('@mysten/sui/keypairs/ed25519');
+        const { Transaction } = await import('@mysten/sui/transactions');
+
+        const suiClient = new SuiJsonRpcClient({ url: 'https://fullnode.mainnet.sui.io:443' });
+        const keypair = Ed25519Keypair.deriveKeypair(semillaSui.value(), "m/44'/784'/0'/0'/0'");
+
+        // 2. CONSTRUCCIÓN DEL PROGRAMMABLE TRANSACTION BLOCK (PTB)
+        const tx = new Transaction();
+
+        // Convertimos los IDs de Firebase a referencias de objetos SUI
+        const sources = monedasOrigen.map(m => tx.object(m.id));
+
+        // Comando NATIVO de SUI: mergeCoins(destino, [origen1, origen2...])
+        tx.mergeCoins(tx.object(monedaDestino.id), sources);
+
+        // 3. FIRMA Y EJECUCIÓN
+        const result = await suiClient.signAndExecuteTransaction({ 
+            transaction: tx, 
+            signer: keypair 
+        });
+
+        console.log(`[DUST SWEEPER] Fusión exitosa en blockchain. TxID: ${result.digest}`);
+
+        // Le damos 2 segundos a los nodos de SUI para sincronizar el estado final
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // 4. RECONCILIACIÓN ESTRICTA: Leemos la moneda destino directamente de la blockchain
+        const lingoteSui = await suiClient.getObject({
+            id: monedaDestino.id,
+            options: { showContent: true }
+        });
+
+        if (lingoteSui.error) throw new Error("No se pudo verificar el lingote en la red.");
+
+        const balanceReal = parseInt(lingoteSui.data.content.fields.balance);
+        const versionReal = lingoteSui.data.version;
+        const digestReal = lingoteSui.data.digest;
+
+        // 5. LIMPIEZA Y ACTUALIZACIÓN EN FIRESTORE RTDB
+        let actualizacionesBatch = {};
+
+        // Borramos el polvo antiguo de la base de datos
+        monedasOrigen.forEach(m => {
+            actualizacionesBatch[m.rtdbId] = null; 
+        });
+
+        // Actualizamos la moneda receptora con sus nuevos super-poderes
+        actualizacionesBatch[monedaDestino.rtdbId] = {
+            id: monedaDestino.id,
+            monto: balanceReal,
+            version: versionReal,
+            digest: digestReal,
+            tipo: "lingote_fusionado"
+        };
+
+        await mallaRef.update(actualizacionesBatch);
+        console.log(`[DUST SWEEPER] Barrido completado. Lingote de ${balanceReal / 1000000000} SUI anclado a la Malla.`);
+
         return null;
+
     } catch (error) {
-        console.error("[DUST SWEEPER] Error crítico barriendo la Malla:", error);
+        console.error("[DUST SWEEPER] Error crítico conectando con SUI:", error);
         return null;
     }
 });
+
 
 // ============================================================================
 // 🔐 MÓDULO 9: LA ADUANA DIGITAL (Sistema OTP por Correo)
@@ -696,13 +807,26 @@ exports.validarAccionConOTP = functions.https.onCall(async (data, context) => {
     });
 });
 
-// ============================================================================
-// 🤖 MÓDULO: KYC BIOMÉTRICO (Google Vision - V2)
-// ============================================================================
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
-let visionClient = null; 
+//============================================================================
+// 🤖 MÓDULO 10: KYC BIOMÉTRICO (Google Vision + Cifrado AES-256-GCM)
+//============================================================================
 
-exports.procesarKycBiometrico = onCall({ memory: '512MB', maxInstances: 10 }, async (request) => {
+// Función auxiliar de cifrado simétrico (Grado Militar)
+function encriptarBuffer(buffer, secreto, uid) {
+    // Derivamos una llave única combinando tu Semilla Maestra y el UID del usuario
+    const llaveDerivada = crypto.createHash('sha256').update(secreto + uid).digest();
+    const iv = crypto.randomBytes(16); // Vector de inicialización único por archivo
+    const cipher = crypto.createCipheriv('aes-256-gcm', llaveDerivada, iv);
+    
+    const cifrado = Buffer.concat([cipher.update(buffer), cipher.final()]);
+    const authTag = cipher.getAuthTag(); // Sello de autenticidad para evitar manipulación
+    
+    // Empaquetamos todo en un solo buffer (IV + Sello + Archivo Cifrado)
+    return Buffer.concat([iv, authTag, cifrado]);
+}
+
+// 🚨 INYECCIÓN DE SECRETO: Añadimos [semillaMaestra] a los secrets de V2
+exports.procesarKycBiometrico = onCall({ memory: '512MB', maxInstances: 10, secrets: [semillaMaestra] }, async (request) => {
   if (!visionClient) {
     const vision = require("@google-cloud/vision");
     visionClient = new vision.ImageAnnotatorClient();
@@ -726,6 +850,7 @@ exports.procesarKycBiometrico = onCall({ memory: '512MB', maxInstances: 10 }, as
     const bufferReverso = Buffer.from(limpiarBase64(reverso), "base64");
     const bufferRostro = Buffer.from(limpiarBase64(rostro), "base64");
 
+    // 1. AUDITORÍA GOOGLE VISION (El servidor "ve" los datos por 2 segundos)
     const [resultadoTexto, resultadoRostro] = await Promise.all([
       visionClient.textDetection({ image: { content: bufferFrente } }),
       visionClient.faceDetection({ image: { content: bufferRostro } })
@@ -753,33 +878,39 @@ exports.procesarKycBiometrico = onCall({ memory: '512MB', maxInstances: 10 }, as
       return { success: false, mensaje: "Calidad insuficiente. Inténtalo de nuevo con mejor iluminación." };
     }
 
+    // 2. LA TRITURADORA CRIPTOGRÁFICA (Licuamos las imágenes a espagueti)
+    const secretoMaestro = semillaMaestra.value();
+    const encFrente = encriptarBuffer(bufferFrente, secretoMaestro, uid);
+    const encReverso = encriptarBuffer(bufferReverso, secretoMaestro, uid);
+    const encRostro = encriptarBuffer(bufferRostro, secretoMaestro, uid);
+
+    // 3. GUARDADO BLINDADO EN STORAGE
     const bucket = admin.storage().bucket();
     const timestamp = Date.now();
-    const pathBase = `kyc/${uid}_${timestamp}`;
+    const pathBase = `kyc_blindado/${uid}_${timestamp}`;
 
-    const opcionesArchivo = { metadata: { contentType: "image/webp" }, private: true };
+    // Le decimos a Storage que esto es un flujo de bytes en crudo, no una imagen.
+    const opcionesArchivo = { metadata: { contentType: "application/octet-stream" }, private: true };
 
     await Promise.all([
-      bucket.file(`${pathBase}_frente.webp`).save(bufferFrente, opcionesArchivo),
-      bucket.file(`${pathBase}_reverso.webp`).save(bufferReverso, opcionesArchivo),
-      bucket.file(`${pathBase}_rostro.webp`).save(bufferRostro, opcionesArchivo)
+      bucket.file(`${pathBase}_frente.enc`).save(encFrente, opcionesArchivo),
+      bucket.file(`${pathBase}_reverso.enc`).save(encReverso, opcionesArchivo),
+      bucket.file(`${pathBase}_rostro.enc`).save(encRostro, opcionesArchivo)
     ]);
 
-    const urlFrente = `gs://${bucket.name}/${pathBase}_frente.webp`;
-    const urlReverso = `gs://${bucket.name}/${pathBase}_reverso.webp`;
-    const urlRostro = `gs://${bucket.name}/${pathBase}_rostro.webp`;
-
+    // Guardamos la ruta de los archivos .enc en la base de datos
     await admin.firestore().collection("Directorio").doc(uid).set({
       estado_moderacion: "en_revision_kyc", 
       evidencia_kyc: {
-        frente: urlFrente,
-        reverso: urlReverso,
-        rostro: urlRostro,
-        fecha_envio: new Date().toISOString()
+        frente: `${pathBase}_frente.enc`,
+        reverso: `${pathBase}_reverso.enc`,
+        rostro: `${pathBase}_rostro.enc`,
+        fecha_envio: new Date().toISOString(),
+        estado_cripto: "cifrado_aes_gcm"
       }
     }, { merge: true });
 
-    return { success: true, mensaje: "Búnker sellado. Biometría enviada exitosamente." };
+    return { success: true, mensaje: "Búnker sellado. Biometría validada por IA y cifrada exitosamente." };
 
   } catch (error) {
     console.error("Falla en la Cocina KYC:", error);
@@ -787,85 +918,6 @@ exports.procesarKycBiometrico = onCall({ memory: '512MB', maxInstances: 10 }, as
   }
 });
 
-// ============================================================================
-// ⚖️ MÓDULO 10: EL NOTARIO CIEGO (SUI + RECAUDO + PDF - ASÍNCRONO TRUSTLESS)
-// ============================================================================
-exports.sellarTramiteLegal = functions.runWith({ secrets: [semillaSui], memory: '512MB' }).https.onCall(async (data, context) => {
-    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Acceso denegado.');
-
-    const uidUsuario = context.auth.uid;
-    const { textoContrato, otp, gps, selfie, codigo, timestamp } = data; 
-
-    if (!textoContrato || !selfie) {
-        throw new functions.https.HttpsError('invalid-argument', 'El paquete probatorio está incompleto.');
-    }
-
-    try {
-        const pdfBuffer = await generarPDFEnMemoria(textoContrato, gps, selfie, codigo, timestamp);
-        const hashOriginal = crypto.createHash('sha256').update(pdfBuffer).digest('hex');
-
-        // 🔥 LA TÁCTICA GANADORA: Carga asíncrona dinámica idéntica al Módulo 3
-        const { SuiJsonRpcClient } = await import('@mysten/sui/jsonRpc');
-        const { Ed25519Keypair } = await import('@mysten/sui/keypairs/ed25519');
-        const { Transaction } = await import('@mysten/sui/transactions');
-        const suiClient = new SuiJsonRpcClient({ url: 'https://fullnode.mainnet.sui.io:443' });
-
-        const rtdb = admin.database();
-        let monedaSuiGas;
-        await rtdb.ref('Sistema/MallaDeGas/libres').transaction((nodos) => {
-            if (nodos) {
-                const id = Object.keys(nodos)[0];
-                if (id) { monedaSuiGas = nodos[id]; delete nodos[id]; return nodos; }
-            }
-            return nodos;
-        });
-
-        if (!monedaSuiGas) throw new Error("Malla de Gas sin liquidez temporal.");
-
-        const tx = new Transaction();
-        tx.setGasPayment([{ objectId: monedaSuiGas.id, version: monedaSuiGas.version, digest: monedaSuiGas.digest }]);
-        
-        tx.moveCall({
-            target: `${PACKAGE_ID}::notario::sellar_documento`,
-            arguments: [tx.pure.string(hashOriginal), tx.pure.u64(timestamp)]
-        });
-
-        const keypair = Ed25519Keypair.deriveKeypair(semillaSui.value(), "m/44'/784'/0'/0'/0'");
-        const result = await suiClient.signAndExecuteTransaction({ transaction: tx, signer: keypair });
-        const txId = result.digest;
-
-        const llaveDerivada = crypto.createHash('sha256').update(txId + otp).digest();
-        const iv = crypto.randomBytes(16); 
-        const cipher = crypto.createCipheriv('aes-256-gcm', llaveDerivada, iv);
-        
-        const pdfCifrado = Buffer.concat([cipher.update(pdfBuffer), cipher.final()]);
-        const authTag = cipher.getAuthTag(); 
-
-        const paqueteFinal = Buffer.concat([iv, authTag, pdfCifrado]);
-
-                // 5. Carga blindada a Storage privado con Metadato de Descarga Amigable
-        const bucket = admin.storage().bucket();
-        const archivoDestino = bucket.file(`boveda_legal/${uidUsuario}/${txId}.enc`);
-        
-        // El parámetro 'otp' de la función recibe tu código de 9 dígitos escrito a mano
-        const nombreDescargaAmigable = `${otp}.pdf`;
-
-        await archivoDestino.save(paqueteFinal, {
-            metadata: { 
-                contentType: 'application/octet-stream',
-                contentDisposition: `attachment; filename="${nombreDescargaAmigable}"` // <-- Fuerza el nombre exacto al descargar
-            },
-            private: true
-        });
-
-        return { success: true, txId: txId, hashPdf: hashOriginal };
-
-
-    } catch (error) {
-        console.error("[NOTARIO CIEGO CRÍTICO]:", error);
-        throw new functions.https.HttpsError('internal', error.message);
-    }
-});
 
 function generarPDFEnMemoria(texto, gps, selfieBase64, codigo, timestamp) {
     return new Promise((resolve, reject) => {
@@ -900,3 +952,328 @@ function generarPDFEnMemoria(texto, gps, selfieBase64, codigo, timestamp) {
         doc.end();
     });
 }
+// ============================================================================
+// ⚖️ MÓDULO 11: EL NOTARIO DIGITAL (Sellar Trámite, SUI y Fricción Cero)
+// ============================================================================
+exports.sellarTramiteLegal = functions.runWith({ memory: '1GB', secrets: [semillaSui, semillaMaestra] }).https.onCall(async (data, context) => {
+    const uid = context.auth ? context.auth.uid : 'INVITADO';
+    const { textoContrato, otp, gps, selfie, codigo, wompi_ref, timestamp } = data;
+
+    if (!textoContrato || !wompi_ref) throw new functions.https.HttpsError('invalid-argument', 'Paquete incompleto.');
+
+    try {
+        // 1. Crear PDF en RAM
+        const pdfBuffer = await generarPDFEnMemoria(textoContrato, gps, selfie, codigo, timestamp);
+
+        // 2. Huella Criptográfica SHA-256 del documento original
+        const hashDocumento = crypto.createHash('sha256').update(pdfBuffer).digest('hex');
+
+        // 3. SELLAR EN BLOCKCHAIN SUI (Nativo)
+        const { SuiJsonRpcClient } = await import('@mysten/sui/jsonRpc');
+        const { Ed25519Keypair } = await import('@mysten/sui/keypairs/ed25519');
+        const { Transaction } = await import('@mysten/sui/transactions');
+        
+        const suiClient = new SuiJsonRpcClient({ url: 'https://fullnode.mainnet.sui.io:443' });
+        const keypair = Ed25519Keypair.deriveKeypair(semillaSui.value(), "m/44'/784'/0'/0'/0'");
+        const tx = new Transaction();
+        
+        tx.moveCall({
+            target: `${PACKAGE_ID}::legal::sellar_hash_documento`, // Asumiendo tu contrato SUI
+            arguments: [tx.pure.string(hashDocumento), tx.pure.u64(timestamp)]
+        });
+
+        const resultSui = await suiClient.signAndExecuteTransaction({ transaction: tx, signer: keypair });
+        const txIdGenerado = resultSui.digest;
+
+        // 4. TRITURADORA AES-256-GCM (La misma del KYC)
+        const secretoMaestro = semillaMaestra.value();
+        const pdfCifrado = encriptarBuffer(pdfBuffer, secretoMaestro, uid);
+
+        // 5. GUARDADO EN STORAGE
+        const bucket = admin.storage().bucket();
+        const nombreArchivo = wompi_ref.replace(/[^a-zA-Z0-9_-]/g, '');
+        
+        // Guardamos la versión ENCRIPTADA (.enc) de por vida
+        const fileEnc = bucket.file(`boveda_legal/${uid}/${nombreArchivo}.enc`);
+        await fileEnc.save(pdfCifrado, { metadata: { contentType: 'application/octet-stream' }, private: true });
+
+        // Guardamos la versión PLANA (.pdf) en una carpeta temporal
+        const filePlano = bucket.file(`temporales_pdf/${uid}/${nombreArchivo}.pdf`);
+        await filePlano.save(pdfBuffer, { metadata: { contentType: 'application/pdf' }, private: true });
+
+        // 6. GENERAR LINK DE FRICCIÓN CERO (Se autodestruye en 15 minutos)
+        const urlFriccionCero = await filePlano.getSignedUrl({
+            action: 'read',
+            expires: Date.now() + 15 * 60 * 1000 // 15 minutos
+        });
+
+        // 7. REGISTRO EN FIRESTORE
+        const db = admin.firestore();
+        await db.collection('Boveda_Tramites').doc(wompi_ref).set({
+            creador_uid: uid,
+            participantes: [uid], 
+            hash_documento: hashDocumento,
+            tx_sui: txIdGenerado,
+            fecha_creacion: admin.firestore.FieldValue.serverTimestamp(),
+            estado: "Sellado en SUI",
+            wompi_ref: wompi_ref,
+            ruta_storage_enc: `boveda_legal/${uid}/${nombreArchivo}.enc`
+        });
+
+        return { 
+            success: true, 
+            txId: txIdGenerado, 
+            urlDescargaLibre: urlFriccionCero[0] // El link temporal para la UI
+        };
+
+    } catch (error) {
+        console.error("[NOTARIO] Falla:", error);
+        throw new functions.https.HttpsError('internal', error.message);
+    }
+});
+
+
+// -------------------------------------------------------------------
+// MÓDULO ADICIONAL: ORÁCULO DE TELEMETRÍA Y ACCIÓN DIRIGIDA P2P
+// -------------------------------------------------------------------
+exports.propagarAlertaConductor = functions.database.ref('malla_de_gas/alertas_conductores/{placaId}')
+    .onCreate(async (snapshot, context) => {
+        const placaId = context.params.placaId;
+        const alertaData = snapshot.val();
+        
+        console.log(`[ALERTA P2P] Disparo de recogida detectado en tiempo real para unidad: ${placaId}. Coordinando origen sin barrido geográfico.`);
+        
+        // Retornamos el nodo inmutable para auditoría del tribunal
+        return snapshot.ref.child('auditoria_sello').set({
+            servidor_timestamp: admin.database.ServerValue.TIMESTAMP,
+            oráculo_verificado: true
+        });
+    });
+    // ============================================================================
+// 🔐 MÓDULO 12: BÓVEDA EN VIVO (Desencriptación On-The-Fly para Moderadores)
+// ============================================================================
+exports.obtenerEvidenciaKyc = onCall({ memory: '512MB', secrets: [semillaMaestra] }, async (request) => {
+    // 1. CORTAFUEGOS DE SEGURIDAD: Solo usuarios autenticados
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Acceso denegado.");
+    }
+
+    const uidSolicitante = request.auth.uid;
+    const { uidObjetivo, tipoEvidencia } = request.data; // tipoEvidencia: 'frente', 'reverso' o 'rostro'
+
+    if (!uidObjetivo || !tipoEvidencia) {
+        throw new HttpsError("invalid-argument", "Faltan parámetros de búsqueda.");
+    }
+
+    const db = admin.firestore();
+
+    try {
+        // 2. VERIFICACIÓN DE ROL: Comprobamos si quien pide la foto es Admin o Moderador
+        const adminSnap = await db.collection('Usuarios_Admin').doc(uidSolicitante).get();
+        if (!adminSnap.exists || (adminSnap.data().rol !== 'admin' && adminSnap.data().rol !== 'superadmin' && adminSnap.data().rol !== 'moderador')) {
+            throw new HttpsError("permission-denied", "No tienes credenciales de alta seguridad para abrir la bóveda.");
+        }
+
+        // 3. BUSCAMOS LA RUTA DEL ARCHIVO CIFRADO EN EL DIRECTORIO DEL USUARIO
+        const userSnap = await db.collection('Directorio').doc(uidObjetivo).get();
+        if (!userSnap.exists) throw new HttpsError("not-found", "Usuario no encontrado.");
+        
+        const evidencia = userSnap.data().evidencia_kyc;
+        if (!evidencia || !evidencia[tipoEvidencia]) {
+            throw new HttpsError("not-found", "No existe este documento biométrico para el usuario.");
+        }
+
+        const rutaArchivoEnc = evidencia[tipoEvidencia]; // Ej: kyc_blindado/uid_123_frente.enc
+
+        // 4. DESCARGAMOS EL ARCHIVO ESPAGUETI DESDE STORAGE A LA RAM DEL SERVIDOR
+        const bucket = admin.storage().bucket();
+        const archivo = bucket.file(rutaArchivoEnc);
+        const [bufferCifrado] = await archivo.download();
+
+        // 5. INGENIERÍA INVERSA CRIPTOGRÁFICA
+        // Extraemos las partes exactamente como las empaquetamos: [IV (16) + AuthTag (16) + ArchivoCifrado (Resto)]
+        const iv = bufferCifrado.subarray(0, 16);
+        const authTag = bufferCifrado.subarray(16, 32);
+        const cifrado = bufferCifrado.subarray(32);
+
+        // Reconstruimos la llave usando la Semilla Maestra y el UID del dueño del archivo
+        const secretoMaestro = semillaMaestra.value();
+        const llaveDerivada = crypto.createHash('sha256').update(secretoMaestro + uidObjetivo).digest();
+
+        const decipher = crypto.createDecipheriv('aes-256-gcm', llaveDerivada, iv);
+        decipher.setAuthTag(authTag); // Esto asegura que el archivo no fue alterado por un hacker
+
+        let bufferDesencriptado;
+        try {
+            bufferDesencriptado = Buffer.concat([decipher.update(cifrado), decipher.final()]);
+        } catch (err) {
+            throw new HttpsError("data-loss", "El sello de autenticidad está roto o la llave es incorrecta. Archivo corrupto.");
+        }
+
+        // 6. DEVOLVEMOS EL RESULTADO LIMPIO AL NAVEGADOR
+        // Convertimos los bytes puros a Base64 para que el HTML del moderador pueda pintar la imagen
+        const imagenBase64 = bufferDesencriptado.toString('base64');
+        return { 
+            success: true, 
+            imagenData: `data:image/webp;base64,${imagenBase64}` 
+        };
+
+    } catch (error) {
+        console.error("Falla en Bóveda en Vivo:", error);
+        throw new HttpsError("internal", error.message || "Error al intentar desencriptar el documento.");
+    }
+});
+
+
+// ============================================================================
+// 🤝 MÓDULO 13: SALA DE ESPERA P2P (Borradores y Contrapartes)
+// ============================================================================
+exports.crearBorradorTramiteP2P = functions.runWith({ memory: '256MB' }).https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Debes iniciar sesión.');
+
+    const uidCreador = context.auth.uid;
+    const { textoContrato, contraparteEmail, wompi_ref, firmasCreador } = data;
+
+    if (!textoContrato || !contraparteEmail || !wompi_ref) {
+        throw new functions.https.HttpsError('invalid-argument', 'Faltan datos del contrato o contraparte.');
+    }
+
+    const db = admin.firestore();
+    const salaId = wompi_ref; // Usamos la referencia de pago como ID de la sala
+
+    try {
+        // 1. Guardamos el borrador en la colección temporal
+        await db.collection('Salas_Legales_P2P').doc(salaId).set({
+            creador_uid: uidCreador,
+            contraparte_email: contraparteEmail.toLowerCase(),
+            texto_contrato: textoContrato,
+            estado: 'esperando_contraparte', // Estados: esperando_contraparte, apelado, listo_para_sellar
+            fecha_creacion: admin.firestore.FieldValue.serverTimestamp(),
+            firmas: {
+                creador: firmasCreador // { gps, selfie, codigo, timestamp }
+            }
+        });
+
+        // 2. Disparamos correo automático a la contraparte
+        const linkSala = `https://tuqrpido.com/tramites.html?sala=${salaId}`;
+        const mailOptions = {
+            from: '"Bóveda QRpido" <qrpido@gmail.com>',
+            to: contraparteEmail,
+            subject: `Tienes un Documento Legal pendiente de firma`,
+            text: `Han redactado un documento legal que requiere tu revisión y firma electrónica (Ley 527).\n\nIngresa a la sala segura aquí: ${linkSala}`
+        };
+        await transporter.sendMail(mailOptions);
+
+        // 3. Generamos el link de WhatsApp para que el Creador lo envíe gratis
+        const msjWhatsApp = encodeURIComponent(`Hola! He redactado el documento que acordamos. Por favor revísalo y fírmalo con validez legal aquí: ${linkSala}`);
+        const linkWhatsApp = `https://wa.me/?text=${msjWhatsApp}`;
+
+        return { 
+            success: true, 
+            salaId: salaId, 
+            link_whatsapp: linkWhatsApp,
+            mensaje: "Sala creada. Correo enviado y link de WhatsApp listo."
+        };
+
+    } catch (error) {
+        console.error("Error creando sala P2P:", error);
+        throw new functions.https.HttpsError('internal', error.message);
+    }
+});
+exports.firmarContraparteP2P = functions.runWith({ memory: '256MB' }).https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Debes iniciar sesión.');
+
+    const uidContraparte = context.auth.uid;
+    const { salaId, firmasContraparte } = data;
+
+    const db = admin.firestore();
+    const salaRef = db.collection('Salas_Legales_P2P').doc(salaId);
+
+    try {
+        return await db.runTransaction(async (transaction) => {
+            const salaDoc = await transaction.get(salaRef);
+            if (!salaDoc.exists) throw new functions.https.HttpsError('not-found', 'La sala no existe.');
+
+            const salaData = salaDoc.data();
+            
+            // Validamos que sea el correo invitado
+            if (salaData.contraparte_email !== context.auth.token.email) {
+                throw new functions.https.HttpsError('permission-denied', 'No eres el invitado a esta sala.');
+            }
+
+            // Inyectamos la firma de la contraparte y cambiamos el estado
+            transaction.update(salaRef, {
+                'firmas.contraparte': {
+                    uid: uidContraparte,
+                    ...firmasContraparte
+                },
+                estado: 'listo_para_sellar',
+                fecha_firma_contraparte: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            // Opcional: Aquí enviarías un email al 'creador_uid' avisándole que ya firmaron.
+
+            return { success: true, mensaje: "Firma anexada. El creador ya puede sellar el contrato final." };
+        });
+    } catch (error) {
+        throw new functions.https.HttpsError('internal', error.message);
+    }
+});
+// ============================================================================
+// 🔓 MÓDULO 14: LECTURA FRICCIÓN CERO (Desencriptación de Contratos On-The-Fly)
+// ============================================================================
+exports.descargarContratoDesbloqueado = functions.runWith({ memory: '512MB', secrets: [semillaMaestra] }).https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Acceso denegado.');
+
+    const uidSolicitante = context.auth.uid;
+    const { contratoId } = data; // Es el wompi_ref o doc.id de Boveda_Tramites
+
+    const db = admin.firestore();
+
+    try {
+        // 1. Verificamos que el usuario sea Dueño o Contraparte del documento
+        const contratoSnap = await db.collection('Boveda_Tramites').doc(contratoId).get();
+        if (!contratoSnap.exists) throw new functions.https.HttpsError('not-found', 'Contrato no encontrado.');
+
+        const datosContrato = contratoSnap.data();
+        if (!datosContrato.participantes.includes(uidSolicitante)) {
+            throw new functions.https.HttpsError('permission-denied', 'No eres parte de este contrato. Acceso bloqueado.');
+        }
+
+        const rutaArchivoEnc = datosContrato.ruta_storage_enc; // Ej: boveda_legal/UID/archivo.enc
+
+        // 2. Descargar el archivo encriptado desde Storage
+        const bucket = admin.storage().bucket();
+        const [bufferCifrado] = await bucket.file(rutaArchivoEnc).download();
+
+        // 3. Ingeniería Inversa: Separamos IV, AuthTag y Cifrado
+        const iv = bufferCifrado.subarray(0, 16);
+        const authTag = bufferCifrado.subarray(16, 32);
+        const cifrado = bufferCifrado.subarray(32);
+
+        // 4. Reconstruimos la llave (El Creador del documento es el dueño original de la encriptación)
+        const secretoMaestro = semillaMaestra.value();
+        const llaveDerivada = crypto.createHash('sha256').update(secretoMaestro + datosContrato.creador_uid).digest();
+
+        const decipher = crypto.createDecipheriv('aes-256-gcm', llaveDerivada, iv);
+        decipher.setAuthTag(authTag);
+
+        let bufferDesencriptado;
+        try {
+            bufferDesencriptado = Buffer.concat([decipher.update(cifrado), decipher.final()]);
+        } catch (err) {
+            throw new functions.https.HttpsError("data-loss", "Sello de integridad roto. El archivo fue manipulado.");
+        }
+
+        // 5. Convertimos a Base64 para enviarlo al Frontend
+        const pdfBase64 = bufferDesencriptado.toString('base64');
+        return { 
+            success: true, 
+            pdfData: `data:application/pdf;base64,${pdfBase64}` 
+        };
+
+    } catch (error) {
+        console.error("Falla en Desencriptación Fricción Cero:", error);
+        throw new functions.https.HttpsError('internal', error.message);
+    }
+});

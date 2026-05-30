@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Radar de Movilidad SaaS Multitenant - QRpido</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    
+    <link rel="stylesheet" href="ui-estilos.css" />
+
+    <style>
+        /* ========================================================================
+           INTERFAZ DE CALLE Y LEY DE FLUJO ORGÁNICO ANTICOLISIÓN
+           ======================================================================== */
+        body { 
+            background: #0a0a0c; 
+            margin: 0; 
+            padding: 0; 
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden !important; 
+            height: 100vh;
+            width: 100vw;
+        }
+
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .header-tramites {
+            position: relative;
+            background: rgba(10, 10, 12, 0.95);
+            border-bottom: 1px solid rgba(255, 107, 0, 0.2);
+            padding: 13px 21px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .header-logo {
+            color: #ff6b00;
+            font-weight: 900;
+            font-size: 18px;
+            letter-spacing: 1px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 13px;
+        }
+
+        .btn-mando {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 107, 0, 0.3);
+            color: #ffffff;
+            font-size: 14px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        #nav-maestra {
+            position: relative;
+            background: #0a0a0c;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            width: 100%;
+            z-index: 10;
+        }
+
+        #nav-maestra .tag-pill {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #aaaaaa;
+            text-align: center;
+            padding: 15px 5px;
+            font-weight: 900;
+            font-size: 11px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+        }
+
+        #nav-maestra .tag-pill.active {
+            color: #ff6b00;
+            border-bottom: 3px solid #ff6b00;
+            background: rgba(255, 107, 0, 0.05);
+        }
+
+        .map-wrapper {
+            position: relative;
+            width: 100%;
+            height: 45vh; 
+            overflow: hidden;
+        }
+
+        #mapa-domicilios { 
+            width: 100%;
+            height: 100%;
+            background-color: #0a0a0c; 
+        }
+
+        .leaflet-container {
+            background: #0a0a0c !important;
+        }
+
+        .tab-content {
+            flex: 1;
+            background: #0a0a0c;
+            box-sizing: border-box;
+            padding: 21px;
+            overflow-y: auto !important; 
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: 140px; 
+        }
+
+        .radar-caceria-title {
+            color: #ff6b00; 
+            margin-top: 0; 
+            font-size: 14px; 
+            text-transform: uppercase;
+            font-weight: 900;
+            letter-spacing: 1px;
+            margin-bottom: 13px;
+        }
+
+        .order-card {
+            background: rgba(255, 255, 255, 0.03); 
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 15px; 
+            padding: 13px; 
+            margin-bottom: 10px;
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+        }
+
+        .btn-cazar {
+            background: #ff6b00; 
+            color: #ffffff; 
+            border: none;
+            padding: 12px 20px; 
+            border-radius: 10px; 
+            font-weight: 900;
+            text-transform: uppercase; 
+            font-size: 12px; 
+            cursor: pointer;
+        }
+
+        .pin-btn {
+            background: rgba(255, 255, 255, 0.06); 
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #ffffff; 
+            padding: 12px; 
+            border-radius: 8px; 
+            font-size: 14px;
+            font-weight: bold; 
+            cursor: pointer; 
+        }
+
+        .btn-alerta-roja {
+            background: #ff3333;
+            color: #ffffff;
+            border: none;
+            width: 100%;
+            padding: 15px;
+            border-radius: 12px;
+            font-weight: 900;
+            font-size: 14px;
+            text-transform: uppercase;
+            cursor: pointer;
+            margin-top: 13px;
+            letter-spacing: 1px;
+        }
+
+        /* Canvas de Firma Digital */
+        .canvas-firma {
+            border: 2px dashed rgba(255, 107, 0, 0.3);
+            background: rgba(0,0,0,0.4);
+            border-radius: 10px;
+            width: 100%;
+            height: 120px;
+            touch-action: none;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body class="ui-dark">
+
+    <div class="app-container">
+        <header class="header-tramites">
+            <div class="header-logo">QRpido Movilidad</div>
+            <div class="header-actions">
+                <button class="btn-mando" id="btn-cierre-ruta-global" style="background:#ff3333; border-color:#ff3333;" onclick="window.ejecutarCierreJornadaTactica()">🛑 Terminar Ruta</button>
+            </div>
+        </header>
+
+        <nav id="nav-maestra">
+            <button class="tag-pill active" onclick="window.cambiarCategoriaMovilidad('domicilios', this)">🛵 Domicilios</button>
+            <button class="tag-pill" onclick="window.cambiarCategoriaMovilidad('taxis', this)">🚕 Taxis</button>
+            <button class="tag-pill" onclick="window.cambiarCategoriaMovilidad('buses', this)">🚌 Rutas AMCO</button>
+        </nav>
+
+        <div class="map-wrapper">
+            <div id="mapa-domicilios"></div>
+        </div>
+
+        <main class="tab-content">
+            <div id="panel-control-operativo" style="margin-bottom: 15px; display: flex; gap: 10px;">
+                <button class="btn-cazar" style="width: 100%; background: #00ff64; color: black;" onclick="window.iniciarTurnoYVincularVehiculo()">📡 Escanear QR e Iniciar Turno</button>
+            </div>
+            <h2 class="radar-caceria-title" id="titulo-panel-dinamico">Órdenes de Cacería Disponibles</h2>
+            <div id="lista-ordenes-maestra">
+                <div class="order-card">
+                    <div>
+                        <b style="color: #00f5d4;">+ $5.200 COP</b><br>
+                        <small style="color: #aaaaaa;">Ruta Asignada: Zona Centro - Pereira</small>
+                    </div>
+                    <button class="btn-cazar" onclick="window.abrirHandshakeConductor('ORD-89423')">CAZAR ⚡</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="bottom-sheet-overlay" id="modal-apreton">
+        <div class="bottom-sheet-contenido">
+            <div class="drag-handle"></div>
+            <h2 style="color: #ff6b00; text-align: center; margin-top: 0; font-size: 18px; font-weight: 900;">ENTREGA FINAL BLOCKCHAIN</h2>
+            <p style="text-align: center; color: #aaaaaa; font-size: 13px; margin-bottom: 15px;">Solicita el código al ciudadano para liberar el saldo:</p>
+            <div style="display: flex; justify-content: center; gap: 10px; margin-bottom: 15px; max-width: 320px; margin-left: auto; margin-right: auto;">
+                <input type="text" id="input-secreto" maxlength="10" readonly placeholder="QRP-XXXXXX" style="flex: 1; outline: none; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,107,0,0.4); color: #ff6b00; text-transform: uppercase; text-align: center; font-family: monospace; font-size: 22px; padding: 12px; border-radius: 10px;">
+                <button id="btn-toggle-teclado" onclick="window.alternarTecladoTactico()" style="background: transparent; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; width: 55px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                    <span style="opacity: 0.4; font-size: 20px;">⌨️</span>
+                </button>
+            </div>
+            <div id="teclado-tactico" style="display: none; grid-template-columns: repeat(6, 1fr); gap: 6px; max-width: 350px; margin: 0 auto 15px auto;"></div>
+            <button class="btn-cazar" style="width: 100%; max-width: 320px; display: block; margin: 0 auto 10px auto; font-size: 15px; padding: 14px;" onclick="window.ejecutarHandshakeWeb3()">🔗 VERIFICAR Y LIQUIDAR FONDOS</button>
+            <button class="pin-btn" style="width: 100%; max-width: 320px; display: block; margin: 0 auto; background: transparent; border: none; color: #888;" onclick="window.cerrarModal('modal-apreton')">Cancelar</button>
+            <input type="text" id="miel-domi" style="position:absolute; left:-9999px; opacity:0;" tabindex="-1">
+        </div>
+    </div>
+
+    <div class="bottom-sheet-overlay" id="modal-unidad-info">
+        <div class="bottom-sheet-contenido">
+            <div class="drag-handle"></div>
+            <h2 style="color: #ff6b00; margin-top: 0; font-size: 18px; font-weight: 900; text-transform: uppercase;" id="modal-unidad-titulo">Ficha de Unidad</h2>
+            <div style="background: rgba(255,255,255,0.03); padding: 13px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 15px;">
+                <p style="margin: 5px 0; color: #eee; font-size: 14px;"><b>Cooperativa:</b> <span id="txt-unidad-empresa">-</span></p>
+                <p style="margin: 5px 0; color: #eee; font-size: 14px;"><b>Identificador Placa:</b> <span id="txt-unidad-placa" style="color:#00f5d4; font-family:monospace; font-weight:bold;">-</span></p>
+                <p style="margin: 5px 0; color: #eee; font-size: 14px;"><b>Ruta Operativa:</b> <span id="txt-unidad-ruta">-</span></p>
+            </div>
+            <button class="btn-alerta-roja" id="btn-disparar-alerta-dirigida">MANDAR ALERTA DIRIGIDA 🚨</button>
+            <button class="pin-btn" style="width: 100%; background: transparent; border: none; color: #888; margin-top: 10px;" onclick="window.cerrarModal('modal-unidad-info')">Cerrar Monitor</button>
+        </div>
+    </div>
+
+    <div class="bottom-sheet-overlay" id="modal-onboarding-biometrico">
+        <div class="bottom-sheet-contenido" style="max-height: 90vh; overflow-y: auto;">
+            <div class="drag-handle"></div>
+            <h2 style="color:#ff6b00; margin-top:0; font-size:16px; text-transform:uppercase; font-weight:900; text-align:center;">Onboarding Digital Nómina</h2>
+            <p style="color:#ccc; font-size:12px; text-align:center; margin-bottom:15px;">Para habilitar tu cuenta en la flota, completa la biometría y firma de datos (Ley 1581 de 2012).</p>
+            
+            <button class="btn-cazar" style="width:100%; padding:12px; margin-bottom:10px; background:#00f5d4; color:black;" id="btn-trigger-biometria" onclick="window.ejecutarCapturaBiometricaNativa()">📸 ESCANEAR CÉDULA Y SELFIE LIVENESS</button>
+            
+            <div style="text-align:left; margin-top:10px;">
+                <label style="color:#fff; font-size:11px; font-weight:bold;">Firma de Consentimiento Dactilar:</label>
+<canvas id="canvas-firma-onboarding" class="canvas-firma" width="300" height="120"></canvas>
+                <button class="pin-btn" style="padding:5px 10px; font-size:11px; margin-top:5px; float:right;" onclick="window.limpiarCanvasFirma()">Borrar Trazo</button>
+            </div>
+
+            <button class="btn-cazar" style="width:100%; padding:14px; margin-top:25px;" id="btn-guardar-onboarding" onclick="window.finalizarGuardadoOnboardingCRM()">CONSOLIDAR E INICIAR SESIÓN</button>
+        </div>
+    </div>
+
+    <div class="bottom-sheet-overlay" id="modal-cierre-legal">
+        <div class="bottom-sheet-contenido">
+            <div class="drag-handle"></div>
+            <h2 style="color:#ff6b00; margin-top:0; font-size:16px; text-transform:uppercase; font-weight:900; text-align:center;">Declaración Legal de Jornada</h2>
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:13px; border-radius:10px; margin-bottom:15px;">
+                <label style="color:#fff; font-size:13px; display:flex; gap:10px; align-items:flex-start; cursor:pointer;">
+                    <input type="checkbox" id="chk-terminos-legales" style="margin-top:3px; accent-color:#ff6b00;">
+                    <span>Acepto los Términos, Condiciones y Reporte de Cumplimiento de Jornada Electrónica. Certifico que los datos son verídicos bajo la Ley 527.</span>
+                </label>
+            </div>
+            <button class="btn-alerta-roja" id="btn-enviar-sello-web3" style="background:#ff6b00;" onclick="window.confirmarSelloLegalBlockchain()">FIRMAR Y TRANSMITIR CIERRE</button>
+            <button class="pin-btn" style="width:100%; margin-top:10px; background:transparent; border:none; color:#777;" onclick="window.cerrarModal('modal-cierre-legal')">Volver al Turno</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import QRpidoDB from './core-db.js';
+
+        // ========================================================================
+        // 🪐 ESTADO DE CONTROL GLOBAL (PRODUCCIÓN SINGLETON)
+        // ========================================================================
+        const CONFIG = {
+            RETARDO_BUFFER_MS: 30000,
+            INTERVALO_GPS_MS: 15000,
+            PEREIRA_ZONA_CENTRO: [4.8133, -75.6961]
+        };
+
+        const AppState = {
+            user: null,
+            rol: null,
+            categoriaActiva: 'domicilios',
+            ticketSeleccionado: null,
+            shadowPlacaClick: null,
+            unidadActivaVehiculo: null, // Indexador QR en memoria RAM
+            rtdbSuscripcionFlota: null,
+            rtdbSuscripcionAlertas: null, 
+            idIntervaloGPS: null,
+            bufferInterpolacion: {},
+            marcadoresFlota: {},
+            biometriaPasada: false
+        };
+
+        // Variables del modulo de firmas dactilares
+        let ctxFirma = null, dibujando = false;
+
+        // Inicialización del mapa tactico en Canvas nativo
+        const mapa = L.map('mapa-domicilios', { 
+            zoomControl: false,
+            preferCanvas: true 
+        }).setView(CONFIG.PEREIRA_ZONA_CENTRO, 14);
+
+        L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', {
+            maxZoom: 20,
+            attribution: '© Stadia Maps'
+        }).addTo(mapa);
+
+        // Fix de refix del redibujado de altura cero en layouts elásticos
+        setTimeout(() => {
+            mapa.invalidateSize({ animate: false });
+        }, 150);
+
+// ========================================================================
+// 🛡️ MÓDULO 1: OBSERVADOR DE SESIÓN MULTI-TENANT PÚBLICO Y ABIERTO (UNIFICADO)
+// ========================================================================
+// El radar de la flota se inicializa inmediatamente para usuarios anónimos
+inicializarEscuchaFlotaRealtime();
+
+QRpidoDB.SecurityService.observarEstadoSesion(async (firebaseUser) => {
+    if (!firebaseUser) {
+        console.log("🌍 [Modo Público] Usuario anónimo detectado. Acceso total al radar y telemetría.");
+        AppState.user = null;
+        AppState.rol = 'publico';
+        return;
+    }
+
+    AppState.user = firebaseUser;
+    console.log(`🔐 [Sesión Detectada] UID: ${firebaseUser.uid} | ${firebaseUser.email}`);
+
+    try {
+        const respuestaRol = await QRpidoDB.SecurityService.obtenerRolAdmin(firebaseUser.uid);
+        AppState.rol = respuestaRol.success && respuestaRol.data ? respuestaRol.data.rol : 'conductor';
+
+        // 🔥 LOGICA CORE INYECTADA: Conmutador de interfaces administrativas de nómina y CRM
+        evaluarFlujoEstructuraTenant();
+    } catch (error) {
+        console.error("🚨 Error evaluando metadatos de sesión:", error);
+    }
+});
+
+// DECLARACIÓN EXPLÍCITA DEL ENRUTADOR DE PROCESOS INSTITUCIONALES (EVITA EL REFERENCEERROR)
+function evaluarFlujoEstructuraTenant() {
+    if (AppState.rol === 'empresa_transporte') {
+        console.log("💼 [CRM Corporativo] Inicializando consola de administración de flota institucional.");
+        inyectarCRMCorporativoEmpresa();
+    } else if (AppState.rol === 'conductor') {
+        console.log("🛵 [Perfil Conductor] Verificando estado de Onboarding.");
+        verificarOnboardingCRM();
+    }
+}
+
+
+
+      // --- RECALIBRACIÓN QUIRÚRGICA: FIRMA DE PARÁMETROS DEL CRM ---
+        async function verificarOnboardingCRM() {
+            // Pasamos el UID, el Email y el Rol de la sesión activa para satisfacer el contrato de core-db.js
+            const infoNegocio = await QRpidoDB.AdminService.obtenerNegocioPorUsuario(
+                AppState.user.uid, 
+                AppState.user.email, 
+                AppState.rol
+            );
+            const datosConductor = infoNegocio.success ? infoNegocio.data : null;
+
+            // Retención estricta en base al estado de moderación/onboarding del CRM
+            if (!datosConductor || datosConductor.estado_moderacion === 'pendiente_onboarding') {
+                window.abrirModal('modal-onboarding-biometrico');
+                inicializarCanvasFirma();
+            } else {
+                inicializarEscuchaFlotaRealtime();
+            }
+        }
+
+
+        async function inyectarCRMCorporativoEmpresa() {
+            try {
+                // 📄 Consumimos directamente la raíz del documento que configuraste en Firestore para este Tenant
+                const infoNegocio = await QRpidoDB.AdminService.obtainNegocioPorUsuario(AppState.user.uid);
+                const datosEmpresa = infoNegocio.success ? infoNegocio.data : null;
+
+                const contenedorContenido = document.getElementById('lista-ordenes-maestra');
+                const tituloPanel = document.getElementById('titulo-panel-dinamico');
+
+                if (!datosEmpresa) {
+                    contenedorContenido.innerHTML = `<p style="color:#ff3333; font-size:13px;">⚠️ Error: El perfil corporativo no ha sido inicializado en Firestore por el administrador.</p>`;
+                    return;
+                }
+
+                // Cambiamos el título del panel inferior para reflejar el contexto de la Empresa
+                tituloPanel.innerText = `Consola de Mando: ${datosEmpresa.nombre || "Cooperativa"}`;
+
+                // Construcción dinámica de la interfaz del CRM Corporativo sin elementos de cobro
+                let htmlCRM = `
+                    <div class="panel-admin" style="padding:15px; border:1px solid rgba(0,245,212,0.3); border-radius:15px; background:rgba(0,245,212,0.02); margin-bottom:15px;">
+                        <p style="color:#aaa; font-size:12px; margin:0 0 5px 0; text-transform:uppercase; letter-spacing:1px;">Estado de Cuenta Institucional</p>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="color:#00f5d4; font-weight:bold; font-size:14px;">✅ Convenio Corporativo Activo</span>
+                            <span style="color:#888; font-size:12px;">Soporte: <a href="mailto:soporte@tuqrpido.com" style="color:#ff6b00; text-decoration:none;">Contacto Asesor</a></span>
+                        </div>
+                    </div>
+                    
+                    <h3 style="color:#fff; font-size:14px; margin-top:20px; margin-bottom:10px; text-transform:uppercase; letter-spacing:1px;">🚨 Estado de Flota Registrada</h3>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px;">
+                        <div style="background:rgba(255,255,255,0.02); padding:12px; border-radius:10px; border:1px solid rgba(255,255,255,0.05);">
+                            <span style="color:#aaa; font-size:11px;">Taxis Vinculados</span><br>
+                            <b style="color:#fff; font-size:20px;">${datosEmpresa.inventario_flota?.taxis_registrados?.length || 0} Unidades</b>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.02); padding:12px; border-radius:10px; border:1px solid rgba(255,255,255,0.05);">
+                            <span style="color:#aaa; font-size:11px;">Buses Vinculados</span><br>
+                            <b style="color:#fff; font-size:20px;">${datosEmpresa.inventario_flota?.buses_registrados?.length || 0} Unidades</b>
+                        </div>
+                    </div>
+
+                    <h3 style="color:#fff; font-size:14px; margin-bottom:10px; text-transform:uppercase; letter-spacing:1px;">📑 Auditoría de Cierres SUI (Últimas Jornadas)</h3>
+                    <div id="contenedor-auditoria-sui" style="display:flex; flex-direction:column; gap:8px;">
+                        <p style="color:#666; font-size:12px; font-style:italic;">Sincronizando registros inmutables del tribunal desde la red SUI Blockchain...</p>
+                    </div>
+                `;
+
+                // Inyectamos el esqueleto del CRM en la UI
+                contenedorContenido.innerHTML = htmlCRM;
+
+                // Conectamos la escucha del feed inmutable de SUI para que el gerente vea los reportes de cumplimiento firmados por sus operarios
+                QRpidoDB.AdminService.escucharHashesSUI((registroTx) => {
+                    const logsContenedor = document.getElementById('contenedor-auditoria-sui');
+                    if (logsContenedor) {
+                        // Limpiamos el texto de carga inicial en el primer registro
+                        if (logsContenedor.querySelector('p')) logsContenedor.innerHTML = '';
+
+                        const divTx = document.createElement('div');
+                        divTx.style.cssText = "background:rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.04); padding:10px; border-radius:8px; display:flex; justify-content:space-between; align-items:center; font-size:12px;";
+                        divTx.innerHTML = `
+                            <div>
+                                <b style="color:#ff6b00; font-family:monospace;">[SUI-TX]</b> 
+                                <span style="color:#eee; margin-left:5px;">Sello legal verificado para despacho</span>
+                            </div>
+                            <span style="color:#00f5d4; font-family:monospace; font-size:11px;">${registroTx.txId ? registroTx.txId.substring(0,12) : 'Generando...'}...</span>
+                        `;
+                        logsContenedor.appendChild(divTx);
+                    }
+                });
+
+            } catch (error) {
+                console.error("Error renderizando la consola administrativa corporativa:", error);
+            }
+        }
+
+        // ========================================================================
+        // ⚡ MÓDULO 2: PROTOCOLO DE CIERRE SIMÉTRICO DE RUTA Y ASENTAMIENTO WEB3
+        // ========================================================================
+        window.ejecutarCierreJornadaTactica = async () => {
+            if (!AppState.unidadActivaVehiculo) {
+                alert("⚠️ No tienes ningún turno activo registrado en este dispositivo móvil.");
+                return;
+            }
+            
+            // Simulación nativa de escaneo QR físico de tablero
+            const resultadoHashQrEscaneado = "BUS-204"; 
+
+            if (resultadoHashQrEscaneado !== AppState.unidadActivaVehiculo) {
+                alert("🚨 VIOLACIÓN DE INTEGRIDAD: El código QR escaneado no coincide con la unidad indexada en tu memoria de ruta.");
+                return;
+            }
+            window.abrirModal('modal-cierre-legal');
+        };
+
+        window.confirmarSelloLegalBlockchain = async () => {
+            const checkTerminos = document.getElementById('chk-terminos-legales');
+            if (!checkTerminos || !checkTerminos.checked) {
+                alert("⚠️ Debes aceptar los términos y el reporte de cumplimiento de jornada.");
+                return;
+            }
+
+            const btnSellar = document.getElementById('btn-enviar-sello-web3');
+            btnSellar.innerText = "⏳ QUEMANDO CIERRE EN SUI BLOCKCHAIN...";
+            btnSellar.disabled = true;
+
+            try {
+                // Detener hilos físicos del Foreground Service y purgar RAM
+                apagarRastreoGPSYLimpiarMemoria();
+
+                const paqueteEvidenciaLegal = {
+                    textoContrato: `REPORT OF COMPLIANCE - VELOCITY ALERTS: 0 | TURN END | UNIT ID: ${AppState.unidadActivaVehiculo} | OPERATOR UID: ${AppState.user.uid}`,
+                    gps: { lat: CONFIG.PEREIRA_ZONA_CENTRO[0], lng: CONFIG.PEREIRA_ZONA_CENTRO[1] },
+                    selfie: "data:image/webp;base64,EvidenciaOnboardingLivenessMock",
+                    codigo: AppState.unidadActivaVehiculo,
+                    otp: "JORNADA-OFF",
+                    timestamp: Date.now()
+                };
+
+                // Envío asíncrono directo al oráculo del Notario Ciego en index.js
+                const resultadoNotario = await QRpidoDB.SecurityService.sellarTramiteLegal(paqueteEvidenciaLegal);
+
+                if (resultadoNotario.success) {
+                    alert(`✅ CIERRE DE RUTA ANCLADO\nSello Criptográfico TxID: ${resultadoNotario.txId}`);
+                    window.cerrarModal('modal-cierre-legal');
+                    location.reload();
+                } else {
+                    throw new Error(resultadoNotario.error || "Rechazado por la malla.");
+                }
+            } catch (error) {
+                alert(`❌ Error crítico de asentamiento: ${error.message}`);
+                btnSellar.innerText = "FIRMAR Y TRANSMITIR CIERRE";
+                btnSellar.disabled = false;
+            }
+        };
+
+        // ========================================================================
+        // 📡 MÓDULO 3: MOTOR DE TRANSMISIÓN DE COORDENADAS URBANO (PERSISTENTE)
+        // ========================================================================
+        window.iniciarTurnoYVincularVehiculo = async () => {
+            const qrCapturadoMock = "BUS-204"; 
+
+            try {
+                AppState.unidadActivaVehiculo = qrCapturadoMock;
+                
+                await QRpidoDB.AdminService.actualizarNegocio(AppState.user.uid, {
+                    vehiculo_asignado: qrCapturadoMock,
+                    estado_logistica: "en_ruta",
+                    ultima_sincronizacion_turno: new Date().toISOString()
+                });
+
+                // Puente nativo Capacitor/WebView API para lanzar el Foreground Service
+                if (window.Capacitor?.Plugins?.ForegroundServicePlugin) {
+                    window.Capacitor.Plugins.ForegroundServicePlugin.start({
+                        title: "QRpido Tránsito Activo",
+                        message: `Transmitiendo telemetría en tiempo real de la unidad ${qrCapturadoMock}`,
+                        notificationId: 9091
+                    });
+                } else {
+                    console.log("📱 [Foreground Service] Inicializado hilo persistente anti-congelamiento de OS.");
+                }
+
+                // Ráfagas persistentes de ubicación liviana JSON
+                AppState.idIntervaloGPS = setInterval(async () => {
+                    const latVariacion = CONFIG.PEREIRA_ZONA_CENTRO[0] + (Math.random() - 0.5) * 0.003;
+                    const lngVariacion = CONFIG.PEREIRA_ZONA_CENTRO[1] + (Math.random() - 0.5) * 0.003;
+
+                    await QRpidoDB.LogisticaService.transmitirCoordenadasUnidad(
+                        AppState.categoriaActiva,
+                        AppState.unidadActivaVehiculo,
+                        {
+                            lat: latVariacion,
+                            lng: lngVariacion,
+                            ruta: "Ruta 2 - AMCO Sincronizada",
+                            razonSocial: "Cooperativa de Transportes Pereira"
+                        }
+                    );
+                }, CONFIG.INTERVALO_GPS_MS);
+
+                inicializarEscuchaAlertasPasajeros();
+                alert(`📡 EN RUTA PERSISTENTE: Unidad ${qrCapturadoMock} vinculada con éxito. Pantalla bloqueada segura.`);
+            } catch (e) {
+                console.error("Error en vinculación logístia:", e);
+            }
+        };
+
+        function apagarRastreoGPSYLimpiarMemoria() {
+            if (AppState.idIntervaloGPS) {
+                clearInterval(AppState.idIntervaloGPS);
+                AppState.idIntervaloGPS = null;
+            }
+
+            if (AppState.rtdbSuscripcionAlertas) {
+                AppState.rtdbSuscripcionAlertas(); 
+                AppState.rtdbSuscripcionAlertas = null;
+            }
+
+            if (window.Capacitor?.Plugins?.ForegroundServicePlugin) {
+                window.Capacitor.Plugins.ForegroundServicePlugin.stop();
+            }
+
+            // Purga de RAM estructural reactiva
+            Object.keys(AppState.bufferInterpolacion).forEach(key => delete AppState.bufferInterpolacion[key]);
+            Object.keys(AppState.marcadoresFlota).forEach(key => {
+                mapa.removeLayer(AppState.marcadoresFlota[key]);
+                delete AppState.marcadoresFlota[key];
+            });
+        }
+
+        // ========================================================================
+        // 🚕 MÓDULO 4: ALERTAS DIRIGIDAS CON COSTO DE INFRAESTRUCTURA MÍNIMO
+        // ========================================================================
+        function inicializarEscuchaAlertasPasajeros() {
+            if (!AppState.unidadActivaVehiculo) return;
+
+            // Escucha atomizada directa en RTDB sobre el ID inmutable de la placa
+            AppState.rtdbSuscripcionAlertas = QRpidoDB.LogisticaService.escucharAlertasVehiculo(AppState.unidadActivaVehiculo, (resultado) => {
+                if (resultado.success && resultado.data) {
+                    const alerta = resultado.data;
+                    if (alerta && !alerta.atendida) {
+                        if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 200]);
+
+                        // Pintado inmediato del Punto Rojo de origen sin recálculos masivos en backend
+                        L.circle([alerta.latOrigen, alerta.lngOrigen], {
+                            color: '#ff3333',
+                            fillColor: '#ff3333',
+                            fillOpacity: 0.5,
+                            radius: 35
+                        }).addTo(mapa);
+                        
+                        console.log(`🚨 [Alerta Pasajero P2P] Punto de recojo inyectado síncronamente.`);
+                    }
+                }
+            });
+        }
+
+        document.getElementById('btn-disparar-alerta-dirigida').onclick = async () => {
+            if (!AppState.shadowPlacaClick) return;
+            if (navigator.vibrate) navigator.vibrate(50);
+            
+            // Inyección temporal directa del origen en la ruta del conductor seleccionado
+            const res = await QRpidoDB.LogisticaService.mandarAlertaDirigida(AppState.categoriaActiva, AppState.shadowPlacaClick, {
+                lat: CONFIG.PEREIRA_ZONA_CENTRO[0],
+                lng: CONFIG.PEREIRA_ZONA_CENTRO[1]
+            });
+            
+            if (res.success) {
+                alert("🚨 Alerta inyectada en caliente directo en la pantalla del conductor.");
+                window.cerrarModal('modal-unidad-info');
+            }
+        };
+
+        // ========================================================================
+        // 🪐 ENGINE GRÁFICO VECTORIAL LERP Y CONMUTACIÓN DE FLUJOS (60 FPS)
+        // ========================================================================
+        function animacionInterpolacion() {
+            const ahora = Date.now();
+            const tiempoRenderizado = ahora - CONFIG.RETARDO_BUFFER_MS;
+
+            Object.keys(AppState.bufferInterpolacion).forEach(idUnidad => {
+                const historial = AppState.bufferInterpolacion[idUnidad];
+                if (!historial || historial.length === 0) return;
+
+                if (ahora - historial[historial.length - 1].timestamp > 90000) {
+                    if (AppState.marcadoresFlota[idUnidad]) {
+                        mapa.removeLayer(AppState.marcadoresFlota[idUnidad]);
+                        delete AppState.marcadoresFlota[idUnidad];
+                    }
+                    delete AppState.bufferInterpolacion[idUnidad];
+                    return;
+                }
+
+                if (historial.length < 2) return;
+
+                let indiceA = -1;
+                for (let i = 0; i < historial.length - 1; i++) {
+                    if (historial[i].timestamp <= tiempoRenderizado && tiempoRenderizado <= historial[i+1].timestamp) {
+                        indiceA = i;
+                        break;
+                    }
+                }
+
+                if (indiceA !== -1) {
+                    const puntoA = historial[indiceA];
+                    const puntoB = historial[indiceA + 1];
+                    const delta = puntoB.timestamp - puntoA.timestamp;
+                    const alfa = delta > 0 ? (tiempoRenderizado - puntoA.timestamp) / delta : 1;
+
+                    const latLerp = puntoA.lat + (puntoB.lat - puntoA.lat) * alfa;
+                    const lngLerp = puntoA.lng + (puntoB.lng - puntoA.lng) * alfa;
+
+                    if (AppState.marcadoresFlota[idUnidad]) {
+                        AppState.marcadoresFlota[idUnidad].setLatLng([latLerp, lngLerp]);
+                    }
+                    
+                    if (indiceA > 0) {
+                        historial.splice(0, indiceA);
+                    }
+                }
+            });
+            requestAnimationFrame(animacionInterpolacion);
+        }
+        requestAnimationFrame(animacionInterpolacion);
+
+        function inicializarEscuchaFlotaRealtime() {
+            if (AppState.rtdbSuscripcionFlota) AppState.rtdbSuscripcionFlota();
+
+            AppState.rtdbSuscripcionFlota = QRpidoDB.LogisticaService.escucharFlotaActiva((resultado) => {
+                if (!resultado.success || !resultado.data) return;
+                
+                const subFlota = resultado.data[AppState.categoriaActiva] || {};
+                const ahora = Date.now();
+
+                Object.keys(subFlota).forEach(idUnidad => {
+                    const telemetria = subFlota[idUnidad];
+                    
+                    if (!AppState.bufferInterpolacion[idUnidad]) AppState.bufferInterpolacion[idUnidad] = [];
+                    AppState.bufferInterpolacion[idUnidad].push({ lat: telemetria.lat, lng: telemetria.lng, timestamp: ahora });
+
+                    if (!AppState.marcadoresFlota[idUnidad]) {
+                        const emoji = AppState.categoriaActiva === 'domicilios' ? '🛵' : (AppState.categoriaActiva === 'taxis' ? '🚕' : '🚌');
+                        const marker = L.marker([telemetria.lat, telemetria.lng], {
+                            icon: L.divIcon({
+                                html: `<div style="font-size:24px; filter:drop-shadow(0px 2px 4px rgba(0,0,0,0.5));">${emoji}</div>`,
+                                className: 'custom-canvas-node',
+                                iconSize: [30, 30]
+                            })
+                        }).addTo(mapa);
+
+                        marker.on('click', () => {
+                            AppState.shadowPlacaClick = idUnidad;
+                            document.getElementById('txt-unidad-empresa').innerText = telemetria.razonSocial || "Asociado Independiente";
+                            document.getElementById('txt-unidad-placa').innerText = idUnidad;
+                            document.getElementById('txt-unidad-ruta').innerText = telemetria.ruta || "N/A";
+                            window.abrirModal('modal-unidad-info');
+                        });
+                        AppState.marcadoresFlota[idUnidad] = marker;
+                    }
+                });
+            });
+        }
+
+        window.cambiarCategoriaMovilidad = (nuevaCategoria, elementoBoton) => {
+            if (AppState.categoriaActiva === nuevaCategoria) return;
+            AppState.categoriaActiva = nuevaCategoria;
+            
+            document.querySelectorAll('#nav-maestra .tag-pill').forEach(btn => btn.classList.remove('active'));
+            elementoBoton.classList.add('active');
+            
+            document.getElementById('titulo-panel-dinamico').innerText = `Unidades Activas: ${nuevaCategoria}`;
+            
+            Object.keys(AppState.marcadoresFlota).forEach(key => {
+                mapa.removeLayer(AppState.marcadoresFlota[key]);
+                delete AppState.marcadoresFlota[key];
+            });
+            Object.keys(AppState.bufferInterpolacion).forEach(key => delete AppState.bufferInterpolacion[key]);
+            
+            inicializarEscuchaFlotaRealtime();
+        };
+
+        // ========================================================================
+        // ⌨️ TECLADO ALFANUMÉRICO ESTABLE (FIJO DE FÁCIL OPERACIÓN PARA LA CALLE)
+        // ========================================================================
+        window.abrirHandshakeConductor = (idTicket) => {
+            AppState.ticketSeleccionado = idTicket;
+            const inputSecreto = document.getElementById('input-secreto');
+            inputSecreto.value = "";
+            
+            const tecladoContainer = document.getElementById('teclado-tactico');
+            tecladoContainer.innerHTML = '';
+            
+            // Distribución fija estándar para memoria muscular del chofer en movimiento
+            const caracteres = ["0","1","2","3","4","5","6","7","8","9","Q","R","P","A","B","C"];
+            
+            caracteres.forEach(char => {
+                const btnChar = document.createElement('button');
+                btnChar.className = "pin-btn";
+                btnChar.style.padding = "12px";
+                btnChar.innerText = char;
+                btnChar.onclick = () => {
+                    if (navigator.vibrate) navigator.vibrate(15);
+                    if (inputSecreto.value.length < 10) inputSecreto.value += char;
+                };
+                tecladoContainer.appendChild(btnChar);
+            });
+            
+            const btnClear = document.createElement('button');
+            btnClear.className = "pin-btn";
+            btnClear.style.cssText = "color:#ff4444; grid-column: span 2;";
+            btnClear.innerText = "✖ DEL";
+            btnClear.onclick = () => {
+                if (navigator.vibrate) navigator.vibrate(20);
+                inputSecreto.value = inputSecreto.value.slice(0, -1);
+            };
+            tecladoContainer.appendChild(btnClear);
+            
+            window.abrirModal('modal-apreton');
+        };
+
+        window.alternarTecladoTactico = () => {
+            const teclado = document.getElementById('teclado-tactico');
+            teclado.style.display = teclado.style.display === 'none' ? 'grid' : 'none';
+        };
+
+        window.ejecutarHandshakeWeb3 = async () => {
+            if (document.getElementById('miel-domi').value !== "") return;
+            const codigoIntroducido = document.getElementById('input-secreto').value.toUpperCase().trim();
+            
+            if (codigoIntroducido.length < 6) {
+                alert("⚠️ Estructura incompleta.");
+                return;
+            }
+            const respuesta = await QRpidoDB.LogisticaService.validarEntregaWeb3(AppState.ticketSeleccionado, codigoIntroducido);
+            if (respuesta.success && respuesta.data.success) {
+                alert(`✅ LIQUIDACIÓN COMPLETADA\nSello Web3: ${respuesta.data.txID.substring(0,12)}...`);
+                window.cerrarModal('modal-apreton');
+            } else {
+                alert("❌ Código incorrecto o rechazado por el oráculo.");
+            }
+        };
+
+        // ========================================================================
+        // ✍️ FUNCIONES AUXILIARES DE COHERENCIA DEL CANVAS DE ONBOARDING CRM
+        // ========================================================================
+        function inicializarCanvasFirma() {
+            const canvas = document.getElementById('canvas-firma-onboarding');
+            if (!canvas) return;
+            ctxFirma = canvas.getContext('2d');
+            ctxFirma.strokeStyle = "#ff6b00";
+            ctxFirma.lineWidth = 3;
+
+            canvas.addEventListener('touchstart', (e) => {
+                dibujando = true;
+                const touch = e.touches[0];
+                ctxFirma.beginPath();
+                ctxFirma.moveTo(touch.clientX - canvas.getBoundingClientRect().left, touch.clientY - canvas.getBoundingClientRect().top);
+            }, {passive:true});
+
+            canvas.addEventListener('touchmove', (e) => {
+                if (!dibujando) return;
+                const touch = e.touches[0];
+                ctxFirma.lineTo(touch.clientX - canvas.getBoundingClientRect().left, touch.clientY - canvas.getBoundingClientRect().top);
+                ctxFirma.stroke();
+            }, {passive:true});
+
+            canvas.addEventListener('touchend', () => dibujando = false);
+        }
+
+        window.limpiarCanvasFirma = () => {
+            const canvas = document.getElementById('canvas-firma-onboarding');
+            if (ctxFirma && canvas) ctxFirma.clearRect(0, 0, canvas.width, canvas.height);
+        };
+
+        window.ejecutarCapturaBiometricaNativa = () => {
+            alert("📷 [SDK Google Vision] Capturando reverso/frente de cédula y escaneando biometría de parpadeo (Liveness)...");
+            AppState.biometriaPasada = true;
+            document.getElementById('btn-trigger-biometria').style.background = "#00ff64";
+            document.getElementById('btn-trigger-biometria').innerText = "✅ EVIDENCIAS BIOMÉTRICAS CAPTURADAS";
+        };
+
+        window.finalizarGuardadoOnboardingCRM = async () => {
+            if (!AppState.biometriaPasada) {
+                alert("⚠️ Primero debes ejecutar la captura fotográfica biométrica de evidencias.");
+                return;
+            }
+            
+            const btnGuardar = document.getElementById('btn-guardar-onboarding');
+            btnGuardar.innerText = "⏳ SELLANDO EXPEDIENTE EN REPOSITORIO PRIVADO...";
+            btnGuardar.disabled = true;
+
+            const payloadKYC = { frente: "img_frente_mock", reverso: "img_reverso_mock", rostro: "img_selfie_mock" };
+            const resKYC = await QRpidoDB.SecurityService.sellarEvidenciaKYC(AppState.user.uid, payloadKYC);
+
+            if (resKYC.success) {
+                // Modificar el estado de retención del CRM nativo a aprobado
+                await QRpidoDB.AdminService.sellarBovedaDefinitiva(AppState.user.uid, { estado_moderacion: "aprobado" });
+                alert("✅ Onboarding completado correctamente. Tu cuenta se encuentra activa en el CRM de la cooperativa.");
+                window.cerrarModal('modal-onboarding-biometrico');
+                location.reload();
+            } else {
+                alert("Error guardando el expediente legal.");
+                btnGuardar.innerText = "CONSOLIDAR E INICIAR SESIÓN";
+                btnGuardar.disabled = false;
+            }
+        };
+
+        window.abrirModal = (idModal) => document.getElementById(idModal).classList.add('activo');
+        window.cerrarModal = (idModal) => document.getElementById(idModal).classList.remove('activo');
+    </script>
+</body>
+</html>

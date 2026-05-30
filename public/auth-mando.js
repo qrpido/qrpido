@@ -74,9 +74,13 @@ window.validarCodigoRegistro = async () => {
     
     if (success) {
         if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
-        // Cierre inmersivo: El observador de sesión encenderá la UI automáticamente
+      // Cierre inmersivo: Forzamos estado de sesión validada en memoria local 
+        // antes de permitir cualquier renderizado de datos sensibles.
+        localStorage.setItem('qrpido_session_validated', 'true');
+        
         const modal = document.getElementById('modal-login');
         if (modal) modal.classList.remove('activo');
+
         
         // Forzamos la recarga si estamos en la vista de tramites
         if(window.location.pathname.includes('tramites.html')) {
@@ -93,8 +97,10 @@ window.validarCodigoRegistro = async () => {
 window.iniciarConGoogle = async () => {
     const { success, error } = await QRpidoDB.SecurityService.iniciarConGoogle();
     if (success) {
+        localStorage.setItem('qrpido_session_validated', 'true'); // 🔑 Entregamos llave a usuario recurrente
         const modal = document.getElementById('modal-login');
         if (modal) modal.classList.remove('activo');
+
         
         // CORTE QUIRÚRGICO APLICADO: Si estamos en tramites.html, forzamos recarga.
         if(window.location.pathname.includes('tramites.html')) {
@@ -113,8 +119,10 @@ window.iniciarSesion = async () => {
     if (!success) {
         alert("Error: " + error);
     } else {
+        localStorage.setItem('qrpido_session_validated', 'true'); // 🔑 Entregamos llave a usuario recurrente
         const modal = document.getElementById('modal-login');
         if (modal) modal.classList.remove('activo');
+
 
         if(window.location.pathname.includes('tramites.html')) {
             location.reload();
@@ -124,6 +132,7 @@ window.iniciarSesion = async () => {
 
 window.cerrarSesion = async () => {
     await QRpidoDB.SecurityService.cerrarSesion();
+    localStorage.removeItem('qrpido_session_validated'); // 🗑️ Destruimos la llave por seguridad
     const modal = document.getElementById('modal-login');
     if (modal) modal.classList.remove('activo');
     
@@ -155,10 +164,13 @@ QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
     const panelActivo = document.getElementById('panel-usuario-activo');
     const btnMando = document.getElementById('btn-portal-mando');
     const btnSaldo = document.getElementById('contenedor-saldo-universal');
+    
+    // 🚖 CAPTURA DE BOTONES DE TRANSPORTE INYECTADOS EN EL SUBMENÚ DE INDEX.HTML
+    const btnEmpresaTrans = document.getElementById('btn-panel-empresa');
+    const btnConductorTrans = document.getElementById('btn-panel-conductor');
 
     if (user) {
         if(formLogin) formLogin.style.display = 'none';
-
         if(panelActivo) panelActivo.style.display = 'block';
         if(document.getElementById('nombre-usuario-activo')) document.getElementById('nombre-usuario-activo').innerText = user.email;
         if(btnMando) btnMando.style.background = 'var(--naranja)';
@@ -166,9 +178,28 @@ QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
         try {
             const { success, data } = await QRpidoDB.SecurityService.obtenerRolAdmin(user.uid);
             if (success) {
+                // Limpieza/Ocultado preventivo de accesos de movilidad antes de evaluar el rol activo
+                if (btnEmpresaTrans) btnEmpresaTrans.style.display = 'none';
+                if (btnConductorTrans) btnConductorTrans.style.display = 'none';
+
                 if ((data.rol === 'admin' || data.rol === 'moderador' || data.rol === 'superadmin') && btnMod) btnMod.style.display = 'block';
                 if (data.rol === 'superadmin' && btnSuper) btnSuper.style.display = 'block';
                 
+                // 🚖 CONMUTADOR REACTIVO DE ROLES DE MOVILIDAD
+                if (data.rol === 'empresa_transporte' && btnEmpresaTrans) {
+                    btnEmpresaTrans.style.display = 'block';
+                    if (typeof window.inyectarCRMCorporativoEmpresa === 'function') {
+                        window.inyectarCRMCorporativoEmpresa(user.uid);
+                    }
+                }
+                
+                if (data.rol === 'conductor' && btnConductorTrans) {
+                    btnConductorTrans.style.display = 'block';
+                    if (typeof window.verificarOnboardingCRM === 'function') {
+                        window.verificarOnboardingCRM(user.uid, user.email, data.rol);
+                    }
+                }
+
                 if (data.rol && btnSaldo) {
                     btnSaldo.style.display = 'flex';
                     if(data.saldo_logistica !== undefined && window.formatearMoneda) {
@@ -183,10 +214,13 @@ QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
     } else {
         if(btnSaldo) btnSaldo.style.display = 'none';
         if(formLogin) formLogin.style.display = 'block';
-
         if(panelActivo) panelActivo.style.display = 'none';
         if(btnMando) btnMando.style.background = 'var(--glass-bg)';
         if(btnMod) btnMod.style.display = 'none';
         if(btnSuper) btnSuper.style.display = 'none';
+        
+        // 🚖 REINICIO DE BOTONES EN NAVEGACIÓN ANÓNIMA O CIERRE DE SESIÓN
+        if (btnEmpresaTrans) btnEmpresaTrans.style.display = 'none';
+        if (btnConductorTrans) btnConductorTrans.style.display = 'none';
     }
 });
