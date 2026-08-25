@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Terminal de Flota | Geokatu</title>
+    
+    <link rel="stylesheet" href="ui-estilos.css">
+    <link rel="stylesheet" href="admin-boveda.css">
+
+    <style>
+        /* 🪖 UI TÁCTICA Y OSCURA (Específica para Conductores) */
+        body.tactical-ui { 
+            background: #050507; /* Negro casi puro para ahorrar batería OLED */
+            color: #00f5d4; /* Cian/Teal hacker para contrastar con el naranja */
+        }
+        
+        .panel-tactico { 
+            background: rgba(10, 15, 20, 0.8); 
+            border: 1px solid rgba(0, 245, 212, 0.2); 
+            border-radius: 16px; 
+            padding: 20px; 
+            margin-bottom: 15px; 
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8); 
+        }
+
+        .header-operador {
+            display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 1px dashed rgba(0, 245, 212, 0.3); padding-bottom: 15px; margin-bottom: 15px;
+        }
+
+        .status-dot {
+            width: 12px; height: 12px; border-radius: 50%; display: inline-block;
+            box-shadow: 0 0 10px currentColor; margin-right: 5px;
+        }
+
+        .btn-turno {
+            width: 100%; padding: 20px; border-radius: 16px; font-weight: 900; font-size: 18px;
+            text-transform: uppercase; letter-spacing: 2px; cursor: pointer; border: none;
+            transition: 0.3s; color: #000;
+        }
+        .btn-turno.inactivo { background: #00f5d4; box-shadow: 0 0 20px rgba(0, 245, 212, 0.4); }
+        .btn-turno.activo { background: #ff4444; box-shadow: 0 0 20px rgba(255, 68, 68, 0.4); color: white; }
+        .btn-turno:active { transform: scale(0.95); }
+
+        /* 📸 ZONA KYC Y FIRMA */
+        .kyc-box {
+            border: 1px dashed var(--naranja); padding: 15px; border-radius: 12px;
+            text-align: center; background: rgba(255,107,0,0.05); margin-bottom: 15px;
+        }
+        .canvas-firma {
+            width: 100%; height: 150px; background: rgba(0,0,0,0.5); 
+            border: 1px solid rgba(0, 245, 212, 0.3); border-radius: 8px; cursor: crosshair;
+        }
+        
+        .saldo-gas-display {
+            font-family: monospace; font-size: 32px; font-weight: bold; 
+            color: #00f5d4; text-shadow: 0 0 15px rgba(0, 245, 212, 0.5);
+            margin: 10px 0; text-align: center;
+        }
+    </style>
+</head>
+
+<body class="boveda-ui tactical-ui">
+
+    <!-- PANTALLA INICIAL DE AUTENTICACIÓN -->
+    <div id="pantalla-login" style="position: fixed; inset: 0; z-index: 9999; background: #050507; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px;">
+        <div class="panel-login" style="width: 100%; max-width: 380px; border-color: rgba(0, 245, 212, 0.3); box-shadow: 0 0 40px rgba(0, 245, 212, 0.1);">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 900; letter-spacing: 2px;">GEO<span style="color: #00f5d4;">FLOTA</span></h1>
+                <p style="color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Acceso Táctico a Conductores</p>
+            </div>
+            <input type="email" id="login-email" class="input-form" placeholder="Correo Operativo">
+            <input type="password" id="login-pass" class="input-form" placeholder="Contraseña">
+            <button class="btn-submit" style="background: #00f5d4; color: black; box-shadow: 0 5px 15px rgba(0, 245, 212, 0.3);" onclick="iniciarSesionFlota()">ENLAZAR TERMINAL</button>
+        </div>
+    </div>
+
+    <!-- DASHBOARD PRINCIPAL -->
+    <div id="dashboard-screen" style="display: none; width: 100%; max-width: 500px;">
+        
+        <div class="panel-tactico">
+            <div class="header-operador">
+                <div>
+                    <h3 id="ui-nombre" style="margin: 0; font-size: 18px; color: white; text-transform: uppercase;">OPERADOR ALFA</h3>
+                    <p style="margin: 5px 0 0 0; font-size: 10px; color: #888; font-family: monospace;" id="ui-uid">ID: Cargando...</p>
+                </div>
+                <div style="text-align: right;">
+                    <span id="indicador-estado" style="font-size: 12px; font-weight: bold; color: #aaa;">
+                        <span class="status-dot" style="color: #aaa;"></span> OFF-LINE
+                    </span>
+                    <button onclick="cerrarSesion()" style="display: block; width: 100%; margin-top: 8px; background: transparent; border: 1px solid #ff4444; color: #ff4444; border-radius: 6px; padding: 4px; font-size: 10px; cursor: pointer;">DESCONECTAR</button>
+                </div>
+            </div>
+
+            <!-- BILLETERA DE GAS (SUI) -->
+            <div style="text-align: center; margin-bottom: 20px;">
+                <p style="margin: 0; font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px;">Reserva de Gas (SUI)</p>
+                <div class="saldo-gas-display" id="ui-saldo-gas">0.00 SUI</div>
+                <button style="background: rgba(0,245,212,0.1); border: 1px solid #00f5d4; color: #00f5d4; padding: 6px 15px; border-radius: 20px; font-size: 11px; cursor: pointer;">RECARGAR GAS</button>
+            </div>
+        </div>
+
+        <!-- MÓDULO 1: BARRERA KYC (Onboarding Biométrico) -->
+        <div id="modulo-kyc" class="panel-tactico" style="display: none; border-color: var(--naranja);">
+            <h2 style="color: var(--naranja); margin-top: 0; font-size: 16px; text-transform: uppercase; text-align: center;">🛡️ Identificación Requerida</h2>
+            <p style="font-size: 11px; color: #ccc; text-align: center; margin-bottom: 15px;">Para habilitar tu radar y recibir viajes, la ley exige validar tu identidad.</p>
+            
+            <div class="kyc-box">
+                <p style="margin: 0 0 10px 0; font-size: 12px; font-weight: bold; color: white;">1. Cédula Frontal</p>
+                <input type="file" id="kyc-frente" accept="image/*" capture="environment" style="width: 100%; font-size: 11px;">
+            </div>
+            
+            <div class="kyc-box">
+                <p style="margin: 0 0 10px 0; font-size: 12px; font-weight: bold; color: white;">2. Cédula Reverso</p>
+                <input type="file" id="kyc-reverso" accept="image/*" capture="environment" style="width: 100%; font-size: 11px;">
+            </div>
+
+            <div class="kyc-box">
+                <p style="margin: 0 0 10px 0; font-size: 12px; font-weight: bold; color: white;">3. Selfie Liveness</p>
+                <input type="file" id="kyc-rostro" accept="image/*" capture="user" style="width: 100%; font-size: 11px;">
+            </div>
+
+            <div style="margin-top: 15px;">
+                <p style="font-size: 11px; color: #00f5d4; font-weight: bold; margin-bottom: 5px;">Firma de Consentimiento Dactilar (Ley 1581):</p>
+                <canvas id="canvas-firma" class="canvas-firma"></canvas>
+                <div style="text-align: right; margin-top: 5px;">
+                    <button onclick="limpiarFirma()" style="background: transparent; border: none; color: #ff4444; font-size: 11px; cursor: pointer;">Borrar Trazo</button>
+                </div>
+            </div>
+
+            <button id="btn-enviar-kyc" class="btn-submit" style="background: var(--naranja); color: white; margin-top: 15px;" onclick="procesarOnboardingKYC()">
+                ENVIAR A REVISIÓN IA
+            </button>
+        </div>
+
+        <!-- MÓDULO 2: CONTROL DE TURNO (Desbloqueado tras KYC) -->
+        <div id="modulo-operativo" style="display: none;">
+            
+            <div class="panel-tactico">
+                <label style="font-size: 11px; color: #888; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 8px;">Vehículo Operativo</label>
+                <select id="select-vehiculo" class="input-form" style="background: rgba(0,0,0,0.8) !important; color: #00f5d4 !important; border-color: #00f5d4 !important; font-weight: bold;">
+                    <option value="moto">🛵 Motocicleta de Reparto</option>
+                    <option value="bici">🚲 Bicicleta / Patineta</option>
+                    <option value="carro">🚗 Automóvil / Taxi</option>
+                </select>
+
+                <input type="text" id="input-placa" class="input-form" placeholder="Placa del Vehículo (Opcional)" style="text-transform: uppercase;">
+            </div>
+
+            <button id="btn-toggle-turno" class="btn-turno inactivo" onclick="toggleTurno()">
+                INICIAR TURNO
+            </button>
+            <p style="text-align: center; font-size: 10px; color: #666; margin-top: 10px;">Al iniciar turno comenzarás a transmitir tu telemetría a la malla de radar.</p>
+
+        </div>
+    </div>
+
+    <!-- LÓGICA TÁCTICA -->
+    <script type="module">
+        import GeokatuDB from './core-db.js';
+
+        let idOperadorLogueado = null;
+        let datosOperador = null;
+        let enTurno = false;
+
+        // --- SISTEMA DE FIRMA CANVAS ---
+        const canvas = document.getElementById('canvas-firma');
+        const ctx = canvas ? canvas.getContext('2d') : null;
+        let dibujando = false;
+
+        function redimensionarCanvas() {
+            if(!canvas) return;
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width; 
+            canvas.height = 150;
+            if(ctx) { ctx.strokeStyle = "#00f5d4"; ctx.lineWidth = 3; ctx.lineCap = "round"; }
+        }
+        window.addEventListener('resize', redimensionarCanvas);
+
+        function iniciarTrazo(e) { dibujando = true; dibujar(e); }
+        function terminarTrazo() { dibujando = false; ctx.beginPath(); }
+        function dibujar(e) {
+            if (!dibujando || !ctx) return;
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX || e.touches[0].clientX) - rect.left;
+            const y = (e.clientY || e.touches[0].clientY) - rect.top;
+            ctx.lineTo(x, y); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x, y);
+        }
+
+        if(canvas) {
+            canvas.addEventListener('mousedown', iniciarTrazo);
+            canvas.addEventListener('mousemove', dibujar);
+            canvas.addEventListener('mouseup', terminarTrazo);
+            canvas.addEventListener('touchstart', iniciarTrazo, {passive: false});
+            canvas.addEventListener('touchmove', dibujar, {passive: false});
+            canvas.addEventListener('touchend', terminarTrazo);
+        }
+
+        window.limpiarFirma = () => { if(ctx) { ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.beginPath(); } };
+
+        // --- AUTENTICACIÓN ---
+        window.iniciarSesionFlota = async () => {
+            const email = document.getElementById('login-email').value.trim();
+            const pass = document.getElementById('login-pass').value;
+            const { success, error } = await GeokatuDB.SecurityService.iniciarSesion(email, pass);
+            if (!success) alert("Acceso denegado: " + error);
+        };
+
+        window.cerrarSesion = async () => {
+            await GeokatuDB.SecurityService.cerrarSesion();
+            window.location.reload();
+        };
+
+        // --- LECTURA BASE64 PARA KYC ---
+        const fileToBase64 = (file) => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
+
+        window.procesarOnboardingKYC = async () => {
+            const frente = document.getElementById('kyc-frente').files[0];
+            const reverso = document.getElementById('kyc-reverso').files[0];
+            const rostro = document.getElementById('kyc-rostro').files[0];
+
+            if(!frente || !reverso || !rostro) return alert("Faltan evidencias biométricas.");
+
+            const btn = document.getElementById('btn-enviar-kyc');
+            btn.innerText = "ENCRIPTANDO Y TRANSMITIENDO..."; btn.disabled = true;
+
+            try {
+                const b64Frente = await fileToBase64(frente);
+                const b64Reverso = await fileToBase64(reverso);
+                const b64Rostro = await fileToBase64(rostro);
+
+                // Llamada a la Cloud Function que construimos en el index.js
+                const { getFunctions, httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js');
+                const procesarKyc = httpsCallable(getFunctions(window.db.app), 'procesarKycBiometrico');
+                
+                const { data } = await procesarKyc({ frente: b64Frente, reverso: b64Reverso, rostro: b64Rostro });
+                
+                if (data.success) {
+                    alert("✅ Búnker Sellado. Documentos enviados a revisión.");
+                    window.location.reload();
+                } else {
+                    throw new Error(data.mensaje);
+                }
+            } catch (error) {
+                alert("❌ Falla en la validación: " + error.message);
+            } finally {
+                btn.innerText = "REINTENTAR ENVÍO"; btn.disabled = false;
+            }
+        };
+
+        // --- MOTOR LOGÍSTICO (TURNO) ---
+        window.toggleTurno = async () => {
+            if (!datosOperador) return;
+            const btn = document.getElementById('btn-toggle-turno');
+            const indicador = document.getElementById('indicador-estado');
+            const vehiculo = document.getElementById('select-vehiculo').value;
+            const placa = document.getElementById('input-placa').value.trim() || 'N/A';
+
+            enTurno = !enTurno;
+
+            if (enTurno) {
+                btn.classList.remove('inactivo');
+                btn.classList.add('activo');
+                btn.innerText = "FINALIZAR TURNO";
+                indicador.innerHTML = '<span class="status-dot" style="color: #00f5d4;"></span> EN RUTA';
+                indicador.style.color = '#00f5d4';
+
+                // Registrar en BD que está activo
+                await GeokatuDB.AdminService.actualizarNegocio(idOperadorLogueado, {
+                    estado_logistica: 'activo',
+                    vehiculo_actual: vehiculo,
+                    placa_actual: placa,
+                    timestamp_turno: new Date().toISOString()
+                });
+                
+                alert("🛰️ Transmisión de telemetría iniciada. Atento al radar.");
+            } else {
+                btn.classList.remove('activo');
+                btn.classList.add('inactivo');
+                btn.innerText = "INICIAR TURNO";
+                indicador.innerHTML = '<span class="status-dot" style="color: #aaa;"></span> OFF-LINE';
+                indicador.style.color = '#aaa';
+
+                await GeokatuDB.AdminService.actualizarNegocio(idOperadorLogueado, {
+                    estado_logistica: 'inactivo'
+                });
+            }
+        };
+
+        // --- HIDRATACIÓN ---
+        GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
+            if (user) {
+                const { success, data } = await GeokatuDB.AdminService.obtenerNegocioPorUsuario(user.uid, user.email, "conductor");
+                
+                document.getElementById('pantalla-login').style.display = 'none';
+                document.getElementById('dashboard-screen').style.display = 'block';
+                
+                if (data) {
+                    datosOperador = data;
+                    idOperadorLogueado = data.id || user.uid;
+                    
+                    document.getElementById('ui-nombre').innerText = data.nombre || user.email.split('@')[0];
+                    document.getElementById('ui-uid').innerText = `ID: ${idOperadorLogueado.substring(0,8)}`;
+                    
+                    // Mostrar u ocultar KYC
+                    if (!data.evidencia_kyc || data.estado_moderacion === 'pendiente_onboarding') {
+                        document.getElementById('modulo-kyc').style.display = 'block';
+                        document.getElementById('modulo-operativo').style.display = 'none';
+                        setTimeout(redimensionarCanvas, 300);
+                    } else if (data.estado_moderacion === 'en_revision_kyc') {
+                        document.getElementById('modulo-kyc').style.display = 'block';
+                        document.getElementById('modulo-kyc').innerHTML = `<h3 style="color:#00f5d4; text-align:center;">⏳ Bóveda Sellada</h3><p style="font-size:12px; color:#aaa; text-align:center;">Tus documentos están siendo verificados criptográficamente. Vuelve pronto.</p>`;
+                        document.getElementById('modulo-operativo').style.display = 'none';
+                    } else {
+                        document.getElementById('modulo-kyc').style.display = 'none';
+                        document.getElementById('modulo-operativo').style.display = 'block';
+                    }
+
+                    // Hidratar Saldo SUI Logístico (Si existe en BD)
+                    if (data.saldo_logistica !== undefined) {
+                        document.getElementById('ui-saldo-gas').innerText = `${parseFloat(data.saldo_logistica).toFixed(4)} SUI`;
+                    }
+                } else {
+                    // Crear cascarón de conductor si es primera vez
+                    await GeokatuDB.AdminService.actualizarNegocio(user.uid, {
+                        nombre: user.email.split('@')[0],
+                        email: user.email,
+                        tipo_modelo: 'conductor',
+                        estado_moderacion: 'pendiente_onboarding',
+                        saldo_logistica: 0
+                    });
+                    window.location.reload();
+                }
+            } else {
+                document.getElementById('pantalla-login').style.display = 'flex';
+                document.getElementById('dashboard-screen').style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

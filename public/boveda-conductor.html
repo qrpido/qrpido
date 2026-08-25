@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Modo Conductor | GEOKATU</title>
+    <style>
+        :root { --naranja: #ff6b00; --bg: #0a0a0c; --card: #19191e; --verde: #00f5d4; }
+        body { margin: 0; background: var(--bg); color: white; font-family: sans-serif; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+        /* Mapa de fondo */
+        #mapa-conductor { position: absolute; inset: 0; z-index: 0; }
+        
+        /* UI Táctica */
+        .ui-capa { position: relative; z-index: 10; display: flex; flex-direction: column; height: 100%; justify-content: space-between; padding: 20px; }
+        
+        /* Header Estado */
+        .header-estado { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(10px); padding: 15px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.1); }
+        .switch-online { width: 50px; height: 25px; background: #333; border-radius: 20px; position: relative; cursor: pointer; transition: 0.3s; }
+        .switch-online.activo { background: var(--verde); }
+        .switch-online::after { content: ''; position: absolute; width: 21px; height: 21px; background: white; border-radius: 50%; top: 2px; left: 2px; transition: 0.3s; }
+        .switch-online.activo::after { left: 27px; }
+
+        /* Panel de Acción (Inferior) */
+        .panel-accion { background: var(--card); border-top-left-radius: 25px; border-top-right-radius: 25px; padding: 25px; box-shadow: 0 -10px 40px rgba(0,0,0,0.8); }
+        
+        .btn-gigante { width: 100%; padding: 20px; border-radius: 15px; border: none; font-weight: 900; font-size: 18px; text-transform: uppercase; cursor: pointer; }
+        .btn-aceptar { background: var(--verde); color: black; box-shadow: 0 5px 15px rgba(0,245,212,0.3); }
+        .btn-cancelar { background: transparent; color: #ff4444; border: 1px solid #ff4444; margin-top: 10px; }
+
+        /* Stats Rápidos */
+        .stats-conductor { display: flex; justify-content: space-around; margin-bottom: 20px; }
+        .stat-item { text-align: center; }
+        .stat-val { font-size: 20px; font-weight: 900; }
+        .stat-lbl { font-size: 10px; color: #888; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+
+    <div id="mapa-conductor"></div>
+
+    <div class="ui-capa">
+        <!-- Header -->
+        <div class="header-estado">
+            <div>
+                <div style="font-size: 10px; color: #888;">ESTADO</div>
+                <div id="txt-status" style="font-weight: bold;">DESCONECTADO</div>
+            </div>
+            <div class="switch-online" id="btn-toggle-online" onclick="conmutarEstado()"></div>
+        </div>
+
+        <!-- Panel de Trabajo -->
+        <div class="panel-accion">
+            <div id="panel-idle">
+                <div class="stats-conductor">
+                    <div class="stat-item"><div class="stat-val" id="txt-ingresos">$0</div><div class="stat-lbl">Hoy</div></div>
+                    <div class="stat-item"><div class="stat-val">4.9</div><div class="stat-lbl">Rating</div></div>
+                </div>
+                <p style="text-align: center; color: #888; font-size: 13px;">Espera una solicitud en tu radar...</p>
+            </div>
+
+            <!-- Panel de Orden Activa (Oculto por defecto) -->
+            <div id="panel-activo" style="display: none;">
+                <h3 style="margin: 0 0 10px 0; color: var(--naranja);">¡Nueva Entrega!</h3>
+                <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+                    <div style="font-size: 14px;">📍 Destino: Carrera 14 # 25-10</div>
+                    <div style="font-size: 12px; color: #888; margin-top: 5px;">Tiempo estimado: 8 min</div>
+                </div>
+                <button class="btn-gigante btn-aceptar" onclick="aceptarOrden()">ACEPTAR ORDEN</button>
+                <button class="btn-gigante btn-cancelar" onclick="rechazarOrden()">RECHAZAR</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import GeokatuDB from './core-db.js';
+
+        window.conmutarEstado = () => {
+            const btn = document.getElementById('btn-toggle-online');
+            const txt = document.getElementById('txt-status');
+            btn.classList.toggle('activo');
+            
+            const estaOnline = btn.classList.contains('activo');
+            txt.innerText = estaOnline ? "EN LÍNEA" : "DESCONECTADO";
+            
+            // Aquí llamarías a tu motor de movilidad
+            // GeokatuDB.Movilidad.setEstado(estaOnline);
+        };
+
+        window.aceptarOrden = () => {
+            document.getElementById('panel-idle').style.display = 'none';
+            document.getElementById('panel-activo').style.display = 'none';
+            alert("Ruta iniciada. Sigue el mapa.");
+            // Lógica para enviar señal al servidor
+        };
+
+        // Simulación: Recibir orden entrante
+        setTimeout(() => {
+            document.getElementById('panel-idle').style.display = 'none';
+            document.getElementById('panel-activo').style.display = 'block';
+            if(navigator.vibrate) navigator.vibrate(500);
+        }, 5000);
+    </script>
+</body>
+</html>

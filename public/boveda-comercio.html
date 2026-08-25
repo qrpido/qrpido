@@ -1,0 +1,1541 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bóveda Comercial | Geokatu</title>
+      
+    <!-- 💎 1. HOJA DE ESTILOS MAESTRA (Contiene el UI, Glassmorphism y el Motor de Pines) -->
+    <link rel="stylesheet" href="admin-boveda.css">
+
+    <!-- 2. LIBRERÍAS DE MAPAS (MapLibre + PMTiles) -->
+    <link href="https://unpkg.com/maplibre-gl@3.3.1/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/maplibre-gl@3.3.1/dist/maplibre-gl.js"></script>
+    <script src="https://unpkg.com/pmtiles@2.11.0/dist/index.js"></script>
+    <script src="https://unpkg.com/open-location-code@1.0.3/openlocationcode.js"></script>
+
+    <!-- 3. OTROS SCRIPTS -->
+    <script type="text/javascript" src="https://checkout.wompi.co/widget.js"></script> 
+    <script src="profiler.js"></script>
+    <script type="module" src="auth-mando.js"></script>
+
+    <script>
+      window.guardarDatosRadar = async function() {
+    const btn = document.getElementById('btn-guardar-radar');
+    btn.innerText = "GUARDANDO...";
+    btn.disabled = true;
+
+    try {
+        // 1. Capturar los valores de los selectores del PIN
+        // (Asegúrate de que los IDs coincidan con los de tus <select>)
+        const forma = document.getElementById('select-forma').value || '1';
+        const anim = document.getElementById('select-animacion').value || 'a';
+        const emoji = document.getElementById('select-emoji').value || '0';
+        
+        const ui_pack_final = forma + anim + emoji;
+
+        // 2. Capturar las coordenadas del mapa de Leaflet
+        // (Asumiendo que guardaste la lat/lng en variables globales al mover el pin)
+        if (!window.latitudActual || !window.longitudActual) {
+            alert("⚠️ Por favor, ubica el pin en el mapa primero.");
+            btn.innerText = "💾 GUARDAR EN EL RADAR";
+            btn.disabled = false;
+            return;
+        }
+
+        // 3. Empaquetar y enviar a Firebase
+        const payload = {
+            ui_pack: ui_pack_final,
+            Coordenadas: {
+                latitude: window.latitudActual,
+                longitude: window.longitudActual
+            }
+            // Opcional pero recomendado para el futuro:
+            // geohash: geofire.geohashForLocation([window.latitudActual, window.longitudActual])
+        };
+
+        // Usa tu ID de negocio global
+        const { success, error } = await GeokatuDB.AdminService.actualizarNegocio(window.miIdNegocioGlobal, payload);
+
+        if (success) {
+            alert("✅ ¡Pin y Ubicación sincronizados! Ya deberías aparecer en el radar.");
+        } else {
+            alert("❌ Error al guardar: " + error);
+        }
+
+    } catch (e) {
+        console.error(e);
+        alert("Ocurrió un error inesperado.");
+    } finally {
+        btn.innerText = "💾 GUARDAR EN EL RADAR";
+        btn.disabled = false;
+    }
+}
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const isValidaded = localStorage.getItem('qrpido_session_validated');
+            if (!isValidaded) { window.location.href = 'index.html'; return; }
+        });
+        window.qrpidoErrorLog = []; 
+        window.onerror = function(message, source, lineno, colno, error) { console.error('ERROR JS', `Mensaje: ${message}\nLínea: ${lineno}:${colno}`); return false; };
+        window.addEventListener('unhandledrejection', function(event) { console.error('ERROR FIREBASE', `Razón: ${event.reason}`); });
+
+        // Cierra el menú de 3 puntos si se toca afuera
+        document.addEventListener('click', (e) => {
+            const menu = document.getElementById('menu-cabecera-dropdown');
+            if (menu && menu.classList.contains('activo') && !e.target.closest('.btn-opciones-cabecera')) {
+                menu.classList.remove('activo');
+            }
+        });
+    </script>
+</head>
+
+<body class="boveda-ui">
+    
+    <!-- 🌟 MODAL EN VIVO: SELECTOR DE ESTILOS (El Lápiz Mágico) -->
+    <div id="modal-estilo-overlay" class="modal-estilo-overlay" onclick="cerrarModalEstilo(event)">
+        <div class="boveda-tarjeta" style="position:relative; max-width:400px; width:90%; height:auto; padding:25px;" onclick="event.stopPropagation()">
+            <h3 style="text-align:center; margin-top:0; color:white; font-size: 20px;">Diseño de Exhibición</h3>
+            <p style="text-align:center; font-size:12px; color:#888; margin-bottom: 20px;">Elige cómo se presentará este producto en tu catálogo público.</p>
+            
+            <div class="estilo-opciones">
+                <button class="estilo-btn" id="btn-estilo-grid" onclick="cambiarPreviewEstilo('layout-grid')">🔲 2 Filas</button>
+                <button class="estilo-btn" id="btn-estilo-hero" onclick="cambiarPreviewEstilo('layout-hero')">🖼️ Destacado</button>
+                <button class="estilo-btn" id="btn-estilo-lista" onclick="cambiarPreviewEstilo('layout-lista')">📄 Lista</button>
+            </div>
+
+            <div class="preview-caja" id="caja-preview-estilo">
+                <!-- Se inyecta la preview aquí en JS -->
+            </div>
+
+            <button class="btn-submit" style="margin-top:25px;" onclick="guardarEstiloDefinitivo()">Guardar Aspecto</button>
+        </div>
+    </div>
+<!-- Input oculto para procesar hasta 3 fotos -->
+    <input type="file" id="upload-fotos-edicion" multiple accept="image/*" style="display:none;" onchange="procesarNuevasFotosGaleria(this)">
+
+    <!-- 🌟 MODAL EN VIVO: EDICIÓN AVANZADA -->
+    <div id="modal-editar-overlay" class="modal-estilo-overlay" onclick="cerrarModalEditar(event)">
+        <div class="boveda-tarjeta" style="position:relative; max-width:400px; width:90%; height:auto; padding:25px;" onclick="event.stopPropagation()">
+            <h3 style="text-align:center; margin-top:0; color:white; font-size: 20px;">✏️ Editar Artículo</h3>
+            
+            <div class="preview-caja" id="caja-preview-editar" style="padding: 10px;">
+                <!-- Se inyecta la preview mágica en JS -->
+            </div>
+
+            <div style="margin-top: 20px;">
+                <label class="section-title">Stock Disponible (Unidades)</label>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="number" id="editStockModal" class="input-form" style="margin-bottom:0;" placeholder="Ej: 50">
+                    <span style="font-size:11px; color:#888;">(0 para agotar)</span>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top:25px;">
+                <button class="btn-submit" style="background: transparent; border: 1px solid rgba(255,255,255,0.2); color: #aaa; box-shadow: none;" onclick="cerrarModalEditar()">Cancelar</button>
+                <button class="btn-submit" id="btn-guardar-edicion-modal" onclick="guardarEdicionAvanzada()">Aceptar</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- 🌟 MOTOR WIZARD (ONBOARDING) -->
+    <div id="wizard-overlay" style="display:none; position:fixed; inset:0; background:var(--bg-oscuro); z-index:10000; overflow:hidden; align-items:center; justify-content:center;">
+        <div id="wiz-step-2" class="boveda-tarjeta wizard-oculto-der" style="display:flex; flex-direction:column; gap:15px; justify-content:center;">
+            <h2 style="color:var(--naranja); text-align:center; margin:0; font-size:24px;">Identidad de Tienda</h2>
+            <div class="file-upload-wrapper">
+                <input type="file" id="wiz-logo" class="file-upload-input" onchange="actualizarNombreImagenUI(this,'wiz-txt-logo')">
+                <div class="file-upload-ui" id="wiz-txt-logo">📸 Subir Logo</div>
+            </div>
+            <input type="text" id="wiz-nombre" class="input-form" placeholder="Nombre Oficial del Negocio">
+            <button class="btn-submit" style="margin-top:auto;" onclick="avanzarWizard(2, 3)">Continuar (38.2%)</button>
+        </div>
+        <div id="wiz-step-3" class="boveda-tarjeta wizard-oculto-der" style="display:flex; flex-direction:column; gap:10px; justify-content:center;">
+            <h2 style="color:var(--naranja); text-align:center; margin:0;">Radar Comercial</h2>
+            <div style="display:flex; gap:8px;">
+                <input type="text" id="wiz-busqueda" class="input-form" style="margin-bottom:0;" placeholder="Ej: Unicentro Pereira">
+                <button class="btn-submit" style="width:auto; padding:0 15px; margin:0;" onclick="buscarWiz()">🔍</button>
+            </div>
+            <div id="mapa-wizard" style="width:100%; height:220px; border-radius:12px; border:1px solid var(--glass-border); background:#111;"></div>
+            <button class="btn-submit" style="margin-top:auto;" onclick="avanzarWizard(3, 4)">Fijar Local (61.8%)</button>
+        </div>
+        <div id="wiz-step-4" class="boveda-tarjeta wizard-oculto-der" style="display:flex; flex-direction:column; gap:15px; justify-content:center;">
+            <h2 style="color:var(--naranja); text-align:center; margin:0;">Sellar Operación</h2>
+            <div class="wizard-preview-contenedor">
+                <div id="wiz-preview" class="wizard-preview-pin pin-1" style="--color-main:var(--naranja); --color-sec:#0ff;">
+                    <img id="wiz-img" src="https://via.placeholder.com/150/0a0a0c/ff6b00?text=LOGO" class="pin-img">
+                </div>
+            </div>
+            <select id="wiz-nicho" class="input-form">
+                <option value="">¿Qué sector manejas?</option>
+                <option value="farmacia">Farmacia / Droguería</option>
+                <option value="ferreteria">Ferretería</option>
+                <option value="supermercado">Supermercado / Mini-market</option>
+                <option value="restaurante">Restaurante / Comidas</option>
+                <option value="tecnologia">Tecnología / Celulares</option>
+            </select>
+            <button class="btn-submit" style="margin-top:auto; background:#00ff64; color:black; box-shadow:0 10px 25px rgba(0,255,100,0.4);" onclick="finalizarWizard()">Sellar Bóveda (100%)</button>
+        </div>
+    </div>
+
+    <div id="offline-banner" class="offline-banner">⚠️ Sin conexión: Mostrando datos de tu última visita</div>
+
+    <!-- PANTALLA PRINCIPAL DEL DASHBOARD -->
+    <div id="dashboard-screen" style="display: none;">
+        
+        <div id="banner-aversiones" style="display:none; width:100%; background:rgba(255,107,0,0.1); border:1px dashed var(--naranja); color:white; padding:12px; border-radius:15px; text-align:center; margin-bottom:15px; font-size:12px; cursor:pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.5);" onclick="retomarWizard()">
+            ⚠️ <b>Bóveda al <span id="txt-progreso-boveda">0</span>%.</b> Faltan detalles para destacar en el radar. <u style="color:var(--naranja);">Completar ahora</u>
+        </div>
+
+       <div class="panel-admin" style="position: relative; z-index: 100;">
+            
+            <!-- 🎩 MENÚ 3 PUNTOS ELEGANTE -->
+            <button class="btn-opciones-cabecera" onclick="document.getElementById('menu-cabecera-dropdown').classList.toggle('activo')">⋮</button>
+           <div id="menu-cabecera-dropdown" class="menu-cabecera-dropdown">
+                <button onclick="import('./core-db.js').then(m => m.default.SecurityService.observarEstadoSesion(u => { if(u) window.open('negocio.html?id=' + u.uid, '_blank'); else alert('Sesión no detectada'); }))">Ver Catálogo</button>
+
+                <button onclick="window.location.href='index.html'">Radar General</button>
+                <button onclick="alert('Configuración en construcción 🛠️')">Configuración</button>
+                <button onclick="cerrarSesion()" style="color: #ff4444; border-color: rgba(255,68,68,0.15); background: rgba(255,68,68,0.05);">Salir de la bóveda</button>
+            </div>
+
+
+            <!-- CABECERA LIMPIA -->
+            <div class="oficina-header" style="border:none; margin-bottom:0; padding-bottom:0;">
+                <img id="ui-logo" src="" class="oficina-logo" style="display:none; background: var(--bg-oscuro); box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
+                <div class="oficina-info">
+                    <img id="ui-nombre-img" class="ui-nombre-png" src="" style="display:none;">
+                    <h3 id="ui-nombre" style="background: linear-gradient(135deg, #ffffff 0%, #aaaaaa 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5)); margin-bottom: 5px;">MI TIENDA</h3>
+                    <div style="position: relative; display: inline-block;">
+                        <div id="ui-rango" class="badge-plan">PLAN BÁSICO</div>
+                   </div>
+                </div>
+            </div> 
+        </div> 
+
+        <div class="tabs">
+            <button class="tab-btn activo" onclick="cambiarTab('ajustes')">⚙️ Perfil</button>
+            <button class="tab-btn" onclick="cambiarTab('inventario')">📦 Catálogo</button>
+            <button class="tab-btn" onclick="cambiarTab('operaciones')">🏗️ Operaciones</button>
+            <button class="tab-btn" onclick="cambiarTab('aliados')">🤝 Aliados</button>
+        </div>
+
+
+        <!-- 🏢 PESTAÑA: AJUSTES / PERFIL -->
+        <div id="content-ajustes" class="tab-content activo">
+            <details open>
+                <summary>🏢 Mi Tienda y Ubicación</summary>
+                <div style="padding: 0 15px 15px;">
+                    <label class="section-title">Datos de Contacto</label>
+                    <input type="text" id="perfilEmail" class="input-form" disabled placeholder="Correo">
+                    <input type="text" id="perfilTelefono" class="input-form" placeholder="Número de WhatsApp">
+                    
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <div style="flex: 1;">
+                            <label style="font-size: 11px; color: #888; margin-bottom: 5px; display: block;">Apertura</label>
+                            <select id="perfilApertura" class="input-form" style="margin-bottom: 0;"></select>
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="font-size: 11px; color: #888; margin-bottom: 5px; display: block;">Cierre</label>
+                            <select id="perfilCierre" class="input-form" style="margin-bottom: 0;"></select>
+                        </div>
+                    </div>
+                    <input type="text" id="perfilDireccion" class="input-form" placeholder="Dirección Oficial">
+                    
+                    <!-- CONTENEDOR DEL MAPA CON BOTÓN GPS -->
+                    <div id="contenedor-mapa-perfil">
+                        <label class="section-title" style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center;">
+                            <span>📍 Ubicación en el Mapa</span>
+                            <button type="button" id="btn-geo" onclick="obtenerUbicacionActual()" style="background: rgba(255,107,0,0.1); border: 1px solid var(--naranja); color: var(--naranja); padding: 6px 12px; border-radius: 8px; font-size: 10px; font-weight: bold; cursor: pointer; transition: 0.3s;">🎯 Usar mi GPS</button>
+                        </label>
+                        <div id="mini-mapa-perfil" style="width: 100%; height: 220px; border-radius: 12px; border: 1px solid var(--glass-border); margin-bottom: 10px; background: #111; z-index: 1;"></div>
+                        <input type="hidden" id="perfilLat">
+                        <input type="hidden" id="perfilLng">
+                    </div>
+                    
+                    <label class="section-title" style="margin-top:20px;">Posicionamiento</label>
+                    <input type="text" id="perfilNombre" class="input-form" placeholder="Nombre Oficial">
+                    <input type="text" id="perfilUsername" class="input-form" placeholder="Link personalizado (Ej: minimarket_sur)" style="text-transform: lowercase;">
+                    
+                    <select id="perfilNichoSelect" class="input-form" style="margin-bottom: 15px;">
+                        <option value="">Selecciona tu Sector/Nicho...</option>
+                        <option value="carniceria">Carnicería / Fama de Carnes</option>
+                        <option value="farmacia">Farmacia / Droguería</option>
+                        <option value="ferreteria">Ferretería</option>
+                        <option value="supermercado">Supermercado / Mini-market</option>
+                        <option value="papeleria">Papelería</option>
+                        <option value="tecnologia">Tecnología / Celulares</option>
+                        <option value="restaurante">Restaurante / Comidas Rápidas</option>
+                        <option value="ropa">Ropa / Boutique / Calzado</option>
+                        <option value="otro">Otro</option>
+                    </select>
+                    
+                    <select id="perfilMoneda" class="input-form">
+                        <option value="COP">Peso Colombiano (COP)</option>
+                        <option value="USD">Dólar Estadounidense (USD)</option>
+                    </select>
+                    
+                    <textarea id="perfilPalabras" class="input-form" placeholder="Palabras clave (Ej: viveres, carne, despensa)"></textarea>
+                    
+                    <button class="btn-submit" id="btn-submit-perfil" onclick="guardarPerfil()">GUARDAR PERFIL</button>
+                    <p id="msg-exito-perfil" style="color: #00ff64; font-size: 11px; text-align: center; margin-top: 5px; opacity: 0; transition: opacity 0.5s;">✔️ Actualizado</p>
+                </div>
+            </details>
+
+            <details>
+                <summary>🎨 Diseño y Branding</summary>
+                <div style="padding: 0 var(--sp-sm) var(--sp-sm);">
+                    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                        <div class="file-upload-wrapper" style="flex:1; margin:0;">
+                            <input type="file" id="disenoLogoFile" class="file-upload-input" accept="image/*" onchange="actualizarNombreImagenUI(this,'texto-logo')">
+                            <div class="file-upload-ui" id="texto-logo" style="padding:10px; font-size:11px;">📸 Logo</div>
+                        </div>
+                        <div class="file-upload-wrapper" style="flex:1; margin:0;">
+                            <input type="file" id="disenoPortadaFile" class="file-upload-input" accept="image/*" onchange="actualizarNombreImagenUI(this,'texto-portada')">
+                            <div class="file-upload-ui" id="texto-portada" style="padding:10px; font-size:11px;">🖼️ Portada</div>
+                        </div>
+                    </div>
+                    
+                    <label class="section-title">Paleta de Marca (Colores)</label>
+                    <div style="display: flex; gap: 15px; align-items: center; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 12px; border: 1px solid var(--glass-border); margin-bottom: 20px;">
+                        <div style="flex:1; display:flex; flex-direction:column; align-items:center;">
+                            <div class="color-picker-wrapper">
+                                <input type="color" id="colorHex1" value="#ff6b00" oninput="window.actualizarPinLive()">
+                            </div>
+                            <span style="font-size: 9px; color:#888; margin-top:5px; text-transform:uppercase;">Principal</span>
+                        </div>
+                        <div style="flex:1; display:flex; flex-direction:column; align-items:center;">
+                            <div class="color-picker-wrapper">
+                                <input type="color" id="colorHex2" value="#ffffff">
+                            </div>
+                            <span style="font-size: 9px; color:#888; margin-top:5px; text-transform:uppercase;">Acento</span>
+                        </div>
+                        <div style="flex:1; display:flex; flex-direction:column; align-items:center;">
+                            <div class="color-picker-wrapper">
+                                <input type="color" id="colorHex3" value="#0a0a0c">
+                            </div>
+                            <span style="font-size: 9px; color:#888; margin-top:5px; text-transform:uppercase;">Fondo</span>
+                        </div>
+                        
+                        <button style="background: rgba(255,107,0,0.1); border: 1px solid var(--naranja); color: var(--naranja); width: 40px; height: 40px; border-radius: 10px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3);" onclick="extraerColoresMagicos()" title="Extraer colores del logo">✨</button>
+                    </div>
+                    
+                    <button class="btn-submit" id="btn-submit-diseno" onclick="guardarDisenoLaboratorio()">GUARDAR BRANDING</button>
+                </div>
+            </details>
+<!-- 📍 NUEVO ACORDEÓN: EDITOR DE PINES -->
+            <details>
+                <summary>📍 Diseño del Pin (Mapa)</summary>
+                <div style="padding: 0 var(--sp-sm) var(--sp-sm);">
+                    <p style="font-size: 11px; color: #888; text-align: center; margin-top: 0;">Personaliza cómo te ven los clientes en el radar principal.</p>
+                    
+                    <div style="background: #111; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 15px; border: 1px solid var(--glass-border);">
+                        <!-- El visualizador en vivo -->
+                        <!-- El visualizador en vivo (GOTA POR DEFECTO) -->
+                        <div id="pin-live-preview" class="pin-wrapper forma-gota anim-salto" style="display: inline-flex; position: relative; width: 50px; height: 50px; background: rgba(10,10,12,0.8);">
+                            <img id="img-live-preview" src="https://via.placeholder.com/150/0a0a0c/ff6b00?text=PIN" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">
+                        </div>
+
+                    </div>
+
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                                                <select id="select-forma" class="input-form" onchange="actualizarPinLive()" style="flex:1; margin-bottom:0;">
+                            <option value="forma-gota" selected>Gota Clásica</option>
+                            <option value="forma-esfera">Esfera Perfecta</option>
+                            <option value="forma-triangulo">Triángulo Elegante</option>
+                            <option value="forma-hoja">Hoja Orgánica</option>
+                            <option value="forma-flor">Flor (Girasol) 🌻</option>
+                        </select>
+
+                        <select id="select-animacion" class="input-form" onchange="actualizarPinLive()" style="flex:1; margin-bottom:0;">
+                            <option value="anim-salto">Salto Gravitacional</option>
+                            <option value="anim-flotar">Flotar Suave</option>
+                            <option value="anim-latido">Latido Cardíaco</option>
+                            <option value="anim-estatico">Sin Movimiento</option>
+                        </select>
+                    </div>
+                    
+                    <select id="select-efecto" class="input-form" onchange="actualizarPinLive()"></select>
+                    <button id="btn-guardar-radar" class="btn-pedir" onclick="guardarDatosRadar()">💾 GUARDAR EN EL RADAR</button>
+
+                </div>
+            </details>
+
+        </div>
+
+        <!-- 📦 PESTAÑA: POS E INVENTARIO -->
+        <div id="content-inventario" class="tab-content">
+            <details>
+                <summary>➕ Añadir Producto</summary>
+                <div style="padding: 0 12px 12px 12px;">
+                    <input type="hidden" id="prodEditId">
+                    <input type="hidden" id="prodImagenActual">
+                    
+                    <input type="text" id="prodNombre" class="input-form" placeholder="Nombre del artículo">
+                    <div style="display:flex; gap:10px;">
+                        <input type="number" step="any" id="prodPrecio" class="input-form" placeholder="Precio" style="flex:1;">
+                        <input type="text" id="prodCategoria" class="input-form" placeholder="Categoría" style="flex:1;">
+                    </div>
+                    
+                    <div class="file-upload-wrapper">
+                        <input type="file" id="prodImagenFile" class="file-upload-input" accept="image/*" onchange="actualizarNombreImagenUI(this, 'file-upload-text')">
+                        <div class="file-upload-ui" id="file-upload-text">📸 Subir foto del producto</div>
+                    </div>
+
+                    <button class="btn-submit" id="btn-submit-producto" onclick="guardarProducto()">GUARDAR EN CATÁLOGO</button>
+                    <button class="btn-submit" id="btn-cancelar-edicion" onclick="cancelarEdicion()" style="display: none; background: transparent; border: 1px solid var(--naranja); color: var(--naranja); box-shadow: none; margin-top: 10px;">Cancelar Edición</button>
+                </div>
+            </details>
+
+            <details id="acordeon-masivo" style="display: none;">
+                <summary>⚡ Carga Rápida (Masiva)</summary>
+                <div style="padding: 0 12px 12px 12px;">
+                    <p style="color: #888; font-size: 11px; margin-top: 0;">Añade productos de catálogos predefinidos rápidamente.</p>
+                    <div style="position: relative; margin-bottom: 15px;">
+                        <input type="text" id="buscador-json" class="input-form" placeholder="🔍 Ej: Aspirina, Cemento..." onkeyup="filtrarDiccionarioJSON()" style="margin-bottom: 0;">
+                        <div id="resultados-json" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; background: var(--bg-oscuro); border: 1px solid rgba(138, 43, 226, 0.5); border-radius: 0 0 12px 12px; max-height: 200px; overflow-y: auto; z-index: 100; box-shadow: 0 10px 20px rgba(0,0,0,0.8);"></div>
+                    </div>
+                    <div id="mi-inventario-masivo" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; max-height: 300px; overflow-y: auto;"></div>
+                    <button class="btn-submit" style="background: #8a2be2; color: white;" onclick="guardarInventarioMasivo()">GUARDAR PRECIOS EN LOTE</button>
+                </div>
+            </details>
+
+            <hr style="border-color: rgba(255,255,255,0.1); margin: 20px 0;">
+
+            <label class="section-title">📦 Catálogo Activo</label>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <input type="text" id="filtro-busqueda" class="input-form" placeholder="🔍 Buscar..." style="margin-bottom: 0; flex: 2;" onkeyup="manejarBusquedaTeclado(event)">
+                <select id="filtro-categoria" class="input-form" style="margin-bottom: 0; flex: 1;" onchange="filtrarCatalogo()">
+                    <option value="">Todas</option>
+                </select>
+            </div>
+            
+            <!-- 🔲 NUEVA GRILLA INTELIGENTE -->
+            <div id="lista-productos-container" class="grilla-catalogo"></div>
+            
+            <button id="btn-cargar-mas" class="btn-submit" style="display: none; background: transparent; border: 1px dashed var(--naranja); color: var(--naranja); box-shadow: none; margin-top: 15px;" onclick="cargarMasProductos()">⬇️ Cargar más</button>
+        </div>
+
+        <!-- 🏗️ PESTAÑA: GESTIÓN OPERATIVA -->
+        <div id="content-operaciones" class="tab-content" style="display: none;">
+            
+            <details open>
+                <summary>👥 Gestión de Personal</summary>
+                <div style="padding: 0 15px 15px;">
+                    <p style="font-size: 11px; color: #888; margin-top: 0;">Genera las credenciales para que tus empleados ingresen a la Terminal de Escaneo o a la App de Reparto.</p>
+                    <input type="text" id="emp-nombre" class="input-form" placeholder="Nombre del Empleado">
+                    <input type="email" id="emp-email" class="input-form" placeholder="Correo Electrónico (Será su Usuario)">
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <input type="password" id="emp-pass" class="input-form" style="margin-bottom: 0;" placeholder="Clave Temporal">
+                        <select id="emp-rol" class="input-form" style="margin-bottom: 0;">
+                            <option value="" disabled selected>Asignar Rol...</option>
+                            <option value="operario_pos">Operario de Bodega / POS</option>
+                            <option value="domiciliario">Conductor / Domiciliario</option>
+                            <option value="supervisor">Supervisor de Zona</option>
+                        </select>
+                    </div>
+                    <button class="btn-submit" style="background: #0099ff; color: white; box-shadow: 0 4px 15px rgba(0, 153, 255, 0.3);" onclick="crearCredencialEmpleado()">GENERAR CREDENCIAL</button>
+                </div>
+            </details>
+
+            <details>
+                <summary>🏢 Bodegas (Gemelo Digital)</summary>
+                <div style="padding: 0 15px 15px;">
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <input type="text" id="bodega-nombre" class="input-form" style="margin-bottom: 0; border-color: #8bc34a;" placeholder="Nombre del Espacio (Ej: Piso 1)">
+                        <button class="btn-submit" style="width: auto; padding: 0 20px; margin: 0; background: #8bc34a; color: white;" onclick="agregarBodega()">+</button>
+                    </div>
+                </div>
+            </details>
+        </div>
+
+        <!-- 🤝 PESTAÑA: RED DE ALIADOS -->
+        <div id="content-aliados" class="tab-content" style="display: none;">
+            <div style="background: rgba(0,0,0,0.3); border-radius: 12px; padding: 30px 20px; text-align: center; margin-bottom: 15px; border: 1px solid var(--glass-border); position: relative;">
+                        <!-- El input y el lápiz ocultos para cambiar SOLO la imagen del Pin -->
+                        <button class="inline-lapiz" style="top: 10px; right: 10px;" onclick="document.getElementById('disenoPinFile').click()">✏️</button>
+                        <input type="file" id="disenoPinFile" accept="image/*" style="display:none;" onchange="window.cargarPreviewMiniPin(this)">
+                        
+                        <!-- El visualizador en vivo -->
+                        <div id="pin-live-preview" class="pin-wrapper forma-gota anim-salto" style="margin: 0 auto;">
+                            <img id="img-live-preview" src="https://via.placeholder.com/150/0a0a0c/ff6b00?text=PIN">
+                        </div>
+                    </div>
+
+
+    <!-- 🧠 LÓGICA DE NEGOCIO -->
+    <script type="module">
+        import * as geofire from 'https://cdn.jsdelivr.net/npm/geofire-common@5.2.0/+esm';
+        import GeokatuDB from './core-db.js';
+
+        let idNegocioLogueado = null;
+        let isPremium = false;
+        let datosGlobalesNegocio = null;
+        let listaProductosGlobal = [];
+        let ultimoDocCatalogo = null;
+        let categoriaFiltroActual = "";
+        let terminoBusquedaActual = "";
+        let categoriasDisponibles = new Set();
+        let DICCIONARIO_UNIVERSAL = [];
+        let mapaPreciosLocal = {}; 
+        let inventarioAgotadoLocal = [];
+
+        window.sanitizarTexto = function(texto) {
+            if (texto === null || texto === undefined) return '';
+            const div = document.createElement('div'); div.textContent = texto; return div.innerHTML;
+        };
+
+        function generarGeohash(lat, lng) { return geofire.geohashForLocation([lat, lng]); }
+
+        window.cambiarTab = (tabId) => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('activo'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('activo'));
+            document.getElementById(`content-${tabId}`).classList.add('activo');
+            document.querySelectorAll('.tab-btn').forEach(btn => { if(btn.getAttribute('onclick').includes(tabId)) btn.classList.add('activo'); });
+            
+            if (tabId === 'ajustes' && typeof miniMapa !== 'undefined' && miniMapa) {
+                setTimeout(() => { miniMapa.resize(); }, 100);
+            }
+        };
+
+        // 🎯 GEOLOCALIZACIÓN INTELIGENTE
+        window.obtenerUbicacionActual = () => {
+            if (!navigator.geolocation) return alert("Tu navegador no soporta geolocalización.");
+            const btn = document.getElementById('btn-geo');
+            btn.innerText = "⏳ Buscando...";
+            
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+                    if (typeof miniMapa !== 'undefined' && miniMapa && typeof pinMiniMapa !== 'undefined' && pinMiniMapa) {
+                        miniMapa.flyTo({ center: [lng, lat], zoom: 17 });
+                        pinMiniMapa.setLngLat([lng, lat]);
+                    }
+                    document.getElementById('perfilLat').value = lat;
+                    document.getElementById('perfilLng').value = lng;
+                    btn.innerText = "✔️ Capturado";
+                    btn.style.borderColor = "#00ff64"; btn.style.color = "#00ff64";
+                    setTimeout(() => { btn.innerText = "🎯 Usar mi GPS"; btn.style.borderColor = "var(--naranja)"; btn.style.color = "var(--naranja)"; }, 3000);
+                },
+                (err) => {
+                    alert("No pudimos acceder a tu GPS.");
+                    btn.innerText = "🎯 Usar mi GPS";
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        };
+
+        window.cerrarSesion = async () => {
+            await GeokatuDB.SecurityService.cerrarSesion();
+            localStorage.removeItem('qrpido_session_validated');
+            window.location.href = 'index.html';
+        };
+
+        // --- MANEJO DE PERFIL Y MAPA ---
+        let protocol = new pmtiles.Protocol();
+        maplibregl.addProtocol("pmtiles", protocol.tile);
+
+        window.inicializarMiniMapa = function(latInicial, lngInicial) {
+            if (typeof miniMapa !== 'undefined' && miniMapa) return; 
+            const defaultLat = latInicial || 4.8133; 
+            const defaultLng = lngInicial || -75.6961;
+
+            window.miniMapa = new maplibregl.Map({
+                container: 'mini-mapa-perfil',
+                style: 'estilo-fresco.json', 
+                center: [defaultLng, defaultLat], 
+                zoom: 15, attributionControl: false
+            });
+
+            window.pinMiniMapa = new maplibregl.Marker({ color: "#ff6b00", draggable: true })
+                .setLngLat([defaultLng, defaultLat]).addTo(miniMapa);
+
+            pinMiniMapa.on('dragend', function() {
+                const pos = pinMiniMapa.getLngLat();
+                document.getElementById('perfilLat').value = pos.lat;
+                document.getElementById('perfilLng').value = pos.lng;
+            });
+            
+            if(latInicial && lngInicial) {
+                document.getElementById('perfilLat').value = defaultLat;
+                document.getElementById('perfilLng').value = defaultLng;
+            }
+        };
+
+        function initWizMap() {
+            setTimeout(() => {
+                if (typeof wizMapa !== 'undefined' && wizMapa) { wizMapa.resize(); return; }
+                window.wizMapa = new maplibregl.Map({
+                    container: 'mapa-wizard', style: 'estilo-fresco.json', center: [wizLng, wizLat], zoom: 15, attributionControl: false
+                });
+                window.wizMarker = new maplibregl.Marker({ color: "#ff6b00", draggable: true }).setLngLat([wizLng, wizLat]).addTo(wizMapa);
+                wizMarker.on('dragend', function() {
+                    const pos = wizMarker.getLngLat(); wizLat = pos.lat; wizLng = pos.lng;
+                });
+            }, 300);
+        }
+
+        window.buscarWiz = async () => {
+            const query = document.getElementById('wiz-busqueda').value.trim();
+            if (!query) return;
+            const btnBusqueda = document.querySelector('#wiz-step-3 .btn-submit:first-of-type');
+            const originalIcon = btnBusqueda.innerText; btnBusqueda.innerText = "⏳";
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Colombia')}`);
+                const data = await response.json();
+                if (data && data.length > 0) {
+                    wizLat = parseFloat(data[0].lat); wizLng = parseFloat(data[0].lon);
+                    wizMapa.flyTo({ center: [wizLng, wizLat], zoom: 16 }); wizMarker.setLngLat([wizLng, wizLat]);
+                } else { alert("No pudimos encontrar esa dirección."); }
+            } catch (e) { console.error(e); } finally { btnBusqueda.innerText = originalIcon; }
+        };
+
+        function poblarHorarios() {
+            let opciones = '<option value="">Selecciona...</option>';
+            for(let h=0; h<24; h++) {
+                for(let m of ['00', '30']) {
+                    const militar = `${h.toString().padStart(2, '0')}:${m}`;
+                    const ampm = h >= 12 ? 'PM' : 'AM'; let h12 = h % 12 || 12;
+                    opciones += `<option value="${militar}">${h12.toString().padStart(2, '0')}:${m} ${ampm}</option>`;
+                }
+            }
+            document.getElementById('perfilApertura').innerHTML = opciones; document.getElementById('perfilCierre').innerHTML = opciones;
+        }
+        poblarHorarios();
+
+        window.comprimirImagen = function(file, maxWidth = 800, quality = 0.7, forceSquare = false) {
+            return new Promise((resolve) => {
+                if (!file) return resolve(file);
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        let width = img.width, height = img.height;
+                        let sx = 0, sy = 0, sWidth = width, sHeight = height;
+                        if (forceSquare) {
+                            const size = Math.min(width, height);
+                            sx = (width - size) / 2; sy = (height - size) / 2;
+                            sWidth = size; sHeight = size; width = size; height = size;
+                        }
+                        if (width > maxWidth) { height = Math.round((height * maxWidth) / width); width = maxWidth; }
+                        const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+                        const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, width, height);
+                        ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, width, height);
+                        canvas.toBlob(blob => { resolve(blob || file); }, 'image/jpeg', quality);
+                    };
+                    img.onerror = () => resolve(file); img.src = event.target.result;
+                };
+                reader.onerror = () => resolve(file); reader.readAsDataURL(file);
+            });
+        };
+
+                window.actualizarNombreImagenUI = (input, idTexto) => {
+            const textoUI = document.getElementById(idTexto);
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    textoUI.innerHTML = `<img src="${e.target.result}" id="preview-${idTexto}" style="max-height: 80px; max-width: 100%; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); object-fit: contain; margin-bottom: 5px;"><br><span style="font-size:11px; color:#00ff64; font-weight:bold;">✔️ Cargado</span>`;
+                    textoUI.style.borderColor = "#00ff64"; 
+                    textoUI.style.background = "rgba(0, 255, 100, 0.05)"; 
+                    textoUI.style.padding = "10px";
+
+                    // 💎 LA CIRUGÍA: Sincronizamos el Logo con el Pin en el acto
+                    if (input.id === 'disenoLogoFile') {
+                        const imgLivePreview = document.getElementById('img-live-preview');
+                        if (imgLivePreview) imgLivePreview.src = e.target.result;
+                    }
+                }
+                reader.readAsDataURL(input.files[0]);
+            } else {
+                textoUI.innerHTML = "📸 Subir archivo"; 
+                textoUI.style.borderColor = "var(--naranja)"; 
+                textoUI.style.background = "rgba(255,107,0,0.05)";
+            }
+        }; 
+
+        // ✨ VARITA MÁGICA: Extractor de Colores
+        window.extraerColoresMagicos = () => {
+            const img = document.getElementById('preview-texto-logo');
+            if (!img) return alert("Sube tu Logo primero para que la magia funcione.");
+            
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = img.naturalWidth || img.width; canvas.height = img.naturalHeight || img.height;
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            
+            try {
+                const c1 = ctx.getImageData(Math.floor(canvas.width/2), Math.floor(canvas.height/2), 1, 1).data;
+                const c2 = ctx.getImageData(Math.floor(canvas.width/4), Math.floor(canvas.height/4), 1, 1).data;
+                const rgbToHex = (r, g, b) => '#' + [r, g, b].map(x => { const hex = x.toString(16); return hex.length === 1 ? '0'+hex : hex; }).join('');
+                
+                if(c1[3] > 0) document.getElementById('colorHex1').value = rgbToHex(c1[0], c1[1], c1[2]);
+                if(c2[3] > 0) document.getElementById('colorHex2').value = rgbToHex(c2[0], c2[1], c2[2]);
+                
+                if(navigator.vibrate) navigator.vibrate([50, 100, 50]);
+                alert("¡Colores extraídos con éxito!");
+            } catch(e) {
+                alert("No se pudo extraer. Asegúrate de subir una imagen válida.");
+            }
+        };
+
+        let wizLat = 4.8133; let wizLng = -75.6961;
+
+// ✨ LECTOR DEL LÁPIZ DEL PIN
+        window.cargarPreviewMiniPin = function(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) { document.getElementById('img-live-preview').src = e.target.result; };
+                reader.readAsDataURL(input.files[0]);
+            }
+        };
+
+        // ✨ MOTOR VISUAL DE PINES ACTUALIZADO
+        window.actualizarPinLive = function() {
+            const preview = document.getElementById('pin-live-preview');
+            if(!preview) return;
+            
+            const forma = document.getElementById('select-forma').value || 'forma-gota';
+            const animacion = document.getElementById('select-animacion').value || '';
+            const efectoRaw = document.getElementById('select-efecto').value || '';
+            const cMain = document.getElementById('colorHex1') ? document.getElementById('colorHex1').value : '#ff6b00';
+
+            const partesEfecto = efectoRaw.split('|');
+            const claseEfecto = partesEfecto[0] || '';
+            const emojiEfecto = partesEfecto[1] || '';
+
+            // Armamos la clase maestra
+            preview.className = `pin-wrapper ${forma} ${animacion}`;
+            
+            if (emojiEfecto) {
+                preview.setAttribute('data-emoji', emojiEfecto);
+                preview.setAttribute('data-anclaje', claseEfecto);
+            } else {
+                preview.removeAttribute('data-emoji');
+                preview.removeAttribute('data-anclaje');
+            }
+            
+            // Inyectamos el color del borde
+            preview.style.setProperty('--color-main', cMain);
+        };
+
+
+        window.cargarDiccionarioEmojis = function() {
+            const diccionario = [
+                { grupo: "🎩 Coronas y Sombreros", anclaje: "anclaje-arriba", iconos: "👑,🎓,🤠,🎩,🧢,🪖,🌸,👽,👻,🎃" },
+                { grupo: "🎀 Esquinas y Tiaras", anclaje: "anclaje-esquina", iconos: "🎀,🏵️,🌺,🦇,🕷️,🦋,🐞,✨,⭐" },
+                { grupo: "🚗 Monturas y Vehículos", anclaje: "anclaje-montura", iconos: "🚗,🚕,🚙,🚌,🚑,🚒,🚓,🚕,🛵,🏍️,🚲,🛴,🚜,🚚,🚛,🚤,🚢,🛥️,🚀,🛸,🚁,✈️,🐎,🐪,🐘" },
+                { grupo: "☁️ Clima y Entorno", anclaje: "anclaje-fondo", iconos: "☁️,⛈️,🌦️,🌧️,🌩️,🌨️,🌈,☀️,🌙,❄️,🔥,🫧" },
+                { grupo: "🍔 Comida (Flotante)", anclaje: "anclaje-arriba", iconos: "🍔,🍕,🌭,🥪,🌮,🌯,🥙,🍟,🍗,🥩,🍤,🍣,🍱,🍛,🍜,🍝,🍠,🍢,🍘,🍧,🍨,🍦,🥧,🍰,🍮,🎂,🧁,🍭,🍬,🍫,🍿,🍩,🍪,🍯,🍎,🍓,🍒,🍉,🥑,🌽,🌶️,🍷,🍻,🍹,🍸,🍾,☕,🧋,🧉" },
+                { grupo: "🐾 Animales (Montura)", anclaje: "anclaje-montura", iconos: "🐕,🐩,🐕‍🦺,🐈,🐈‍⬛,🐖,🐏,🐑,🐐,🦌,🦍,🦏,🦛,🐂,🐃,🐄,🐎,🐪,🐫,🦒,🦘,🐓,🦃,🦚,🦜,🦢,🦩,🕊️,🦅,🦆,🐧,🦉,🦇,🐺,🐗,🐴,🦄,🐝,🐛,🦋,🐌,🐞,🐜,🦟,🦗,🕷️,🦂,🐢,🐍,🦎,🦖,🦕,🐙,🦑,🦐,🦞,🦀,🐡,🐠,🐟,🐬,🐳,🐋,🦈,🐊,🐅,🐆,🦓,🐘" }
+            ];
+            
+            const select = document.getElementById('select-efecto');
+            if(!select) return;
+            
+            select.innerHTML = `<option value="">Sin Decoraciones Extras</option>
+                                <option value="efecto-neon|">Resplandor Neón Clásico</option>
+                                <option value="efecto-anillos|">Radar / Emisión</option>`;
+            
+            diccionario.forEach(cat => {
+                let optgroup = document.createElement('optgroup');
+                optgroup.label = cat.grupo;
+                const emojis = cat.iconos.split(',');
+                               emojis.forEach(emoji => {
+                    let opt = document.createElement('option');
+                    // AHORA SÍ: El signo dólar está donde debe estar
+                    opt.value = `${cat.anclaje}|${emoji}`; 
+                    opt.text = `${emoji} ${cat.anclaje.replace('anclaje-','')}`;
+                    optgroup.appendChild(opt);
+                });
+
+
+
+                select.appendChild(optgroup);
+            });
+        };
+        
+        // Ejecutamos el diccionario al iniciar
+        setTimeout(() => window.cargarDiccionarioEmojis(), 1000);
+
+        window.retomarWizard = () => {
+            document.getElementById('wizard-overlay').style.display = 'flex';
+            let progreso = datosGlobalesNegocio.progreso_boveda || 10;
+            
+            document.getElementById('wiz-step-2').style.display = 'none';
+            document.getElementById('wiz-step-3').style.display = 'none';
+            document.getElementById('wiz-step-4').style.display = 'none';
+
+            if (progreso < 38.2) {
+                document.getElementById('wiz-step-2').style.display = 'flex';
+                if (datosGlobalesNegocio.nombre) document.getElementById('wiz-nombre').value = datosGlobalesNegocio.nombre;
+            } else if (progreso < 61.8) {
+                document.getElementById('wiz-step-3').style.display = 'flex';
+                initWizMap();
+            } else {
+                document.getElementById('wiz-step-4').style.display = 'flex';
+                prepararPreviewWiz();
+            }
+        };
+
+        window.avanzarWizard = async (pasoActual, pasoSiguiente) => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            
+            if (pasoActual === 2) {
+                const nombre = document.getElementById('wiz-nombre').value.trim();
+                if (!nombre) return alert("Por favor, ingresa el nombre oficial de tu negocio.");
+                
+                const btn = document.querySelector('#wiz-step-2 .btn-submit');
+                btn.innerText = "Guardando..."; btn.disabled = true;
+                
+                try {
+                    let logoUrl = datosGlobalesNegocio.logo || null;
+                    const logoFile = document.getElementById('wiz-logo').files[0];
+                    if (logoFile) {
+                        const blob = await window.comprimirImagen(logoFile, 800, 0.7, true);
+                        const { success, data, error } = await GeokatuDB.AdminService.subirArchivo(`tiendas/${idNegocioLogueado}/logo_${Date.now()}.webp`, blob);
+                        if (!success) throw new Error(error);
+                        logoUrl = data;
+                    }
+                    await GeokatuDB.AdminService.guardarPasoIdentidad(idNegocioLogueado, { nombre: nombre, logo: logoUrl });
+                    datosGlobalesNegocio.nombre = nombre; datosGlobalesNegocio.logo = logoUrl; datosGlobalesNegocio.progreso_boveda = 38.2;
+                    document.getElementById('wiz-step-2').style.display = 'none'; document.getElementById('wiz-step-3').style.display = 'flex';
+                    initWizMap();
+                } catch (e) { alert("Error en el paso 2: " + e.message); } finally { btn.innerText = "Continuar (38.2%)"; btn.disabled = false; }
+            } 
+            else if (pasoActual === 3) {
+                const btn = document.querySelector('#wiz-step-3 .btn-submit');
+                btn.innerText = "Fijando Radar..."; btn.disabled = true;
+                try {
+                    const geohash = generarGeohash(wizLat, wizLng);
+                    await GeokatuDB.AdminService.guardarPasoUbicacion(idNegocioLogueado, { Coordenadas: { latitude: wizLat, longitude: wizLng }, geohash: geohash });
+                    datosGlobalesNegocio.progreso_boveda = 61.8;
+                    document.getElementById('wiz-step-3').style.display = 'none'; document.getElementById('wiz-step-4').style.display = 'flex';
+                    prepararPreviewWiz();
+                } catch (e) { alert("Error fijando coordenadas: " + e.message); } finally { btn.innerText = "Fijar Local (61.8%)"; btn.disabled = false; }
+            }
+        };
+
+        window.finalizarWizard = async () => {
+            if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
+            const nicho = document.getElementById('wiz-nicho').value;
+            if (!nicho) return alert("Por favor, selecciona tu sector para que el radar te pueda clasificar.");
+            const btn = document.querySelector('#wiz-step-4 .btn-submit'); btn.innerText = "Cifrando Bóveda..."; btn.disabled = true;
+            try {
+                await GeokatuDB.AdminService.sellarBovedaDefinitiva(idNegocioLogueado, { niche: nicho, categoria_maestra: 'comercio' });
+                document.getElementById('wizard-overlay').style.display = 'none'; window.location.reload();
+            } catch (e) { alert("Error al sellar: " + e.message); btn.innerText = "Sellar Bóveda (100%)"; btn.disabled = false; }
+        };
+
+        function prepararPreviewWiz() {
+            const logoImg = document.getElementById('wiz-img');
+            if (datosGlobalesNegocio.logo) logoImg.src = datosGlobalesNegocio.logo;
+        }
+
+                        window.guardarPerfil = async () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            if (!idNegocioLogueado) return;
+            const btn = document.getElementById('btn-submit-perfil'); btn.innerText = "Sincronizando..."; btn.disabled = true;
+            try {
+                const latGuardar = parseFloat(document.getElementById('perfilLat').value);
+                const lngGuardar = parseFloat(document.getElementById('perfilLng').value);
+                if (isNaN(latGuardar) || isNaN(lngGuardar)) throw new Error("Por favor ubica tu negocio moviendo el pin en el Mini-Mapa.");
+                
+                let obj = {
+                    nombre: document.getElementById('perfilNombre').value.trim(), username: document.getElementById('perfilUsername').value.trim() || null, 
+                    whatsApp: document.getElementById('perfilTelefono').value.trim(), horario_apertura: document.getElementById('perfilApertura').value,
+                    horario_cierre: document.getElementById('perfilCierre').value, direccion: document.getElementById('perfilDireccion').value.trim(),
+                    niche: document.getElementById('perfilNichoSelect').value, moneda: document.getElementById('perfilMoneda').value,
+                    palabras_clave: document.getElementById('perfilPalabras').value.trim(), Coordenadas: { latitude: latGuardar, longitude: lngGuardar },
+                    geohash: generarGeohash(latGuardar, lngGuardar)
+                };
+
+                const { success, error } = await GeokatuDB.AdminService.actualizarNegocio(idNegocioLogueado, obj);
+                if (!success) throw new Error(error);
+                
+                document.getElementById('ui-nombre').innerText = obj.nombre || "Mi Tienda"; datosGlobalesNegocio.niche = obj.niche; 
+                evaluarNichoParaMasivo();
+                const msgExito = document.getElementById('msg-exito-perfil'); msgExito.style.opacity = 1; setTimeout(() => msgExito.style.opacity = 0, 5000);
+            } catch(e) { alert("Error: " + e.message); } finally { btn.innerText = "GUARDAR PERFIL"; btn.disabled = false; }
+        };
+
+        window.guardarDisenoLaboratorio = async () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            if (!idNegocioLogueado) return;
+            const btn = document.getElementById('btn-submit-diseno'); 
+            btn.innerText = "Guardando..."; btn.disabled = true;
+            try {
+                let col1 = document.getElementById('colorHex1').value;
+                let col2 = document.getElementById('colorHex2').value;
+                let col3 = document.getElementById('colorHex3').value;
+                let obj = { color_principal: col1, color_acento: col2, color_fondo: col3, color_hex: col1 };
+                
+                obj.pin_forma = document.getElementById('select-forma').value;
+                obj.pin_animacion = document.getElementById('select-animacion').value;
+                obj.pin_efecto = document.getElementById('select-efecto').value;
+                
+                const logoF = document.getElementById('disenoLogoFile').files[0]; 
+                const portF = document.getElementById('disenoPortadaFile').files[0];
+                const pinF = document.getElementById('disenoPinFile').files[0]; 
+                
+                const upload = async (file, prefix, isSquare) => {
+                    const blob = await window.comprimirImagen(file, 800, 0.7, isSquare);
+                    const path = `tiendas/${idNegocioLogueado}/${prefix}_${Date.now()}.webp`;
+                    const { success, data, error } = await GeokatuDB.AdminService.subirArchivo(path, blob);
+                    if(!success) throw new Error(error); return data;
+                };
+                
+                if(logoF) obj.logo = await upload(logoF, 'logo', true);
+                if(portF) obj.portada = await upload(portF, 'portada', false);
+                if(pinF) obj.link_pin = await upload(pinF, 'pin_mapa', true);
+
+                const { success, error } = await GeokatuDB.AdminService.actualizarNegocio(idNegocioLogueado, obj);
+                if (!success) throw new Error(error);
+                
+                if(obj.logo) { document.getElementById('ui-logo').src = obj.logo; document.getElementById('ui-logo').style.display='inline-block'; }
+                
+                btn.innerHTML = "✔️ BRANDING ASEGURADO"; btn.style.background = "#00ff64"; btn.style.color = "black";
+                setTimeout(() => { btn.innerText = "GUARDAR BRANDING"; btn.style.background = ""; btn.style.color = ""; }, 3000);
+            } catch(e) { alert("Error: " + e.message); } finally { btn.disabled = false; }
+        };
+
+        // --- SISTEMA POS E INVENTARIO ---
+        window.guardarProducto = async () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            if (!idNegocioLogueado) return;
+            const nom = document.getElementById('prodNombre').value.trim();
+            const pre = document.getElementById('prodPrecio').value.trim();
+            const editId = document.getElementById('prodEditId').value;
+            if(!nom || !pre) return alert("El nombre y el precio son obligatorios.");
+            
+            const btn = document.getElementById('btn-submit-producto'); btn.innerText = "Guardando..."; btn.disabled = true;
+            try {
+                let urlImg = document.getElementById('prodImagenActual').value;
+                const f = document.getElementById('prodImagenFile').files[0];
+                if(f) { 
+                    const blobImg = await window.comprimirImagen(f, 800, 0.7, true);
+                    const { success: upSuccess, data: url, error: upError } = await GeokatuDB.AdminService.subirArchivo(`productos/${idNegocioLogueado}/${Date.now()}.webp`, blobImg);
+                    if(!upSuccess) throw new Error(upError); urlImg = url; 
+                }
+                let monedaActual = datosGlobalesNegocio.moneda || 'COP';
+                let precioInput = parseFloat(pre);
+                let precioInt64 = monedaActual === 'USD' ? Math.round(precioInput * 100) : Math.round(precioInput);
+                
+                let pObj = { nombre: nom, precio: precioInt64, categoria: document.getElementById('prodCategoria').value || "General", imagen: urlImg };
+                if(!editId) { pObj.agotado = false; pObj.fecha_creacion = new Date().toISOString(); pObj.layout = 'layout-grid'; }
+                
+                const { success, error } = await GeokatuDB.AdminService.guardarProducto(idNegocioLogueado, editId, pObj);
+                if(!success) throw new Error(error);
+                if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
+                window.cancelarEdicion(); window.cargarMisProductos(); 
+            } catch(e){ alert("Error: " + e.message); } finally { btn.innerText = "GUARDAR EN CATÁLOGO"; btn.disabled = false; }
+        };
+
+        window.prepararEdicion = (id) => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            const p = listaProductosGlobal.find(x=>x.id_prod===id);
+            if(!p) return;
+            document.getElementById('prodNombre').value=p.nombre; document.getElementById('prodPrecio').value=p.precio; 
+            document.getElementById('prodCategoria').value=p.categoria || ''; document.getElementById('prodEditId').value=id; 
+            document.getElementById('prodImagenActual').value=p.imagen||'';
+            document.getElementById('file-upload-text').innerText = "📸 Subir Nueva Foto Principal";
+            
+            document.getElementById('btn-submit-producto').innerText="ACTUALIZAR DATOS"; 
+            document.getElementById('btn-cancelar-edicion').style.display="block"; 
+            window.scrollTo({top: 0, behavior: 'smooth'}); document.getElementById('prodNombre').focus();
+        };
+
+        window.cancelarEdicion = () => { 
+            if (navigator.vibrate) navigator.vibrate(50);
+            document.getElementById('prodNombre').value=''; document.getElementById('prodPrecio').value=''; document.getElementById('prodCategoria').value=''; 
+            document.getElementById('prodEditId').value=''; 
+            document.getElementById('btn-submit-producto').innerText="GUARDAR EN CATÁLOGO"; document.getElementById('btn-cancelar-edicion').style.display="none"; 
+            document.getElementById('prodImagenFile').value=''; 
+            document.getElementById('file-upload-text').innerHTML = "📸 Subir foto del producto"; document.getElementById('file-upload-text').style.borderColor = "var(--naranja)"; document.getElementById('file-upload-text').style.background = "rgba(255,107,0,0.05)";
+        };
+
+        // --- SISTEMA DEL LÁPIZ MÁGICO Y OVERLAYS ---
+        window.timeoutsTarjetas = {};
+        window.mostrarOpcionesProducto = (id) => {
+            // Ocultar todas primero
+            document.querySelectorAll('.card-acciones').forEach(el => el.style.opacity = '0');
+            document.querySelectorAll('.card-acciones').forEach(el => el.style.pointerEvents = 'none');
+            
+            const acciones = document.getElementById(`acciones-${id}`);
+            if(acciones) {
+                acciones.style.opacity = '1';
+                acciones.style.pointerEvents = 'all';
+                if(window.timeoutsTarjetas[id]) clearTimeout(window.timeoutsTarjetas[id]);
+                window.timeoutsTarjetas[id] = setTimeout(() => {
+                    acciones.style.opacity = '0'; acciones.style.pointerEvents = 'none';
+                }, 5000);
+            }
+        };
+
+        // --- LÓGICA DEL MODAL DE ESTILOS ---
+        let productoEdicionEstilo = null;
+        let layoutSeleccionado = '';
+
+        window.abrirModalEstilo = (id) => {
+            productoEdicionEstilo = listaProductosGlobal.find(p => p.id_prod === id);
+            if(!productoEdicionEstilo) return;
+            layoutSeleccionado = productoEdicionEstilo.layout || 'layout-grid';
+            document.getElementById('modal-estilo-overlay').classList.add('activo');
+            window.cambiarPreviewEstilo(layoutSeleccionado);
+        };
+
+        window.cerrarModalEstilo = (e) => {
+            if(e) e.stopPropagation();
+            document.getElementById('modal-estilo-overlay').classList.remove('activo');
+        };
+
+        window.cambiarPreviewEstilo = (layout) => {
+            layoutSeleccionado = layout;
+            document.querySelectorAll('.estilo-btn').forEach(b => b.classList.remove('activo'));
+            const btnActivador = document.getElementById(`btn-estilo-${layout.replace('layout-', '')}`);
+            if (btnActivador) btnActivador.classList.add('activo');
+            
+            const p = productoEdicionEstilo;
+            const caja = document.getElementById('caja-preview-estilo');
+            caja.innerHTML = `
+                <div class="grilla-catalogo" style="width:100%;">
+                    <div class="prod-card ${layout}" style="box-shadow:none; pointer-events:none;">
+                        <img src="${p.imagen || 'https://via.placeholder.com/150/0a0a0c/ff6b00?text=FOTO'}">
+                        <div class="prod-info">
+                            <h4>${p.nombre}</h4>
+                            <b>$${p.precio}</b>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+        window.guardarEstiloDefinitivo = async () => {
+            if(navigator.vibrate) navigator.vibrate(50);
+            const btn = document.querySelector('#modal-estilo-overlay .btn-submit');
+            btn.innerText = "Guardando..."; btn.disabled = true;
+            try {
+                const { success } = await GeokatuDB.AdminService.actualizarProducto(idNegocioLogueado, productoEdicionEstilo.id_prod, { layout: layoutSeleccionado });
+                if(success) {
+                    productoEdicionEstilo.layout = layoutSeleccionado;
+                    window.cargarMisProductos(false); 
+                    window.cerrarModalEstilo();
+                }
+            } catch(e) { alert("Error guardando estilo."); } finally { btn.innerText = "Guardar Aspecto"; btn.disabled = false; }
+        };
+
+        // --- FILTROS DE CATÁLOGO (Corrección de Bug) ---
+        window.manejarBusquedaTeclado = (e) => { if(e.key === 'Enter') window.ejecutarBusqueda(); };
+        window.ejecutarBusqueda = () => { terminoBusquedaActual = document.getElementById('filtro-busqueda').value.trim().toLowerCase(); window.cargarMisProductos(true); };
+        window.filtrarCatalogo = () => { categoriaFiltroActual = document.getElementById('filtro-categoria').value.trim(); window.cargarMisProductos(true); };
+        window.cargarMasProductos = () => { window.cargarMisProductos(false); };
+
+        window.cargarMisProductos = async function(reiniciar = true) {
+            const cont = document.getElementById('lista-productos-container');
+            const btnMas = document.getElementById('btn-cargar-mas');
+            if (reiniciar) { cont.innerHTML = "Cargando..."; ultimoDocCatalogo = null; listaProductosGlobal = []; } 
+            else { btnMas.innerText = "Cargando..."; btnMas.disabled = true; }
+            
+            try {
+                const filtros = { terminoBusqueda: terminoBusquedaActual, limite: 20, startAfterDoc: reiniciar ? null : ultimoDocCatalogo };
+                const { success, data, ultimoDoc, error } = await GeokatuDB.AdminService.obtenerProductos(idNegocioLogueado, filtros);
+                
+                if (reiniciar) cont.innerHTML = ""; 
+                if (!success || (data.length === 0 && reiniciar)) {
+                    cont.innerHTML = `<div style='grid-column: span 2; text-align:center; color:#888; padding: 40px 0;'><h3>Catálogo Vacío</h3><p>Añade productos para empezar.</p></div>`; 
+                    btnMas.style.display = 'none'; return;
+                }
+                
+                ultimoDocCatalogo = ultimoDoc;
+                if (data.length < 20) btnMas.style.display = 'none'; else { btnMas.style.display = 'block'; btnMas.innerText = "⬇️ Cargar más"; btnMas.disabled = false; }
+                
+                data.forEach(p => {
+                    if(!listaProductosGlobal.find(x => x.id_prod === p.id_prod)) listaProductosGlobal.push(p);
+                    if (p.categoria) categoriasDisponibles.add(p.categoria);
+                });
+
+                if (reiniciar) window.actualizarSelectCategorias();
+
+                // FILTRO ESTRICTO LOCAL
+                let datosARenderizar = listaProductosGlobal;
+                if (categoriaFiltroActual) {
+                    datosARenderizar = listaProductosGlobal.filter(p => (p.categoria || '').toLowerCase() === categoriaFiltroActual.toLowerCase());
+                }
+                if (terminoBusquedaActual) {
+                    datosARenderizar = datosARenderizar.filter(p => p.nombre.toLowerCase().includes(terminoBusquedaActual));
+                }
+
+                cont.innerHTML = "";
+                if (datosARenderizar.length === 0) {
+                    cont.innerHTML = `<div style='grid-column: span 2; text-align:center; color:#888; padding: 20px 0;'>No hay resultados en esta categoría.</div>`;
+                }
+
+                datosARenderizar.forEach(p => {
+                    const lClass = p.layout || 'layout-grid';
+                    const card = document.createElement('div'); 
+                    card.className = `prod-card ${lClass} ${p.agotado ? 'agotado' : ''}`;
+                    card.id = `card-${p.id_prod}`;
+                    
+                   // --- CIRUGÍA 3: RENDER DE TARJETA ---
+                    // Al tocar la tarjeta, aparece el lápiz
+                    card.onclick = () => window.mostrarLapizCard(`${p.id_prod}`);
+                    
+                    // Renderizamos hasta 3 fotos si existen, sino la normal
+                    let arrayFotos = (p.galeria && p.galeria.length > 0) ? p.galeria : [p.imagen || 'https://via.placeholder.com/150/0a0a0c/ff6b00?text=FOTO'];
+                    let galeriaHTML = arrayFotos.map(img => `<img src="${img}">`).join('');
+
+                    card.innerHTML = `
+                        <div class="galeria-scroll">${galeriaHTML}</div>
+                        <div class="prod-info">
+                            <h4>${p.nombre}</h4>
+                            <b>$${p.precio}</b>
+                            ${p.stock !== undefined ? `<span style="font-size:9px; color:#888;">Stock: ${p.stock} unid.</span>` : ''}
+                        </div>
+                        
+                        <!-- ✏️ 1. EL LÁPIZ INICIAL (Aparece al tocar la tarjeta) -->
+                        <div class="card-lapiz-btn" onclick="event.stopPropagation(); window.abrirMenuOpciones('${p.id_prod}')">✏️</div>
+
+                        <!-- 🎛️ 2. EL MENÚ (Aparece al tocar el lápiz) -->
+                        <div class="card-opciones-menu" id="opciones-${p.id_prod}">
+                            <button class="btn-accion" style="background:rgba(255,255,255,0.15); color:white;" onclick="event.stopPropagation(); window.abrirModalEstilo('${p.id_prod}')">✨ Estilo</button>
+                            <button class="btn-accion" style="background:rgba(255,204,0,0.15); color:#ffcc00;" onclick="event.stopPropagation(); window.abrirModalEditar('${p.id_prod}')">✏️ Editar</button>
+                            <button class="btn-accion" style="background:rgba(255,255,255,0.1); color:#aaa;" onclick="event.stopPropagation(); window.cambiarEstadoAgotadoInmediato('${p.id_prod}', ${p.agotado})">⏸️ ${p.agotado ? 'Activar' : 'Agotar'}</button>
+                            <button class="btn-accion" style="background:rgba(255,68,68,0.15); color:#ff4444;" onclick="event.stopPropagation(); window.eliminarProducto('${p.id_prod}')">🗑️ Borrar</button>
+                        </div>
+                    `;
+                    cont.appendChild(card);
+
+                        
+         });
+            } catch (e) {
+                console.error(e); if(reiniciar) cont.innerHTML = "<p style='grid-column: span 2; color:#ff4444; text-align:center;'>Error cargando el catálogo.</p>";
+            }
+        };
+// --- CIRUGÍA 4: MOTORES INTERACTIVOS ---
+        
+        // 1. REACCIONES DE TARJETAS Y LÁPIZ
+        window.mostrarLapizCard = (id) => {
+            document.querySelectorAll('.prod-card').forEach(c => { c.classList.remove('show-lapiz-btn'); c.classList.remove('show-opciones'); });
+            const card = document.getElementById(`card-${id}`);
+            if(card) {
+                card.classList.add('show-lapiz-btn');
+                if(window.timeoutsTarjetas[id]) clearTimeout(window.timeoutsTarjetas[id]);
+                window.timeoutsTarjetas[id] = setTimeout(() => { card.classList.remove('show-lapiz-btn'); }, 5000);
+            }
+        };
+
+        window.abrirMenuOpciones = (id) => {
+            const card = document.getElementById(`card-${id}`);
+            if(card) {
+                card.classList.remove('show-lapiz-btn'); card.classList.add('show-opciones');
+                if(window.timeoutsTarjetas[id]) clearTimeout(window.timeoutsTarjetas[id]);
+                window.timeoutsTarjetas[id] = setTimeout(() => { card.classList.remove('show-opciones'); }, 8000);
+            }
+        };
+
+        // 2. AGOTAR INSTANTÁNEO (Magia en vivo sin recargas)
+        window.cambiarEstadoAgotadoInmediato = async (id, estActual) => {
+            if(navigator.vibrate) navigator.vibrate(50);
+            // Efecto Visual Instantáneo
+            const card = document.getElementById(`card-${id}`);
+            if(card) {
+                card.classList.remove('show-opciones');
+                if(!estActual) card.classList.add('agotado'); else card.classList.remove('agotado');
+            }
+            // Sincronización Fantasma
+            const { success } = await GeokatuDB.AdminService.actualizarProducto(idNegocioLogueado, id, { agotado: !estActual });
+            if(success) { const prod = listaProductosGlobal.find(p => p.id_prod === id); if(prod) prod.agotado = !estActual; }
+        };
+
+        // 3. MOTORES DEL MODAL DE EDICIÓN
+        let tempEdicion = {};
+
+        window.abrirModalEditar = (id) => {
+            const prod = listaProductosGlobal.find(p => p.id_prod === id);
+            if(!prod) return;
+            // Clonamos el producto para no dañar el original si cancela
+            tempEdicion = JSON.parse(JSON.stringify(prod)); 
+            if(!tempEdicion.galeria || tempEdicion.galeria.length === 0) tempEdicion.galeria = [prod.imagen || 'https://via.placeholder.com/150/0a0a0c/ff6b00?text=FOTO'];
+            
+            document.getElementById('editStockModal').value = tempEdicion.stock || 0;
+            document.getElementById('modal-editar-overlay').classList.add('activo');
+            window.renderizarPreviewEditar();
+        };
+
+        window.cerrarModalEditar = (e) => {
+            if(e) e.stopPropagation();
+            document.getElementById('modal-editar-overlay').classList.remove('activo');
+        };
+
+        window.renderizarPreviewEditar = () => {
+            const caja = document.getElementById('caja-preview-editar');
+            const lClass = tempEdicion.layout || 'layout-grid';
+            let galeriaHTML = tempEdicion.galeria.map(img => `<img src="${img}">`).join('');
+            
+            caja.innerHTML = `
+                <div class="grilla-catalogo" style="width:100%;">
+                    <div class="prod-card ${lClass}" style="box-shadow:none; overflow:visible;">
+                        
+                        <div class="edit-wrap">
+                            <button class="inline-lapiz" onclick="document.getElementById('upload-fotos-edicion').click()">✏️</button>
+                            <div class="galeria-scroll">${galeriaHTML}</div>
+                        </div>
+
+                        <div class="prod-info" style="gap:8px;">
+                            <div class="edit-wrap">
+                                <button class="inline-lapiz" style="top:-5px;" onclick="editarNombreTemp()">✏️</button>
+                                <h4 style="border-bottom:1px dashed #555; padding-bottom:4px;">${tempEdicion.nombre}</h4>
+                            </div>
+                            <div class="edit-wrap">
+                                <button class="inline-lapiz" style="top:-5px;" onclick="editarPrecioTemp()">✏️</button>
+                                <b style="border-bottom:1px dashed #555; padding-bottom:4px;">$${tempEdicion.precio}</b>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+        window.editarNombreTemp = () => {
+            const n = prompt("Nuevo nombre del producto:", tempEdicion.nombre);
+            if(n && n.trim() !== '') { tempEdicion.nombre = n.trim(); window.renderizarPreviewEditar(); }
+        };
+
+        window.editarPrecioTemp = () => {
+            const p = prompt("Nuevo precio:", tempEdicion.precio);
+            if(p && !isNaN(p)) { tempEdicion.precio = parseFloat(p); window.renderizarPreviewEditar(); }
+        };
+
+        // Procesador de las 3 fotos simultáneas
+        window.procesarNuevasFotosGaleria = async (input) => {
+            if (!input.files || input.files.length === 0) return;
+            if (input.files.length > 3) return alert("Máximo 3 fotos por artículo para cuidar la fluidez del catálogo.");
+            
+            if(navigator.vibrate) navigator.vibrate(50);
+            const btn = document.getElementById('btn-guardar-edicion-modal');
+            btn.innerText = "Subiendo fotos..."; btn.disabled = true;
+            
+            try {
+                let nuevasUrls = [];
+                for(let i=0; i < input.files.length; i++) {
+                    const blobImg = await window.comprimirImagen(input.files[i], 800, 0.7, true);
+                    const { success, data, error } = await GeokatuDB.AdminService.subirArchivo(`productos/${idNegocioLogueado}/galeria_${Date.now()}_${i}.webp`, blobImg);
+                    if(success) nuevasUrls.push(data);
+                }
+                if(nuevasUrls.length > 0) {
+                    tempEdicion.galeria = nuevasUrls;
+                    tempEdicion.imagen = nuevasUrls[0]; // La primera siempre es la foto principal
+                    window.renderizarPreviewEditar();
+                }
+            } catch(e) { alert("Fallo al subir imágenes"); }
+            finally { btn.innerText = "Aceptar"; btn.disabled = false; input.value = ''; }
+        };
+
+        window.guardarEdicionAvanzada = async () => {
+            if(navigator.vibrate) navigator.vibrate(50);
+            const btn = document.getElementById('btn-guardar-edicion-modal');
+            btn.innerText = "Aplicando..."; btn.disabled = true;
+            
+            tempEdicion.stock = parseInt(document.getElementById('editStockModal').value) || 0;
+            // Si el usuario puso stock en 0, lo agotamos automáticamente
+            if(tempEdicion.stock === 0) tempEdicion.agotado = true;
+            else tempEdicion.agotado = false;
+
+            try {
+                const { success } = await GeokatuDB.AdminService.actualizarProducto(idNegocioLogueado, tempEdicion.id_prod, tempEdicion);
+                if(success) {
+                    // Reemplazamos en el array global para ver cambios en vivo
+                    let index = listaProductosGlobal.findIndex(p => p.id_prod === tempEdicion.id_prod);
+                    if(index !== -1) listaProductosGlobal[index] = tempEdicion;
+                    
+                    window.cargarMisProductos(false); 
+                    window.cerrarModalEditar();
+                }
+            } catch(e) { alert("Error al guardar cambios."); } 
+            finally { btn.innerText = "Aceptar"; btn.disabled = false; }
+        };
+
+        window.actualizarSelectCategorias = function() {
+            const select = document.getElementById('filtro-categoria');
+            const valorActual = select.value;
+            select.innerHTML = ''; 
+            const defaultOpt = document.createElement('option'); defaultOpt.value = ''; defaultOpt.textContent = 'Todas'; select.appendChild(defaultOpt);
+            categoriasDisponibles.forEach(cat => {
+                const opt = document.createElement('option'); opt.value = cat; opt.textContent = cat; 
+                if (cat === valorActual) opt.selected = true; select.appendChild(opt);
+            });
+        };
+
+        window.cambiarEstadoAgotado = async (id, est) => { if (navigator.vibrate) navigator.vibrate(50); const { success } = await GeokatuDB.AdminService.actualizarProducto(idNegocioLogueado, id, { agotado: !est }); if(success) window.cargarMisProductos(false); }
+        window.eliminarProducto = async (id) => { if (navigator.vibrate) navigator.vibrate(50); if(confirm("¿Borrar del catálogo definitivamente?")) { const { success } = await GeokatuDB.AdminService.eliminarProducto(idNegocioLogueado, id); if(success) window.cargarMisProductos(true); } }
+
+        // --- MODO INVENTARIO MASIVO ---
+        window.cargarDiccionarioNicho = async (nichoActual) => {
+            const nichoFormat = (nichoActual || '').toLowerCase().trim();
+            const nichosValidos = ['farmacia', 'ferreteria', 'supermercado', 'papeleria', 'licoreria', 'veterinaria', 'tecnologia', 'bicicletas','carniceria'];
+            if (!nichosValidos.includes(nichoFormat)) return;
+            try {
+                const res = await fetch(`cat_${nichoFormat}.json`);
+                if (!res.ok) return; DICCIONARIO_UNIVERSAL = await res.json();
+            } catch (error) { console.error("Error cargando catálogo JSON:", error); }
+        };
+
+        window.cargarMapaPrecios = () => {
+            mapaPreciosLocal = datosGlobalesNegocio.mapa_precios || {}; inventarioAgotadoLocal = datosGlobalesNegocio.inventario_agotado || [];
+            window.renderizarInventarioMasivo();
+        };
+
+        function evaluarNichoParaMasivo() {
+            const nichosMasivos = ['farmacia', 'ferreteria', 'supermercado', 'papeleria', 'licoreria', 'veterinaria', 'tecnologia', 'bicicletas', 'carniceria'];
+            const nichoActual = datosGlobalesNegocio.niche ? datosGlobalesNegocio.niche.toLowerCase() : '';
+            if (nichosMasivos.includes(nichoActual)) {
+                document.getElementById('acordeon-masivo').style.display = 'block';
+                window.cargarDiccionarioNicho(nichoActual).then(() => window.cargarMapaPrecios());
+            } else { document.getElementById('acordeon-masivo').style.display = 'none'; }
+        }
+
+        let debounceTimerJSON;
+        window.filtrarDiccionarioJSON = () => {
+            clearTimeout(debounceTimerJSON);
+            debounceTimerJSON = setTimeout(() => {
+                const term = document.getElementById('buscador-json').value.toLowerCase().trim();
+                const cajaResultados = document.getElementById('resultados-json');
+                if (term.length < 2) { cajaResultados.innerHTML = ''; cajaResultados.style.display = 'none'; return; }
+                
+                let contadorResultados = 0;
+                const filtrados = DICCIONARIO_UNIVERSAL.filter(item => {
+                    if (contadorResultados >= 30) return false; 
+                    const match = item.nombre.toLowerCase().includes(term) && !mapaPreciosLocal.hasOwnProperty(item.id_prod);
+                    if (match) contadorResultados++; return match;
+                });
+                
+                cajaResultados.innerHTML = '';
+                if (filtrados.length === 0) { cajaResultados.innerHTML = `<div style="padding: 10px; color: #888; font-size: 12px; text-align: center;">Sin coincidencias.</div>`; } 
+                else {
+                    filtrados.forEach(item => {
+                        const div = document.createElement('div');
+                        div.style = "padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; font-size: 13px; font-weight: bold;";
+                        div.innerText = item.nombre + " (" + item.id_prod + ")";
+                        div.onclick = () => window.agregarAlInventario(item); cajaResultados.appendChild(div);
+                    });
+                }
+                cajaResultados.style.display = 'block';
+            }, 300); 
+        };
+
+        window.agregarAlInventario = (item) => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            mapaPreciosLocal[item.id_prod] = 0; document.getElementById('buscador-json').value = ''; document.getElementById('resultados-json').style.display = 'none';
+            window.renderizarInventarioMasivo();
+        };
+
+        window.renderizarInventarioMasivo = () => {
+            const contenedor = document.getElementById('mi-inventario-masivo'); contenedor.innerHTML = ''; 
+            if (Object.keys(mapaPreciosLocal).length === 0) {
+                contenedor.innerHTML = `<p style="color: #888; font-size: 12px; text-align: center;">Tu inventario rápido está vacío.</p>`; return;
+            }
+            for (const [id_prod, precio] of Object.entries(mapaPreciosLocal)) {
+                const itemInfo = DICCIONARIO_UNIVERSAL.find(x => x.id_prod === id_prod) || { nombre: "Producto Desconocido" };
+                const isAgotado = inventarioAgotadoLocal.includes(id_prod);
+                const divCard = document.createElement('div'); divCard.style.cssText = "background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); border-radius: 10px; padding: 12px; display: flex; align-items: center; gap: 10px;";
+                const divInfo = document.createElement('div'); divInfo.style.flex = "1";
+                const h4Nombre = document.createElement('h4'); h4Nombre.style.cssText = `margin: 0 0 5px 0; font-size: 13px; color: ${isAgotado ? '#666' : 'white'};`; h4Nombre.textContent = itemInfo.nombre; divInfo.appendChild(h4Nombre);
+                const spanId = document.createElement('span'); spanId.style.cssText = "font-size: 9px; color: #888; text-transform: uppercase;"; spanId.textContent = `ID: ${id_prod}`; divInfo.appendChild(spanId); divCard.appendChild(divInfo);
+                const divAcciones = document.createElement('div'); divAcciones.style.cssText = "display: flex; flex-direction: column; gap: 5px; align-items: flex-end;";
+                const inputPrecio = document.createElement('input'); inputPrecio.type = "number"; inputPrecio.className = "input-form"; inputPrecio.value = precio; inputPrecio.placeholder = "$ Precio"; inputPrecio.style.cssText = `margin: 0; padding: 6px; width: 100px; font-size: 14px; text-align: right; background: ${isAgotado ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.8)'};`;
+                if (isAgotado) inputPrecio.disabled = true; inputPrecio.onchange = (e) => window.actualizarPrecioLocal(id_prod, e.target.value); divAcciones.appendChild(inputPrecio);
+                const labelAgotado = document.createElement('label'); labelAgotado.style.cssText = "font-size: 10px; color: #ff4444; display: flex; align-items: center; gap: 5px; cursor: pointer;";
+                const checkAgotado = document.createElement('input'); checkAgotado.type = "checkbox"; checkAgotado.checked = isAgotado; checkAgotado.onchange = (e) => window.toggleAgotadoLocal(id_prod, e.target.checked);
+                labelAgotado.appendChild(checkAgotado); labelAgotado.appendChild(document.createTextNode(" Agotado")); divAcciones.appendChild(labelAgotado); divCard.appendChild(divAcciones);
+                const btnDelete = document.createElement('button'); btnDelete.style.cssText = "background: rgba(255,0,0,0.2); border: none; color: #ff4444; border-radius: 6px; padding: 8px; cursor: pointer;"; btnDelete.textContent = "🗑️"; btnDelete.onclick = () => window.quitarDelInventario(id_prod); divCard.appendChild(btnDelete);
+                contenedor.appendChild(divCard);
+            }
+        };
+
+        window.actualizarPrecioLocal = (id_prod, nuevoPrecio) => { mapaPreciosLocal[id_prod] = parseInt(nuevoPrecio) || 0; };
+        window.toggleAgotadoLocal = (id_prod, isChecked) => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            if (isChecked) { if (!inventarioAgotadoLocal.includes(id_prod)) inventarioAgotadoLocal.push(id_prod); } 
+            else { inventarioAgotadoLocal = inventarioAgotadoLocal.filter(id => id !== id_prod); }
+            window.renderizarInventarioMasivo();
+        };
+        window.quitarDelInventario = (id_prod) => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            delete mapaPreciosLocal[id_prod]; inventarioAgotadoLocal = inventarioAgotadoLocal.filter(id => id !== id_prod);
+            window.renderizarInventarioMasivo();
+        };
+
+        window.guardarInventarioMasivo = async () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            const btn = document.querySelector('#acordeon-masivo .btn-submit'); btn.innerText = "Guardando Lote..."; btn.disabled = true;
+            try {
+                const { success, error } = await GeokatuDB.AdminService.actualizarNegocio(idNegocioLogueado, { mapa_precios: mapaPreciosLocal, inventario_agotado: inventarioAgotadoLocal });
+                if (!success) throw new Error(error);
+                if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
+                alert("¡Lote sincronizado al POS!"); datosGlobalesNegocio.mapa_precios = mapaPreciosLocal; datosGlobalesNegocio.inventario_agotado = inventarioAgotadoLocal;
+            } catch (error) { alert("Error al guardar: " + error.message); } finally { btn.innerText = "GUARDAR PRECIOS EN LOTE"; btn.disabled = false; }
+        };
+
+        // --- SISTEMA RED ALIADOS ---
+        window.cargarSaldosAliados = async () => {
+            try {
+                const { success, data, error } = await GeokatuDB.RadarService.obtenerComisiones(idNegocioLogueado);
+                let adeudado = 0;
+                if (success && data) { data.forEach(comision => { adeudado += comision.comision_ganada || 0; }); }
+                document.getElementById('saldo-adeudado').innerText = "$" + adeudado.toLocaleString('es-CO');
+            } catch (e) { console.error("Error cargando saldos:", e); }
+        };
+
+        window.crearCredencialEmpleado = () => {
+            const nom = document.getElementById('emp-nombre').value; const email = document.getElementById('emp-email').value;
+            const pass = document.getElementById('emp-pass').value; const rol = document.getElementById('emp-rol').value;
+            if(!nom || !email || !pass || !rol) return alert("Completa todos los campos.");
+            if(navigator.vibrate) navigator.vibrate(50);
+            alert(`Empleado ${nom} creado. Ya puede usar su celular (scaner.html) con el correo ${email}.`);
+            document.getElementById('emp-nombre').value = ''; document.getElementById('emp-email').value = ''; document.getElementById('emp-pass').value = '';
+        };
+
+        window.agregarBodega = () => {
+            const nom = document.getElementById('bodega-nombre').value;
+            if(!nom) return alert("Escribe el nombre de la bodega.");
+            if(navigator.vibrate) navigator.vibrate(50);
+            alert(`Espacio "${nom}" mapeado. Ahora puedes añadirle estanterías.`);
+            document.getElementById('bodega-nombre').value = '';
+        };
+
+        window.validarCodigoTX = async () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            const tx = document.getElementById('tx-codigo').value.trim().toUpperCase();
+            const monto = parseFloat(document.getElementById('tx-monto').value);
+            const monedaActual = datosGlobalesNegocio.moneda || 'COP';
+            const limiteMinimo = monedaActual === 'USD' ? 7 : 30000;
+            
+            if(!tx || isNaN(monto) || monto < limiteMinimo) return alert(`La venta mínima es de ${limiteMinimo} ${monedaActual}.`);
+            const btn = document.getElementById('btn-validar-tx'); btn.innerText = "Validando..."; btn.disabled = true;
+            try {
+                const comision = monto * 0.10; 
+                const docId = `TX_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+                const payload = { codigo_tx: tx, monto_venta: monto, comision_ganada: comision, estado: "validado", fecha: new Date().toISOString(), moneda: monedaActual };
+                
+                const { success, error } = await GeokatuDB.AdminService.guardarComision(idNegocioLogueado, docId, payload);
+                if (!success) throw new Error(error);
+                
+                const ordenesActuales = datosGlobalesNegocio.ordenes_validadas || 0;
+                await GeokatuDB.AdminService.actualizarNegocio(idNegocioLogueado, { ordenes_validadas: ordenesActuales + 1 });
+                datosGlobalesNegocio.ordenes_validadas = ordenesActuales + 1;
+
+                alert(`¡Venta confirmada en POS! Comisión asignada al promotor: $${comision.toLocaleString('es-CO')}`);
+                document.getElementById('tx-codigo').value = ''; document.getElementById('tx-monto').value = '';
+                window.cargarSaldosAliados(); 
+            } catch (e) { alert("Error validando TX: " + e.message); } finally { btn.innerText = "Confirmar Venta"; btn.disabled = false; }
+        };
+
+        // --- HIDRATACIÓN CENTRAL ---
+        GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
+            if (user) {
+                const { success: dirSuccess, data: dirData, error } = await GeokatuDB.AdminService.obtenerNegocioPorUsuario(user.uid, user.email, "estandar");
+                if (!dirSuccess) { document.getElementById('offline-banner').innerText = "🛑 BLOQUEO FIREBASE: " + error; return; }
+
+                if (dirData) {
+                    datosGlobalesNegocio = dirData; idNegocioLogueado = dirData.id || user.uid;
+                    isPremium = (datosGlobalesNegocio.premium === "SI" || datosGlobalesNegocio.premium === true);
+                    
+                    document.getElementById('ui-nombre').innerText = datosGlobalesNegocio.nombre || "MI TIENDA";
+                    document.getElementById('perfilEmail').value = user.email || '';
+                    document.getElementById('perfilNombre').value = datosGlobalesNegocio.nombre || '';
+                    document.getElementById('perfilUsername').value = datosGlobalesNegocio.username || '';
+                    document.getElementById('perfilTelefono').value = datosGlobalesNegocio.whatsApp || datosGlobalesNegocio.telefono || '';
+                    document.getElementById('perfilApertura').value = datosGlobalesNegocio.horario_apertura || ''; 
+                    document.getElementById('perfilCierre').value = datosGlobalesNegocio.horario_cierre || '';
+                    document.getElementById('perfilDireccion').value = datosGlobalesNegocio.direccion || '';
+                    document.getElementById('perfilMoneda').value = datosGlobalesNegocio.moneda || 'COP';
+                    document.getElementById('perfilPalabras').value = datosGlobalesNegocio.palabras_clave || '';
+                    
+                    if(datosGlobalesNegocio.color_principal) document.getElementById('colorHex1').value = datosGlobalesNegocio.color_principal;
+                    if(datosGlobalesNegocio.color_acento) document.getElementById('colorHex2').value = datosGlobalesNegocio.color_acento;
+                    if(datosGlobalesNegocio.color_fondo) document.getElementById('colorHex3').value = datosGlobalesNegocio.color_fondo;
+                                        // 💉 AQUÍ VA LA INCISIÓN: HIDRATAR PIN INDEPENDIENTE Y SUS FORMAS
+                    setTimeout(() => { 
+                        const previewImg = document.getElementById('img-live-preview'); 
+                        if (previewImg) { 
+                            if (datosGlobalesNegocio.link_pin) previewImg.src = datosGlobalesNegocio.link_pin; 
+                            else if (datosGlobalesNegocio.logo) previewImg.src = datosGlobalesNegocio.logo; 
+                            else previewImg.src = `https://ui-avatars.com/api/?name=Pin&background=111&color=ff6b00&size=150`; // 👈 Solución a la Imagen Rota
+                        } 
+                        
+                        if(datosGlobalesNegocio.pin_forma) document.getElementById('select-forma').value = datosGlobalesNegocio.pin_forma;
+                        if(datosGlobalesNegocio.pin_animacion) document.getElementById('select-animacion').value = datosGlobalesNegocio.pin_animacion;
+                        if(datosGlobalesNegocio.pin_efecto) document.getElementById('select-efecto').value = datosGlobalesNegocio.pin_efecto;
+
+                        if (typeof window.actualizarPinLive === 'function') window.actualizarPinLive(); 
+                    }, 800);
+
+ 
+                    let nichoRecuperado = datosGlobalesNegocio.niche || '';
+                    let selectorUI = document.getElementById('perfilNichoSelect'); 
+                    if (selectorUI && Array.from(selectorUI.options).some(opt => opt.value === nichoRecuperado)) { selectorUI.value = nichoRecuperado; }
+
+                    if(datosGlobalesNegocio.logo) { document.getElementById('ui-logo').src = datosGlobalesNegocio.logo; document.getElementById('ui-logo').style.display = 'block'; }
+                    
+                    let latInit = datosGlobalesNegocio.Coordenadas ? (datosGlobalesNegocio.Coordenadas.latitude || datosGlobalesNegocio.Coordenadas._lat) : null;
+                    let lngInit = datosGlobalesNegocio.Coordenadas ? (datosGlobalesNegocio.Coordenadas.longitude || datosGlobalesNegocio.Coordenadas._long) : null;
+                    setTimeout(() => { window.inicializarMiniMapa(latInit, lngInit); }, 500);
+
+                    evaluarNichoParaMasivo(); window.cargarMisProductos(); 
+
+                    document.getElementById('dashboard-screen').style.display = 'block';
+                    document.getElementById('offline-banner').style.display = 'none';
+
+                } else {
+                    console.log("Comerciante nuevo detectado. Inicializando bóveda...");
+                    const payloadInicial = {
+                        nombre: "Mi Nueva Tienda", email: user.email || "", tipo_modelo: "comercio",
+                        premium: false, estado_moderacion: "pendiente", fecha_registro: new Date().toISOString(), progreso_boveda: 10 
+                    };
+                    const { success: createSuccess, error: createError } = await GeokatuDB.AdminService.actualizarNegocio(user.uid, payloadInicial);
+                    if (createSuccess) { window.location.reload(); } else { document.getElementById('offline-banner').innerText = "❌ ERROR AL CREAR BÓVEDA: " + createError; }
+                }
+            } else { window.location.href = 'index.html'; }
+        });
+    </script>
+          <script type="module">
+    import GeokatuDB from './core-db.js';
+    
+    window.guardarPinYMapa = function() {
+        GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
+            if (!user) return alert("Error: Sesión no detectada.");
+            
+            const btn = document.getElementById('btn-guardar-pin');
+            btn.innerText = "GUARDANDO...";
+            btn.disabled = true;
+            
+            // Asumiendo que tus listas desplegables son <select> (ajusta los selectores si usaste otra cosa)
+            const forma = document.querySelectorAll('select')[0]?.value || '1';
+            const anim = document.querySelectorAll('select')[1]?.value || 'a';
+            const emoji = document.querySelectorAll('select')[2]?.value || '0';
+            
+            const payload = {
+                ui_pack: forma + anim + emoji,
+                Coordenadas: {
+                    latitude: window.latitudActual || 4.8133, // Asegúrate de que tu mapa asigne estas globales
+                    longitude: window.longitudActual || -75.6961
+                }
+            };
+
+            const { success, error } = await GeokatuDB.AdminService.actualizarNegocio(user.uid, payload);
+            
+            if (success) {
+                alert("✅ Guardado exitoso. Tu tienda ya es visible en el mapa principal (index.html).");
+            } else {
+                alert("❌ Fallo al guardar: " + error);
+            }
+            
+            btn.innerText = "💾 GUARDAR EN EL RADAR";
+            btn.disabled = false;
+        });
+    };
+</script>
+
+</body>
+</html>

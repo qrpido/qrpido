@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inyector de Base de Datos | Geokatu</title>
+    <style>
+        body { background-color: #111; color: white; font-family: monospace; padding: 20px; text-align: center; }
+        button { background: #ff6b00; color: white; border: none; padding: 20px; font-size: 18px; font-weight: bold; border-radius: 10px; cursor: pointer; box-shadow: 0 0 20px rgba(255,107,0,0.5); }
+        button:active { transform: scale(0.95); }
+        #consola { background: #000; color: #0f0; padding: 15px; text-align: left; margin-top: 20px; height: 300px; overflow-y: auto; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h2>🚀 Creador Rápido de Negocios (Geokatu Seeder)</h2>
+    <p>Este botón inyectará un negocio completo con el esquema exacto a Firestore.</p>
+    
+    <button id="btn-iniciar" onclick="inyectarDatos()">INYECCIÓN MASIVA: FERRETERÍA</button>
+
+    <div id="consola">Esperando órdenes...</div>
+
+    <script type="module">
+        // Importamos TU propia base de datos y lógica
+        import GeokatuDB from './core-db.js';
+
+        const idNuevoNegocio = "ferreteria-demo-001"; // El Slug/Nickname único
+
+        // 1. EL JSON DEL NEGOCIO BASADO EN TU ESQUEMA
+        const perfilNegocio = {
+            id_perfil: idNuevoNegocio,
+            email: "contacto@ferreteriademo.com",
+            nombre: "Ferretería El Maestro",
+            tipo_modelo: "negocio",
+            estado_moderacion: "aprobado",
+            premium: true,
+            fecha_registro: new Date().toISOString(),
+            whatsapp: "573001234567",
+            Coordenadas: { latitude: 4.8133, longitude: -75.6961 },
+            geohash: "d2g6", // Generado estático por ahora
+            plusCode: "68P4+9W Pereira",
+            horario_apertura: "07:00",
+            horario_cierre: "19:00",
+            cobertura_km: 10,
+            niche: "Ferretería y Construcción",
+            palabras_clave: "herramientas, cemento, tornillos, pintura",
+            color_hex: "#ff6b00, #222222, #ffffff", // C1, C2, C3
+            logo: "https://via.placeholder.com/150/ff6b00/ffffff?text=LOGO",
+            portada: "https://via.placeholder.com/600x250/222222/ff6b00?text=PORTADA+FERRETERIA",
+            fondo_negocio: "https://images.unsplash.com/photo-1504148455328-c376907d081c?q=80&w=600",
+            link_pin: "",
+            reputacion: 5,
+            historia: "Fundada en 2026, somos la ferretería más moderna de Pereira. Hacemos despachos rápidos a cualquier obra.",
+            banner_promo: "https://via.placeholder.com/600x150/ff0000/ffffff?text=50%25+DCTO+EN+PINTURAS",
+            easter_egg_msg: "¡Encontraste el clavo dorado! Tienes envío gratis en tu próximo pedido.",
+            nombre_png: "" 
+        };
+
+        // 2. EL JSON DEL INVENTARIO (Subcolección)
+        const listaProductos = [
+            {
+                id: "prod_01", // Le pasamos un ID fijo o lo dejamos vacío para que Firebase lo cree
+                nombre: "Taladro Inalámbrico 20V",
+                precio: 250000,
+                tipo: "producto",
+                categoria: "Herramientas Eléctricas",
+                imagen: "https://via.placeholder.com/200/555555/ffffff?text=TALADRO",
+                agotado: false,
+                fecha_creacion: new Date().toISOString(),
+                cuerpo_articulo: "Batería de larga duración. Incluye cargador rápido y estuche.",
+                badge: "TOP VENTAS",
+                marco_personalizado: ""
+            },
+            {
+                id: "prod_02",
+                nombre: "Pintura Blanca Tipo 1 (Galón)",
+                precio: 45000,
+                tipo: "producto",
+                categoria: "Acabados",
+                imagen: "https://via.placeholder.com/200/eeeeee/333333?text=PINTURA",
+                agotado: false,
+                fecha_creacion: new Date().toISOString(),
+                cuerpo_articulo: "Pintura lavable de alto cubrimiento. Rinde hasta 20m2.",
+                badge: "OFERTA",
+                marco_personalizado: ""
+            }
+        ];
+
+        window.inyectarDatos = async function() {
+            const btn = document.getElementById('btn-iniciar');
+            const log = document.getElementById('consola');
+            
+            btn.disabled = true;
+            btn.innerText = "INYECCIÓN EN PROGRESO...";
+            
+            const printLog = (msg) => { log.innerHTML += `<div>> ${msg}</div>`; log.scrollTop = log.scrollHeight; };
+            
+            try {
+                printLog("Conectando con GeokatuDB...");
+                
+                // 1. Guardar Perfil Principal
+                printLog("Inyectando documento raíz (Directorio)...");
+                const resNegocio = await GeokatuDB.AdminService.actualizarNegocio(idNuevoNegocio, perfilNegocio);
+                if(!resNegocio.success) throw new Error(resNegocio.error);
+                printLog("✅ Negocio creado con éxito.");
+
+                // 2. Guardar Productos en Subcolección
+                printLog("Inyectando catálogo de productos...");
+                for(let prod of listaProductos) {
+                    const resProd = await GeokatuDB.AdminService.guardarProducto(idNuevoNegocio, prod.id, prod);
+                    if(!resProd.success) throw new Error(resProd.error);
+                    printLog(`✅ Producto '${prod.nombre}' guardado.`);
+                }
+
+                printLog("🚀 <b>¡INYECCIÓN COMPLETADA!</b>");
+                printLog(`<br><a href="negocio.html?id=${idNuevoNegocio}" style="color:#0f0;">👉 HAZ CLIC AQUÍ PARA VER EL NEGOCIO EN VIVO</a>`);
+                btn.innerText = "¡TODO LISTO!";
+                btn.style.background = "#00aa00";
+
+            } catch (error) {
+                printLog(`❌ <b>ERROR FATAL:</b> ${error.message}`);
+                btn.innerText = "ERROR - REVISAR CONSOLA";
+                btn.style.background = "#aa0000";
+            }
+        };
+    </script>
+</body>
+</html>

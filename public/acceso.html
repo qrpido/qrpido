@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Acceso | GEOKATU</title>
+    
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    
+    <style>
+        :root {
+            --naranja: #ff6b00;
+            --bg-profundo: #0a0a0c;
+            --borde-glass: rgba(255, 107, 0, 0.2);
+            --texto-mutado: #888888;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: radial-gradient(circle at 50% 0%, #1a1a1f 0%, var(--bg-profundo) 100%);
+            color: white;
+            display: flex; justify-content: center; align-items: center;
+            min-height: 100vh; margin: 0; padding: 1rem; box-sizing: border-box;
+        }
+        
+        .login-card {
+            background: rgba(20, 20, 25, 0.85); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+            padding: 2.5rem 2rem; border-radius: 20px; border: 1px solid var(--borde-glass);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.8), inset 0 0 15px rgba(255, 107, 0, 0.05);
+            width: 100%; max-width: 400px; transition: 0.3s;
+        }
+
+        .titulo-marca { margin-top: 0; text-transform: uppercase; letter-spacing: 2px; text-align: center; font-size: 24px; font-weight: 900; margin-bottom: 25px; }
+
+        .btn-google {
+            background: white; color: #222; display: flex; align-items: center; justify-content: center; gap: 10px; border: none;
+            width: 100%; padding: 14px; font-size: 15px; font-weight: bold; border-radius: 12px; margin-bottom: 20px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+        .btn-google:active { transform: scale(0.97); }
+
+        .divisor { display: flex; align-items: center; text-align: center; color: var(--texto-mutado); font-size: 12px; margin-bottom: 20px; }
+        .divisor div { flex: 1; border-bottom: 1px solid #444; }
+        .divisor span { padding: 0 10px; text-transform: uppercase; letter-spacing: 1px; }
+
+        .form-group { margin-bottom: 15px; position: relative; }
+        
+        .input-limpio {
+            width: 100%; padding: 14px; border-radius: 10px; background: rgba(0,0,0,0.5); 
+            border: 1px solid rgba(255,255,255,0.1); color: white; box-sizing: border-box; 
+            font-size: 15px; outline: none; transition: 0.3s;
+        }
+        .input-limpio:focus { border-color: var(--naranja); box-shadow: 0 0 10px rgba(255,107,0,0.2); }
+        
+        .btn-ojito {
+            position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+            background: transparent; border: none; color: #888; font-size: 18px; cursor: pointer; padding: 5px; z-index: 10;
+        }
+
+        .recaptcha-container { display: flex; justify-content: center; margin-bottom: 15px; transform: scale(0.95); }
+        
+        .btn-submit {
+            width: 100%; padding: 15px; background: var(--naranja); color: white; border: none; border-radius: 10px;
+            font-size: 15px; font-weight: 900; cursor: pointer; transition: 0.3s; text-transform: uppercase; letter-spacing: 1px;
+            box-shadow: 0 5px 15px rgba(255, 107, 0, 0.4);
+        }
+        .btn-submit:active { transform: scale(0.97); }
+        .btn-submit:disabled { background-color: #555; cursor: not-allowed; box-shadow: none; }
+                .btn-registro-gigante {
+            width: 100%; padding: 15px; background: #ffffff; color: var(--naranja);
+            border: 2px solid var(--naranja); border-radius: 10px; margin-top: 15px;
+            font-size: 15px; font-weight: 900; cursor: pointer; transition: 0.3s; 
+            text-transform: uppercase; letter-spacing: 1px;
+            box-shadow: 0 4px 10px rgba(255, 107, 0, 0.15);
+        }
+        .btn-registro-gigante:active { transform: scale(0.97); box-shadow: none; }
+
+        .link-toggle {
+            display: block; text-align: center; margin-top: 20px; color: var(--texto-mutado);
+            text-decoration: underline; font-size: 13px; cursor: pointer;
+        }
+        .link-toggle:hover { color: var(--naranja); }
+
+        /* Vistas intercambiables */
+        .vista-form { display: none; animation: fadeIn 0.3s ease; }
+        .vista-form.activa { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <div class="login-card">
+        <h2 class="titulo-marca">
+            Ingresa a <br>
+            <span style="color: #ff6b00; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">GEO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);">KATU</span>
+        </h2>
+
+        <button class="btn-google" onclick="iniciarConGoogle()">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" height="20"> Continuar con Google
+        </button>
+
+        <div class="divisor"><div></div><span id="texto-divisor">O INICIA SESIÓN</span><div></div></div>
+
+        <!-- VISTA 1: INICIAR SESIÓN -->
+        <form id="form-login" class="vista-form activa" onsubmit="procesarLogin(event)">
+            <div class="form-group"><input type="email" id="log-email" class="input-limpio" required placeholder="Correo electrónico"></div>
+            <div class="form-group">
+                <input type="password" id="log-pass" class="input-limpio" required placeholder="Contraseña" style="padding-right: 45px;">
+                <button type="button" class="btn-ojito" onclick="togglePassword('log-pass')">👁️</button>
+            </div>
+            
+            <div class="recaptcha-container"><div class="g-recaptcha" data-sitekey="6LeT74wtAAAAAMeqXa4L9kkNdFLqjzEjsykUD5ET" data-theme="dark"></div></div>
+            
+            <button type="submit" class="btn-submit" id="btn-login">Iniciar Sesión</button>
+            
+            <div style="text-align: right; margin-top: 10px;"><a href="#" style="color: #888; font-size: 11px;">¿Olvidaste tu contraseña?</a></div>
+            <!-- Separador sutil -->
+<div style="width: 100%; height: 1px; background: rgba(255,255,255,0.05); margin: 20px 0 5px 0;"></div>
+
+<!-- Botón Gigante de Registro -->
+<button type="button" class="btn-registro-gigante" onclick="cambiarVista('registro-1')">Regístrate Aquí</button>
+
+        </form>
+
+        <!-- VISTA 2: REGISTRO (Paso 1: Correo) -->
+        <form id="form-registro-1" class="vista-form" onsubmit="enviarCodigoRegistro(event)">
+            <p style="font-size: 12px; color: #aaa; text-align: center; margin-top: 0;">Enviaremos un código de seguridad para validar tu identidad.</p>
+            <div class="form-group"><input type="email" id="reg-email" class="input-limpio" required placeholder="Tu mejor correo electrónico"></div>
+            
+            <button type="submit" class="btn-submit" id="btn-enviar-codigo">Enviar Código</button>
+            <div class="link-toggle" onclick="cambiarVista('login')">Ya tengo cuenta. Volver a Iniciar Sesión</div>
+        </form>
+
+        <!-- VISTA 3: REGISTRO (Paso 2: Código y Contraseñas) -->
+        <form id="form-registro-2" class="vista-form" onsubmit="completarRegistro(event)">
+            <p style="font-size: 12px; color: #00f5d4; text-align: center; margin-top: 0;">✔️ Código enviado a tu correo.</p>
+            
+            <div class="form-group"><input type="text" id="reg-codigo" class="input-limpio" required placeholder="Ingresa el código de 6 dígitos" style="text-align: center; font-weight: bold; letter-spacing: 5px;"></div>
+            
+            <div class="form-group">
+                <input type="password" id="reg-pass-1" class="input-limpio" required placeholder="Crea una contraseña" style="padding-right: 45px;">
+                <button type="button" class="btn-ojito" onclick="togglePassword('reg-pass-1')">👁️</button>
+            </div>
+            
+            <div class="form-group">
+                <input type="password" id="reg-pass-2" class="input-limpio" required placeholder="Repite la contraseña" style="padding-right: 45px;">
+                <button type="button" class="btn-ojito" onclick="togglePassword('reg-pass-2')">👁️</button>
+            </div>
+            
+            <button type="submit" class="btn-submit" id="btn-finalizar-registro" style="background: #00f5d4; color: black; box-shadow: 0 5px 15px rgba(0, 245, 212, 0.4);">CREAR CUENTA</button>
+            <div class="link-toggle" onclick="cambiarVista('registro-1')">← Cambiar correo</div>
+        </form>
+
+        <a href="index.html" style="display: block; text-align: center; margin-top: 1.5rem; color: #555; text-decoration: none; font-size: 0.8rem;">← Volver al radar público</a>
+    </div>
+
+    <script type="module">
+        import GeokatuDB from './core-db.js';
+
+        // Utilidad visual
+        window.togglePassword = (idInput) => {
+            const input = document.getElementById(idInput);
+            input.type = input.type === "password" ? "text" : "password";
+        };
+
+        window.cambiarVista = (vistaDestino) => {
+            document.querySelectorAll('.vista-form').forEach(f => f.classList.remove('activa'));
+            if(vistaDestino === 'login') {
+                document.getElementById('form-login').classList.add('activa');
+                document.getElementById('texto-divisor').innerText = 'O INICIA SESIÓN';
+            } else if (vistaDestino === 'registro-1') {
+                document.getElementById('form-registro-1').classList.add('activa');
+                document.getElementById('texto-divisor').innerText = 'CREA TU CUENTA';
+            } else if (vistaDestino === 'registro-2') {
+                document.getElementById('form-registro-2').classList.add('activa');
+            }
+        };
+
+        // Flujo 1: Google (Sin cambios, es perfecto)
+        window.iniciarConGoogle = async () => {
+            const btn = document.querySelector('.btn-google');
+            btn.innerHTML = "Verificando..."; btn.style.pointerEvents = "none";
+            const { success, error, esNuevo } = await GeokatuDB.SecurityService.iniciarConGoogle();
+            if (success) {
+                localStorage.setItem('qrpido_session_validated', 'true');
+                window.location.href = esNuevo ? 'index.html?onboarding=true' : 'boveda-comercio.html';
+            } else {
+                alert("Error: " + error);
+                btn.innerHTML = `<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" height="20"> Continuar con Google`;
+                btn.style.pointerEvents = "auto";
+            }
+        };
+
+                // Flujo 2: Iniciar Sesión Normal (BLINDADO CON BACKEND)
+        window.procesarLogin = async (e) => {
+            e.preventDefault();
+            
+            // 1. Capturamos el token de la cajita
+            const captchaToken = grecaptcha.getResponse();
+            if (!captchaToken) return alert("Por favor, valida que eres humano.");
+            
+            const btn = document.getElementById('btn-login');
+            btn.innerText = "Validando seguridad..."; btn.disabled = true;
+            
+            try {
+                // 2. Le pedimos al Cadenero (Cloud Functions) que verifique el token
+                const { getFunctions, httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js');
+                const functions = getFunctions(); // Asegúrate de que tu app de Firebase ya esté inicializada
+                const validarFirma = httpsCallable(functions, 'validarFirmaHumana');
+                
+                // Si el token es falso o expirado, esto lanzará un error y saltará al 'catch'
+                await validarFirma({ token: captchaToken });
+
+                // 3. Si llegamos aquí, el Cadenero confirmó que es un humano real. Procedemos con el login.
+                btn.innerText = "Ingresando...";
+                const { success, error } = await GeokatuDB.SecurityService.iniciarSesion(
+                    document.getElementById('log-email').value.trim(), 
+                    document.getElementById('log-pass').value
+                );
+
+                if (success) {
+                    localStorage.setItem('qrpido_session_validated', 'true');
+                    window.location.href = 'boveda-comercio.html';
+                } else {
+                    alert("Acceso denegado: Revise sus credenciales.");
+                    btn.innerText = "Iniciar Sesión"; btn.disabled = false; grecaptcha.reset();
+                }
+
+            } catch (error) {
+                // 🚨 El Cadenero detectó un bot o un token inválido
+                alert("Alerta de seguridad: " + error.message);
+                btn.innerText = "Iniciar Sesión"; btn.disabled = false; grecaptcha.reset();
+            }
+        };
+
+
+        // Flujo 3A: Enviar Código de Registro
+        window.enviarCodigoRegistro = async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('btn-enviar-codigo');
+            btn.innerText = "Enviando..."; btn.disabled = true;
+            
+            const email = document.getElementById('reg-email').value.trim();
+            // TODO: Aquí llamaremos a la Cloud Function para enviar el OTP al correo
+            // await GeokatuDB.SecurityService.solicitarOtpFirma(email);
+            
+            setTimeout(() => { // Simulación temporal
+                window.cambiarVista('registro-2');
+                btn.innerText = "Enviar Código"; btn.disabled = false;
+            }, 1500);
+        };
+
+        // Flujo 3B: Confirmar Registro Final
+        window.completarRegistro = async (e) => {
+            e.preventDefault();
+            const pass1 = document.getElementById('reg-pass-1').value;
+            const pass2 = document.getElementById('reg-pass-2').value;
+            
+            if (pass1 !== pass2) return alert("❌ Las contraseñas no coinciden.");
+            if (pass1.length < 6) return alert("❌ La contraseña debe tener al menos 6 caracteres.");
+
+            const btn = document.getElementById('btn-finalizar-registro');
+            btn.innerText = "Creando Bóveda..."; btn.disabled = true;
+
+            // TODO: Lógica de validación del código y creación de usuario en Firebase
+            
+            setTimeout(() => { // Simulación temporal
+                localStorage.setItem('qrpido_session_validated', 'true');
+                window.location.href = 'index.html?onboarding=true'; // Lo mandamos al carrusel
+            }, 2000);
+        };
+    </script>
+</body>
+</html>

@@ -2,14 +2,16 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// Tu configuración real:
+// Tu NUEVA configuración de Geokatu:
 const firebaseConfig = {
-  apiKey: "AIzaSyAhliftxY_cRkdij4zyjhIqJxQ1pddHPd4",
-  authDomain: "qrpido-oficial.firebaseapp.com",
-  projectId: "qrpido-oficial",
-  storageBucket: "qrpido-oficial.firebasestorage.app",
-  messagingSenderId: "136820849349",
-  appId: "1:136820849349:web:8f1531f245bf14a6caceac"
+  apiKey: "AIzaSyA3Vc1ra_2LTuayxGAmh28s8uKKUpHnlwc",
+  authDomain: "geo-katu.firebaseapp.com",
+  databaseURL: "https://geo-katu-default-rtdb.firebaseio.com",
+  projectId: "geo-katu",
+  storageBucket: "geo-katu.firebasestorage.app",
+  messagingSenderId: "637616445634",
+  appId: "1:637616445634:web:43c9b87e159acfb39ac35b",
+  measurementId: "G-QPJRQYXJVE"
 };
 
 // Inicializamos el motor

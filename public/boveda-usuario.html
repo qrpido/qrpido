@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mi Bóveda Ciudadana | GEOKATU</title>
+    
+    <style>
+        /* =========================================
+           ADN GEOKATU (Cyberpunk Ciudadano)
+           ========================================= */
+        :root {
+            --naranja: #ff6b00;
+            --bg-profundo: #0a0a0c;
+            --bg-tarjeta: #19191e;
+            --texto-claro: #ffffff;
+            --texto-mutado: #aaaaaa;
+            --neon-verde: #00f5d4;
+            --oro-premium: #FFD700;
+            --borde-glass: rgba(255, 255, 255, 0.1);
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg-profundo);
+            color: var(--texto-claro);
+            min-height: 100vh;
+        }
+
+        /* === HEADER === */
+        .header-boveda {
+            background: rgba(10, 10, 12, 0.95); backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--borde-glass); padding: 15px 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            position: sticky; top: 0; z-index: 1000;
+        }
+
+        .btn-accion-top {
+            background: transparent; border: 1px solid var(--texto-mutado);
+            color: var(--texto-mutado); padding: 6px 12px; border-radius: 8px;
+            font-weight: bold; cursor: pointer; font-size: 11px; transition: 0.3s;
+        }
+        .btn-accion-top:active { background: rgba(255,255,255,0.1); }
+
+        /* === PESTAÑAS (SPA) === */
+        .tabs-container {
+            display: flex; gap: 8px; padding: 15px 20px;
+            background: var(--bg-profundo); border-bottom: 1px solid rgba(255,255,255,0.05);
+            overflow-x: auto; scrollbar-width: none;
+        }
+        .tabs-container::-webkit-scrollbar { display: none; }
+
+        .tab-btn {
+            flex: 1; min-width: 90px; background: rgba(255,255,255,0.05); 
+            border: 1px solid transparent; color: var(--texto-mutado); 
+            padding: 12px 10px; border-radius: 12px; font-weight: bold; text-transform: uppercase; 
+            font-size: 10px; cursor: pointer; transition: 0.3s; text-align: center; white-space: nowrap;
+        }
+        .tab-btn.activo {
+            background: rgba(255, 107, 0, 0.15); color: white; 
+            border-color: var(--naranja); box-shadow: inset 0 1px 3px rgba(255,107,0,0.5);
+        }
+
+        .tab-content { display: none; padding: 20px; max-width: 600px; margin: 0 auto; }
+        .tab-content.activo { display: block; animation: fadeIn 0.4s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* === TARJETAS BASE === */
+        .card-boveda {
+            background: var(--bg-tarjeta); border: 1px solid var(--borde-glass); 
+            border-radius: 16px; padding: 20px; margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .card-title { margin: 0 0 15px 0; font-size: 15px; font-weight: 900; color: var(--naranja); text-transform: uppercase; letter-spacing: 1px;}
+
+        /* === SISTEMA PREMIUM (CANDADO) === */
+        .modulo-premium {
+            position: relative; border-radius: 16px; overflow: hidden;
+            border: 1px solid rgba(255, 215, 0, 0.3); background: rgba(255, 215, 0, 0.05);
+        }
+        .lock-overlay {
+            position: absolute; inset: 0; background: rgba(10, 10, 12, 0.85);
+            backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+            z-index: 10; display: flex; flex-direction: column; justify-content: center; 
+            align-items: center; text-align: center; padding: 20px;
+        }
+        .btn-premium {
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+            color: black; border: none; padding: 12px 25px; border-radius: 20px;
+            font-weight: 900; font-size: 12px; cursor: pointer; text-transform: uppercase;
+            box-shadow: 0 5px 15px rgba(255, 165, 0, 0.4); margin-top: 15px;
+        }
+        
+        /* === ELEMENTOS UI === */
+        .kpi-row { display: flex; gap: 15px; margin-bottom: 20px; }
+        .kpi-box { flex: 1; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; text-align: center; }
+        
+        .item-lista { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .item-lista:last-child { border-bottom: none; }
+        
+        .btn-accion-full {
+            width: 100%; padding: 15px; background: var(--naranja); color: white;
+            border: none; border-radius: 12px; font-weight: 900; cursor: pointer;
+            text-transform: uppercase; box-shadow: 0 4px 15px rgba(255,107,0,0.4);
+        }
+    </style>
+</head>
+<body>
+
+    <header class="header-boveda">
+        <h1 style="margin: 0; font-size: 20px; letter-spacing: 2px; font-weight: 900;">
+            <span style="color: #ff6b00; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">GEO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);">KATU</span>
+        </h1>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn-accion-top" onclick="window.location.href='index.html'">🗺️ Mapa</button>
+            <button class="btn-accion-top" onclick="cerrarSesion()">Salir</button>
+        </div>
+    </header>
+
+    <div class="tabs-container">
+        <button class="tab-btn activo" onclick="cambiarTab('radar', this)">🛰️ Radar</button>
+        <button class="tab-btn" onclick="cambiarTab('compras', this)">🛍️ Compras</button>
+        <button class="tab-btn" onclick="cambiarTab('favoritos', this)">🤍 Favoritos</button>
+        <button class="tab-btn" onclick="cambiarTab('billetera', this)">💳 Billetera</button>
+    </div>
+
+    <!-- PESTAÑA 1: MI RADAR Y LOGÍSTICA -->
+    <main id="tab-radar" class="tab-content activo">
+        <div class="kpi-row">
+            <div class="kpi-box" style="border-bottom: 2px solid var(--neon-verde);">
+                <div style="font-size: 24px; font-weight: 900; color: white;">3</div>
+                <div style="font-size: 10px; color: var(--texto-mutado); text-transform: uppercase;">Pedidos Mes</div>
+            </div>
+            <div class="kpi-box" style="border-bottom: 2px solid var(--naranja);">
+                <div style="font-size: 24px; font-weight: 900; color: white;">12</div>
+                <div style="font-size: 10px; color: var(--texto-mutado); text-transform: uppercase;">Favoritos</div>
+            </div>
+        </div>
+
+        <div class="card-boveda modulo-premium" id="modulo-visor-flota">
+            <!-- Capa de bloqueo para usuarios gratuitos -->
+            <div class="lock-overlay" id="bloqueo-freemium">
+                <span style="font-size: 30px; margin-bottom: 10px;">👑</span>
+                <h3 style="margin: 0 0 10px 0; color: var(--oro-premium); text-transform: uppercase;">Visor Logístico Restringido</h3>
+                <p style="margin: 0; font-size: 12px; color: #ccc;">Visualiza en tiempo real a los taxis, motos y vehículos de entrega libres en tu ciudad.</p>
+                <button class="btn-premium" onclick="cambiarTab('billetera', document.querySelectorAll('.tab-btn')[3])">Mejorar a Premium</button>
+            </div>
+
+            <!-- Contenido Premium (El mapa en miniatura) -->
+            <h3 class="card-title" style="color: var(--oro-premium);">🛰️ Ojo de Dios (Logística)</h3>
+            <div style="height: 180px; background: #000; border-radius: 10px; border: 1px dashed #444; display: flex; align-items: center; justify-content: center;">
+                <span style="color: #666; font-size: 12px;">El motor LERP P2P se conectará aquí...</span>
+            </div>
+        </div>
+    </main>
+
+    <!-- PESTAÑA 2: MIS COMPRAS -->
+    <main id="tab-compras" class="tab-content">
+        <div class="card-boveda">
+            <h3 class="card-title">En Curso</h3>
+            <div class="item-lista">
+                <div>
+                    <div style="font-weight: bold; font-size: 14px; color: white;">Hamburguesas "El Katu"</div>
+                    <div style="font-size: 11px; color: var(--neon-verde);">En preparación...</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-weight: bold; color: var(--naranja);">$24,000</div>
+                    <button style="background: transparent; border: 1px solid var(--naranja); color: var(--naranja); border-radius: 6px; font-size: 10px; padding: 4px 8px; margin-top: 5px;">Rastrear</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-boveda">
+            <h3 class="card-title">Historial Reciente</h3>
+            <div class="item-lista">
+                <div>
+                    <div style="font-weight: bold; font-size: 14px; color: #ccc;">Ferretería Centro</div>
+                    <div style="font-size: 11px; color: #888;">Hace 2 días • Entregado</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-weight: bold; color: #888;">$12,500</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- PESTAÑA 3: MIS FAVORITOS -->
+    <main id="tab-favoritos" class="tab-content">
+        <p style="font-size: 12px; color: #aaa; text-align: center; margin-bottom: 20px;">Tu lista de deseos urbana. Comercios e inmuebles que guardaste desde el radar.</p>
+        
+        <!-- Grid de Favoritos -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <!-- Ejemplo 1 -->
+            <div style="background: rgba(0,0,0,0.5); border: 1px solid var(--borde-glass); border-radius: 12px; overflow: hidden;">
+                <img src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80" style="width: 100%; height: 100px; object-fit: cover;">
+                <div style="padding: 10px;">
+                    <div style="font-weight: bold; font-size: 12px;">Pizzería Roma</div>
+                    <div style="font-size: 10px; color: #aaa;">Restaurante</div>
+                </div>
+            </div>
+            <!-- Ejemplo 2 -->
+            <div style="background: rgba(0,0,0,0.5); border: 1px solid var(--borde-glass); border-radius: 12px; overflow: hidden;">
+                <img src="https://images.unsplash.com/photo-1564013799919-ab600027ffc6?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80" style="width: 100%; height: 100px; object-fit: cover;">
+                <div style="padding: 10px;">
+                    <div style="font-weight: bold; font-size: 12px;">Apto 2 Habitaciones</div>
+                    <div style="font-size: 10px; color: #aaa;">Inmueble • $800k</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- PESTAÑA 4: BILLETERA Y SUSCRIPCIÓN -->
+    <main id="tab-billetera" class="tab-content">
+        <!-- Billetera Geokatu -->
+        <div class="card-boveda" style="text-align: center; background: linear-gradient(180deg, #19191e 0%, #0a0a0c 100%);">
+            <p style="font-size: 11px; color: #888; text-transform: uppercase; font-weight: bold; margin: 0 0 10px 0;">Saldo Geokatu</p>
+            <h1 style="margin: 0 0 20px 0; font-size: 42px; color: var(--neon-verde);">$0</h1>
+            
+            <p style="font-size: 11px; color: #aaa; margin-bottom: 20px;">Saldo interno exclusivo para pagos ultra-rápidos (Límite: $100.000 COP). Recarga vía Bre-B o Wompi.</p>
+            
+            <button class="btn-accion-full" style="background: var(--neon-verde); color: black; box-shadow: 0 4px 15px rgba(0,245,212,0.3);">Recargar Billetera</button>
+        </div>
+
+        <!-- Muro de Pago Premium -->
+        <div class="card-boveda" style="border-color: var(--oro-premium);">
+            <h3 class="card-title" style="color: var(--oro-premium); text-align: center;">👑 Pase Premium Anual</h3>
+            <ul style="font-size: 13px; color: #ddd; line-height: 1.8; margin-bottom: 20px;">
+                <li>Desbloquea el Radar Logístico en tiempo real.</li>
+                <li>Visualiza taxis y motos libres a tu alrededor.</li>
+                <li>Soporte prioritario en contratos digitales.</li>
+            </ul>
+            <div style="text-align: center; margin-bottom: 20px;">
+                <b style="font-size: 24px; color: white;">$3.900 COP</b> <span style="font-size: 12px; color: #888;">/ año</span>
+            </div>
+            <button class="btn-accion-full" style="background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); color: black; box-shadow: 0 4px 15px rgba(255,165,0,0.4);" onclick="alert('Conectando con pasarela de pago Wompi / Bre-B...')">Adquirir Premium</button>
+        </div>
+    </main>
+
+    <script type="module">
+        import GeokatuDB from './core-db.js';
+
+        // Lógica de Pestañas (SPA)
+        window.cambiarTab = (idTab, btn) => {
+            if(navigator.vibrate) navigator.vibrate(15);
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('activo'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('activo'));
+            
+            document.getElementById(`tab-${idTab}`).classList.add('activo');
+            btn.classList.add('activo');
+        };
+
+        window.cerrarSesion = async () => {
+            await GeokatuDB.SecurityService.cerrarSesion();
+            localStorage.removeItem('qrpido_session_validated');
+            window.location.href = 'index.html';
+        };
+
+        // HIDRATACIÓN: Verificamos sesión y si es Premium
+        GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
+            if (!user) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Consultar si el usuario pagó la suscripción Premium
+            const perfil = await GeokatuDB.AdminService.obtenerNegocioPorUsuario(user.uid);
+            
+            if (perfil.success && perfil.data && perfil.data.premium === true) {
+                // Es Premium: Quitamos el candado dorado del Radar Logístico
+                const bloqueo = document.getElementById('bloqueo-freemium');
+                if (bloqueo) bloqueo.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,22 +1,16 @@
-​<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-    <script>
+<script>
     // =================================================================
-    // 🩺 CRASH REPORTER: Sistema Automático de Auditoría de Errores
+    // 🩺 CRASH REPORTER UNIFICADO Y BLINDADO
     // =================================================================
     window.qrpidoErrorLog = []; 
-
-
-
 
     function mostrarCartelErrorYDescargar(titulo, detalle) {
         const timestamp = new Date().toISOString();
         const textoError = `[${timestamp}] ${titulo}\n${detalle}\n\n`;
         window.qrpidoErrorLog.push(textoError);
-
-
-
 
         if (!document.body) {
             window.addEventListener('DOMContentLoaded', () => renderizarCartel(titulo, detalle));
@@ -25,21 +19,12 @@
         }
     }
 
-
-
-
     function renderizarCartel(titulo, detalle) {
         if (document.getElementById('cartel-error-critico')) return;
-
-
-
 
         const errDiv = document.createElement('div');
         errDiv.id = 'cartel-error-critico';
         errDiv.style.cssText = "position:fixed; top:10%; left:5%; width:90%; background:rgba(20,0,0,0.95); backdrop-filter:blur(10px); color:white; padding:20px; z-index:999999; font-family:monospace; border-radius:15px; border: 2px solid #ff4444; box-shadow: 0 10px 40px rgba(255,0,0,0.5); font-size: 12px; max-height: 80vh; overflow-y: auto;";
-
-
-
 
         errDiv.innerHTML = `
             <b style="color:#ff4444; font-size:16px;">🚨 ${titulo}</b>
@@ -50,74 +35,133 @@
         `;
         document.body.appendChild(errDiv);
 
-
-
-
         document.getElementById('btn-bajar-error').onclick = () => {
             const contextData = window.qrpidoLog ? window.qrpidoLog.join('\n') : "Sin historial de rendimiento";
-            const data = "=== REPORTE DE CRASH QRpido ===\n\n" + window.qrpidoErrorLog.join('---\n') + "\n=== CONTEXTO DE EJECUCIÓN (Motor) ===\n" + contextData;
+            const data = "=== REPORTE DE CRASH ===\n\n" + window.qrpidoErrorLog.join('---\n') + "\n=== CONTEXTO ===\n" + contextData;
             const blob = new Blob([data], { type: 'text/plain' });
             const a = document.createElement('a'); 
             a.href = URL.createObjectURL(blob);
-            a.download = `CRASH_REPORT_QRPIDO_${new Date().getTime()}.txt`; 
+            a.download = `CRASH_REPORT_${new Date().getTime()}.txt`; 
             a.click();
         };
     }
 
-
-
-
-    // IGNORAR EL ERROR FANTASMA DE LEAFLET:
+    // 🛡️ ESCUDO 1: Errores de sintaxis y gráficos fantasma
     window.onerror = function(message, source, lineno, colno, error) {
-        if (message.includes("Failed to execute 'removeChild' on 'Node'")) {
-            console.warn("🛡️ Escudo DOM: Leaflet intentó borrar un nodo inexistente. Ignorado.");
-            return true; // Frena el error para que no bloquee la app
-        }
-        const detalle = `Mensaje: ${message}\nLínea: ${lineno}:${colno}\nArchivo: ${source}\nStack: ${error ? error.stack : 'N/A'}`;
-        mostrarCartelErrorYDescargar('ERROR DE SINTAXIS / EJECUCIÓN', detalle);
-        return false;
+        if (message.includes("Failed to execute 'removeChild'") || message.includes("lineAtlas")) return true; // Ignora fallos gráficos nativos
+        const detalle = `Mensaje: ${message}\nLínea: ${lineno}:${colno}\nArchivo: ${source}`;
+        mostrarCartelErrorYDescargar('ERROR DE SINTAXIS', detalle);
+        return true; 
     };
 
-
-
-
+    // 🛡️ ESCUDO 2: Promesas y red (AQUÍ MATAMOS EL ERROR DE PMTILES)
     window.addEventListener('unhandledrejection', function(event) {
-        const detalle = `Razón: ${event.reason ? (event.reason.stack || event.reason.message || event.reason) : 'Desconocida'}`;
-        mostrarCartelErrorYDescargar('ERROR DE PROMESA (FIREBASE / RED)', detalle);
+        const strReason = event.reason ? (event.reason.stack || event.reason.message || String(event.reason)) : '';
+        
+        // El bloqueador silencioso
+        if (strReason.includes('clearTiles') || strReason.includes('pmtiles')) {
+            console.warn("🛡️ Escudo PMTiles: Interrupción de renderizado cancelada. El mapa fluye.");
+            event.preventDefault(); 
+            return false;
+        }
+
+        const detalle = `Razón: ${strReason || 'Desconocida'}`;
+        mostrarCartelErrorYDescargar('ERROR DE RED / PROMESA', detalle);
     });
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>QRpido - Radar Urbano</title>
+<title>Geokatu - Radar Urbano</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#ff6b00">
-<link rel="apple-touch-icon" href="https://via.placeholder.com/192/0a0a0c/ff6b00?text=QR">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<link rel="apple-touch-icon" href="https://via.placeholder.com/192/0a0a0c/ff6b00?text=GK">
+<link rel="stylesheet" href="maplibre-gl.css" />
+<script src="maplibre-gl.js"></script>
+<script src="pmtiles.js"></script>
 <link rel="stylesheet" href="pines.css" />
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/openlocationcode@1.0.4/openlocationcode.min.js"></script>
 <script type="text/javascript" src="https://checkout.wompi.co/widget.js"></script>
+  <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 <link rel="stylesheet" href="ui-estilos.css" />
 <style>
 /* Control de visibilidad para la (X) de inmuebles guiado por CSS puro */
 #lista-inmuebles-sheet.activo ~ #btn-cerrar-inmuebles { display: flex !important; }
+
+/* Posicionamiento y estilo del botón GPS nativo (Estilo Google Maps) */
+.maplibregl-ctrl-bottom-right {
+    bottom: 80px; /* Sube un poco para no chocar con la interfaz inferior */
+    right: 15px;
+}
+.maplibregl-ctrl-group {
+    background-color: #1e1e1e !important; /* Fondo oscuro */
+    border: 1px solid #444 !important;
+    border-radius: 50% !important; /* Hazlo redondo */
+    box-shadow: 0 4px 15px rgba(0,0,0,0.8) !important;
+}
+/* Ocultar botones de zoom/brújula nativos para dejar solo el GPS */
+.maplibregl-ctrl-zoom-in, .maplibregl-ctrl-zoom-out, .maplibregl-ctrl-compass {
+    display: none !important; 
+}
+/* =========================================
+   REDISEÑO NATIVO MAPLIBRE (ESTILO BAJO GWAI)
+   ========================================= */
+
+/* 1. EL PUNTO GPS (GRANDE, GRIS Y TRASLÚCIDO) */
+.maplibregl-user-location-dot,
+.maplibregl-user-location-dot::before {
+    background-color: rgba(120, 120, 125, 0.6) !important; /* Gris traslúcido */
+    width: 22px !important;  /* Más grande */
+    height: 22px !important; /* Más grande */
+}
+.maplibregl-user-location-dot::after {
+    border: 2px solid rgba(255, 255, 255, 0.3) !important; /* Anillo suave exterior */
+    width: 28px !important;
+    height: 28px !important;
+    left: -3px !important;
+    top: -3px !important;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5) !important;
+}
+
+/* 2. BURBUJAS DE INFORMACIÓN (POPUPS) OSCURAS */
+.maplibregl-popup-content {
+    background: rgba(20, 20, 25, 0.85) !important; /* Fondo oscuro */
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    border-radius: 16px !important; /* Curvas suaves */
+    color: #e0e0e0 !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8) !important;
+    padding: 12px 14px !important;
+}
+
+/* 3. COLOREAR LA FLECHA DEL POPUP (EL TRIÁNGULO) */
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+    border-top-color: rgba(20, 20, 25, 0.85) !important;
+}
+.maplibregl-popup-anchor-top .maplibregl-popup-tip {
+    border-bottom-color: rgba(20, 20, 25, 0.85) !important;
+}
+.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+    border-right-color: rgba(20, 20, 25, 0.85) !important;
+}
+.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+    border-left-color: rgba(20, 20, 25, 0.85) !important;
+}
+
+/* 4. AJUSTE DE LA X (BOTÓN DE CERRAR) EN LA BURBUJA */
+.maplibregl-popup-close-button {
+    color: #aaaaaa !important;
+    font-size: 18px !important;
+    padding: 4px 8px !important;
+    border-radius: 0 16px 0 0 !important;
+}
+.maplibregl-popup-close-button:hover {
+    background-color: rgba(255, 107, 0, 0.2) !important;
+    color: #ff6b00 !important;
+}
+
 </style>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 <script>
 // 1. ESCUDO XSS ESTRICTO (Reglas Zero Trust)
@@ -140,31 +184,21 @@ window.sanitizarAtributo = window.sanitizarTexto;
 // 4. SALVAVIDAS VISUAL: Reemplazo para imágenes rotas o sin logo
 window.imagenRotaToGlass = function(imgElement, nombreRef) {
     imgElement.onerror = null; // 🛡️ Previene loop infinito si el placeholder también falla
-    const letras = nombreRef ? window.sanitizarTexto(nombreRef).substring(0,3).toUpperCase() : 'QRP';
+    const letras = nombreRef ? window.sanitizarTexto(nombreRef).substring(0,3).toUpperCase() : 'GEO';
     imgElement.src = 'https://via.placeholder.com/150/0a0a0c/ff6b00?text=' + letras;
 };
-
-
-
-
 </script>
 </head>
 <body class="ui-light">
 
-
-<div id="btn-firmas-magnetico" class="btn-flotante-gps" style="bottom: auto; right: auto; top: 180px; left: 15px; width: 45px; height: 45px; border-radius: 50%; border: 1px solid rgba(255,215,0,0.5); box-shadow: 0 8px 25px rgba(0,0,0,0.8), 0 0 15px rgba(255,215,0,0.2); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column;" onclick="if(!window.isDraggingFirmas) window.location.href='tramites.html'">
-    <span style="font-size: 16px; filter: drop-shadow(0 0 5px rgba(255,215,0,0.5)); line-height: 1; margin-bottom: 2px;">✍️</span>
-    <span style="font-size: 7px; color: #FFD700; font-weight: 900; text-transform: uppercase; text-shadow: 0 0 8px rgba(255,215,0,0.5); line-height: 1; text-align: center;">Firmas</span>
+<div id="btn-firmas-magnetico" class="btn-flotante-gps" style="bottom: auto; right: auto; top: 180px; left: 15px; width: 45px; height: 45px; border-radius: 50%; background-color: #1e1e1e !important; border: 1px solid #444 !important; box-shadow: 0 4px 15px rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column;" onclick="if(!window.isDraggingFirmas) window.location.href='tramites.html'">
+    <span style="font-size: 16px; line-height: 1; margin-bottom: 2px;">✍️</span>
+    <span style="font-size: 7px; color: #aaa !important; font-weight: bold; text-transform: uppercase; line-height: 1; text-align: center;">Firmas</span>
 </div>
-<div id="btn-transporte-magnetico" class="btn-flotante-gps" style="bottom: auto; right: auto; top: 240px; left: 15px; width: 45px; height: 45px; border-radius: 50%; border: 1px solid rgba(0,245,212,0.5); box-shadow: 0 8px 25px rgba(0,0,0,0.8), 0 0 15px rgba(0,245,212,0.2); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column;" onclick="if(!window.isDraggingTransporte) window.conmutarVistaEcosistema('transporte')">
-    <span style="font-size: 16px; filter: drop-shadow(0 0 5px rgba(0,245,212,0.5)); line-height: 1; margin-bottom: 2px;">🚌</span>
-    <span style="font-size: 7px; color: #00f5d4; font-weight: 900; text-transform: uppercase; text-shadow: 0 0 8px rgba(0,245,212,0.5); line-height: 1; text-align: center;">Rutas</span>
+<div id="btn-transporte-magnetico" class="btn-flotante-gps" style="bottom: auto; right: auto; top: 240px; left: 15px; width: 45px; height: 45px; border-radius: 50%; background-color: #1e1e1e !important; border: 1px solid #444 !important; box-shadow: 0 4px 15px rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column;" onclick="if(!window.isDraggingTransporte) window.conmutarVistaEcosistema('transporte')">
+    <span style="font-size: 16px; line-height: 1; margin-bottom: 2px;">🚌</span>
+    <span style="font-size: 7px; color: #aaa !important; font-weight: bold; text-transform: uppercase; line-height: 1; text-align: center;">Rutas</span>
 </div>
-
-
-
-
-
 
 <script>
     // 🧲 MOTOR FÍSICO: Satélite Magnético (Curvatura 360° intacta)
@@ -186,7 +220,6 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
             btnFirma.style.transition = 'none'; 
         }, {passive: true});
 
-
         btnFirma.addEventListener('touchmove', (e) => {
             const deltaY = e.touches[0].clientY - startY;
             const deltaX = e.touches[0].clientX - startX;
@@ -198,7 +231,6 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
                 btnFirma.style.right = 'auto'; 
             }
         }, {passive: true});
-
 
         btnFirma.addEventListener('touchend', (e) => {
             btnFirma.style.transition = 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
@@ -240,7 +272,6 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
             btnTrans.style.transition = 'none'; 
         }, {passive: true});
 
-
         btnTrans.addEventListener('touchmove', (e) => {
             const deltaY = e.touches[0].clientY - startY;
             const deltaX = e.touches[0].clientX - startX;
@@ -252,7 +283,6 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
                 btnTrans.style.right = 'auto'; 
             }
         }, {passive: true});
-
 
         btnTrans.addEventListener('touchend', (e) => {
             btnTrans.style.transition = 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
@@ -275,14 +305,13 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
             setTimeout(() => window.isDraggingTransporte = false, 50);
         });
     })();
-
-
 </script>
-
 
 <div id="pantalla-carga">
 <img id="logo-carga" class="logo-palpitante" src="" style="max-width: 220px; display: none; margin-bottom: 10px; filter: drop-shadow(0 0 15px var(--naranja));">
-<h1 id="texto-logo-fallback" class="logo-palpitante" style="font-size: 48px; margin: 0; color: var(--naranja); letter-spacing: 6px; text-shadow: 0 0 15px var(--naranja);">QRPIDO</h1>
+<h1 id="texto-logo-fallback" class="logo-palpitante" style="font-size: 48px; margin: 0; letter-spacing: 6px; font-weight: 900; line-height: 1;">
+    <span style="color: #ff6b00; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">GEO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);">KATU</span>
+</h1>
 <p class="texto-palpitante">Sincronizando ciudad...</p>
 </div>
 <div id="tour-overlay"></div>
@@ -319,26 +348,7 @@ No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.
     <button class="btn-lupa" id="btn-lupa" onclick="buscarCiudadGlobal()">🔍</button>
 </div>
 
-
-
-
 <button id="btn-filtro-corazon" class="btn-login" style="background: rgba(255, 68, 68, 0.2); border-color: #ff4444; color: #ff4444;" onclick="toggleMapaFavoritos()" title="Filtrar Mis Guardados">🤍</button>
-
-
-
-
-<button id="btn-nieves" class="btn-login" style="background: rgba(255, 215, 0, 0.1); border-color: #FFD700; color: #FFD700; margin-left: 5px; font-size: 14px; animation: latidoNeon 2s infinite;" onclick="if(window.activarProtocoloNieves) window.activarProtocoloNieves(); else alert('El motor de mapa aún está cargando...');" title="Sorpresa Mamá">🌸</button>
-
-
-
-
-
-
-
-
-
-
-
 
 <div id="contenedor-saldo-universal" style="display: none; align-items: center; justify-content: center; margin-right: 5px;">
 <button class="btn-login" id="btn-saldo-global" style="width: auto; padding: 0 12px; border-radius: 20px; font-size: 13px; font-weight: bold; border-color: #00ff64; color: #00ff64; background: rgba(0, 255, 100, 0.1);" onclick="if(window.abrirPasarelaRecarga) window.abrirPasarelaRecarga();">
@@ -346,20 +356,13 @@ No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.
 </button>
 </div>
 
-
-
-
 <div class="contenedor-llave" id="btn-portal-mando-contenedor" style="border-radius: 50%;">
 <button class="btn-login" id="btn-portal-mando" onclick="toggleSubmenu()">🔑</button>
 <div id="submenu-llave" class="submenu-llave">
 <button id="btn-login-submenu" class="btn-submenu" onclick="abrirModal('modal-login'); toggleSubmenu()">🔑 Iniciar Sesión</button>
-<button id="btn-mi-oficina" class="btn-submenu" onclick="window.location.href='admin.html'" style="display:none; background: var(--naranja); color: white; border: none; font-weight: bold;">🏪 Ir a Mi Oficina</button>
-
-
+<button id="btn-mi-oficina" class="btn-submenu" onclick="window.irAMiOficinaInteligente(); toggleSubmenu()" style="display:none; background: var(--naranja); color: white; border: none; font-weight: bold;">🏪 Ir a Mi Oficina</button>
 <button id="btn-panel-empresa" class="btn-submenu" onclick="window.abrirModal('modal-crm-corporativo'); toggleSubmenu()" style="display:none; background: #00f5d4; color: black; font-weight: bold; border: none;">💼 Consola Empresa</button>
-<button id="btn-panel-conductor" class="btn-submenu" onclick="window.abrirModal('modal-panel-chofer'); toggleSubmenu()" style="display:none; background: var(--naranja); color: white; font-weight: bold; border: none;">🚖 Modo Conductor</button>
-
-
+<button id="btn-panel-conductor" class="btn-submenu" onclick="window.location.href='domiciliarios.html'" style="display:none; background: var(--naranja); color: white; font-weight: bold; border: none;">🚖 Modo Conductor</button>
 <button id="btn-acceso-moderacion" class="btn-submenu" onclick="window.location.href='moderacion.html'" style="display:none; border-color: #00ff64; color: #00ff64;">⚖️ Panel Moderación</button>
 <button id="btn-acceso-superadmin" class="btn-submenu" onclick="window.location.href='qrpido.html'" style="display:none; border-color: #00aaff; color: #00aaff;">👁️ Cerebro Central</button>
 <button class="btn-submenu" onclick="abrirModal('modal-soporte'); toggleSubmenu()" style="border-color: var(--naranja); color: var(--naranja);">💬 Centro de Ayuda</button>
@@ -369,9 +372,6 @@ No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.
 </div>
 <div id="panel-cristal" class="panel-cristal colapsado" style="display: none;">
 <button class="btn-cerrar-panel" onclick="cerrarPanelCristal(event)" title="Cerrar panel">✖</button>
-
-
-
 
 <div id="panel-filtros" class="panel-seccion" style="display: flex; gap: 8px;"></div>
 <div id="panel-vitrina" class="panel-seccion contenido-colapsable">
@@ -386,15 +386,7 @@ No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.
 </button>
 </div>
 </div>
-<button class="btn-flotante-gps" id="btn-flotante-gps" onclick="centrarMapaHardware()" title="Encuentra mi ubicación actual">
-<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-<circle cx="12" cy="12" r="3"></circle>
-<path d="M12 2v2"></path>
-<path d="M12 20v2"></path>
-<path d="M2 12h2"></path>
-<path d="M20 12h2"></path>
-</svg>
-</button>
+
 <button id="btn-cargar-zona" onclick="descargarNegociosDeFirebase()">🔍 Buscar en esta zona</button>
 <div id="contenedor-troya">
 <div class="btn-cerrar-troya" onclick="document.getElementById('contenedor-troya').style.display='none'">X</div>
@@ -407,9 +399,6 @@ No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.
 <div style="position: absolute; top: -2px; right: -2px; background: #ff4444; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--bg-oscuro); animation: latidoNeon 1.5s infinite;"></div>
 </div>
 
-
-
-
 <div class="bottom-sheet-overlay" id="modal-kill-switch" onclick="cerrarModalFuera(event, 'modal-kill-switch')">
 <div class="bottom-sheet-contenido" style="text-align: center;">
 <div class="drag-handle"></div>
@@ -419,75 +408,88 @@ No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.
 </div>
 </div>
 
-
-
-
 <div id="mapa-qrpido"></div>
-
-
-
 
 <div style="position: fixed; bottom: 50px; left: 0; width: 100%; z-index: 1000; pointer-events: none;">
 <div id="lista-inmuebles-sheet" class="bottom-sheet-hibrido" style="display:none; position: relative; bottom: 0;"></div>
 <button id="btn-cerrar-inmuebles" onclick="cerrarSheetInmuebles()" style="display: none; pointer-events: all; position: absolute; top: -45px; right: 15px; background: rgba(10,10,12,0.95); color: white; border: 1px solid var(--naranja); border-radius: 50%; width: 32px; height: 32px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1001; cursor: pointer; transition: transform 0.2s;">✖</button>
 </div>
 
-
-
-
 <div class="map-options">
-<div class="map-tag active" onclick="cambiarMapa('clasico', this)">Clásico</div>
-<div class="map-tag" onclick="cambiarMapa('rayosx', this)">Rayos X</div>
-<div class="map-tag" onclick="cambiarMapa('neon', this)">Neón Naranja</div>
-<div class="map-tag" onclick="cambiarMapa('lite', this)">Bajo Gwai</div>
-<div class="map-tag" onclick="cambiarMapa('satelite', this)">Satélite</div>
-<div id="btn-giro-toggle" class="map-tag" style="background: rgba(0, 255, 255, 0.1); border-color: #0ff; color: #0ff; display: none;" onclick="toggleRadarInmersivo(this)">🧭 Activar Radar 3D</div>
+    <div class="map-tag active" onclick="cambiarMapa('satelite', this)">Satelital</div>
+    <div class="map-tag" onclick="cambiarMapa('rayosx', this)">Rayos X</div>
+    <div class="map-tag" onclick="cambiarMapa('lite', this)">Bajo Gwai</div>
+    <div id="btn-giro-toggle" class="map-tag" style="background: rgba(0, 255, 255, 0.1); border-color: #0ff; color: #0ff; display: none;" onclick="toggleRadarInmersivo(this)">🧭 Activar Radar 3D</div>
 </div>
+
 <div class="bottom-sheet-overlay" id="modal-login" onclick="cerrarModalFuera(event, 'modal-login')">
 <div class="bottom-sheet-contenido" id="sheet-login">
 <div class="drag-handle"></div>
-<h2 style="color: var(--naranja); margin-top: 0; text-transform: uppercase; letter-spacing: 2px; text-align: center;">Portal de Mando</h2>
+<h2 style="margin-top: 0; text-transform: uppercase; letter-spacing: 2px; text-align: center; font-size: 24px; font-weight: 900;">
+    Ingresa a <br>
+    <span style="color: #ff6b00; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">GEO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);">KATU</span>
+</h2>
 <div id="form-login-activo">
-<div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 15px; text-align: left; background: rgba(255,107,0,0.05); padding: 10px; border-radius: 8px; border: 1px solid rgba(255,107,0,0.2);">
-<input type="checkbox" id="acepta-terminos-mando" style="margin-top: 3px; accent-color: var(--naranja); transform: scale(1.2);">
-<label for="acepta-terminos-mando" style="font-size: 11px; color: #ccc; line-height: 1.4;">
-Declaro ser mayor de 18 años y acepto los <a href="terminos.html" target="_blank" style="color: var(--naranja); text-decoration: underline;">Términos, Condiciones y Contrato de Mandato</a>.
-</label>
-</div>
 
+    <!-- 1. Botón de Google Gigante -->
+    <button class="btn-auth" style="background: white; color: #222; display: flex; align-items: center; justify-content: center; gap: 10px; border: 1px solid #ddd; box-shadow: 0 4px 10px rgba(0,0,0,0.15); transition: 0.3s; width: 100%; padding: 14px; font-size: 15px; border-radius: 12px; margin-bottom: 20px;" onclick="window.iniciarConGoogle();">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" height="20"> Continuar con Google
+    </button>
 
+    <!-- 2. Divisor Elegante -->
+    <div style="display: flex; align-items: center; text-align: center; color: #888; font-size: 12px; margin-bottom: 20px;">
+        <div style="flex: 1; border-bottom: 1px solid #444;"></div>
+        <span style="padding: 0 10px;">o ingresa con tu correo</span>
+        <div style="flex: 1; border-bottom: 1px solid #444;"></div>
+    </div>
 
+    <!-- 3. Formulario Limpio -->
+    <form id="form-login-portal" onsubmit="event.preventDefault(); if(document.getElementById('miel-mando').value !== '') return; window.iniciarSesion();">
+        <input type="text" id="miel-mando" name="miel_bot" style="position:absolute; left:-9999px; opacity:0;" tabindex="-1" autocomplete="off">
+        
+        <input type="email" id="login-email" name="email" class="input-login" placeholder="Correo electrónico" autocomplete="username" required style="width: 100%; margin-bottom: 10px; border-radius: 8px;">
+        
+        <div style="position: relative; width: 100%; margin-bottom: 5px;">
+            <input type="password" id="login-pass" name="password" class="input-login" placeholder="Contraseña" autocomplete="current-password" required style="width: 100%; padding-right: 45px; border-radius: 8px;">
+            <button type="button" onclick="toggleVerPassword('login-pass', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: #888; font-size: 18px; cursor: pointer; padding: 5px; z-index: 10;">👁️</button>
+        </div>
+        
+        <div style="text-align: right; margin-bottom: 15px;">
+            <a href="mailto:soporte@tuqrpido.com" style="color: #aaa; font-size: 11px; text-decoration: underline;">¿Olvidaste tu contraseña?</a>
+        </div>
+        <div style="text-align: right; margin-bottom: 15px;">
+            <a href="mailto:soporte@tuqrpido.com" style="color: #aaa; font-size: 11px; text-decoration: underline;">¿Olvidaste tu contraseña?</a>
+        </div>
 
-<button class="btn-auth" style="background: white; color: #222; display: flex; align-items: center; justify-content: center; gap: 10px; border: 1px solid #ddd; box-shadow: 0 4px 10px rgba(0,0,0,0.15); transition: 0.3s;" onclick="if(!document.getElementById('acepta-terminos-mando').checked) { alert('⚠️ Debes aceptar los Términos y el Contrato de Mandato.'); return; } iniciarConGoogle();">
-<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" height="18"> Iniciar sesión con tu cuenta de Google
-</button>
-<div style="text-align: center; margin: 10px 0; color: #888; font-size: 12px;">O INGRESA CON TU CORREO</div>
-<form id="form-login-portal" onsubmit="event.preventDefault(); if(document.getElementById('miel-mando').value !== '') return; if(!document.getElementById('acepta-terminos-mando').checked) { alert('⚠️ Debes aceptar los Términos y el Contrato de Mandato.'); return; } iniciarSesion();">
-<input type="text" id="miel-mando" name="miel_bot" style="position:absolute; left:-9999px; opacity:0;" tabindex="-1" autocomplete="off">
+        <!-- 🛡️ ESCUDO RECAPTCHA V2 INYECTADO AQUÍ -->
+        <div class="recaptcha-container" style="display: flex; justify-content: center; margin-bottom: 15px; transform: scale(0.90);">
+            <div class="g-recaptcha" data-sitekey="6LeT74wtAAAAAMeqXa4L9kkNdFLqjzEjsykUD5ET" data-theme="dark"></div>
+        </div>
 
+        <button type="submit" class="btn-auth btn-ingresar" id="btn-login-accion" style="width: 100%; padding: 12px; border-radius: 8px; font-size: 14px;">Iniciar Sesión</button>
 
+        <button type="submit" class="btn-auth btn-ingresar" id="btn-login-accion" style="width: 100%; padding: 12px; border-radius: 8px; font-size: 14px;">Iniciar Sesión</button>
+    </form>
 
+    <!-- 4. Texto Legal Sutil -->
+    <p style="text-align: center; color: #777; font-size: 10px; margin-top: 15px; margin-bottom: 25px; line-height: 1.4;">
+        Al continuar, aceptas el <a href="terminos.html" target="_blank" style="color: #ff6b00; text-decoration: none;">Contrato de Mandato y Términos</a>.
+    </p>
 
-<input type="email" id="login-email" name="email" class="input-login" placeholder="Correo electrónico" autocomplete="username" required>
-<div style="position: relative; width: 100%;">
-<input type="password" id="login-pass" name="password" class="input-login" placeholder="Contraseña" autocomplete="current-password" required style="padding-right: 45px;">
-<button type="button" onclick="toggleVerPassword('login-pass', this)" style="position: absolute; right: 10px; top: 40%; transform: translateY(-50%); background: transparent; border: none; color: #888; font-size: 18px; cursor: pointer; padding: 5px; z-index: 10;">👁️</button>
-</div>
-<button type="submit" class="btn-auth btn-ingresar" id="btn-login-accion">Ingresar a mi Oficina</button>
-</form>
+    <!-- 5. El Puente al Registro (Llamativo) -->
+    <div style="background: rgba(255, 107, 0, 0.05); border: 1px solid rgba(255, 107, 0, 0.2); border-radius: 12px; padding: 15px; text-align: center;">
+        <p style="margin: 0 0 10px 0; color: #ddd; font-size: 13px;">¿Eres nuevo en la plataforma?</p>
+        <button onclick="window.location.href='acceso.html'" style="width: 100%; background: transparent; border: 1px solid #ff6b00; color: #ff6b00; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.3s; font-size: 14px; text-transform: uppercase;">Regístrate Aquí</button>
+    </div>
 
-
-
-
-
-
-
-
-<button class="btn-auth btn-registrar" id="btn-redir-registro" onclick="window.location.href='admin.html'">Registrar mi Negocio</button>
 </div>
 <div id="panel-usuario-activo" style="display: none; text-align: center; padding-top: 15px;">
 <h3 id="nombre-usuario-activo" style="margin: 0 0 20px 0; color: var(--naranja); font-size: 18px; word-break: break-all;">Cargando...</h3>
-<button class="btn-auth btn-ingresar" onclick="window.location.href='admin.html'">Ir a mi Oficina</button>
+<!-- Reemplaza el onclick o el href que tenga actualmente por este: -->
+<button class="tu-clase-de-boton-naranja" onclick="irAMiOficinaInteligente()">
+    🏢 IR A MI OFICINA
+</button>
+
 <button class="btn-auth btn-registrar" onclick="cerrarSesion()" style="border-color: #ff4444; color: #ff4444;">Cerrar Sesión</button>
 </div>
 </div>
@@ -531,18 +533,12 @@ Declaro ser mayor de 18 años y acepto los <a href="terminos.html" target="_blan
 </label>
 </div>
 
-
-
-
 <button onclick="if(!document.getElementById('acepta-terminos-radar').checked) { alert('⚠️ Debes aceptar los Términos y el Contrato de Mandato.'); return; } loginGoogleRadar()" style="width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #ddd; font-weight: bold; cursor: pointer; background: white; color: #222; display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.15); transition: 0.3s;">
 <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" width="18" height="18"> Iniciar sesión con tu cuenta de Google
 </button>
 <div style="text-align: center; margin: 10px 0 15px; color: #888; font-size: 12px;">O INGRESA CON TU CORREO</div>
 <form onsubmit="event.preventDefault(); if(document.getElementById('miel-radar').value !== '') return; if(!document.getElementById('acepta-terminos-radar').checked) { alert('⚠️ Debes aceptar los Términos y el Contrato de Mandato.'); return; } loginTradicionalRadar();">
 <input type="text" id="miel-radar" name="miel_bot" style="position:absolute; left:-9999px; opacity:0;" tabindex="-1" autocomplete="off">
-
-
-
 
 <input type="email" id="radar-email" name="email" placeholder="Correo electrónico" autocomplete="username" required style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 12px; border-radius: 12px; margin-bottom: 10px; box-sizing: border-box;">
 <div style="position: relative; width: 100%; margin-bottom: 15px;">
@@ -552,122 +548,126 @@ Declaro ser mayor de 18 años y acepto los <a href="terminos.html" target="_blan
 <button type="submit" id="btn-radar-accion" style="width: 100%; padding: 12px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; background: #ff6b00; color: white;">Iniciar Sesión</button>
 </form>
 
-
-
-
 <button onclick="document.getElementById('modal-login-radar').style.display='none'" style="width: 100%; background: transparent; color: #aaa; border: none; margin-top: 10px; cursor: pointer;">Cancelar</button>
 </div>
 </div>
 <script type="module">
-import './auth-mando.js'; 
-import './motor-mapa.js'; 
-import './motor-movilidad.js'; // 📡 CONEXIÓN QUIRÚRGICA: Hilo aislado de telemetría P2P
-
-
-// 🛡️ PUENTE DE MÓDULOS: Las funciones de login viven en auth-mando.js. 
-// Asegúrate de que auth-mando.js asigne 'window.loginGoogleRadar = ...' internamente para que el HTML las vea.
-
-
-
-
-// --- 📊 MICRO-PROFILER QRPIDO (LÍNEA BASE ANDROID 1.5GB) ---
+// --- 📊 MICRO-PROFILER GEOKATU (LÍNEA BASE ANDROID 1.5GB) ---
 window.qrpidoLog = [];
-
-
-
-
 window.tiempoArranque = performance.now();
 window.qrpidoLog.push(`[0ms] 🚀 INICIO DE EJECUCIÓN (Motor Arrancado)`);
-// ⏱️ Cronómetro de alta precisión para medir el costo de CPU
+
 window.cronometrar = function(nombreTarea, tareaFuncion) {
-return function(...args) {
-const t0 = performance.now();
-const resultado = tareaFuncion.apply(this, args);
-const t1 = performance.now();
-const costo = (t1 - t0).toFixed(2);
-window.qrpidoLog.push(`[${(t1 - window.tiempoArranque).toFixed(0)}ms] ⚙️ PROCESO: '${nombreTarea}' costó ${costo}ms`);
-return resultado;
+    return function(...args) {
+        const t0 = performance.now();
+        const resultado = tareaFuncion.apply(this, args);
+        const t1 = performance.now();
+        window.qrpidoLog.push(`[${(t1 - window.tiempoArranque).toFixed(0)}ms] ⚙️ PROCESO: '${nombreTarea}' costó ${(t1 - t0).toFixed(2)}ms`);
+        return resultado;
+    };
 };
-};
+
 window.registrarPaso = function(mensaje) {
-const t = (performance.now() - window.tiempoArranque).toFixed(0);
-window.qrpidoLog.push(`[${t}ms] 📍 ${mensaje}`);
+    window.qrpidoLog.push(`[${(performance.now() - window.tiempoArranque).toFixed(0)}ms] 📍 ${mensaje}`);
 };
 
+// 🧠 BOOTLOADER INTELIGENTE CON MANEJO DE ERRORES DE MÓDULO
+async function inicializarSistema() {
+    try {
+        window.registrarPaso("Iniciando inyección de módulos...");
+        
+        // Importación dinámica: Si uno falla por sintaxis, el 'catch' lo atrapa.
+        await import('./auth-mando.js');
+        window.registrarPaso("Módulo Auth OK");
+        
+        await import('./motor-mapa.js');
+        window.registrarPaso("Módulo Mapa OK");
+        
+        await import('./motor-movilidad.js');
+        window.registrarPaso("Módulo Movilidad P2P OK");
 
+        window.registrarPaso("Todos los módulos inyectados. Arrancando motor principal...");
+        
+        if (typeof window.arrancarMotor === 'function') {
+            window.arrancarMotor();
+        } else {
+            throw new Error("window.arrancarMotor no está definido. Revisa el final de motor-mapa.js");
+        }
 
-
-if ('serviceWorker' in navigator) {
-
-
-
-
-window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').then(reg => console.log('PWA lista y blindada.', reg.scope)).catch(err => console.log('PWA falló:', err)); });
+    } catch (error) {
+        console.error("Fallo crítico en el Bootloader:", error);
+        if (typeof mostrarCartelErrorYDescargar === 'function') {
+            mostrarCartelErrorYDescargar(
+                'FALLO DE COMPILACIÓN (MODULE PARSE ERROR)', 
+                `El motor falló al ensamblarse. Revisar sintaxis.\n\nArchivo/Detalle:\n${error.message}\n${error.stack || ''}`
+            );
+        } else {
+            alert("ERROR FATAL AL CARGAR MÓDULOS: " + error.message);
+        }
+    }
 }
+
+// Service Worker
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => { 
+        navigator.serviceWorker.register('sw.js')
+            .then(reg => console.log('PWA lista y blindada.', reg.scope))
+            .catch(err => console.log('PWA falló:', err)); 
+    });
+}
+
 window.addEventListener('offline', () => document.getElementById('offline-banner').classList.add('activo'));
 window.addEventListener('online', () => document.getElementById('offline-banner').classList.remove('activo'));
 if (!navigator.onLine) document.getElementById('offline-banner').classList.add('activo');
 
-
-
-
-window.arrancarMotor();
-
-
-
+// DISPARO INICIAL DEL SISTEMA
+inicializarSistema();
 
 // EL CEREBRO CENTRAL DE ACCIONES DEL MAPA (Event Delegation)
-
-
-
-
 document.body.addEventListener('click', (e) => {
-// Buscamos si se hizo clic en un elemento interactivo
-const elementoAccion = e.target.closest('[class*="js-action-"]');
-if (!elementoAccion) return;
-const clases = elementoAccion.classList;
-// 1. Botón de COMPARTIR
-if (clases.contains('js-action-compartir')) {
-const codigo = elementoAccion.dataset.codigo;
-const nombre = elementoAccion.dataset.nombre;
-let username = elementoAccion.dataset.username;
-if (username === 'null' || username === 'undefined') username = null;
-if (typeof window.compartirTienda === 'function') {
-window.compartirTienda(e, codigo, nombre, username);
-}
-}
-// 2. Botón de FAVORITO (Corazón)
-else if (clases.contains('js-action-favorito')) {
-const codigo = elementoAccion.dataset.codigo;
-const nombre = elementoAccion.dataset.nombre;
-const precio = elementoAccion.dataset.precio;
-const portada = elementoAccion.dataset.portada;
-const whatsapp = elementoAccion.dataset.whatsapp;
-if (typeof window.toggleFavorito === 'function') {
-window.toggleFavorito(codigo, nombre, precio, portada, whatsapp, e);
-}
-}
-// 3. Botón de VER DETALLES (Click al catálogo)
-else if (clases.contains('js-action-ver-detalles')) {
-const codigo = elementoAccion.dataset.codigo;
-const nicho = elementoAccion.dataset.nicho;
-if (typeof window.registrarClicVerDetalles === 'function') {
-window.registrarClicVerDetalles(codigo, nicho);
-}
-}
+    // Buscamos si se hizo clic en un elemento interactivo
+    const elementoAccion = e.target.closest('[class*="js-action-"]');
+    if (!elementoAccion) return;
+    const clases = elementoAccion.classList;
+    // 1. Botón de COMPARTIR
+    if (clases.contains('js-action-compartir')) {
+        const codigo = elementoAccion.dataset.codigo;
+        const nombre = elementoAccion.dataset.nombre;
+        let username = elementoAccion.dataset.username;
+        if (username === 'null' || username === 'undefined') username = null;
+        if (typeof window.compartirTienda === 'function') {
+            window.compartirTienda(e, codigo, nombre, username);
+        }
+    }
+    // 2. Botón de FAVORITO (Corazón)
+    else if (clases.contains('js-action-favorito')) {
+        const codigo = elementoAccion.dataset.codigo;
+        const nombre = elementoAccion.dataset.nombre;
+        const precio = elementoAccion.dataset.precio;
+        const portada = elementoAccion.dataset.portada;
+        const whatsapp = elementoAccion.dataset.whatsapp;
+        if (typeof window.toggleFavorito === 'function') {
+            window.toggleFavorito(codigo, nombre, precio, portada, whatsapp, e);
+        }
+    }
+    // 3. Botón de VER DETALLES (Click al catálogo)
+    else if (clases.contains('js-action-ver-detalles')) {
+        const codigo = elementoAccion.dataset.codigo;
+        const nicho = elementoAccion.dataset.nicho;
+        if (typeof window.registrarClicVerDetalles === 'function') {
+            window.registrarClicVerDetalles(codigo, nicho);
+        }
+    }
 });
+
 // --- 🩺 ESCÁNER DE HARDWARE Y MEMORIA MODULAR ---
 import './profiler.js';
 
-
-
-
 // ⚡ Lógica Fintech: Pasarela de Recarga (Wompi) con Sincronía Saga Correcta
 window.abrirPasarelaRecarga = async function() {
-    const { default: QRpidoDB } = await import('./core-db.js');
+    const { default: GeokatuDB } = await import('./core-db.js');
     
-    // 🛡️ SOLUCIÓN ASÍNCRONA: Usamos el observador de la capa Core en lugar de un getter síncrono inexistente
-    QRpidoDB.SecurityService.observarEstadoSesion((user) => {
+    GeokatuDB.SecurityService.observarEstadoSesion((user) => {
         if (!user) {
             document.getElementById('modal-login').classList.add('activo');
             return;
@@ -691,10 +691,32 @@ window.abrirPasarelaRecarga = async function() {
         });
     });
 };
+      // 👻 TRAMPA ANTI-FANTASMAS: Se ejecuta apenas carga el mapa
+    import('./core-db.js').then(({ default: GeokatuDB }) => {
+        GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
+            if (user) {
+                // El usuario está logueado. Vamos a ver si tiene bóveda.
+                const infoNegocio = await GeokatuDB.AdminService.obtenerNegocioPorUsuario(user.uid);
+                
+                // Si la base de datos dice que no hay datos o la petición falla, ES UN FANTASMA.
+                if (!infoNegocio.success || !infoNegocio.data) {
+                    console.log("FANTASMA DETECTADO: Forzando Onboarding...");
+                    
+                    // Cerramos cualquier modal abierto
+                    const modalLogin = document.getElementById('modal-login');
+                    if (modalLogin) modalLogin.classList.remove('activo');
+                    
+                    // Disparamos el Carrusel inmediatamente
+                    if (typeof window.dispararOnboardingPerfiles === 'function') {
+                        window.dispararOnboardingPerfiles();
+                    }
+                }
+            }
+        });
+    }).catch(error => console.error("Error al iniciar Trampa Anti-Fantasmas:", error));
 
 
-
-
+  
 // 🛡️ Lógica UX: Cerrar Inmuebles respetando la Regla Estricta (No resetear categoría)
 window.cerrarSheetInmuebles = function() {
     const sheet = document.getElementById('lista-inmuebles-sheet');
@@ -702,9 +724,6 @@ window.cerrarSheetInmuebles = function() {
     if(navigator.vibrate) navigator.vibrate(20);
     // Categoría intacta, el usuario sigue viendo inmuebles en el mapa.
 };
-
-
-
 
 // 👆 Físicas de Swipe (Deslizar arriba/abajo para cerrar)
 setTimeout(() => {
@@ -718,20 +737,23 @@ setTimeout(() => {
         if (Math.abs(cY - sY) > 50 && cY !== 0) window.cerrarSheetInmuebles();
         sY = cY = 0;
     });
-}, 1500); // Delay asegurando carga del DOM//
+}, 1500); // Delay asegurando carga del DOM
 </script>
 <script>
-        // 🕵️‍♂️ ESPÍA DE SESIÓN: Alterna dinámicamente entre "Iniciar Sesión" y "Mi Oficina"
+
+    // 🕵️‍♂️ ESPÍA DE SESIÓN: Alterna dinámicamente entre "Iniciar Sesión" y "Mi Oficina"
     window.addEventListener('DOMContentLoaded', () => {
         const observerAuth = new MutationObserver(() => {
             const panelActivo = document.getElementById('panel-usuario-activo');
             const btnLoginSub = document.getElementById('btn-login-submenu');
             const btnMiOficina = document.getElementById('btn-mi-oficina');
+            const btnModoConductor = document.getElementById('btn-panel-conductor'); 
             
             if (panelActivo) {
                 const usuarioLogueado = panelActivo.style.display !== 'none';
                 if (btnLoginSub) btnLoginSub.style.display = usuarioLogueado ? 'none' : 'block';
                 if (btnMiOficina) btnMiOficina.style.display = usuarioLogueado ? 'block' : 'none';
+                if (btnModoConductor) btnModoConductor.style.display = usuarioLogueado ? 'block' : 'none'; 
             }
         });
         const nodoObservado = document.getElementById('panel-usuario-activo');
@@ -740,7 +762,6 @@ setTimeout(() => {
         }
     });
 </script>
-
 
 <div class="bottom-sheet-overlay" id="modal-apreton">
     <div class="bottom-sheet-contenido">
@@ -760,7 +781,6 @@ setTimeout(() => {
     </div>
 </div>
 
-
 <div class="bottom-sheet-overlay" id="modal-unidad-info">
     <div class="bottom-sheet-contenido">
         <div class="drag-handle"></div>
@@ -774,7 +794,6 @@ setTimeout(() => {
         <button class="pin-btn" style="width: 100%; background: transparent; border: none; color: #888; margin-top: 10px;" onclick="window.cerrarModal('modal-unidad-info')">Cerrar Monitor</button>
     </div>
 </div>
-
 
 <div class="bottom-sheet-overlay" id="modal-onboarding-biometrico">
     <div class="bottom-sheet-contenido" style="max-height: 90vh; overflow-y: auto;">
@@ -791,7 +810,6 @@ setTimeout(() => {
     </div>
 </div>
 
-
 <div class="bottom-sheet-overlay" id="modal-cierre-legal">
     <div class="bottom-sheet-contenido">
         <div class="drag-handle"></div>
@@ -806,7 +824,207 @@ setTimeout(() => {
         <button class="pin-btn" style="width:100%; margin-top:10px; background:transparent; border:none; color:#777;" onclick="window.cerrarModal('modal-cierre-legal')">Volver al Turno</button>
     </div>
 </div>
+<!-- =========================================================
+     CARRUSEL ÁUREO DE SELECCIÓN DE PERFILES (ONBOARDING)
+     ========================================================= -->
+<style>
+    /* Estilos del Carrusel Horizontal */
+    .contenedor-carrusel-perfiles {
+        display: none; position: fixed; inset: 0; z-index: 100000;
+        background: rgba(10, 10, 12, 0.95); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+        flex-direction: column; justify-content: center;
+    }
+    .titulo-onboarding {
+        color: white; text-align: center; font-size: 20px; font-weight: 900; letter-spacing: 1px;
+        text-transform: uppercase; margin-bottom: 30px; line-height: 1.3;
+    }
+    .track-carrusel {
+        display: flex; gap: 20px; overflow-x: auto; scroll-snap-type: x mandatory;
+        padding: 0 10vw 40px 10vw; scrollbar-width: none;
+    }
+    .track-carrusel::-webkit-scrollbar { display: none; }
+    
+    .tarjeta-aurea {
+        min-width: 75vw; height: 350px; scroll-snap-align: center;
+        border-radius: 21px; position: relative; overflow: hidden;
+        border: 1px solid rgba(255, 107, 0, 0.3); box-shadow: 0 15px 30px rgba(0,0,0,0.8);
+        cursor: pointer; transition: transform 0.2s;
+        background-size: cover; background-position: center;
+    }
+    .tarjeta-aurea:active { transform: scale(0.97); }
+    .capa-oscura-tarjeta {
+        position: absolute; inset: 0; background: linear-gradient(to bottom, transparent 30%, #19191e 100%);
+        display: flex; align-items: flex-end; padding: 20px;
+    }
+    .tarjeta-aurea h3 {
+        margin: 0; font-size: 22px; font-weight: 900; text-transform: uppercase; color: white;
+        text-shadow: 0 4px 10px rgba(0,0,0,0.8);
+    }
 
+    /* Estilos de la Expansión (Hero Expansion 38.2 / 61.8) */
+    .hero-expansion {
+        display: none; position: fixed; inset: 0; z-index: 100001; flex-direction: column;
+        transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+        background: #19191e; overflow: hidden;
+    }
+    .hero-expansion.activo { transform: translateY(0); }
+    
+    .hero-top-38 { height: 38.2vh; background-size: cover; background-position: center; position: relative; }
+    .hero-top-38::after {
+        content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 60%;
+        background: linear-gradient(to bottom, transparent, #19191e);
+    }
+    
+    .hero-bot-61 {
+        height: 61.8vh; background: #19191e; padding: 25px 20px;
+        display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box;
+    }
+    
+    .btn-hero-primario {
+        width: 100%; padding: 16px; border-radius: 12px; border: none; font-weight: 900;
+        cursor: pointer; background: #ff6b00; color: white; font-size: 15px; text-transform: uppercase;
+        letter-spacing: 1px; box-shadow: 0 10px 20px rgba(255, 107, 0, 0.4); margin-bottom: 15px;
+    }
+    .btn-hero-secundario {
+        width: 100%; padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);
+        background: transparent; color: #aaa; font-weight: bold; cursor: pointer; text-transform: uppercase;
+    }
+</style>
+
+<!-- 1. EL CARRUSEL FLOTANTE -->
+<div id="carrusel-perfiles-ui" class="contenedor-carrusel-perfiles">
+    <div class="titulo-onboarding">
+        ¿Qué tipo de registro<br><span style="color: #ff6b00;">quieres realizar?</span>
+    </div>
+    
+    <div class="track-carrusel">
+        <!-- Tarjeta 1 -->
+        <div class="tarjeta-aurea" style="background-image: url('https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80');" onclick="abrirHeroPerfil('comerciante')">
+            <div class="capa-oscura-tarjeta">
+                <h3>Comercio / Servicios</h3>
+            </div>
+        </div>
+        <!-- Tarjeta 2 -->
+        <div class="tarjeta-aurea" style="background-image: url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80');" onclick="abrirHeroPerfil('inmuebles')">
+            <div class="capa-oscura-tarjeta">
+                <h3>Inmobiliaria</h3>
+            </div>
+        </div>
+                <!-- Tarjeta 3 (Existente) -->
+        <div class="tarjeta-aurea" style="background-image: url('https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80');" onclick="abrirHeroPerfil('usuario')">
+            <div class="capa-oscura-tarjeta">
+                <h3>Usuario Explorador</h3>
+            </div>
+        </div>
+        
+        <!-- NUEVA: Tarjeta 4 (Conductores) -->
+        <div class="tarjeta-aurea" style="background-image: url('https://images.unsplash.com/photo-1551281622-7cc8a6316279?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80');" onclick="abrirHeroPerfil('conductor')">
+            <div class="capa-oscura-tarjeta">
+                <h3>Socio Conductor</h3>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- 2. LA EXPANSIÓN ÁUREA (HERO) -->
+<div id="hero-perfil-ui" class="hero-expansion">
+    <div id="hero-img-bg" class="hero-top-38"></div>
+    <div class="hero-bot-61">
+        <div>
+            <!-- Branding dinámico inyectado aquí -->
+            <h1 id="hero-titulo-text" style="margin: 0; font-size: 26px; font-weight: 900; line-height: 1.1; margin-bottom: 15px;">...</h1>
+            <p id="hero-desc-text" style="color: #ccc; font-size: 15px; line-height: 1.5; margin: 0;"></p>
+        </div>
+        <div>
+            <button class="btn-hero-primario" onclick="redirigirAlOnboarding()">ELEGIR ESTE PERFIL</button>
+            <button class="btn-hero-secundario" onclick="cerrarHeroPerfil()">Explorar otras opciones</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Base de datos de los perfiles con el branding exigido
+            // Base de datos de los perfiles con el branding visual curado
+    const dataPerfiles = {
+        'comerciante': {
+            titulo: '<span style="color: #ff6b00; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.8));">SOCIO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);"> COMERCIAL</span>',
+            desc: 'Digitaliza tu local o tus servicios. Construye un catálogo exclusivo que conecta a tus clientes directamente a tu WhatsApp o Telegram. Administra empleados, gestiona tu punto de venta y haz seguimiento de inventario en tiempo real (puedes incluso conectar lectores de código de barras USB a tu celular). Controla múltiples bodegas y tiendas separadas desde un solo lugar. ¡Bienvenido a la red social de comerciantes más única del mundo!',
+            img: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+            destino: 'boveda-comercio.html'
+        },
+        'inmuebles': {
+            titulo: '<span style="color: #ff6b00; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.8));">INMO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);">BILIARIA</span>',
+            desc: 'Publica bienes raíces bajo nuestro estricto protocolo de calidad. Nosotros gestionamos el contacto y aseguramos la exclusividad del trato.',
+            img: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+            destino: 'boveda-inmuebles.html'
+        },
+        'usuario': {
+            titulo: '<span style="color: #ff6b00; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.8));">CIUDADANO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);"> ACTIVO</span>',
+            desc: 'Accede a la micro-economía urbana. Realiza un pago único de 3.900 COP para habilitar tu billetera interna, pagar domicilios y tramitar contratos digitales de forma segura.',
+            img: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+            destino: 'boveda-usuario.html'
+        },
+        'conductor': {
+            titulo: '<span style="color: #ff6b00; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.8));">SOCIO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);"> CONDUCTOR</span>',
+            desc: 'Conviértete en el motor de la ciudad. Recibe solicitudes de entrega y transporte en tiempo real con nuestra interfaz táctica. Visualiza tus ganancias, opera bajo tus propios horarios y liquida tus servicios a través de la red.',
+            img: 'https://images.unsplash.com/photo-1551281622-7cc8a6316279?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+            destino: 'boveda-conductor.html'
+        }
+    };
+
+
+
+    let perfilSeleccionado = null;
+
+    // Función para invocar el carrusel (Se llamará cuando el Login diga esNuevo: true)
+    window.dispararOnboardingPerfiles = function() {
+        document.getElementById('carrusel-perfiles-ui').style.display = 'flex';
+    };
+
+    // Función que expande la tarjeta tocada
+    window.abrirHeroPerfil = function(idPerfil) {
+        perfilSeleccionado = idPerfil;
+        const data = dataPerfiles[idPerfil];
+        
+        // Inyectar datos respetando el ADN
+        document.getElementById('hero-img-bg').style.backgroundImage = `url('${data.img}')`;
+        document.getElementById('hero-titulo-text').innerHTML = data.titulo;
+        document.getElementById('hero-desc-text').innerHTML = data.desc;
+        
+        // Mostrar con transición
+        const heroUI = document.getElementById('hero-perfil-ui');
+        heroUI.style.display = 'flex';
+        // Pequeño delay para que el navegador procese el display:flex antes de la animación
+        setTimeout(() => {
+            heroUI.classList.add('activo');
+        }, 10);
+    };
+
+    window.cerrarHeroPerfil = function() {
+        const heroUI = document.getElementById('hero-perfil-ui');
+        heroUI.classList.remove('activo');
+        setTimeout(() => {
+            heroUI.style.display = 'none';
+        }, 400); // Esperar que termine la transición CSS
+    };
+
+    window.redirigirAlOnboarding = function() {
+        if (!perfilSeleccionado) return;
+        const urlDestino = dataPerfiles[perfilSeleccionado].destino;
+        
+        // Efecto visual inmersivo antes de saltar de página
+        document.body.style.transition = "opacity 0.5s ease";
+        document.body.style.opacity = "0";
+        
+        setTimeout(() => {
+            window.location.href = urlDestino;
+        }, 500);
+    };
+    
+    // TEST RAPIDO (Comenta esta línea cuando lo vayas a usar en producción)
+    // setTimeout(() => { window.dispararOnboardingPerfiles(); }, 2000); 
+</script>
 
 </body>
 </html>
