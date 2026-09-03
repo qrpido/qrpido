@@ -539,7 +539,7 @@ const GeokatuDB = {
         buscarEnRadar: async (lat, lng, radiusInM) => {
             if (!db || typeof geofire === 'undefined') return { success: false, error: 'Firebase o GeofireX no listos' };
             try {
-                const radiusInKm = radiusInM; 
+                const radiusInKm = radiusInM / 1000; 
                 const bounds = geofire.geohashQueryBounds([lat, lng], radiusInKm);
                 const promises = [];
                 for (const b of bounds) {
@@ -564,7 +564,7 @@ const GeokatuDB = {
         buscarInmueblesEnRadar: async (lat, lng, radiusInM) => {
             if (!db || typeof geofire === 'undefined') return { success: false, error: 'Firebase o GeofireX no listos' };
             try {
-                const radiusInKm = radiusInM;
+                const radiusInKm = radiusInM / 1000;
                 const bounds = geofire.geohashQueryBounds([lat, lng], radiusInKm);
                 const promises = [];
                 for (const b of bounds) {

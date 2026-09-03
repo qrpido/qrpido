@@ -348,4 +348,18 @@ Actúa como el Fiscal Jefe de la Unidad de Delitos Financieros, Tecnológicos y 
 
 ////////////fin de los prompts de la parte legal///////////////////////////
 
-
+Prompt Maestro para Localización de Dependencias:
+​"Modo supervivencia escalable activado. Vamos a independizar Geokatu de servidores de terceros para proteger el ancho de banda y garantizar el funcionamiento offline. Necesito que me des el código exacto y los pasos para:
+​Descargar y enlazar localmente las librerías qrcode.min.js y openlocationcode.min.js en mi index.html.
+​Eliminar todas las imágenes externas temporales (como via.placeholder.com o el logo de Google de wikimedia.org) y reemplazarlas por SVGs ligeros inyectados directamente en el código o assets locales.
+​Entregarme el bloque de código actualizado para mi Service Worker (sw.js) de manera que estos nuevos archivos locales se guarden en caché para la PWA.
+Dame instrucciones directas y el código listo para reemplazar."
+​Volviendo al rescate del mapa y los pines:
+​Ya arreglamos el documento de la Bóveda para que genere el geohash correctamente y deje de guardar la basura matemática en el ui_pack.
+​Para que el mapa muestre el pin, el siguiente paso es estrictamente operativo de tu lado:
+​Abre boveda-comercio.html desde tu celular.
+​Ve a la pestaña de Perfil y asegúrate de que el minimapa tiene la ubicación de tu local.
+​Baja hasta la sección de Diseño del Pin y presiona el botón naranja "GUARDAR EN EL RADAR".
+​Ahora abre index.html.
+​Si después de hacer este proceso el pin sigue sin aparecer en el mapa, el problema ya no es cómo se guarda el dato, sino cómo el mapa lo está leyendo. En ese caso, la siguiente revisión quirúrgica debe ser en el documento motor-mapa.js (donde ocurre la magia de renderizar los puntos).
+//////////////

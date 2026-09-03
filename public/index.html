@@ -48,23 +48,20 @@
 
     // 🛡️ ESCUDO 1: Errores de sintaxis y gráficos fantasma
     window.onerror = function(message, source, lineno, colno, error) {
-        if (message.includes("Failed to execute 'removeChild'") || message.includes("lineAtlas")) return true; // Ignora fallos gráficos nativos
+        if (message.includes("Failed to execute 'removeChild'") || message.includes("lineAtlas")) return true; 
         const detalle = `Mensaje: ${message}\nLínea: ${lineno}:${colno}\nArchivo: ${source}`;
         mostrarCartelErrorYDescargar('ERROR DE SINTAXIS', detalle);
         return true; 
     };
 
-    // 🛡️ ESCUDO 2: Promesas y red (AQUÍ MATAMOS EL ERROR DE PMTILES)
+    // 🛡️ ESCUDO 2: Promesas y red
     window.addEventListener('unhandledrejection', function(event) {
         const strReason = event.reason ? (event.reason.stack || event.reason.message || String(event.reason)) : '';
-        
-        // El bloqueador silencioso
         if (strReason.includes('clearTiles') || strReason.includes('pmtiles')) {
             console.warn("🛡️ Escudo PMTiles: Interrupción de renderizado cancelada. El mapa fluye.");
             event.preventDefault(); 
             return false;
         }
-
         const detalle = `Razón: ${strReason || 'Desconocida'}`;
         mostrarCartelErrorYDescargar('ERROR DE RED / PROMESA', detalle);
     });
@@ -82,108 +79,81 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/openlocationcode@1.0.4/openlocationcode.min.js"></script>
 <script type="text/javascript" src="https://checkout.wompi.co/widget.js"></script>
-  <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
 <link rel="stylesheet" href="ui-estilos.css" />
 <style>
 /* Control de visibilidad para la (X) de inmuebles guiado por CSS puro */
 #lista-inmuebles-sheet.activo ~ #btn-cerrar-inmuebles { display: flex !important; }
 
 /* Posicionamiento y estilo del botón GPS nativo (Estilo Google Maps) */
-.maplibregl-ctrl-bottom-right {
-    bottom: 80px; /* Sube un poco para no chocar con la interfaz inferior */
-    right: 15px;
-}
+.maplibregl-ctrl-bottom-right { bottom: 80px; right: 15px; }
 .maplibregl-ctrl-group {
-    background-color: #1e1e1e !important; /* Fondo oscuro */
-    border: 1px solid #444 !important;
-    border-radius: 50% !important; /* Hazlo redondo */
-    box-shadow: 0 4px 15px rgba(0,0,0,0.8) !important;
+    background-color: #1e1e1e !important; border: 1px solid #444 !important;
+    border-radius: 50% !important; box-shadow: 0 4px 15px rgba(0,0,0,0.8) !important;
 }
-/* Ocultar botones de zoom/brújula nativos para dejar solo el GPS */
-.maplibregl-ctrl-zoom-in, .maplibregl-ctrl-zoom-out, .maplibregl-ctrl-compass {
-    display: none !important; 
-}
-/* =========================================
-   REDISEÑO NATIVO MAPLIBRE (ESTILO BAJO GWAI)
-   ========================================= */
+.maplibregl-ctrl-zoom-in, .maplibregl-ctrl-zoom-out, .maplibregl-ctrl-compass { display: none !important; }
 
-/* 1. EL PUNTO GPS (GRANDE, GRIS Y TRASLÚCIDO) */
-.maplibregl-user-location-dot,
-.maplibregl-user-location-dot::before {
-    background-color: rgba(120, 120, 125, 0.6) !important; /* Gris traslúcido */
-    width: 22px !important;  /* Más grande */
-    height: 22px !important; /* Más grande */
+/* REDISEÑO NATIVO MAPLIBRE */
+.maplibregl-user-location-dot, .maplibregl-user-location-dot::before {
+    background-color: rgba(120, 120, 125, 0.6) !important; width: 22px !important; height: 22px !important;
 }
 .maplibregl-user-location-dot::after {
-    border: 2px solid rgba(255, 255, 255, 0.3) !important; /* Anillo suave exterior */
-    width: 28px !important;
-    height: 28px !important;
-    left: -3px !important;
-    top: -3px !important;
-    box-shadow: 0 0 10px rgba(0,0,0,0.5) !important;
+    border: 2px solid rgba(255, 255, 255, 0.3) !important; width: 28px !important; height: 28px !important;
+    left: -3px !important; top: -3px !important; box-shadow: 0 0 10px rgba(0,0,0,0.5) !important;
 }
 
-/* 2. BURBUJAS DE INFORMACIÓN (POPUPS) OSCURAS */
 .maplibregl-popup-content {
-    background: rgba(20, 20, 25, 0.85) !important; /* Fondo oscuro */
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    border-radius: 16px !important; /* Curvas suaves */
-    color: #e0e0e0 !important;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8) !important;
+    background: rgba(20, 20, 25, 0.85) !important; backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important; border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    border-radius: 16px !important; color: #e0e0e0 !important; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8) !important;
     padding: 12px 14px !important;
 }
 
-/* 3. COLOREAR LA FLECHA DEL POPUP (EL TRIÁNGULO) */
-.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
-    border-top-color: rgba(20, 20, 25, 0.85) !important;
-}
-.maplibregl-popup-anchor-top .maplibregl-popup-tip {
-    border-bottom-color: rgba(20, 20, 25, 0.85) !important;
-}
-.maplibregl-popup-anchor-left .maplibregl-popup-tip {
-    border-right-color: rgba(20, 20, 25, 0.85) !important;
-}
-.maplibregl-popup-anchor-right .maplibregl-popup-tip {
-    border-left-color: rgba(20, 20, 25, 0.85) !important;
-}
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: rgba(20, 20, 25, 0.85) !important; }
+.maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: rgba(20, 20, 25, 0.85) !important; }
+.maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: rgba(20, 20, 25, 0.85) !important; }
+.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: rgba(20, 20, 25, 0.85) !important; }
 
-/* 4. AJUSTE DE LA X (BOTÓN DE CERRAR) EN LA BURBUJA */
 .maplibregl-popup-close-button {
-    color: #aaaaaa !important;
-    font-size: 18px !important;
-    padding: 4px 8px !important;
-    border-radius: 0 16px 0 0 !important;
+    color: #aaaaaa !important; font-size: 18px !important; padding: 4px 8px !important; border-radius: 0 16px 0 0 !important;
 }
-.maplibregl-popup-close-button:hover {
-    background-color: rgba(255, 107, 0, 0.2) !important;
-    color: #ff6b00 !important;
-}
+.maplibregl-popup-close-button:hover { background-color: rgba(255, 107, 0, 0.2) !important; color: #ff6b00 !important; }
 
+/* EFECTO MITOSIS ELÁSTICA (FAM) */
+.fam-panel {
+    background: rgba(10, 10, 12, 0.85); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+    border: 1px solid var(--naranja); border-radius: 20px; padding: 10px;
+    display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;
+    transform-origin: top right;
+    transition: all 0.4s cubic-bezier(0.68, -0.55, 0.26, 1.55);
+    opacity: 1; transform: scale(1);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+}
+.fam-panel.colapsado {
+    opacity: 0; transform: scale(0.5) translateY(-20px); pointer-events: none; position: absolute; visibility: hidden;
+}
+.btn-micro {
+    width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.1);
+    display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 14px;
+}
+#fam-container.left-side { align-items: flex-start; left: 15px; right: auto; }
+#fam-container.left-side .fam-panel { transform-origin: top left; justify-content: flex-start; }
 </style>
 
 <script>
-// 1. ESCUDO XSS ESTRICTO (Reglas Zero Trust)
+// 1. ESCUDO XSS ESTRICTO
 window.sanitizarTexto = function(texto) {
 if (texto === null || texto === undefined) return '';
-return texto.toString().replace(/[&<>"']/g, function(m) {
-return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[m];
-});
+return texto.toString().replace(/[&<>"']/g, function(m) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[m]; });
 };
-// 2. ESCUDO CONTRA ENLACES MALICIOSOS (Inyección Javascript:)
+// 2. ESCUDO CONTRA ENLACES MALICIOSOS
 window.sanitizarURL = function(url) {
-if (!url) return '#';
-const sanitizada = window.sanitizarTexto(url);
-// Bloquea intentos de ejecutar código mediante un link falso
-if (sanitizada.toLowerCase().trim().startsWith('javascript:')) return '#';
-return sanitizada;
+if (!url) return '#'; const sanitizada = window.sanitizarTexto(url);
+if (sanitizada.toLowerCase().trim().startsWith('javascript:')) return '#'; return sanitizada;
 };
-// 3. RETROCOMPATIBILIDAD (Para que el código viejo siga funcionando)
 window.sanitizarAtributo = window.sanitizarTexto;
-// 4. SALVAVIDAS VISUAL: Reemplazo para imágenes rotas o sin logo
 window.imagenRotaToGlass = function(imgElement, nombreRef) {
-    imgElement.onerror = null; // 🛡️ Previene loop infinito si el placeholder también falla
+    imgElement.onerror = null; 
     const letras = nombreRef ? window.sanitizarTexto(nombreRef).substring(0,3).toUpperCase() : 'GEO';
     imgElement.src = 'https://via.placeholder.com/150/0a0a0c/ff6b00?text=' + letras;
 };
@@ -201,107 +171,63 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
 </div>
 
 <script>
-    // 🧲 MOTOR FÍSICO: Satélite Magnético (Curvatura 360° intacta)
+    // 🧲 MOTOR FÍSICO: Satélites (Firmas y Transporte)
     (function() {
         const btnFirma = document.getElementById('btn-firmas-magnetico');
         if(!btnFirma) return;
-        
-        let isDragging = false;
-        let startY, startX, initialTop, initialLeft;
-        const MARGEN_X = 15; // Mismo margen del botón verde
-        
+        let isDragging = false, startY, startX, initialTop, initialLeft;
+        const MARGEN_X = 15;
         btnFirma.addEventListener('touchstart', (e) => {
-            isDragging = false;
-            window.isDraggingFirmas = false;
-            startY = e.touches[0].clientY;
-            startX = e.touches[0].clientX;
-            initialTop = btnFirma.getBoundingClientRect().top;
-            initialLeft = btnFirma.getBoundingClientRect().left;
+            isDragging = false; window.isDraggingFirmas = false;
+            startY = e.touches[0].clientY; startX = e.touches[0].clientX;
+            initialTop = btnFirma.getBoundingClientRect().top; initialLeft = btnFirma.getBoundingClientRect().left;
             btnFirma.style.transition = 'none'; 
         }, {passive: true});
-
         btnFirma.addEventListener('touchmove', (e) => {
-            const deltaY = e.touches[0].clientY - startY;
-            const deltaX = e.touches[0].clientX - startX;
+            const deltaY = e.touches[0].clientY - startY; const deltaX = e.touches[0].clientX - startX;
             if (Math.abs(deltaY) > 5 || Math.abs(deltaX) > 5) {
-                isDragging = true;
-                window.isDraggingFirmas = true;
-                btnFirma.style.top = (initialTop + deltaY) + 'px';
-                btnFirma.style.left = (initialLeft + deltaX) + 'px';
-                btnFirma.style.right = 'auto'; 
+                isDragging = true; window.isDraggingFirmas = true;
+                btnFirma.style.top = (initialTop + deltaY) + 'px'; btnFirma.style.left = (initialLeft + deltaX) + 'px'; btnFirma.style.right = 'auto'; 
             }
         }, {passive: true});
-
         btnFirma.addEventListener('touchend', (e) => {
             btnFirma.style.transition = 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
             if (!isDragging) return;
-            
-            const rect = btnFirma.getBoundingClientRect();
-            const midScreen = window.innerWidth / 2;
-            
-            if (rect.left + (rect.width/2) < midScreen) {
-                btnFirma.style.left = MARGEN_X + 'px';
-                btnFirma.style.right = 'auto';
-            } else {
-                btnFirma.style.left = 'auto';
-                btnFirma.style.right = MARGEN_X + 'px';
-            }
-            
+            const rect = btnFirma.getBoundingClientRect(); const midScreen = window.innerWidth / 2;
+            if (rect.left + (rect.width/2) < midScreen) { btnFirma.style.left = MARGEN_X + 'px'; btnFirma.style.right = 'auto'; } 
+            else { btnFirma.style.left = 'auto'; btnFirma.style.right = MARGEN_X + 'px'; }
             if (rect.top < 80) btnFirma.style.top = '80px';
             if (rect.bottom > window.innerHeight - 100) btnFirma.style.top = (window.innerHeight - 100 - rect.height) + 'px';
-            
             setTimeout(() => window.isDraggingFirmas = false, 50);
         });
     })();
-    // 🧲 MOTOR FÍSICO: Satélite de Transporte Público (Independiente y Fluido)
+
     (function() {
         const btnTrans = document.getElementById('btn-transporte-magnetico');
         if(!btnTrans) return;
-        
-        let isDragging = false;
-        let startY, startX, initialTop, initialLeft;
+        let isDragging = false, startY, startX, initialTop, initialLeft;
         const MARGEN_X = 15;
-        
         btnTrans.addEventListener('touchstart', (e) => {
-            isDragging = false;
-            window.isDraggingTransporte = false;
-            startY = e.touches[0].clientY;
-            startX = e.touches[0].clientX;
-            initialTop = btnTrans.getBoundingClientRect().top;
-            initialLeft = btnTrans.getBoundingClientRect().left;
+            isDragging = false; window.isDraggingTransporte = false;
+            startY = e.touches[0].clientY; startX = e.touches[0].clientX;
+            initialTop = btnTrans.getBoundingClientRect().top; initialLeft = btnTrans.getBoundingClientRect().left;
             btnTrans.style.transition = 'none'; 
         }, {passive: true});
-
         btnTrans.addEventListener('touchmove', (e) => {
-            const deltaY = e.touches[0].clientY - startY;
-            const deltaX = e.touches[0].clientX - startX;
+            const deltaY = e.touches[0].clientY - startY; const deltaX = e.touches[0].clientX - startX;
             if (Math.abs(deltaY) > 5 || Math.abs(deltaX) > 5) {
-                isDragging = true;
-                window.isDraggingTransporte = true;
-                btnTrans.style.top = (initialTop + deltaY) + 'px';
-                btnTrans.style.left = (initialLeft + deltaX) + 'px';
-                btnTrans.style.right = 'auto'; 
+                isDragging = true; window.isDraggingTransporte = true;
+                btnTrans.style.top = (initialTop + deltaY) + 'px'; btnTrans.style.left = (initialLeft + deltaX) + 'px'; btnTrans.style.right = 'auto'; 
             }
         }, {passive: true});
-
         btnTrans.addEventListener('touchend', (e) => {
             btnTrans.style.transition = 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
             if (!isDragging) return;
-            
-            const rect = btnTrans.getBoundingClientRect();
-            const midScreen = window.innerWidth / 2;
-            
-            if (rect.left + (rect.width/2) < midScreen) {
-                btnTrans.style.left = MARGEN_X + 'px';
-                btnTrans.style.right = 'auto';
-            } else {
-                btnTrans.style.left = 'auto';
-                btnTrans.style.right = MARGEN_X + 'px';
-            }
-            
+            const rect = btnTrans.getBoundingClientRect(); const midScreen = window.innerWidth / 2;
+            if (rect.left + (rect.width/2) < midScreen) { btnTrans.style.left = MARGEN_X + 'px'; btnTrans.style.right = 'auto'; } 
+            else { btnTrans.style.left = 'auto'; btnTrans.style.right = MARGEN_X + 'px'; }
             if (rect.top < 80) btnTrans.style.top = '80px';
             if (rect.bottom > window.innerHeight - 100) btnTrans.style.top = (window.innerHeight - 100 - rect.height) + 'px';
-            
             setTimeout(() => window.isDraggingTransporte = false, 50);
         });
     })();
@@ -314,454 +240,186 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
 </h1>
 <p class="texto-palpitante">Sincronizando ciudad...</p>
 </div>
+
 <div id="tour-overlay"></div>
-<div id="tour-step-1" class="tour-tooltip">
-<h3 style="color: var(--naranja); font-weight: 900; font-size: 14px; text-transform: uppercase; margin: 0;">Paso 1</h3>
-<p style="font-size: 12px; color: #ddd; margin: 0;">Escribe el nombre del negocio, comida o producto que se te antoje aquí.</p>
-<button class="btn-tour" onclick="siguienteTour1()">Siguiente</button>
-</div>
-<div id="tour-step-2" class="tour-tooltip">
-<h3 style="color: var(--naranja); font-weight: 900; font-size: 14px; text-transform: uppercase; margin: 0;">Paso 2</h3>
-<p style="font-size: 12px; color: #ddd; margin: 0;">Presiona aquí para encontrar tu ubicación actual y ver los negocios a tu alrededor.</p>
-<button class="btn-tour" onclick="siguienteTour2()">Siguiente</button>
-</div>
-<div id="tour-step-3" class="tour-tooltip">
-<h3 style="color: var(--naranja); font-weight: 900; font-size: 14px; text-transform: uppercase; margin: 0;">Paso 3</h3>
-<p style="font-size: 12px; color: #ddd; margin: 0;">Si tienes un negocio, administra tu bóveda tocando esta llave maestra.</p>
-<button class="btn-tour" onclick="siguienteTour3()">Siguiente</button>
-</div>
-<div id="tour-step-4" class="tour-tooltip">
-<h3 style="color: var(--naranja); font-weight: 900; font-size: 14px; text-transform: uppercase; margin: 0;">Paso 4</h3>
-<p style="font-size: 12px; color: #ddd; margin: 0;">Por ejemplo, presionando inmuebles puedes ver los arriendos disponibles en tu zona.</p>
-<button class="btn-tour" onclick="finalizarTour()">¡Entendido!</button>
-</div>
-<div id="toast-fantasma" class="toast-fantasma">
-No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.
-</div>
-<div id="offline-banner" class="toast-fantasma" style="background: rgba(255, 68, 68, 0.9); border-color: #ff4444; top: 10%; box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 15px rgba(255,68,68,0.4);">
-⚠️ Sin conexión. Mostrando mapa guardado.
-</div>
+<div id="tour-step-1" class="tour-tooltip"><h3 style="color: var(--naranja); font-weight: 900; font-size: 14px; text-transform: uppercase; margin: 0;">Paso 1</h3><p style="font-size: 12px; color: #ddd; margin: 0;">Escribe el nombre del negocio, comida o producto que se te antoje aquí.</p><button class="btn-tour" onclick="siguienteTour1()">Siguiente</button></div>
+<div id="tour-step-2" class="tour-tooltip"><h3 style="color: var(--naranja); font-weight: 900; font-size: 14px; text-transform: uppercase; margin: 0;">Paso 2</h3><p style="font-size: 12px; color: #ddd; margin: 0;">Presiona aquí para encontrar tu ubicación actual y ver los negocios a tu alrededor.</p><button class="btn-tour" onclick="siguienteTour2()">Siguiente</button></div>
+<div id="tour-step-3" class="tour-tooltip"><h3 style="color: var(--naranja); font-weight: 900; font-size: 14px; text-transform: uppercase; margin: 0;">Paso 3</h3><p style="font-size: 12px; color: #ddd; margin: 0;">Si tienes un negocio, administra tu bóveda tocando esta llave maestra.</p><button class="btn-tour" onclick="siguienteTour3()">Siguiente</button></div>
+<div id="tour-step-4" class="tour-tooltip"><h3 style="color: var(--naranja); font-weight: 900; font-size: 14px; text-transform: uppercase; margin: 0;">Paso 4</h3><p style="font-size: 12px; color: #ddd; margin: 0;">Por ejemplo, presionando inmuebles puedes ver los arriendos disponibles en tu zona.</p><button class="btn-tour" onclick="finalizarTour()">¡Entendido!</button></div>
+
+<div id="toast-fantasma" class="toast-fantasma">No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.</div>
+<div id="offline-banner" class="toast-fantasma" style="background: rgba(255, 68, 68, 0.9); border-color: #ff4444; top: 10%; box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 15px rgba(255,68,68,0.4);">⚠️ Sin conexión. Mostrando mapa guardado.</div>
+
+<!-- BLOQUE SUPERIOR (Buscador, Llave, Corazón) -->
 <div class="top-ui ui-visible" id="caja-buscador">
-<div class="header-row">
-<div class="search-wrapper shimmer-box" id="wrapper-buscador" style="border-radius: 25px;">
-    <input type="text" id="input-buscador" class="search-bar" placeholder="Escribe negocio, producto o ciudad...">
-    <button class="btn-lupa" id="btn-lupa" onclick="buscarCiudadGlobal()">🔍</button>
+    <div class="header-row">
+        <div class="search-wrapper shimmer-box" id="wrapper-buscador" style="border-radius: 25px;">
+            <input type="text" id="input-buscador" class="search-bar" placeholder="Escribe negocio, producto o ciudad...">
+            <button class="btn-lupa" id="btn-lupa" onclick="buscarCiudadGlobal()">🔍</button>
+        </div>
+
+        <button id="btn-filtro-corazon" class="btn-login" style="background: rgba(255, 68, 68, 0.2); border-color: #ff4444; color: #ff4444;" onclick="toggleMapaFavoritos()" title="Filtrar Mis Guardados">🤍</button>
+
+        <div id="contenedor-saldo-universal" style="display: none; align-items: center; justify-content: center; margin-right: 5px;">
+            <button class="btn-login" id="btn-saldo-global" style="width: auto; padding: 0 12px; border-radius: 20px; font-size: 13px; font-weight: bold; border-color: #00ff64; color: #00ff64; background: rgba(0, 255, 100, 0.1);" onclick="if(window.abrirPasarelaRecarga) window.abrirPasarelaRecarga();"><span id="texto-saldo-global">$0</span> <span style="font-size: 10px; margin-left: 4px;">▶️</span></button>
+        </div>
+
+        <div class="contenedor-llave" id="btn-portal-mando-contenedor" style="border-radius: 50%;">
+            <button class="btn-login" id="btn-portal-mando" onclick="toggleSubmenu()">🔑</button>
+            <div id="submenu-llave" class="submenu-llave">
+                <button id="btn-login-submenu" class="btn-submenu" onclick="abrirModal('modal-login'); toggleSubmenu()">🔑 Iniciar Sesión</button>
+                <button id="btn-mi-oficina" class="btn-submenu" onclick="window.irAMiOficinaInteligente(); toggleSubmenu()" style="display:none; background: var(--naranja); color: white; border: none; font-weight: bold;">🏪 Ir a Mi Oficina</button>
+                <button id="btn-panel-empresa" class="btn-submenu" onclick="window.abrirModal('modal-crm-corporativo'); toggleSubmenu()" style="display:none; background: #00f5d4; color: black; font-weight: bold; border: none;">💼 Consola Empresa</button>
+                <button id="btn-panel-conductor" class="btn-submenu" onclick="window.location.href='domiciliarios.html'" style="display:none; background: var(--naranja); color: white; font-weight: bold; border: none;">🚖 Modo Conductor</button>
+                <button id="btn-acceso-moderacion" class="btn-submenu" onclick="window.location.href='moderacion.html'" style="display:none; border-color: #00ff64; color: #00ff64;">⚖️ Panel Moderación</button>
+                <button id="btn-acceso-superadmin" class="btn-submenu" onclick="window.location.href='qrpido.html'" style="display:none; border-color: #00aaff; color: #00aaff;">👁️ Cerebro Central</button>
+                <button class="btn-submenu" onclick="abrirModal('modal-soporte'); toggleSubmenu()" style="border-color: var(--naranja); color: var(--naranja);">💬 Centro de Ayuda</button>
+            </div>
+        </div>
+    </div> 
 </div>
 
-<button id="btn-filtro-corazon" class="btn-login" style="background: rgba(255, 68, 68, 0.2); border-color: #ff4444; color: #ff4444;" onclick="toggleMapaFavoritos()" title="Filtrar Mis Guardados">🤍</button>
+<!-- 🪐 MÁQUINA DE ESTADOS FAM (BURBUJA EVOLUCIONADA) -->
+<div id="fam-container" style="position: fixed; top: 85px; right: 15px; z-index: 9999; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; pointer-events: none;">
 
-<div id="contenedor-saldo-universal" style="display: none; align-items: center; justify-content: center; margin-right: 5px;">
-<button class="btn-login" id="btn-saldo-global" style="width: auto; padding: 0 12px; border-radius: 20px; font-size: 13px; font-weight: bold; border-color: #00ff64; color: #00ff64; background: rgba(0, 255, 100, 0.1);" onclick="if(window.abrirPasarelaRecarga) window.abrirPasarelaRecarga();">
-<span id="texto-saldo-global">$0</span> <span style="font-size: 10px; margin-left: 4px;">▶️</span>
-</button>
-</div>
+    <!-- FASE 0: Burbuja Magnética en Reposo -->
+    <div id="fam-burbuja" class="btn-flotante-gps" style="position: relative; top: 0; left: 0; right: 0; bottom: 0; width: 45px; height: 45px; background-color: #1e1e1e !important; border: 1px solid #444 !important; border-radius: 50%; box-shadow: 0 4px 15px rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; cursor: pointer; pointer-events: all; transition: all 0.4s cubic-bezier(0.68, -0.55, 0.26, 1.55);" onclick="abrirFamEstado1()">
+        <span style="font-size: 20px;">🎛️</span>
+    </div>
 
-<div class="contenedor-llave" id="btn-portal-mando-contenedor" style="border-radius: 50%;">
-<button class="btn-login" id="btn-portal-mando" onclick="toggleSubmenu()">🔑</button>
-<div id="submenu-llave" class="submenu-llave">
-<button id="btn-login-submenu" class="btn-submenu" onclick="abrirModal('modal-login'); toggleSubmenu()">🔑 Iniciar Sesión</button>
-<button id="btn-mi-oficina" class="btn-submenu" onclick="window.irAMiOficinaInteligente(); toggleSubmenu()" style="display:none; background: var(--naranja); color: white; border: none; font-weight: bold;">🏪 Ir a Mi Oficina</button>
-<button id="btn-panel-empresa" class="btn-submenu" onclick="window.abrirModal('modal-crm-corporativo'); toggleSubmenu()" style="display:none; background: #00f5d4; color: black; font-weight: bold; border: none;">💼 Consola Empresa</button>
-<button id="btn-panel-conductor" class="btn-submenu" onclick="window.location.href='domiciliarios.html'" style="display:none; background: var(--naranja); color: white; font-weight: bold; border: none;">🚖 Modo Conductor</button>
-<button id="btn-acceso-moderacion" class="btn-submenu" onclick="window.location.href='moderacion.html'" style="display:none; border-color: #00ff64; color: #00ff64;">⚖️ Panel Moderación</button>
-<button id="btn-acceso-superadmin" class="btn-submenu" onclick="window.location.href='qrpido.html'" style="display:none; border-color: #00aaff; color: #00aaff;">👁️ Cerebro Central</button>
-<button class="btn-submenu" onclick="abrirModal('modal-soporte'); toggleSubmenu()" style="border-color: var(--naranja); color: var(--naranja);">💬 Centro de Ayuda</button>
-</div>
-</div>
-</div> <div id="contenedor-etiquetas" class="tags-container shimmer-box" style="min-height: 30px;">
-</div>
-<div id="panel-cristal" class="panel-cristal colapsado" style="display: none;">
-<button class="btn-cerrar-panel" onclick="cerrarPanelCristal(event)" title="Cerrar panel">✖</button>
+    <!-- FASE 1: Expansión Vertical (Mitosis) -->
+    <div id="fam-categorias" class="fam-panel colapsado" style="flex-direction: column; pointer-events: all;" onclick="event.stopPropagation()">
+        <button class="tag-pill" onclick="abrirFamEstado2('negocios')">🏪 Negocios</button>
+        <button class="tag-pill" onclick="abrirFamEstado2('inmuebles')">🏠 Inmuebles</button>
+        <button class="tag-pill" onclick="abrirFamEstado2('servicios')">🛠️ Servicios</button>
+        <button class="tag-pill" onclick="abrirFamEstado2('aliados')">🤝 Aliados</button>
+        <button class="tag-pill" onclick="window.location.href='pulso.html'">📰 Pulso</button>
+    </div>
 
-<div id="panel-filtros" class="panel-seccion" style="display: flex; gap: 8px;"></div>
-<div id="panel-vitrina" class="panel-seccion contenido-colapsable">
-<p style="margin: 0 0 10px 0; font-size: 11px; color: #aaa; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">Destacados Premium</p>
-<div class="vitrina-row" id="vitrina-contenido"></div>
-</div>
-<div id="panel-captacion" class="panel-seccion contenido-colapsable" style="text-align: center;">
-<button id="btn-cta-panel" class="btn-pedir" style="margin-top: 0; padding: 12px; font-size: 12px;" onclick="abrirModal('modal-login'); document.getElementById('panel-cristal').classList.add('colapsado');">¿Eres dueño? Anúnciate aquí</button>
-</div>
-<button id="btn-toggle-panel" class="btn-toggle-panel" onclick="togglePanelAcordeon()">
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
-</button>
-</div>
+    <!-- FASE 2: Aislamiento Profundo Horizontal -->
+    <div id="fam-filtros" class="fam-panel colapsado" style="flex-direction: row; align-items: center; pointer-events: all; max-width: 85vw; overflow-x: auto; background: rgba(20, 20, 25, 0.95); border-color: #00f5d4;" onclick="event.stopPropagation()">
+        <div style="display: flex; gap: 5px; flex-shrink: 0; margin-right: 5px;">
+            <button class="btn-micro" onclick="volverFamEstado1()" style="background: rgba(255,255,255,0.1); color: white;">↩️</button>
+            <button class="btn-micro" onclick="cerrarFamTotalmente()" style="background: rgba(255,68,68,0.2); color: #ff4444;">✖</button>
+        </div>
+        <div id="fam-contenido-filtros" style="display: flex; gap: 8px; flex: 1;"></div>
+    </div>
 </div>
 
-<button id="btn-cargar-zona" onclick="descargarNegociosDeFirebase()">🔍 Buscar en esta zona</button>
+<button id="btn-cargar-zona" onclick="if(window.descargarNegociosDeFirebase) window.descargarNegociosDeFirebase()">🔍 Buscar en esta zona</button>
+
 <div id="contenedor-troya">
-<div class="btn-cerrar-troya" onclick="document.getElementById('contenedor-troya').style.display='none'">X</div>
-<a id="link-troya" href="#" target="_blank">
-<img id="img-troya" class="banner-troya" src="">
-</a>
+    <div class="btn-cerrar-troya" onclick="document.getElementById('contenedor-troya').style.display='none'">X</div>
+    <a id="link-troya" href="#" target="_blank"><img id="img-troya" class="banner-troya" src=""></a>
 </div>
+
 <div id="burbuja-chat-p2p" onclick="abrirModal('modal-kill-switch')" style="display: none; position: fixed; top: 130px; right: 15px; z-index: 2000; width: 45px; height: 45px; background: var(--naranja); border-radius: 50%; box-shadow: 0 5px 15px rgba(255,107,0,0.5); align-items: center; justify-content: center; cursor: pointer; border: 2px solid white; transition: 0.3s;">
-<span style="font-size: 20px;">💬</span>
-<div style="position: absolute; top: -2px; right: -2px; background: #ff4444; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--bg-oscuro); animation: latidoNeon 1.5s infinite;"></div>
+    <span style="font-size: 20px;">💬</span>
+    <div style="position: absolute; top: -2px; right: -2px; background: #ff4444; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--bg-oscuro); animation: latidoNeon 1.5s infinite;"></div>
 </div>
 
 <div class="bottom-sheet-overlay" id="modal-kill-switch" onclick="cerrarModalFuera(event, 'modal-kill-switch')">
-<div class="bottom-sheet-contenido" style="text-align: center;">
-<div class="drag-handle"></div>
-<h2 style="color: #ff4444; margin-top: 0; text-transform: uppercase;">Orden Activa</h2>
-<p style="color: #ccc; font-size: 13px; margin-bottom: 20px;">Comunicación cifrada en curso. <br>El radar GPS de entrega está transmitiendo.</p>
-<button class="btn-pedir" style="background: #ff4444; margin-bottom: 10px;" onclick="alert('GPS Desconectado. Orden Finalizada.'); document.getElementById('modal-kill-switch').classList.remove('activo'); document.getElementById('burbuja-chat-p2p').style.display='none';">🛑 FINALIZAR / APAGAR GPS</button>
-</div>
+    <div class="bottom-sheet-contenido" style="text-align: center;">
+        <div class="drag-handle"></div>
+        <h2 style="color: #ff4444; margin-top: 0; text-transform: uppercase;">Orden Activa</h2>
+        <p style="color: #ccc; font-size: 13px; margin-bottom: 20px;">Comunicación cifrada en curso. <br>El radar GPS de entrega está transmitiendo.</p>
+        <button class="btn-pedir" style="background: #ff4444; margin-bottom: 10px;" onclick="alert('GPS Desconectado. Orden Finalizada.'); document.getElementById('modal-kill-switch').classList.remove('activo'); document.getElementById('burbuja-chat-p2p').style.display='none';">🛑 FINALIZAR / APAGAR GPS</button>
+    </div>
 </div>
 
 <div id="mapa-qrpido"></div>
 
 <div style="position: fixed; bottom: 50px; left: 0; width: 100%; z-index: 1000; pointer-events: none;">
-<div id="lista-inmuebles-sheet" class="bottom-sheet-hibrido" style="display:none; position: relative; bottom: 0;"></div>
-<button id="btn-cerrar-inmuebles" onclick="cerrarSheetInmuebles()" style="display: none; pointer-events: all; position: absolute; top: -45px; right: 15px; background: rgba(10,10,12,0.95); color: white; border: 1px solid var(--naranja); border-radius: 50%; width: 32px; height: 32px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1001; cursor: pointer; transition: transform 0.2s;">✖</button>
+    <div id="lista-inmuebles-sheet" class="bottom-sheet-hibrido" style="display:none; position: relative; bottom: 0;"></div>
+    <button id="btn-cerrar-inmuebles" onclick="if(window.cerrarSheetInmuebles) window.cerrarSheetInmuebles()" style="display: none; pointer-events: all; position: absolute; top: -45px; right: 15px; background: rgba(10,10,12,0.95); color: white; border: 1px solid var(--naranja); border-radius: 50%; width: 32px; height: 32px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1001; cursor: pointer; transition: transform 0.2s;">✖</button>
 </div>
 
 <div class="map-options">
-    <div class="map-tag active" onclick="cambiarMapa('satelite', this)">Satelital</div>
-    <div class="map-tag" onclick="cambiarMapa('rayosx', this)">Rayos X</div>
-    <div class="map-tag" onclick="cambiarMapa('lite', this)">Bajo Gwai</div>
-    <div id="btn-giro-toggle" class="map-tag" style="background: rgba(0, 255, 255, 0.1); border-color: #0ff; color: #0ff; display: none;" onclick="toggleRadarInmersivo(this)">🧭 Activar Radar 3D</div>
+    <div class="map-tag active" onclick="if(window.cambiarMapa) window.cambiarMapa('satelite', this)">Satelital</div>
+    <div class="map-tag" onclick="if(window.cambiarMapa) window.cambiarMapa('rayosx', this)">Rayos X</div>
+    <div class="map-tag" onclick="if(window.cambiarMapa) window.cambiarMapa('lite', this)">Bajo Gwai</div>
+    <div id="btn-giro-toggle" class="map-tag" style="background: rgba(0, 255, 255, 0.1); border-color: #0ff; color: #0ff; display: none;" onclick="if(window.toggleRadarInmersivo) window.toggleRadarInmersivo(this)">🧭 Activar Radar 3D</div>
 </div>
 
+<!-- ================= MODALES DEL SISTEMA ================= -->
 <div class="bottom-sheet-overlay" id="modal-login" onclick="cerrarModalFuera(event, 'modal-login')">
-<div class="bottom-sheet-contenido" id="sheet-login">
-<div class="drag-handle"></div>
-<h2 style="margin-top: 0; text-transform: uppercase; letter-spacing: 2px; text-align: center; font-size: 24px; font-weight: 900;">
-    Ingresa a <br>
-    <span style="color: #ff6b00; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">GEO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);">KATU</span>
-</h2>
-<div id="form-login-activo">
-
-    <!-- 1. Botón de Google Gigante -->
-    <button class="btn-auth" style="background: white; color: #222; display: flex; align-items: center; justify-content: center; gap: 10px; border: 1px solid #ddd; box-shadow: 0 4px 10px rgba(0,0,0,0.15); transition: 0.3s; width: 100%; padding: 14px; font-size: 15px; border-radius: 12px; margin-bottom: 20px;" onclick="window.iniciarConGoogle();">
-        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" height="20"> Continuar con Google
-    </button>
-
-    <!-- 2. Divisor Elegante -->
-    <div style="display: flex; align-items: center; text-align: center; color: #888; font-size: 12px; margin-bottom: 20px;">
-        <div style="flex: 1; border-bottom: 1px solid #444;"></div>
-        <span style="padding: 0 10px;">o ingresa con tu correo</span>
-        <div style="flex: 1; border-bottom: 1px solid #444;"></div>
+    <div class="bottom-sheet-contenido" id="sheet-login">
+        <div class="drag-handle"></div>
+        <h2 style="margin-top: 0; text-transform: uppercase; letter-spacing: 2px; text-align: center; font-size: 24px; font-weight: 900;">
+            Ingresa a <br>
+            <span style="color: #ff6b00; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">GEO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);">KATU</span>
+        </h2>
+        <div id="form-login-activo">
+            <button id="btn-google-auth" class="btn-auth" style="background: white; color: #222; display: flex; align-items: center; justify-content: center; gap: 10px; border: 1px solid #ddd; box-shadow: 0 4px 10px rgba(0,0,0,0.15); transition: 0.3s; width: 100%; padding: 14px; font-size: 15px; border-radius: 12px; margin-bottom: 20px;" 
+            onclick="this.disabled=true; this.style.opacity='0.7'; this.innerHTML='⏳ Conectando con Google...'; window.iniciarConGoogle().finally(() => { this.disabled=false; this.style.opacity='1'; this.innerHTML='<img src=&quot;https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg&quot; width=&quot;20&quot; height=&quot;20&quot;> Continuar con Google'; });">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" height="20"> Continuar con Google
+            </button>
+            <div style="display: flex; align-items: center; text-align: center; color: #888; font-size: 12px; margin-bottom: 20px;">
+                <div style="flex: 1; border-bottom: 1px solid #444;"></div>
+                <span style="padding: 0 10px;">o ingresa con tu correo</span>
+                <div style="flex: 1; border-bottom: 1px solid #444;"></div>
+            </div>
+            <form id="form-login-portal" onsubmit="event.preventDefault(); if(document.getElementById('miel-mando').value !== '') return; window.iniciarSesion();">
+                <input type="text" id="miel-mando" name="miel_bot" style="position:absolute; left:-9999px; opacity:0;" tabindex="-1" autocomplete="off">
+                <input type="email" id="login-email" name="email" class="input-login" placeholder="Correo electrónico" autocomplete="username" required style="width: 100%; margin-bottom: 10px; border-radius: 8px;">
+                <div style="position: relative; width: 100%; margin-bottom: 5px;">
+                    <input type="password" id="login-pass" name="password" class="input-login" placeholder="Contraseña" autocomplete="current-password" required style="width: 100%; padding-right: 45px; border-radius: 8px;">
+                    <button type="button" onclick="if(window.toggleVerPassword) window.toggleVerPassword('login-pass', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: #888; font-size: 18px; cursor: pointer; padding: 5px; z-index: 10;">👁️</button>
+                </div>
+                <div style="text-align: right; margin-bottom: 15px;">
+                    <a href="mailto:soporte@tuqrpido.com" style="color: #aaa; font-size: 11px; text-decoration: underline;">¿Olvidaste tu contraseña?</a>
+                </div>
+                <div class="recaptcha-container" style="display: flex; justify-content: center; margin-bottom: 15px; transform: scale(0.90);">
+                    <div class="g-recaptcha" data-sitekey="6LeT74wtAAAAAMeqXa4L9kkNdFLqjzEjsykUD5ET" data-theme="dark"></div>
+                </div>
+                <button type="submit" class="btn-auth btn-ingresar" id="btn-login-accion" style="width: 100%; padding: 12px; border-radius: 8px; font-size: 14px;"
+                onclick="this.disabled=true; this.innerText='Validando...'; this.form.dispatchEvent(new Event('submit')); setTimeout(()=> { this.disabled=false; this.innerText='Iniciar Sesión'; }, 3000);">
+                    Iniciar Sesión
+                </button>
+            </form>
+            <p style="text-align: center; color: #777; font-size: 10px; margin-top: 15px; margin-bottom: 25px; line-height: 1.4;">
+                Al continuar, aceptas el <a href="terminos.html" target="_blank" style="color: #ff6b00; text-decoration: none;">Contrato de Mandato y Términos</a>.
+            </p>
+            <div style="background: rgba(255, 107, 0, 0.05); border: 1px solid rgba(255, 107, 0, 0.2); border-radius: 12px; padding: 15px; text-align: center;">
+                <p style="margin: 0 0 10px 0; color: #ddd; font-size: 13px;">¿Eres nuevo en la plataforma?</p>
+                <button onclick="window.location.href='acceso.html'" style="width: 100%; background: transparent; border: 1px solid #ff6b00; color: #ff6b00; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.3s; font-size: 14px; text-transform: uppercase;">Regístrate Aquí</button>
+            </div>
+        </div>
+        <div id="panel-usuario-activo" style="display: none; text-align: center; padding-top: 15px;">
+            <h3 id="nombre-usuario-activo" style="margin: 0 0 20px 0; color: var(--naranja); font-size: 18px; word-break: break-all;">Cargando...</h3>
+            <button class="tu-clase-de-boton-naranja" onclick="if(window.irAMiOficinaInteligente) window.irAMiOficinaInteligente()">🏢 IR A MI OFICINA</button>
+            <button class="btn-auth btn-registrar" onclick="if(window.cerrarSesion) window.cerrarSesion()" style="border-color: #ff4444; color: #ff4444;">Cerrar Sesión</button>
+        </div>
     </div>
-
-    <!-- 3. Formulario Limpio -->
-    <form id="form-login-portal" onsubmit="event.preventDefault(); if(document.getElementById('miel-mando').value !== '') return; window.iniciarSesion();">
-        <input type="text" id="miel-mando" name="miel_bot" style="position:absolute; left:-9999px; opacity:0;" tabindex="-1" autocomplete="off">
-        
-        <input type="email" id="login-email" name="email" class="input-login" placeholder="Correo electrónico" autocomplete="username" required style="width: 100%; margin-bottom: 10px; border-radius: 8px;">
-        
-        <div style="position: relative; width: 100%; margin-bottom: 5px;">
-            <input type="password" id="login-pass" name="password" class="input-login" placeholder="Contraseña" autocomplete="current-password" required style="width: 100%; padding-right: 45px; border-radius: 8px;">
-            <button type="button" onclick="toggleVerPassword('login-pass', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: #888; font-size: 18px; cursor: pointer; padding: 5px; z-index: 10;">👁️</button>
-        </div>
-        
-        <div style="text-align: right; margin-bottom: 15px;">
-            <a href="mailto:soporte@tuqrpido.com" style="color: #aaa; font-size: 11px; text-decoration: underline;">¿Olvidaste tu contraseña?</a>
-        </div>
-        <div style="text-align: right; margin-bottom: 15px;">
-            <a href="mailto:soporte@tuqrpido.com" style="color: #aaa; font-size: 11px; text-decoration: underline;">¿Olvidaste tu contraseña?</a>
-        </div>
-
-        <!-- 🛡️ ESCUDO RECAPTCHA V2 INYECTADO AQUÍ -->
-        <div class="recaptcha-container" style="display: flex; justify-content: center; margin-bottom: 15px; transform: scale(0.90);">
-            <div class="g-recaptcha" data-sitekey="6LeT74wtAAAAAMeqXa4L9kkNdFLqjzEjsykUD5ET" data-theme="dark"></div>
-        </div>
-
-        <button type="submit" class="btn-auth btn-ingresar" id="btn-login-accion" style="width: 100%; padding: 12px; border-radius: 8px; font-size: 14px;">Iniciar Sesión</button>
-
-        <button type="submit" class="btn-auth btn-ingresar" id="btn-login-accion" style="width: 100%; padding: 12px; border-radius: 8px; font-size: 14px;">Iniciar Sesión</button>
-    </form>
-
-    <!-- 4. Texto Legal Sutil -->
-    <p style="text-align: center; color: #777; font-size: 10px; margin-top: 15px; margin-bottom: 25px; line-height: 1.4;">
-        Al continuar, aceptas el <a href="terminos.html" target="_blank" style="color: #ff6b00; text-decoration: none;">Contrato de Mandato y Términos</a>.
-    </p>
-
-    <!-- 5. El Puente al Registro (Llamativo) -->
-    <div style="background: rgba(255, 107, 0, 0.05); border: 1px solid rgba(255, 107, 0, 0.2); border-radius: 12px; padding: 15px; text-align: center;">
-        <p style="margin: 0 0 10px 0; color: #ddd; font-size: 13px;">¿Eres nuevo en la plataforma?</p>
-        <button onclick="window.location.href='acceso.html'" style="width: 100%; background: transparent; border: 1px solid #ff6b00; color: #ff6b00; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.3s; font-size: 14px; text-transform: uppercase;">Regístrate Aquí</button>
-    </div>
-
 </div>
-<div id="panel-usuario-activo" style="display: none; text-align: center; padding-top: 15px;">
-<h3 id="nombre-usuario-activo" style="margin: 0 0 20px 0; color: var(--naranja); font-size: 18px; word-break: break-all;">Cargando...</h3>
-<!-- Reemplaza el onclick o el href que tenga actualmente por este: -->
-<button class="tu-clase-de-boton-naranja" onclick="irAMiOficinaInteligente()">
-    🏢 IR A MI OFICINA
-</button>
 
-<button class="btn-auth btn-registrar" onclick="cerrarSesion()" style="border-color: #ff4444; color: #ff4444;">Cerrar Sesión</button>
-</div>
-</div>
-</div>
 <div class="bottom-sheet-overlay" id="modal-soporte" onclick="cerrarModalFuera(event, 'modal-soporte')">
-<div class="bottom-sheet-contenido" id="sheet-soporte">
-<div class="drag-handle"></div>
-<h2 style="color: var(--naranja); margin-top: 0; text-transform: uppercase; letter-spacing: 2px; text-align: center;">Centro de Ayuda</h2>
-<details><summary>¿Cómo busco negocios o productos? 🔍</summary><p>Usa la barra de búsqueda superior para escribir lo que se te antoje, o selecciona las etiquetas de categorías para filtrar el radar.</p></details>
-<details><summary>¿Cómo guardo mis favoritos? ❤️</summary><p>Toca el icono del corazón en cualquier tarjeta para agregarlo a "Mis Guardados". No necesitas crear una cuenta. <b>Nota:</b> Si limpias el historial o la caché de tu navegador, esta lista se reiniciará.</p></details>
-<details><summary>No aparezco en el Mapa 📍</summary><p>Entra a tu Bóveda, asegúrate de llenar <b>"Mi Perfil"</b> con palabras clave y no olvides fijar tu pin exacto en el minimapa.</p></details>
-<details><summary>¿Qué son los pines dorados que saltan? 🪙</summary><p>Son locales verificados que pertenecen a nuestra <b>Red de Aliados</b>. Al elegirlos, apoyas directamente la economía local con promociones especiales.</p></details>
-<details><summary>Me sale un aviso de "Sin conexión" 📶</summary><p>¡No te preocupes! La aplicación descargó el mapa de tu zona en el fondo. Si pierdes señal en la calle, podrás seguir navegando por el catálogo con la última información guardada.</p></details>
-<details><summary>¿Qué significa "Cerrado" o "Fuera de zona"? 🛵</summary><p>Los negocios definen su propio horario y radio de alcance en kilómetros. Si estás muy lejos de ellos, o es fuera de su horario laboral, el sistema bloqueará temporalmente el botón para evitar pedidos perdidos.</p></details>
-<details><summary>¿Cómo me vuelvo Premium o publico mi negocio? 👑</summary><p>Puedes registrarte gratuitamente tocando el botón de la Llave 🔑 arriba a la derecha. Para subir a Premium y tener productos ilimitados, escríbenos directamente.</p></details>
-<hr style="border: 1px solid rgba(255,255,255,0.05); margin: 15px 0;">
-<button class="btn-contacto" style="background: var(--naranja); box-shadow: 0 4px 10px rgba(255, 107, 0, 0.4);" onclick="window.location.href='mailto:soporte@tuqrpido.com'">✉️ Contactar a Soporte Técnico</button>
+    <div class="bottom-sheet-contenido" id="sheet-soporte">
+        <div class="drag-handle"></div>
+        <h2 style="color: var(--naranja); margin-top: 0; text-transform: uppercase; letter-spacing: 2px; text-align: center;">Centro de Ayuda</h2>
+        <details><summary>¿Cómo busco negocios o productos? 🔍</summary><p>Usa la barra de búsqueda superior para escribir lo que se te antoje, o selecciona las etiquetas de categorías para filtrar el radar.</p></details>
+        <details><summary>¿Cómo guardo mis favoritos? ❤️</summary><p>Toca el icono del corazón en cualquier tarjeta para agregarlo a "Mis Guardados". No necesitas crear una cuenta.</p></details>
+        <details><summary>No aparezco en el Mapa 📍</summary><p>Entra a tu Bóveda, asegúrate de llenar <b>"Mi Perfil"</b> con palabras clave y no olvides fijar tu pin exacto en el minimapa.</p></details>
+        <details><summary>¿Qué son los pines dorados que saltan? 🪙</summary><p>Son locales verificados que pertenecen a nuestra <b>Red de Aliados</b>.</p></details>
+        <hr style="border: 1px solid rgba(255,255,255,0.05); margin: 15px 0;">
+        <button class="btn-contacto" style="background: var(--naranja); box-shadow: 0 4px 10px rgba(255, 107, 0, 0.4);" onclick="window.location.href='mailto:soporte@tuqrpido.com'">✉️ Contactar a Soporte Técnico</button>
+    </div>
 </div>
-</div>
+
 <div class="bottom-sheet-overlay" id="overlay-compartir" onclick="cerrarModalFuera(event, 'overlay-compartir')">
-<div class="bottom-sheet-contenido" id="sheet-compartir" style="text-align: center;">
-<div class="drag-handle"></div>
-<h2 style="margin-top: 0; color: var(--naranja); text-shadow: 0 0 5px rgba(255,107,0,0.3); text-transform: uppercase; letter-spacing: 2px;">Compartir Tienda</h2>
-<div id="qr-code-container" style="background: white; padding: 15px; border-radius: 20px; display: inline-block; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); line-height: 0;"></div>
-<div style="display: flex; flex-direction: column; gap: 10px;">
-<button class="btn-pedir" id="btn-descargar-qr" onclick="descargarQR()" style="margin-top: 0;">⬇️ DESCARGAR CÓDIGO QR</button>
-<div style="display: flex; gap: 10px;">
-<button class="btn-ubicacion btn-gps" onclick="copiarEnlace()" style="margin-bottom: 0; flex: 1;">🔗 COPIAR LINK</button>
-<button class="btn-ubicacion btn-mapa" onclick="compartirNativo()" style="margin-bottom: 0; flex: 1;">📲 COMPARTIR</button>
+    <div class="bottom-sheet-contenido" id="sheet-compartir" style="text-align: center;">
+        <div class="drag-handle"></div>
+        <h2 style="margin-top: 0; color: var(--naranja); text-shadow: 0 0 5px rgba(255,107,0,0.3); text-transform: uppercase; letter-spacing: 2px;">Compartir Tienda</h2>
+        <div id="qr-code-container" style="background: white; padding: 15px; border-radius: 20px; display: inline-block; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); line-height: 0;"></div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button class="btn-pedir" id="btn-descargar-qr" onclick="if(window.descargarQR) window.descargarQR()" style="margin-top: 0;">⬇️ DESCARGAR CÓDIGO QR</button>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-ubicacion btn-gps" onclick="if(window.copiarEnlace) window.copiarEnlace()" style="margin-bottom: 0; flex: 1;">🔗 COPIAR LINK</button>
+                <button class="btn-ubicacion btn-mapa" onclick="if(window.compartirNativo) window.compartirNativo()" style="margin-bottom: 0; flex: 1;">📲 COMPARTIR</button>
+            </div>
+        </div>
+    </div>
 </div>
-</div>
-</div>
-</div>
-<div id="modal-login-radar" style="display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center;">
-<div style="background: #19191e; padding: 30px; border-radius: 20px; width: 90%; max-width: 400px; border: 1px solid rgba(255,107,0,0.3);">
-<h2 style="color: #ff6b00; text-align: center; margin-top: 0;">Ingresar al Radar</h2>
-<div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 15px; text-align: left; background: rgba(255,107,0,0.05); padding: 10px; border-radius: 8px; border: 1px solid rgba(255,107,0,0.2);">
-<input type="checkbox" id="acepta-terminos-radar" style="margin-top: 3px; accent-color: #ff6b00; transform: scale(1.2);">
-<label for="acepta-terminos-radar" style="font-size: 11px; color: #ccc; line-height: 1.4;">
-Declaro ser mayor de 18 años y acepto los <a href="terminos.html" target="_blank" style="color: #ff6b00; text-decoration: underline;">Términos, Condiciones y Contrato de Mandato</a>.
-</label>
-</div>
-
-<button onclick="if(!document.getElementById('acepta-terminos-radar').checked) { alert('⚠️ Debes aceptar los Términos y el Contrato de Mandato.'); return; } loginGoogleRadar()" style="width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #ddd; font-weight: bold; cursor: pointer; background: white; color: #222; display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.15); transition: 0.3s;">
-<img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" width="18" height="18"> Iniciar sesión con tu cuenta de Google
-</button>
-<div style="text-align: center; margin: 10px 0 15px; color: #888; font-size: 12px;">O INGRESA CON TU CORREO</div>
-<form onsubmit="event.preventDefault(); if(document.getElementById('miel-radar').value !== '') return; if(!document.getElementById('acepta-terminos-radar').checked) { alert('⚠️ Debes aceptar los Términos y el Contrato de Mandato.'); return; } loginTradicionalRadar();">
-<input type="text" id="miel-radar" name="miel_bot" style="position:absolute; left:-9999px; opacity:0;" tabindex="-1" autocomplete="off">
-
-<input type="email" id="radar-email" name="email" placeholder="Correo electrónico" autocomplete="username" required style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 12px; border-radius: 12px; margin-bottom: 10px; box-sizing: border-box;">
-<div style="position: relative; width: 100%; margin-bottom: 15px;">
-<input type="password" id="radar-pass" name="password" placeholder="Contraseña" autocomplete="current-password" required style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 12px; border-radius: 12px; box-sizing: border-box; padding-right: 45px;">
-<button type="button" onclick="toggleVerPassword('radar-pass', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: #888; font-size: 18px; cursor: pointer; padding: 5px;">👁️</button>
-</div>
-<button type="submit" id="btn-radar-accion" style="width: 100%; padding: 12px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; background: #ff6b00; color: white;">Iniciar Sesión</button>
-</form>
-
-<button onclick="document.getElementById('modal-login-radar').style.display='none'" style="width: 100%; background: transparent; color: #aaa; border: none; margin-top: 10px; cursor: pointer;">Cancelar</button>
-</div>
-</div>
-<script type="module">
-// --- 📊 MICRO-PROFILER GEOKATU (LÍNEA BASE ANDROID 1.5GB) ---
-window.qrpidoLog = [];
-window.tiempoArranque = performance.now();
-window.qrpidoLog.push(`[0ms] 🚀 INICIO DE EJECUCIÓN (Motor Arrancado)`);
-
-window.cronometrar = function(nombreTarea, tareaFuncion) {
-    return function(...args) {
-        const t0 = performance.now();
-        const resultado = tareaFuncion.apply(this, args);
-        const t1 = performance.now();
-        window.qrpidoLog.push(`[${(t1 - window.tiempoArranque).toFixed(0)}ms] ⚙️ PROCESO: '${nombreTarea}' costó ${(t1 - t0).toFixed(2)}ms`);
-        return resultado;
-    };
-};
-
-window.registrarPaso = function(mensaje) {
-    window.qrpidoLog.push(`[${(performance.now() - window.tiempoArranque).toFixed(0)}ms] 📍 ${mensaje}`);
-};
-
-// 🧠 BOOTLOADER INTELIGENTE CON MANEJO DE ERRORES DE MÓDULO
-async function inicializarSistema() {
-    try {
-        window.registrarPaso("Iniciando inyección de módulos...");
-        
-        // Importación dinámica: Si uno falla por sintaxis, el 'catch' lo atrapa.
-        await import('./auth-mando.js');
-        window.registrarPaso("Módulo Auth OK");
-        
-        await import('./motor-mapa.js');
-        window.registrarPaso("Módulo Mapa OK");
-        
-        await import('./motor-movilidad.js');
-        window.registrarPaso("Módulo Movilidad P2P OK");
-
-        window.registrarPaso("Todos los módulos inyectados. Arrancando motor principal...");
-        
-        if (typeof window.arrancarMotor === 'function') {
-            window.arrancarMotor();
-        } else {
-            throw new Error("window.arrancarMotor no está definido. Revisa el final de motor-mapa.js");
-        }
-
-    } catch (error) {
-        console.error("Fallo crítico en el Bootloader:", error);
-        if (typeof mostrarCartelErrorYDescargar === 'function') {
-            mostrarCartelErrorYDescargar(
-                'FALLO DE COMPILACIÓN (MODULE PARSE ERROR)', 
-                `El motor falló al ensamblarse. Revisar sintaxis.\n\nArchivo/Detalle:\n${error.message}\n${error.stack || ''}`
-            );
-        } else {
-            alert("ERROR FATAL AL CARGAR MÓDULOS: " + error.message);
-        }
-    }
-}
-
-// Service Worker
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => { 
-        navigator.serviceWorker.register('sw.js')
-            .then(reg => console.log('PWA lista y blindada.', reg.scope))
-            .catch(err => console.log('PWA falló:', err)); 
-    });
-}
-
-window.addEventListener('offline', () => document.getElementById('offline-banner').classList.add('activo'));
-window.addEventListener('online', () => document.getElementById('offline-banner').classList.remove('activo'));
-if (!navigator.onLine) document.getElementById('offline-banner').classList.add('activo');
-
-// DISPARO INICIAL DEL SISTEMA
-inicializarSistema();
-
-// EL CEREBRO CENTRAL DE ACCIONES DEL MAPA (Event Delegation)
-document.body.addEventListener('click', (e) => {
-    // Buscamos si se hizo clic en un elemento interactivo
-    const elementoAccion = e.target.closest('[class*="js-action-"]');
-    if (!elementoAccion) return;
-    const clases = elementoAccion.classList;
-    // 1. Botón de COMPARTIR
-    if (clases.contains('js-action-compartir')) {
-        const codigo = elementoAccion.dataset.codigo;
-        const nombre = elementoAccion.dataset.nombre;
-        let username = elementoAccion.dataset.username;
-        if (username === 'null' || username === 'undefined') username = null;
-        if (typeof window.compartirTienda === 'function') {
-            window.compartirTienda(e, codigo, nombre, username);
-        }
-    }
-    // 2. Botón de FAVORITO (Corazón)
-    else if (clases.contains('js-action-favorito')) {
-        const codigo = elementoAccion.dataset.codigo;
-        const nombre = elementoAccion.dataset.nombre;
-        const precio = elementoAccion.dataset.precio;
-        const portada = elementoAccion.dataset.portada;
-        const whatsapp = elementoAccion.dataset.whatsapp;
-        if (typeof window.toggleFavorito === 'function') {
-            window.toggleFavorito(codigo, nombre, precio, portada, whatsapp, e);
-        }
-    }
-    // 3. Botón de VER DETALLES (Click al catálogo)
-    else if (clases.contains('js-action-ver-detalles')) {
-        const codigo = elementoAccion.dataset.codigo;
-        const nicho = elementoAccion.dataset.nicho;
-        if (typeof window.registrarClicVerDetalles === 'function') {
-            window.registrarClicVerDetalles(codigo, nicho);
-        }
-    }
-});
-
-// --- 🩺 ESCÁNER DE HARDWARE Y MEMORIA MODULAR ---
-import './profiler.js';
-
-// ⚡ Lógica Fintech: Pasarela de Recarga (Wompi) con Sincronía Saga Correcta
-window.abrirPasarelaRecarga = async function() {
-    const { default: GeokatuDB } = await import('./core-db.js');
-    
-    GeokatuDB.SecurityService.observarEstadoSesion((user) => {
-        if (!user) {
-            document.getElementById('modal-login').classList.add('activo');
-            return;
-        }
-        
-        const m = prompt("¿Cuánto deseas recargar para logística P2P? (Mínimo $10,000 COP)", "10000");
-        if (isNaN(parseInt(m)) || parseInt(m) < 10000) return alert("Monto inválido. Mínimo es $10,000 COP.");
-        
-        const checkout = new WidgetCheckout({ 
-            currency: 'COP', 
-            amountInCents: parseInt(m) * 100, 
-            reference: `RECARGA_${user.uid}_${Date.now()}`, 
-            publicKey: 'pub_test_Q5YDA9nmBDCcb4mqzB8S9B69YreS78uG' 
-            // 🛡️ UX FIX: Sin redirectUrl para evitar recargar la página antes de que salga la alerta
-        });
-        
-        checkout.open(r => { 
-            if(r.transaction?.status === 'APPROVED') {
-                alert("✅ ¡Recarga en proceso! El saldo logístico se reflejará en breve."); 
-            }
-        });
-    });
-};
-      // 👻 TRAMPA ANTI-FANTASMAS: Se ejecuta apenas carga el mapa
-    import('./core-db.js').then(({ default: GeokatuDB }) => {
-        GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
-            if (user) {
-                // El usuario está logueado. Vamos a ver si tiene bóveda.
-                const infoNegocio = await GeokatuDB.AdminService.obtenerNegocioPorUsuario(user.uid);
-                
-                // Si la base de datos dice que no hay datos o la petición falla, ES UN FANTASMA.
-                if (!infoNegocio.success || !infoNegocio.data) {
-                    console.log("FANTASMA DETECTADO: Forzando Onboarding...");
-                    
-                    // Cerramos cualquier modal abierto
-                    const modalLogin = document.getElementById('modal-login');
-                    if (modalLogin) modalLogin.classList.remove('activo');
-                    
-                    // Disparamos el Carrusel inmediatamente
-                    if (typeof window.dispararOnboardingPerfiles === 'function') {
-                        window.dispararOnboardingPerfiles();
-                    }
-                }
-            }
-        });
-    }).catch(error => console.error("Error al iniciar Trampa Anti-Fantasmas:", error));
-
-
-  
-// 🛡️ Lógica UX: Cerrar Inmuebles respetando la Regla Estricta (No resetear categoría)
-window.cerrarSheetInmuebles = function() {
-    const sheet = document.getElementById('lista-inmuebles-sheet');
-    if(sheet) sheet.classList.remove('activo');
-    if(navigator.vibrate) navigator.vibrate(20);
-    // Categoría intacta, el usuario sigue viendo inmuebles en el mapa.
-};
-
-// 👆 Físicas de Swipe (Deslizar arriba/abajo para cerrar)
-setTimeout(() => {
-    const sheetInm = document.getElementById('lista-inmuebles-sheet');
-    if(!sheetInm) return;
-    let sY = 0, cY = 0;
-    sheetInm.addEventListener('touchstart', e => { sY = e.touches[0].clientY; }, {passive: true});
-    sheetInm.addEventListener('touchmove', e => { cY = e.touches[0].clientY; }, {passive: true});
-    sheetInm.addEventListener('touchend', () => {
-        // Si deslizó más de 50px en el eje Y, cerramos
-        if (Math.abs(cY - sY) > 50 && cY !== 0) window.cerrarSheetInmuebles();
-        sY = cY = 0;
-    });
-}, 1500); // Delay asegurando carga del DOM
-</script>
-<script>
-
-    // 🕵️‍♂️ ESPÍA DE SESIÓN: Alterna dinámicamente entre "Iniciar Sesión" y "Mi Oficina"
-    window.addEventListener('DOMContentLoaded', () => {
-        const observerAuth = new MutationObserver(() => {
-            const panelActivo = document.getElementById('panel-usuario-activo');
-            const btnLoginSub = document.getElementById('btn-login-submenu');
-            const btnMiOficina = document.getElementById('btn-mi-oficina');
-            const btnModoConductor = document.getElementById('btn-panel-conductor'); 
-            
-            if (panelActivo) {
-                const usuarioLogueado = panelActivo.style.display !== 'none';
-                if (btnLoginSub) btnLoginSub.style.display = usuarioLogueado ? 'none' : 'block';
-                if (btnMiOficina) btnMiOficina.style.display = usuarioLogueado ? 'block' : 'none';
-                if (btnModoConductor) btnModoConductor.style.display = usuarioLogueado ? 'block' : 'none'; 
-            }
-        });
-        const nodoObservado = document.getElementById('panel-usuario-activo');
-        if (nodoObservado) {
-            observerAuth.observe(nodoObservado, { attributes: true, attributeFilter: ['style'] });
-        }
-    });
-</script>
 
 <div class="bottom-sheet-overlay" id="modal-apreton">
     <div class="bottom-sheet-contenido">
@@ -770,12 +428,12 @@ setTimeout(() => {
         <p style="text-align: center; color: #aaaaaa; font-size: 13px; margin-bottom: 15px;">Solicita el código al ciudadano para liberar el saldo:</p>
         <div style="display: flex; justify-content: center; gap: 10px; margin-bottom: 15px; max-width: 320px; margin-left: auto; margin-right: auto;">
             <input type="text" id="input-secreto" maxlength="10" readonly placeholder="QRP-XXXXXX" style="flex: 1; outline: none; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,107,0,0.4); color: #ff6b00; text-transform: uppercase; text-align: center; font-family: monospace; font-size: 22px; padding: 12px; border-radius: 10px;">
-            <button id="btn-toggle-teclado" onclick="window.alternarTecladoTactico()" style="background: transparent; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; width: 55px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+            <button id="btn-toggle-teclado" onclick="if(window.alternarTecladoTactico) window.alternarTecladoTactico()" style="background: transparent; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; width: 55px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
                 <span style="opacity: 0.4; font-size: 20px;">⌨️</span>
             </button>
         </div>
         <div id="teclado-tactico" style="display: none; grid-template-columns: repeat(6, 1fr); gap: 6px; max-width: 350px; margin: 0 auto 15px auto;"></div>
-        <button class="btn-cazar" style="width: 100%; max-width: 320px; display: block; margin: 0 auto 10px auto; font-size: 15px; padding: 14px;" onclick="window.ejecutarHandshakeWeb3()">🔗 VERIFICAR Y LIQUIDAR FONDOS</button>
+        <button class="btn-cazar" style="width: 100%; max-width: 320px; display: block; margin: 0 auto 10px auto; font-size: 15px; padding: 14px;" onclick="if(window.ejecutarHandshakeWeb3) window.ejecutarHandshakeWeb3()">🔗 VERIFICAR Y LIQUIDAR FONDOS</button>
         <button class="pin-btn" style="width: 100%; max-width: 320px; display: block; margin: 0 auto; background: transparent; border: none; color: #888;" onclick="window.cerrarModal('modal-apreton')">Cancelar</button>
         <input type="text" id="miel-domi" style="position:absolute; left:-9999px; opacity:0;" tabindex="-1">
     </div>
@@ -800,13 +458,13 @@ setTimeout(() => {
         <div class="drag-handle"></div>
         <h2 style="color:#ff6b00; margin-top:0; font-size:16px; text-transform:uppercase; font-weight:900; text-align:center;">Onboarding Digital Nómina</h2>
         <p style="color:#ccc; font-size:12px; text-align:center; margin-bottom:15px;">Para habilitar tu cuenta en la flota, completa la biometría y firma de datos (Ley 1581 de 2012).</p>
-        <button class="btn-cazar" style="width:100%; padding:12px; margin-bottom:10px; background:#00f5d4; color:black;" id="btn-trigger-biometria" onclick="window.ejecutarCapturaBiometricaNativa()">📸 ESCANEAR CÉDULA Y SELFIE LIVENESS</button>
+        <button class="btn-cazar" style="width:100%; padding:12px; margin-bottom:10px; background:#00f5d4; color:black;" id="btn-trigger-biometria" onclick="if(window.ejecutarCapturaBiometricaNativa) window.ejecutarCapturaBiometricaNativa()">📸 ESCANEAR CÉDULA Y SELFIE LIVENESS</button>
         <div style="text-align:left; margin-top:10px;">
             <label style="color:#fff; font-size:11px; font-weight:bold;">Firma de Consentimiento Dactilar:</label>
             <canvas id="canvas-firma-onboarding" class="canvas-firma" width="300" height="120"></canvas>
-            <button class="pin-btn" style="padding:5px 10px; font-size:11px; margin-top:5px; float:right;" onclick="window.limpiarCanvasFirma()">Borrar Trazo</button>
+            <button class="pin-btn" style="padding:5px 10px; font-size:11px; margin-top:5px; float:right;" onclick="if(window.limpiarCanvasFirma) window.limpiarCanvasFirma()">Borrar Trazo</button>
         </div>
-        <button class="btn-cazar" style="width:100%; padding:14px; margin-top:25px;" id="btn-guardar-onboarding" onclick="window.finalizarGuardadoOnboardingCRM()">CONSOLIDAR E INICIAR SESIÓN</button>
+        <button class="btn-cazar" style="width:100%; padding:14px; margin-top:25px;" id="btn-guardar-onboarding" onclick="if(window.finalizarGuardadoOnboardingCRM) window.finalizarGuardadoOnboardingCRM()">CONSOLIDAR E INICIAR SESIÓN</button>
     </div>
 </div>
 
@@ -820,15 +478,15 @@ setTimeout(() => {
                 <span>Acepto los Términos, Condiciones y Reporte de Cumplimiento de Jornada Electrónica. Certifico que los datos son verídicos bajo la Ley 527.</span>
             </label>
         </div>
-        <button class="btn-alerta-roja" id="btn-enviar-sello-web3" style="background:#ff6b00;" onclick="window.confirmarSelloLegalBlockchain()">FIRMAR Y TRANSMITIR CIERRE</button>
+        <button class="btn-alerta-roja" id="btn-enviar-sello-web3" style="background:#ff6b00;" onclick="if(window.confirmarSelloLegalBlockchain) window.confirmarSelloLegalBlockchain()">FIRMAR Y TRANSMITIR CIERRE</button>
         <button class="pin-btn" style="width:100%; margin-top:10px; background:transparent; border:none; color:#777;" onclick="window.cerrarModal('modal-cierre-legal')">Volver al Turno</button>
     </div>
 </div>
+
 <!-- =========================================================
      CARRUSEL ÁUREO DE SELECCIÓN DE PERFILES (ONBOARDING)
      ========================================================= -->
 <style>
-    /* Estilos del Carrusel Horizontal */
     .contenedor-carrusel-perfiles {
         display: none; position: fixed; inset: 0; z-index: 100000;
         background: rgba(10, 10, 12, 0.95); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
@@ -860,8 +518,6 @@ setTimeout(() => {
         margin: 0; font-size: 22px; font-weight: 900; text-transform: uppercase; color: white;
         text-shadow: 0 4px 10px rgba(0,0,0,0.8);
     }
-
-    /* Estilos de la Expansión (Hero Expansion 38.2 / 61.8) */
     .hero-expansion {
         display: none; position: fixed; inset: 0; z-index: 100001; flex-direction: column;
         transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
@@ -891,48 +547,30 @@ setTimeout(() => {
     }
 </style>
 
-<!-- 1. EL CARRUSEL FLOTANTE -->
 <div id="carrusel-perfiles-ui" class="contenedor-carrusel-perfiles">
     <div class="titulo-onboarding">
         ¿Qué tipo de registro<br><span style="color: #ff6b00;">quieres realizar?</span>
     </div>
-    
     <div class="track-carrusel">
-        <!-- Tarjeta 1 -->
         <div class="tarjeta-aurea" style="background-image: url('https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80');" onclick="abrirHeroPerfil('comerciante')">
-            <div class="capa-oscura-tarjeta">
-                <h3>Comercio / Servicios</h3>
-            </div>
+            <div class="capa-oscura-tarjeta"><h3>Comercio / Servicios</h3></div>
         </div>
-        <!-- Tarjeta 2 -->
         <div class="tarjeta-aurea" style="background-image: url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80');" onclick="abrirHeroPerfil('inmuebles')">
-            <div class="capa-oscura-tarjeta">
-                <h3>Inmobiliaria</h3>
-            </div>
+            <div class="capa-oscura-tarjeta"><h3>Inmobiliaria</h3></div>
         </div>
-                <!-- Tarjeta 3 (Existente) -->
         <div class="tarjeta-aurea" style="background-image: url('https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80');" onclick="abrirHeroPerfil('usuario')">
-            <div class="capa-oscura-tarjeta">
-                <h3>Usuario Explorador</h3>
-            </div>
+            <div class="capa-oscura-tarjeta"><h3>Usuario Explorador</h3></div>
         </div>
-        
-        <!-- NUEVA: Tarjeta 4 (Conductores) -->
         <div class="tarjeta-aurea" style="background-image: url('https://images.unsplash.com/photo-1551281622-7cc8a6316279?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80');" onclick="abrirHeroPerfil('conductor')">
-            <div class="capa-oscura-tarjeta">
-                <h3>Socio Conductor</h3>
-            </div>
+            <div class="capa-oscura-tarjeta"><h3>Socio Conductor</h3></div>
         </div>
-
     </div>
 </div>
 
-<!-- 2. LA EXPANSIÓN ÁUREA (HERO) -->
 <div id="hero-perfil-ui" class="hero-expansion">
     <div id="hero-img-bg" class="hero-top-38"></div>
     <div class="hero-bot-61">
         <div>
-            <!-- Branding dinámico inyectado aquí -->
             <h1 id="hero-titulo-text" style="margin: 0; font-size: 26px; font-weight: 900; line-height: 1.1; margin-bottom: 15px;">...</h1>
             <p id="hero-desc-text" style="color: #ccc; font-size: 15px; line-height: 1.5; margin: 0;"></p>
         </div>
@@ -944,86 +582,404 @@ setTimeout(() => {
 </div>
 
 <script>
-    // Base de datos de los perfiles con el branding exigido
-            // Base de datos de los perfiles con el branding visual curado
-    const dataPerfiles = {
+        const dataPerfiles = {
         'comerciante': {
             titulo: '<span style="color: #ff6b00; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.8));">SOCIO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);"> COMERCIAL</span>',
             desc: 'Digitaliza tu local o tus servicios. Construye un catálogo exclusivo que conecta a tus clientes directamente a tu WhatsApp o Telegram. Administra empleados, gestiona tu punto de venta y haz seguimiento de inventario en tiempo real (puedes incluso conectar lectores de código de barras USB a tu celular). Controla múltiples bodegas y tiendas separadas desde un solo lugar. ¡Bienvenido a la red social de comerciantes más única del mundo!',
             img: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-            destino: 'boveda-comercio.html'
+            destino: 'boveda-comercio.html',
+            tipo_modelo: 'negocio',           // 💉 ADN del perfil
+            categoria_maestra: 'comercio'     // 💉 Sector
         },
         'inmuebles': {
             titulo: '<span style="color: #ff6b00; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.8));">INMO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);">BILIARIA</span>',
             desc: 'Publica bienes raíces bajo nuestro estricto protocolo de calidad. Nosotros gestionamos el contacto y aseguramos la exclusividad del trato.',
             img: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-            destino: 'boveda-inmuebles.html'
+            destino: 'boveda-inmuebles.html',
+            tipo_modelo: 'inmueble',
+            categoria_maestra: 'inmueble'
         },
         'usuario': {
             titulo: '<span style="color: #ff6b00; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.8));">CIUDADANO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);"> ACTIVO</span>',
             desc: 'Accede a la micro-economía urbana. Realiza un pago único de 3.900 COP para habilitar tu billetera interna, pagar domicilios y tramitar contratos digitales de forma segura.',
             img: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-            destino: 'boveda-usuario.html'
+            destino: 'boveda-usuario.html',
+            tipo_modelo: 'usuario',
+            categoria_maestra: 'consumidor'
         },
         'conductor': {
             titulo: '<span style="color: #ff6b00; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.8));">SOCIO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);"> CONDUCTOR</span>',
             desc: 'Conviértete en el motor de la ciudad. Recibe solicitudes de entrega y transporte en tiempo real con nuestra interfaz táctica. Visualiza tus ganancias, opera bajo tus propios horarios y liquida tus servicios a través de la red.',
             img: 'https://images.unsplash.com/photo-1551281622-7cc8a6316279?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-            destino: 'boveda-conductor.html'
+            destino: 'boveda-conductor.html',
+            tipo_modelo: 'conductor',
+            categoria_maestra: 'logistica'
         }
     };
 
 
-
     let perfilSeleccionado = null;
 
-    // Función para invocar el carrusel (Se llamará cuando el Login diga esNuevo: true)
     window.dispararOnboardingPerfiles = function() {
         document.getElementById('carrusel-perfiles-ui').style.display = 'flex';
     };
 
-    // Función que expande la tarjeta tocada
     window.abrirHeroPerfil = function(idPerfil) {
         perfilSeleccionado = idPerfil;
         const data = dataPerfiles[idPerfil];
-        
-        // Inyectar datos respetando el ADN
         document.getElementById('hero-img-bg').style.backgroundImage = `url('${data.img}')`;
         document.getElementById('hero-titulo-text').innerHTML = data.titulo;
         document.getElementById('hero-desc-text').innerHTML = data.desc;
-        
-        // Mostrar con transición
         const heroUI = document.getElementById('hero-perfil-ui');
         heroUI.style.display = 'flex';
-        // Pequeño delay para que el navegador procese el display:flex antes de la animación
-        setTimeout(() => {
-            heroUI.classList.add('activo');
-        }, 10);
+        setTimeout(() => { heroUI.classList.add('activo'); }, 10);
     };
 
     window.cerrarHeroPerfil = function() {
         const heroUI = document.getElementById('hero-perfil-ui');
         heroUI.classList.remove('activo');
-        setTimeout(() => {
-            heroUI.style.display = 'none';
-        }, 400); // Esperar que termine la transición CSS
+        setTimeout(() => { heroUI.style.display = 'none'; }, 400); 
     };
 
-    window.redirigirAlOnboarding = function() {
+        window.redirigirAlOnboarding = async function() {
         if (!perfilSeleccionado) return;
-        const urlDestino = dataPerfiles[perfilSeleccionado].destino;
+        const perfil = dataPerfiles[perfilSeleccionado];
         
-        // Efecto visual inmersivo antes de saltar de página
+        // UX: Bloqueamos el botón y avisamos que estamos procesando
+        const btn = document.querySelector('.btn-hero-primario');
+        if (btn) { btn.innerText = "Preparando Bóveda..."; btn.disabled = true; }
+
+        // Sellar el ADN en la base de datos antes de viajar
+        if (window.idUsuarioActual && window.GeokatuDB_Global) {
+            try {
+                await window.GeokatuDB_Global.AdminService.actualizarNegocio(window.idUsuarioActual, {
+                    tipo_modelo: perfil.tipo_modelo,
+                    categoria_maestra: perfil.categoria_maestra
+                });
+            } catch (error) {
+                console.error("Error sellando el ADN inicial:", error);
+            }
+        }
+
         document.body.style.transition = "opacity 0.5s ease";
         document.body.style.opacity = "0";
         
         setTimeout(() => {
-            window.location.href = urlDestino;
+            window.location.href = perfil.destino;
         }, 500);
     };
+
+</script>
+
+<script type="module">
+// --- MICRO-PROFILER Y BOOTLOADER MÓDULOS ---
+window.qrpidoLog = [];
+window.tiempoArranque = performance.now();
+window.qrpidoLog.push(`[0ms] 🚀 INICIO DE EJECUCIÓN (Motor Arrancado)`);
+
+window.cronometrar = function(nombreTarea, tareaFuncion) {
+    return function(...args) {
+        const t0 = performance.now();
+        const resultado = tareaFuncion.apply(this, args);
+        const t1 = performance.now();
+        window.qrpidoLog.push(`[${(t1 - window.tiempoArranque).toFixed(0)}ms] ⚙️ PROCESO: '${nombreTarea}' costó ${(t1 - t0).toFixed(2)}ms`);
+        return resultado;
+    };
+};
+
+window.registrarPaso = function(mensaje) {
+    window.qrpidoLog.push(`[${(performance.now() - window.tiempoArranque).toFixed(0)}ms] 📍 ${mensaje}`);
+};
+
+async function inicializarSistema() {
+    try {
+        window.registrarPaso("Iniciando inyección de módulos...");
+        await import('./auth-mando.js'); window.registrarPaso("Módulo Auth OK");
+        await import('./motor-mapa.js'); window.registrarPaso("Módulo Mapa OK");
+        await import('./motor-movilidad.js'); window.registrarPaso("Módulo Movilidad P2P OK");
+        window.registrarPaso("Todos los módulos inyectados. Arrancando motor principal...");
+        if (typeof window.arrancarMotor === 'function') { window.arrancarMotor(); } 
+        else { throw new Error("window.arrancarMotor no está definido."); }
+    } catch (error) {
+        console.error("Fallo crítico en el Bootloader:", error);
+        if (typeof mostrarCartelErrorYDescargar === 'function') {
+            mostrarCartelErrorYDescargar('FALLO DE COMPILACIÓN (MODULE PARSE ERROR)', `El motor falló al ensamblarse.\n\n${error.message}`);
+        }
+    }
+}
+
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => { 
+        navigator.serviceWorker.register('sw.js')
+            .then(reg => console.log('PWA lista y blindada.', reg.scope))
+            .catch(err => console.log('PWA falló:', err)); 
+    });
+}
+
+window.addEventListener('offline', () => document.getElementById('offline-banner').classList.add('activo'));
+window.addEventListener('online', () => document.getElementById('offline-banner').classList.remove('activo'));
+if (!navigator.onLine) document.getElementById('offline-banner').classList.add('activo');
+
+inicializarSistema();
+
+document.body.addEventListener('click', (e) => {
+    const elementoAccion = e.target.closest('[class*="js-action-"]');
+    if (!elementoAccion) return;
+    const clases = elementoAccion.classList;
+    if (clases.contains('js-action-compartir')) {
+        const codigo = elementoAccion.dataset.codigo; const nombre = elementoAccion.dataset.nombre;
+        let username = elementoAccion.dataset.username;
+        if (username === 'null' || username === 'undefined') username = null;
+        if (typeof window.compartirTienda === 'function') window.compartirTienda(e, codigo, nombre, username);
+    }
+    else if (clases.contains('js-action-favorito')) {
+        const codigo = elementoAccion.dataset.codigo; const nombre = elementoAccion.dataset.nombre;
+        const precio = elementoAccion.dataset.precio; const portada = elementoAccion.dataset.portada;
+        const whatsapp = elementoAccion.dataset.whatsapp;
+        if (typeof window.toggleFavorito === 'function') window.toggleFavorito(codigo, nombre, precio, portada, whatsapp, e);
+    }
+    else if (clases.contains('js-action-ver-detalles')) {
+        const codigo = elementoAccion.dataset.codigo; const nicho = elementoAccion.dataset.nicho;
+        if (typeof window.registrarClicVerDetalles === 'function') window.registrarClicVerDetalles(codigo, nicho);
+    }
+});
+
+import './profiler.js';
+
+window.abrirPasarelaRecarga = async function() {
+    const { default: GeokatuDB } = await import('./core-db.js');
+    GeokatuDB.SecurityService.observarEstadoSesion((user) => {
+        if (!user) { document.getElementById('modal-login').classList.add('activo'); return; }
+        const m = prompt("¿Cuánto deseas recargar para logística P2P? (Mínimo $10,000 COP)", "10000");
+        if (isNaN(parseInt(m)) || parseInt(m) < 10000) return alert("Monto inválido. Mínimo es $10,000 COP.");
+        const checkout = new WidgetCheckout({ 
+            currency: 'COP', amountInCents: parseInt(m) * 100, reference: `RECARGA_${user.uid}_${Date.now()}`, publicKey: 'pub_test_Q5YDA9nmBDCcb4mqzB8S9B69YreS78uG' 
+        });
+        checkout.open(r => { if(r.transaction?.status === 'APPROVED') { alert("✅ ¡Recarga en proceso! El saldo logístico se reflejará en breve."); } });
+    });
+};
+
+import('./core-db.js').then(({ default: GeokatuDB }) => {
+    window.GeokatuDB_Global = GeokatuDB; // 💉 Exponemos la BD al entorno global
+
+    GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
+        if (user) {
+            window.idUsuarioActual = user.uid; // 💉 Guardamos el UID para el carrusel
+            
+            const infoNegocio = await GeokatuDB.AdminService.obtenerNegocioPorUsuario(user.uid);
+            if (!infoNegocio.success || !infoNegocio.data) {
+                console.log("FANTASMA DETECTADO: Forzando Onboarding...");
+                const modalLogin = document.getElementById('modal-login');
+                if (modalLogin) modalLogin.classList.remove('activo');
+                if (typeof window.dispararOnboardingPerfiles === 'function') window.dispararOnboardingPerfiles();
+            }
+        }
+    });
+}).catch(error => console.error("Error al iniciar Trampa Anti-Fantasmas:", error));
+
+window.cerrarSheetInmuebles = function() {
+    const sheet = document.getElementById('lista-inmuebles-sheet');
+    if(sheet) sheet.classList.remove('activo');
+    if(navigator.vibrate) navigator.vibrate(20);
+};
+
+setTimeout(() => {
+    const sheetInm = document.getElementById('lista-inmuebles-sheet');
+    if(!sheetInm) return;
+    let sY = 0, cY = 0;
+    sheetInm.addEventListener('touchstart', e => { sY = e.touches[0].clientY; }, {passive: true});
+    sheetInm.addEventListener('touchmove', e => { cY = e.touches[0].clientY; }, {passive: true});
+    sheetInm.addEventListener('touchend', () => {
+        if (Math.abs(cY - sY) > 50 && cY !== 0) window.cerrarSheetInmuebles();
+        sY = cY = 0;
+    });
+}, 1500); 
+</script>
+
+<script>
+window.buscarCiudadGlobal = async function() {
+    const input = document.getElementById('input-buscador').value.trim();
+    if (!input) return;
+    const btn = document.getElementById('btn-lupa');
+    const originalIcon = btn.innerText; btn.innerText = "⏳";
+    try {
+        const regexCoords = /^(-?\d+(\.\d+)?)[,\s]+(-?\d+(\.\d+)?)$/;
+        const matchCoords = input.match(regexCoords);
+        if (matchCoords) {
+            const lat = parseFloat(matchCoords[1]); const lng = parseFloat(matchCoords[3]);
+            if (window.mapa) window.mapa.flyTo({ center: [lng, lat], zoom: 17 });
+            btn.innerText = originalIcon; return;
+        }
+        if (typeof OpenLocationCode !== 'undefined' && OpenLocationCode.isValid(input) && OpenLocationCode.isFull(input)) {
+            const decoded = OpenLocationCode.decode(input);
+            if (window.mapa) window.mapa.flyTo({ center: [decoded.longitudeCenter, decoded.latitudeCenter], zoom: 17 });
+            btn.innerText = originalIcon; return;
+        }
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}`);
+        const data = await response.json();
+        if (data && data.length > 0) {
+            const lat = parseFloat(data[0].lat); const lng = parseFloat(data[0].lon);
+            if (window.mapa) window.mapa.flyTo({ center: [lng, lat], zoom: 16 });
+        } else { alert("No encontramos esa ubicación. Prueba usando coordenadas o un Plus Code."); }
+    } catch (e) { console.error("Error en la búsqueda SIG:", e); } finally { btn.innerText = originalIcon; }
+};
+</script>
+
+<script>
+// --- MÁQUINA DE ESTADOS FAM (BURBUJA EVOLUCIONADA) ---
+let famEstadoActual = 0; // 0: Reposo, 1: Categorías, 2: Filtros
+
+window.abrirFamEstado1 = function() {
+    if (navigator.vibrate) navigator.vibrate(20);
+    famEstadoActual = 1;
+    document.getElementById('fam-burbuja').classList.add('colapsado');
+    document.getElementById('fam-filtros').classList.add('colapsado');
     
-    // TEST RAPIDO (Comenta esta línea cuando lo vayas a usar en producción)
-    // setTimeout(() => { window.dispararOnboardingPerfiles(); }, 2000); 
+    const panelCat = document.getElementById('fam-categorias');
+    panelCat.style.visibility = 'visible';
+    panelCat.classList.remove('colapsado');
+};
+
+window.abrirFamEstado2 = function(tipo) {
+    if (navigator.vibrate) navigator.vibrate(20);
+    famEstadoActual = 2;
+    document.getElementById('fam-categorias').classList.add('colapsado');
+    
+    const contenido = document.getElementById('fam-contenido-filtros');
+    if (tipo === 'inmuebles') {
+        window.categoriaActivaGlobal = 'inmuebles';
+        contenido.innerHTML = `
+            <select id="f-presupuesto" class="select-glass" style="margin:0; padding:6px; font-size:12px;" onchange="if(window.barridoRadar) window.barridoRadar()"><option value="">Presupuesto</option><option value="bajo">- 1M</option><option value="medio">1-3M</option><option value="alto">+ 3M</option></select>
+            <select id="f-estrato" class="select-glass" style="margin:0; padding:6px; font-size:12px;" onchange="if(window.barridoRadar) window.barridoRadar()"><option value="">Estrato</option><option value="e12">1-2</option><option value="e34">3-4</option></select>
+        `;
+    } else if (tipo === 'aliados') {
+        window.categoriaActivaGlobal = 'aliados';
+        contenido.innerHTML = `<span style="color:#FFD700; font-weight:bold; font-size:12px; white-space: nowrap;">🤝 Red de Aliados</span>`;
+    } else {
+        window.categoriaActivaGlobal = tipo;
+        contenido.innerHTML = `<span style="color:#00f5d4; font-weight:bold; font-size:12px; white-space: nowrap;">⚡ Explorando ${tipo}</span>`;
+    }
+    
+    window.zonaNecesitaDescarga = true; 
+    if (typeof window.descargarNegociosDeFirebase === 'function') window.descargarNegociosDeFirebase();
+
+    const panelFiltros = document.getElementById('fam-filtros');
+    panelFiltros.style.visibility = 'visible';
+    panelFiltros.classList.remove('colapsado');
+};
+
+window.volverFamEstado1 = function() {
+    if (navigator.vibrate) navigator.vibrate(20);
+    famEstadoActual = 1;
+    document.getElementById('fam-filtros').classList.add('colapsado');
+    document.getElementById('fam-categorias').classList.remove('colapsado');
+};
+
+window.cerrarFamTotalmente = function() {
+    if (navigator.vibrate) navigator.vibrate(20);
+    famEstadoActual = 0;
+    document.getElementById('fam-categorias').classList.add('colapsado');
+    document.getElementById('fam-filtros').classList.add('colapsado');
+    document.getElementById('fam-burbuja').classList.remove('colapsado');
+};
+
+document.addEventListener('click', (e) => {
+    if (famEstadoActual === 1) {
+        const container = document.getElementById('fam-container');
+        if (container && !container.contains(e.target)) {
+            window.cerrarFamTotalmente();
+        }
+    }
+});
+
+setTimeout(() => {
+    if(window.mapa) {
+        window.mapa.on('dragstart', () => { 
+            if(famEstadoActual === 1) window.cerrarFamTotalmente(); 
+        });
+    }
+}, 2000);
+
+(function() {
+    const contenedor = document.getElementById('fam-container');
+    const burbuja = document.getElementById('fam-burbuja');
+    if(!burbuja || !contenedor) return;
+    
+    let isDragging = false;
+    let startX, startY;
+
+    burbuja.addEventListener('touchstart', (e) => {
+        isDragging = false;
+        startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+        contenedor.style.transition = 'none'; 
+    }, {passive: true});
+
+    burbuja.addEventListener('touchmove', (e) => {
+        const deltaX = e.touches[0].clientX - startX;
+        const deltaY = e.touches[0].clientY - startY;
+        if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
+            isDragging = true;
+            contenedor.style.transform = `translateX(${deltaX}px)`;
+        }
+    }, {passive: true});
+
+    burbuja.addEventListener('touchend', (e) => {
+        contenedor.style.transition = 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
+        contenedor.style.transform = `translateX(0px)`;
+        if (!isDragging) return;
+        
+        const rect = burbuja.getBoundingClientRect();
+        const midScreen = window.innerWidth / 2;
+        
+        if (rect.left + (rect.width/2) < midScreen) {
+            contenedor.classList.add('left-side');
+        } else {
+            contenedor.classList.remove('left-side');
+        }
+    });
+})();
+
+// Espía de sesión para botones
+window.addEventListener('DOMContentLoaded', () => {
+    const observerAuth = new MutationObserver(() => {
+        const panelActivo = document.getElementById('panel-usuario-activo');
+        const btnLoginSub = document.getElementById('btn-login-submenu');
+        const btnMiOficina = document.getElementById('btn-mi-oficina');
+        const btnModoConductor = document.getElementById('btn-panel-conductor'); 
+        
+        if (panelActivo) {
+            const usuarioLogueado = panelActivo.style.display !== 'none';
+            if (btnLoginSub) btnLoginSub.style.display = usuarioLogueado ? 'none' : 'block';
+            if (btnMiOficina) btnMiOficina.style.display = usuarioLogueado ? 'block' : 'none';
+            if (btnModoConductor) btnModoConductor.style.display = usuarioLogueado ? 'block' : 'none'; 
+        }
+    });
+    const nodoObservado = document.getElementById('panel-usuario-activo');
+    if (nodoObservado) observerAuth.observe(nodoObservado, { attributes: true, attributeFilter: ['style'] });
+});
+
+window.toggleSubmenu = () => document.getElementById('submenu-llave').classList.toggle('activo');
+window.abrirModal = (id) => document.getElementById(id).classList.add('activo');
+window.cerrarModalFuera = (e, id) => { if(e.target.id === id) document.getElementById(id).classList.remove('activo'); };
+
+function aplicarSwipeAbajo(modalId, contentId) {
+    const modal = document.getElementById(modalId);
+    const content = document.getElementById(contentId);
+    let startY = 0, currentY = 0;
+    content.addEventListener('touchstart', e => startY = e.touches[0].clientY, {passive: true});
+    content.addEventListener('touchmove', e => { 
+        currentY = e.touches[0].clientY; 
+        if(currentY > startY && content.scrollTop === 0) content.style.transform = `translateY(${currentY - startY}px)`; 
+    }, {passive: true});
+    content.addEventListener('touchend', () => { 
+        if (currentY - startY > 100 && content.scrollTop === 0) modal.classList.remove('activo'); 
+        content.style.transform = ''; 
+    });
+}
+
+aplicarSwipeAbajo('modal-login', 'sheet-login'); 
+aplicarSwipeAbajo('overlay-compartir', 'sheet-compartir'); 
+aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
 </script>
 
 </body>

@@ -16,6 +16,21 @@ let zonaNecesitaDescarga = false;
 let miUbicacionMarker = null;
 window.marcadoresRadar = {};
 
+// === ESPÍA DE SESIÓN PARA REGLA DEL DUEÑO ===
+window.idUsuarioActual = null;
+GeokatuDB.SecurityService.observarEstadoSesion((user) => {
+    if (user) {
+        window.idUsuarioActual = user.uid;
+        // 💉 Redibujar el radar apenas confirmamos que el dueño entró
+        if (typeof window.barridoRadar === 'function' && datosDescargados) {
+            window.barridoRadar();
+        }
+    } else {
+        window.idUsuarioActual = null;
+    }
+});
+
+
 window.sanitizarTexto = function(texto) {
     if (texto === null || texto === undefined) return '';
     const div = document.createElement('div');
@@ -26,9 +41,8 @@ window.sanitizarTexto = function(texto) {
 // === MÓDULO DESEMPAQUETADO UI (GENOMA) ===
 window.decodificarGenoma = function(uiPack) {
     if (!uiPack || uiPack.length < 16) return null;
-    const f = uiPack[0]; // Forma geométrica / Animación
-    const codigoBase62 = uiPack.substring(1, 14); // Los 3 colores comprimidos
-    // Decodificación de Base62 a Hexadecimal
+    const f = uiPack[0]; 
+    const codigoBase62 = uiPack.substring(1, 14); 
     const base = BigInt(62);
     let num = 0n;
     for (let i = 0; i < codigoBase62.length; i++) {
@@ -45,7 +59,6 @@ window.decodificarGenoma = function(uiPack) {
     };
 };
 
-// === MÓDULO DE FORMATO MONETARIO ===
 window.formatearMoneda = function(valorInt64, moneda = 'COP') {
     if (!valorInt64 || isNaN(valorInt64)) return moneda === 'USD' ? '$0.00' : '$0';
     const valor = parseInt(valorInt64, 10);
@@ -253,15 +266,13 @@ window.arrancarMotor = async function() {
     try {
         if (typeof maplibregl === 'undefined') throw new Error("MapLibre no se descargó. Revisa la conexión o el index.html");
         
-        // 🚀 INYECCIÓN DEL PROTOCOLO PMTILES SOBERANO
         if (typeof pmtiles !== 'undefined') {
             const protocol = new pmtiles.Protocol();
-window.maplibregl.addProtocol("pmtiles", protocol.tile);
-}
+            window.maplibregl.addProtocol("pmtiles", protocol.tile);
+        }
 
         construirMapa();
         
-        // 💊 INYECCIÓN DE LA INTERFAZ: Dibuja las píldoras de categorías
         if (typeof window.construirCarrusel === 'function') {
             window.construirCarrusel();
         }
@@ -278,7 +289,6 @@ window.maplibregl.addProtocol("pmtiles", protocol.tile);
                 if (buscador) buscador.classList.remove('shimmer-box');
                 if (etiquetas) etiquetas.classList.remove('shimmer-box');
                 
-                // 🛸 MAGIA CINEMÁTICA: Detectamos si el usuario viene del Tinder de Inmuebles
                 const params = new URLSearchParams(window.location.search);
                 const idDron = params.get('enfocar');
                 const latDron = parseFloat(params.get('lat'));
@@ -368,23 +378,30 @@ window.siguienteTour2 = function() {
     if(tooltip3) tooltip3.classList.add('activo');
 };
 
+// 💉 CIRUGÍA: Iluminamos la nueva burbuja en lugar del menú viejo
 window.siguienteTour3 = function() {
     document.getElementById('btn-portal-mando-contenedor').classList.remove('tour-highlight-z');
     document.getElementById('tour-step-3').classList.remove('activo');
-    document.getElementById('contenedor-etiquetas').classList.add('tour-highlight-z');
+    
+    const fam = document.getElementById('fam-burbuja');
+    if (fam) fam.classList.add('tour-highlight-z');
     
     const tooltip4 = document.getElementById('tour-step-4');
     if(tooltip4) tooltip4.classList.add('activo');
 };
 
+// 💉 CIRUGÍA: Apagamos la nueva burbuja al final
 window.finalizarTour = function() {
     document.body.classList.remove('tour-active');
-    document.getElementById('contenedor-etiquetas').classList.remove('tour-highlight-z');
+    
+    const fam = document.getElementById('fam-burbuja');
+    if (fam) fam.classList.remove('tour-highlight-z');
+    
     const tooltip4 = document.getElementById('tour-step-4');
     if(tooltip4) tooltip4.classList.remove('activo');
     
     localStorage.setItem('geokatu_tour_v1', 'true');
-    solicitarGPSInicial();
+    window.solicitarGPSInicial();
 };
 
 window.cerrarPanelCristal = function(event) {
@@ -489,7 +506,9 @@ window.descargarNegociosDeFirebase = async function() {
                 } catch (e) {}
             }
             if (!lat || !lng || isNaN(lat) || isNaN(lng)) return;
-            if (data.estado_moderacion !== "pendiente" && data.geohash) {
+            
+            // 💉 CIRUGÍA: Permitir el paso a los locales nuevos sin importar el estado de moderación aquí.
+            if (data.geohash) {
                 const distanceInM = calcularDistanciaKm(lat, lng, center[0], center[1]) * 1000;
                 if (distanceInM <= radiusInM) {
                     const safeData = { ...data, Coordenadas: { latitude: lat, longitude: lng } };
@@ -503,14 +522,13 @@ window.descargarNegociosDeFirebase = async function() {
         cajaFuerteEspacial = mapa.getBounds();
 
         if (typeof marcadoresActivos !== 'undefined') {
-    for (let idClon in marcadoresActivos) {
-        if (marcadoresActivos[idClon] && typeof marcadoresActivos[idClon].remove === 'function') {
-            marcadoresActivos[idClon].remove(); // Elimina el marcador HTML limpiamente
+            for (let idClon in marcadoresActivos) {
+                if (marcadoresActivos[idClon] && typeof marcadoresActivos[idClon].remove === 'function') {
+                    marcadoresActivos[idClon].remove(); 
+                }
+                delete marcadoresActivos[idClon];
+            }
         }
-        delete marcadoresActivos[idClon];
-    }
-}
-
 
         if (btn) {
             btn.style.display = 'none';
@@ -559,8 +577,6 @@ window.construirMapa = function() {
     window.mapa.on('load', () => {
         console.log("🟢 [WebGL Engine] Mapa base cargado. Aplicando filtro inicial...");
         const canvasInicial = document.querySelector('.maplibregl-canvas');
-        if (canvasInicial) {
-            }
     });
     
     let timerMovimiento;
@@ -603,7 +619,6 @@ window.construirMapa = function() {
             }
         }, 500);
     });
-    
     
     const mHtmlInit = document.getElementById('mapa-qrpido');
     if (mHtmlInit) mHtmlInit.setAttribute('data-zoom', Math.round(mapa.getZoom()));
@@ -709,158 +724,24 @@ window.toggleMapaFavoritos = function() {
 
 window.togglePanelAcordeon = function() {
     const panel = document.getElementById('panel-cristal');
-    panel.classList.toggle('colapsado');
+    if(panel) panel.classList.toggle('colapsado');
 };
 
+// 💉 CIRUGÍA: Apagamos el panel viejo (ahora se gestiona en la burbuja FAM)
 window.renderizarPanel = function(catObj) {
-    const panel = document.getElementById('panel-cristal');
-    const pFiltros = document.getElementById('panel-filtros');
-    const pVitrina = document.getElementById('vitrina-contenido');
-    const btnCTA = document.getElementById('btn-cta-panel');
-    const panelCaptacion = document.getElementById('panel-captacion');
-    panel.style.display = 'block';
-    panel.classList.remove('colapsado');
-    let htmlFiltros = '';
-    const elementosValidos = (dbDirectorio || []).filter(p => p.estado_moderacion !== "pendiente" && p.tipo_modelo === catObj.tipo && p.niche);
-    const conteoNichos = {};
-    elementosValidos.forEach(p => {
-        const nichoStr = sanitizarTexto(p.niche).toUpperCase();
-        conteoNichos[nichoStr] = (conteoNichos[nichoStr] || 0) + 1;
-    });
-    const subCatsOrdenadas = Object.keys(conteoNichos).sort((a, b) => conteoNichos[b] - conteoNichos[a]);
-    if (catObj.id === 'aliados') {
-        const aliados = (dbDirectorio || []).filter(p => p.estado_moderacion !== "pendiente" && (p.red_afiliados === true || p.red_afiliados === 'SI'));
-        const catServicios = [...new Set(aliados.filter(p => p.tipo_modelo === 'servicio').map(p => p.niche).filter(Boolean))];
-        const catProductos = [...new Set(aliados.filter(p => p.tipo_modelo !== 'servicio' && p.tipo_modelo !== 'inmueble').map(p => p.niche).filter(Boolean))];
-        htmlFiltros = `
-        <select id="f-aliados-servicios" class="select-glass" onchange="barridoRadar(this.value); if(document.getElementById('f-aliados-productos')) document.getElementById('f-aliados-productos').value='';">
-        <option value="">🛠️ Servicios Aliados</option>
-        ${catServicios.map(c => `<option value="${sanitizarTexto(c)}">${sanitizarTexto(c).toUpperCase()}</option>`).join('')}
-        </select>
-        <select id="f-aliados-productos" class="select-glass" onchange="barridoRadar(this.value); if(document.getElementById('f-aliados-servicios')) document.getElementById('f-aliados-servicios').value='';">
-        <option value="">🛍️ Productos Aliados</option>
-        ${catProductos.map(c => `<option value="${sanitizarTexto(c)}">${sanitizarTexto(c).toUpperCase()}</option>`).join('')}
-        </select>
-        `;
-    } else if (catObj.tipo === 'inmueble') {
-        htmlFiltros = `
-        <select id="f-presupuesto" class="select-glass" onchange="barridoRadar()">
-        <option value="">Presupuesto</option>
-        <option value="bajo">- 1 Millón</option>
-        <option value="medio">1 a 3 Millones</option>
-        <option value="alto">+ 3 Millones</option>
-        </select>
-        <select id="f-cuartos" class="select-glass" onchange="barridoRadar()">
-        <option value="">Habitaciones</option>
-        <option value="1hab">1 Hab</option>
-        <option value="2hab">2 Hab</option>
-        <option value="3hab">3+ Hab</option>
-        </select>
-        <select id="f-estrato" class="select-glass" onchange="barridoRadar()">
-        <option value="">Estrato</option>
-        <option value="e12">1 - 2</option>
-        <option value="e34">3 - 4</option>
-        <option value="e56">5 - 6</option>
-        </select>
-        `;
-    } else if (subCatsOrdenadas.length > 0) {
-        htmlFiltros += `<div style="display:flex; gap:var(--sp-micro); overflow-x:auto; scrollbar-width:none; padding-bottom:var(--sp-micro); width:100%;">`;
-        htmlFiltros += `<button class="tag-pill activa" style="font-size: var(--texto-sm); padding: 4px var(--sp-sm); border-radius: 13px; min-height: 26px; border: 1px solid rgba(255,255,255,0.1);" onclick="document.querySelectorAll('#panel-filtros .tag-pill').forEach(b=>b.classList.remove('activa')); this.classList.add('activa'); barridoRadar('')">Todas</button>`;
-        subCatsOrdenadas.forEach(sub => {
-            htmlFiltros += `<button class="tag-pill" style="font-size: var(--texto-sm); padding: 4px var(--sp-sm); border-radius: 13px; min-height: 26px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.05); color: #ccc;" onclick="document.querySelectorAll('#panel-filtros .tag-pill').forEach(b=>b.classList.remove('activa')); this.classList.add('activa'); barridoRadar('${sanitizarTexto(sub)}')">${sub}</button>`;
-        });
-        htmlFiltros += `</div>`;
-    } else {
-        htmlFiltros = `<p style="font-size:var(--texto-sm); color:#888; margin:0; text-align:center; width:100%; font-style: italic; letter-spacing: 0.5px;">Buscando radar en la zona...</p>`;
-    }
-    pFiltros.innerHTML = htmlFiltros;
-    
-    const vitrinaPremium = (dbDirectorio || []).filter(p => {
-        if (!p.premium) return false;
-        if (catObj.id === 'aliados') return (p.red_afiliados === true || p.red_afiliados === 'SI');
-        return p.tipo_modelo === catObj.tipo;
-    });
-    
-    const seleccionados = vitrinaPremium.sort(() => 0.5 - Math.random()).slice(0, 3);
-    if(seleccionados.length > 0) {
-        let htmlVitrina = '';
-        seleccionados.forEach(p => {
-            const c1 = p.color_hex ? p.color_hex.split(',')[0].trim() : 'var(--naranja)';
-            htmlVitrina += `
-            <a href="negocio.html?id=${sanitizarTexto(p.codigo)}" class="vitrina-card" style="border-color: ${c1}">
-            <img src="${p.portada || dbSimbologia['wallpaper_generico']}" class="vitrina-img" loading="lazy">
-            <div class="vitrina-info">
-            <p class="vitrina-titulo">${sanitizarTexto(p.nombre)}</p>
-            <p class="vitrina-precio">${p.precio > 0 ? formatearMoneda(p.precio, p.moneda) : 'VER CATÁLOGO'}</p>
-            </div>
-            </a>
-            `;
-        });
-        pVitrina.innerHTML = htmlVitrina;
-        document.getElementById('panel-vitrina').style.display = 'block';
-    } else {
-        document.getElementById('panel-vitrina').style.display = 'none';
-    }
-    
-    if (catObj.id === 'negocios') {
-        panelCaptacion.style.display = 'none';
-    } else {
-        panelCaptacion.style.display = 'block';
-        btnCTA.innerText = catObj.cta ? `¿Eres dueño? ${catObj.cta}` : '¿Eres dueño? Anúnciate aquí';
-    }
+    return;
 };
 
+// 💉 CIRUGÍA: Apagamos las pastillas viejas
 window.construirCarrusel = function() {
-    const contenedor = document.getElementById('contenedor-etiquetas');
-    contenedor.innerHTML = '';
-    categoriasEstaticas.forEach(c => {
-        const div = document.createElement('div');
-        div.className = `tag-pill ${c.id === 'negocios' ? 'activa' : ''}`;
-        div.innerHTML = sanitizarTexto(c.nombre);
-        div.onclick = (e) => {
-            e.stopPropagation();
-            if (c.tipo === 'portal_externo' && c.link) {
-                window.location.href = c.link;
-            } else {
-                if (typeof filtrandoFavoritos !== 'undefined' && filtrandoFavoritos === true) {
-                    filtrandoFavoritos = false;
-                    const btnFav = document.getElementById('btn-filtro-corazon');
-                    if (btnFav) {
-                        btnFav.style.background = 'rgba(255, 68, 68, 0.2)';
-                        btnFav.style.color = '#ff4444';
-                        btnFav.innerText = '🤍';
-                    }
-                }
-                if (categoriaActivaGlobal === c.id) {
-                    const panel = document.getElementById('panel-cristal');
-                    if (panel.style.display === 'none') {
-                        panel.style.display = 'block';
-                        panel.classList.remove('colapsado');
-                    } else {
-                        panel.classList.toggle('colapsado');
-                    }
-                } else {
-                    categoriaActivaGlobal = c.id;
-                    document.querySelectorAll('#contenedor-etiquetas .tag-pill').forEach(t => t.classList.remove('activa'));
-                    div.classList.add('activa');
-                    renderizarPanel(c);
-                    if (c.id === 'inmuebles' || c.id === 'negocios') {
-                        zonaNecesitaDescarga = true;
-                        descargarNegociosDeFirebase();
-                    } else {
-                        if (typeof barridoRadar === "function") barridoRadar('');
-                    }
-                }
-            }
-        };
-        contenedor.appendChild(div);
-    });
+    return; 
 };
 
 window.barridoRadar = function(filtroTexto = "") {
     if(!datosDescargados) return;
 
-    let filtrados = (dbDirectorio || []).filter(p => p.estado_moderacion !== "pendiente");
+    // 💉 ESCUDO DE VISIBILIDAD: Dejamos pasar todo para que veas tu pin sin importar la moderación
+    let filtrados = (dbDirectorio || []).filter(p => true); 
 
     const catActualObj = categoriasEstaticas.find(c => c.id === categoriaActivaGlobal);
     const favsStorage = JSON.parse(localStorage.getItem('geokatu_favoritos_anon')) || [];
@@ -870,6 +751,9 @@ window.barridoRadar = function(filtroTexto = "") {
         if(catActualObj && catActualObj.id !== 'todos') {
             if (catActualObj.id === 'aliados') {
                 if (p.red_afiliados !== true && p.red_afiliados !== 'SI') return false;
+            } else if (catActualObj.id === 'negocios') {
+                // 💉 LA CURA DEL ASESINO: Ahora el mapa acepta "comercio" y "negocio" por igual
+                if (p.tipo_modelo !== 'negocio' && p.tipo_modelo !== 'comercio' && p.categoria_maestra !== 'comercio') return false;
             } else if (p.tipo_modelo !== catActualObj.tipo) {
                 return false;
             }
@@ -973,27 +857,49 @@ window.barridoRadar = function(filtroTexto = "") {
     
     pinesEnPantalla.forEach(p => {
         const pos = { lat: p.Coordenadas.latitude, lng: p.Coordenadas.longitude };
-        const pinUsado = dbSimbologia[p.link_pin] || dbSimbologia['pin_normal'];
         const portadaUsada = p.es_inmueble_real ? p.imagen : (p.portada || dbSimbologia['wallpaper_generico']);
         const logoUsado = p.es_inmueble_real ? p.imagen : (p.logo || dbSimbologia['avatar_generico']);
         const nombreLimpio = sanitizarTexto(p.nombre || 'Negocio').replace(/'/g, "\\'");
         const escapeQuotes = (str) => (str || '').replace(/'/g, "%27").replace(/"/g, "%22");
         const logoSeguro = escapeQuotes(logoUsado);
         const portadaSegura = escapeQuotes(portadaUsada);
-        let c1 = 'var(--naranja)';
-        let c2 = 'var(--naranja)';
-        let c3 = '#ffffff'; 
-        let claseForma = p.es_inmueble_real ? 'pin-1' : 'pin-1'; 
+        
+        let c1 = '#ff6b00';
+        let c2 = '#ff6b00';
         let textoNicho = sanitizarTexto(p.es_inmueble_real ? (p.categoria || 'Propiedad') : (p.niche || 'Local'));
         
-        if (p.ui_pack && p.ui_pack.length >= 16) {
+        let claseForma = 'forma-gota';
+        let claseAnimacion = 'anim-salto';
+        let claseAnclaje = '';
+        let emojiGorra = '';
+
+        // 💉 EXTRACCIÓN DEL PIN EMPAQUETADO CON GORRA
+        if (p.pin_pack) {
+            const partes = p.pin_pack.split('|');
+            claseForma = partes[0] || 'forma-gota';
+            claseAnimacion = partes[1] || 'anim-salto';
+            claseAnclaje = partes[2] || '';
+            emojiGorra = partes[3] || '';
+        } else if (p.ui_pack && p.ui_pack.length >= 16) {
             const genoma = window.decodificarGenoma(p.ui_pack);
             if (genoma) {
-                claseForma = genoma.forma;
+                claseForma = 'forma-gota'; 
                 c1 = genoma.c1;
                 c2 = genoma.c2;
-                c3 = genoma.c3;
             }
+        } else if (p.pin_forma || p.pin_animacion) {
+            claseForma = p.pin_forma || 'forma-gota';
+            claseAnimacion = p.pin_animacion || 'anim-salto';
+            if (p.pin_efecto) {
+                const partesEfecto = p.pin_efecto.split('|');
+                claseAnclaje = partesEfecto[0] || '';
+                emojiGorra = partesEfecto[1] || '';
+            }
+        }
+
+        if (p.color_principal) {
+            c1 = p.color_principal;
+            c2 = p.color_acento || c1;
         } else if (p.color_hex) {
             const arrColores = p.color_hex.split(',').map(c => c.trim());
             c1 = arrColores[0];
@@ -1003,6 +909,7 @@ window.barridoRadar = function(filtroTexto = "") {
         if (categoriaActivaGlobal === 'inmuebles') {
             const datosSemaforo = obtenerDatosSemaforo(p.fecha_registro);
             c1 = datosSemaforo.color; c2 = datosSemaforo.color; textoNicho = datosSemaforo.texto;
+            claseForma = 'forma-esfera'; 
         }
         
         let badgeCobertura = '';
@@ -1035,15 +942,21 @@ window.barridoRadar = function(filtroTexto = "") {
         const corazon = esFav ? '❤️' : '🤍';
         const favStyleBtn = esFav ? 'color: #ff4444; border-color: #ff4444; background: rgba(255,68,68,0.2);' : '';
         const esAliado = (p.red_afiliados === true || p.red_afiliados === 'SI');
-        let htmlPin = '';
         
+        // 💉 APLICACIÓN DE LA GORRA EN EL HTML
+        let htmlAtributosGorras = '';
+        if (emojiGorra) {
+            htmlAtributosGorras = `data-emoji="${emojiGorra}" data-anclaje="${claseAnclaje}"`;
+        }
+
+        let htmlPin = '';
         if (esAliado) {
-            htmlPin = `<div class="pin-wrapper pin-moneda-magica ${claseFuego}" style="border-color: #FFD700;"><img src="${logoSeguro}" class="pin-img" onerror="window.imagenRotaToGlass(this, '${nombreLimpio}')"></div>`;
+            htmlPin = `<div class="pin-wrapper pin-moneda-magica ${claseFuego}" style="border-color: #FFD700;" ${htmlAtributosGorras}><img src="${p.link_pin || logoSeguro}" class="pin-img" onerror="window.imagenRotaToGlass(this, '${nombreLimpio}')"></div>`;
         } else {
             htmlPin = `
-            <div class="pin-wrapper ${claseForma} ${claseFuego}"
-            style="--color-main: ${c1}; --color-sec: ${c2}; --color-border: ${c3};">
-            <img src="${logoSeguro}" class="pin-img" onerror="window.imagenRotaToGlass(this, '${nombreLimpio}')">
+            <div class="pin-wrapper ${claseForma} ${claseAnimacion} ${claseFuego}"
+            style="--color-main: ${c1}; --color-sec: ${c2};" ${htmlAtributosGorras}>
+            <img src="${p.link_pin || logoSeguro}" class="pin-img" onerror="window.imagenRotaToGlass(this, '${nombreLimpio}')">
             </div>`;
         }
 
@@ -1096,9 +1009,20 @@ window.barridoRadar = function(filtroTexto = "") {
         </div>`;
 
         if (!window.marcadoresRadar[p.codigo]) {
+            // 1. elDOM ya no es un contenedor fantasma, es directamente el pin-wrapper
             const elDOM = document.createElement('div');
-            elDOM.innerHTML = htmlPin;
-            elDOM.className = 'custom-canvas-node'; 
+            elDOM.className = `pin-wrapper ${claseForma} ${claseAnimacion} ${claseFuego}`;
+            
+            // 2. Le inyectamos la gorra y las variables CSS directo a la raíz
+            if (emojiGorra) {
+                elDOM.setAttribute('data-emoji', emojiGorra);
+                elDOM.setAttribute('data-anclaje', claseAnclaje);
+            }
+            elDOM.style.setProperty('--color-main', c1);
+            elDOM.style.setProperty('--color-sec', c2);
+            
+            // 3. El HTML interno es SOLO la imagen (nada de divs anidados)
+            elDOM.innerHTML = `<img src="${p.link_pin || logoSeguro}" class="pin-img" onerror="window.imagenRotaToGlass(this, '${nombreLimpio}')">`;
 
             const popup = new maplibregl.Popup({ offset: 22, closeButton: false, closeOnClick: true, maxWidth: 'none' })
                 .setHTML(htmlPopup);
@@ -1111,16 +1035,13 @@ window.barridoRadar = function(filtroTexto = "") {
             if (esAliado) {
                 elDOM.addEventListener('click', function(e) {
                     if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
-                    const iconEl = elDOM.querySelector('.pin-moneda-magica');
-                    if (iconEl) {
-                        iconEl.style.animation = 'none';
+                    elDOM.style.animation = 'none'; // Aplicamos animación directo a elDOM
+                    requestAnimationFrame(() => {
                         requestAnimationFrame(() => {
-                            requestAnimationFrame(() => {
-                                iconEl.style.animation = 'saltoMoneda 0.6s ease-out forwards';
-                            });
+                            elDOM.style.animation = 'saltoMoneda 0.6s ease-out forwards';
                         });
-                        setTimeout(() => { iconEl.style.animation = 'flotarMoneda 2.5s infinite ease-in-out'; }, 600);
-                    }
+                    });
+                    setTimeout(() => { elDOM.style.animation = 'flotarMoneda 2.5s infinite ease-in-out'; }, 600);
                 });
             }
             window.marcadoresRadar[p.codigo] = marker;
@@ -1154,6 +1075,7 @@ window.barridoRadar = function(filtroTexto = "") {
         sheetHibrido.innerHTML = '';
     }
 };
+
 
 window.cargarCaballoTroya = function() {
     if(!dbTroya || dbTroya.length === 0) return;
@@ -1524,5 +1446,3 @@ window.instanciarMinimapaBoveda = function(contenedorId, lat = 4.8133, lng = -75
         }
     };
 };
-
-

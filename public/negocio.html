@@ -11,33 +11,95 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://checkout.wompi.co/widget.js"></script>
-    <link rel="stylesheet" href="ui-estilos.css"> 
+    <link rel="stylesheet" href="admin-boveda.css"> 
+    
+    <!-- 💉 ESTILOS INYECTADOS: MODO EDICIÓN CATÁLOGO VIVO -->
+    <style id="estilos-edicion-vivo">
+        body.modo-edicion .lapiz-editar-header { display: flex !important; }
+        body.modo-edicion .lapiz-editar-texto { display: flex !important; }
+        body.modo-edicion .lapiz-editar-prod { display: flex !important; }
+        body.modo-edicion .avatar-negocio { border-style: dashed !important; border-color: #00f5d4 !important; }
+        body.modo-edicion .portada-tienda { filter: brightness(0.6); border: 2px dashed #00f5d4; }
+        
+        .lapiz-editar-header {
+            position: absolute; background: rgba(0,0,0,0.8); border: 2px solid #00f5d4;
+            color: white; border-radius: 50%; width: 35px; height: 35px;
+            align-items: center; justify-content: center; z-index: 20; cursor: pointer;
+            display: none !important; font-size: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.8);
+            transition: 0.2s;
+        }
+        .lapiz-editar-header:active { transform: scale(0.8); background: #00f5d4; }
+        
+        .lapiz-editar-texto {
+            background: rgba(0,0,0,0.8); border: 1px dashed #00f5d4; color: #00f5d4;
+            border-radius: 12px; padding: 6px 15px; font-size: 11px; font-weight: bold; cursor: pointer;
+            display: none !important; align-items: center; justify-content: center; margin: 5px auto;
+            width: max-content; z-index: 20; position: relative; transition: 0.2s;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+        .lapiz-editar-texto:active { transform: scale(0.9); background: #00f5d4; color: black; }
+        
+        .lapiz-editar-prod {
+            position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.9);
+            border: 2px solid #00f5d4; border-radius: 50%; width: 32px; height: 32px;
+            display: none !important; align-items: center; justify-content: center; font-size: 14px;
+            cursor: pointer; z-index: 30; box-shadow: 0 4px 10px rgba(0,0,0,0.8);
+            transition: 0.2s;
+        }
+        .lapiz-editar-prod:active { transform: scale(0.8); background: #00f5d4; }
+    </style>
 </head>
 <body>
     <div id="offline-banner" class="offline-banner">⚠️ Sin conexión: Mostrando datos de tu última visita</div>
     <img id="fondo-pantalla" src="" alt="Fondo">
     <div id="easter-egg-box" class="easter-egg-msg"></div>
+    
+    <!-- 💉 INPUTS OCULTOS PARA CARGA DE FOTOS DESDE EL CATÁLOGO -->
+    <input type="file" id="upload-portada-vivo" style="display:none;" accept="image/*" onchange="subirFotoDirecta(this, 'portada')">
+    <input type="file" id="upload-logo-vivo" style="display:none;" accept="image/*" onchange="subirFotoDirecta(this, 'logo')">
+
     <div style="padding: 0 20px;">
-      
-        <div class="header-negocio" style="padding-top: 15px;">
+        <div class="header-negocio" style="padding-top: 15px; position: relative;">
+            
+            <!-- BOTONES SUPERIORES: COMPARTIR Y EDICIÓN (SOLO DUEÑO) -->
             <button id="btn-compartir" class="btn-compartir-flotante shimmer-box" onclick="compartirTienda()" title="Compartir Tienda">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle>
                     <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
                 </svg>
             </button>
-            <img id="portada-tienda" class="portada-tienda shimmer-box" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
-            <img id="avatar-tienda" class="avatar-negocio shimmer-box" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onclick="checkEasterEgg()">
+            <button id="btn-modo-edicion" class="btn-compartir-flotante" style="display:none; right: 60px; background: #00f5d4; border-color: #00f5d4; color: black; box-shadow: 0 0 15px rgba(0,245,212,0.5);" onclick="toggleModoEdicion()" title="Activar Edición del Catálogo">
+                ✏️
+            </button>
+
+            <!-- PORTADA -->
+            <div style="position: relative;">
+                <img id="portada-tienda" class="portada-tienda shimmer-box" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+                <button id="lapiz-portada" class="lapiz-editar-header" style="top: 15px; left: 15px;" onclick="document.getElementById('upload-portada-vivo').click()">📷</button>
+            </div>
             
+            <!-- AVATAR -->
+            <div style="position: relative; display: inline-block; margin-top: -74px;">
+                <img id="avatar-tienda" class="avatar-negocio shimmer-box" style="margin-top: 0;" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onclick="viajarAlMapa(); checkEasterEgg();">
+                <button id="lapiz-avatar" class="lapiz-editar-header" style="bottom: 5px; right: 5px;" onclick="document.getElementById('upload-logo-vivo').click()">📷</button>
+            </div>
+
             <div class="header-info-wrapper">
-                <div id="contenedor-nombre">
+                <div id="contenedor-nombre" style="position: relative;">
                     <h1 id="texto-nombre" class="nombre-negocio shimmer-box" style="width: 60%; height: 28px; border-radius: 10px; margin: 5px auto; color: transparent;"></h1>
+                    <button id="lapiz-nombre" class="lapiz-editar-texto" onclick="editarTextoDirecto('nombre')">✏️ Editar Nombre</button>
                 </div>
+                
                 <div id="badge-cobertura-container" style="margin-top: 5px;"></div>
                 <div id="badge-aliado-container"></div>
-                <p id="texto-nicho" class="texto-piedra shimmer-box" style="width: 40%; height: 12px; border-radius: 5px; margin: 0 auto; color: transparent;"></p>
+                
+                <div style="position: relative;">
+                    <p id="texto-nicho" class="texto-piedra shimmer-box" style="width: 40%; height: 12px; border-radius: 5px; margin: 0 auto; color: transparent;"></p>
+                    <button id="lapiz-nicho" class="lapiz-editar-texto" onclick="editarTextoDirecto('niche')">✏️ Editar Nicho</button>
+                </div>
+
                 <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px; align-items: center;">
-                    <a id="btn-whatsapp-header" href="#" target="_blank" class="btn-contactar shimmer-box">CONTACTAR LOCAL</a>
+                    <a id="btn-whatsapp-header" href="#" target="_blank" class="btn-contactar shimmer-box">💬 CONTACTAR LOCAL</a>
                     <button id="btn-historia" class="btn-historia" style="display:none;" onclick="abrirModal('overlay-historia')">📖 Nuestra Historia</button>
                 </div>
             </div>
@@ -45,7 +107,7 @@
     </div>
     <div id="banner-contenedor" class="banner-contenedor"></div>
     
-        <!-- Buscador más compacto (AHORA ARRIBA) -->
+    <!-- Buscador compacto (ARRIBA) -->
     <div style="padding: 0 20px; margin-bottom: 10px; margin-top: 5px;">
         <div style="background: rgba(0,0,0,0.6); backdrop-filter: blur(10px); border: 1px solid var(--color-secundario); border-radius: 20px; display: flex; align-items: center; padding: 2px 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
             <span style="color: #aaa; margin-right: 10px; font-size: 14px;">🔍</span>
@@ -53,12 +115,11 @@
         </div>
     </div>
 
-    <!-- Categorías empaquetadas (AHORA ABAJO) -->
+    <!-- Categorías empaquetadas (ABAJO) -->
     <div id="categorias-wrapper" class="categorias-wrapper" style="margin-bottom: 15px;">
         <div id="carrusel-categorias" class="tags-container"></div>
     </div>
 
-    
     <div id="catalogo-contenedor">
         <div class="grilla-productos">
             <!-- Esqueletos de carga -->
@@ -76,6 +137,7 @@
             </div>
         </div>
     </div>
+    
     <div id="paginacion-wrapper" style="margin: 0 20px 80px; display: none;">
         <button id="btn-cargar-mas" class="btn-especial" onclick="cargarMasProductos()">Cargar Más Productos</button>
     </div>
@@ -87,7 +149,31 @@
     
     <button id="btn-scroll-top" onclick="subirAlMenu()">↑ VOLVER AL MENÚ</button>
     
-    <!-- MODALES OMITIDOS PARA BREVEDAD EN LA LECTURA (Mantén los mismos del documento original) -->
+    <!-- 🌟 MODAL CINEMÁTICA: TUTORIAL EDICIÓN (SOLO DUEÑOS) -->
+    <div id="tutorial-edicion-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); z-index:100000; flex-direction:column; align-items:center; justify-content:center; padding:30px; text-align:center;">
+        <div style="background: linear-gradient(135deg, rgba(35,35,40,0.9) 0%, rgba(15,15,18,0.95) 100%); border: 1px solid #00f5d4; border-radius: 25px; padding: 30px 20px; box-shadow: 0 20px 50px rgba(0,245,212,0.3); max-width: 400px; animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);">
+            <div style="font-size: 50px; margin-bottom: 10px; filter: drop-shadow(0 0 10px rgba(0,245,212,0.6));">🛠️</div>
+            <h2 style="color:#00f5d4; margin-top:0; margin-bottom:15px; font-weight: 900; text-transform: uppercase;">¡Tu Catálogo Vivo!</h2>
+            <p style="color:#ccc; font-size:14px; margin-bottom:20px; line-height: 1.5;">Como eres el dueño, hemos activado un súper poder para ti. Arriba a la derecha verás dos botones importantes:</p>
+            
+            <div style="display:flex; gap:15px; justify-content:center; margin-bottom: 25px;">
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                    <div style="background:rgba(0,0,0,0.6); border:1px solid #fff; border-radius:50%; width:45px; height:45px; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">🔗</div>
+                    <span style="font-size: 10px; font-weight: bold; color: #aaa; text-transform: uppercase;">Compartir</span>
+                </div>
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                    <div style="background:#00f5d4; color: black; border-radius:50%; width:45px; height:45px; display:flex; align-items:center; justify-content:center; font-size:20px; box-shadow: 0 4px 15px rgba(0,245,212,0.6);">✏️</div>
+                    <span style="font-size: 10px; font-weight: bold; color: #00f5d4; text-transform: uppercase;">Editar Live</span>
+                </div>
+            </div>
+            
+            <p style="color:#aaa; font-size:12px; margin-bottom:25px; line-height: 1.5;">Toca el <b style="color:#00f5d4;">Lápiz</b> para activar el <b>Modo Edición</b>. Podrás cambiar tu foto de portada, logo, nombres y actualizar productos tocándolos directamente, ¡sin tener que regresar a la Bóveda!</p>
+            
+            <button style="background: #00f5d4; color: black; border: none; padding: 15px 30px; border-radius: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 5px 15px rgba(0,245,212,0.4); cursor: pointer; width: 100%; transition: 0.3s;" onclick="cerrarTutorialEdicion()">¡Manos a la Obra!</button>
+        </div>
+    </div>
+
+    <!-- MODALES BASE -->
     <div class="modal-overlay" id="overlay-premium-social" onclick="cerrarModal(event, 'overlay-premium-social')">
         <div class="modal-contenido" id="sheet-premium-social">
             <div class="drag-handle"></div>
@@ -159,6 +245,9 @@
         </div>
     </div>
 
+    <!-- =========================================
+         JAVASCRIPT CENTRAL Y LÓGICA DE NEGOCIO
+         ========================================= -->
     <script type="module">
         import GeokatuDB from './core-db.js';
 
@@ -177,6 +266,33 @@
         };
 
         window.sanitizarAtributo = window.sanitizarTexto; 
+
+        // 💉 ALGORITMO ÁUREO: Compresor de imágenes robado de la bóveda
+        window.comprimirImagen = function(file, maxWidth = 800, quality = 0.7, forceSquare = false) {
+            return new Promise((resolve) => {
+                if (!file) return resolve(file);
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        let width = img.width, height = img.height;
+                        let sx = 0, sy = 0, sWidth = width, sHeight = height;
+                        if (forceSquare) {
+                            const size = Math.min(width, height);
+                            sx = (width - size) / 2; sy = (height - size) / 2;
+                            sWidth = size; sHeight = size; width = size; height = size;
+                        }
+                        if (width > maxWidth) { height = Math.round((height * maxWidth) / width); width = maxWidth; }
+                        const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+                        const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, width, height);
+                        ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, width, height);
+                        canvas.toBlob(blob => { resolve(blob || file); }, 'image/jpeg', quality);
+                    };
+                    img.onerror = () => resolve(file); img.src = event.target.result;
+                };
+                reader.onerror = () => resolve(file); reader.readAsDataURL(file);
+            });
+        };
 
         const fallbacks = {
             logo_portada: "https://via.placeholder.com/220x80/0a0a0c/ff6b00?text=GEOKATU",
@@ -206,20 +322,21 @@
         
         let filtroActual = 'Todas';
         let busquedaActualLocal = "";
+        
+        // 💉 VARIABLE DE ESTADO: Catálogo Vivo
+        window.usuarioEsDueno = false;
+        window.modoEdicionActivo = false;
 
         const CHARSET_BASE62 = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
         window.descomprimirColores = function(codigo13) {
             let num = 0n;
             const base = 62n;
-            
             for (let i = 0; i < codigo13.length; i++) {
                 const char = codigo13[i];
                 const valor = BigInt(CHARSET_BASE62.indexOf(char));
                 num = (num * base) + valor;
             }
-            
             let hexStr = num.toString(16).padStart(18, '0');
-            
             return {
                 c1: '#' + hexStr.substring(0, 6),
                 c2: '#' + hexStr.substring(6, 12),
@@ -230,6 +347,21 @@
         const urlParams = new URLSearchParams(window.location.search);
         let idNegocio = urlParams.get('id');
         if (!idNegocio) { idNegocio = 'acefama-pereira'; }
+
+        // 💉 ESPÍA DE SESIÓN: Verifica si el que está viendo es el Dueño
+        GeokatuDB.SecurityService.observarEstadoSesion((user) => {
+            if (user && user.uid === idNegocio) {
+                window.usuarioEsDueno = true;
+                document.getElementById('btn-modo-edicion').style.display = 'flex';
+                
+                // Si es la primera vez que lo ve, mostramos el tutorial
+                if (!localStorage.getItem(`tutorial_vivo_visto_${idNegocio}`)) {
+                    setTimeout(() => {
+                        document.getElementById('tutorial-edicion-overlay').style.display = 'flex';
+                    }, 1500);
+                }
+            }
+        });
         
         window.generarFirmaDinamica = function(codigoReferido, localId) {
             const bloqueTiempo = Math.floor(Date.now() / 21600000); 
@@ -243,16 +375,13 @@
             return `REF-${codigoReferido}-${Math.abs(hash).toString(36).substring(0, 4).toUpperCase()}`;
         };
 
-       window.guardarReferidoSeguro = async function(codigo, e) {
+        window.guardarReferidoSeguro = async function(codigo, e) {
             if (e && !e.isTrusted) return; 
-            
             if (e) {
                 document.querySelectorAll('.avatar-domi').forEach(el => el.style.border = '1px solid var(--glass-border)');
                 e.currentTarget.style.border = '2px solid var(--naranja)';
             }
-
             const { success, data } = await GeokatuDB.SecurityService.generarSelloSeguroTOTP(codigo, idNegocio);
-            
             if (success) {
                 localStorage.setItem('qrpido_totp_ref', JSON.stringify({ 
                     firma: data.firma, 
@@ -303,6 +432,7 @@
         }
         
         window.checkEasterEgg = function() {
+            if (window.modoEdicionActivo) return; // Desactivar easter egg si estamos editando
             clicsLogo++;
             if (clicsLogo === 7 && datosNegocio.easter_egg_msg) {
                 const box = document.getElementById('easter-egg-box');
@@ -385,14 +515,13 @@
                 document.getElementById('avatar-tienda').src = datosNegocio.logo || fallbacks['avatar_generico'] || '';
                 
                 if (datosNegocio.nombre_png) {
-                    document.getElementById('contenedor-nombre').innerHTML = `<img src="${datosNegocio.nombre_png}" style="height: 40px; margin: 10px 0; filter: drop-shadow(0 0 10px ${c1});">`;
+                    document.getElementById('contenedor-nombre').innerHTML += `<img id="img-nombre-render" src="${datosNegocio.nombre_png}" style="height: 40px; margin: 10px 0; filter: drop-shadow(0 0 10px ${c1});">`;
                 } else {
                     document.getElementById('texto-nombre').innerText = datosNegocio.nombre;
                 }
                 
                 document.getElementById('texto-nicho').innerText = datosNegocio.niche || "Catálogo Oficial";
                 
-                // ✔️ FIX 3: Capturamos el número ya sea con la "A" mayúscula (como en boveda) o con minúscula
                 const numWhatsAppHeader = datosNegocio.whatsApp || datosNegocio.whatsapp || datosNegocio.telefono || '';
                 document.getElementById('btn-whatsapp-header').href = window.sanitizarURL(`https://wa.me/${numWhatsAppHeader}?text=Hola, vengo de Geokatu`);
                 
@@ -602,7 +731,6 @@
             const imgMarco = p.marco_personalizado || fallbacks['marco_producto_generico'] || '';
             const card = document.createElement('div');
             
-            // ✔️ FIX 4: Asignamos la modalidad de layout específica de cada producto (layout-grid, layout-lista o layout-hero)
             const layoutModo = p.layout || 'layout-grid';
             card.className = `glass-panel producto-card ${layoutModo} ${isAgotado ? 'agotado' : ''}`;
             
@@ -621,23 +749,51 @@
             
             const divMarco = document.createElement('div');
             divMarco.className = 'marco-aureo';
+            divMarco.style.position = 'relative'; 
+            divMarco.style.cursor = 'pointer';
             
+            divMarco.onclick = () => abrirArticulo(p.id_prod);
+
             if (imgMarco) {
                 const imgM = document.createElement('img');
                 imgM.src = imgMarco;
                 imgM.className = 'img-marco';
                 imgM.loading = 'lazy';
+                imgM.style.pointerEvents = 'none'; 
+                imgM.style.zIndex = '2';
                 divMarco.appendChild(imgM);
             }
-            const imgP = document.createElement('img');
-            imgP.id = `img-${p.id_prod}`;
-            imgP.src = p.imagen;
-            imgP.className = 'img-producto';
-            imgP.loading = 'lazy';
-            imgP.onerror = () => imgP.style.display = 'none';
-            divMarco.appendChild(imgP);
-            card.appendChild(divMarco);
+
+            const divGaleria = document.createElement('div');
+            divGaleria.style.display = 'flex';
+            divGaleria.style.overflowX = 'auto';
+            divGaleria.style.scrollSnapType = 'x mandatory';
+            divGaleria.style.width = '100%';
+            divGaleria.style.height = '100%';
+            divGaleria.style.scrollbarWidth = 'none'; 
             
+            let arrayFotos = (p.galeria && p.galeria.length > 0) ? p.galeria : [p.imagen];
+            
+            arrayFotos.forEach((imgUrl, index) => {
+                const imgP = document.createElement('img');
+                if (index === 0) imgP.id = `img-${p.id_prod}`; 
+                imgP.src = imgUrl;
+                imgP.className = 'img-producto';
+                imgP.loading = 'lazy';
+                
+                imgP.style.flexShrink = '0';
+                imgP.style.width = '100%';
+                imgP.style.height = '100%';
+                imgP.style.objectFit = 'cover';
+                imgP.style.scrollSnapAlign = 'center';
+                imgP.onerror = () => imgP.style.display = 'none';
+                
+                divGaleria.appendChild(imgP);
+            });
+            
+            divMarco.appendChild(divGaleria);
+            card.appendChild(divMarco);
+    
             const divInfo = document.createElement('div');
             divInfo.className = 'prod-info-wrapper';
             divInfo.style.cssText = "display: flex; flex-direction: column; width: 100%; flex: 1; justify-content: space-between; align-items: center;";
@@ -645,7 +801,6 @@
             const divNombre = document.createElement('div');
             divNombre.className = 'prod-nombre';
             divNombre.textContent = p.nombre;
-            // ✔️ FIX 2: Limitamos a dos líneas, recortamos con "..." y ajustamos la distancia con la foto
             divNombre.style.cssText = "display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; font-size: 13px; margin-top: 4px; margin-bottom: 2px; padding: 0 4px; text-align: center; width: 100%;";
             divInfo.appendChild(divNombre)
             
@@ -697,11 +852,24 @@
                 divInfo.appendChild(divControles);
             }
             card.appendChild(divInfo);
+
+            // 💉 INYECCIÓN CATÁLOGO VIVO: Lápiz de edición para productos
+            if (window.usuarioEsDueno) {
+                const btnLapizProd = document.createElement('div');
+                btnLapizProd.className = 'lapiz-editar-prod';
+                btnLapizProd.innerHTML = '✏️';
+                btnLapizProd.onclick = (e) => {
+                    e.stopPropagation();
+                    abrirEdicionRapidaProducto(p);
+                };
+                card.appendChild(btnLapizProd);
+            }
             
             let dragTimer = null;
             let reposoTimer = null;
 
             card.addEventListener('touchstart', (e) => {
+                if(window.modoEdicionActivo) return; // Si edita, no arrastra
                 clearTimeout(reposoTimer);
                 dragTimer = setTimeout(() => {
                     if (navigator.vibrate) navigator.vibrate([50, 50]); 
@@ -752,6 +920,9 @@
         }
         
         window.abrirArticulo = function(id) {
+            // Si está editando, no abre el modal de comprar
+            if(window.modoEdicionActivo) return;
+            
             const p = productosMemoria.find(x => x.id_prod === id);
             if (!p) return;
             
@@ -1137,7 +1308,6 @@
                 });
             }
 
-            // ✔️ FIX 3 (enviarPedido): Se utiliza la misma variable robusta (numWhatsAppEnvio) de la cabecera
             const numWhatsAppEnvio = datosNegocio.whatsApp || datosNegocio.whatsapp || datosNegocio.telefono || '';
             const urlWhatsapp = `https://wa.me/${numWhatsAppEnvio}?text=${textoMensaje}`;
             window.open(urlWhatsapp, '_blank');
@@ -1155,6 +1325,7 @@
             calcularTotales(); 
             cerrarModalManual('overlay-checkout'); 
         }        
+        
         window.cargarMasProductos = async function() {
             if (!ultimoDocVisible || cargandoProductos) return;
             cargandoProductos = true;
@@ -1309,7 +1480,7 @@
         aplicarSwipeAbajo('overlay-historia', 'sheet-historia');
         aplicarSwipeAbajo('overlay-premium-social', 'sheet-premium-social');
         
-                window.obtenerGPS = function() {
+        window.obtenerGPS = function() {
             const btn = document.getElementById('btn-gps');
             btn.innerText = "Buscando satélites...";
             if (navigator.geolocation) {
@@ -1319,13 +1490,11 @@
                     btn.innerText = "✅ ¡Ubicación capturada!";
                     btn.classList.add('exito');
                     
-                    // 💉 CIRUGÍA: Sincronizar el pin y el mapa en segundo plano si ya existen
                     if (miniMapa && pinCliente) {
                         pinCliente.setLatLng([userLat, userLng]);
                         miniMapa.setView([userLat, userLng], 16);
                     }
                     
-                    // Ocultar el mapa visualmente
                     document.getElementById('mapa-ubicacion').style.display = 'none'; 
                     document.getElementById('contenedor-mapa-ubicacion').style.display = 'none'; 
                 }, () => {
@@ -1339,7 +1508,6 @@
             document.getElementById('contenedor-mapa-ubicacion').style.display = 'block';
             document.getElementById('mapa-ubicacion').style.display = 'block';
             
-            // 💉 CIRUGÍA: Darle prioridad absoluta a la ubicación del usuario si ya existe
             const centroLat = userLat ? userLat : ((datosNegocio.Coordenadas && datosNegocio.Coordenadas.latitude) ? datosNegocio.Coordenadas.latitude : 4.8133);
             const centroLng = userLng ? userLng : ((datosNegocio.Coordenadas && datosNegocio.Coordenadas.longitude) ? datosNegocio.Coordenadas.longitude : -75.6961);
             
@@ -1361,7 +1529,6 @@
                     userLat = e.latlng.lat; userLng = e.latlng.lng;
                 });
             } else {
-                // 💉 CIRUGÍA: Si el mapa ya estaba cargado, forzarlo a volar hacia la ubicación actual
                 miniMapa.setView([centroLat, centroLng], 16);
                 if (pinCliente) pinCliente.setLatLng([centroLat, centroLng]);
             }
@@ -1372,6 +1539,114 @@
         window.cerrarMiniMapa = function() {
             document.getElementById('contenedor-mapa-ubicacion').style.display = 'none';
         }
+
+        // ==========================================
+        // 💉 INYECCIÓN CATÁLOGO VIVO (LÓGICA EDICIÓN)
+        // ==========================================
+        window.toggleModoEdicion = function() {
+            if(navigator.vibrate) navigator.vibrate(50);
+            window.modoEdicionActivo = !window.modoEdicionActivo;
+            if(window.modoEdicionActivo) {
+                document.body.classList.add('modo-edicion');
+                document.getElementById('btn-modo-edicion').innerText = "✔️ Listo";
+            } else {
+                document.body.classList.remove('modo-edicion');
+                document.getElementById('btn-modo-edicion').innerText = "✏️";
+            }
+        };
+
+        window.cerrarTutorialEdicion = function() {
+            document.getElementById('tutorial-edicion-overlay').style.display = 'none';
+            localStorage.setItem(`tutorial_vivo_visto_${idNegocio}`, 'true');
+        };
+
+        window.subirFotoDirecta = async function(input, campo) {
+            if (!input.files || !input.files[0]) return;
+            const btn = document.getElementById(`lapiz-${campo === 'logo' ? 'avatar' : campo}`);
+            const originalText = btn.innerText;
+            btn.innerText = "⏳";
+            
+            try {
+                const blob = await window.comprimirImagen(input.files[0], 800, 0.7, campo === 'logo');
+                const path = `tiendas/${idNegocio}/${campo}_${Date.now()}.webp`;
+                const { success: upSuccess, data: url, error: upError } = await GeokatuDB.AdminService.subirArchivo(path, blob);
+                if(!upSuccess) throw new Error(upError);
+                
+                const payload = {}; payload[campo] = url;
+                const { success, error } = await GeokatuDB.AdminService.actualizarNegocio(idNegocio, payload);
+                if(success) {
+                    if(campo === 'portada') document.getElementById('portada-tienda').src = url;
+                    if(campo === 'logo') document.getElementById('avatar-tienda').src = url;
+                } else {
+                    throw new Error(error);
+                }
+            } catch(e) {
+                alert("Error al subir imagen: " + e.message);
+            } finally {
+                btn.innerText = originalText;
+                input.value = "";
+            }
+        };
+
+        window.editarTextoDirecto = async function(campo) {
+            let actual = campo === 'nombre' ? datosNegocio.nombre : (datosNegocio.niche || "");
+            const nuevo = prompt(`Edita el ${campo.toUpperCase()}:`, actual);
+            
+            if(nuevo && nuevo.trim() !== "" && nuevo !== actual) {
+                const payload = {}; payload[campo] = nuevo.trim();
+                const { success } = await GeokatuDB.AdminService.actualizarNegocio(idNegocio, payload);
+                if(success) {
+                    datosNegocio[campo] = nuevo.trim();
+                    if(campo === 'nombre') {
+                        document.getElementById('texto-nombre').innerText = nuevo.trim();
+                        if(document.getElementById('img-nombre-render')) document.getElementById('img-nombre-render').style.display = 'none';
+                    }
+                    if(campo === 'niche') document.getElementById('texto-nicho').innerText = nuevo.trim();
+                }
+            }
+        };
+
+        window.abrirEdicionRapidaProducto = async function(p) {
+            const accion = prompt(`🛠️ Editando: "${p.nombre}"\nElige qué quieres cambiar:\n\n1. Nombre\n2. Precio\n3. Estado (Agotar/Activar)\n\nEscribe 1, 2 o 3:`);
+            if (!accion) return;
+            
+            let payload = {};
+            if (accion === '1') {
+                const n = prompt("Nuevo nombre:", p.nombre);
+                if(n && n.trim()) payload.nombre = n.trim();
+            } else if (accion === '2') {
+                const pr = prompt("Nuevo precio:", p.precio);
+                if(pr && !isNaN(pr)) payload.precio = parseFloat(pr);
+            } else if (accion === '3') {
+                payload.agotado = !p.agotado;
+                alert(payload.agotado ? "✔️ Marcado como AGOTADO" : "✔️ Marcado como DISPONIBLE");
+            } else {
+                alert("Opción no válida."); return;
+            }
+
+            if (Object.keys(payload).length > 0) {
+                const { success } = await GeokatuDB.AdminService.actualizarProducto(idNegocio, p.id_prod, payload);
+                if (success) {
+                    Object.assign(p, payload);
+                    renderizarCatalogo(filtroActual);
+                } else {
+                    alert("Error guardando el producto.");
+                }
+            }
+        };
+
+        window.viajarAlMapa = function() {
+            if (window.modoEdicionActivo) return; // Si edita, no viaja al mapa
+            if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+            let lat = (datosNegocio.Coordenadas && datosNegocio.Coordenadas.latitude) ? datosNegocio.Coordenadas.latitude : null;
+            let lng = (datosNegocio.Coordenadas && datosNegocio.Coordenadas.longitude) ? datosNegocio.Coordenadas.longitude : null;
+            
+            if (lat && lng) {
+                window.location.href = `index.html?lat=${lat}&lng=${lng}&zoom=18&pin=${idNegocio}`;
+            } else {
+                window.location.href = 'index.html';
+            }
+        };
         
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -1384,7 +1659,10 @@
         window.addEventListener('offline', () => document.getElementById('offline-banner').classList.add('activo'));
         window.addEventListener('online', () => document.getElementById('offline-banner').classList.remove('activo'));
         if (!navigator.onLine) document.getElementById('offline-banner').classList.add('activo');
+        
         window.onload = construirTienda;
     </script>
 </body>
 </html>
+
+

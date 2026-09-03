@@ -5,607 +5,407 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Bóveda Comercial | Geokatu</title>
       
-    <!-- 💎 1. HOJA DE ESTILOS MAESTRA (Contiene el UI, Glassmorphism y el Motor de Pines) -->
     <link rel="stylesheet" href="admin-boveda.css">
-
-    <!-- 2. LIBRERÍAS DE MAPAS (MapLibre + PMTiles) -->
     <link href="https://unpkg.com/maplibre-gl@3.3.1/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@3.3.1/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/pmtiles@2.11.0/dist/index.js"></script>
-    <script src="https://unpkg.com/open-location-code@1.0.3/openlocationcode.js"></script>
-
-    <!-- 3. OTROS SCRIPTS -->
-    <script type="text/javascript" src="https://checkout.wompi.co/widget.js"></script> 
-    <script src="profiler.js"></script>
     <script type="module" src="auth-mando.js"></script>
 
-    <script>
-      window.guardarDatosRadar = async function() {
-    const btn = document.getElementById('btn-guardar-radar');
-    btn.innerText = "GUARDANDO...";
-    btn.disabled = true;
-
-    try {
-        // 1. Capturar los valores de los selectores del PIN
-        // (Asegúrate de que los IDs coincidan con los de tus <select>)
-        const forma = document.getElementById('select-forma').value || '1';
-        const anim = document.getElementById('select-animacion').value || 'a';
-        const emoji = document.getElementById('select-emoji').value || '0';
-        
-        const ui_pack_final = forma + anim + emoji;
-
-        // 2. Capturar las coordenadas del mapa de Leaflet
-        // (Asumiendo que guardaste la lat/lng en variables globales al mover el pin)
-        if (!window.latitudActual || !window.longitudActual) {
-            alert("⚠️ Por favor, ubica el pin en el mapa primero.");
-            btn.innerText = "💾 GUARDAR EN EL RADAR";
-            btn.disabled = false;
-            return;
-        }
-
-        // 3. Empaquetar y enviar a Firebase
-        const payload = {
-            ui_pack: ui_pack_final,
-            Coordenadas: {
-                latitude: window.latitudActual,
-                longitude: window.longitudActual
-            }
-            // Opcional pero recomendado para el futuro:
-            // geohash: geofire.geohashForLocation([window.latitudActual, window.longitudActual])
-        };
-
-        // Usa tu ID de negocio global
-        const { success, error } = await GeokatuDB.AdminService.actualizarNegocio(window.miIdNegocioGlobal, payload);
-
-        if (success) {
-            alert("✅ ¡Pin y Ubicación sincronizados! Ya deberías aparecer en el radar.");
-        } else {
-            alert("❌ Error al guardar: " + error);
-        }
-
-    } catch (e) {
-        console.error(e);
-        alert("Ocurrió un error inesperado.");
-    } finally {
-        btn.innerText = "💾 GUARDAR EN EL RADAR";
-        btn.disabled = false;
-    }
-}
-
-        window.addEventListener('DOMContentLoaded', async () => {
-            const isValidaded = localStorage.getItem('qrpido_session_validated');
-            if (!isValidaded) { window.location.href = 'index.html'; return; }
-        });
-        window.qrpidoErrorLog = []; 
-        window.onerror = function(message, source, lineno, colno, error) { console.error('ERROR JS', `Mensaje: ${message}\nLínea: ${lineno}:${colno}`); return false; };
-        window.addEventListener('unhandledrejection', function(event) { console.error('ERROR FIREBASE', `Razón: ${event.reason}`); });
-
-        // Cierra el menú de 3 puntos si se toca afuera
-        document.addEventListener('click', (e) => {
-            const menu = document.getElementById('menu-cabecera-dropdown');
-            if (menu && menu.classList.contains('activo') && !e.target.closest('.btn-opciones-cabecera')) {
-                menu.classList.remove('activo');
-            }
-        });
-    </script>
 </head>
 
 <body class="boveda-ui">
-    
-    <!-- 🌟 MODAL EN VIVO: SELECTOR DE ESTILOS (El Lápiz Mágico) -->
-    <div id="modal-estilo-overlay" class="modal-estilo-overlay" onclick="cerrarModalEstilo(event)">
-        <div class="boveda-tarjeta" style="position:relative; max-width:400px; width:90%; height:auto; padding:25px;" onclick="event.stopPropagation()">
-            <h3 style="text-align:center; margin-top:0; color:white; font-size: 20px;">Diseño de Exhibición</h3>
-            <p style="text-align:center; font-size:12px; color:#888; margin-bottom: 20px;">Elige cómo se presentará este producto en tu catálogo público.</p>
-            
-            <div class="estilo-opciones">
-                <button class="estilo-btn" id="btn-estilo-grid" onclick="cambiarPreviewEstilo('layout-grid')">🔲 2 Filas</button>
-                <button class="estilo-btn" id="btn-estilo-hero" onclick="cambiarPreviewEstilo('layout-hero')">🖼️ Destacado</button>
-                <button class="estilo-btn" id="btn-estilo-lista" onclick="cambiarPreviewEstilo('layout-lista')">📄 Lista</button>
-            </div>
+    <!-- VELO CINEMÁTICO -->
+    <div id="velo-cinematico" class="velo-inmersivo"></div>
 
-            <div class="preview-caja" id="caja-preview-estilo">
-                <!-- Se inyecta la preview aquí en JS -->
-            </div>
-
-            <button class="btn-submit" style="margin-top:25px;" onclick="guardarEstiloDefinitivo()">Guardar Aspecto</button>
+        <!-- FASE 1: DISEÑO DEL PIN (Aislado) -->
+    <div id="fase-1-pin" style="display: none; position: fixed; inset: 0; z-index: 100000; background: var(--bg-oscuro); overflow-y: auto;">
+        
+        <!-- Elementos del Tour Cinemático -->
+        <div id="tour-boveda-overlay"></div>
+        <div id="tour-tooltip-1" class="tour-boveda-tooltip" style="top: 15%;">
+            <p style="font-size: 13px; color: #ddd; margin: 0; font-weight: bold;">Presiona sobre el pin para elegir su imagen</p>
+            <button class="btn-submit" style="padding: 10px !important; margin-top: 10px !important; border-radius: 10px !important;" onclick="window.siguienteTourBoveda1()">Siguiente</button>
         </div>
-    </div>
-<!-- Input oculto para procesar hasta 3 fotos -->
-    <input type="file" id="upload-fotos-edicion" multiple accept="image/*" style="display:none;" onchange="procesarNuevasFotosGaleria(this)">
+        <div id="tour-tooltip-2" class="tour-boveda-tooltip" style="top: 40%;">
+            <p style="font-size: 13px; color: #ddd; margin: 0; line-height: 1.4;">Presiona sobre ✨ para que los colores de tu marca se elijan automáticamente desde la foto del pin que subiste ✔️ sino, presiona sobre cada círculo para seleccionar de forma independiente</p>
+            <button class="btn-submit" style="padding: 10px !important; margin-top: 10px !important; border-radius: 10px !important; background: #00ff64; color: black;" onclick="window.finalizarTourBoveda()">¡A Diseñar!</button>
+        </div>
 
-    <!-- 🌟 MODAL EN VIVO: EDICIÓN AVANZADA -->
-    <div id="modal-editar-overlay" class="modal-estilo-overlay" onclick="cerrarModalEditar(event)">
-        <div class="boveda-tarjeta" style="position:relative; max-width:400px; width:90%; height:auto; padding:25px;" onclick="event.stopPropagation()">
-            <h3 style="text-align:center; margin-top:0; color:white; font-size: 20px;">✏️ Editar Artículo</h3>
+        <div style="padding: 15px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.05); background: var(--bg-oscuro); position: sticky; top: 0; z-index: 10;">
+            <h3 style="color: white; margin: 0; font-size: 14px;" id="titulo-paso-1">PASO 1: ADN Y BRANDING</h3>
+            <div style="display: flex; gap: 5px; margin-top: 10px; justify-content: center;">
+                <div class="dot-paso activo" style="width: 20px; height: 5px; background: var(--naranja); border-radius: 5px;"></div>
+                <div class="dot-paso" style="width: 20px; height: 5px; background: rgba(255,255,255,0.2); border-radius: 5px;"></div>
+                <div class="dot-paso" style="width: 20px; height: 5px; background: rgba(255,255,255,0.2); border-radius: 5px;"></div>
+            </div>
+        </div>
+
+        <!-- Foco con box-sizing para no tocar los bordes -->
+        <div id="bloque-diseno-pin" class="foco-onboarding" data-titulo-ob="CREA EL ADN DE TU PIN" style="width: 90% !important; max-width: 400px !important; margin: 4vh auto !important; box-sizing: border-box !important;">
+            <p style="font-size: 11px; color: #888; text-align: center; margin-top: 0; margin-bottom: 20px;">Diseña la forma y tus colores institucionales.</p>
             
-            <div class="preview-caja" id="caja-preview-editar" style="padding: 10px;">
-                <!-- Se inyecta la preview mágica en JS -->
+            <div id="tour-target-pin" style="background: #000; border-radius: 16px; padding: 25px; text-align: center; margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.05); position: relative; transition: 0.3s;">
+                <input type="file" id="file-pin" accept="image/*" style="display:none;" onchange="window.cargarPreviewPin(this)">
+
+                <div id="pin-live-preview" class="pin-wrapper anim-salto" data-forma="forma-gota" style="--color-main: #ff6b00; cursor: pointer;" onclick="document.getElementById('file-pin').click()">
+    <svg class="svg-pin-fondo" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+        <path d="M 30,57 C 30,57 10,38 10,20 C 10,9 19,3 30,3 C 41,3 50,9 50,20 C 50,38 30,57 30,57 Z" />
+    </svg>
+    <span class="texto-centro-masa" style="display: flex;">FOTO<br>PIN</span>
+    <img id="img-live-preview" class="img-pin-interior" src="" style="display: none;">
+</div>
+
+
+
             </div>
 
-            <div style="margin-top: 20px;">
-                <label class="section-title">Stock Disponible (Unidades)</label>
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <input type="number" id="editStockModal" class="input-form" style="margin-bottom:0;" placeholder="Ej: 50">
-                    <span style="font-size:11px; color:#888;">(0 para agotar)</span>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <select id="select-forma" class="input-form" onchange="window.actualizarPinLive()" style="margin-bottom:0;">
+                    <option value="forma-gota" selected>Gota Clásica</option>
+<option value="forma-esfera">Esfera Perfecta</option>
+<option value="forma-triangulo">Triángulo</option>
+<option value="forma-estrella">Estrella ⭐</option>
+<option value="forma-hexagono">Hexágono ⬡</option>
+<option value="forma-corazon">Corazón ❤️</option>
+<option value="forma-arbol">Pino 🌲</option>
+<option value="forma-hongo">Hongo 🍄</option>
+<option value="forma-paleta">Paleta 🍭</option>
+         </select>
+                <select id="select-efecto" class="input-form" onchange="window.actualizarPinLive()" style="margin-bottom:0;"></select>
+            </div>
+
+                        <!-- CONTENEDOR PALETA DE MARCA -->
+            <div style="position: relative;">
+                            <label style="font-size: 10px; color: #888; text-transform: uppercase; margin-bottom: 8px; display: block; text-align: center;">Paleta de Marca</label>
+            
+            <div id="tour-target-branding" style="display: flex; gap: 10px; justify-content: center; align-items: center; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 20px; transition: 0.3s;">
+                
+                <!-- Circulo 1: Principal (No borrable, usa modal moderno) -->
+                <div id="color-slot-1" style="display:flex; flex-direction:column; align-items:center;">
+                    <div data-slot="1" onclick="window.abrirSelectorColor(1)" style="width: 35px; height: 35px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.5); background: #ff6b00; cursor: pointer;"></div>
+                    <span style="font-size: 9px; color:#888; margin-top:5px; font-weight:bold;">Principal</span>
+                    <input type="hidden" id="wizColorHex1" value="#ff6b00">
+                </div>
+
+                <!-- Circulo 2: Acento -->
+                <div id="color-slot-2" style="display:flex; flex-direction:column; align-items:center; position: relative;">
+                    <button onclick="window.eliminarColor(2)" style="position: absolute; top: -5px; right: -5px; background: rgba(255,0,0,0.8); color: white; border: none; border-radius: 50%; width: 14px; height: 14px; font-size: 8px; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center;">✖</button>
+                    <div data-slot="2" onclick="window.abrirSelectorColor(2)" style="width: 35px; height: 35px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.5); background: #ffffff; cursor: pointer;"></div>
+                    <span style="font-size: 9px; color:#888; margin-top:5px; font-weight:bold;">Acento</span>
+                    <input type="hidden" id="wizColorHex2" value="#ffffff">
+                </div>
+                <div id="add-slot-2" style="display:none; flex-direction:column; align-items:center; cursor: pointer;" onclick="window.agregarColor(2)">
+                    <div style="width: 35px; height: 35px; border-radius: 50%; border: 1px dashed rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.5); font-size: 16px;">+</div>
+                </div>
+
+                <!-- Circulo 3: Fondo -->
+                <div id="color-slot-3" style="display:flex; flex-direction:column; align-items:center; position: relative;">
+                    <button onclick="window.eliminarColor(3)" style="position: absolute; top: -5px; right: -5px; background: rgba(255,0,0,0.8); color: white; border: none; border-radius: 50%; width: 14px; height: 14px; font-size: 8px; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center;">✖</button>
+                    <div data-slot="3" onclick="window.abrirSelectorColor(3)" style="width: 35px; height: 35px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.5); background: #0a0a0c; cursor: pointer;"></div>
+                    <span style="font-size: 9px; color:#888; margin-top:5px; font-weight:bold;">Fondo</span>
+                    <input type="hidden" id="wizColorHex3" value="#0a0a0c">
+                </div>
+                <div id="add-slot-3" style="display:none; flex-direction:column; align-items:center; cursor: pointer;" onclick="window.agregarColor(3)">
+                    <div style="width: 35px; height: 35px; border-radius: 50%; border: 1px dashed rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.5); font-size: 16px;">+</div>
+                </div>
+
+                <!-- Circulo 4: Extra (Oculto por defecto) -->
+                <div id="color-slot-4" style="display:none; flex-direction:column; align-items:center; position: relative;">
+                    <button onclick="window.eliminarColor(4)" style="position: absolute; top: -5px; right: -5px; background: rgba(255,0,0,0.8); color: white; border: none; border-radius: 50%; width: 14px; height: 14px; font-size: 8px; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center;">✖</button>
+                    <div data-slot="4" onclick="window.abrirSelectorColor(4)" style="width: 35px; height: 35px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.5); background: #00f5d4; cursor: pointer;"></div>
+                    <span style="font-size: 9px; color:#888; margin-top:5px; font-weight:bold;">Extra</span>
+                    <input type="hidden" id="wizColorHex4" value="#00f5d4">
+                </div>
+                <div id="add-slot-4" style="display:flex; flex-direction:column; align-items:center; cursor: pointer;" onclick="window.agregarColor(4)">
+                    <div style="width: 35px; height: 35px; border-radius: 50%; border: 1px dashed rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.5); font-size: 16px;">+</div>
+                </div>
+
+                <!-- Botón Varita Mágica y Menú Desplegable -->
+                <div style="position: relative;">
+                    <button style="background: rgba(255,107,0,0.1); border: 1px solid var(--naranja); color: var(--naranja); width: 35px; height: 35px; border-radius: 10px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); margin-left: 5px;" onclick="document.getElementById('menu-magia-branding').classList.toggle('activo')" title="Extraer colores automáticos">✨</button>
+                    
+                    <div id="menu-magia-branding" class="menu-gemelo-dropdown" style="top: 45px; right: 0; min-width: 240px; z-index: 100;">
+                        <button onclick="window.ejecutarMagiaImagen(document.getElementById('img-live-preview')); document.getElementById('menu-magia-branding').classList.remove('activo');">📸 Escanear imagen cargada en pin</button>
+                        <button onclick="document.getElementById('file-magia-extra').click(); document.getElementById('menu-magia-branding').classList.remove('activo');">📁 Cargar nueva imagen para análisis</button>
+                    </div>
+                    <input type="file" id="file-magia-extra" accept="image/*" style="display:none;" onchange="window.procesarImagenExternaMagia(this)">
                 </div>
             </div>
 
-            <div style="display: flex; gap: 10px; margin-top:25px;">
-                <button class="btn-submit" style="background: transparent; border: 1px solid rgba(255,255,255,0.2); color: #aaa; box-shadow: none;" onclick="cerrarModalEditar()">Cancelar</button>
-                <button class="btn-submit" id="btn-guardar-edicion-modal" onclick="guardarEdicionAvanzada()">Aceptar</button>
             </div>
+            
+            <button id="btn-siguiente-fase" class="btn-submit" style="margin-top:0;" onclick="window.guardarPaso1ADN()">Siguiente Paso ➡️</button>
         </div>
     </div>
 
 
-    <!-- 🌟 MOTOR WIZARD (ONBOARDING) -->
-    <div id="wizard-overlay" style="display:none; position:fixed; inset:0; background:var(--bg-oscuro); z-index:10000; overflow:hidden; align-items:center; justify-content:center;">
-        <div id="wiz-step-2" class="boveda-tarjeta wizard-oculto-der" style="display:flex; flex-direction:column; gap:15px; justify-content:center;">
-            <h2 style="color:var(--naranja); text-align:center; margin:0; font-size:24px;">Identidad de Tienda</h2>
-            <div class="file-upload-wrapper">
-                <input type="file" id="wiz-logo" class="file-upload-input" onchange="actualizarNombreImagenUI(this,'wiz-txt-logo')">
-                <div class="file-upload-ui" id="wiz-txt-logo">📸 Subir Logo</div>
+            <!-- FASE 2 y 3: EL SANDBOX GEOESPACIAL Y GEMELO DIGITAL -->
+    <div id="fase-mapa-sandbox" style="display: none; position: fixed; inset: 0; z-index: 50; background: var(--bg-oscuro); flex-direction: column;">
+        <div style="padding: 15px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.05); background: var(--bg-oscuro); position: sticky; top: 0; z-index: 10;">
+            <h3 style="color: white; margin: 0; font-size: 14px;">PASO 2: IDENTIDAD Y UBICACIÓN</h3>
+            <div style="display: flex; gap: 5px; margin-top: 10px; justify-content: center;">
+                <div class="dot-paso" style="width: 20px; height: 5px; background: var(--naranja); border-radius: 5px;"></div>
+                <div class="dot-paso activo" style="width: 20px; height: 5px; background: var(--naranja); border-radius: 5px;"></div>
+                <div class="dot-paso" style="width: 20px; height: 5px; background: rgba(255,255,255,0.2); border-radius: 5px;"></div>
             </div>
-            <input type="text" id="wiz-nombre" class="input-form" placeholder="Nombre Oficial del Negocio">
-            <button class="btn-submit" style="margin-top:auto;" onclick="avanzarWizard(2, 3)">Continuar (38.2%)</button>
         </div>
-        <div id="wiz-step-3" class="boveda-tarjeta wizard-oculto-der" style="display:flex; flex-direction:column; gap:10px; justify-content:center;">
-            <h2 style="color:var(--naranja); text-align:center; margin:0;">Radar Comercial</h2>
-            <div style="display:flex; gap:8px;">
-                <input type="text" id="wiz-busqueda" class="input-form" style="margin-bottom:0;" placeholder="Ej: Unicentro Pereira">
-                <button class="btn-submit" style="width:auto; padding:0 15px; margin:0;" onclick="buscarWiz()">🔍</button>
+
+        <div style="flex: 1; padding: 0 15px 20px 15px; width: 100%; box-sizing: border-box; display: flex; flex-direction: column;">
+            <div class="contenedor-mapa-curvo" style="flex: 1; position: relative;">
+                <!-- Buscador y GPS Restaurados -->
+                <div class="buscador-inmersivo-wrapper" style="top: 15px; width: 90%; max-width: 400px; left: 50%; transform: translateX(-50%); position: absolute; z-index: 100; display: flex; gap: 8px;">
+                    <div style="position: relative; flex: 1; display: flex;">
+                        <input type="text" id="wiz-direccion-inteligente" class="buscador-inmersivo" style="padding-right: 40px; margin: 0; width: 100%; box-sizing: border-box;" placeholder="Busca tu dirección..." onkeypress="if(event.key==='Enter') window.buscarDireccionWizard()">
+                        <button type="button" onclick="window.buscarDireccionWizard()" class="btn-lupa-inmersiva" style="right: 5px; position: absolute; background: transparent; border: none; font-size: 18px; top: 50%; transform: translateY(-50%);">🔍</button>
+                    </div>
+                    <button type="button" id="btn-geo-wiz" onclick="window.obtenerUbicacionActualWizard()" style="background-color: rgba(10,10,15,0.85); border: 1px solid rgba(255,255,255,0.2); border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.5); flex-shrink: 0;">
+                        <div style="width: 14px; height: 14px; background: rgba(120, 120, 125, 0.6); border-radius: 50%; position: relative;">
+                            <div style="position: absolute; top: -3px; left: -3px; width: 18px; height: 18px; border: 2px solid rgba(255, 255, 255, 0.3); border-radius: 50%;"></div>
+                        </div>
+                    </button>
+                </div>
+                <div id="mapa-onboarding" style="width: 100%; height: 100%;"></div>
             </div>
-            <div id="mapa-wizard" style="width:100%; height:220px; border-radius:12px; border:1px solid var(--glass-border); background:#111;"></div>
-            <button class="btn-submit" style="margin-top:auto;" onclick="avanzarWizard(3, 4)">Fijar Local (61.8%)</button>
+            <button id="btn-guardar-paso-2" class="btn-submit" style="margin-top: 15px !important;" onclick="window.guardarPaso2Ubicacion()">Sellar Bóveda y Finalizar ➡️</button>
         </div>
-        <div id="wiz-step-4" class="boveda-tarjeta wizard-oculto-der" style="display:flex; flex-direction:column; gap:15px; justify-content:center;">
-            <h2 style="color:var(--naranja); text-align:center; margin:0;">Sellar Operación</h2>
-            <div class="wizard-preview-contenedor">
-                <div id="wiz-preview" class="wizard-preview-pin pin-1" style="--color-main:var(--naranja); --color-sec:#0ff;">
-                    <img id="wiz-img" src="https://via.placeholder.com/150/0a0a0c/ff6b00?text=LOGO" class="pin-img">
+    </div>
+
+
+
+    <!-- MODAL BRANDING / PIN (Invocado desde el Gemelo) -->
+    <div id="modal-diseno-pin-branding" class="velo-inmersivo" style="display: none; align-items: center; justify-content: center;">
+        <div class="foco-onboarding" data-titulo-ob="ADN Y BRANDING">
+            <p style="font-size: 11px; color: #888; text-align: center; margin-top: 0; margin-bottom: 20px;">Edita la forma, emoticón y paleta de colores de tu negocio.</p>
+            
+            <div style="background: #000; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 15px; border: 1px solid var(--glass-border); position: relative;">
+                <button class="lapiz-flotante" style="top: 10px; right: 10px;" onclick="document.getElementById('edit-file-pin').click()">✏️</button>
+                <input type="file" id="edit-file-pin" accept="image/*" style="display:none;" onchange="window.cargarPreviewPinModal(this)">
+                <div id="edit-pin-live-preview" class="pin-wrapper anim-salto" data-forma="forma-gota" style="--color-main: #ff6b00; cursor: pointer;" onclick="document.getElementById('edit-file-pin').click()">
+    <svg class="svg-pin-fondo" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+        <path d="M 30,57 C 30,57 10,38 10,20 C 10,9 19,3 30,3 C 41,3 50,9 50,20 C 50,38 30,57 30,57 Z" />
+    </svg>
+    <span class="texto-centro-masa" style="display: flex;">FOTO<br>PIN</span>
+    <img id="edit-img-live-preview" class="img-pin-interior" src="" style="display: none;">
+</div>
+
+
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <select id="edit-select-forma" class="input-form" onchange="window.actualizarPinLiveModal()" style="margin-bottom:0;">
+                    <option value="forma-gota" selected>Gota Clásica</option>
+<option value="forma-esfera">Esfera Perfecta</option>
+<option value="forma-triangulo">Triángulo</option>
+<option value="forma-estrella">Estrella ⭐</option>
+<option value="forma-hexagono">Hexágono ⬡</option>
+<option value="forma-corazon">Corazón ❤️</option>
+<option value="forma-arbol">Pino 🌲</option>
+<option value="forma-hongo">Hongo 🍄</option>
+<option value="forma-paleta">Paleta 🍭</option>
+                </select>
+                <select id="edit-select-efecto" class="input-form" onchange="window.actualizarPinLiveModal()" style="margin-bottom:0;"></select>
+            </div>
+            
+                        <label style="font-size: 10px; color: #888; text-transform: uppercase; margin-bottom: 8px; display: block; text-align: center;">Paleta de Marca</label>
+            
+            <div id="tour-target-branding" style="display: flex; gap: 10px; justify-content: center; align-items: center; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 20px; transition: 0.3s;">
+                
+                <!-- Circulo 1: Principal (No borrable, usa modal moderno) -->
+                <div id="color-slot-1" style="display:flex; flex-direction:column; align-items:center;">
+                    <div data-slot="1" onclick="window.abrirSelectorColor(1)" style="width: 35px; height: 35px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.5); background: #ff6b00; cursor: pointer;"></div>
+                    <span style="font-size: 9px; color:#888; margin-top:5px; font-weight:bold;">Principal</span>
+                    <input type="hidden" id="wizColorHex1" value="#ff6b00">
+                </div>
+
+                <!-- Circulo 2: Acento -->
+                <div id="color-slot-2" style="display:flex; flex-direction:column; align-items:center; position: relative;">
+                    <button onclick="window.eliminarColor(2)" style="position: absolute; top: -5px; right: -5px; background: rgba(255,0,0,0.8); color: white; border: none; border-radius: 50%; width: 14px; height: 14px; font-size: 8px; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center;">✖</button>
+                    <div data-slot="2" onclick="window.abrirSelectorColor(2)" style="width: 35px; height: 35px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.5); background: #ffffff; cursor: pointer;"></div>
+                    <span style="font-size: 9px; color:#888; margin-top:5px; font-weight:bold;">Acento</span>
+                    <input type="hidden" id="wizColorHex2" value="#ffffff">
+                </div>
+                <div id="add-slot-2" style="display:none; flex-direction:column; align-items:center; cursor: pointer;" onclick="window.agregarColor(2)">
+                    <div style="width: 35px; height: 35px; border-radius: 50%; border: 1px dashed rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.5); font-size: 16px;">+</div>
+                </div>
+
+                <!-- Circulo 3: Fondo -->
+                <div id="color-slot-3" style="display:flex; flex-direction:column; align-items:center; position: relative;">
+                    <button onclick="window.eliminarColor(3)" style="position: absolute; top: -5px; right: -5px; background: rgba(255,0,0,0.8); color: white; border: none; border-radius: 50%; width: 14px; height: 14px; font-size: 8px; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center;">✖</button>
+                    <div data-slot="3" onclick="window.abrirSelectorColor(3)" style="width: 35px; height: 35px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.5); background: #0a0a0c; cursor: pointer;"></div>
+                    <span style="font-size: 9px; color:#888; margin-top:5px; font-weight:bold;">Fondo</span>
+                    <input type="hidden" id="wizColorHex3" value="#0a0a0c">
+                </div>
+                <div id="add-slot-3" style="display:none; flex-direction:column; align-items:center; cursor: pointer;" onclick="window.agregarColor(3)">
+                    <div style="width: 35px; height: 35px; border-radius: 50%; border: 1px dashed rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.5); font-size: 16px;">+</div>
+                </div>
+
+                <!-- Circulo 4: Extra (Oculto por defecto) -->
+                <div id="color-slot-4" style="display:none; flex-direction:column; align-items:center; position: relative;">
+                    <button onclick="window.eliminarColor(4)" style="position: absolute; top: -5px; right: -5px; background: rgba(255,0,0,0.8); color: white; border: none; border-radius: 50%; width: 14px; height: 14px; font-size: 8px; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center;">✖</button>
+                    <div data-slot="4" onclick="window.abrirSelectorColor(4)" style="width: 35px; height: 35px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.5); background: #00f5d4; cursor: pointer;"></div>
+                    <span style="font-size: 9px; color:#888; margin-top:5px; font-weight:bold;">Extra</span>
+                    <input type="hidden" id="wizColorHex4" value="#00f5d4">
+                </div>
+                <div id="add-slot-4" style="display:flex; flex-direction:column; align-items:center; cursor: pointer;" onclick="window.agregarColor(4)">
+                    <div style="width: 35px; height: 35px; border-radius: 50%; border: 1px dashed rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.5); font-size: 16px;">+</div>
+                </div>
+
+                <!-- Botón Varita Mágica y Menú Desplegable -->
+                <div style="position: relative;">
+                    <button style="background: rgba(255,107,0,0.1); border: 1px solid var(--naranja); color: var(--naranja); width: 35px; height: 35px; border-radius: 10px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); margin-left: 5px;" onclick="document.getElementById('menu-magia-branding').classList.toggle('activo')" title="Extraer colores automáticos">✨</button>
+                    
+                    <div id="menu-magia-branding" class="menu-gemelo-dropdown" style="top: 45px; right: 0; min-width: 240px; z-index: 100;">
+                        <button onclick="window.ejecutarMagiaImagen(document.getElementById('img-live-preview')); document.getElementById('menu-magia-branding').classList.remove('activo');">📸 Escanear imagen cargada en pin</button>
+                        <button onclick="document.getElementById('file-magia-extra').click(); document.getElementById('menu-magia-branding').classList.remove('activo');">📁 Cargar nueva imagen para análisis</button>
+                    </div>
+                    <input type="file" id="file-magia-extra" accept="image/*" style="display:none;" onchange="window.procesarImagenExternaMagia(this)">
                 </div>
             </div>
-            <select id="wiz-nicho" class="input-form">
-                <option value="">¿Qué sector manejas?</option>
-                <option value="farmacia">Farmacia / Droguería</option>
-                <option value="ferreteria">Ferretería</option>
-                <option value="supermercado">Supermercado / Mini-market</option>
-                <option value="restaurante">Restaurante / Comidas</option>
-                <option value="tecnologia">Tecnología / Celulares</option>
-            </select>
-            <button class="btn-submit" style="margin-top:auto; background:#00ff64; color:black; box-shadow:0 10px 25px rgba(0,255,100,0.4);" onclick="finalizarWizard()">Sellar Bóveda (100%)</button>
+
+            
+            <button id="btn-guardar-edicion-branding" class="btn-submit" onclick="window.procesarGuardadoPinBrandingModal()">GUARDAR CAMBIOS 💾</button>
+            <button class="btn-submit" style="background: transparent; border: 1px solid rgba(255,255,255,0.2); color: white; margin-top: 10px; box-shadow: none;" onclick="document.getElementById('modal-diseno-pin-branding').style.display='none'; document.getElementById('modal-diseno-pin-branding').classList.remove('activo');">Cancelar Edición</button>
         </div>
     </div>
 
-    <div id="offline-banner" class="offline-banner">⚠️ Sin conexión: Mostrando datos de tu última visita</div>
+    <!-- EDITOR MUTANTE INLINE -->
+    <div id="editor-inline" class="editor-modal">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+            <h4 id="editor-titulo" style="color: var(--naranja); margin: 0; text-transform: uppercase; letter-spacing: 1px;">Editando...</h4>
+            <button onclick="document.getElementById('editor-inline').classList.remove('activo')" style="background:rgba(255,255,255,0.1); border:none; color:white; font-size:14px; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center;">✖</button>
+        </div>
+        <div id="editor-campos" style="margin-bottom: 20px;"></div>
+        <button id="btn-guardar-inline" class="btn-submit" style="background: #00ff64; color: black; box-shadow: 0 5px 15px rgba(0,255,100,0.4); margin: 0;">💾 GUARDAR DATO</button>
+    </div>
+
+    <!-- Inputs Ocultos de Archivos -->
+    <input type="file" id="file-portada" accept="image/*" style="display:none;" onchange="window.subirImagenDirecta('portada', this)">
+    <input type="file" id="file-logo" accept="image/*" style="display:none;" onchange="window.subirImagenDirecta('logo', this)">
 
     <!-- PANTALLA PRINCIPAL DEL DASHBOARD -->
-    <div id="dashboard-screen" style="display: none;">
+    <div id="dashboard-screen" style="display: none; height: 100vh; flex-direction: column; overflow: hidden; max-width: 500px; margin: 0 auto;">
         
-        <div id="banner-aversiones" style="display:none; width:100%; background:rgba(255,107,0,0.1); border:1px dashed var(--naranja); color:white; padding:12px; border-radius:15px; text-align:center; margin-bottom:15px; font-size:12px; cursor:pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.5);" onclick="retomarWizard()">
-            ⚠️ <b>Bóveda al <span id="txt-progreso-boveda">0</span>%.</b> Faltan detalles para destacar en el radar. <u style="color:var(--naranja);">Completar ahora</u>
-        </div>
-
-       <div class="panel-admin" style="position: relative; z-index: 100;">
-            
-            <!-- 🎩 MENÚ 3 PUNTOS ELEGANTE -->
-            <button class="btn-opciones-cabecera" onclick="document.getElementById('menu-cabecera-dropdown').classList.toggle('activo')">⋮</button>
-           <div id="menu-cabecera-dropdown" class="menu-cabecera-dropdown">
-                <button onclick="import('./core-db.js').then(m => m.default.SecurityService.observarEstadoSesion(u => { if(u) window.open('negocio.html?id=' + u.uid, '_blank'); else alert('Sesión no detectada'); }))">Ver Catálogo</button>
-
-                <button onclick="window.location.href='index.html'">Radar General</button>
-                <button onclick="alert('Configuración en construcción 🛠️')">Configuración</button>
-                <button onclick="cerrarSesion()" style="color: #ff4444; border-color: rgba(255,68,68,0.15); background: rgba(255,68,68,0.05);">Salir de la bóveda</button>
+        <div class="panel-admin" style="position: relative; z-index: 100; flex-shrink: 0; border-radius: 0 0 21px 21px; margin-bottom: 0;">
+            <button class="btn-opciones-cabecera" onclick="document.getElementById('menu-cabecera-principal').classList.toggle('activo')">⋮</button>
+            <div id="menu-cabecera-principal" class="menu-cabecera-dropdown">
+                <button onclick="window.open('negocio.html?id=' + window.idNegocioLogueado, '_blank')">Ver Catálogo en Radar</button>
+                <button onclick="window.location.href='index.html'">Ir al Mapa Principal</button>
+                <button onclick="window.GeokatuDB.SecurityService.cerrarSesion().then(()=>window.location.href='index.html')" style="color: #ff4444; border-top: 1px solid rgba(255,255,255,0.05);">Salir de la bóveda</button>
             </div>
-
-
-            <!-- CABECERA LIMPIA -->
             <div class="oficina-header" style="border:none; margin-bottom:0; padding-bottom:0;">
-                <img id="ui-logo" src="" class="oficina-logo" style="display:none; background: var(--bg-oscuro); box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
+                <img id="ui-logo" src="" class="oficina-logo" style="display:none; background: var(--bg-oscuro);">
                 <div class="oficina-info">
-                    <img id="ui-nombre-img" class="ui-nombre-png" src="" style="display:none;">
-                    <h3 id="ui-nombre" style="background: linear-gradient(135deg, #ffffff 0%, #aaaaaa 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5)); margin-bottom: 5px;">MI TIENDA</h3>
-                    <div style="position: relative; display: inline-block;">
-                        <div id="ui-rango" class="badge-plan">PLAN BÁSICO</div>
-                   </div>
+                    <h3 id="ui-nombre" style="color: white; margin-bottom: 5px;">MI TIENDA</h3>
+                    <div class="badge-plan">ESTADO: ACTIVO</div>
                 </div>
             </div> 
         </div> 
 
-        <div class="tabs">
-            <button class="tab-btn activo" onclick="cambiarTab('ajustes')">⚙️ Perfil</button>
-            <button class="tab-btn" onclick="cambiarTab('inventario')">📦 Catálogo</button>
-            <button class="tab-btn" onclick="cambiarTab('operaciones')">🏗️ Operaciones</button>
-            <button class="tab-btn" onclick="cambiarTab('aliados')">🤝 Aliados</button>
+        <div class="tabs" style="flex-shrink: 0; margin: 10px 15px; border-radius: 15px; background: rgba(10,10,15,0.8);">
+            <button class="tab-btn activo" onclick="window.cambiarTab('ajustes')">⚙️ Perfil OK</button>
+            <button class="tab-btn" onclick="window.cambiarTab('inventario')">📦 Catálogo</button>
+            <button class="tab-btn" onclick="window.cambiarTab('operaciones')">🏗️ Operaciones</button>
         </div>
 
-
-        <!-- 🏢 PESTAÑA: AJUSTES / PERFIL -->
-        <div id="content-ajustes" class="tab-content activo">
-            <details open>
-                <summary>🏢 Mi Tienda y Ubicación</summary>
-                <div style="padding: 0 15px 15px;">
-                    <label class="section-title">Datos de Contacto</label>
-                    <input type="text" id="perfilEmail" class="input-form" disabled placeholder="Correo">
-                    <input type="text" id="perfilTelefono" class="input-form" placeholder="Número de WhatsApp">
-                    
-                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                        <div style="flex: 1;">
-                            <label style="font-size: 11px; color: #888; margin-bottom: 5px; display: block;">Apertura</label>
-                            <select id="perfilApertura" class="input-form" style="margin-bottom: 0;"></select>
-                        </div>
-                        <div style="flex: 1;">
-                            <label style="font-size: 11px; color: #888; margin-bottom: 5px; display: block;">Cierre</label>
-                            <select id="perfilCierre" class="input-form" style="margin-bottom: 0;"></select>
-                        </div>
-                    </div>
-                    <input type="text" id="perfilDireccion" class="input-form" placeholder="Dirección Oficial">
-                    
-                    <!-- CONTENEDOR DEL MAPA CON BOTÓN GPS -->
-                    <div id="contenedor-mapa-perfil">
-                        <label class="section-title" style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center;">
-                            <span>📍 Ubicación en el Mapa</span>
-                            <button type="button" id="btn-geo" onclick="obtenerUbicacionActual()" style="background: rgba(255,107,0,0.1); border: 1px solid var(--naranja); color: var(--naranja); padding: 6px 12px; border-radius: 8px; font-size: 10px; font-weight: bold; cursor: pointer; transition: 0.3s;">🎯 Usar mi GPS</button>
-                        </label>
-                        <div id="mini-mapa-perfil" style="width: 100%; height: 220px; border-radius: 12px; border: 1px solid var(--glass-border); margin-bottom: 10px; background: #111; z-index: 1;"></div>
-                        <input type="hidden" id="perfilLat">
-                        <input type="hidden" id="perfilLng">
-                    </div>
-                    
-                    <label class="section-title" style="margin-top:20px;">Posicionamiento</label>
-                    <input type="text" id="perfilNombre" class="input-form" placeholder="Nombre Oficial">
-                    <input type="text" id="perfilUsername" class="input-form" placeholder="Link personalizado (Ej: minimarket_sur)" style="text-transform: lowercase;">
-                    
-                    <select id="perfilNichoSelect" class="input-form" style="margin-bottom: 15px;">
-                        <option value="">Selecciona tu Sector/Nicho...</option>
-                        <option value="carniceria">Carnicería / Fama de Carnes</option>
-                        <option value="farmacia">Farmacia / Droguería</option>
-                        <option value="ferreteria">Ferretería</option>
-                        <option value="supermercado">Supermercado / Mini-market</option>
-                        <option value="papeleria">Papelería</option>
-                        <option value="tecnologia">Tecnología / Celulares</option>
-                        <option value="restaurante">Restaurante / Comidas Rápidas</option>
-                        <option value="ropa">Ropa / Boutique / Calzado</option>
-                        <option value="otro">Otro</option>
-                    </select>
-                    
-                    <select id="perfilMoneda" class="input-form">
-                        <option value="COP">Peso Colombiano (COP)</option>
-                        <option value="USD">Dólar Estadounidense (USD)</option>
-                    </select>
-                    
-                    <textarea id="perfilPalabras" class="input-form" placeholder="Palabras clave (Ej: viveres, carne, despensa)"></textarea>
-                    
-                    <button class="btn-submit" id="btn-submit-perfil" onclick="guardarPerfil()">GUARDAR PERFIL</button>
-                    <p id="msg-exito-perfil" style="color: #00ff64; font-size: 11px; text-align: center; margin-top: 5px; opacity: 0; transition: opacity 0.5s;">✔️ Actualizado</p>
-                </div>
-            </details>
-
-            <details>
-                <summary>🎨 Diseño y Branding</summary>
-                <div style="padding: 0 var(--sp-sm) var(--sp-sm);">
-                    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-                        <div class="file-upload-wrapper" style="flex:1; margin:0;">
-                            <input type="file" id="disenoLogoFile" class="file-upload-input" accept="image/*" onchange="actualizarNombreImagenUI(this,'texto-logo')">
-                            <div class="file-upload-ui" id="texto-logo" style="padding:10px; font-size:11px;">📸 Logo</div>
-                        </div>
-                        <div class="file-upload-wrapper" style="flex:1; margin:0;">
-                            <input type="file" id="disenoPortadaFile" class="file-upload-input" accept="image/*" onchange="actualizarNombreImagenUI(this,'texto-portada')">
-                            <div class="file-upload-ui" id="texto-portada" style="padding:10px; font-size:11px;">🖼️ Portada</div>
-                        </div>
-                    </div>
-                    
-                    <label class="section-title">Paleta de Marca (Colores)</label>
-                    <div style="display: flex; gap: 15px; align-items: center; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 12px; border: 1px solid var(--glass-border); margin-bottom: 20px;">
-                        <div style="flex:1; display:flex; flex-direction:column; align-items:center;">
-                            <div class="color-picker-wrapper">
-                                <input type="color" id="colorHex1" value="#ff6b00" oninput="window.actualizarPinLive()">
-                            </div>
-                            <span style="font-size: 9px; color:#888; margin-top:5px; text-transform:uppercase;">Principal</span>
-                        </div>
-                        <div style="flex:1; display:flex; flex-direction:column; align-items:center;">
-                            <div class="color-picker-wrapper">
-                                <input type="color" id="colorHex2" value="#ffffff">
-                            </div>
-                            <span style="font-size: 9px; color:#888; margin-top:5px; text-transform:uppercase;">Acento</span>
-                        </div>
-                        <div style="flex:1; display:flex; flex-direction:column; align-items:center;">
-                            <div class="color-picker-wrapper">
-                                <input type="color" id="colorHex3" value="#0a0a0c">
-                            </div>
-                            <span style="font-size: 9px; color:#888; margin-top:5px; text-transform:uppercase;">Fondo</span>
-                        </div>
+        <!-- 🏢 PESTAÑA 1: PERFIL OK (Minimalista Inmersivo Full) -->
+        <div id="content-ajustes" class="tab-content activo" style="flex-grow: 1; padding: 0; background: transparent; border: none; box-shadow: none; border-radius: 0; position: relative; margin: 0 15px 15px 15px; display: flex; flex-direction: column;">
+            
+            <div class="contenedor-mapa-curvo" style="flex: 1; display: flex; flex-direction: column;">
+                <!-- Buscador Inmóvil Flotante Dashboard -->
+                <div class="buscador-inmersivo-wrapper">
+                    <div style="position: relative; flex: 1; display: flex;">
+                        <input type="text" id="perfilDireccion" class="buscador-inmersivo" style="padding-right: 75px; margin: 0; width: 100%; box-sizing: border-box;" disabled placeholder="Tu ubicación en el mapa" onkeypress="if(event.key==='Enter') window.buscarDireccionSandbox('perfilDireccion', window.miniMapaPerfil, window.pinMiniMapaPerfil)">
                         
-                        <button style="background: rgba(255,107,0,0.1); border: 1px solid var(--naranja); color: var(--naranja); width: 40px; height: 40px; border-radius: 10px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3);" onclick="extraerColoresMagicos()" title="Extraer colores del logo">✨</button>
-                    </div>
-                    
-                    <button class="btn-submit" id="btn-submit-diseno" onclick="guardarDisenoLaboratorio()">GUARDAR BRANDING</button>
-                </div>
-            </details>
-<!-- 📍 NUEVO ACORDEÓN: EDITOR DE PINES -->
-            <details>
-                <summary>📍 Diseño del Pin (Mapa)</summary>
-                <div style="padding: 0 var(--sp-sm) var(--sp-sm);">
-                    <p style="font-size: 11px; color: #888; text-align: center; margin-top: 0;">Personaliza cómo te ven los clientes en el radar principal.</p>
-                    
-                    <div style="background: #111; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 15px; border: 1px solid var(--glass-border);">
-                        <!-- El visualizador en vivo -->
-                        <!-- El visualizador en vivo (GOTA POR DEFECTO) -->
-                        <div id="pin-live-preview" class="pin-wrapper forma-gota anim-salto" style="display: inline-flex; position: relative; width: 50px; height: 50px; background: rgba(10,10,12,0.8);">
-                            <img id="img-live-preview" src="https://via.placeholder.com/150/0a0a0c/ff6b00?text=PIN" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">
+                        <div style="position: absolute; right: 5px; top: 50%; transform: translateY(-50%); display: flex; gap: 5px;">
+                            <button type="button" onclick="window.buscarDireccionSandbox('perfilDireccion', window.miniMapaPerfil, window.pinMiniMapaPerfil)" class="btn-lupa-inmersiva" style="position: static; transform: none;">🔍</button>
+                            <button type="button" id="btn-edit-ubicacion-mapa" onclick="document.getElementById('perfilDireccion').disabled = false; document.getElementById('perfilDireccion').focus();" style="display: none; background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1); border-radius: 6px; color: #333; cursor: pointer; padding: 5px 8px; font-size: 12px;">✏️</button>
                         </div>
-
                     </div>
-
-                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                                                <select id="select-forma" class="input-form" onchange="actualizarPinLive()" style="flex:1; margin-bottom:0;">
-                            <option value="forma-gota" selected>Gota Clásica</option>
-                            <option value="forma-esfera">Esfera Perfecta</option>
-                            <option value="forma-triangulo">Triángulo Elegante</option>
-                            <option value="forma-hoja">Hoja Orgánica</option>
-                            <option value="forma-flor">Flor (Girasol) 🌻</option>
-                        </select>
-
-                        <select id="select-animacion" class="input-form" onchange="actualizarPinLive()" style="flex:1; margin-bottom:0;">
-                            <option value="anim-salto">Salto Gravitacional</option>
-                            <option value="anim-flotar">Flotar Suave</option>
-                            <option value="anim-latido">Latido Cardíaco</option>
-                            <option value="anim-estatico">Sin Movimiento</option>
-                        </select>
-                    </div>
-                    
-                    <select id="select-efecto" class="input-form" onchange="actualizarPinLive()"></select>
-                    <button id="btn-guardar-radar" class="btn-pedir" onclick="guardarDatosRadar()">💾 GUARDAR EN EL RADAR</button>
-
                 </div>
-            </details>
-
-        </div>
-
-        <!-- 📦 PESTAÑA: POS E INVENTARIO -->
-        <div id="content-inventario" class="tab-content">
-            <details>
-                <summary>➕ Añadir Producto</summary>
-                <div style="padding: 0 12px 12px 12px;">
-                    <input type="hidden" id="prodEditId">
-                    <input type="hidden" id="prodImagenActual">
-                    
-                    <input type="text" id="prodNombre" class="input-form" placeholder="Nombre del artículo">
-                    <div style="display:flex; gap:10px;">
-                        <input type="number" step="any" id="prodPrecio" class="input-form" placeholder="Precio" style="flex:1;">
-                        <input type="text" id="prodCategoria" class="input-form" placeholder="Categoría" style="flex:1;">
-                    </div>
-                    
-                    <div class="file-upload-wrapper">
-                        <input type="file" id="prodImagenFile" class="file-upload-input" accept="image/*" onchange="actualizarNombreImagenUI(this, 'file-upload-text')">
-                        <div class="file-upload-ui" id="file-upload-text">📸 Subir foto del producto</div>
-                    </div>
-
-                    <button class="btn-submit" id="btn-submit-producto" onclick="guardarProducto()">GUARDAR EN CATÁLOGO</button>
-                    <button class="btn-submit" id="btn-cancelar-edicion" onclick="cancelarEdicion()" style="display: none; background: transparent; border: 1px solid var(--naranja); color: var(--naranja); box-shadow: none; margin-top: 10px;">Cancelar Edición</button>
-                </div>
-            </details>
-
-            <details id="acordeon-masivo" style="display: none;">
-                <summary>⚡ Carga Rápida (Masiva)</summary>
-                <div style="padding: 0 12px 12px 12px;">
-                    <p style="color: #888; font-size: 11px; margin-top: 0;">Añade productos de catálogos predefinidos rápidamente.</p>
-                    <div style="position: relative; margin-bottom: 15px;">
-                        <input type="text" id="buscador-json" class="input-form" placeholder="🔍 Ej: Aspirina, Cemento..." onkeyup="filtrarDiccionarioJSON()" style="margin-bottom: 0;">
-                        <div id="resultados-json" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; background: var(--bg-oscuro); border: 1px solid rgba(138, 43, 226, 0.5); border-radius: 0 0 12px 12px; max-height: 200px; overflow-y: auto; z-index: 100; box-shadow: 0 10px 20px rgba(0,0,0,0.8);"></div>
-                    </div>
-                    <div id="mi-inventario-masivo" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; max-height: 300px; overflow-y: auto;"></div>
-                    <button class="btn-submit" style="background: #8a2be2; color: white;" onclick="guardarInventarioMasivo()">GUARDAR PRECIOS EN LOTE</button>
-                </div>
-            </details>
-
-            <hr style="border-color: rgba(255,255,255,0.1); margin: 20px 0;">
-
-            <label class="section-title">📦 Catálogo Activo</label>
-            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                <input type="text" id="filtro-busqueda" class="input-form" placeholder="🔍 Buscar..." style="margin-bottom: 0; flex: 2;" onkeyup="manejarBusquedaTeclado(event)">
-                <select id="filtro-categoria" class="input-form" style="margin-bottom: 0; flex: 1;" onchange="filtrarCatalogo()">
-                    <option value="">Todas</option>
-                </select>
+                
+                <!-- Mapa a Pantalla Completa -->
+                <div id="mini-mapa-perfil" style="width: 100%; height: 100%; background: #111;"></div>
             </div>
             
-            <!-- 🔲 NUEVA GRILLA INTELIGENTE -->
-            <div id="lista-productos-container" class="grilla-catalogo"></div>
-            
-            <button id="btn-cargar-mas" class="btn-submit" style="display: none; background: transparent; border: 1px dashed var(--naranja); color: var(--naranja); box-shadow: none; margin-top: 15px;" onclick="cargarMasProductos()">⬇️ Cargar más</button>
+            <input type="hidden" id="perfilLat">
+            <input type="hidden" id="perfilLng">
         </div>
 
-        <!-- 🏗️ PESTAÑA: GESTIÓN OPERATIVA -->
+        <div id="content-inventario" class="tab-content" style="display: none;">
+            <div style="text-align:center; padding: 40px; color:#888;">
+                <h3>Catálogo Activo</h3>
+                <p>Tu bóveda está lista para operar.</p>
+            </div>
+        </div>
+
         <div id="content-operaciones" class="tab-content" style="display: none;">
-            
-            <details open>
-                <summary>👥 Gestión de Personal</summary>
-                <div style="padding: 0 15px 15px;">
-                    <p style="font-size: 11px; color: #888; margin-top: 0;">Genera las credenciales para que tus empleados ingresen a la Terminal de Escaneo o a la App de Reparto.</p>
-                    <input type="text" id="emp-nombre" class="input-form" placeholder="Nombre del Empleado">
-                    <input type="email" id="emp-email" class="input-form" placeholder="Correo Electrónico (Será su Usuario)">
-                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                        <input type="password" id="emp-pass" class="input-form" style="margin-bottom: 0;" placeholder="Clave Temporal">
-                        <select id="emp-rol" class="input-form" style="margin-bottom: 0;">
-                            <option value="" disabled selected>Asignar Rol...</option>
-                            <option value="operario_pos">Operario de Bodega / POS</option>
-                            <option value="domiciliario">Conductor / Domiciliario</option>
-                            <option value="supervisor">Supervisor de Zona</option>
-                        </select>
-                    </div>
-                    <button class="btn-submit" style="background: #0099ff; color: white; box-shadow: 0 4px 15px rgba(0, 153, 255, 0.3);" onclick="crearCredencialEmpleado()">GENERAR CREDENCIAL</button>
-                </div>
-            </details>
-
-            <details>
-                <summary>🏢 Bodegas (Gemelo Digital)</summary>
-                <div style="padding: 0 15px 15px;">
-                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                        <input type="text" id="bodega-nombre" class="input-form" style="margin-bottom: 0; border-color: #8bc34a;" placeholder="Nombre del Espacio (Ej: Piso 1)">
-                        <button class="btn-submit" style="width: auto; padding: 0 20px; margin: 0; background: #8bc34a; color: white;" onclick="agregarBodega()">+</button>
-                    </div>
-                </div>
-            </details>
+            <div style="text-align:center; padding: 40px; color:#888;">
+                <h3>Operaciones</h3>
+                <p>Gestión de empleados y POS.</p>
+            </div>
         </div>
+    </div>
 
-        <!-- 🤝 PESTAÑA: RED DE ALIADOS -->
-        <div id="content-aliados" class="tab-content" style="display: none;">
-            <div style="background: rgba(0,0,0,0.3); border-radius: 12px; padding: 30px 20px; text-align: center; margin-bottom: 15px; border: 1px solid var(--glass-border); position: relative;">
-                        <!-- El input y el lápiz ocultos para cambiar SOLO la imagen del Pin -->
-                        <button class="inline-lapiz" style="top: 10px; right: 10px;" onclick="document.getElementById('disenoPinFile').click()">✏️</button>
-                        <input type="file" id="disenoPinFile" accept="image/*" style="display:none;" onchange="window.cargarPreviewMiniPin(this)">
-                        
-                        <!-- El visualizador en vivo -->
-                        <div id="pin-live-preview" class="pin-wrapper forma-gota anim-salto" style="margin: 0 auto;">
-                            <img id="img-live-preview" src="https://via.placeholder.com/150/0a0a0c/ff6b00?text=PIN">
-                        </div>
-                    </div>
-
-
-    <!-- 🧠 LÓGICA DE NEGOCIO -->
+    <!-- LÓGICA DE ARQUITECTURA -->
     <script type="module">
         import * as geofire from 'https://cdn.jsdelivr.net/npm/geofire-common@5.2.0/+esm';
         import GeokatuDB from './core-db.js';
+        
+        window.GeokatuDB = GeokatuDB;
+        window.generarGeohash = function(lat, lng) { return geofire.geohashForLocation([lat, lng]); };
 
-        let idNegocioLogueado = null;
-        let isPremium = false;
-        let datosGlobalesNegocio = null;
-        let listaProductosGlobal = [];
-        let ultimoDocCatalogo = null;
-        let categoriaFiltroActual = "";
-        let terminoBusquedaActual = "";
-        let categoriasDisponibles = new Set();
-        let DICCIONARIO_UNIVERSAL = [];
-        let mapaPreciosLocal = {}; 
-        let inventarioAgotadoLocal = [];
+        let datosTienda = {};
 
-        window.sanitizarTexto = function(texto) {
-            if (texto === null || texto === undefined) return '';
-            const div = document.createElement('div'); div.textContent = texto; return div.innerHTML;
-        };
+        const protocol = new pmtiles.Protocol();
+        maplibregl.addProtocol("pmtiles", protocol.tile);
 
-        function generarGeohash(lat, lng) { return geofire.geohashForLocation([lat, lng]); }
-
+        // --- SISTEMA DE PESTAÑAS ---
         window.cambiarTab = (tabId) => {
             if (navigator.vibrate) navigator.vibrate(50);
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('activo'));
+            document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('activo'));
-            document.getElementById(`content-${tabId}`).classList.add('activo');
-            document.querySelectorAll('.tab-btn').forEach(btn => { if(btn.getAttribute('onclick').includes(tabId)) btn.classList.add('activo'); });
             
-            if (tabId === 'ajustes' && typeof miniMapa !== 'undefined' && miniMapa) {
-                setTimeout(() => { miniMapa.resize(); }, 100);
+            const content = document.getElementById(`content-${tabId}`);
+            if(content) {
+                content.style.display = 'flex';
+                content.classList.add('activo');
             }
-        };
-
-        // 🎯 GEOLOCALIZACIÓN INTELIGENTE
-        window.obtenerUbicacionActual = () => {
-            if (!navigator.geolocation) return alert("Tu navegador no soporta geolocalización.");
-            const btn = document.getElementById('btn-geo');
-            btn.innerText = "⏳ Buscando...";
-            
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    const lat = pos.coords.latitude;
-                    const lng = pos.coords.longitude;
-                    if (typeof miniMapa !== 'undefined' && miniMapa && typeof pinMiniMapa !== 'undefined' && pinMiniMapa) {
-                        miniMapa.flyTo({ center: [lng, lat], zoom: 17 });
-                        pinMiniMapa.setLngLat([lng, lat]);
-                    }
-                    document.getElementById('perfilLat').value = lat;
-                    document.getElementById('perfilLng').value = lng;
-                    btn.innerText = "✔️ Capturado";
-                    btn.style.borderColor = "#00ff64"; btn.style.color = "#00ff64";
-                    setTimeout(() => { btn.innerText = "🎯 Usar mi GPS"; btn.style.borderColor = "var(--naranja)"; btn.style.color = "var(--naranja)"; }, 3000);
-                },
-                (err) => {
-                    alert("No pudimos acceder a tu GPS.");
-                    btn.innerText = "🎯 Usar mi GPS";
-                },
-                { enableHighAccuracy: true, timeout: 10000 }
-            );
-        };
-
-        window.cerrarSesion = async () => {
-            await GeokatuDB.SecurityService.cerrarSesion();
-            localStorage.removeItem('qrpido_session_validated');
-            window.location.href = 'index.html';
-        };
-
-        // --- MANEJO DE PERFIL Y MAPA ---
-        let protocol = new pmtiles.Protocol();
-        maplibregl.addProtocol("pmtiles", protocol.tile);
-
-        window.inicializarMiniMapa = function(latInicial, lngInicial) {
-            if (typeof miniMapa !== 'undefined' && miniMapa) return; 
-            const defaultLat = latInicial || 4.8133; 
-            const defaultLng = lngInicial || -75.6961;
-
-            window.miniMapa = new maplibregl.Map({
-                container: 'mini-mapa-perfil',
-                style: 'estilo-fresco.json', 
-                center: [defaultLng, defaultLat], 
-                zoom: 15, attributionControl: false
+            document.querySelectorAll('.tab-btn').forEach(btn => { 
+                if(btn.getAttribute('onclick').includes(tabId)) btn.classList.add('activo'); 
             });
 
-            window.pinMiniMapa = new maplibregl.Marker({ color: "#ff6b00", draggable: true })
-                .setLngLat([defaultLng, defaultLat]).addTo(miniMapa);
+            if (tabId === 'ajustes' && window.miniMapaPerfil) {
+                setTimeout(() => window.miniMapaPerfil.resize(), 100);
+            }
+        };
 
-            pinMiniMapa.on('dragend', function() {
-                const pos = pinMiniMapa.getLngLat();
-                document.getElementById('perfilLat').value = pos.lat;
-                document.getElementById('perfilLng').value = pos.lng;
+        // --- DICCIONARIO DE EMOJIS (ANCLAJES PRECISOS) ---
+        window.cargarDiccionarioEmojis = function() {
+            const diccionario = [
+                { grupo: "🎩 Coronas y Sombreros", anclaje: "anclaje-arriba", iconos: "👑,🎓,🤠,🧢,🌸" },
+                { grupo: "🎀 Esquinas y Tiaras", anclaje: "anclaje-esquina", iconos: "🎀,🏵️,✨,⭐" },
+                { grupo: "🍔 Comida (Flotante)", anclaje: "anclaje-arriba", iconos: "🍔,🍕,☕,🍻" }
+            ];
+            const selects = [document.getElementById('select-efecto'), document.getElementById('edit-select-efecto')];
+            selects.forEach(select => {
+                if(!select) return;
+                select.innerHTML = `<option value="|">Sin Emoticón</option>`;
+                diccionario.forEach(cat => {
+                    let optgroup = document.createElement('optgroup'); optgroup.label = cat.grupo;
+                    cat.iconos.split(',').forEach(emoji => {
+                        let opt = document.createElement('option');
+                        opt.value = `${cat.anclaje}|${emoji}`; opt.text = emoji;
+                        optgroup.appendChild(opt);
+                    });
+                    select.appendChild(optgroup);
+                });
             });
-            
-            if(latInicial && lngInicial) {
-                document.getElementById('perfilLat').value = defaultLat;
-                document.getElementById('perfilLng').value = defaultLng;
-            }
         };
+        setTimeout(() => window.cargarDiccionarioEmojis(), 500);
 
-        function initWizMap() {
-            setTimeout(() => {
-                if (typeof wizMapa !== 'undefined' && wizMapa) { wizMapa.resize(); return; }
-                window.wizMapa = new maplibregl.Map({
-                    container: 'mapa-wizard', style: 'estilo-fresco.json', center: [wizLng, wizLat], zoom: 15, attributionControl: false
-                });
-                window.wizMarker = new maplibregl.Marker({ color: "#ff6b00", draggable: true }).setLngLat([wizLng, wizLat]).addTo(wizMapa);
-                wizMarker.on('dragend', function() {
-                    const pos = wizMarker.getLngLat(); wizLat = pos.lat; wizLng = pos.lng;
-                });
-            }, 300);
-        }
-
-        window.buscarWiz = async () => {
-            const query = document.getElementById('wiz-busqueda').value.trim();
-            if (!query) return;
-            const btnBusqueda = document.querySelector('#wiz-step-3 .btn-submit:first-of-type');
-            const originalIcon = btnBusqueda.innerText; btnBusqueda.innerText = "⏳";
-            try {
-                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Colombia')}`);
-                const data = await response.json();
-                if (data && data.length > 0) {
-                    wizLat = parseFloat(data[0].lat); wizLng = parseFloat(data[0].lon);
-                    wizMapa.flyTo({ center: [wizLng, wizLat], zoom: 16 }); wizMarker.setLngLat([wizLng, wizLat]);
-                } else { alert("No pudimos encontrar esa dirección."); }
-            } catch (e) { console.error(e); } finally { btnBusqueda.innerText = originalIcon; }
-        };
-
-        function poblarHorarios() {
-            let opciones = '<option value="">Selecciona...</option>';
-            for(let h=0; h<24; h++) {
-                for(let m of ['00', '30']) {
-                    const militar = `${h.toString().padStart(2, '0')}:${m}`;
-                    const ampm = h >= 12 ? 'PM' : 'AM'; let h12 = h % 12 || 12;
-                    opciones += `<option value="${militar}">${h12.toString().padStart(2, '0')}:${m} ${ampm}</option>`;
-                }
-            }
-            document.getElementById('perfilApertura').innerHTML = opciones; document.getElementById('perfilCierre').innerHTML = opciones;
-        }
-        poblarHorarios();
-
-        window.comprimirImagen = function(file, maxWidth = 800, quality = 0.7, forceSquare = false) {
+        // --- COMPRESIÓN DE IMÁGENES ---
+        window.comprimirImagen = function(file, maxWidth = 800, quality = 0.5, forceSquare = false) {
             return new Promise((resolve) => {
                 if (!file) return resolve(file);
                 const reader = new FileReader();
@@ -623,7 +423,7 @@
                         const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
                         const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, width, height);
                         ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, width, height);
-                        canvas.toBlob(blob => { resolve(blob || file); }, 'image/jpeg', quality);
+                        canvas.toBlob(blob => { resolve(blob || file); }, 'image/webp', quality);
                     };
                     img.onerror = () => resolve(file); img.src = event.target.result;
                 };
@@ -631,911 +431,904 @@
             });
         };
 
-                window.actualizarNombreImagenUI = (input, idTexto) => {
-            const textoUI = document.getElementById(idTexto);
+        // --- BUSCADOR Y GPS (WIZARD & PERFIL) ---
+        window.buscarDireccionWizard = async () => {
+            const input = document.getElementById('wiz-direccion-inteligente');
+            const query = input.value.trim();
+            if (!query) return;
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+                const data = await res.json();
+                if (data && data.length > 0) {
+                    const lat = parseFloat(data[0].lat); const lng = parseFloat(data[0].lon);
+                    if(window.mapaOnboarding) {
+                        window.mapaOnboarding.flyTo({ center: [lng, lat], zoom: 17 });
+                        window.markerOnboarding.setLngLat([lng, lat]);
+                        window.obtenerDireccionGeocoding(lat, lng, 'wiz-direccion-inteligente');
+                        input.disabled = true;
+                    }
+                } else { alert("No pudimos encontrar esa dirección."); }
+            } catch (e) { console.error(e); }
+        };
+
+        window.obtenerUbicacionActualWizard = () => {
+            if (!navigator.geolocation) return alert("Tu navegador no soporta geolocalización.");
+            const btn = document.getElementById('btn-geo-wiz');
+            const originalHtml = btn.innerHTML; btn.innerHTML = "⏳";
+            
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    const lat = pos.coords.latitude; const lng = pos.coords.longitude;
+                    if (window.mapaOnboarding && window.markerOnboarding) {
+                        window.mapaOnboarding.flyTo({ center: [lng, lat], zoom: 17 });
+                        window.markerOnboarding.setLngLat([lng, lat]);
+                        window.obtenerDireccionGeocoding(lat, lng, 'wiz-direccion-inteligente');
+                    }
+                    btn.innerHTML = "✔️"; setTimeout(() => { btn.innerHTML = originalHtml; }, 3000);
+                },
+                (err) => { alert("No pudimos acceder a tu GPS."); btn.innerHTML = originalHtml; },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        };
+
+        window.buscarDireccionSandbox = async (inputId, refMapa, refMarker) => {
+            const query = document.getElementById(inputId).value.trim();
+            if (!query) return;
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+                const data = await res.json();
+                if (data && data.length > 0) {
+                    const lat = parseFloat(data[0].lat); const lng = parseFloat(data[0].lon);
+                    if(refMapa) { refMapa.flyTo({ center: [lng, lat], zoom: 17 }); refMarker.setLngLat([lng, lat]); }
+                    document.getElementById('perfilLat').value = lat; document.getElementById('perfilLng').value = lng;
+                }
+            } catch (e) { console.error(e); }
+        };
+
+        window.obtenerDireccionGeocoding = async (lat, lng, inputId) => {
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+                const data = await res.json();
+                if (data && data.display_name) {
+                    const nombreCorto = data.address.road ? `${data.address.road}, ${data.address.city || data.address.town || ''}` : data.display_name.split(',').slice(0, 2).join(',');
+                    document.getElementById(inputId).value = nombreCorto;
+                }
+            } catch (e) { document.getElementById(inputId).value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`; }
+        };
+
+        // --- LOGICA DE UI PARA PALETA DE COLORES ---
+        window.eliminarColor = function(slot) {
+            document.getElementById(`color-slot-${slot}`).style.display = 'none';
+            document.getElementById(`add-slot-${slot}`).style.display = 'flex';
+            document.getElementById(`wizColorHex${slot}`).value = "";
+        };
+
+        window.agregarColor = function(slot) {
+            document.getElementById(`add-slot-${slot}`).style.display = 'none';
+            document.getElementById(`color-slot-${slot}`).style.display = 'flex';
+            const defaults = {2: "#ffffff", 3: "#0a0a0c", 4: "#00f5d4"};
+            document.getElementById(`wizColorHex${slot}`).value = defaults[slot];
+            
+            // CORRECCIÓN: Buscamos los círculos por su 'data-slot' en lugar del viejo ID que ya no existe
+            const swatches = document.querySelectorAll(`[data-slot="${slot}"]`);
+            swatches.forEach(swatch => swatch.style.background = defaults[slot]);
+        };
+
+        window.setSlotColor = function(slot, hex) {
+            const input = document.getElementById(`wizColorHex${slot}`);
+            const wrapper = document.getElementById(`swatch-wrapper-${slot}`);
+            if(input && wrapper) {
+                input.value = hex;
+                wrapper.style.background = hex;
+            }
+        };
+
+        // --- ALGORITMO DE EXTRACCIÓN DE COLORES DOMINANTES ---
+        window.ejecutarMagiaImagen = function(imgElement) {
+            if (!imgElement || !imgElement.src || imgElement.src.includes('via.placeholder')) {
+                return alert("Sube una foto primero para extraer colores.");
+            }
+            
+            const btnMagia = document.querySelector('button[title="Extraer colores automáticos"]');
+            const originalIcon = btnMagia.innerText;
+            btnMagia.innerText = "⏳";
+
+            // Limpiar paleta antes de empezar (Cierra los círculos 2, 3 y 4)
+            window.eliminarColor(2); window.eliminarColor(3); window.eliminarColor(4);
+
+            setTimeout(() => {
+                try {
+                    const canvas = document.createElement('canvas'); 
+                    const ctx = canvas.getContext('2d');
+                    
+                    canvas.width = imgElement.naturalWidth || imgElement.width || 200; 
+                    canvas.height = imgElement.naturalHeight || imgElement.height || 200;
+                    
+                    ctx.drawImage(imgElement, 0, 0, canvas.width, canvas.height);
+                    
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+                    const colorCounts = {};
+                    
+                    // Agrupación agresiva para evitar tonos repetidos
+                    for (let i = 0; i < imageData.length; i += 4 * 30) {
+                        const r = imageData[i], g = imageData[i+1], b = imageData[i+2], a = imageData[i+3];
+                        if (a < 128) continue; // Ignorar transparentes
+                        
+                        // Redondeamos a bloques de 40 para fusionar tonos similares (ej. naranjas claros y oscuros)
+                        const rR = Math.round(r / 40) * 40;
+                        const gR = Math.round(g / 40) * 40;
+                        const bR = Math.round(b / 40) * 40;
+                        const rgb = `${rR},${gR},${bR}`;
+                        
+                        // Penalizar el blanco y el negro absolutos para que no roben protagonismo
+                        if ((rR > 220 && gR > 220 && bR > 220) || (rR < 30 && gR < 30 && bR < 30)) {
+                           colorCounts[rgb] = (colorCounts[rgb] || 0) + 0.1; 
+                        } else {
+                           colorCounts[rgb] = (colorCounts[rgb] || 0) + 1;
+                        }
+                    }
+
+                    // Ordenar por popularidad
+                    const sortedColors = Object.entries(colorCounts).sort((a, b) => b[1] - a[1]);
+                    
+                    // Función para medir distancia entre colores (evitar que elija dos colores iguales)
+                    const distanciaColor = (c1, c2) => {
+                        const [r1, g1, b1] = c1; const [r2, g2, b2] = c2;
+                        return Math.sqrt(Math.pow(r2-r1, 2) + Math.pow(g2-g1, 2) + Math.pow(b2-b1, 2));
+                    };
+
+                    const coloresFinales = [];
+                    for (let i = 0; i < sortedColors.length; i++) {
+                        const rgbArr = sortedColors[i][0].split(',').map(Number);
+                        
+                        // Verificar que este color no sea casi idéntico a uno que ya elegimos
+                        let esMuySimilar = false;
+                        for (let j = 0; j < coloresFinales.length; j++) {
+                            if (distanciaColor(rgbArr, coloresFinales[j]) < 60) {
+                                esMuySimilar = true; break;
+                            }
+                        }
+                        
+                        if (!esMuySimilar) {
+                            coloresFinales.push(rgbArr);
+                            if (coloresFinales.length === 4) break; // Ya tenemos los 4 colores
+                        }
+                    }
+
+                    // Convertir a HEX
+                    const topColors = coloresFinales.map(c => {
+                        return '#' + c.map(x => Math.min(255, x).toString(16).padStart(2, '0')).join('');
+                    });
+
+                    // Inyectar en la interfaz abriéndolos uno por uno
+                    if (topColors[0]) window.setSlotColor(1, topColors[0]);
+                    if (topColors[1]) { window.agregarColor(2); window.setSlotColor(2, topColors[1]); }
+                    if (topColors[2]) { window.agregarColor(3); window.setSlotColor(3, topColors[2]); }
+                    if (topColors[3]) { window.agregarColor(4); window.setSlotColor(4, topColors[3]); }
+                    
+                    if(navigator.vibrate) navigator.vibrate([50, 100, 50]);
+                } catch(e) { 
+                    alert("Error técnico leyendo los píxeles: " + e.message); 
+                } finally {
+                    btnMagia.innerText = originalIcon;
+                }
+            }, 50);
+        };
+
+        window.procesarImagenExternaMagia = function(input) {
             if (input.files && input.files[0]) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    textoUI.innerHTML = `<img src="${e.target.result}" id="preview-${idTexto}" style="max-height: 80px; max-width: 100%; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); object-fit: contain; margin-bottom: 5px;"><br><span style="font-size:11px; color:#00ff64; font-weight:bold;">✔️ Cargado</span>`;
-                    textoUI.style.borderColor = "#00ff64"; 
-                    textoUI.style.background = "rgba(0, 255, 100, 0.05)"; 
-                    textoUI.style.padding = "10px";
-
-                    // 💎 LA CIRUGÍA: Sincronizamos el Logo con el Pin en el acto
-                    if (input.id === 'disenoLogoFile') {
-                        const imgLivePreview = document.getElementById('img-live-preview');
-                        if (imgLivePreview) imgLivePreview.src = e.target.result;
-                    }
-                }
+                    const img = new Image();
+                    img.onload = () => window.ejecutarMagiaImagen(img);
+                    img.src = e.target.result;
+                };
                 reader.readAsDataURL(input.files[0]);
-            } else {
-                textoUI.innerHTML = "📸 Subir archivo"; 
-                textoUI.style.borderColor = "var(--naranja)"; 
-                textoUI.style.background = "rgba(255,107,0,0.05)";
-            }
-        }; 
-
-        // ✨ VARITA MÁGICA: Extractor de Colores
-        window.extraerColoresMagicos = () => {
-            const img = document.getElementById('preview-texto-logo');
-            if (!img) return alert("Sube tu Logo primero para que la magia funcione.");
-            
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = img.naturalWidth || img.width; canvas.height = img.naturalHeight || img.height;
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            
-            try {
-                const c1 = ctx.getImageData(Math.floor(canvas.width/2), Math.floor(canvas.height/2), 1, 1).data;
-                const c2 = ctx.getImageData(Math.floor(canvas.width/4), Math.floor(canvas.height/4), 1, 1).data;
-                const rgbToHex = (r, g, b) => '#' + [r, g, b].map(x => { const hex = x.toString(16); return hex.length === 1 ? '0'+hex : hex; }).join('');
-                
-                if(c1[3] > 0) document.getElementById('colorHex1').value = rgbToHex(c1[0], c1[1], c1[2]);
-                if(c2[3] > 0) document.getElementById('colorHex2').value = rgbToHex(c2[0], c2[1], c2[2]);
-                
-                if(navigator.vibrate) navigator.vibrate([50, 100, 50]);
-                alert("¡Colores extraídos con éxito!");
-            } catch(e) {
-                alert("No se pudo extraer. Asegúrate de subir una imagen válida.");
             }
         };
 
-        let wizLat = 4.8133; let wizLng = -75.6961;
+        document.addEventListener('click', (e) => {
+            const menuMagia = document.getElementById('menu-magia-branding');
+            if (menuMagia && menuMagia.classList.contains('activo') && !e.target.closest('button[title="Extraer colores automáticos"]')) {
+                menuMagia.classList.remove('activo');
+            }
+        });
 
-// ✨ LECTOR DEL LÁPIZ DEL PIN
-        window.cargarPreviewMiniPin = function(input) {
+        // --- SISTEMA DEL TOUR ONBOARDING ---
+        window.iniciarTourBoveda = function() {
+            if(localStorage.getItem('geokatu_tour_boveda')) return;
+            document.body.classList.add('tour-boveda-active');
+            document.getElementById('tour-target-pin').classList.add('tour-highlight-boveda');
+            document.getElementById('tour-tooltip-1').classList.add('activo');
+        };
+
+        window.siguienteTourBoveda1 = function() {
+            document.getElementById('tour-target-pin').classList.remove('tour-highlight-boveda');
+            document.getElementById('tour-tooltip-1').classList.remove('activo');
+            
+            document.getElementById('tour-target-branding').classList.add('tour-highlight-boveda');
+            document.getElementById('tour-tooltip-2').classList.add('activo');
+        };
+
+        window.finalizarTourBoveda = function() {
+            document.getElementById('tour-target-branding').classList.remove('tour-highlight-boveda');
+            document.getElementById('tour-tooltip-2').classList.remove('activo');
+            document.body.classList.remove('tour-boveda-active');
+            localStorage.setItem('geokatu_tour_boveda', 'true');
+        };
+
+                // --- 🤖 FÁBRICA MAESTRA DE CONTENIDO SVG ---
+        window.obtenerContenidoSVG = function(forma, fotoSrc, imgId) {
+            let svg = '';
+            if (forma === 'forma-esfera') svg = `<circle cx="30" cy="30" r="26" />`;
+            else if (forma === 'forma-triangulo') svg = `<polygon points="6,8 54,8 30,54" stroke-linejoin="round" />`;
+            else if (forma === 'forma-estrella') svg = `<polygon points="30,4 38,23 57,23 42,34 48,53 30,42 12,53 18,34 3,23 22,23" stroke-linejoin="round" />`;
+            else if (forma === 'forma-hexagono') svg = `<polygon points="30,4 53,17 53,43 30,56 7,43 7,17" stroke-linejoin="round" />`;
+            else if (forma === 'forma-corazon') svg = `<path d="M 30 16 C 22 2 10 6 10 20 C 10 35 25 45 30 57 C 35 45 50 35 50 20 C 50 6 38 2 30 16 Z" stroke-linejoin="round" />`;
+            else if (forma === 'forma-arbol') svg = `<polygon points="26,56 34,56 34,42 50,42 30,6 10,42 26,42" stroke-linejoin="round" />`;
+            else if (forma === 'forma-hongo') svg = `<path d="M 24 56 L 36 56 L 36 36 L 52 36 C 52 15 44 8 30 8 C 16 8 8 15 8 36 L 24 36 Z" stroke-linejoin="round" />`;
+            else if (forma === 'forma-paleta') svg = `<path d="M 28 56 L 32 56 L 32 37 A 16 16 0 1 0 28 37 Z" stroke-linejoin="round" />`;
+            else svg = `<path d="M 30,57 C 30,57 10,38 10,20 C 10,9 19,3 30,3 C 41,3 50,9 50,20 C 50,38 30,57 30,57 Z" />`; // Gota por defecto
+
+            const imgDisplay = fotoSrc ? 'block' : 'none';
+            const txtDisplay = fotoSrc ? 'none' : 'flex';
+
+            return `
+                <svg class="svg-pin-fondo" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">${svg}</svg>
+                <span class="texto-centro-masa" style="display: ${txtDisplay};">FOTO<br>PIN</span>
+                <img id="${imgId}" class="img-pin-interior" src="${fotoSrc || ''}" style="display: ${imgDisplay};">
+            `;
+
+
+        };
+
+        window.actualizarContenedorPin = function(idContenedor, idImagen, forma, color, efectoRaw, fotoSrc) {
+            const contenedor = document.getElementById(idContenedor);
+            if (!contenedor) return;
+
+            const [anclaje, emoji] = (efectoRaw || '|').split('|');
+            
+            // Actualizamos los atributos del padre para evitar dobles envolturas y bugs táctiles
+            contenedor.className = 'pin-wrapper anim-salto';
+            contenedor.setAttribute('data-forma', forma || 'forma-gota');
+            contenedor.style.setProperty('--color-main', color || '#ff6b00');
+            
+            if (emoji && emoji !== '|') {
+                contenedor.setAttribute('data-emoji', emoji);
+                contenedor.setAttribute('data-anclaje', anclaje);
+            } else {
+                contenedor.removeAttribute('data-emoji');
+                contenedor.removeAttribute('data-anclaje');
+            }
+
+            // Inyectamos únicamente el interior para mantener las capas a salvo
+            contenedor.innerHTML = window.obtenerContenidoSVG(forma, fotoSrc, idImagen);
+        };
+
+        // --- ACTUALIZADORES UI ---
+        window.imagenCargadaTemporalPaso1 = null;
+        window.imagenCargadaTemporalModal = null;
+
+        window.cargarPreviewPin = function(input) {
             if (input.files && input.files[0]) {
                 const reader = new FileReader();
-                reader.onload = function(e) { document.getElementById('img-live-preview').src = e.target.result; };
+                reader.onload = function(e) { 
+                    window.imagenCargadaTemporalPaso1 = e.target.result;
+                    window.actualizarPinLive();
+                };
                 reader.readAsDataURL(input.files[0]);
             }
         };
 
-        // ✨ MOTOR VISUAL DE PINES ACTUALIZADO
+        window.cargarPreviewPinModal = function(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) { 
+                    window.imagenCargadaTemporalModal = e.target.result;
+                    window.actualizarPinLiveModal();
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        };
+
         window.actualizarPinLive = function() {
-            const preview = document.getElementById('pin-live-preview');
-            if(!preview) return;
-            
-            const forma = document.getElementById('select-forma').value || 'forma-gota';
-            const animacion = document.getElementById('select-animacion').value || '';
-            const efectoRaw = document.getElementById('select-efecto').value || '';
-            const cMain = document.getElementById('colorHex1') ? document.getElementById('colorHex1').value : '#ff6b00';
+            const forma = document.getElementById('select-forma').value;
+            const color = document.getElementById('wizColorHex1').value;
+            const efectoRaw = document.getElementById('select-efecto').value;
+            window.actualizarContenedorPin('pin-live-preview', 'img-live-preview', forma, color, efectoRaw, window.imagenCargadaTemporalPaso1);
+        };
 
-            const partesEfecto = efectoRaw.split('|');
-            const claseEfecto = partesEfecto[0] || '';
-            const emojiEfecto = partesEfecto[1] || '';
-
-            // Armamos la clase maestra
-            preview.className = `pin-wrapper ${forma} ${animacion}`;
-            
-            if (emojiEfecto) {
-                preview.setAttribute('data-emoji', emojiEfecto);
-                preview.setAttribute('data-anclaje', claseEfecto);
-            } else {
-                preview.removeAttribute('data-emoji');
-                preview.removeAttribute('data-anclaje');
-            }
-            
-            // Inyectamos el color del borde
-            preview.style.setProperty('--color-main', cMain);
+        window.actualizarPinLiveModal = function() {
+            const forma = document.getElementById('edit-select-forma').value;
+            const color = document.getElementById('wizColorHex1').value;
+            const efectoRaw = document.getElementById('edit-select-efecto').value;
+            const fotoActual = window.imagenCargadaTemporalModal || (datosTienda && datosTienda.link_pin) || null;
+            window.actualizarContenedorPin('edit-pin-live-preview', 'edit-img-live-preview', forma, color, efectoRaw, fotoActual);
         };
 
 
-        window.cargarDiccionarioEmojis = function() {
-            const diccionario = [
-                { grupo: "🎩 Coronas y Sombreros", anclaje: "anclaje-arriba", iconos: "👑,🎓,🤠,🎩,🧢,🪖,🌸,👽,👻,🎃" },
-                { grupo: "🎀 Esquinas y Tiaras", anclaje: "anclaje-esquina", iconos: "🎀,🏵️,🌺,🦇,🕷️,🦋,🐞,✨,⭐" },
-                { grupo: "🚗 Monturas y Vehículos", anclaje: "anclaje-montura", iconos: "🚗,🚕,🚙,🚌,🚑,🚒,🚓,🚕,🛵,🏍️,🚲,🛴,🚜,🚚,🚛,🚤,🚢,🛥️,🚀,🛸,🚁,✈️,🐎,🐪,🐘" },
-                { grupo: "☁️ Clima y Entorno", anclaje: "anclaje-fondo", iconos: "☁️,⛈️,🌦️,🌧️,🌩️,🌨️,🌈,☀️,🌙,❄️,🔥,🫧" },
-                { grupo: "🍔 Comida (Flotante)", anclaje: "anclaje-arriba", iconos: "🍔,🍕,🌭,🥪,🌮,🌯,🥙,🍟,🍗,🥩,🍤,🍣,🍱,🍛,🍜,🍝,🍠,🍢,🍘,🍧,🍨,🍦,🥧,🍰,🍮,🎂,🧁,🍭,🍬,🍫,🍿,🍩,🍪,🍯,🍎,🍓,🍒,🍉,🥑,🌽,🌶️,🍷,🍻,🍹,🍸,🍾,☕,🧋,🧉" },
-                { grupo: "🐾 Animales (Montura)", anclaje: "anclaje-montura", iconos: "🐕,🐩,🐕‍🦺,🐈,🐈‍⬛,🐖,🐏,🐑,🐐,🦌,🦍,🦏,🦛,🐂,🐃,🐄,🐎,🐪,🐫,🦒,🦘,🐓,🦃,🦚,🦜,🦢,🦩,🕊️,🦅,🦆,🐧,🦉,🦇,🐺,🐗,🐴,🦄,🐝,🐛,🦋,🐌,🐞,🐜,🦟,🦗,🕷️,🦂,🐢,🐍,🦎,🦖,🦕,🐙,🦑,🦐,🦞,🦀,🐡,🐠,🐟,🐬,🐳,🐋,🦈,🐊,🐅,🐆,🦓,🐘" }
-            ];
+            window.guardarPaso1ADN = async function() {
+            const btn = document.getElementById('btn-siguiente-fase'); // ¡Corregido!
+            btn.innerText = "EMPAQUETANDO..."; btn.disabled = true;
+
+            const forma = document.getElementById('select-forma').value;
+            const efecto = document.getElementById('select-efecto').value;
+            const c1 = document.getElementById('wizColorHex1').value;
+            const c2 = document.getElementById('wizColorHex2').value;
+            const c3 = document.getElementById('wizColorHex3').value;
             
-            const select = document.getElementById('select-efecto');
-            if(!select) return;
+            const pinPack = `${forma}|anim-salto|${efecto}`;
+            let payload = { pin_pack: pinPack, color_principal: c1, color_acento: c2, color_terciario: c3, progreso_boveda: 50 };
+
+            const pinF = document.getElementById('file-pin').files[0];
+            if(pinF) {
+                const blob = await window.comprimirImagen(pinF, 400, 0.6, true);
+                const { success, data } = await window.GeokatuDB.AdminService.subirArchivo(`tiendas/${window.idNegocioLogueado}/pin_mapa.webp`, blob);
+                if(success) payload.link_pin = data;
+            }
+
+            await window.GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, payload);
+            Object.assign(datosTienda, payload);
             
-            select.innerHTML = `<option value="">Sin Decoraciones Extras</option>
-                                <option value="efecto-neon|">Resplandor Neón Clásico</option>
-                                <option value="efecto-anillos|">Radar / Emisión</option>`;
+            btn.style.background = "#00ff64"; btn.style.color = "black"; btn.innerText = "GUARDADO ✔️";
+
+            setTimeout(() => {
+                document.getElementById('fase-1-pin').style.display = 'none';
+                window.iniciarSandboxGeoespacial(false); 
+            }, 800);
+        };
+
+        window.iniciarSandboxGeoespacial = function(modoEdicion = false) {
+            const velo = document.getElementById('velo-cinematico');
+            if(velo) velo.classList.remove('activo');
+
+            document.getElementById('fase-mapa-sandbox').style.display = 'flex';
+            document.getElementById('dashboard-screen').style.display = 'none';
             
-            diccionario.forEach(cat => {
-                let optgroup = document.createElement('optgroup');
-                optgroup.label = cat.grupo;
-                const emojis = cat.iconos.split(',');
-                               emojis.forEach(emoji => {
-                    let opt = document.createElement('option');
-                    // AHORA SÍ: El signo dólar está donde debe estar
-                    opt.value = `${cat.anclaje}|${emoji}`; 
-                    opt.text = `${emoji} ${cat.anclaje.replace('anclaje-','')}`;
-                    optgroup.appendChild(opt);
+            let lat = 4.8133, lng = -75.6961;
+            if (datosTienda.Coordenadas) {
+                lat = datosTienda.Coordenadas.latitude || datosTienda.Coordenadas._lat || lat;
+                lng = datosTienda.Coordenadas.longitude || datosTienda.Coordenadas._long || lng;
+            }
+
+            if (!window.mapaOnboarding) {
+                window.mapaOnboarding = new maplibregl.Map({
+                    container: 'mapa-onboarding', style: 'estilo-fresco.json', center: [lng, lat], zoom: 16, attributionControl: false
                 });
-
-
-
-                select.appendChild(optgroup);
-            });
-        };
-        
-        // Ejecutamos el diccionario al iniciar
-        setTimeout(() => window.cargarDiccionarioEmojis(), 1000);
-
-        window.retomarWizard = () => {
-            document.getElementById('wizard-overlay').style.display = 'flex';
-            let progreso = datosGlobalesNegocio.progreso_boveda || 10;
-            
-            document.getElementById('wiz-step-2').style.display = 'none';
-            document.getElementById('wiz-step-3').style.display = 'none';
-            document.getElementById('wiz-step-4').style.display = 'none';
-
-            if (progreso < 38.2) {
-                document.getElementById('wiz-step-2').style.display = 'flex';
-                if (datosGlobalesNegocio.nombre) document.getElementById('wiz-nombre').value = datosGlobalesNegocio.nombre;
-            } else if (progreso < 61.8) {
-                document.getElementById('wiz-step-3').style.display = 'flex';
-                initWizMap();
             } else {
-                document.getElementById('wiz-step-4').style.display = 'flex';
-                prepararPreviewWiz();
+                window.mapaOnboarding.setCenter([lng, lat]);
             }
-        };
 
-        window.avanzarWizard = async (pasoActual, pasoSiguiente) => {
-            if (navigator.vibrate) navigator.vibrate(50);
+            if(window.markerOnboarding) window.markerOnboarding.remove();
+
+            // Asignamos tamaño estricto para que el mapa sepa dónde anclarlo
+            const elDOM = document.createElement('div');
+            elDOM.style.position = 'relative';
+            elDOM.style.width = '60px';
+            elDOM.style.height = '60px';
+            elDOM.style.display = 'flex';
+            elDOM.style.justifyContent = 'center';
+            elDOM.style.alignItems = 'center';
             
-            if (pasoActual === 2) {
-                const nombre = document.getElementById('wiz-nombre').value.trim();
-                if (!nombre) return alert("Por favor, ingresa el nombre oficial de tu negocio.");
-                
-                const btn = document.querySelector('#wiz-step-2 .btn-submit');
-                btn.innerText = "Guardando..."; btn.disabled = true;
-                
-                try {
-                    let logoUrl = datosGlobalesNegocio.logo || null;
-                    const logoFile = document.getElementById('wiz-logo').files[0];
-                    if (logoFile) {
-                        const blob = await window.comprimirImagen(logoFile, 800, 0.7, true);
-                        const { success, data, error } = await GeokatuDB.AdminService.subirArchivo(`tiendas/${idNegocioLogueado}/logo_${Date.now()}.webp`, blob);
-                        if (!success) throw new Error(error);
-                        logoUrl = data;
-                    }
-                    await GeokatuDB.AdminService.guardarPasoIdentidad(idNegocioLogueado, { nombre: nombre, logo: logoUrl });
-                    datosGlobalesNegocio.nombre = nombre; datosGlobalesNegocio.logo = logoUrl; datosGlobalesNegocio.progreso_boveda = 38.2;
-                    document.getElementById('wiz-step-2').style.display = 'none'; document.getElementById('wiz-step-3').style.display = 'flex';
-                    initWizMap();
-                } catch (e) { alert("Error en el paso 2: " + e.message); } finally { btn.innerText = "Continuar (38.2%)"; btn.disabled = false; }
-            } 
-            else if (pasoActual === 3) {
-                const btn = document.querySelector('#wiz-step-3 .btn-submit');
-                btn.innerText = "Fijando Radar..."; btn.disabled = true;
-                try {
-                    const geohash = generarGeohash(wizLat, wizLng);
-                    await GeokatuDB.AdminService.guardarPasoUbicacion(idNegocioLogueado, { Coordenadas: { latitude: wizLat, longitude: wizLng }, geohash: geohash });
-                    datosGlobalesNegocio.progreso_boveda = 61.8;
-                    document.getElementById('wiz-step-3').style.display = 'none'; document.getElementById('wiz-step-4').style.display = 'flex';
-                    prepararPreviewWiz();
-                } catch (e) { alert("Error fijando coordenadas: " + e.message); } finally { btn.innerText = "Fijar Local (61.8%)"; btn.disabled = false; }
+            let fClass = 'forma-gota', anclaje = '', emoji = '';
+            if(datosTienda.pin_pack) {
+                const p = datosTienda.pin_pack.split('|');
+                fClass = p[0] || 'forma-gota';
+                if(p.length > 2) { anclaje = p[2] || ''; emoji = p[3] || ''; }
             }
-        };
-
-        window.finalizarWizard = async () => {
-            if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
-            const nicho = document.getElementById('wiz-nicho').value;
-            if (!nicho) return alert("Por favor, selecciona tu sector para que el radar te pueda clasificar.");
-            const btn = document.querySelector('#wiz-step-4 .btn-submit'); btn.innerText = "Cifrando Bóveda..."; btn.disabled = true;
-            try {
-                await GeokatuDB.AdminService.sellarBovedaDefinitiva(idNegocioLogueado, { niche: nicho, categoria_maestra: 'comercio' });
-                document.getElementById('wizard-overlay').style.display = 'none'; window.location.reload();
-            } catch (e) { alert("Error al sellar: " + e.message); btn.innerText = "Sellar Bóveda (100%)"; btn.disabled = false; }
-        };
-
-        function prepararPreviewWiz() {
-            const logoImg = document.getElementById('wiz-img');
-            if (datosGlobalesNegocio.logo) logoImg.src = datosGlobalesNegocio.logo;
-        }
-
-                        window.guardarPerfil = async () => {
-            if (navigator.vibrate) navigator.vibrate(50);
-            if (!idNegocioLogueado) return;
-            const btn = document.getElementById('btn-submit-perfil'); btn.innerText = "Sincronizando..."; btn.disabled = true;
-            try {
-                const latGuardar = parseFloat(document.getElementById('perfilLat').value);
-                const lngGuardar = parseFloat(document.getElementById('perfilLng').value);
-                if (isNaN(latGuardar) || isNaN(lngGuardar)) throw new Error("Por favor ubica tu negocio moviendo el pin en el Mini-Mapa.");
-                
-                let obj = {
-                    nombre: document.getElementById('perfilNombre').value.trim(), username: document.getElementById('perfilUsername').value.trim() || null, 
-                    whatsApp: document.getElementById('perfilTelefono').value.trim(), horario_apertura: document.getElementById('perfilApertura').value,
-                    horario_cierre: document.getElementById('perfilCierre').value, direccion: document.getElementById('perfilDireccion').value.trim(),
-                    niche: document.getElementById('perfilNichoSelect').value, moneda: document.getElementById('perfilMoneda').value,
-                    palabras_clave: document.getElementById('perfilPalabras').value.trim(), Coordenadas: { latitude: latGuardar, longitude: lngGuardar },
-                    geohash: generarGeohash(latGuardar, lngGuardar)
-                };
-
-                const { success, error } = await GeokatuDB.AdminService.actualizarNegocio(idNegocioLogueado, obj);
-                if (!success) throw new Error(error);
-                
-                document.getElementById('ui-nombre').innerText = obj.nombre || "Mi Tienda"; datosGlobalesNegocio.niche = obj.niche; 
-                evaluarNichoParaMasivo();
-                const msgExito = document.getElementById('msg-exito-perfil'); msgExito.style.opacity = 1; setTimeout(() => msgExito.style.opacity = 0, 5000);
-            } catch(e) { alert("Error: " + e.message); } finally { btn.innerText = "GUARDAR PERFIL"; btn.disabled = false; }
-        };
-
-        window.guardarDisenoLaboratorio = async () => {
-            if (navigator.vibrate) navigator.vibrate(50);
-            if (!idNegocioLogueado) return;
-            const btn = document.getElementById('btn-submit-diseno'); 
-            btn.innerText = "Guardando..."; btn.disabled = true;
-            try {
-                let col1 = document.getElementById('colorHex1').value;
-                let col2 = document.getElementById('colorHex2').value;
-                let col3 = document.getElementById('colorHex3').value;
-                let obj = { color_principal: col1, color_acento: col2, color_fondo: col3, color_hex: col1 };
-                
-                obj.pin_forma = document.getElementById('select-forma').value;
-                obj.pin_animacion = document.getElementById('select-animacion').value;
-                obj.pin_efecto = document.getElementById('select-efecto').value;
-                
-                const logoF = document.getElementById('disenoLogoFile').files[0]; 
-                const portF = document.getElementById('disenoPortadaFile').files[0];
-                const pinF = document.getElementById('disenoPinFile').files[0]; 
-                
-                const upload = async (file, prefix, isSquare) => {
-                    const blob = await window.comprimirImagen(file, 800, 0.7, isSquare);
-                    const path = `tiendas/${idNegocioLogueado}/${prefix}_${Date.now()}.webp`;
-                    const { success, data, error } = await GeokatuDB.AdminService.subirArchivo(path, blob);
-                    if(!success) throw new Error(error); return data;
-                };
-                
-                if(logoF) obj.logo = await upload(logoF, 'logo', true);
-                if(portF) obj.portada = await upload(portF, 'portada', false);
-                if(pinF) obj.link_pin = await upload(pinF, 'pin_mapa', true);
-
-                const { success, error } = await GeokatuDB.AdminService.actualizarNegocio(idNegocioLogueado, obj);
-                if (!success) throw new Error(error);
-                
-                if(obj.logo) { document.getElementById('ui-logo').src = obj.logo; document.getElementById('ui-logo').style.display='inline-block'; }
-                
-                btn.innerHTML = "✔️ BRANDING ASEGURADO"; btn.style.background = "#00ff64"; btn.style.color = "black";
-                setTimeout(() => { btn.innerText = "GUARDAR BRANDING"; btn.style.background = ""; btn.style.color = ""; }, 3000);
-            } catch(e) { alert("Error: " + e.message); } finally { btn.disabled = false; }
-        };
-
-        // --- SISTEMA POS E INVENTARIO ---
-        window.guardarProducto = async () => {
-            if (navigator.vibrate) navigator.vibrate(50);
-            if (!idNegocioLogueado) return;
-            const nom = document.getElementById('prodNombre').value.trim();
-            const pre = document.getElementById('prodPrecio').value.trim();
-            const editId = document.getElementById('prodEditId').value;
-            if(!nom || !pre) return alert("El nombre y el precio son obligatorios.");
             
-            const btn = document.getElementById('btn-submit-producto'); btn.innerText = "Guardando..."; btn.disabled = true;
+            let fotoFase2 = window.imagenCargadaTemporalPaso1 || datosTienda.link_pin;
+
+            let emojiAttr = (emoji && emoji !== '|') ? `data-emoji="${emoji}" data-anclaje="${anclaje}"` : '';
+            elDOM.innerHTML = `<div class="pin-wrapper anim-salto" data-forma="${fClass}" style="--color-main: ${datosTienda.color_principal || '#ff6b00'}; cursor: pointer;" ${emojiAttr}></div>`;
+            
+            const wrapper = elDOM.querySelector('.pin-wrapper');
+            wrapper.innerHTML = window.obtenerContenidoSVG(fClass, fotoFase2, 'img-pin-fase-2');
+            
+            // Le ordenamos a MapLibre que lo ancle estrictamente desde la base
+            window.markerOnboarding = new maplibregl.Marker({ element: elDOM, draggable: true, anchor: 'bottom' })
+                .setLngLat([lng, lat]).addTo(window.mapaOnboarding);
+
+            window.markerOnboarding.getElement().addEventListener('click', (e) => {
+                e.stopPropagation(); window.abrirGemeloDigital();
+            });
+
+            // Reflow forzado para evitar bugs visuales del contenedor flex
+            setTimeout(() => { window.mapaOnboarding.resize(); }, 300);
+        };
+
+        window.guardarPaso2Ubicacion = async () => {
+            const btn = document.getElementById('btn-guardar-paso-2');
+            btn.innerText = "SELLANDO..."; btn.disabled = true;
+
+            const pos = window.markerOnboarding.getLngLat();
+            const hash = window.generarGeohash(pos.lat, pos.lng);
+
             try {
-                let urlImg = document.getElementById('prodImagenActual').value;
-                const f = document.getElementById('prodImagenFile').files[0];
-                if(f) { 
-                    const blobImg = await window.comprimirImagen(f, 800, 0.7, true);
-                    const { success: upSuccess, data: url, error: upError } = await GeokatuDB.AdminService.subirArchivo(`productos/${idNegocioLogueado}/${Date.now()}.webp`, blobImg);
-                    if(!upSuccess) throw new Error(upError); urlImg = url; 
-                }
-                let monedaActual = datosGlobalesNegocio.moneda || 'COP';
-                let precioInput = parseFloat(pre);
-                let precioInt64 = monedaActual === 'USD' ? Math.round(precioInput * 100) : Math.round(precioInput);
-                
-                let pObj = { nombre: nom, precio: precioInt64, categoria: document.getElementById('prodCategoria').value || "General", imagen: urlImg };
-                if(!editId) { pObj.agotado = false; pObj.fecha_creacion = new Date().toISOString(); pObj.layout = 'layout-grid'; }
-                
-                const { success, error } = await GeokatuDB.AdminService.guardarProducto(idNegocioLogueado, editId, pObj);
-                if(!success) throw new Error(error);
-                if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
-                window.cancelarEdicion(); window.cargarMisProductos(); 
-            } catch(e){ alert("Error: " + e.message); } finally { btn.innerText = "GUARDAR EN CATÁLOGO"; btn.disabled = false; }
+                // Solo guardamos coordenadas. El resto de datos se editan tocando el pin.
+                await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, { 
+                    Coordenadas: { latitude: pos.lat, longitude: pos.lng }, geohash: hash,
+                    progreso_boveda: 100 
+                });
+                btn.style.background = "#00ff64"; btn.style.color = "black"; btn.innerText = "BÓVEDA LISTA ✔️";
+                setTimeout(() => { window.location.reload(); }, 1000);
+            } catch(e) { alert("Error: " + e.message); btn.disabled = false; }
         };
 
-        window.prepararEdicion = (id) => {
-            if (navigator.vibrate) navigator.vibrate(50);
-            const p = listaProductosGlobal.find(x=>x.id_prod===id);
-            if(!p) return;
-            document.getElementById('prodNombre').value=p.nombre; document.getElementById('prodPrecio').value=p.precio; 
-            document.getElementById('prodCategoria').value=p.categoria || ''; document.getElementById('prodEditId').value=id; 
-            document.getElementById('prodImagenActual').value=p.imagen||'';
-            document.getElementById('file-upload-text').innerText = "📸 Subir Nueva Foto Principal";
+        // --- SISTEMA DE MINIMAPA PERFIL (DASHBOARD) ---
+        window.inicializarMiniMapaPerfil = function(latInicial, lngInicial) {
+            if(window.miniMapaPerfil) return;
+            const defaultLat = latInicial || 4.8133; const defaultLng = lngInicial || -75.6961;
+
+            window.miniMapaPerfil = new maplibregl.Map({
+                container: 'mini-mapa-perfil', style: 'estilo-fresco.json', center: [defaultLng, defaultLat], zoom: 16, attributionControl: false
+            });
+
+            const elPunto = document.createElement('div');
+            elPunto.style.position = 'relative';
             
-            document.getElementById('btn-submit-producto').innerText="ACTUALIZAR DATOS"; 
-            document.getElementById('btn-cancelar-edicion').style.display="block"; 
-            window.scrollTo({top: 0, behavior: 'smooth'}); document.getElementById('prodNombre').focus();
-        };
-
-        window.cancelarEdicion = () => { 
-            if (navigator.vibrate) navigator.vibrate(50);
-            document.getElementById('prodNombre').value=''; document.getElementById('prodPrecio').value=''; document.getElementById('prodCategoria').value=''; 
-            document.getElementById('prodEditId').value=''; 
-            document.getElementById('btn-submit-producto').innerText="GUARDAR EN CATÁLOGO"; document.getElementById('btn-cancelar-edicion').style.display="none"; 
-            document.getElementById('prodImagenFile').value=''; 
-            document.getElementById('file-upload-text').innerHTML = "📸 Subir foto del producto"; document.getElementById('file-upload-text').style.borderColor = "var(--naranja)"; document.getElementById('file-upload-text').style.background = "rgba(255,107,0,0.05)";
-        };
-
-        // --- SISTEMA DEL LÁPIZ MÁGICO Y OVERLAYS ---
-        window.timeoutsTarjetas = {};
-        window.mostrarOpcionesProducto = (id) => {
-            // Ocultar todas primero
-            document.querySelectorAll('.card-acciones').forEach(el => el.style.opacity = '0');
-            document.querySelectorAll('.card-acciones').forEach(el => el.style.pointerEvents = 'none');
-            
-            const acciones = document.getElementById(`acciones-${id}`);
-            if(acciones) {
-                acciones.style.opacity = '1';
-                acciones.style.pointerEvents = 'all';
-                if(window.timeoutsTarjetas[id]) clearTimeout(window.timeoutsTarjetas[id]);
-                window.timeoutsTarjetas[id] = setTimeout(() => {
-                    acciones.style.opacity = '0'; acciones.style.pointerEvents = 'none';
-                }, 5000);
+            let fClass = 'forma-gota', aClass = 'anim-salto', eEmoji = '', eAnclaje = '';
+            if(datosTienda && datosTienda.pin_pack) {
+                const p = datosTienda.pin_pack.split('|');
+                fClass = p[0] || 'forma-gota'; aClass = p[1] || 'anim-salto';
+                if(p.length > 2) { eAnclaje = p[2] || ''; eEmoji = p[3] || ''; }
             }
-        };
-
-        // --- LÓGICA DEL MODAL DE ESTILOS ---
-        let productoEdicionEstilo = null;
-        let layoutSeleccionado = '';
-
-        window.abrirModalEstilo = (id) => {
-            productoEdicionEstilo = listaProductosGlobal.find(p => p.id_prod === id);
-            if(!productoEdicionEstilo) return;
-            layoutSeleccionado = productoEdicionEstilo.layout || 'layout-grid';
-            document.getElementById('modal-estilo-overlay').classList.add('activo');
-            window.cambiarPreviewEstilo(layoutSeleccionado);
-        };
-
-        window.cerrarModalEstilo = (e) => {
-            if(e) e.stopPropagation();
-            document.getElementById('modal-estilo-overlay').classList.remove('activo');
-        };
-
-        window.cambiarPreviewEstilo = (layout) => {
-            layoutSeleccionado = layout;
-            document.querySelectorAll('.estilo-btn').forEach(b => b.classList.remove('activo'));
-            const btnActivador = document.getElementById(`btn-estilo-${layout.replace('layout-', '')}`);
-            if (btnActivador) btnActivador.classList.add('activo');
             
-            const p = productoEdicionEstilo;
-            const caja = document.getElementById('caja-preview-estilo');
-            caja.innerHTML = `
-                <div class="grilla-catalogo" style="width:100%;">
-                    <div class="prod-card ${layout}" style="box-shadow:none; pointer-events:none;">
-                        <img src="${p.imagen || 'https://via.placeholder.com/150/0a0a0c/ff6b00?text=FOTO'}">
-                        <div class="prod-info">
-                            <h4>${p.nombre}</h4>
-                            <b>$${p.precio}</b>
-                        </div>
+            let foto = (datosTienda && datosTienda.link_pin) ? datosTienda.link_pin : null;
+
+            // Construir la envoltura HTML principal
+            let emojiAttr = (eEmoji && eEmoji !== '|') ? `data-emoji="${eEmoji}" data-anclaje="${eAnclaje}"` : '';
+            elPunto.innerHTML = `<div id="pin-render-perfil" class="pin-wrapper ${aClass}" data-forma="${fClass}" style="--color-main: ${datosTienda.color_principal || '#ff6b00'}; cursor: pointer;" ${emojiAttr}></div>`;
+            
+            // Inyectar el motor SVG en el interior
+            const wrapper = elPunto.querySelector('.pin-wrapper');
+            wrapper.innerHTML = window.obtenerContenidoSVG(fClass, foto, 'img-pin-perfil');
+
+            window.pinMiniMapaPerfil = new maplibregl.Marker({ element: elPunto, draggable: false })
+                .setLngLat([defaultLng, defaultLat]).addTo(window.miniMapaPerfil);
+
+            window.pinMiniMapaPerfil.on('dragend', async function() {
+                const pos = window.pinMiniMapaPerfil.getLngLat();
+                document.getElementById('perfilLat').value = pos.lat; document.getElementById('perfilLng').value = pos.lng;
+                window.obtenerDireccionGeocoding(pos.lat, pos.lng, 'perfilDireccion');
+                
+                const hash = window.generarGeohash(pos.lat, pos.lng);
+                datosTienda.Coordenadas = { latitude: pos.lat, longitude: pos.lng };
+                await window.GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, { Coordenadas: datosTienda.Coordenadas, geohash: hash });
+            });
+
+            window.pinMiniMapaPerfil.getElement().addEventListener('click', (e) => {
+                e.stopPropagation(); window.abrirGemeloDigital();
+            });
+
+            document.getElementById('perfilLat').value = defaultLat; document.getElementById('perfilLng').value = defaultLng;
+            window.obtenerDireccionGeocoding(defaultLat, defaultLng, 'perfilDireccion');
+        };
+
+        // --- GEMELO DIGITAL & EDICIÓN ---
+        window.modoEdicionActivo = false;
+        window.toggleEdicionGemelo = function() {
+            window.modoEdicionActivo = !window.modoEdicionActivo;
+            document.querySelectorAll('.lapiz-gemelo-edit').forEach(p => { p.style.display = window.modoEdicionActivo ? 'inline-flex' : 'none'; });
+            const lapizMaster = document.getElementById('btn-master-gemelo');
+            if(lapizMaster) {
+                lapizMaster.style.color = window.modoEdicionActivo ? '#ff6b00' : '#888';
+                lapizMaster.style.transform = window.modoEdicionActivo ? 'scale(1.2)' : 'scale(1)';
+            }
+            const btnEditMap = document.getElementById('btn-edit-ubicacion-mapa');
+            if(btnEditMap) btnEditMap.style.display = window.modoEdicionActivo ? 'flex' : 'none';
+            if(window.pinMiniMapaPerfil) window.pinMiniMapaPerfil.setDraggable(window.modoEdicionActivo);
+        };
+
+        window.abrirGemeloDigital = function() {
+            if(window.popupOnboarding) window.popupOnboarding.remove();
+
+            const p = datosTienda.portada || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=600&q=80';
+            const l = datosTienda.logo || 'https://via.placeholder.com/150/0a0a0c/ff6b00?text=LOGO';
+            const n = datosTienda.nombre || 'TU MARCA AQUÍ';
+            const w = datosTienda.whatsApp || 'Sin Número';
+            const c = datosTienda.niche || 'Sin Sector';
+            const displayPencil = window.modoEdicionActivo ? 'inline-flex' : 'none';
+
+            let burbujasHTML = '';
+            if (datosTienda.instagram) burbujasHTML += `<a href="${datosTienda.instagram}" target="_blank" class="gem-social ig">IG</a>`;
+
+                                        const htmlGemelo = `
+                <div style="position: relative;">
+                    <!-- Botón Master (Ahora con estilo claro) -->
+                    <button id="btn-master-gemelo" onclick="window.toggleEdicionGemelo()" style="position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.9); backdrop-filter: blur(5px); border: none; color: ${window.modoEdicionActivo ? '#ff6b00' : '#444'}; border-radius: 50%; width: 32px; height: 32px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 20; transition: 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.15); transform: ${window.modoEdicionActivo ? 'scale(1.1)' : 'scale(1)'};">✏️</button>
+                    
+                    <img src="${p}" class="popup-portada">
+                    <button class="lapiz-flotante lapiz-portada lapiz-gemelo-edit" style="display:${displayPencil}; position:absolute; top: 10px; right: 10px; z-index: 20; background: white; color: black; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.2);" onclick="document.getElementById('file-portada').click()">✏️</button>
+                </div>
+                
+                <div class="popup-info">
+                    <div style="position: relative; display: inline-block;">
+                        <img src="${l}" class="popup-logo">
+                        <button class="lapiz-flotante lapiz-logo lapiz-gemelo-edit" style="display:${displayPencil}; position:absolute; top: -10px; right: -15px; z-index: 20; background: white; color: black; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.2);" onclick="window.abrirModalEdicionPinBranding()">✏️</button>
                     </div>
+                    
+                    <div class="popup-title-wrapper" style="position: relative;">
+                        <h3 class="popup-title">${n}</h3>
+                        <button class="lapiz-flotante lapiz-inline lapiz-gemelo-edit" style="display:${displayPencil}; position:absolute; top: -5px; right: -25px; background: white; color: black; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.2);" onclick="window.editarCampoInline('nombre')">✏️</button>
+                    </div>
+                    
+                    <div style="position: relative;">
+                        <p class="texto-piedra" style="margin-top: 5px;">${c}</p>
+                        <button class="lapiz-flotante lapiz-inline lapiz-gemelo-edit" style="display:${displayPencil}; position:absolute; top: -5px; right: -25px; background: white; color: black; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.2);" onclick="window.editarCampoInline('niche')">✏️</button>
+                    </div>
+                    
+                    <div style="color:#20b25d; font-size: 11px; font-weight: 900; margin-top: 8px; position: relative;">
+                        📞 ${w}
+                        <button class="lapiz-flotante lapiz-inline lapiz-gemelo-edit" style="display:${displayPencil}; position:absolute; top: -5px; right: -25px; background: white; color: black; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.2);" onclick="window.editarCampoInline('whatsapp')">✏️</button>
+                    </div>
+                    
+                    <button class="btn-catalogo" onclick="window.open('negocio.html?id=' + window.idNegocioLogueado, '_blank')">GUARDAR Y VER</button>
                 </div>
             `;
+
+
+
+
+                        const mapaActivo = document.getElementById('fase-mapa-sandbox').style.display === 'flex' ? window.mapaOnboarding : window.miniMapaPerfil;
+            const markerActivo = document.getElementById('fase-mapa-sandbox').style.display === 'flex' ? window.markerOnboarding : window.pinMiniMapaPerfil;
+
+            window.popupOnboarding = new maplibregl.Popup({ offset: 25, closeOnClick: true, maxWidth: 'none' })
+                .setHTML(htmlGemelo).setLngLat(markerActivo.getLngLat()).addTo(mapaActivo);
         };
 
-        window.guardarEstiloDefinitivo = async () => {
-            if(navigator.vibrate) navigator.vibrate(50);
-            const btn = document.querySelector('#modal-estilo-overlay .btn-submit');
-            btn.innerText = "Guardando..."; btn.disabled = true;
-            try {
-                const { success } = await GeokatuDB.AdminService.actualizarProducto(idNegocioLogueado, productoEdicionEstilo.id_prod, { layout: layoutSeleccionado });
-                if(success) {
-                    productoEdicionEstilo.layout = layoutSeleccionado;
-                    window.cargarMisProductos(false); 
-                    window.cerrarModalEstilo();
-                }
-            } catch(e) { alert("Error guardando estilo."); } finally { btn.innerText = "Guardar Aspecto"; btn.disabled = false; }
-        };
-
-        // --- FILTROS DE CATÁLOGO (Corrección de Bug) ---
-        window.manejarBusquedaTeclado = (e) => { if(e.key === 'Enter') window.ejecutarBusqueda(); };
-        window.ejecutarBusqueda = () => { terminoBusquedaActual = document.getElementById('filtro-busqueda').value.trim().toLowerCase(); window.cargarMisProductos(true); };
-        window.filtrarCatalogo = () => { categoriaFiltroActual = document.getElementById('filtro-categoria').value.trim(); window.cargarMisProductos(true); };
-        window.cargarMasProductos = () => { window.cargarMisProductos(false); };
-
-        window.cargarMisProductos = async function(reiniciar = true) {
-            const cont = document.getElementById('lista-productos-container');
-            const btnMas = document.getElementById('btn-cargar-mas');
-            if (reiniciar) { cont.innerHTML = "Cargando..."; ultimoDocCatalogo = null; listaProductosGlobal = []; } 
-            else { btnMas.innerText = "Cargando..."; btnMas.disabled = true; }
-            
-            try {
-                const filtros = { terminoBusqueda: terminoBusquedaActual, limite: 20, startAfterDoc: reiniciar ? null : ultimoDocCatalogo };
-                const { success, data, ultimoDoc, error } = await GeokatuDB.AdminService.obtenerProductos(idNegocioLogueado, filtros);
-                
-                if (reiniciar) cont.innerHTML = ""; 
-                if (!success || (data.length === 0 && reiniciar)) {
-                    cont.innerHTML = `<div style='grid-column: span 2; text-align:center; color:#888; padding: 40px 0;'><h3>Catálogo Vacío</h3><p>Añade productos para empezar.</p></div>`; 
-                    btnMas.style.display = 'none'; return;
-                }
-                
-                ultimoDocCatalogo = ultimoDoc;
-                if (data.length < 20) btnMas.style.display = 'none'; else { btnMas.style.display = 'block'; btnMas.innerText = "⬇️ Cargar más"; btnMas.disabled = false; }
-                
-                data.forEach(p => {
-                    if(!listaProductosGlobal.find(x => x.id_prod === p.id_prod)) listaProductosGlobal.push(p);
-                    if (p.categoria) categoriasDisponibles.add(p.categoria);
-                });
-
-                if (reiniciar) window.actualizarSelectCategorias();
-
-                // FILTRO ESTRICTO LOCAL
-                let datosARenderizar = listaProductosGlobal;
-                if (categoriaFiltroActual) {
-                    datosARenderizar = listaProductosGlobal.filter(p => (p.categoria || '').toLowerCase() === categoriaFiltroActual.toLowerCase());
-                }
-                if (terminoBusquedaActual) {
-                    datosARenderizar = datosARenderizar.filter(p => p.nombre.toLowerCase().includes(terminoBusquedaActual));
-                }
-
-                cont.innerHTML = "";
-                if (datosARenderizar.length === 0) {
-                    cont.innerHTML = `<div style='grid-column: span 2; text-align:center; color:#888; padding: 20px 0;'>No hay resultados en esta categoría.</div>`;
-                }
-
-                datosARenderizar.forEach(p => {
-                    const lClass = p.layout || 'layout-grid';
-                    const card = document.createElement('div'); 
-                    card.className = `prod-card ${lClass} ${p.agotado ? 'agotado' : ''}`;
-                    card.id = `card-${p.id_prod}`;
-                    
-                   // --- CIRUGÍA 3: RENDER DE TARJETA ---
-                    // Al tocar la tarjeta, aparece el lápiz
-                    card.onclick = () => window.mostrarLapizCard(`${p.id_prod}`);
-                    
-                    // Renderizamos hasta 3 fotos si existen, sino la normal
-                    let arrayFotos = (p.galeria && p.galeria.length > 0) ? p.galeria : [p.imagen || 'https://via.placeholder.com/150/0a0a0c/ff6b00?text=FOTO'];
-                    let galeriaHTML = arrayFotos.map(img => `<img src="${img}">`).join('');
-
-                    card.innerHTML = `
-                        <div class="galeria-scroll">${galeriaHTML}</div>
-                        <div class="prod-info">
-                            <h4>${p.nombre}</h4>
-                            <b>$${p.precio}</b>
-                            ${p.stock !== undefined ? `<span style="font-size:9px; color:#888;">Stock: ${p.stock} unid.</span>` : ''}
-                        </div>
-                        
-                        <!-- ✏️ 1. EL LÁPIZ INICIAL (Aparece al tocar la tarjeta) -->
-                        <div class="card-lapiz-btn" onclick="event.stopPropagation(); window.abrirMenuOpciones('${p.id_prod}')">✏️</div>
-
-                        <!-- 🎛️ 2. EL MENÚ (Aparece al tocar el lápiz) -->
-                        <div class="card-opciones-menu" id="opciones-${p.id_prod}">
-                            <button class="btn-accion" style="background:rgba(255,255,255,0.15); color:white;" onclick="event.stopPropagation(); window.abrirModalEstilo('${p.id_prod}')">✨ Estilo</button>
-                            <button class="btn-accion" style="background:rgba(255,204,0,0.15); color:#ffcc00;" onclick="event.stopPropagation(); window.abrirModalEditar('${p.id_prod}')">✏️ Editar</button>
-                            <button class="btn-accion" style="background:rgba(255,255,255,0.1); color:#aaa;" onclick="event.stopPropagation(); window.cambiarEstadoAgotadoInmediato('${p.id_prod}', ${p.agotado})">⏸️ ${p.agotado ? 'Activar' : 'Agotar'}</button>
-                            <button class="btn-accion" style="background:rgba(255,68,68,0.15); color:#ff4444;" onclick="event.stopPropagation(); window.eliminarProducto('${p.id_prod}')">🗑️ Borrar</button>
-                        </div>
-                    `;
-                    cont.appendChild(card);
-
-                        
-         });
-            } catch (e) {
-                console.error(e); if(reiniciar) cont.innerHTML = "<p style='grid-column: span 2; color:#ff4444; text-align:center;'>Error cargando el catálogo.</p>";
+        window.subirImagenDirecta = async function(tipo, input) {
+            if(!input.files[0]) return;
+            const isSquare = tipo === 'logo';
+            const blob = await window.comprimirImagen(input.files[0], 800, 0.5, isSquare);
+            const { success, data } = await window.GeokatuDB.AdminService.subirArchivo(`tiendas/${window.idNegocioLogueado}/${tipo}_${Date.now()}.webp`, blob);
+            if(success) {
+                let obj = {}; obj[tipo] = data; await window.GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, obj);
+                datosTienda[tipo] = data; window.abrirGemeloDigital();
             }
         };
-// --- CIRUGÍA 4: MOTORES INTERACTIVOS ---
+
+        window.editarCampoInline = function(campo) {
+            const modal = document.getElementById('editor-inline');
+            const titulo = document.getElementById('editor-titulo');
+            const cajon = document.getElementById('editor-campos');
+            
+            if(campo === 'nombre') {
+                titulo.innerText = "Nombre de la Tienda";
+                cajon.innerHTML = `<input type="text" id="in-valor" class="input-form" value="${datosTienda.nombre === 'Mi Nueva Tienda' ? '' : (datosTienda.nombre || '')}">`;
+            } else if(campo === 'niche') {
+                titulo.innerText = "Sector de Mercado";
+                cajon.innerHTML = `<select id="in-valor" class="input-form"><option value="restaurante">Restaurante</option><option value="supermercado">Supermercado</option><option value="tecnologia">Tecnología</option><option value="ropa">Ropa / Boutique</option><option value="otro">Otro</option></select>`;
+            } else if(campo === 'whatsapp') {
+                titulo.innerText = "WhatsApp de Ventas";
+                cajon.innerHTML = `<div class="input-aureo"><select id="in-codigo"><option value="57">🇨🇴 +57</option></select><input type="number" id="in-numero" placeholder="300 000 0000"></div>`;
+            }
+
+            modal.classList.add('activo');
+            
+            document.getElementById('btn-guardar-inline').onclick = async function() {
+                const btnSave = this;
+                let valorFinal = '';
+                if(campo === 'whatsapp') {
+                    const num = document.getElementById('in-numero').value;
+                    if(!num) return; valorFinal = `${document.getElementById('in-codigo').value}${num}`;
+                } else {
+                    valorFinal = document.getElementById('in-valor').value;
+                    if(!valorFinal) return;
+                }
+
+                btnSave.innerText = "GUARDANDO..."; btnSave.style.background = "#ffcc00";
+                let obj = {}; obj[campo === 'whatsapp' ? 'whatsApp' : campo] = valorFinal;
+                await window.GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, obj);
+                
+                if(campo === 'whatsapp') datosTienda.whatsApp = valorFinal;
+                else datosTienda[campo] = valorFinal;
+
+                btnSave.style.background = "#00ff64"; btnSave.innerText = "GUARDADO ✔️";
+                setTimeout(() => {
+                    btnSave.style.background = "#00ff64"; btnSave.innerText = "💾 GUARDAR DATO";
+                    modal.classList.remove('activo'); window.abrirGemeloDigital();
+                }, 800);
+            };
+        };
+
         
-        // 1. REACCIONES DE TARJETAS Y LÁPIZ
-        window.mostrarLapizCard = (id) => {
-            document.querySelectorAll('.prod-card').forEach(c => { c.classList.remove('show-lapiz-btn'); c.classList.remove('show-opciones'); });
-            const card = document.getElementById(`card-${id}`);
-            if(card) {
-                card.classList.add('show-lapiz-btn');
-                if(window.timeoutsTarjetas[id]) clearTimeout(window.timeoutsTarjetas[id]);
-                window.timeoutsTarjetas[id] = setTimeout(() => { card.classList.remove('show-lapiz-btn'); }, 5000);
+        window.actualizarPinLiveModal = function() {
+            const preview = document.getElementById('edit-pin-live-preview');
+            const forma = document.getElementById('edit-select-forma').value || 'forma-gota';
+            const efectoRaw = document.getElementById('edit-select-efecto').value || '';
+            preview.className = `pin-wrapper ${forma} anim-salto`;
+            if (efectoRaw && efectoRaw !== '|') {
+                const parts = efectoRaw.split('|'); preview.setAttribute('data-anclaje', parts[0]); preview.setAttribute('data-emoji', parts[1]);
+            } else { preview.removeAttribute('data-emoji'); preview.removeAttribute('data-anclaje'); }
+        };
+
+        window.abrirModalEdicionPinBranding = function() {
+            const modal = document.getElementById('modal-diseno-pin-branding');
+            document.getElementById('btn-guardar-edicion-branding').innerText = "GUARDAR CAMBIOS 💾";
+            
+            if(datosTienda.pin_pack) {
+                const p = datosTienda.pin_pack.split('|');
+                document.getElementById('edit-select-forma').value = p[0] || 'forma-gota';
+                if(p.length > 2) document.getElementById('edit-select-efecto').value = `${p[2]}|${p[3]||''}`;
+            }
+            if(datosTienda.color_principal) document.getElementById('editColorHex1').value = datosTienda.color_principal;
+            if(datosTienda.color_acento) document.getElementById('editColorHex2').value = datosTienda.color_acento;
+            if(datosTienda.color_terciario) document.getElementById('editColorHex3').value = datosTienda.color_terciario;
+            
+            window.actualizarPinLiveModal();
+            modal.style.display = 'flex'; setTimeout(() => modal.classList.add('activo'), 10);
+        };
+
+        window.procesarGuardadoPinBrandingModal = async function() {
+            const btn = document.getElementById('btn-guardar-edicion-branding');
+            btn.innerText = "PROCESANDO..."; btn.disabled = true;
+
+            const forma = document.getElementById('edit-select-forma').value;
+            const efecto = document.getElementById('edit-select-efecto').value;
+            const c1 = document.getElementById('editColorHex1').value;
+            const c2 = document.getElementById('editColorHex2').value;
+            const c3 = document.getElementById('editColorHex3').value;
+            const pinPack = `${forma}|anim-salto|${efecto}`;
+            let payload = { pin_pack: pinPack, color_principal: c1, color_acento: c2, color_terciario: c3 };
+
+            const pinF = document.getElementById('edit-file-pin').files[0];
+            if(pinF) {
+                const blob = await window.comprimirImagen(pinF, 400, 0.6, true);
+                const { success, data } = await window.GeokatuDB.AdminService.subirArchivo(`tiendas/${window.idNegocioLogueado}/pin_mapa.webp`, blob);
+                if(success) payload.link_pin = data;
+            }
+
+            await window.GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, payload);
+            Object.assign(datosTienda, payload);
+            btn.style.background = "#00ff64"; btn.style.color = "black"; btn.innerText = "GUARDADO ✔️";
+
+            setTimeout(() => {
+                document.getElementById('modal-diseno-pin-branding').classList.remove('activo');
+                setTimeout(()=> { document.getElementById('modal-diseno-pin-branding').style.display='none'; window.location.reload(); }, 300);
+            }, 800);
+        };
+
+      
+
+        // --- 2. SISTEMA MODAL DE COLOR (MOTOR RUEDA CUSTOM) ---
+        window.estadoColorCustom = { h: 0, s: 100, l: 50, l_base: 50 };
+
+        window.hslToHex = function(h, s, l) {
+            l /= 100; const a = s * Math.min(l, 1 - l) / 100;
+            const f = n => { const k = (n + h / 30) % 12; return Math.round(255 * (l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1))).toString(16).padStart(2, '0'); };
+            return `#${f(0)}${f(8)}${f(4)}`.toUpperCase();
+        };
+
+        window.hexToHSL = function(hex) {
+            let r = parseInt(hex.slice(1,3), 16)/255, g = parseInt(hex.slice(3,5), 16)/255, b = parseInt(hex.slice(5,7), 16)/255;
+            let max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h, s, l = (max + min) / 2;
+            if (max === min) { h = s = 0; } else {
+                let d = max - min; s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                switch(max) { case r: h = (g - b)/d + (g<b?6:0); break; case g: h = (b - r)/d + 2; break; case b: h = (r - g)/d + 4; break; } h /= 6;
+            }
+            return { h: Math.round(h*360), s: Math.round(s*100), l: Math.round(l*100) };
+        };
+
+        window.abrirSelectorColor = function(slot) {
+            window.slotColorActual = slot;
+            const colorActual = document.getElementById(`wizColorHex${slot}`).value || '#ff6b00';
+            document.getElementById('input-hex-manual').value = colorActual.replace('#', '');
+            
+            // Inversa matemática: Ubicar el puntero según el color actual
+            const hsl = window.hexToHSL(colorActual);
+            window.estadoColorCustom.h = hsl.h;
+            window.estadoColorCustom.l_base = Math.max(50, hsl.l); // Tope del borde
+            document.getElementById('slider-brillo').value = (hsl.l / window.estadoColorCustom.l_base) * 100;
+
+            const radioMax = 90; // La mitad de 180px
+            const radioActual = ((100 - window.estadoColorCustom.l_base) / 50) * radioMax;
+            const angleRad = (hsl.h - 90) * (Math.PI / 180);
+            const px = radioActual * Math.cos(angleRad);
+            const py = radioActual * Math.sin(angleRad);
+            
+            document.getElementById('puntero-color').style.left = `${px + radioMax}px`;
+            document.getElementById('puntero-color').style.top = `${py + radioMax}px`;
+            
+            const pureHex = window.hslToHex(hsl.h, 100, window.estadoColorCustom.l_base);
+            document.getElementById('slider-brillo').style.background = `linear-gradient(to right, black, ${pureHex})`;
+            
+            document.getElementById('modal-color-espectro').style.display = 'flex';
+        };
+
+        // Eventos Táctiles y de Mouse para la Rueda
+        const rueda = document.getElementById('rueda-colores');
+        const sliderBrillo = document.getElementById('slider-brillo');
+        let draggingWheel = false;
+
+        const calcularColorRueda = (e) => {
+            const rect = rueda.getBoundingClientRect();
+            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            let x = clientX - rect.left - rect.width/2;
+            let y = clientY - rect.top - rect.height/2;
+
+            let radio = Math.sqrt(x*x + y*y);
+            const maxRadio = rect.width/2;
+            if (radio > maxRadio) { x = (x/radio)*maxRadio; y = (y/radio)*maxRadio; radio = maxRadio; }
+
+            document.getElementById('puntero-color').style.left = `${x + maxRadio}px`;
+            document.getElementById('puntero-color').style.top = `${y + maxRadio}px`;
+
+            let angle = Math.atan2(y, x) * (180 / Math.PI) + 90;
+            if (angle < 0) angle += 360;
+
+            window.estadoColorCustom.h = angle;
+            window.estadoColorCustom.l_base = 100 - (radio / maxRadio * 50); // Centro 100 (Blanco), Borde 50 (Puro)
+            actualizarPreviewCustom();
+        };
+
+        const actualizarPreviewCustom = () => {
+            const factorBrillo = sliderBrillo.value / 100;
+            const l_final = window.estadoColorCustom.l_base * factorBrillo;
+            const hex = window.hslToHex(window.estadoColorCustom.h, 100, l_final);
+            
+            document.getElementById('input-hex-manual').value = hex.replace('#', '');
+            document.getElementById('input-hex-manual').style.borderColor = '#00ff64';
+            
+            const pureHex = window.hslToHex(window.estadoColorCustom.h, 100, window.estadoColorCustom.l_base);
+            sliderBrillo.style.background = `linear-gradient(to right, black, ${pureHex})`;
+            
+            // Magia en vivo al pin
+            if(window.slotColorActual === 1) {
+                const p1 = document.getElementById('pin-live-preview');
+                const p2 = document.getElementById('edit-pin-live-preview');
+                if(p1) p1.style.setProperty('--color-main', hex);
+                if(p2) p2.style.setProperty('--color-main', hex);
             }
         };
 
-        window.abrirMenuOpciones = (id) => {
-            const card = document.getElementById(`card-${id}`);
-            if(card) {
-                card.classList.remove('show-lapiz-btn'); card.classList.add('show-opciones');
-                if(window.timeoutsTarjetas[id]) clearTimeout(window.timeoutsTarjetas[id]);
-                window.timeoutsTarjetas[id] = setTimeout(() => { card.classList.remove('show-opciones'); }, 8000);
+        rueda.addEventListener('mousedown', (e) => { draggingWheel = true; calcularColorRueda(e); });
+        rueda.addEventListener('mousemove', (e) => { if(draggingWheel) calcularColorRueda(e); });
+        window.addEventListener('mouseup', () => draggingWheel = false);
+        rueda.addEventListener('touchstart', (e) => { draggingWheel = true; calcularColorRueda(e); }, {passive: false});
+        rueda.addEventListener('touchmove', (e) => { if(draggingWheel){ e.preventDefault(); calcularColorRueda(e); } }, {passive: false});
+        window.addEventListener('touchend', () => draggingWheel = false);
+        sliderBrillo.addEventListener('input', actualizarPreviewCustom);
+
+                window.sincronizarColorDesdeEspectro = function(hexValue) {
+            document.getElementById('preview-circulo-color').style.background = hexValue;
+            document.getElementById('input-hex-manual').value = hexValue.replace('#', '').toUpperCase();
+            document.getElementById('input-hex-manual').style.borderColor = 'rgba(255,255,255,0.1)';
+            
+            // Magia en vivo para el Pin
+            if(window.slotColorActual === 1) {
+                const p1 = document.getElementById('pin-live-preview');
+                const p2 = document.getElementById('edit-pin-live-preview');
+                if(p1) p1.style.setProperty('--color-main', hexValue);
+                if(p2) p2.style.setProperty('--color-main', hexValue);
             }
         };
 
-        // 2. AGOTAR INSTANTÁNEO (Magia en vivo sin recargas)
-        window.cambiarEstadoAgotadoInmediato = async (id, estActual) => {
-            if(navigator.vibrate) navigator.vibrate(50);
-            // Efecto Visual Instantáneo
-            const card = document.getElementById(`card-${id}`);
-            if(card) {
-                card.classList.remove('show-opciones');
-                if(!estActual) card.classList.add('agotado'); else card.classList.remove('agotado');
-            }
-            // Sincronización Fantasma
-            const { success } = await GeokatuDB.AdminService.actualizarProducto(idNegocioLogueado, id, { agotado: !estActual });
-            if(success) { const prod = listaProductosGlobal.find(p => p.id_prod === id); if(prod) prod.agotado = !estActual; }
-        };
-
-        // 3. MOTORES DEL MODAL DE EDICIÓN
-        let tempEdicion = {};
-
-        window.abrirModalEditar = (id) => {
-            const prod = listaProductosGlobal.find(p => p.id_prod === id);
-            if(!prod) return;
-            // Clonamos el producto para no dañar el original si cancela
-            tempEdicion = JSON.parse(JSON.stringify(prod)); 
-            if(!tempEdicion.galeria || tempEdicion.galeria.length === 0) tempEdicion.galeria = [prod.imagen || 'https://via.placeholder.com/150/0a0a0c/ff6b00?text=FOTO'];
-            
-            document.getElementById('editStockModal').value = tempEdicion.stock || 0;
-            document.getElementById('modal-editar-overlay').classList.add('activo');
-            window.renderizarPreviewEditar();
-        };
-
-        window.cerrarModalEditar = (e) => {
-            if(e) e.stopPropagation();
-            document.getElementById('modal-editar-overlay').classList.remove('activo');
-        };
-
-        window.renderizarPreviewEditar = () => {
-            const caja = document.getElementById('caja-preview-editar');
-            const lClass = tempEdicion.layout || 'layout-grid';
-            let galeriaHTML = tempEdicion.galeria.map(img => `<img src="${img}">`).join('');
-            
-            caja.innerHTML = `
-                <div class="grilla-catalogo" style="width:100%;">
-                    <div class="prod-card ${lClass}" style="box-shadow:none; overflow:visible;">
-                        
-                        <div class="edit-wrap">
-                            <button class="inline-lapiz" onclick="document.getElementById('upload-fotos-edicion').click()">✏️</button>
-                            <div class="galeria-scroll">${galeriaHTML}</div>
-                        </div>
-
-                        <div class="prod-info" style="gap:8px;">
-                            <div class="edit-wrap">
-                                <button class="inline-lapiz" style="top:-5px;" onclick="editarNombreTemp()">✏️</button>
-                                <h4 style="border-bottom:1px dashed #555; padding-bottom:4px;">${tempEdicion.nombre}</h4>
-                            </div>
-                            <div class="edit-wrap">
-                                <button class="inline-lapiz" style="top:-5px;" onclick="editarPrecioTemp()">✏️</button>
-                                <b style="border-bottom:1px dashed #555; padding-bottom:4px;">$${tempEdicion.precio}</b>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        };
-
-        window.editarNombreTemp = () => {
-            const n = prompt("Nuevo nombre del producto:", tempEdicion.nombre);
-            if(n && n.trim() !== '') { tempEdicion.nombre = n.trim(); window.renderizarPreviewEditar(); }
-        };
-
-        window.editarPrecioTemp = () => {
-            const p = prompt("Nuevo precio:", tempEdicion.precio);
-            if(p && !isNaN(p)) { tempEdicion.precio = parseFloat(p); window.renderizarPreviewEditar(); }
-        };
-
-        // Procesador de las 3 fotos simultáneas
-        window.procesarNuevasFotosGaleria = async (input) => {
-            if (!input.files || input.files.length === 0) return;
-            if (input.files.length > 3) return alert("Máximo 3 fotos por artículo para cuidar la fluidez del catálogo.");
-            
-            if(navigator.vibrate) navigator.vibrate(50);
-            const btn = document.getElementById('btn-guardar-edicion-modal');
-            btn.innerText = "Subiendo fotos..."; btn.disabled = true;
-            
-            try {
-                let nuevasUrls = [];
-                for(let i=0; i < input.files.length; i++) {
-                    const blobImg = await window.comprimirImagen(input.files[i], 800, 0.7, true);
-                    const { success, data, error } = await GeokatuDB.AdminService.subirArchivo(`productos/${idNegocioLogueado}/galeria_${Date.now()}_${i}.webp`, blobImg);
-                    if(success) nuevasUrls.push(data);
-                }
-                if(nuevasUrls.length > 0) {
-                    tempEdicion.galeria = nuevasUrls;
-                    tempEdicion.imagen = nuevasUrls[0]; // La primera siempre es la foto principal
-                    window.renderizarPreviewEditar();
-                }
-            } catch(e) { alert("Fallo al subir imágenes"); }
-            finally { btn.innerText = "Aceptar"; btn.disabled = false; input.value = ''; }
-        };
-
-        window.guardarEdicionAvanzada = async () => {
-            if(navigator.vibrate) navigator.vibrate(50);
-            const btn = document.getElementById('btn-guardar-edicion-modal');
-            btn.innerText = "Aplicando..."; btn.disabled = true;
-            
-            tempEdicion.stock = parseInt(document.getElementById('editStockModal').value) || 0;
-            // Si el usuario puso stock en 0, lo agotamos automáticamente
-            if(tempEdicion.stock === 0) tempEdicion.agotado = true;
-            else tempEdicion.agotado = false;
-
-            try {
-                const { success } = await GeokatuDB.AdminService.actualizarProducto(idNegocioLogueado, tempEdicion.id_prod, tempEdicion);
-                if(success) {
-                    // Reemplazamos en el array global para ver cambios en vivo
-                    let index = listaProductosGlobal.findIndex(p => p.id_prod === tempEdicion.id_prod);
-                    if(index !== -1) listaProductosGlobal[index] = tempEdicion;
-                    
-                    window.cargarMisProductos(false); 
-                    window.cerrarModalEditar();
-                }
-            } catch(e) { alert("Error al guardar cambios."); } 
-            finally { btn.innerText = "Aceptar"; btn.disabled = false; }
-        };
-
-        window.actualizarSelectCategorias = function() {
-            const select = document.getElementById('filtro-categoria');
-            const valorActual = select.value;
-            select.innerHTML = ''; 
-            const defaultOpt = document.createElement('option'); defaultOpt.value = ''; defaultOpt.textContent = 'Todas'; select.appendChild(defaultOpt);
-            categoriasDisponibles.forEach(cat => {
-                const opt = document.createElement('option'); opt.value = cat; opt.textContent = cat; 
-                if (cat === valorActual) opt.selected = true; select.appendChild(opt);
-            });
-        };
-
-        window.cambiarEstadoAgotado = async (id, est) => { if (navigator.vibrate) navigator.vibrate(50); const { success } = await GeokatuDB.AdminService.actualizarProducto(idNegocioLogueado, id, { agotado: !est }); if(success) window.cargarMisProductos(false); }
-        window.eliminarProducto = async (id) => { if (navigator.vibrate) navigator.vibrate(50); if(confirm("¿Borrar del catálogo definitivamente?")) { const { success } = await GeokatuDB.AdminService.eliminarProducto(idNegocioLogueado, id); if(success) window.cargarMisProductos(true); } }
-
-        // --- MODO INVENTARIO MASIVO ---
-        window.cargarDiccionarioNicho = async (nichoActual) => {
-            const nichoFormat = (nichoActual || '').toLowerCase().trim();
-            const nichosValidos = ['farmacia', 'ferreteria', 'supermercado', 'papeleria', 'licoreria', 'veterinaria', 'tecnologia', 'bicicletas','carniceria'];
-            if (!nichosValidos.includes(nichoFormat)) return;
-            try {
-                const res = await fetch(`cat_${nichoFormat}.json`);
-                if (!res.ok) return; DICCIONARIO_UNIVERSAL = await res.json();
-            } catch (error) { console.error("Error cargando catálogo JSON:", error); }
-        };
-
-        window.cargarMapaPrecios = () => {
-            mapaPreciosLocal = datosGlobalesNegocio.mapa_precios || {}; inventarioAgotadoLocal = datosGlobalesNegocio.inventario_agotado || [];
-            window.renderizarInventarioMasivo();
-        };
-
-        function evaluarNichoParaMasivo() {
-            const nichosMasivos = ['farmacia', 'ferreteria', 'supermercado', 'papeleria', 'licoreria', 'veterinaria', 'tecnologia', 'bicicletas', 'carniceria'];
-            const nichoActual = datosGlobalesNegocio.niche ? datosGlobalesNegocio.niche.toLowerCase() : '';
-            if (nichosMasivos.includes(nichoActual)) {
-                document.getElementById('acordeon-masivo').style.display = 'block';
-                window.cargarDiccionarioNicho(nichoActual).then(() => window.cargarMapaPrecios());
-            } else { document.getElementById('acordeon-masivo').style.display = 'none'; }
-        }
-
-        let debounceTimerJSON;
-        window.filtrarDiccionarioJSON = () => {
-            clearTimeout(debounceTimerJSON);
-            debounceTimerJSON = setTimeout(() => {
-                const term = document.getElementById('buscador-json').value.toLowerCase().trim();
-                const cajaResultados = document.getElementById('resultados-json');
-                if (term.length < 2) { cajaResultados.innerHTML = ''; cajaResultados.style.display = 'none'; return; }
+        window.sincronizarColorDesdeHex = function(valorIngresado) {
+            const hexLimpio = valorIngresado.replace('#', '').trim();
+            if (/^[0-9A-F]{6}$/i.test(hexLimpio) || /^[0-9A-F]{3}$/i.test(hexLimpio)) {
+                const colorValido = '#' + hexLimpio;
+                document.getElementById('preview-circulo-color').style.background = colorValido;
+                document.getElementById('input-espectro-nativo').value = colorValido.length === 4 ? colorValido.replace(/(.)/g, '$1$1').substring(1) : colorValido; 
+                document.getElementById('input-hex-manual').style.borderColor = '#00ff64';
                 
-                let contadorResultados = 0;
-                const filtrados = DICCIONARIO_UNIVERSAL.filter(item => {
-                    if (contadorResultados >= 30) return false; 
-                    const match = item.nombre.toLowerCase().includes(term) && !mapaPreciosLocal.hasOwnProperty(item.id_prod);
-                    if (match) contadorResultados++; return match;
-                });
-                
-                cajaResultados.innerHTML = '';
-                if (filtrados.length === 0) { cajaResultados.innerHTML = `<div style="padding: 10px; color: #888; font-size: 12px; text-align: center;">Sin coincidencias.</div>`; } 
-                else {
-                    filtrados.forEach(item => {
-                        const div = document.createElement('div');
-                        div.style = "padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; font-size: 13px; font-weight: bold;";
-                        div.innerText = item.nombre + " (" + item.id_prod + ")";
-                        div.onclick = () => window.agregarAlInventario(item); cajaResultados.appendChild(div);
-                    });
+                // Magia en vivo para el Pin
+                if(window.slotColorActual === 1) {
+                    const p1 = document.getElementById('pin-live-preview');
+                    const p2 = document.getElementById('edit-pin-live-preview');
+                    if(p1) p1.style.setProperty('--color-main', colorValido);
+                    if(p2) p2.style.setProperty('--color-main', colorValido);
                 }
-                cajaResultados.style.display = 'block';
-            }, 300); 
-        };
-
-        window.agregarAlInventario = (item) => {
-            if (navigator.vibrate) navigator.vibrate(50);
-            mapaPreciosLocal[item.id_prod] = 0; document.getElementById('buscador-json').value = ''; document.getElementById('resultados-json').style.display = 'none';
-            window.renderizarInventarioMasivo();
-        };
-
-        window.renderizarInventarioMasivo = () => {
-            const contenedor = document.getElementById('mi-inventario-masivo'); contenedor.innerHTML = ''; 
-            if (Object.keys(mapaPreciosLocal).length === 0) {
-                contenedor.innerHTML = `<p style="color: #888; font-size: 12px; text-align: center;">Tu inventario rápido está vacío.</p>`; return;
-            }
-            for (const [id_prod, precio] of Object.entries(mapaPreciosLocal)) {
-                const itemInfo = DICCIONARIO_UNIVERSAL.find(x => x.id_prod === id_prod) || { nombre: "Producto Desconocido" };
-                const isAgotado = inventarioAgotadoLocal.includes(id_prod);
-                const divCard = document.createElement('div'); divCard.style.cssText = "background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); border-radius: 10px; padding: 12px; display: flex; align-items: center; gap: 10px;";
-                const divInfo = document.createElement('div'); divInfo.style.flex = "1";
-                const h4Nombre = document.createElement('h4'); h4Nombre.style.cssText = `margin: 0 0 5px 0; font-size: 13px; color: ${isAgotado ? '#666' : 'white'};`; h4Nombre.textContent = itemInfo.nombre; divInfo.appendChild(h4Nombre);
-                const spanId = document.createElement('span'); spanId.style.cssText = "font-size: 9px; color: #888; text-transform: uppercase;"; spanId.textContent = `ID: ${id_prod}`; divInfo.appendChild(spanId); divCard.appendChild(divInfo);
-                const divAcciones = document.createElement('div'); divAcciones.style.cssText = "display: flex; flex-direction: column; gap: 5px; align-items: flex-end;";
-                const inputPrecio = document.createElement('input'); inputPrecio.type = "number"; inputPrecio.className = "input-form"; inputPrecio.value = precio; inputPrecio.placeholder = "$ Precio"; inputPrecio.style.cssText = `margin: 0; padding: 6px; width: 100px; font-size: 14px; text-align: right; background: ${isAgotado ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.8)'};`;
-                if (isAgotado) inputPrecio.disabled = true; inputPrecio.onchange = (e) => window.actualizarPrecioLocal(id_prod, e.target.value); divAcciones.appendChild(inputPrecio);
-                const labelAgotado = document.createElement('label'); labelAgotado.style.cssText = "font-size: 10px; color: #ff4444; display: flex; align-items: center; gap: 5px; cursor: pointer;";
-                const checkAgotado = document.createElement('input'); checkAgotado.type = "checkbox"; checkAgotado.checked = isAgotado; checkAgotado.onchange = (e) => window.toggleAgotadoLocal(id_prod, e.target.checked);
-                labelAgotado.appendChild(checkAgotado); labelAgotado.appendChild(document.createTextNode(" Agotado")); divAcciones.appendChild(labelAgotado); divCard.appendChild(divAcciones);
-                const btnDelete = document.createElement('button'); btnDelete.style.cssText = "background: rgba(255,0,0,0.2); border: none; color: #ff4444; border-radius: 6px; padding: 8px; cursor: pointer;"; btnDelete.textContent = "🗑️"; btnDelete.onclick = () => window.quitarDelInventario(id_prod); divCard.appendChild(btnDelete);
-                contenedor.appendChild(divCard);
+            } else {
+                document.getElementById('input-hex-manual').style.borderColor = '#ff4444';
             }
         };
 
-        window.actualizarPrecioLocal = (id_prod, nuevoPrecio) => { mapaPreciosLocal[id_prod] = parseInt(nuevoPrecio) || 0; };
-        window.toggleAgotadoLocal = (id_prod, isChecked) => {
-            if (navigator.vibrate) navigator.vibrate(50);
-            if (isChecked) { if (!inventarioAgotadoLocal.includes(id_prod)) inventarioAgotadoLocal.push(id_prod); } 
-            else { inventarioAgotadoLocal = inventarioAgotadoLocal.filter(id => id !== id_prod); }
-            window.renderizarInventarioMasivo();
-        };
-        window.quitarDelInventario = (id_prod) => {
-            if (navigator.vibrate) navigator.vibrate(50);
-            delete mapaPreciosLocal[id_prod]; inventarioAgotadoLocal = inventarioAgotadoLocal.filter(id => id !== id_prod);
-            window.renderizarInventarioMasivo();
-        };
-
-        window.guardarInventarioMasivo = async () => {
-            if (navigator.vibrate) navigator.vibrate(50);
-            const btn = document.querySelector('#acordeon-masivo .btn-submit'); btn.innerText = "Guardando Lote..."; btn.disabled = true;
-            try {
-                const { success, error } = await GeokatuDB.AdminService.actualizarNegocio(idNegocioLogueado, { mapa_precios: mapaPreciosLocal, inventario_agotado: inventarioAgotadoLocal });
-                if (!success) throw new Error(error);
-                if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
-                alert("¡Lote sincronizado al POS!"); datosGlobalesNegocio.mapa_precios = mapaPreciosLocal; datosGlobalesNegocio.inventario_agotado = inventarioAgotadoLocal;
-            } catch (error) { alert("Error al guardar: " + error.message); } finally { btn.innerText = "GUARDAR PRECIOS EN LOTE"; btn.disabled = false; }
-        };
-
-        // --- SISTEMA RED ALIADOS ---
-        window.cargarSaldosAliados = async () => {
-            try {
-                const { success, data, error } = await GeokatuDB.RadarService.obtenerComisiones(idNegocioLogueado);
-                let adeudado = 0;
-                if (success && data) { data.forEach(comision => { adeudado += comision.comision_ganada || 0; }); }
-                document.getElementById('saldo-adeudado').innerText = "$" + adeudado.toLocaleString('es-CO');
-            } catch (e) { console.error("Error cargando saldos:", e); }
-        };
-
-        window.crearCredencialEmpleado = () => {
-            const nom = document.getElementById('emp-nombre').value; const email = document.getElementById('emp-email').value;
-            const pass = document.getElementById('emp-pass').value; const rol = document.getElementById('emp-rol').value;
-            if(!nom || !email || !pass || !rol) return alert("Completa todos los campos.");
-            if(navigator.vibrate) navigator.vibrate(50);
-            alert(`Empleado ${nom} creado. Ya puede usar su celular (scaner.html) con el correo ${email}.`);
-            document.getElementById('emp-nombre').value = ''; document.getElementById('emp-email').value = ''; document.getElementById('emp-pass').value = '';
-        };
-
-        window.agregarBodega = () => {
-            const nom = document.getElementById('bodega-nombre').value;
-            if(!nom) return alert("Escribe el nombre de la bodega.");
-            if(navigator.vibrate) navigator.vibrate(50);
-            alert(`Espacio "${nom}" mapeado. Ahora puedes añadirle estanterías.`);
-            document.getElementById('bodega-nombre').value = '';
-        };
-
-        window.validarCodigoTX = async () => {
-            if (navigator.vibrate) navigator.vibrate(50);
-            const tx = document.getElementById('tx-codigo').value.trim().toUpperCase();
-            const monto = parseFloat(document.getElementById('tx-monto').value);
-            const monedaActual = datosGlobalesNegocio.moneda || 'COP';
-            const limiteMinimo = monedaActual === 'USD' ? 7 : 30000;
-            
-            if(!tx || isNaN(monto) || monto < limiteMinimo) return alert(`La venta mínima es de ${limiteMinimo} ${monedaActual}.`);
-            const btn = document.getElementById('btn-validar-tx'); btn.innerText = "Validando..."; btn.disabled = true;
-            try {
-                const comision = monto * 0.10; 
-                const docId = `TX_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-                const payload = { codigo_tx: tx, monto_venta: monto, comision_ganada: comision, estado: "validado", fecha: new Date().toISOString(), moneda: monedaActual };
+        window.setSlotColor = function(slot, hex) {
+            const input = document.getElementById(`wizColorHex${slot}`);
+            const wrappers = document.querySelectorAll(`[data-slot="${slot}"]`);
+            if(input) {
+                input.value = hex;
+                wrappers.forEach(w => w.style.background = hex);
                 
-                const { success, error } = await GeokatuDB.AdminService.guardarComision(idNegocioLogueado, docId, payload);
-                if (!success) throw new Error(error);
-                
-                const ordenesActuales = datosGlobalesNegocio.ordenes_validadas || 0;
-                await GeokatuDB.AdminService.actualizarNegocio(idNegocioLogueado, { ordenes_validadas: ordenesActuales + 1 });
-                datosGlobalesNegocio.ordenes_validadas = ordenesActuales + 1;
-
-                alert(`¡Venta confirmada en POS! Comisión asignada al promotor: $${comision.toLocaleString('es-CO')}`);
-                document.getElementById('tx-codigo').value = ''; document.getElementById('tx-monto').value = '';
-                window.cargarSaldosAliados(); 
-            } catch (e) { alert("Error validando TX: " + e.message); } finally { btn.innerText = "Confirmar Venta"; btn.disabled = false; }
+                // ACTUALIZACIÓN DINÁMICA DEL PIN EN VIVO
+                if (slot === 1) {
+                    const p1 = document.getElementById('pin-live-preview');
+                    const p2 = document.getElementById('edit-pin-live-preview');
+                    if(p1) p1.style.setProperty('--color-main', hex);
+                    if(p2) p2.style.setProperty('--color-main', hex);
+                }
+            }
         };
 
-        // --- HIDRATACIÓN CENTRAL ---
+        window.confirmarColorSeleccionado = function() {
+            let hex = document.getElementById('input-hex-manual').value.trim();
+            if (/^[0-9A-F]{6}$/i.test(hex) || /^[0-9A-F]{3}$/i.test(hex)) {
+                const colorFinal = '#' + hex;
+                
+                // Actualiza el input oculto
+                const inputOculto = document.getElementById(`wizColorHex${window.slotColorActual}`);
+                if(inputOculto) inputOculto.value = colorFinal;
+                
+                // Actualiza el círculo de la interfaz
+                const swatches = document.querySelectorAll(`[data-slot="${window.slotColorActual}"]`);
+                swatches.forEach(swatch => swatch.style.background = colorFinal);
+                
+                // ACTUALIZACIÓN DINÁMICA DEL PIN EN VIVO
+                if (window.slotColorActual === 1) {
+                    const p1 = document.getElementById('pin-live-preview');
+                    const p2 = document.getElementById('edit-pin-live-preview');
+                    if(p1) p1.style.setProperty('--color-main', colorFinal);
+                    if(p2) p2.style.setProperty('--color-main', colorFinal);
+                }
+                
+                document.getElementById('modal-color-espectro').style.display = 'none';
+            } else {
+                alert("Código de color inválido.");
+            }
+        };
+
+           // --- HIDRATACIÓN MAESTRA ---
         GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
             if (user) {
-                const { success: dirSuccess, data: dirData, error } = await GeokatuDB.AdminService.obtenerNegocioPorUsuario(user.uid, user.email, "estandar");
-                if (!dirSuccess) { document.getElementById('offline-banner').innerText = "🛑 BLOQUEO FIREBASE: " + error; return; }
-
-                if (dirData) {
-                    datosGlobalesNegocio = dirData; idNegocioLogueado = dirData.id || user.uid;
-                    isPremium = (datosGlobalesNegocio.premium === "SI" || datosGlobalesNegocio.premium === true);
+                window.idUsuarioActual = user.uid;
+                const { success, data } = await GeokatuDB.AdminService.obtenerNegocioPorUsuario(user.uid, user.email, "estandar");
+                if (success && data) {
+                    datosTienda = data; window.idNegocioLogueado = data.id || user.uid;
                     
-                    document.getElementById('ui-nombre').innerText = datosGlobalesNegocio.nombre || "MI TIENDA";
-                    document.getElementById('perfilEmail').value = user.email || '';
-                    document.getElementById('perfilNombre').value = datosGlobalesNegocio.nombre || '';
-                    document.getElementById('perfilUsername').value = datosGlobalesNegocio.username || '';
-                    document.getElementById('perfilTelefono').value = datosGlobalesNegocio.whatsApp || datosGlobalesNegocio.telefono || '';
-                    document.getElementById('perfilApertura').value = datosGlobalesNegocio.horario_apertura || ''; 
-                    document.getElementById('perfilCierre').value = datosGlobalesNegocio.horario_cierre || '';
-                    document.getElementById('perfilDireccion').value = datosGlobalesNegocio.direccion || '';
-                    document.getElementById('perfilMoneda').value = datosGlobalesNegocio.moneda || 'COP';
-                    document.getElementById('perfilPalabras').value = datosGlobalesNegocio.palabras_clave || '';
-                    
-                    if(datosGlobalesNegocio.color_principal) document.getElementById('colorHex1').value = datosGlobalesNegocio.color_principal;
-                    if(datosGlobalesNegocio.color_acento) document.getElementById('colorHex2').value = datosGlobalesNegocio.color_acento;
-                    if(datosGlobalesNegocio.color_fondo) document.getElementById('colorHex3').value = datosGlobalesNegocio.color_fondo;
-                                        // 💉 AQUÍ VA LA INCISIÓN: HIDRATAR PIN INDEPENDIENTE Y SUS FORMAS
-                    setTimeout(() => { 
-                        const previewImg = document.getElementById('img-live-preview'); 
-                        if (previewImg) { 
-                            if (datosGlobalesNegocio.link_pin) previewImg.src = datosGlobalesNegocio.link_pin; 
-                            else if (datosGlobalesNegocio.logo) previewImg.src = datosGlobalesNegocio.logo; 
-                            else previewImg.src = `https://ui-avatars.com/api/?name=Pin&background=111&color=ff6b00&size=150`; // 👈 Solución a la Imagen Rota
-                        } 
+                    if (datosTienda.progreso_boveda === 100) {
+                        // 🟢 Checkpoint 3: Todo listo -> Dashboard
+                        document.getElementById('dashboard-screen').style.display = 'flex';
+                        document.getElementById('ui-nombre').innerText = datosTienda.nombre;
+                        if(datosTienda.logo) { document.getElementById('ui-logo').src = datosTienda.logo; document.getElementById('ui-logo').style.display = 'block'; }
                         
-                        if(datosGlobalesNegocio.pin_forma) document.getElementById('select-forma').value = datosGlobalesNegocio.pin_forma;
-                        if(datosGlobalesNegocio.pin_animacion) document.getElementById('select-animacion').value = datosGlobalesNegocio.pin_animacion;
-                        if(datosGlobalesNegocio.pin_efecto) document.getElementById('select-efecto').value = datosGlobalesNegocio.pin_efecto;
+                        let lat = datosTienda.Coordenadas ? datosTienda.Coordenadas.latitude || datosTienda.Coordenadas._lat : 4.8133;
+                        let lng = datosTienda.Coordenadas ? datosTienda.Coordenadas.longitude || datosTienda.Coordenadas._long : -75.6961;
+                        setTimeout(() => window.inicializarMiniMapaPerfil(lat, lng), 500);
 
-                        if (typeof window.actualizarPinLive === 'function') window.actualizarPinLive(); 
-                    }, 800);
-
- 
-                    let nichoRecuperado = datosGlobalesNegocio.niche || '';
-                    let selectorUI = document.getElementById('perfilNichoSelect'); 
-                    if (selectorUI && Array.from(selectorUI.options).some(opt => opt.value === nichoRecuperado)) { selectorUI.value = nichoRecuperado; }
-
-                    if(datosGlobalesNegocio.logo) { document.getElementById('ui-logo').src = datosGlobalesNegocio.logo; document.getElementById('ui-logo').style.display = 'block'; }
-                    
-                    let latInit = datosGlobalesNegocio.Coordenadas ? (datosGlobalesNegocio.Coordenadas.latitude || datosGlobalesNegocio.Coordenadas._lat) : null;
-                    let lngInit = datosGlobalesNegocio.Coordenadas ? (datosGlobalesNegocio.Coordenadas.longitude || datosGlobalesNegocio.Coordenadas._long) : null;
-                    setTimeout(() => { window.inicializarMiniMapa(latInit, lngInit); }, 500);
-
-                    evaluarNichoParaMasivo(); window.cargarMisProductos(); 
-
-                    document.getElementById('dashboard-screen').style.display = 'block';
-                    document.getElementById('offline-banner').style.display = 'none';
-
+                    } else if (datosTienda.progreso_boveda === 50) {
+                        // 🟡 Checkpoint 2: ADN listo -> Ir directo al Mapa Fase 2
+                        window.iniciarSandboxGeoespacial(false);
+                    } else {
+                        // 🔴 Checkpoint 1: Recién registrado -> Iniciar en Fase 1
+                        document.getElementById('velo-cinematico').classList.add('activo');
+                        document.getElementById('fase-1-pin').style.display = 'block';
+                    }
                 } else {
-                    console.log("Comerciante nuevo detectado. Inicializando bóveda...");
-                    const payloadInicial = {
-                        nombre: "Mi Nueva Tienda", email: user.email || "", tipo_modelo: "comercio",
-                        premium: false, estado_moderacion: "pendiente", fecha_registro: new Date().toISOString(), progreso_boveda: 10 
-                    };
-                    const { success: createSuccess, error: createError } = await GeokatuDB.AdminService.actualizarNegocio(user.uid, payloadInicial);
-                    if (createSuccess) { window.location.reload(); } else { document.getElementById('offline-banner').innerText = "❌ ERROR AL CREAR BÓVEDA: " + createError; }
+                    await GeokatuDB.AdminService.actualizarNegocio(user.uid, { nombre: "Mi Nueva Tienda", email: user.email, tipo_modelo: "negocio", categoria_maestra: "comercio", progreso_boveda: 10 });
+                    window.location.reload();
                 }
             } else { window.location.href = 'index.html'; }
         });
-    </script>
-          <script type="module">
-    import GeokatuDB from './core-db.js';
-    
-    window.guardarPinYMapa = function() {
-        GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
-            if (!user) return alert("Error: Sesión no detectada.");
-            
-            const btn = document.getElementById('btn-guardar-pin');
-            btn.innerText = "GUARDANDO...";
-            btn.disabled = true;
-            
-            // Asumiendo que tus listas desplegables son <select> (ajusta los selectores si usaste otra cosa)
-            const forma = document.querySelectorAll('select')[0]?.value || '1';
-            const anim = document.querySelectorAll('select')[1]?.value || 'a';
-            const emoji = document.querySelectorAll('select')[2]?.value || '0';
-            
-            const payload = {
-                ui_pack: forma + anim + emoji,
-                Coordenadas: {
-                    latitude: window.latitudActual || 4.8133, // Asegúrate de que tu mapa asigne estas globales
-                    longitude: window.longitudActual || -75.6961
-                }
-            };
 
-            const { success, error } = await GeokatuDB.AdminService.actualizarNegocio(user.uid, payload);
-            
-            if (success) {
-                alert("✅ Guardado exitoso. Tu tienda ya es visible en el mapa principal (index.html).");
-            } else {
-                alert("❌ Fallo al guardar: " + error);
-            }
-            
-            btn.innerText = "💾 GUARDAR EN EL RADAR";
-            btn.disabled = false;
-        });
-    };
-</script>
+    </script>
+      
+        <!-- NUEVO MODAL DE COLOR (Rueda Cromática Custom) -->
+<div id="modal-color-espectro" class="velo-inmersivo" style="display: none; align-items: center; justify-content: center; z-index: 100005;">
+    <div style="background: rgba(15,15,18,0.98); backdrop-filter: blur(20px); border: 1px solid rgba(255, 107, 0, 0.3); border-radius: 35px; padding: 30px 20px; width: 85%; max-width: 320px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.9);">
+        <h4 style="color: var(--naranja); margin-top: 0; margin-bottom: 25px; text-transform: uppercase; letter-spacing: 2px; font-weight: 900; font-size: 16px;">Elige tu Color</h4>
+        
+        <!-- Rueda de Color Interactiva -->
+        <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 25px;">
+            <div id="rueda-colores" style="position: relative; width: 180px; height: 180px; border-radius: 50%; cursor: crosshair; touch-action: none; background: radial-gradient(circle closest-side, #fff 0%, transparent 100%), conic-gradient(from 90deg, red, yellow, lime, aqua, blue, fuchsia, red); box-shadow: 0 8px 25px rgba(0,0,0,0.6);">
+                <div id="puntero-color" style="position: absolute; width: 18px; height: 18px; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 6px rgba(0,0,0,0.9); transform: translate(-50%, -50%); pointer-events: none; top: 50%; left: 50%; background: transparent; transition: transform 0.1s;"></div>
+            </div>
+            <!-- Slider de Oscuridad -->
+            <input type="range" id="slider-brillo" min="0" max="100" value="100" style="width: 180px; margin-top: 25px; -webkit-appearance: none; height: 10px; border-radius: 5px; outline: none; box-shadow: inset 0 2px 5px rgba(0,0,0,0.8); background: linear-gradient(to right, black, red);">
+        </div>
+        
+        <!-- Input HEX -->
+        <div style="position: relative; margin-bottom: 25px; width: 100%; max-width: 200px; margin-left: auto; margin-right: auto;">
+            <span style="position: absolute; left: 20px; top: 50%; transform: translateY(-50%); color: #888; font-weight: 900; font-size: 16px;">#</span>
+            <input type="text" id="input-hex-manual" maxlength="6" style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 15px 15px 15px 40px; border-radius: 30px; font-size: 16px; font-family: monospace; font-weight: bold; outline: none; box-sizing: border-box; text-transform: uppercase; text-align: center; transition: 0.3s;" oninput="window.sincronizarColorDesdeHex(this.value)">
+        </div>
+        
+        <button class="btn-submit" style="margin: 0; background: var(--naranja); color: white; border-radius: 30px; box-shadow: 0 5px 20px rgba(255,107,0,0.4);" onclick="window.confirmarColorSeleccionado()">CONFIRMAR</button>
+        <button class="btn-submit" style="margin-top: 12px; background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #aaa; box-shadow: none; border-radius: 30px;" onclick="document.getElementById('modal-color-espectro').style.display='none'">Cancelar</button>
+    </div>
+</div>
 
 </body>
 </html>
