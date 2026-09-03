@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>POS Geokatu MOBILE</title>
+    
+    <!-- Enlace a los estilos Kiosco strictos -->
+    <link rel="stylesheet" href="estilos-pos.css">
+    
+    <!-- Iconos Material y Librería del Escáner QR/Barra -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+</head>
+<body>
+      <!-- ==========================================
+         ESCUDO DE LOGIN (El "Antes")
+         ========================================== -->
+    <div id="pantalla-login" style="position: fixed; inset: 0; z-index: 9999; background: var(--color-fondo-kiosco); display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px;">
+        <div style="width: 100%; max-width: 380px; background: var(--color-panel-glass); border: 1px solid var(--color-marca); border-radius: 16px; padding: 30px 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); text-align: center;">
+            
+            <h1 style="margin: 0 0 5px 0; color: white; font-size: 24px; font-weight: 900; letter-spacing: 2px;">
+                GEOKATU <span style="color: var(--color-marca);">POS</span>
+            </h1>
+            <p style="color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 25px;">Terminal de Operador</p>
+            
+            <input type="email" id="cajero-email" placeholder="Correo asignado" style="width: 100%; background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); color: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; outline: none; box-sizing: border-box;">
+            
+            <input type="password" id="cajero-pass" placeholder="Contraseña de Operador" style="width: 100%; background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; outline: none; box-sizing: border-box;">
+            
+            <button id="btn-login-cajero" onclick="iniciarSesionCajero()" style="width: 100%; padding: 15px; border-radius: 8px; border: none; font-weight: 900; cursor: pointer; text-transform: uppercase; background: var(--color-marca); color: white; font-size: 14px; transition: 0.3s; box-shadow: 0 4px 10px rgba(255,107,0,0.3);">
+                INICIAR TURNO
+            </button>
+        </div>
+    </div>
+
+    <!-- CONTENEDOR PRINCIPAL DEL POS -->
+    <div id="pos-app" class="viewport-kiosk">
+
+        <!-- ==========================================
+             1. ENTRADA (BÚSQUEDA COMPACTA)
+             ========================================== -->
+        <header id="input-search">
+            <div class="search-container">
+                <span class="material-symbols-outlined search-icon">search</span>
+                <!-- TRAMPA DEL LECTOR FÍSICO: Este input recibe el escáner USB/BT o búsqueda manual -->
+                <input type="text" id="buscador-principal" placeholder="Buscar o escanear..." autocomplete="off" autofocus>
+                <button id="btn-toggle-camara" onclick="toggleCamaraCelular(event)" class="camera-btn">
+                    <span class="material-symbols-outlined">qr_code_scanner</span>
+                </button>
+            </div>
+            <!-- Contenedor dinámico de la cámara (se muestra/oculta vía JS) -->
+            <div id="lector-camara" class="camera-reader-hidden"></div>
+        </header>
+
+        <!-- ==========================================
+             2. GESTIÓN (LISTA DE FACTURACIÓN PRIORIZADA)
+             ========================================== -->
+        <main id="current-sale-container">
+            <!-- Título de la sección -->
+            <div class="section-title">Venta Actual (<span id="txt-items-count">0</span> ítems)</div>
+            
+            <!-- LISTA DE PRODUCTOS (Prioritaria y Desplazable) -->
+            <section id="billing-list">
+                <!-- Items del carrito cargados dinámicamente como TARJETAS -->
+                <p style="text-align: center; color: #888; padding: 20px;">Escanea o busca productos.</p>
+            </section>
+
+            <!-- ==========================================
+                 3. SALIDA (TOTALES Y PAGOS APILADOS)
+                 ========================================== -->
+            <section id="output-container">
+                <!-- Totales compactly presentados -->
+                <div class="totals-compact">
+                    <p>Base: <span id="txt-base">$0</span></p>
+                    <p>IVA: <span id="txt-iva19">$0</span></p>
+                    <p>Exento: <span id="txt-exento">$0</span></p>
+                </div>
+                
+                <!-- BANNER DEL TOTAL PROMINENTE -->
+                <div id="totals-banner">
+                    TOTAL A PAGAR: <span id="txt-total">$0</span>
+                </div>
+                
+                <!-- BOTONES DE PAGO APILADOS VERTICALMENTE (Al alcance del pulgar) -->
+                <nav id="payment-options">
+                    <button class="payment-btn cash" onclick="procesarPago('EFECTIVO')">
+                        <span class="material-symbols-outlined icon">payments</span>
+                        EFECTIVO
+                    </button>
+                    <button class="payment-btn card" onclick="procesarPago('TARJETA')">
+                        <span class="material-symbols-outlined icon">credit_card</span>
+                        TARJETA
+                    </button>
+                    <button class="payment-btn nequi" onclick="procesarPago('NEQUI')">
+                        <span class="material-symbols-outlined icon">money</span>
+                        NEQUI
+                    </button>
+                </nav>
+            </section>
+        </main>
+
+        <!-- ==========================================
+             BARRA DE ESTADO (FOOTER MINIMAL)
+             ========================================== -->
+        <footer id="status-bar">
+            <div class="status-item connection">
+                <span class="indicator red" id="led-conexion"></span>
+                <p>Red: <span id="txt-conexion">CONECTANDO...</span></p>
+            </div>
+            <div class="status-item sync">
+                <p>Sync: <span id="txt-cola-sync" style="font-weight: bold;">0 Pendientes</span></p>
+            </div>
+            <div class="status-item daily-sales">
+                <p>Ventas Hoy: <span id="kpi-ventas" style="font-weight: bold;">$0</span></p>
+            </div>
+        </footer>
+
+    </div> <!-- FIN DEL CONTENEDOR PRINCIPAL -->
+
+    <!-- ==========================================
+         ELEMENTOS OCULTOS (MODAL Y FAB)
+         ========================================== -->
+    <!-- BOTÓN DE ACCIÓN FLOTANTE (FAB) NARANJA para Productos Frecuentes -->
+    <button id="fab-high-rotation" class="fab orange-glow" onclick="toggleModalAltaRotacion(true)">
+        <span class="material-symbols-outlined">grid_view</span>
+    </button>
+
+    <!-- VENTANA MODAL SUPERPUESTA para Alta Rotación -->
+    <div id="high-rotation-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h2>Productos Frecuentes (Alta Rotación)</h2>
+                <button class="close-modal-btn" onclick="toggleModalAltaRotacion(false)">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </header>
+            <div class="product-grid" id="grid-rapida">
+                <!-- Los productos de alta rotación se inyectarán aquí vía JS -->
+                <p style="grid-column: span 5; text-align: center; color: #888; padding: 20px;">Cargando catálogo...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         LÓGICA DEL POS Y CONEXIÓN B2B
+         ========================================= -->
+    <script type="module">
+        import GeokatuDB from './core-db.js';
+
+        // ==========================================
+        // 1. CONFIGURACIÓN Y ESTADO DE LA CAJA
+        // ==========================================
+        let ID_NEGOCIO = null; 
+        
+        let catalogoLocal = [];
+        let carrito = [];
+        let html5QrCode = null;
+        let camaraEncendida = false;
+        const trampa = document.getElementById('buscador-principal');
+        // ==========================================
+        // FUNCIÓN DE LOGIN DEL CAJERO
+        // ==========================================
+        window.iniciarSesionCajero = async () => {
+            const email = document.getElementById('cajero-email').value.trim();
+            const pass = document.getElementById('cajero-pass').value;
+            const btn = document.getElementById('btn-login-cajero');
+
+            if (!email || !pass) return alert("Por favor ingresa correo y contraseña.");
+
+            btn.innerText = "VERIFICANDO...";
+            btn.disabled = true;
+
+            // Usamos la función de login que ya tienes en tu core-db.js
+            const { success, error } = await GeokatuDB.SecurityService.iniciarSesion(email, pass);
+
+            if (!success) {
+                alert("Credenciales incorrectas o acceso denegado.");
+                btn.innerText = "INICIAR TURNO";
+                btn.disabled = false;
+            }
+            // Si tiene éxito, el "observarEstadoSesion" (que ya pusimos abajo) 
+            // reaccionará automáticamente, ocultará el login y mostrará el POS.
+        };
+
+        // ==========================================
+        // 2. GUARDIÁN DE SESIÓN Y ARRANQUE DE CAJA
+        // ==========================================
+                GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
+            if (user) {
+                // 1. Ocultar la pantalla de login
+                const pantallaLogin = document.getElementById('pantalla-login');
+                if(pantallaLogin) pantallaLogin.style.display = 'none';
+                
+                // 2. Mostrar la interfaz de la caja
+                document.getElementById('pos-app').style.display = 'grid';
+                document.getElementById('fab-high-rotation').style.display = 'flex';
+                
+                // 3. Consultar a quién pertenece este cajero
+                // (Usamos la función de tu core-db.js para leer el perfil)
+                const infoNegocio = await GeokatuDB.AdminService.obtenerNegocioPorUsuario(user.uid);
+                
+                if (infoNegocio.success && infoNegocio.data) {
+                    // Si el usuario es un cajero, en su perfil debe estar guardado el ID de su jefe
+                    // Si es el dueño mismo cobrando, su ID es su propio user.uid
+                    ID_NEGOCIO = infoNegocio.data.id_negocio_padre || user.uid; 
+                    
+                    // 4. Iniciar el turno y descargar productos
+                    iniciarTurno(); 
+                } else {
+                    alert("Error: Este usuario no tiene un perfil comercial asignado.");
+                    GeokatuDB.SecurityService.cerrarSesion();
+                }
+
+            } else {
+                // Bloquear App si no hay sesión
+                document.getElementById('pos-app').style.display = 'none';
+                document.getElementById('fab-high-rotation').style.display = 'none';
+                const pantallaLogin = document.getElementById('pantalla-login');
+                if(pantallaLogin) pantallaLogin.style.display = 'flex';
+            }
+        });
+
+
+        // ==========================================
+        // 3. MOTOR DE CATÁLOGO Y SEMÁFORO
+        // ==========================================
+        async function iniciarTurno() {
+            console.log(`🚀 Iniciando turno para el negocio: ${ID_NEGOCIO}`);
+            document.getElementById('txt-conexion').innerText = "SINCRONIZANDO...";
+            document.getElementById('led-conexion').style.backgroundColor = "orange";
+            
+            // Descarga inicial masiva
+            const res = await GeokatuDB.PosService.descargarCatalogoLocal(ID_NEGOCIO);
+            if (res.success) {
+                catalogoLocal = GeokatuDB.PosService.cargarCatalogoDesdeCache(ID_NEGOCIO) || [];
+                renderizarAltaRotacion();
+                document.getElementById('txt-conexion').innerText = "EN LÍNEA";
+                document.getElementById('led-conexion').style.backgroundColor = "var(--accent-green)";
+                
+                // ACTIVAR EL SEMÁFORO DESPUÉS DE LA CARGA INICIAL
+                let ultimaActualizacionConocida = null;
+                
+                console.log("📡 Escuchando semáforo de actualizaciones...");
+                GeokatuDB.PosService.escucharSemaforoCatalogo(ID_NEGOCIO, async (nuevaFecha) => {
+                    if (!ultimaActualizacionConocida) {
+                        ultimaActualizacionConocida = nuevaFecha; // Ignorar el primer aviso al conectar
+                        return;
+                    }
+                    if (nuevaFecha !== ultimaActualizacionConocida) {
+                        // EL DUEÑO CAMBIÓ UN PRECIO: Refrescamos silenciosamente
+                        console.log("🆕 Cambio en catálogo detectado. Actualizando caché...");
+                        ultimaActualizacionConocida = nuevaFecha;
+                        document.getElementById('txt-conexion').innerText = "ACTUALIZANDO...";
+                        document.getElementById('led-conexion').style.backgroundColor = "orange";
+                        
+                        await GeokatuDB.PosService.descargarCatalogoLocal(ID_NEGOCIO);
+                        catalogoLocal = GeokatuDB.PosService.cargarCatalogoDesdeCache(ID_NEGOCIO);
+                        renderizarAltaRotacion();
+                        
+                        document.getElementById('txt-conexion').innerText = "EN LÍNEA";
+                        document.getElementById('led-conexion').style.backgroundColor = "var(--accent-green)";
+                    }
+                });
+
+            } else {
+                console.error("Fallo carga inicial:", res.error);
+                alert("Error crítico cargando el catálogo local. La caja no puede operar.");
+                document.getElementById('led-conexion').style.backgroundColor = "red";
+                document.getElementById('txt-conexion').innerText = "ERROR DE CONEXIÓN";
+            }
+            
+            forzarFocoEscaner();
+        }
+
+        // ==========================================
+        // 4. MOTOR DEL ESCÁNER HÍBRIDO (IoT Físico + Cámara Mobile)
+        // ==========================================
+        window.forzarFocoEscaner = () => { trampa.focus(); };
+
+        // Recuperar foco al hacer click en cualquier lado que no sea un elemento interactivo
+        document.body.addEventListener('click', (e) => {
+            if (['BUTTON', 'INPUT', 'LABEL', 'SPAN', 'DETAILS', 'SUMMARY'].includes(e.target.tagName)) return;
+            // No forzar foco si el modal de productos está abierto
+            if (!document.getElementById('high-rotation-modal').classList.contains('hidden')) return;
+            forzarFocoEscaner();
+        });
+
+        // TRAMPA: Escuchar el Lector Físico
+        trampa.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const codigo = trampa.value.trim();
+                trampa.value = ''; 
+                if (codigo !== '') procesarEscaneoLocal(codigo);
+            }
+        });
+
+        // CÁMARA: Integración html5-qrcode
+        window.toggleCamaraCelular = (e) => {
+            e.stopPropagation();
+            const btn = document.getElementById('btn-toggle-camara');
+            const contenedorCamara = document.getElementById('lector-camara');
+
+            if (!html5QrCode) html5QrCode = new Html5Qrcode("lector-camara");
+
+            if (camaraEncendida) {
+                html5QrCode.stop().then(() => {
+                    camaraEncendida = false;
+                    contenedorCamara.style.display = "none";
+                    contenedorCamara.classList.add('camera-reader-hidden');
+                    btn.innerHTML = `<span class="material-symbols-outlined">qr_code_scanner</span>`;
+                    btn.style.background = "var(--color-marca)";
+                    forzarFocoEscaner();
+                });
+            } else {
+                contenedorCamara.style.display = "block";
+                contenedorCamara.classList.remove('camera-reader-hidden');
+                html5QrCode.start(
+                    { facingMode: "environment" }, // Cámara trasera predeterminada
+                    { fps: 10, qrbox: { width: 250, height: 250 } },
+                    (codigoDecodificado) => {
+                        // ÉXITO: Código detectado por cámara
+                        procesarEscaneoLocal(codigoDecodificado); 
+                        if (navigator.vibrate) navigator.vibrate([100]);
+                    },
+                    (errorFrame) => { /* Ignorar errores de frame vacío para UX fluida */ }
+                ).then(() => {
+                    camaraEncendida = true;
+                    btn.innerHTML = `<span class="material-symbols-outlined">close</span> Apagar`;
+                    btn.style.background = "var(--accent-red)";
+                }).catch(err => {
+                    console.error("Error cámara:", err);
+                    alert("No se pudo activar la cámara. Revisa los permisos.");
+                    contenedorCamara.style.display = "none";
+                });
+            }
+        };
+
+        // ==========================================
+        // 5. GESTIÓN DEL MODAL DE ALTA ROTACIÓN
+        // ==========================================
+        window.toggleModalAltaRotacion = (show) => {
+            const modal = document.getElementById('high-rotation-modal');
+            const fab = document.getElementById('fab-high-rotation');
+            if (show) {
+                modal.classList.remove('hidden');
+                fab.style.display = 'none'; // Ocultar FAB cuando el modal está abierto
+            } else {
+                modal.classList.add('hidden');
+                fab.style.display = 'flex'; // Mostrar FAB cuando el modal se cierra
+                forzarFocoEscaner(); // Devolver foco a la trampa
+            }
+        };
+
+        // ==========================================
+        // 6. LÓGICA DE VENTA OFFLINE Y CARRITO
+        // ==========================================
+        function procesarEscaneoLocal(codigoBusqueda) {
+            console.log(`🔍 Buscando localmente: ${codigoBusqueda}`);
+            // Buscar en el array local (velocidad RAM, 0 costo Firebase)
+            const producto = catalogoLocal.find(p => p.codigo_barras === codigoBusqueda || p.id_prod === codigoBusqueda);
+            
+            if (producto) {
+                agregarAlCarrito(producto);
+            } else {
+                // Fallback: Si tipeó una palabra, hacer búsqueda predictiva
+                const coincidencias = catalogoLocal.filter(p => p.nombre.toLowerCase().includes(codigoBusqueda.toLowerCase()));
+                if (coincidencias.length === 1) {
+                    agregarAlCarrito(coincidencias[0]);
+                } else if (coincidencias.length > 1) {
+                    alert(`Hay ${coincidencias.length} productos con ese nombre. Sea más específico.`);
+                } else {
+                    alert("⚠️ Producto no encontrado en el catálogo local.");
+                    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+                }
+            }
+        }
+
+        window.agregarAlCarrito = (producto) => {
+            const index = carrito.findIndex(item => item.id_prod === producto.id_prod);
+            if (index !== -1) {
+                carrito[index].cantidad += 1;
+            } else {
+                carrito.push({
+                    id_prod: producto.id_prod,
+                    nombre: producto.nombre,
+                    precio: producto.precio || 0,
+                    impuesto: producto.impuesto || "19", // Default 19%
+                    cantidad: 1
+                });
+            }
+            if (navigator.vibrate) navigator.vibrate([50]);
+            renderizarCarrito();
+        };
+
+        window.modificarCantidad = (index, delta) => {
+            carrito[index].cantidad += delta;
+            if (carrito[index].cantidad <= 0) carrito.splice(index, 1);
+            renderizarCarrito();
+            forzarFocoEscaner();
+        };
+
+        window.eliminarItem = (index) => {
+            carrito.splice(index, 1);
+            renderizarCarrito();
+            forzarFocoEscaner();
+        };
+
+        // ==========================================
+        // 7. RENDERIZADO Y CÁLCULOS MATEMÁTICOS
+        // ==========================================
+        function renderizarCarrito() {
+            const listRef = document.getElementById('billing-list');
+            listRef.innerHTML = ''; // Limpiar lista
+            
+            let totalGeneral = 0;
+            let totalBase = 0;
+            let tIva19 = 0;
+            let tIva5 = 0;
+            let tExento = 0;
+            let itemsCount = 0;
+
+            if (carrito.length === 0) {
+                listRef.innerHTML = '<p style="text-align: center; color: #888; padding: 20px;">Escanea o busca productos.</p>';
+                actualizarTotalesUI(0, 0, 0, 0, 0);
+                document.getElementById('txt-items-count').innerText = "0";
+                return;
+            }
+
+            carrito.forEach((item, index) => {
+                const subtotal = item.precio * item.cantidad;
+                totalGeneral += subtotal;
+                itemsCount += item.cantidad;
+
+                // Matemática contable básica exigida por SIIGO/DIAN
+                const numImpuesto = Number(item.impuesto);
+                if (numImpuesto > 0) {
+                    const factorIva = 1 + (numImpuesto / 100);
+                    const base = subtotal / factorIva;
+                    const valorIva = subtotal - base;
+                    totalBase += base;
+                    if(numImpuesto === 19) tIva19 += valorIva;
+                    else if(numImpuesto === 5) tIva5 += valorIva;
+                } else {
+                    tExento += subtotal;
+                    totalBase += subtotal;
+                }
+
+                // Renderizar Tarjeta de Producto
+                listRef.innerHTML += `
+                    <div class="product-card">
+                        <div class="info">
+                            <strong style="font-size: 14px;">${item.nombre}</strong><br>
+                            <small style="color:#888;">Unit: $${item.precio.toLocaleString()} | IVA ${item.impuesto}%</small>
+                        </div>
+                        <div class="qty-control">
+                            <button class="qty-btn" onclick="modificarCantidad(${index}, -1)">-</button>
+                            <input type="number" value="${item.cantidad}" readonly>
+                            <button class="qty-btn" onclick="modificarCantidad(${index}, 1)">+</button>
+                        </div>
+                        <div class="subtotal">
+                            $${subtotal.toLocaleString()}
+                        </div>
+                        <div class="actions">
+                            <button class="remove-btn" onclick="eliminarItem(${index})">
+                                <span class="material-symbols-outlined">delete</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Actualizar Totales UI Redondeados a entero
+            actualizarTotalesUI(totalGeneral, totalBase, tIva19, tIva5, tExento);
+            document.getElementById('txt-items-count').innerText = itemsCount.toString();
+        }
+
+        function actualizarTotalesUI(total, base, iva19, iva5, exento) {
+            document.getElementById('txt-base').innerText = `$${Math.round(base).toLocaleString()}`;
+            document.getElementById('txt-iva19').innerText = `$${Math.round(iva19).toLocaleString()}`;
+            document.getElementById('txt-exento').innerText = `$${Math.round(exento).toLocaleString()}`;
+            document.getElementById('txt-total').innerText = `$${Math.round(total).toLocaleString()}`;
+        }
+
+        function renderizarAltaRotacion() {
+            const grid = document.getElementById('grid-rapida');
+            grid.innerHTML = '';
+            // Renderizamos los primeros 10 productos como acceso rápido táctil
+            const top10 = catalogoLocal.slice(0, 10);
+            
+            if(top10.length === 0) {
+                grid.innerHTML = '<p style="grid-column: span 5; text-align: center; color: #888; padding: 20px;">Sin productos recurrentes.</p>';
+                return;
+            }
+
+            top10.forEach(prod => {
+                const icono = prod.icono || "shopping_bag"; // Icono por defecto
+                grid.innerHTML += `
+                    <div class="product-item" onclick='agregarAlCarrito(${JSON.stringify(prod)}); toggleModalAltaRotacion(false);'>
+                        <span class="material-symbols-outlined icon">${icono}</span>
+                        <span class="name" style="font-size: 11px;">${prod.nombre}</span>
+                    </div>
+                `;
+            });
+        }
+
+        // ==========================================
+        // 8. FINALIZAR VENTA (Escritura en Firebase)
+        // ==========================================
+        window.procesarPago = async (metodoPago) => {
+            if (carrito.length === 0) return alert("El carrito está vacío.");
+            if (!ID_NEGOCIO) return alert("Error: No hay sesión de negocio activa.");
+
+            const totalVentaText = document.getElementById('txt-total').innerText;
+            const totalVenta = Number(totalVentaText.replace(/\D/g, ''));
+
+            // Payload optimizado para Cloud Functions y SIIGO
+            const ticketPayload = {
+                productos: carrito, // Incluye precios, ivas y cantidades validadas localmente
+                total: totalVenta,
+                metodo_pago: metodoPago,
+                factura_electronica: true, // Default enviar a DIAN
+                nit_cliente: "222222222222", // Default Consumidor final
+                nombre_cliente: "Consumidor Final"
+            };
+
+            // UX: Actualizar barra de estado
+            const txtCola = document.getElementById('txt-cola-sync');
+            txtCola.innerText = "1 Venta Guardando...";
+            txtCola.style.color = "orange";
+
+            // Enviar a Firebase (1 Sola Escritura optimizada)
+            const res = await GeokatuDB.PosService.procesarVentaLote(ID_NEGOCIO, ticketPayload);
+
+            if (res.success) {
+                // 1. Limpiar Caja
+                carrito = [];
+                renderizarCarrito();
+                txtCola.innerText = "0 Pendientes";
+                txtCola.style.color = "var(--text-color)";
+                
+                // 2. Actualizar KPI Local
+                const kpiObj = document.getElementById('kpi-ventas');
+                const kpiActual = Number(kpiObj.innerText.replace(/\D/g, ''));
+                kpiObj.innerText = `$${(kpiActual + totalVenta).toLocaleString()}`;
+                
+                if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                alert(`✅ Venta Exitosa.\nTicket ID: ${res.ticketId.substring(0,8)}`);
+            } else {
+                console.error("Fallo pago:", res.error);
+                // Gracias a Firestore Offline, esto se guarda en cola y se envía luego
+                carrito = [];
+                renderizarCarrito();
+                txtCola.innerText = "1 Offline Pendiente Sync";
+                txtCola.style.color = "red";
+                alert("La venta se guardó localmente (Offline). Se sincronizará al recuperar internet.");
+            }
+            
+            forzarFocoEscaner();
+        };
+
+    </script>
+</body>
+</html>

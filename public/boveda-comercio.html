@@ -331,20 +331,78 @@
             <input type="hidden" id="perfilLng">
         </div>
 
+        <!-- 📦 PESTAÑA: POS E INVENTARIO -->
         <div id="content-inventario" class="tab-content" style="display: none;">
-            <div style="text-align:center; padding: 40px; color:#888;">
-                <h3>Catálogo Activo</h3>
-                <p>Tu bóveda está lista para operar.</p>
+            <details>
+                <summary>➕ Añadir Producto</summary>
+                <div style="padding: 0 12px 12px 12px;">
+                    <input type="hidden" id="prodEditId">
+                    <input type="hidden" id="prodImagenActual">
+                    
+                    <input type="text" id="prodNombre" class="input-form" placeholder="Nombre del artículo">
+                    <div style="display:flex; gap:10px;">
+                        <input type="number" step="any" id="prodPrecio" class="input-form" placeholder="Precio" style="flex:1;">
+                        <input type="text" id="prodCategoria" class="input-form" placeholder="Categoría" style="flex:1;">
+                    </div>
+                    
+                    <div class="file-upload-wrapper">
+                        <input type="file" id="prodImagenFile" class="file-upload-input" accept="image/*" onchange="window.actualizarNombreImagenUI(this, 'file-upload-text')">
+                        <div class="file-upload-ui" id="file-upload-text">📸 Subir foto del producto</div>
+                    </div>
+
+                    <button class="btn-submit" id="btn-submit-producto" onclick="window.guardarProducto()">GUARDAR EN CATÁLOGO</button>
+                    <button class="btn-submit" id="btn-cancelar-edicion" onclick="window.cancelarEdicion()" style="display: none; background: transparent; border: 1px solid var(--naranja); color: var(--naranja); box-shadow: none; margin-top: 10px;">Cancelar Edición</button>
+                </div>
+            </details>
+
+            <details id="acordeon-masivo" style="display: none;">
+                <summary>⚡ Carga Rápida (Masiva)</summary>
+                <div style="padding: 0 12px 12px 12px;">
+                    <p style="color: #888; font-size: 11px; margin-top: 0;">Añade productos de catálogos predefinidos rápidamente.</p>
+                    <div style="position: relative; margin-bottom: 15px;">
+                        <input type="text" id="buscador-json" class="input-form" placeholder="🔍 Ej: Aspirina, Cemento..." onkeyup="window.filtrarDiccionarioJSON()" style="margin-bottom: 0;">
+                        <div id="resultados-json" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; background: var(--bg-oscuro); border: 1px solid rgba(138, 43, 226, 0.5); border-radius: 0 0 12px 12px; max-height: 200px; overflow-y: auto; z-index: 100; box-shadow: 0 10px 20px rgba(0,0,0,0.8);"></div>
+                    </div>
+                    <div id="mi-inventario-masivo" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; max-height: 300px; overflow-y: auto;"></div>
+                    <button class="btn-submit" style="background: #8a2be2; color: white;" onclick="window.guardarInventarioMasivo()">GUARDAR PRECIOS EN LOTE</button>
+                </div>
+            </details>
+
+            <hr style="border-color: rgba(255,255,255,0.1); margin: 20px 0;">
+
+            <label class="section-title">📦 Catálogo Activo</label>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <input type="text" id="filtro-busqueda" class="input-form" placeholder="🔍 Buscar..." style="margin-bottom: 0; flex: 2;" onkeyup="window.manejarBusquedaTeclado(event)">
+                <select id="filtro-categoria" class="input-form" style="margin-bottom: 0; flex: 1;" onchange="window.filtrarCatalogo()">
+                    <option value="">Todas</option>
+                </select>
+            </div>
+            
+            <div id="lista-productos-container" class="grilla-productos"></div>
+            
+            <button id="btn-cargar-mas" class="btn-submit" style="display: none; background: transparent; border: 1px dashed var(--naranja); color: var(--naranja); box-shadow: none; margin-top: 15px;" onclick="window.cargarMasProductos()">⬇️ Cargar más</button>
+        </div>
+
+                <div id="content-operaciones" class="tab-content" style="display: none; padding: 20px;">
+            <h3 style="color: var(--naranja); margin-top: 0; margin-bottom: 15px; font-size: 16px;">Gestión de Cajeros (POS)</h3>
+            <p style="font-size: 12px; color: #888; margin-bottom: 20px;">Crea un acceso para que tu empleado opere la caja registradora. Este usuario solo tendrá acceso al POS.</p>
+            
+            <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 12px;">
+                <label class="section-title">Correo del Cajero</label>
+                <input type="email" id="cajero-nuevo-email" class="input-form" placeholder="caja1@mitienda.com">
+                
+                <label class="section-title">Contraseña (Mín. 6 caracteres)</label>
+                <input type="password" id="cajero-nuevo-pass" class="input-form" placeholder="******">
+                
+                <button id="btn-crear-cajero" class="btn-submit" onclick="window.registrarCajero()">➕ CREAR ACCESO CAJERO</button>
+            </div>
+            
+            <div id="lista-cajeros" style="margin-top: 20px;">
+                <h4 style="color: white; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">Cajeros Activos</h4>
+                <div id="cajeros-render" style="font-size: 12px; color: #aaa; margin-top: 10px;">Cargando...</div>
             </div>
         </div>
 
-        <div id="content-operaciones" class="tab-content" style="display: none;">
-            <div style="text-align:center; padding: 40px; color:#888;">
-                <h3>Operaciones</h3>
-                <p>Gestión de empleados y POS.</p>
-            </div>
-        </div>
-    </div>
 
     <!-- LÓGICA DE ARQUITECTURA -->
     <script type="module">
@@ -430,7 +488,201 @@
                 reader.onerror = () => resolve(file); reader.readAsDataURL(file);
             });
         };
+        // --- VARIABLES GLOBALES DEL CATÁLOGO ---
+        window.listaProductosGlobal = [];
+        window.ultimoDocCatalogo = null;
+        window.categoriaFiltroActual = "";
+        window.terminoBusquedaActual = "";
+        window.categoriasDisponibles = new Set();
+        window.DICCIONARIO_UNIVERSAL = [];
+        window.mapaPreciosLocal = {}; 
+        window.inventarioAgotadoLocal = [];
+        window.timeoutsTarjetas = {};
 
+        // --- SISTEMA POS E INVENTARIO ---
+        window.guardarProducto = async () => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            if (!window.idNegocioLogueado) return;
+            const nom = document.getElementById('prodNombre').value.trim();
+            const pre = document.getElementById('prodPrecio').value.trim();
+            const editId = document.getElementById('prodEditId').value;
+            if(!nom || !pre) return alert("El nombre y el precio son obligatorios.");
+            
+            const btn = document.getElementById('btn-submit-producto'); btn.innerText = "Guardando..."; btn.disabled = true;
+            try {
+                let urlImg = document.getElementById('prodImagenActual').value;
+                const f = document.getElementById('prodImagenFile').files[0];
+                if(f) { 
+                    const blobImg = await window.comprimirImagen(f, 800, 0.7, true);
+                    const { success: upSuccess, data: url, error: upError } = await GeokatuDB.AdminService.subirArchivo(`productos/${window.idNegocioLogueado}/${Date.now()}.webp`, blobImg);
+                    if(!upSuccess) throw new Error(upError); urlImg = url; 
+                }
+                
+                let monedaActual = datosTienda.moneda || 'COP';
+                let precioInput = parseFloat(pre);
+                let precioInt64 = monedaActual === 'USD' ? Math.round(precioInput * 100) : Math.round(precioInput);
+                
+                let pObj = { nombre: nom, precio: precioInt64, categoria: document.getElementById('prodCategoria').value || "General", imagen: urlImg };
+                if(!editId) { pObj.agotado = false; pObj.fecha_creacion = new Date().toISOString(); pObj.layout = 'layout-grid'; }
+                
+                const { success, error } = await GeokatuDB.AdminService.guardarProducto(window.idNegocioLogueado, editId, pObj);
+                if(!success) throw new Error(error);
+                if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
+                window.cancelarEdicion(); window.cargarMisProductos(); 
+            } catch(e){ alert("Error: " + e.message); } finally { btn.innerText = "GUARDAR EN CATÁLOGO"; btn.disabled = false; }
+        };
+
+        window.cancelarEdicion = () => { 
+            if (navigator.vibrate) navigator.vibrate(50);
+            document.getElementById('prodNombre').value=''; document.getElementById('prodPrecio').value=''; document.getElementById('prodCategoria').value=''; 
+            document.getElementById('prodEditId').value=''; 
+            document.getElementById('btn-submit-producto').innerText="GUARDAR EN CATÁLOGO"; document.getElementById('btn-cancelar-edicion').style.display="none"; 
+            document.getElementById('prodImagenFile').value=''; 
+            document.getElementById('file-upload-text').innerHTML = "📸 Subir foto del producto"; 
+        };
+
+        window.manejarBusquedaTeclado = (e) => { if(e.key === 'Enter') window.ejecutarBusqueda(); };
+        window.ejecutarBusqueda = () => { window.terminoBusquedaActual = document.getElementById('filtro-busqueda').value.trim().toLowerCase(); window.cargarMisProductos(true); };
+        window.filtrarCatalogo = () => { window.categoriaFiltroActual = document.getElementById('filtro-categoria').value.trim(); window.cargarMisProductos(true); };
+        window.cargarMasProductos = () => { window.cargarMisProductos(false); };
+
+        window.cargarMisProductos = async function(reiniciar = true) {
+            const cont = document.getElementById('lista-productos-container');
+            const btnMas = document.getElementById('btn-cargar-mas');
+            
+            if (reiniciar) { cont.innerHTML = "Cargando..."; window.ultimoDocCatalogo = null; window.listaProductosGlobal = []; } 
+            else { btnMas.innerText = "Cargando..."; btnMas.disabled = true; }
+            
+            try {
+                const filtros = { terminoBusqueda: window.terminoBusquedaActual, limite: 20, startAfterDoc: reiniciar ? null : window.ultimoDocCatalogo };
+                const { success, data, ultimoDoc, error } = await GeokatuDB.AdminService.obtenerProductos(window.idNegocioLogueado, filtros);
+                
+                if (reiniciar) cont.innerHTML = ""; 
+                if (!success || (data.length === 0 && reiniciar)) {
+                    cont.innerHTML = `<div style='grid-column: span 2; text-align:center; color:#888; padding: 40px 0;'><h3>Catálogo Vacío</h3><p>Añade productos para empezar.</p></div>`; 
+                    btnMas.style.display = 'none'; return;
+                }
+                
+                window.ultimoDocCatalogo = ultimoDoc;
+                if (data.length < 20) btnMas.style.display = 'none'; else { btnMas.style.display = 'block'; btnMas.innerText = "⬇️ Cargar más"; btnMas.disabled = false; }
+                
+                data.forEach(p => {
+                    if(!window.listaProductosGlobal.find(x => x.id_prod === p.id_prod)) window.listaProductosGlobal.push(p);
+                    if (p.categoria) window.categoriasDisponibles.add(p.categoria);
+                });
+
+                if (reiniciar) window.actualizarSelectCategorias();
+
+                let datosARenderizar = window.listaProductosGlobal;
+                if (window.categoriaFiltroActual) {
+                    datosARenderizar = window.listaProductosGlobal.filter(p => (p.categoria || '').toLowerCase() === window.categoriaFiltroActual.toLowerCase());
+                }
+                if (window.terminoBusquedaActual) {
+                    datosARenderizar = datosARenderizar.filter(p => p.nombre.toLowerCase().includes(window.terminoBusquedaActual));
+                }
+
+                cont.innerHTML = "";
+                if (datosARenderizar.length === 0) {
+                    cont.innerHTML = `<div style='grid-column: span 2; text-align:center; color:#888; padding: 20px 0;'>No hay resultados en esta categoría.</div>`;
+                }
+
+                datosARenderizar.forEach(p => {
+                    const lClass = p.layout || 'layout-grid';
+                    const card = document.createElement('div'); 
+                    card.className = `producto-card ${lClass} ${p.agotado ? 'agotado' : ''}`;
+                    card.id = `card-${p.id_prod}`;
+                    
+                    card.onclick = () => window.mostrarOpcionesProducto(`${p.id_prod}`);
+                    
+                    let arrayFotos = (p.galeria && p.galeria.length > 0) ? p.galeria : [p.imagen || 'https://via.placeholder.com/150/0a0a0c/ff6b00?text=FOTO'];
+                    let galeriaHTML = arrayFotos.map(img => `<img src="${img}">`).join('');
+
+                    card.innerHTML = `
+                        <div class="galeria-scroll" style="height: ${lClass === 'layout-hero' ? '220px' : '110px'}; width: 100%; border-radius: 8px;">${galeriaHTML}</div>
+                        <div class="prod-info-wrapper" style="margin-top: 10px; width: 100%; text-align: center;">
+                            <h4 class="prod-nombre">${p.nombre}</h4>
+                            <b class="prod-precio">$${p.precio}</b>
+                        </div>
+                        
+                        <div class="card-opciones-menu" id="opciones-${p.id_prod}">
+                            <button class="btn-accion" style="background:rgba(255,204,0,0.15); color:#ffcc00;" onclick="event.stopPropagation(); window.prepararEdicion('${p.id_prod}')">✏️ Editar</button>
+                            <button class="btn-accion" style="background:rgba(255,255,255,0.1); color:#aaa;" onclick="event.stopPropagation(); window.cambiarEstadoAgotado('${p.id_prod}', ${p.agotado})">⏸️ ${p.agotado ? 'Activar' : 'Agotar'}</button>
+                            <button class="btn-accion" style="background:rgba(255,68,68,0.15); color:#ff4444;" onclick="event.stopPropagation(); window.eliminarProducto('${p.id_prod}')">🗑️ Borrar</button>
+                        </div>
+                    `;
+                    cont.appendChild(card);
+                });
+            } catch (e) {
+                console.error(e); if(reiniciar) cont.innerHTML = "<p style='grid-column: span 2; color:#ff4444; text-align:center;'>Error cargando el catálogo.</p>";
+            }
+        };
+
+        window.actualizarSelectCategorias = function() {
+            const select = document.getElementById('filtro-categoria');
+            const valorActual = select.value;
+            select.innerHTML = ''; 
+            const defaultOpt = document.createElement('option'); defaultOpt.value = ''; defaultOpt.textContent = 'Todas'; select.appendChild(defaultOpt);
+            window.categoriasDisponibles.forEach(cat => {
+                const opt = document.createElement('option'); opt.value = cat; opt.textContent = cat; 
+                if (cat === valorActual) opt.selected = true; select.appendChild(opt);
+            });
+        };
+
+        window.mostrarOpcionesProducto = (id) => {
+            const card = document.getElementById(`card-${id}`);
+            if(card) {
+                card.classList.add('show-opciones');
+                if(window.timeoutsTarjetas[id]) clearTimeout(window.timeoutsTarjetas[id]);
+                window.timeoutsTarjetas[id] = setTimeout(() => { card.classList.remove('show-opciones'); }, 4000);
+            }
+        };
+
+        window.prepararEdicion = (id) => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            const p = window.listaProductosGlobal.find(x=>x.id_prod===id);
+            if(!p) return;
+            document.getElementById('prodNombre').value=p.nombre; document.getElementById('prodPrecio').value=p.precio; 
+            document.getElementById('prodCategoria').value=p.categoria || ''; document.getElementById('prodEditId').value=id; 
+            document.getElementById('prodImagenActual').value=p.imagen||'';
+            document.getElementById('file-upload-text').innerText = "📸 Subir Nueva Foto Principal";
+            
+            document.getElementById('btn-submit-producto').innerText="ACTUALIZAR DATOS"; 
+            document.getElementById('btn-cancelar-edicion').style.display="block"; 
+            window.scrollTo({top: 0, behavior: 'smooth'}); document.getElementById('prodNombre').focus();
+        };
+
+        window.cambiarEstadoAgotado = async (id, estActual) => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            const { success } = await GeokatuDB.AdminService.actualizarProducto(window.idNegocioLogueado, id, { agotado: !estActual });
+            if(success) window.cargarMisProductos(false);
+        };
+
+        window.eliminarProducto = async (id) => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            if(confirm("¿Borrar del catálogo definitivamente?")) { 
+                const { success } = await GeokatuDB.AdminService.eliminarProducto(window.idNegocioLogueado, id); 
+                if(success) window.cargarMisProductos(true); 
+            }
+        };
+
+        window.actualizarNombreImagenUI = (input, idTexto) => {
+            const textoUI = document.getElementById(idTexto);
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    textoUI.innerHTML = `<img src="${e.target.result}" style="max-height: 80px; max-width: 100%; border-radius: 8px; object-fit: contain;"><br><span style="font-size:11px; color:#00ff64;">✔️ Imagen Lista</span>`;
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        };
+
+        // Modificamos el evento de pestañas para que cargue el inventario al abrir
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                if(btn.innerText.includes('Catálogo')) window.cargarMisProductos();
+            });
+        });
         // --- BUSCADOR Y GPS (WIZARD & PERFIL) ---
         window.buscarDireccionWizard = async () => {
             const input = document.getElementById('wiz-direccion-inteligente');
@@ -920,63 +1172,168 @@
             if(window.pinMiniMapaPerfil) window.pinMiniMapaPerfil.setDraggable(window.modoEdicionActivo);
         };
 
-        window.abrirGemeloDigital = function() {
-            if(window.popupOnboarding) window.popupOnboarding.remove();
+// Variables de estado para la tarjeta inteligente
+        window.campoActivoPopup = null;
 
+        // 1. Inicia el modo de escritura dentro de la tarjeta
+        window.activarEdicionCampoPopup = function(campo) {
+            window.campoActivoPopup = campo;
+            window.abrirGemeloDigital(); // Re-renderiza la tarjeta
+            
+            // Auto-enfocar el cursor en el input
+            setTimeout(() => {
+                const input = document.getElementById('inline-input-' + campo);
+                if(input) {
+                    input.focus();
+                    const val = input.value; input.value = ''; input.value = val; // Pone el cursor al final
+                }
+            }, 50);
+        };
+
+        // 2. Guarda el dato y devuelve la tarjeta a su estado normal
+        window.guardarCampoInlinePopup = async function(campo) {
+            const input = document.getElementById('inline-input-' + campo);
+            if (!input) return;
+            
+            let valorFinal = input.value.trim();
+            if (!valorFinal) {
+                window.campoActivoPopup = null; window.abrirGemeloDigital(); return;
+            }
+
+            // Cambiar el botón de 💾 a ✔️ temporalmente
+            const btn = event.currentTarget;
+            if(btn) btn.innerText = "✔️";
+
+            // Guardar localmente
+            if (campo === 'whatsapp') datosTienda.whatsApp = valorFinal;
+            else datosTienda[campo] = valorFinal;
+
+            // Guardar en Firebase
+            let obj = {};
+            obj[campo === 'whatsapp' ? 'whatsApp' : campo] = valorFinal;
+            
+            try {
+                await window.GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, obj);
+            } catch(e) { console.error("Error guardando en línea:", e); }
+
+            // Quitar el modo escritura después de medio segundo
+            setTimeout(() => {
+                window.campoActivoPopup = null;
+                window.abrirGemeloDigital();
+            }, 400);
+        };
+
+        // 3. El renderizador principal de la Tarjeta Modal
+        window.abrirGemeloDigital = function() {
             const p = datosTienda.portada || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=600&q=80';
             const l = datosTienda.logo || 'https://via.placeholder.com/150/0a0a0c/ff6b00?text=LOGO';
             const n = datosTienda.nombre || 'TU MARCA AQUÍ';
             const w = datosTienda.whatsApp || 'Sin Número';
             const c = datosTienda.niche || 'Sin Sector';
-            const displayPencil = window.modoEdicionActivo ? 'inline-flex' : 'none';
+            
+            const editMode = window.modoEdicionActivo;
 
-            let burbujasHTML = '';
-            if (datosTienda.instagram) burbujasHTML += `<a href="${datosTienda.instagram}" target="_blank" class="gem-social ig">IG</a>`;
+            // Motor de Textos: Alterna entre el Input de escritura y el texto "Toca para editar"
+            const renderText = (valor, campo, claseCss) => {
+                if (editMode) {
+                    if (window.campoActivoPopup === campo) {
+                        let inputHtml = '';
+                        if (campo === 'niche') {
+                            inputHtml = `<select id="inline-input-${campo}" style="background:rgba(0,0,0,0.8); color:white; border:none; padding:6px; font-size:11px; width:100%; outline:none; border-radius:4px;">
+                                <option value="restaurante" ${valor==='restaurante'?'selected':''}>Restaurante</option>
+                                <option value="supermercado" ${valor==='supermercado'?'selected':''}>Supermercado</option>
+                                <option value="tecnologia" ${valor==='tecnologia'?'selected':''}>Tecnología</option>
+                                <option value="ropa" ${valor==='ropa'?'selected':''}>Ropa / Boutique</option>
+                                <option value="otro" ${valor==='otro'?'selected':''}>Otro</option>
+                            </select>`;
+                        } else if (campo === 'whatsapp') {
+                            inputHtml = `<input type="number" id="inline-input-${campo}" value="${valor === 'Sin Número' ? '' : valor}" style="background:rgba(0,0,0,0.8); color:#00ff64; border:none; padding:6px; font-size:12px; width:100%; outline:none; font-weight:bold; text-align:center; border-radius:4px;" placeholder="Ej: 3000000000">`;
+                        } else {
+                            inputHtml = `<input type="text" id="inline-input-${campo}" value="${valor === 'TU MARCA AQUÍ' ? '' : valor}" style="background:rgba(0,0,0,0.8); color:white; border:none; padding:6px; font-size:12px; width:100%; outline:none; font-weight:bold; text-align:center; border-radius:4px;" placeholder="Escribe el nombre">`;
+                        }
 
-                                        const htmlGemelo = `
-                <div style="position: relative;">
-                    <!-- Botón Master (Ahora con estilo claro) -->
-                    <button id="btn-master-gemelo" onclick="window.toggleEdicionGemelo()" style="position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.9); backdrop-filter: blur(5px); border: none; color: ${window.modoEdicionActivo ? '#ff6b00' : '#444'}; border-radius: 50%; width: 32px; height: 32px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 20; transition: 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.15); transform: ${window.modoEdicionActivo ? 'scale(1.1)' : 'scale(1)'};">✏️</button>
+                        return `<div style="background: rgba(255,107,0,0.1); border: 1px dashed var(--naranja); border-radius: 8px; padding: 4px; display: flex; align-items: center; justify-content: space-between;">
+                                    <div style="flex:1;">${inputHtml}</div>
+                                    <button onclick="window.guardarCampoInlinePopup('${campo}')" style="background:var(--naranja); color:black; border:none; border-radius:6px; cursor:pointer; font-size:14px; padding:6px; margin-left:5px; font-weight:bold; box-shadow: 0 2px 5px rgba(255,107,0,0.5);">💾</button>
+                                </div>`;
+                    } else {
+                        return `<div class="click-edit-area" onclick="window.activarEdicionCampoPopup('${campo}')" style="background: rgba(255,107,0,0.05); border: 1px dashed transparent; border-radius: 8px; padding: 2px; cursor: pointer; display: block;">
+                                    <span class="${claseCss}">${valor}</span><br>
+                                    <span style="color:var(--naranja); font-size:9px; text-transform:none;">(Toca para editar)</span>
+                                </div>`;
+                    }
+                }
+                return `<span class="${claseCss}">${valor}</span>`;
+            };
+
+            const renderImage = (src, isLogo) => {
+                if (editMode) {
+                    const accion = isLogo ? "document.getElementById('file-logo').click()" : "document.getElementById('file-portada').click()";
+                    const radioVal = isLogo ? "50%" : "15px 15px 0 0";
+                    const baseClass = isLogo ? "popup-logo" : "popup-portada";
                     
-                    <img src="${p}" class="popup-portada">
-                    <button class="lapiz-flotante lapiz-portada lapiz-gemelo-edit" style="display:${displayPencil}; position:absolute; top: 10px; right: 10px; z-index: 20; background: white; color: black; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.2);" onclick="document.getElementById('file-portada').click()">✏️</button>
+                    return `
+                        <div class="${baseClass} click-edit-area" onclick="${accion}" style="padding: 0; overflow: hidden; position: relative; display: block; border-radius: ${radioVal} !important; ${isLogo ? 'margin: 0 auto; margin-top: -22px;' : ''}">
+                            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.3); border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; color: white; font-size: 16px; z-index: 10; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">📸</div>
+                            <img src="${src}" style="width: 100%; height: 100%; object-fit: cover; border-radius: ${radioVal};">
+                        </div>
+                    `;
+                }
+                return `<img src="${src}" class="${isLogo ? 'popup-logo' : 'popup-portada'}">`;
+            };
+
+            const datosCompletos = (n && n !== 'Mi Nueva Tienda' && c && c !== 'Sin Sector' && w && w !== 'Sin Número' && datosTienda.portada && datosTienda.logo);
+            const claseBoton = datosCompletos ? 'btn-catalogo listo' : 'btn-catalogo';
+            const disableAttr = datosCompletos ? '' : 'disabled';
+            const textoBoton = datosCompletos ? 'GUARDAR Y VER' : 'FALTAN DATOS';
+
+            const htmlGemelo = `
+                <div style="position: relative;">
+                    <!-- Botón Maestro movido a la esquina DERECHA -->
+                    <button id="btn-master-gemelo" onclick="window.toggleEdicionGemelo(); window.abrirGemeloDigital();" style="position: absolute; top: 10px; right: 10px; background: ${editMode ? '#0a0a0c' : 'rgba(0,0,0,0.6)'}; color: ${editMode ? '#00ff64' : 'white'}; border: 1px solid ${editMode ? '#00ff64' : 'transparent'}; border-radius: 50%; width: 34px; height: 34px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 100; box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: 0.3s;">
+                        ${editMode ? '✔️' : '✏️'}
+                    </button>
+                    
+                    ${renderImage(p, false)}
                 </div>
                 
                 <div class="popup-info">
-                    <div style="position: relative; display: inline-block;">
-                        <img src="${l}" class="popup-logo">
-                        <button class="lapiz-flotante lapiz-logo lapiz-gemelo-edit" style="display:${displayPencil}; position:absolute; top: -10px; right: -15px; z-index: 20; background: white; color: black; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.2);" onclick="window.abrirModalEdicionPinBranding()">✏️</button>
+                    ${renderImage(l, true)}
+                    
+                    <div class="popup-title-wrapper" style="margin-top: 8px;">
+                        ${renderText(n, 'nombre', 'popup-title')}
                     </div>
                     
-                    <div class="popup-title-wrapper" style="position: relative;">
-                        <h3 class="popup-title">${n}</h3>
-                        <button class="lapiz-flotante lapiz-inline lapiz-gemelo-edit" style="display:${displayPencil}; position:absolute; top: -5px; right: -25px; background: white; color: black; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.2);" onclick="window.editarCampoInline('nombre')">✏️</button>
+                    <div style="margin-top: 5px;">
+                        ${renderText(c, 'niche', 'texto-piedra')}
                     </div>
                     
-                    <div style="position: relative;">
-                        <p class="texto-piedra" style="margin-top: 5px;">${c}</p>
-                        <button class="lapiz-flotante lapiz-inline lapiz-gemelo-edit" style="display:${displayPencil}; position:absolute; top: -5px; right: -25px; background: white; color: black; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.2);" onclick="window.editarCampoInline('niche')">✏️</button>
+                    <div style="color:#00ff64; font-size: 11px; font-weight: bold; margin-top: 8px;">
+                        ${editMode ? renderText(w, 'whatsapp', '') : '📞 ' + w}
                     </div>
                     
-                    <div style="color:#20b25d; font-size: 11px; font-weight: 900; margin-top: 8px; position: relative;">
-                        📞 ${w}
-                        <button class="lapiz-flotante lapiz-inline lapiz-gemelo-edit" style="display:${displayPencil}; position:absolute; top: -5px; right: -25px; background: white; color: black; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.2);" onclick="window.editarCampoInline('whatsapp')">✏️</button>
-                    </div>
-                    
-                    <button class="btn-catalogo" onclick="window.open('negocio.html?id=' + window.idNegocioLogueado, '_blank')">GUARDAR Y VER</button>
+                    <button class="${claseBoton}" ${disableAttr} onclick="window.open('negocio.html?id=' + window.idNegocioLogueado, '_blank')">${textoBoton}</button>
                 </div>
             `;
 
-
-
-
-                        const mapaActivo = document.getElementById('fase-mapa-sandbox').style.display === 'flex' ? window.mapaOnboarding : window.miniMapaPerfil;
+            const mapaActivo = document.getElementById('fase-mapa-sandbox').style.display === 'flex' ? window.mapaOnboarding : window.miniMapaPerfil;
             const markerActivo = document.getElementById('fase-mapa-sandbox').style.display === 'flex' ? window.markerOnboarding : window.pinMiniMapaPerfil;
 
-            window.popupOnboarding = new maplibregl.Popup({ offset: 25, closeOnClick: true, maxWidth: 'none' })
-                .setHTML(htmlGemelo).setLngLat(markerActivo.getLngLat()).addTo(mapaActivo);
+            // Actualización inteligente: Evita que el modal se cierre al escribir
+            if (window.popupOnboarding && window.popupOnboarding.isOpen()) {
+                window.popupOnboarding.setHTML(htmlGemelo);
+            } else {
+                window.popupOnboarding = new maplibregl.Popup({ 
+                    offset: [0, -20], 
+                    closeOnClick: true, 
+                    maxWidth: 'none',
+                    className: 'popup-boveda-estricto'
+                }).setHTML(htmlGemelo).setLngLat(markerActivo.getLngLat()).addTo(mapaActivo);
+                
+                // Reiniciar estado si el usuario cierra la tarjeta con la (X) o tocando fuera
+                window.popupOnboarding.on('close', () => { window.campoActivoPopup = null; });
+            }
         };
-
         window.subirImagenDirecta = async function(tipo, input) {
             if(!input.files[0]) return;
             const isSquare = tipo === 'logo';
@@ -1302,6 +1659,82 @@
                 }
             } else { window.location.href = 'index.html'; }
         });
+        // --- GESTIÓN DE CAJEROS ---
+        window.registrarCajero = async function() {
+            const email = document.getElementById('cajero-nuevo-email').value.trim();
+            const pass = document.getElementById('cajero-nuevo-pass').value;
+            const btn = document.getElementById('btn-crear-cajero');
+
+            if(!email || pass.length < 6) return alert("Ingresa un correo válido y una clave de al menos 6 caracteres.");
+
+            btn.innerText = "CREANDO..."; btn.disabled = true;
+
+            try {
+                // Guardamos el cajero en la subcolección del negocio.
+                // (Nota: Crear una cuenta Firebase Auth directamente desde aquí desloguearía al dueño. 
+                // En producción, aquí invocarás una Cloud Function que cree la cuenta en Auth silenciosamente).
+                const { getFirestore, doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+                const db = getFirestore();
+                
+                // ID seguro derivado del correo
+                const idCajero = email.replace(/[^a-zA-Z0-9]/g, '_'); 
+                const cajeroRef = doc(db, `Directorio/${window.idNegocioLogueado}/Equipo_Cajeros`, idCajero);
+                
+                await setDoc(cajeroRef, {
+                    email: email,
+                    rol: 'cajero',
+                    id_negocio_padre: window.idNegocioLogueado, // La clave de seguridad del POS
+                    fecha_creacion: new Date().toISOString()
+                });
+
+                btn.style.background = "#00ff64"; btn.style.color = "black"; btn.innerText = "CAJERO CREADO ✔️";
+                document.getElementById('cajero-nuevo-email').value = '';
+                document.getElementById('cajero-nuevo-pass').value = '';
+                
+                setTimeout(() => {
+                    btn.style.background = "linear-gradient(135deg, #ff8c00 0%, var(--naranja) 100%)";
+                    btn.style.color = "white"; btn.innerText = "➕ CREAR ACCESO CAJERO";
+                    btn.disabled = false;
+                    window.cargarListaCajeros(); // Refrescar lista de UI
+                }, 1500);
+
+            } catch (error) {
+                alert("Error al crear cajero: " + error.message);
+                btn.innerText = "➕ CREAR ACCESO CAJERO"; btn.disabled = false;
+            }
+        };
+
+        window.cargarListaCajeros = async function() {
+            if(!window.idNegocioLogueado) return;
+            try {
+                const { getFirestore, collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+                const db = getFirestore();
+                const snap = await getDocs(collection(db, `Directorio/${window.idNegocioLogueado}/Equipo_Cajeros`));
+                
+                const render = document.getElementById('cajeros-render');
+                if(snap.empty) {
+                    render.innerHTML = "No tienes cajeros registrados.";
+                    return;
+                }
+                
+                let html = '';
+                snap.forEach(doc => {
+                    const data = doc.data();
+                    html += `<div style="background:rgba(0,0,0,0.4); padding:10px; border-radius:8px; margin-bottom:5px; border:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between;">
+                        <span style="color:white;">👤 ${data.email}</span>
+                        <span style="color:#00ff64; font-weight:bold;">Activo</span>
+                    </div>`;
+                });
+                render.innerHTML = html;
+
+            } catch(e) { console.error("Error cargando cajeros", e); }
+        };
+
+        // Escuchador táctil: Cuando el dueño toca la pestaña, cargamos su lista
+const btnOperaciones = document.querySelector(`button[onclick="window.cambiarTab('operaciones')"]`);
+        if(btnOperaciones) {
+            btnOperaciones.addEventListener('click', () => { window.cargarListaCajeros(); });
+        }
 
     </script>
       

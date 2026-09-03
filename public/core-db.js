@@ -800,6 +800,74 @@ const GeokatuDB = {
             onAuthStateChanged(auth, callback);
         }
     },
+    /**
+     * @namespace PosService
+     * Motor de Caja Registradora, facturación offline y puente hacia SIIGO/DIAN
+     */
+    PosService: {
+        descargarCatalogoLocal: async (idNegocio) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+            try {
+                // Descarga masiva de un solo golpe (consume lecturas 1 sola vez al iniciar turno)
+                const productosRef = collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`);
+                const q = query(productosRef, where("eliminado", "==", false));
+                const snap = await getDocs(q);
+                
+                const catalogoLocal = [];
+                snap.forEach(doc => {
+                    catalogoLocal.push({ id_prod: doc.id, ...doc.data() });
+                });
+                
+                // Guardar en el almacenamiento del navegador para que el escáner funcione sin internet
+                localStorage.setItem(`geokatu_catalogo_${idNegocio}`, JSON.stringify(catalogoLocal));
+                
+                return { success: true, cantidad: catalogoLocal.length, data: catalogoLocal };
+            } catch (e) { 
+                return { success: false, error: "Error descargando el catálogo para la caché", details: e.message }; 
+            }
+        },
+
+        procesarVentaLote: async (idNegocio, ticketData) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+            try {
+                // Generamos una referencia única para el ticket
+                const ticketRef = doc(collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Ventas_POS`));
+                
+                // Estructura estandarizada exigida para el puente con SIIGO y la DIAN
+                const payloadFinal = {
+                    ...ticketData,
+                    estado_sincronizacion: "pendiente", // Cloud Functions escuchará este estado
+                    timestamp_caja: new Date().toISOString(),
+                    origen: "PWA_POS"
+                };
+
+                // 1 Sola escritura (Write) en Firebase sin importar cuántos productos tenga el carrito
+                await setDoc(ticketRef, payloadFinal);
+                
+                return { success: true, ticketId: ticketRef.id };
+            } catch (e) { 
+                return { success: false, error: "Fallo al registrar la venta", details: e.message }; 
+            }
+        },
+        
+        cargarCatalogoDesdeCache: (idNegocio) => {
+            // El buscador predictivo y el escáner leerán desde aquí a velocidad de la memoria RAM
+            const data = localStorage.getItem(`geokatu_catalogo_${idNegocio}`);
+            return data ? JSON.parse(data) : [];
+        },
+
+        escucharSemaforoCatalogo: (idNegocio, callback) => {
+            // Escucha UN SOLO documento, no la colección de productos
+            const docRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Meta/Catalogo`);
+            
+            return onSnapshot(docRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    // Solo devuelve la fecha/hora de la última modificación
+                    callback(docSnap.data().ultima_actualizacion);
+                }
+            });
+        }
+    },
 
     /**
      * @namespace LogisticaService
