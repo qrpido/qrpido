@@ -1,5 +1,13 @@
 // auth-mando.js - Módulo de Autenticación Centralizada (Cero Magic Links)
+import { getAuth, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import GeokatuDB from './core-db.js';
+
+// PERSISTENCIA DE SESIÓN EXPLÍCITA (Evita cierres de sesión involuntarios al navegar atrás o recargar)
+const auth = getAuth();
+setPersistence(auth, browserLocalPersistence)
+    .catch((error) => {
+        console.error("Error fijando persistencia de auth:", error);
+    });
 
 window.toggleVerPassword = function(inputId, btn) {
     const el = document.getElementById(inputId);
@@ -163,8 +171,6 @@ window.iniciarSesion = async () => {
     }
 };
 
-
-
 window.cerrarSesion = async () => {
     await GeokatuDB.SecurityService.cerrarSesion();
     localStorage.removeItem('qrpido_session_validated'); // 🗑️ Destruimos la llave por seguridad
@@ -261,7 +267,6 @@ window.loginGoogleRadar = async () => {
     }
 };
 
-
 window.loginTradicionalRadar = async () => {
     const email = document.getElementById('radar-email').value.trim();
     const pass = document.getElementById('radar-pass').value;
@@ -338,6 +343,7 @@ GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
         if (btnConductorTrans) btnConductorTrans.style.display = 'none';
     }
 });
+
 // ==========================================
 // ENRUTADOR INTELIGENTE (El Semáforo de Bóvedas)
 // ==========================================
@@ -374,16 +380,12 @@ window.irAMiOficinaInteligente = async () => {
             }
         } else {
             // ES UN FANTASMA: Acaba de registrarse con Google y no tiene perfil.
-            // Disparamos el Carrusel Áureo de Onboarding aquí mismo.
-            
-            // Si el menú de la llave está abierto, tratamos de cerrarlo visualmente (ajusta la clase según tu CSS)
-            const menuLlave = document.getElementById('menu-llave'); // Cambia el ID si es distinto
+            const menuLlave = document.getElementById('menu-llave');
             if (menuLlave) menuLlave.style.display = 'none';
 
             if (typeof window.dispararOnboardingPerfiles === 'function') {
                 window.dispararOnboardingPerfiles();
             } else {
-                // Red de seguridad extrema
                 window.location.href = 'acceso.html?onboarding=true';
             }
         }
