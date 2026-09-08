@@ -394,11 +394,37 @@
                 </div>
             </div>
         </div>
-    <!-- LÓGICA DE ARQUITECTURA -->
-<script type="module">
+        <!-- LÓGICA DE ARQUITECTURA -->
+    <script>
+        // Puente síncrono inmediato para que los clicks no fallen mientras carga el módulo
+        window.abrirSelectorColor = function(slot) {
+            window.slotColorActual = slot;
+            const modalColor = document.getElementById('modal-color-espectro');
+            const inputHex = document.getElementById('input-hex-manual');
+            const slider = document.getElementById('slider-brillo');
+            
+            const inputSlot = document.getElementById('wizColorHex' + slot);
+            const colorActual = inputSlot ? inputSlot.value : '#ff6b00';
+            if (inputHex) inputHex.value = (colorActual || '#ff6b00').replace('#', '');
+            
+            if (modalColor) {
+                modalColor.style.setProperty('display', 'flex', 'important');
+                modalColor.classList.add('activo');
+            }
+        };
+
+        window.cerrarModalColorManual = function() {
+            const modalColor = document.getElementById('modal-color-espectro');
+            if (modalColor) {
+                modalColor.classList.remove('activo');
+                modalColor.style.setProperty('display', 'none', 'important');
+            }
+        };
+    </script>
+    <script type="module">
         import * as geofire from 'https://cdn.jsdelivr.net/npm/geofire-common@5.2.0/+esm';
         import GeokatuDB from './core-db.js';
-        
+
         window.GeokatuDB = GeokatuDB;
         window.generarGeohash = function(lat, lng) { return geofire.geohashForLocation([lat, lng]); };
 
@@ -1222,8 +1248,8 @@
                 window.abrirGemeloDigital();
             }
         };
-
-        // ==========================================
+        
+                // ==========================================
         // 2. GUARDADO INDIVIDUAL DE TARJETA (LÁPIZ ➡️ 💾)
         // ==========================================
         window.toggleGuardarTarjetaPopup = async function(btnElement) {
@@ -1260,6 +1286,29 @@
             }
         };
 
+        // Guarda los datos ingresados en el Onboarding y avanza
+        window.guardarPaso2YContinuar = async function() {
+            const inputNom = document.getElementById('edit-master-nombre');
+            const selectSec = document.getElementById('edit-master-niche');
+            const inputTel = document.getElementById('edit-master-whatsapp');
+
+            const payload = {};
+            if (inputNom && inputNom.value.trim()) payload.nombre = inputNom.value.trim();
+            if (selectSec) payload.niche = selectSec.value;
+            if (inputTel && inputTel.value.trim()) payload.whatsApp = inputTel.value.trim();
+
+            Object.assign(datosTienda, payload);
+
+            try {
+                await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, payload);
+                if (navigator.vibrate) navigator.vibrate(50);
+            } catch(e) {
+                console.error("Error guardando datos de onboarding:", e);
+            }
+
+            window.continuarDesdePopup();
+        };
+
         // ==========================================
         // 3. TARJETA MODAL (POPUP) ADAPTADA Y LIMPIA
         // ==========================================
@@ -1270,9 +1319,11 @@
             const w = datosTienda.whatsApp || '';
             const c = (datosTienda.niche || 'otro').toUpperCase();
             
-            const editGlobal = window.modoEdicionActivo;
+            const faseSandbox = document.getElementById('fase-mapa-sandbox');
+            const enOnboarding = Boolean(faseSandbox && faseSandbox.style.display === 'flex');
+            const editGlobal = enOnboarding || window.modoEdicionActivo;
             const cardBtn = document.getElementById('lapiz-tarjeta-popup');
-            const cardEditing = cardBtn ? cardBtn.getAttribute('data-editing') === 'true' : false;
+            const cardEditing = enOnboarding || (cardBtn ? cardBtn.getAttribute('data-editing') === 'true' : false);
 
             const renderImage = (src, isLogo) => {
                 const accion = isLogo ? "document.getElementById('file-logo').click()" : "document.getElementById('file-portada').click()";
@@ -1319,9 +1370,13 @@
                 `;
             }
 
+            const textoBotonPopup = enOnboarding ? 'GUARDAR Y CONTINUAR ➡️' : 'CATÁLOGO';
+            const accionBotonPopup = enOnboarding ? 'window.guardarPaso2YContinuar()' : "window.cambiarTab('inventario')";
+            const ocultarLapizEnOnboarding = enOnboarding ? 'style="display: none !important;"' : '';
+
             const htmlGemelo = `
                 <div style="position: relative;">
-                    <button id="lapiz-tarjeta-popup" class="lapiz-transparente-contextual ${editGlobal ? 'visible' : ''}" onclick="window.toggleGuardarTarjetaPopup(this)" title="Editar tarjeta">
+                    <button id="lapiz-tarjeta-popup" ${ocultarLapizEnOnboarding} class="lapiz-transparente-contextual ${editGlobal ? 'visible' : ''}" onclick="window.toggleGuardarTarjetaPopup(this)" title="Editar tarjeta">
                         ${cardEditing ? '💾' : '✏️'}
                     </button>
                     ${renderImage(p, false)}
@@ -1329,11 +1384,10 @@
                 <div class="popup-info">
                     ${renderImage(l, true)}
                     ${cuerpoDatos}
-                    <button class="btn-catalogo listo" onclick="window.cambiarTab('inventario')">CATÁLOGO</button>
+                    <button class="btn-catalogo listo" onclick="${accionBotonPopup}">${textoBotonPopup}</button>
                 </div>
             `;
 
-            const enOnboarding = document.getElementById('fase-mapa-sandbox').style.display === 'flex';
             const mapaActivo = enOnboarding ? window.mapaOnboarding : window.miniMapaPerfil;
             const markerActivo = enOnboarding ? window.markerOnboarding : window.pinMiniMapaPerfil;
 
@@ -1530,7 +1584,8 @@
             const inputHex = document.getElementById('input-hex-manual');
             const slider = document.getElementById('slider-brillo');
             
-            const colorActual = document.getElementById(`wizColorHex${slot}`) ? document.getElementById(`wizColorHex${slot}`).value : '#ff6b00';
+            const inputSlot = document.getElementById(`wizColorHex${slot}`);
+            const colorActual = inputSlot ? inputSlot.value : '#ff6b00';
             if (inputHex) inputHex.value = (colorActual || '#ff6b00').replace('#', '');
             
             try {
@@ -1547,7 +1602,7 @@
             }
             
             if (modalColor) {
-                modalColor.style.display = 'flex';
+                modalColor.style.setProperty('display', 'flex', 'important');
                 modalColor.classList.add('activo');
             }
         };
@@ -1665,10 +1720,12 @@
                 t2.classList.add('activo');
                 window.posicionarTooltipCine('tour-target-branding', 'tour-tooltip-2');
 
-            } else if (pasoObj === 4) {
+                        } else if (pasoObj === 4) {
                 let elementoPin = null;
                 if (window.markerOnboarding) {
-                    elementoPin = window.markerOnboarding.getElement().querySelector('.pin-wrapper');
+                    const elMarker = window.markerOnboarding.getElement();
+                    elMarker.style.zIndex = "99999";
+                    elementoPin = elMarker.querySelector('.pin-wrapper') || elMarker;
                 }
 
                 if (elementoPin) {
@@ -1676,13 +1733,9 @@
                     const t4 = document.getElementById('tour-tooltip-4');
                     t4.classList.add('activo');
                     window.posicionarTooltipCine(elementoPin, 'tour-tooltip-4');
-                } else {
-                    document.getElementById('tour-target-mapa').classList.add('tour-highlight-boveda');
-                    const t4 = document.getElementById('tour-tooltip-4');
-                    t4.classList.add('activo');
-                    window.posicionarTooltipCine('tour-target-mapa', 'tour-tooltip-4');
                 }
             }
+
         };
 
         window.tourCerrar = function(faseTerminada) {
