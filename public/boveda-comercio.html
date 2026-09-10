@@ -394,9 +394,28 @@
                 </div>
             </div>
         </div>
-        <!-- LÓGICA DE ARQUITECTURA -->
+    <!-- LÓGICA DE ARQUITECTURA -->
     <script>
-        // Puente síncrono inmediato para que los clicks no fallen mientras carga el módulo
+        // Funciones síncronas de color disponibles desde el milisegundo cero
+        window.estadoColorCustom = { h: 0, s: 100, l: 50, l_base: 50 };
+
+        window.hslToHex = function(h, s, l) {
+            l /= 100; const a = s * Math.min(l, 1 - l) / 100;
+            const f = n => { const k = (n + h / 30) % 12; return Math.round(255 * (l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1))).toString(16).padStart(2, '0'); };
+            return `#${f(0)}${f(8)}${f(4)}`.toUpperCase();
+        };
+
+        window.hexToHSL = function(hex) {
+            let r = parseInt(hex.slice(1,3), 16)/255, g = parseInt(hex.slice(3,5), 16)/255, b = parseInt(hex.slice(5,7), 16)/255;
+            let max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h, s, l = (max + min) / 2;
+            if (max === min) { h = s = 0; } else {
+                let d = max - min; s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                switch (max) { case r: h = (g - b)/d + (g<b?6:0); break; case g: h = (b - r)/d + 2; break; case b: h = (r - g)/d + 4; break; } h /= 6;
+            }
+            return { h: Math.round(h*360), s: Math.round(s*100), l: Math.round(l*100) };
+        };
+
         window.abrirSelectorColor = function(slot) {
             window.slotColorActual = slot;
             const modalColor = document.getElementById('modal-color-espectro');
@@ -407,8 +426,22 @@
             const colorActual = inputSlot ? inputSlot.value : '#ff6b00';
             if (inputHex) inputHex.value = (colorActual || '#ff6b00').replace('#', '');
             
+            try {
+                const hsl = window.hexToHSL(colorActual || '#ff6b00');
+                window.estadoColorCustom.h = hsl.h;
+                window.estadoColorCustom.l_base = Math.max(50, hsl.l);
+                if (slider) {
+                    slider.value = 100;
+                    const pureHex = window.hslToHex(hsl.h, 100, window.estadoColorCustom.l_base);
+                    slider.style.background = `linear-gradient(to right, black, ${pureHex})`;
+                }
+            } catch (e) {
+                console.warn("Fallo cálculo HSL:", e);
+            }
+
             if (modalColor) {
                 modalColor.style.setProperty('display', 'flex', 'important');
+                modalColor.style.setProperty('z-index', '300000', 'important');
                 modalColor.classList.add('activo');
             }
         };
@@ -421,6 +454,7 @@
             }
         };
     </script>
+
     <script type="module">
         import * as geofire from 'https://cdn.jsdelivr.net/npm/geofire-common@5.2.0/+esm';
         import GeokatuDB from './core-db.js';
@@ -1576,35 +1610,6 @@
                 switch (max) { case r: h = (g - b)/d + (g<b?6:0); break; case g: h = (b - r)/d + 2; break; case b: h = (r - g)/d + 4; break; } h /= 6;
             }
             return { h: Math.round(h*360), s: Math.round(s*100), l: Math.round(l*100) };
-        };
-
-        window.abrirSelectorColor = function(slot) {
-            window.slotColorActual = slot;
-            const modalColor = document.getElementById('modal-color-espectro');
-            const inputHex = document.getElementById('input-hex-manual');
-            const slider = document.getElementById('slider-brillo');
-            
-            const inputSlot = document.getElementById(`wizColorHex${slot}`);
-            const colorActual = inputSlot ? inputSlot.value : '#ff6b00';
-            if (inputHex) inputHex.value = (colorActual || '#ff6b00').replace('#', '');
-            
-            try {
-                const hsl = window.hexToHSL(colorActual || '#ff6b00');
-                window.estadoColorCustom.h = hsl.h;
-                window.estadoColorCustom.l_base = Math.max(50, hsl.l);
-                if (slider) {
-                    slider.value = 100;
-                    const pureHex = window.hslToHex(hsl.h, 100, window.estadoColorCustom.l_base);
-                    slider.style.background = `linear-gradient(to right, black, ${pureHex})`;
-                }
-            } catch (e) {
-                console.warn("Fallo cálculo HSL, usando default", e);
-            }
-            
-            if (modalColor) {
-                modalColor.style.setProperty('display', 'flex', 'important');
-                modalColor.classList.add('activo');
-            }
         };
 
         window.confirmarColorSeleccionado = function() {
