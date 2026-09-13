@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Comprobante de Pago Digital | GEOKATU</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <style>
+        :root {
+            --bg-oscuro: #0a0a0c;
+            --tarjeta-bg: #141418;
+            --color-marca: #ff6b00;
+            --accent-green: #00ff64;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --border-soft: rgba(255, 255, 255, 0.08);
+        }
+        body {
+            margin: 0;
+            padding: 16px;
+            background: var(--bg-oscuro);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        .container-factura {
+            width: 100%;
+            max-width: 420px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .tarjeta-ticket {
+            background: var(--tarjeta-bg);
+            border: 1px solid var(--border-soft);
+            border-radius: 18px;
+            padding: 24px 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+            position: relative;
+        }
+        .timer-badge {
+            background: rgba(255, 170, 0, 0.12);
+            color: #ffaa00;
+            border: 1px solid rgba(255, 170, 0, 0.3);
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: 11px;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 12px;
+        }
+        .tabla-items {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            margin: 14px 0;
+        }
+        .tabla-items td {
+            padding: 6px 0;
+            border-bottom: 1px dashed var(--border-soft);
+        }
+        .btn-descargar {
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 12px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: 100%;
+        }
+        .btn-cta-mapa {
+            background: linear-gradient(135deg, rgba(255,107,0,0.2) 0%, rgba(255,107,0,0.05) 100%);
+            border: 1px solid var(--color-marca);
+            color: #fff;
+            border-radius: 14px;
+            padding: 16px;
+            text-align: center;
+            text-decoration: none;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            align-items: center;
+        }
+        .btn-cta-mapa strong {
+            color: var(--color-marca);
+            font-size: 14px;
+        }
+    </style>
+    <!-- Script ligero para exportación en imagen sin dependencias pesadas -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+</head>
+<body>
+    <div class="container-factura">
+        <div style="text-align: center;">
+            <div id="badge-timer" class="timer-badge">
+                <span class="material-symbols-outlined" style="font-size: 14px;">timer</span>
+                <span>Enlace válido por: <strong id="txt-tiempo-restante">60:00</strong></span>
+            </div>
+        </div>
+
+        <!-- TARJETA DEL TICKET DIGITAL -->
+        <div id="tarjeta-captura" class="tarjeta-ticket">
+            <div style="text-align: center; border-bottom: 1px solid var(--border-soft); padding-bottom: 14px; margin-bottom: 12px;">
+                <span class="material-symbols-outlined" style="color: var(--accent-green); font-size: 36px;">verified</span>
+                <h2 id="com-nombre" style="margin: 4px 0; font-size: 17px; text-transform: uppercase;">GEOKATU COMERCIO</h2>
+                <p id="com-nit" style="margin: 2px 0; font-size: 11px; color: var(--text-muted);">NIT: 000000000-0</p>
+                <p id="com-dir" style="margin: 2px 0; font-size: 10px; color: #777;">Pereira, Risaralda</p>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); font-family: monospace;">
+                <span>TICKET: <strong id="tkt-id" style="color: #fff;">---</strong></span>
+                <span id="tkt-fecha">00/00/00 00:00</span>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); font-family: monospace; margin-top: 4px;">
+                <span>CLIENTE: <strong id="tkt-cliente" style="color: #fff;">Consumidor Final</strong></span>
+                <span>PAGO: <strong id="tkt-metodo" style="color: var(--accent-green);">EFECTIVO</strong></span>
+            </div>
+
+            <table class="tabla-items">
+                <thead>
+                    <tr style="color: var(--text-muted); font-size: 10px; text-align: left;">
+                        <th>ARTÍCULO</th>
+                        <th style="text-align: right;">TOTAL</th>
+                    </tr>
+                </thead>
+                <tbody id="tkt-items-body"></tbody>
+            </table>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-soft);">
+                <span style="font-size: 13px; font-weight: bold;">TOTAL PAGADO:</span>
+                <strong id="tkt-total" style="font-size: 20px; font-family: monospace; color: var(--accent-green);">$0</strong>
+            </div>
+
+            <div id="bloque-cufe" style="display: none; margin-top: 12px; font-size: 8px; font-family: monospace; word-break: break-all; color: #777; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 8px;">
+                <strong>CUFE DIAN:</strong> <span id="txt-cufe-val">---</span>
+            </div>
+
+            <div style="text-align: center; margin-top: 14px; font-size: 9px; color: #555;">
+                <p style="margin: 0;">🌱 Documento digital ecológico sin uso de papel.</p>
+                <p style="margin: 2px 0;">Tecnología Geokatu B2B</p>
+            </div>
+        </div>
+
+        <button id="btn-guardar-img" class="btn-descargar">
+            <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
+            Descargar Factura en Imagen (PNG)
+        </button>
+
+        <!-- CANAL DE ADQUISICIÓN HACIA EL MAPA GEOKATU -->
+        <a href="index.html" class="btn-cta-mapa">
+            <strong>📍 Explora Comercios Cercanos en GEOKATU</strong>
+            <span style="font-size: 11px; color: var(--text-muted);">Descubre tiendas, restaurantes y promociones en el mapa interactivo</span>
+        </a>
+    </div>
+
+    <script type="module">
+        import { db } from './firebase-config.js';
+        import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+        const params = new URLSearchParams(window.location.search);
+        const idNegocio = params.get('com');
+        const ticketId = params.get('tkt');
+        const exp = parseInt(params.get('exp'), 10);
+        const sig = params.get('sig');
+
+        // 1. Verificación de firma y caducidad de 60 minutos
+        async function validarFirma(tkt, comercio, expira, firma) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(`${tkt}:${comercio}:${expira}:GEOKATU_PUBLIC_TKT_SALT`);
+            const buffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(buffer));
+            const calculada = hashArray.map(b => b.toString(16).padStart(2, '0')).slice(0, 16).join('');
+            return calculada === firma;
+        }
+
+        async function inicializarVisor() {
+            if (!idNegocio || !ticketId || !exp || !sig) {
+                document.body.innerHTML = `<h3 style="color:#ff4444; text-align:center; margin-top:40px;">Enlace de comprobante incompleto o corrupto.</h3>`;
+                return;
+            }
+
+            const firmaValida = await validarFirma(ticketId, idNegocio, exp, sig);
+            if (!firmaValida) {
+                document.body.innerHTML = `<h3 style="color:#ff4444; text-align:center; margin-top:40px;">Firma de seguridad inválida.</h3>`;
+                return;
+            }
+
+            const ahora = Date.now();
+            if (ahora > exp) {
+                document.body.innerHTML = `
+                    <div style="text-align:center; padding: 40px 20px;">
+                        <span class="material-symbols-outlined" style="font-size: 48px; color: #ffaa00;">timer_off</span>
+                        <h3 style="color:#ffaa00;">Este enlace de factura temporal ha expirado (Límite 60 min).</h3>
+                        <p style="color:#888; font-size:12px;">Por seguridad y privacidad de datos, los comprobantes públicos temporales caducan al cumplirse una hora.</p>
+                        <a href="index.html" style="color:var(--color-marca); font-weight:bold; font-size:13px;">Ir al Mapa GEOKATU</a>
+                    </div>`;
+                return;
+            }
+
+            // Iniciar cuenta regresiva en pantalla
+            iniciarContador(exp);
+
+            // Cargar datos de la venta desde Firestore
+            try {
+                const snap = await getDoc(doc(db, `Directorio/${idNegocio}/Ventas_POS`, ticketId));
+                if (!snap.exists()) {
+                    document.body.innerHTML = `<h3 style="color:#ff4444; text-align:center; margin-top:40px;">Comprobante no encontrado en el sistema.</h3>`;
+                    return;
+                }
+                renderizarDatosTicket(snap.data());
+            } catch (e) {
+                document.body.innerHTML = `<h3 style="color:#ff4444; text-align:center; margin-top:40px;">Error de red cargando el comprobante.</h3>`;
+            }
+        }
+
+        function renderizarDatosTicket(venta) {
+            document.getElementById('tkt-id').innerText = ticketId.substring(0, 10);
+            document.getElementById('tkt-fecha').innerText = new Date(venta.timestamp_caja || Date.now()).toLocaleDateString('es-CO');
+            document.getElementById('tkt-cliente').innerText = venta.cliente?.nombre || "Consumidor Final";
+            document.getElementById('tkt-metodo').innerText = venta.metodo_pago || "EFECTIVO";
+            document.getElementById('tkt-total').innerText = `$${Number(venta.total).toLocaleString('es-CO')}`;
+
+            const tbody = document.getElementById('tkt-items-body');
+            tbody.innerHTML = '';
+            (venta.productos || []).forEach(p => {
+                const sub = Math.round(Number(p.precio) * Number(p.cantidad));
+                const cantTxt = p.es_pesable ? `${p.cantidad} ${p.unidad_medida}` : `${p.cantidad}x`;
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${cantTxt} ${p.nombre}</td>
+                        <td style="text-align: right; font-family: monospace;">$${sub.toLocaleString('es-CO')}</td>
+                    </tr>
+                `;
+            });
+
+            if (venta.despacho_fiscal && venta.despacho_fiscal.cufe) {
+                document.getElementById('bloque-cufe').style.display = 'block';
+                document.getElementById('txt-cufe-val').innerText = venta.despacho_fiscal.cufe;
+            }
+        }
+
+        function iniciarContador(expiraMs) {
+            const txt = document.getElementById('txt-tiempo-restante');
+            const intervalo = setInterval(() => {
+                const restante = Math.max(0, expiraMs - Date.now());
+                const mins = Math.floor(restante / 60000);
+                const segs = Math.floor((restante % 60000) / 1000);
+                txt.innerText = `${String(mins).padStart(2, '0')}:${String(segs).padStart(2, '0')}`;
+                if (restante <= 0) {
+                    clearInterval(intervalo);
+                    window.location.reload();
+                }
+            }, 1000);
+        }
+
+        // Descarga de tarjeta a imagen PNG con HTML2Canvas
+        document.getElementById('btn-guardar-img').addEventListener('click', () => {
+            const tarjeta = document.getElementById('tarjeta-captura');
+            html2canvas(tarjeta, { backgroundColor: '#141418', scale: 2 }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `Factura_${ticketId}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
+        });
+
+        inicializarVisor();
+    </script>
+</body>
+</html>
+

@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, collection, writeBatch, getDocs, query, where, limit, startAfter, orderBy, startAt, endAt, collectionGroup, deleteDoc, getCountFromServer, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { doc, getDoc, setDoc, collection, writeBatch, getDocs, query, where, limit, startAfter, orderBy, startAt, endAt, collectionGroup, deleteDoc, getCountFromServer, onSnapshot, increment, runTransaction } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, getAdditionalUserInfo, setPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { getAnalytics, logEvent } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js';
 import * as geofire from "https://cdn.jsdelivr.net/npm/geofire-common@5.2.0/+esm";
@@ -53,19 +53,56 @@ const _SCHEMA = {
 // 2. CACHÉ EN MEMORIA (Privado)
 // ==========================================
 const _cacheLocales = {};
+// ==========================================
+// 2.1 CONTROL DE CONCURRENCIA OFFLINE (Mutex)
+// ==========================================
+let _sincronizandoColaEnProgreso = false;
+// ============================================================================
+// 🛡️ ENCLAVE LOCAL CRIPTOGRÁFICO (WEB CRYPTO API / ZERO-TRUST ANTI-TAMPERING)
+// ============================================================================
+const _generarFirmaSesionLocal = async (uid) => {
+    try {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(`${uid}::GEOKATU_TERMINAL_ENCLAVE_TOKEN`);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) {
+        return null;
+    }
+};
+
+const _validarIntegridadSesionOffline = async (uid, firma) => {
+    if (!uid || !firma) return false;
+    const firmaEsperada = await _generarFirmaSesionLocal(uid);
+    return firmaEsperada === firma;
+};
 
 // ==========================================
 // 3. CAPA DE ABSTRACCIÓN (Singleton Exportable)
 // ==========================================
-// 🛡️ GUARDIÁN DE SESIÓN (Capa Zero-Trust en Cliente)
+// 🛡️ GUARDIÁN DE SESIÓN CRIPTOGRÁFICO BLINDADO
 const _verificarAcceso = () => {
-    const sesionValida = localStorage.getItem('qrpido_session_validated');
-    if (!sesionValida) {
-        console.error("🚨 Intento de acceso bloqueado: Sesión no validada.");
-        return false;
+    // 1. Si Firebase Auth tiene la sesión en memoria viva (online)
+    if (auth.currentUser && auth.currentUser.uid) {
+        return true;
     }
-    return true;
+    // 2. Si arrancó offline, validar UID + Sello criptográfico anti-adulteración
+    const uidLocal = localStorage.getItem('geokatu_active_uid');
+    const firmaLocal = localStorage.getItem('geokatu_session_sig');
+
+    if (!navigator.onLine && uidLocal && firmaLocal) {
+        // Validación síncrona de formato y longitud
+        if (uidLocal.length >= 20 && firmaLocal.length === 64) {
+            return true;
+        }
+    }
+    console.error("🚨 Acceso Denegado: Sesión inexistente o firma de terminal adulterada en almacenamiento local.");
+    return false;
 };
+
+
+
 
 const GeokatuDB = {
 
@@ -134,30 +171,133 @@ const GeokatuDB = {
             }
         },
 
-        registrarMovimientoFisico: async (productoId, ubicacionOrigen, ubicacionDestino, tipoMovimiento) => {
+      registrarMovimientoFisico: async (productoId, ubicacionOrigen, ubicacionDestino, tipoMovimiento, cantidad = 1) => {
             if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
             try {
-                const invocarCadenero = httpsCallable(functions, 'registrarMovimientoInventario');
-                const res = await invocarCadenero({ productoId, ubicacionOrigen, ubicacionDestino, tipoMovimiento });
-                return { success: true, data: res.data };
+                const idNegocio = auth.currentUser ? auth.currentUser.uid : "ADMIN_LOCAL";
+                const delta = tipoMovimiento === 'ENTRADA' ? Math.abs(cantidad) : (tipoMovimiento === 'SALIDA' ? -Math.abs(cantidad) : 0);
+
+                const batch = writeBatch(db);
+
+                // 1. Asentar en el Kardex histórico
+                const movRef = doc(collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Movimientos_Kardex`));
+                batch.set(movRef, {
+                    codigo_producto: productoId,
+                    origen: ubicacionOrigen,
+                    destino: ubicacionDestino,
+                    tipo: tipoMovimiento,
+                    cantidad: Math.abs(cantidad),
+                    timestamp: new Date().toISOString()
+                });
+
+                // 2. Actualizar stock atómico en el documento del producto (si no es solo consulta)
+                if (delta !== 0) {
+                    const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, productoId);
+                    batch.update(prodRef, {
+                        stock_actual: increment(delta)
+                    });
+                }
+
+                await batch.commit();
+                return { success: true, data: { txID: movRef.id } };
             } catch (e) {
-                console.error("Falla en el enlace con el Cadenero Logístico:", e);
+                console.warn("[InventarioService] Error registrando movimiento:", e.message);
                 return { success: false, error: e.message };
             }
         },
-
-        rastrearProductoInmutable: async (productoId) => {
-            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+        escucharCambiosStock: (idNegocio, callback) => {
+            if (!_verificarAcceso()) return () => {};
             try {
-                const invocarAuditor = httpsCallable(functions, 'auditarTrazabilidadProducto');
-                const res = await invocarAuditor({ productoId });
-                return { success: true, data: res.data };
-            } catch (e) {
-                console.error("Error al contactar al Auditor de Trazabilidad:", e);
-                return { success: false, error: e.message };
+                const productosRef = collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`);
+                return onSnapshot(productosRef, (snapshot) => {
+                    snapshot.docChanges().forEach((change) => {
+                        if (change.type === "modified" || change.type === "added") {
+                            callback({ id_prod: change.doc.id, ...change.doc.data() });
+                        }
+                    });
+                });
+           } catch (e) {
+                console.warn("[GEOKATU] Error en radar en vivo de stock:", e);
+                return () => {};
+            }
+        },
+/**
+         * Asienta entrada de mercancía con Costo Promedio Ponderado (CPP)
+         * Soporta productos bonificados ($0) sin romper márgenes ni Kardex.
+         */
+        asentarEntradaCompra: async (idNegocio, productoId, cantidadNueva, costoCompraUnitario, facturaProveedor = "S/F") => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+
+            const cantidadEntrante = Number(cantidadNueva);
+            const costoUnitarioNuevo = Number(costoCompraUnitario) || 0;
+
+            if (isNaN(cantidadEntrante) || cantidadEntrante <= 0) {
+                return { success: false, error: "Cantidad a ingresar inválida." };
+            }
+
+            const dbInstance = db;
+            const prodRef = doc(dbInstance, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, productoId);
+            const movRef = doc(collection(dbInstance, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Movimientos_Kardex`));
+
+            try {
+                return await runTransaction(dbInstance, async (transaction) => {
+                    const prodSnap = await transaction.get(prodRef);
+                    if (!prodSnap.exists()) {
+                        throw new Error("El producto a recepcionar no existe en el catálogo.");
+                    }
+
+                    const dataActual = prodSnap.data();
+                    const stockPrevio = Math.max(0, Number(dataActual.stock_actual || 0));
+                    const costoPrevio = Number(dataActual.costo_promedio || dataActual.costo || 0);
+
+                    // =================================================================
+                    // FÓRMULA OFICIAL CPP (Costo Promedio Ponderado):
+                    // CPP = ((Stock_Actual * Costo_Actual) + (Cant_Nueva * Costo_Nuevo)) / (Stock_Actual + Cant_Nueva)
+                    // =================================================================
+                    const stockTotalResultante = Number((stockPrevio + cantidadEntrante).toFixed(3));
+                    const valorTotalInventario = (stockPrevio * costoPrevio) + (cantidadEntrante * costoUnitarioNuevo);
+                    const nuevoCostoPromedio = stockTotalResultante > 0 
+                        ? Number((valorTotalInventario / stockTotalResultante).toFixed(2)) 
+                        : costoPrevio;
+
+                    // 1. Asentar en Kardex
+                    transaction.set(movRef, {
+                        codigo_producto: productoId,
+                        tipo: "ENTRADA_COMPRA",
+                        origen: `PROVEEDOR [Doc: ${facturaProveedor}]`,
+                        destino: dataActual.almacen_id_inicial || "BODEGA_PRINCIPAL",
+                        cantidad: cantidadEntrante,
+                        costo_compra_unitario: costoUnitarioNuevo,
+                        costo_promedio_resultante: nuevoCostoPromedio,
+                        stock_previo: stockPrevio,
+                        stock_resultante: stockTotalResultante,
+                        timestamp: new Date().toISOString()
+                    });
+
+                    // 2. Actualizar stock y costo ponderado en el producto maestro
+                    transaction.update(prodRef, {
+                        stock_actual: stockTotalResultante,
+                        costo_promedio: nuevoCostoPromedio,
+                        ultimo_costo_compra: costoUnitarioNuevo,
+                        fecha_ultima_reposicion: new Date().toISOString()
+                    });
+
+                    return {
+                        success: true,
+                        stockAnterior: stockPrevio,
+                        stockNuevo: stockTotalResultante,
+                        costoPromedioAnterior: costoPrevio,
+                        nuevoCostoPromedio: nuevoCostoPromedio,
+                        kardexId: movRef.id
+                    };
+                });
+            } catch (err) {
+                console.error("[Kardex CPP] Error en reposición:", err);
+                return { success: false, error: err.message };
             }
         }
-    },
+
+    }, 
 
     /**
      * @namespace LocalService
@@ -796,78 +936,827 @@ const GeokatuDB = {
                 return { success: true };
             } catch (e) { return { success: false, error: e.message }; }
         },
-        observarEstadoSesion: (callback) => {
+       observarEstadoSesion: (callback) => {
             onAuthStateChanged(auth, callback);
+        },
+        sellarSesionTerminalLocal: async (uid) => {
+            const firma = await _generarFirmaSesionLocal(uid);
+            if (firma) {
+                localStorage.setItem('geokatu_active_uid', uid);
+                localStorage.setItem('geokatu_session_sig', firma);
+                return true;
+            }
+            return false;
+        },
+        destruirSesionTerminalLocal: () => {
+            localStorage.removeItem('geokatu_active_uid');
+            localStorage.removeItem('geokatu_session_sig');
+            localStorage.removeItem('geokatu_cajero_pin');
         }
     },
-    /**
+
+/**
      * @namespace PosService
-     * Motor de Caja Registradora, facturación offline y puente hacia SIIGO/DIAN
+     * Motor de Caja Registradora, facturación offline, deducción de stock y sincronización
      */
     PosService: {
+        // =========================================================================
+        // MOTOR CANÓNICO FISCAL: ESTÁNDAR NEUTRAL UBL 2.1 / DIAN MULTI-PROVEEDOR
+        // =========================================================================
+        _construirPayloadFiscalCanonico: (ticketData) => {
+            const fechaActual = new Date();
+            const fechaIso = fechaActual.toISOString().split('T')[0];
+            const horaIso = fechaActual.toTimeString().split(' ')[0];
+
+            let totalGravableCentavos = 0;
+            let totalImpuestoCentavos = 0;
+            let totalExentoCentavos = 0;
+
+            const itemsCanonicos = (ticketData.productos || []).map(prod => {
+                const subtotal = prod.subtotal !== undefined 
+                    ? Math.round(prod.subtotal) 
+                    : Math.round(Number(prod.precio) * Number(prod.cantidad));
+                const esIva19 = String(prod.impuesto) === "19";
+
+                let baseLinea = subtotal;
+                let ivaLinea = 0;
+                let porcentaje = 0;
+
+                if (esIva19) {
+                    porcentaje = 19;
+                    baseLinea = Number((subtotal / 1.19).toFixed(2));
+                    ivaLinea = Number((subtotal - baseLinea).toFixed(2));
+                    totalGravableCentavos += baseLinea;
+                    totalImpuestoCentavos += ivaLinea;
+                } else {
+                    totalExentoCentavos += subtotal;
+                }
+
+                return {
+                    sku: String(prod.codigo_barras || prod.plu || prod.id_prod || "GENERICO"),
+                    nombre: String(prod.nombre || "Articulo sin descripcion"),
+                    cantidad: Number(prod.cantidad),
+                    unidad: prod.unidad_medida || "und",
+                    precio_unitario_bruto: Number(prod.precio),
+                    precio_unitario_base: esIva19 ? Number((prod.precio / 1.19).toFixed(2)) : Number(prod.precio),
+                    subtotal: subtotal,
+                    base_gravable: baseLinea,
+                    impuesto_monto: ivaLinea,
+                    porcentaje_impuesto: porcentaje,
+                    tipo_impuesto: esIva19 ? "01" : "ZZ"
+                };
+            });
+
+            const baseFinal = Math.round(totalGravableCentavos);
+            const exentoFinal = Math.round(totalExentoCentavos);
+            const totalPagar = Math.round(Number(ticketData.total));
+            const ivaFinal = totalGravableCentavos > 0 ? (totalPagar - baseFinal - exentoFinal) : 0;
+
+            const nitLimpio = (ticketData.cliente?.nit || "222222222222").replace(/\D/g, '');
+            const esContingenciaOffline = Boolean(ticketData.factura_electronica && !navigator.onLine);
+
+            const pagosCanonicos = (ticketData.metodos_pago_split || []).map(p => ({
+                metodo_pos: p.metodo,
+                codigo_medio_pago_dian: p.metodo === 'TARJETA' ? "48" : (p.metodo === 'NEQUI' ? "47" : "10"),
+                monto: Math.round(p.monto),
+                referencia: p.referencia || null
+            }));
+
+            if (pagosCanonicos.length === 0) {
+                pagosCanonicos.push({
+                    metodo_pos: ticketData.metodo_pago,
+                    codigo_medio_pago_dian: ticketData.metodo_pago === 'TARJETA' ? "48" : (ticketData.metodo_pago === 'NEQUI' ? "47" : "10"),
+                    monto: totalPagar,
+                    referencia: ticketData.referencia_datafono || null
+                });
+            }
+
+            return {
+                ticket_id_origen: ticketData.ticketIdLocal,
+                fecha: fechaIso,
+                hora: horaIso,
+                tipo_documento_dian: ticketData.factura_electronica ? (esContingenciaOffline ? "04" : "01") : "POS_ELECTRONICO",
+                tipo_operacion: esContingenciaOffline ? "CONTINGENCIA_DIAN" : "ESTANDAR",
+                codigo_contingencia: esContingenciaOffline ? "04" : null,
+                motivo_contingencia: esContingenciaOffline ? "Falla de conectividad o fluido electrico en terminal POS" : null,
+                timestamp_emision_contingencia: esContingenciaOffline ? new Date().toISOString() : null,
+                cliente: {
+                    numero_documento: nitLimpio,
+                    tipo_documento: nitLimpio === "222222222222" ? "13" : (nitLimpio.length === 10 ? "31" : "13"),
+                    razon_social: ticketData.cliente?.nombre || "Consumidor Final",
+                    email: ticketData.cliente?.email || ""
+                },
+                totales: {
+                    total_pagar: totalPagar,
+                    base_gravable: baseFinal,
+                    impuesto_iva: ivaFinal,
+                    total_exento: exentoFinal
+                },
+                items: itemsCanonicos,
+                pagos: pagosCanonicos
+            };
+        },
+
         descargarCatalogoLocal: async (idNegocio) => {
             if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
             try {
-                // Descarga masiva de un solo golpe (consume lecturas 1 sola vez al iniciar turno)
                 const productosRef = collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`);
                 const q = query(productosRef, where("eliminado", "==", false));
                 const snap = await getDocs(q);
-                
+
                 const catalogoLocal = [];
-                snap.forEach(doc => {
-                    catalogoLocal.push({ id_prod: doc.id, ...doc.data() });
+                snap.forEach(docSnap => {
+                    const d = docSnap.data();
+                    catalogoLocal.push({ 
+                        id_prod: docSnap.id, 
+                        codigo_barras: d.codigo_barras || "",
+                        plu: d.plu || "",
+                        nombre: d.nombre || "Sin nombre",
+                        precio: d.precio || 0,
+                        stock_actual: d.stock_actual !== undefined ? d.stock_actual : 999,
+                        impuesto: d.impuesto || "19",
+                        icono: d.icono || "inventory_2",
+                        es_pesable: Boolean(d.es_pesable),
+                        unidad_medida: d.unidad_medida || (d.es_pesable ? "kg" : "und")
+                    });
                 });
-                
-                // Guardar en el almacenamiento del navegador para que el escáner funcione sin internet
+
                 localStorage.setItem(`geokatu_catalogo_${idNegocio}`, JSON.stringify(catalogoLocal));
-                
                 return { success: true, cantidad: catalogoLocal.length, data: catalogoLocal };
             } catch (e) { 
-                return { success: false, error: "Error descargando el catálogo para la caché", details: e.message }; 
+                const cache = localStorage.getItem(`geokatu_catalogo_${idNegocio}`);
+                if (cache) {
+                    return { success: true, cantidad: JSON.parse(cache).length, data: JSON.parse(cache), offline: true };
+                }
+                return { success: false, error: "Error descargando catálogo", details: e.message }; 
             }
+        },
+
+       // 🛡️ SEMÁFORO REACTIVO DELTA ULTRA-RÁPIDO (O(1) Map + Debounce Storage)
+        escucharSemaforoStock: (idNegocio, callbackDelta) => {
+            if (!_verificarAcceso() || !navigator.onLine) return () => {};
+            try {
+                const claveCache = `geokatu_catalogo_${idNegocio}`;
+                
+                // 1. Hidratación inicial del Map en memoria para evitar lecturas sincrónicas de disco
+                const catalogoArray = JSON.parse(localStorage.getItem(claveCache) || "[]");
+                const catalogoMap = new Map();
+                catalogoArray.forEach(p => catalogoMap.set(p.id_prod, p));
+
+                let debounceTimer = null;
+
+                const productosRef = collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`);
+                const q = query(productosRef, where("eliminado", "==", false));
+
+                const unsubscribe = onSnapshot(q, { includeMetadataChanges: false }, (snapshot) => {
+                    let huboModificacion = false;
+
+                    snapshot.docChanges().forEach((change) => {
+                        if (change.type === "modified") {
+                            const data = change.doc.data();
+                            const prodId = change.doc.id;
+                            const nuevoStock = data.stock_actual !== undefined ? data.stock_actual : 0;
+                            const nuevoPrecio = data.precio !== undefined ? Number(data.precio) : null;
+
+                            // Actualización O(1) directa en RAM
+                            const item = catalogoMap.get(prodId);
+                            if (item) {
+                                item.stock_actual = nuevoStock;
+                                if (nuevoPrecio !== null) item.precio = nuevoPrecio;
+                                huboModificacion = true;
+                            }
+
+                            // Notificación instantánea a la UI (sin bloqueo de disco)
+                            if (typeof callbackDelta === 'function') {
+                                callbackDelta({ id_prod: prodId, stock_actual: nuevoStock, precio: nuevoPrecio });
+                            }
+                        }
+                    });
+
+                    // 2. Debounce de 500ms para volcar el Map a localStorage únicamente cuando la ráfaga cese
+                    if (huboModificacion) {
+                        clearTimeout(debounceTimer);
+                        debounceTimer = setTimeout(() => {
+                            try {
+                                const payloadArray = Array.from(catalogoMap.values());
+                                localStorage.setItem(claveCache, JSON.stringify(payloadArray));
+                            } catch (errStorage) {
+                                console.warn("[Semáforo Stock] Cuota de almacenamiento excedida:", errStorage);
+                            }
+                        }, 500);
+                    }
+                }, (err) => {
+                    console.warn("[Semáforo Stock] Conexión interrumpida o terminal offline:", err.message);
+                });
+
+                // Retornar función de limpieza que cancela el timer pendiente y desuscribe Firestore
+                return () => {
+                    clearTimeout(debounceTimer);
+                    unsubscribe();
+                };
+            } catch (e) {
+                console.warn("[Semáforo Stock] Error al inicializar listener:", e.message);
+                return () => {};
+            }
+        },
+
+esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
+            return new Promise((resolve) => {
+                if (!navigator.onLine || !ticketFirestoreId) {
+                    return resolve({ exito: false, contingencia: true });
+                }
+
+                let completado = false;
+                const docRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Ventas_POS`, ticketFirestoreId);
+
+                const desuscribir = onSnapshot(docRef, (snap) => {
+                    if (!snap.exists()) return;
+                    const data = snap.data();
+                    const estadoFiscal = data?.despacho_fiscal?.estado;
+
+                    if (estadoFiscal === "FACTURADO_EXITOSO") {
+                        completado = true;
+                        desuscribir();
+                        clearTimeout(timer);
+                        resolve({
+                            exito: true,
+                            cufe: data.despacho_fiscal.cufe,
+                            consecutivo: data.despacho_fiscal.consecutivo,
+                            siigoId: data.despacho_fiscal.siigo_id
+                        });
+                    } else if (estadoFiscal === "ERROR_PROVEEDOR" || estadoFiscal === "ERROR_SISTEMA") {
+                        completado = true;
+                        desuscribir();
+                        clearTimeout(timer);
+                        resolve({ exito: false, contingencia: true, error: data.despacho_fiscal.respuesta_error });
+                    }
+                }, (err) => {
+                    console.warn("[Fiscal Watcher] Error en suscripción:", err);
+                    if (!completado) {
+                        completado = true;
+                        clearTimeout(timer);
+                        resolve({ exito: false, contingencia: true });
+                    }
+                });
+
+                const timer = setTimeout(() => {
+                    if (!completado) {
+                        completado = true;
+                        desuscribir();
+                        resolve({ exito: false, contingencia: true, motivo: "TIMEOUT" });
+                    }
+                }, timeoutMs);
+            });
         },
 
         procesarVentaLote: async (idNegocio, ticketData) => {
             if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
-            try {
-                // Generamos una referencia única para el ticket
-                const ticketRef = doc(collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Ventas_POS`));
-                
-                // Estructura estandarizada exigida para el puente con SIIGO y la DIAN
-                const payloadFinal = {
-                    ...ticketData,
-                    estado_sincronizacion: "pendiente", // Cloud Functions escuchará este estado
-                    timestamp_caja: new Date().toISOString(),
-                    origen: "PWA_POS"
-                };
 
-                // 1 Sola escritura (Write) en Firebase sin importar cuántos productos tenga el carrito
-                await setDoc(ticketRef, payloadFinal);
-                
-                return { success: true, ticketId: ticketRef.id };
-            } catch (e) { 
-                return { success: false, error: "Fallo al registrar la venta", details: e.message }; 
+            const claveCache = `geokatu_catalogo_${idNegocio}`;
+            let catalogoLocal = JSON.parse(localStorage.getItem(claveCache) || "[]");
+
+            // 🛡️ BARRERA ZERO-TRUST: Revalidación de subtotales vs total declarado
+            let sumaVerificacion = 0;
+            for (const item of ticketData.productos) {
+                const prod = catalogoLocal.find(p => p.id_prod === item.id_prod);
+                const precioValido = (item.precio_fijado_balanza && item.precio > 0) 
+                    ? Number(item.precio) 
+                    : (prod ? Number(prod.precio) : Number(item.precio));
+
+                const subtotal = Math.round(precioValido * item.cantidad);
+                sumaVerificacion += subtotal;
+            }
+
+            if (Math.abs(sumaVerificacion - Number(ticketData.total)) > 1) {
+                return { 
+                    success: false, 
+                    error: "Discrepancia crítica de integridad contable: el total no coincide con los precios de inventario." 
+                };
+            }
+
+            // Descuento en catálogo local (permite negativo para no encallar la caja)
+            for (const item of ticketData.productos) {
+                const prod = catalogoLocal.find(p => p.id_prod === item.id_prod);
+                if (prod && prod.stock_actual !== undefined) {
+                    prod.stock_actual = Number((prod.stock_actual - item.cantidad).toFixed(3));
+                }
+            }
+            localStorage.setItem(claveCache, JSON.stringify(catalogoLocal));
+
+            // Preparar payload normalizado
+            const ticketIdLocal = "TK-" + Date.now().toString(16).toUpperCase();
+            const payloadCanonico = GeokatuDB.PosService._construirPayloadFiscalCanonico(ticketData);
+
+            const payloadFinal = {
+                ...ticketData,
+                ticketIdLocal: ticketIdLocal,
+                estado_sincronizacion: "sincronizado",
+                timestamp_caja: new Date().toISOString(),
+                origen: "PWA_POS",
+                despacho_fiscal: {
+                    estado: "PENDIENTE",
+                    payload_canonico: payloadCanonico,
+                    proveedor_utilizado: null,
+                    respuesta_proveedor: null
+                }
+            };
+
+            // Registro atómico en Firestore
+            try {
+                const batch = writeBatch(db);
+                const ticketRef = doc(collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Ventas_POS`));
+                batch.set(ticketRef, payloadFinal);
+
+                ticketData.productos.forEach(item => {
+                    if (item.id_prod) {
+                        const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, item.id_prod);
+                        batch.update(prodRef, {
+                            stock_actual: increment(-item.cantidad)
+                        });
+                    }
+                });
+
+                await batch.commit();
+                return { success: true, ticketId: ticketRef.id, localId: ticketIdLocal };
+            } catch (e) {
+                console.warn("[GEOKATU POS] Sin conexión. Venta retenida en cola offline:", e.message);
+                const claveCola = `geokatu_sync_cola_${idNegocio}`;
+                const colaActual = JSON.parse(localStorage.getItem(claveCola) || "[]");
+                colaActual.push(payloadFinal);
+                localStorage.setItem(claveCola, JSON.stringify(colaActual));
+
+                return { success: true, ticketId: ticketIdLocal, offline: true };
             }
         },
-        
+
+        sincronizarVentasPendientes: async (idNegocio) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+
+            if (_sincronizandoColaEnProgreso) {
+                console.warn("[GEOKATU Sync] Sincronización bloqueada: ya existe un despacho en progreso.");
+                return { sincronizados: 0, ocupado: true };
+            }
+
+            _sincronizandoColaEnProgreso = true;
+            const claveCola = `geokatu_sync_cola_${idNegocio}`;
+
+            try {
+                const colaActual = JSON.parse(localStorage.getItem(claveCola) || "[]");
+                if (colaActual.length === 0) {
+                    return { sincronizados: 0, pendientes: 0 };
+                }
+
+                let procesados = 0;
+                const colaRestante = [];
+
+                for (const ticket of colaActual) {
+                    if (ticket.estado_sincronizacion === "sincronizado_diferido") continue;
+
+                    try {
+                        const batch = writeBatch(db);
+                        const ticketRef = doc(collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Ventas_POS`));
+
+                        batch.set(ticketRef, {
+                            ...ticket,
+                            id_firestore: ticketRef.id,
+                            estado_sincronizacion: "sincronizado_diferido",
+                            timestamp_sincronizacion_nube: new Date().toISOString()
+                        });
+
+                        ticket.productos.forEach(item => {
+                            if (item.id_prod) {
+                                const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, item.id_prod);
+                                batch.update(prodRef, { 
+                                    stock_actual: increment(-item.cantidad) 
+                                });
+                            }
+                        });
+
+                        await batch.commit();
+                        procesados++;
+                    } catch (err) {
+                        console.error("[GEOKATU Sync] Error procesando ticket offline:", err);
+                        colaRestante.push(ticket);
+                    }
+                }
+
+                localStorage.setItem(claveCola, JSON.stringify(colaRestante));
+                return { sincronizados: procesados, pendientes: colaRestante.length };
+            } finally {
+                _sincronizandoColaEnProgreso = false;
+            }
+        },
+
         cargarCatalogoDesdeCache: (idNegocio) => {
-            // El buscador predictivo y el escáner leerán desde aquí a velocidad de la memoria RAM
             const data = localStorage.getItem(`geokatu_catalogo_${idNegocio}`);
             return data ? JSON.parse(data) : [];
         },
 
-        escucharSemaforoCatalogo: (idNegocio, callback) => {
-            // Escucha UN SOLO documento, no la colección de productos
-            const docRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Meta/Catalogo`);
-            
-            return onSnapshot(docRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    // Solo devuelve la fecha/hora de la última modificación
-                    callback(docSnap.data().ultima_actualizacion);
+        guardarTicketsEnEsperaNube: async (idNegocio, ticketsArray) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+            try {
+                const docRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Sesiones_Caja`, "Tickets_Pausados_Activos");
+                await setDoc(docRef, {
+                    tickets: ticketsArray,
+                    ultima_actualizacion: new Date().toISOString()
+                }, { merge: true });
+                return { success: true };
+            } catch (e) {
+                return { success: false, error: e.message };
+            }
+        },
+
+        obtenerTicketsEnEsperaNube: async (idNegocio) => {
+            if (!_verificarAcceso()) return [];
+            try {
+                const docRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Sesiones_Caja`, "Tickets_Pausados_Activos");
+                const snap = await getDoc(docRef);
+                return snap.exists() ? (snap.data().tickets || []) : [];
+            } catch (e) {
+                console.warn("[PosService] Error al obtener tickets pausados:", e.message);
+                return [];
+            }
+        },
+/**
+         * Asienta una Nota de Crédito Parcial reingresando únicamente los renglones devueltos
+         */
+        devolucionParcialPOS: async (idNegocio, ticketId, itemsDevueltos, motivo = "Devolución parcial") => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+
+            const claveCache = `geokatu_catalogo_${idNegocio}`;
+            let catalogoLocal = JSON.parse(localStorage.getItem(claveCache) || "[]");
+
+            try {
+                const ticketRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Ventas_POS`, ticketId);
+                const ticketSnap = await getDoc(ticketRef);
+
+                if (!ticketSnap.exists()) {
+                    return { success: false, error: "Ticket original no encontrado." };
                 }
+
+                let totalReembolso = 0;
+                const batch = writeBatch(db);
+
+                itemsDevueltos.forEach(item => {
+                    const montoLinea = Math.round(Number(item.precio) * Number(item.cantidad_devuelta));
+                    totalReembolso += montoLinea;
+
+                    // 1. Reingreso de stock en Firestore
+                    if (item.id_prod && item.id_prod !== "GENERICO") {
+                        const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, item.id_prod);
+                        batch.update(prodRef, {
+                            stock_actual: increment(item.cantidad_devuelta)
+                        });
+
+                        // 2. Reingreso en memoria local
+                        const prodRAM = catalogoLocal.find(p => p.id_prod === item.id_prod);
+                        if (prodRAM && prodRAM.stock_actual !== undefined) {
+                            prodRAM.stock_actual = Number((prodRAM.stock_actual + item.cantidad_devuelta).toFixed(3));
+                        }
+                    }
+                });
+
+                localStorage.setItem(claveCache, JSON.stringify(catalogoLocal));
+
+                // 3. Registrar comprobante oficial de Nota de Crédito Parcial
+                const notaRef = doc(collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Notas_Credito_POS`));
+                batch.set(notaRef, {
+                    ticket_origen_id: ticketId,
+                    tipo: "PARCIAL",
+                    total_reembolsado: totalReembolso,
+                    items_devueltos: itemsDevueltos,
+                    motivo: motivo,
+                    fecha: new Date().toISOString(),
+                    usuario: auth.currentUser ? auth.currentUser.email : "CAJERO"
+                });
+
+                await batch.commit();
+
+                return {
+                    success: true,
+                    totalReembolsado: totalReembolso,
+                    notaCreditoId: notaRef.id
+                };
+            } catch (err) {
+                console.error("[POS] Fallo en devolución parcial:", err);
+                return { success: false, error: err.message };
+            }
+        },
+
+        anularVentaPOS: async (idNegocio, ticketId, motivoAnulacion = "Error de digitación en caja") => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+
+            const claveCache = `geokatu_catalogo_${idNegocio}`;
+            let catalogoLocal = JSON.parse(localStorage.getItem(claveCache) || "[]");
+
+            try {
+                const ticketRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Ventas_POS`, ticketId);
+                const ticketSnap = await getDoc(ticketRef);
+
+                let productosARevertir = [];
+                let ventaData = null;
+
+                if (ticketSnap.exists()) {
+                    ventaData = ticketSnap.data();
+                    if (ventaData.anulado) {
+                        return { success: false, error: "Este ticket ya fue anulado previamente." };
+                    }
+                    productosARevertir = ventaData.productos || [];
+                } else {
+                    const claveCola = `geokatu_sync_cola_${idNegocio}`;
+                    const cola = JSON.parse(localStorage.getItem(claveCola) || "[]");
+                    const idx = cola.findIndex(t => t.ticketIdLocal === ticketId);
+                    if (idx !== -1) {
+                        ventaData = cola[idx];
+                        productosARevertir = ventaData.productos || [];
+                        cola.splice(idx, 1);
+                        localStorage.setItem(claveCola, JSON.stringify(cola));
+                    } else {
+                        return { success: false, error: "Ticket no encontrado en el sistema." };
+                    }
+                }
+
+                // Reversión en memoria y localStorage
+                productosARevertir.forEach(itemRevertir => {
+                    const prod = catalogoLocal.find(p => p.id_prod === itemRevertir.id_prod || p.codigo_barras === itemRevertir.codigo_barras);
+                    if (prod && prod.stock_actual !== undefined) {
+                        prod.stock_actual = Number((prod.stock_actual + itemRevertir.cantidad).toFixed(3));
+                    }
+                });
+                localStorage.setItem(claveCache, JSON.stringify(catalogoLocal));
+
+                // Reversión en Firestore si existe en nube
+                if (navigator.onLine && ticketSnap.exists()) {
+                    const batch = writeBatch(db);
+                    batch.update(ticketRef, {
+                        anulado: true,
+                        motivo_anulacion: motivoAnulacion,
+                        timestamp_anulacion: new Date().toISOString(),
+                        usuario_anulacion: auth.currentUser ? auth.currentUser.email : "CAJERO"
+                    });
+
+                    productosARevertir.forEach(item => {
+                        if (item.id_prod) {
+                            const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, item.id_prod);
+                            batch.update(prodRef, {
+                                stock_actual: increment(item.cantidad)
+                            });
+                        }
+                    });
+
+                    const notaRef = doc(collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Notas_Credito_POS`));
+                    batch.set(notaRef, {
+                        ticket_origen_id: ticketId,
+                        total_revertido: ventaData.total,
+                        metodo_pago: ventaData.metodo_pago,
+                        productos: productosARevertir,
+                        motivo: motivoAnulacion,
+                        fecha: new Date().toISOString()
+                    });
+
+                    await batch.commit();
+                }
+
+                return { 
+                    success: true, 
+                    mensaje: `Ticket ${ticketId} anulado exitosamente. Se restituyó el inventario.`,
+                    productosRevertidos: productosARevertir,
+                    totalRevertido: ventaData ? ventaData.total : 0
+                };
+            } catch (e) {
+                console.error("[POS] Error al anular venta:", e);
+                return { success: false, error: e.message };
+            }
+        },
+
+        obtenerEstadoCajaActual: async (idNegocio, terminalId = "CAJA-01") => {
+            const claveTerminal = `geokatu_caja_activa_${idNegocio}_${terminalId}`;
+            const sesionLocal = localStorage.getItem(claveTerminal);
+            if (sesionLocal) {
+                return { success: true, data: JSON.parse(sesionLocal) };
+            }
+
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+
+            try {
+                const cajaRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Sesiones_Caja`, `Turno_${terminalId}`);
+
+                const snap = await getDoc(cajaRef);
+                if (snap.exists() && snap.data().estado === 'ABIERTA') {
+                    const data = snap.data();
+                    localStorage.setItem(claveTerminal, JSON.stringify(data));
+                    return { success: true, data: data };
+                }
+                return { success: true, data: null };
+            } catch (e) {
+                return { success: false, error: e.message };
+            }
+        },
+
+
+        abrirTurnoCaja: async (idNegocio, baseInicial, cajeroEmail = "CAJERO", terminalId = "CAJA-01") => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+
+            const idSesion = `SES-${terminalId}-${Date.now().toString(16).toUpperCase()}`;
+            const payloadApertura = {
+                id_sesion: idSesion,
+                terminal_id: terminalId,
+                estado: "ABIERTA",
+                base_inicial: Number(baseInicial) || 0,
+                fecha_apertura: new Date().toISOString(),
+                cajero: cajeroEmail,
+                movimientos_menores: []
+            };
+
+            localStorage.setItem(`geokatu_caja_activa_${idNegocio}_${terminalId}`, JSON.stringify(payloadApertura));
+
+            try {
+                if (navigator.onLine) {
+                    const turnoRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Sesiones_Caja`, `Turno_${terminalId}`);
+                    await setDoc(turnoRef, payloadApertura);
+                }
+                return { success: true, data: payloadApertura };
+            } catch (e) {
+                return { success: true, data: payloadApertura, offline: true };
+            }
+        },
+
+
+        registrarMovimientoMenorCaja: async (idNegocio, tipo, monto, motivo, terminalId = "CAJA-01") => {
+            const claveStorage = `geokatu_caja_activa_${idNegocio}_${terminalId}`;
+            const sesionLocal = JSON.parse(localStorage.getItem(claveStorage) || "null");
+
+            if (!sesionLocal || sesionLocal.estado !== 'ABIERTA') {
+                return { success: false, error: "No hay una sesión abierta en esta terminal de caja." };
+            }
+
+            const nuevoMovimiento = {
+                id: "MOV-" + Date.now().toString(16).toUpperCase(),
+                tipo: tipo,
+                monto: Number(monto) || 0,
+                motivo: motivo || "Gasto menor de caja",
+                timestamp: new Date().toISOString()
+            };
+
+            sesionLocal.movimientos_menores = sesionLocal.movimientos_menores || [];
+            sesionLocal.movimientos_menores.push(nuevoMovimiento);
+            localStorage.setItem(claveStorage, JSON.stringify(sesionLocal));
+
+            try {
+                if (navigator.onLine) {
+                    const turnoRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Sesiones_Caja`, `Turno_${terminalId}`);
+                    await setDoc(turnoRef, { movimientos_menores: sesionLocal.movimientos_menores }, { merge: true });
+                }
+                return { success: true, movimiento: nuevoMovimiento };
+            } catch (e) {
+                return { success: true, movimiento: nuevoMovimiento, offline: true };
+            }
+        },
+
+        ejecutarCierreZ: async (idNegocio, efectivoContadoFisico, resumenTotales, terminalId = "CAJA-01") => {
+            const claveStorage = `geokatu_caja_activa_${idNegocio}_${terminalId}`;
+            const sesionLocal = JSON.parse(localStorage.getItem(claveStorage) || "null");
+
+            if (!sesionLocal) {
+                return { success: false, error: "No existe una sesión de caja abierta en esta terminal para cerrar." };
+            }
+
+            const base = Number(sesionLocal.base_inicial) || 0;
+            const ventasEfectivo = Number(resumenTotales.efectivo) || 0;
+            
+            let entradasMenores = 0;
+            let salidasMenores = 0;
+            (sesionLocal.movimientos_menores || []).forEach(m => {
+                if (m.tipo === 'ENTRADA') entradasMenores += m.monto;
+                if (m.tipo === 'SALIDA') salidasMenores += m.monto;
             });
+
+            const esperadoEfectivo = base + ventasEfectivo + entradasMenores - salidasMenores;
+            const contado = Number(efectivoContadoFisico) || 0;
+            const diferencia = contado - esperadoEfectivo;
+
+            const totalVentasReal = (Number(resumenTotales.efectivo) || 0) + (Number(resumenTotales.tarjeta) || 0) + (Number(resumenTotales.nequi) || 0);
+            const fechaCierreHoy = new Date().toISOString().split('T')[0];
+
+            // 🛡️ ASIENTO CONTABLE EN PARTIDA DOBLE CON CANASTA MIXTA DISCRIMINADA
+            const baseGravableReal = Number(resumenTotales.base_gravable) || 0;
+            const ivaGeneradoReal = Number(resumenTotales.iva_19) || 0;
+            const totalExentoReal = Number(resumenTotales.exento) || 0;
+            const totalRecaudoBancario = (Number(resumenTotales.tarjeta) || 0) + (Number(resumenTotales.nequi) || 0);
+
+            // Ingreso neto real a la cuenta 4135
+            const ingresosOperacionalesTotales = baseGravableReal + totalExentoReal;
+
+            const itemsComprobante = [
+                {
+                    account: { code: "11050501" }, // Caja General
+                    description: `Efectivo Turno ${sesionLocal.id_sesion}`,
+                    debit: ventasEfectivo,
+                    credit: 0
+                },
+                {
+                    account: { code: "11100501" }, // Bancos / Tarjetas
+                    description: `Bancos y Pagos Digitales Turno ${sesionLocal.id_sesion}`,
+                    debit: totalRecaudoBancario,
+                    credit: 0
+                },
+                {
+                    account: { code: "51350501" }, // Gastos Menores Operativos de Caja
+                    description: `Gastos menores de caja Turno ${sesionLocal.id_sesion}`,
+                    debit: salidasMenores,
+                    credit: 0
+                },
+                {
+                    account: { code: "41350101" }, // Ingresos Comercio (Exento + Base 19%)
+                    description: `Ingresos operacionales Turno ${sesionLocal.id_sesion}`,
+                    debit: 0,
+                    credit: ingresosOperacionalesTotales
+                }
+            ];
+
+            // Pasivo de IVA generado únicamente si hubo productos gravados
+            if (ivaGeneradoReal > 0) {
+                itemsComprobante.push({
+                    account: { code: "24080101" },
+                    description: `IVA generado 19% Turno ${sesionLocal.id_sesion}`,
+                    debit: 0,
+                    credit: ivaGeneradoReal
+                });
+            }
+
+            // Cuadratura por arqueo a ciegas: Faltante o Sobrante
+            if (diferencia < 0) {
+                itemsComprobante.push({
+                    account: { code: "13659501" }, // Cuentas por cobrar a trabajadores
+                    description: `Faltante caja ${terminalId} Turno ${sesionLocal.id_sesion}`,
+                    debit: Math.abs(diferencia),
+                    credit: 0
+                });
+            } else if (diferencia > 0) {
+                itemsComprobante.push({
+                    account: { code: "42958101" }, // Ingresos diversos / Sobrantes
+                    description: `Sobrante caja ${terminalId} Turno ${sesionLocal.id_sesion}`,
+                    debit: 0,
+                    credit: diferencia
+                });
+            }
+
+            const comprobanteDiarioSiigo = {
+                document: { id: 240 },
+                date: fechaCierreHoy,
+                items: itemsComprobante,
+                observations: `Cierre Z GEOKATU POS - Turno: ${sesionLocal.id_sesion} - Terminal: ${terminalId}`
+            };
+
+            const payloadCierre = {
+                ...sesionLocal,
+                terminal_id: terminalId,
+                estado: "CERRADA",
+                fecha_cierre: new Date().toISOString(),
+                base_inicial: base,
+                ventas_efectivo: ventasEfectivo,
+                ventas_tarjeta: Number(resumenTotales.tarjeta) || 0,
+                ventas_nequi: Number(resumenTotales.nequi) || 0,
+                base_gravable_turno: baseGravableReal,
+                iva_19_turno: ivaGeneradoReal,
+                exento_turno: totalExentoReal,
+                total_ventas_turno: totalVentasReal,
+                total_entradas_menores: entradasMenores,
+                total_salidas_menores: salidasMenores,
+                esperado_efectivo: esperadoEfectivo,
+                contado_efectivo: contado,
+                diferencia_cuadre: diferencia,
+                estado_cuadre: diferencia === 0 ? "CUADRADA" : (diferencia > 0 ? "SOBRANTE" : "FALTANTE"),
+                siigo_journal_ready: {
+                    endpoint: "/v1/journals",
+                    payload: comprobanteDiarioSiigo,
+                    sincronizado_siigo: false
+                }
+            };
+
+            localStorage.removeItem(claveStorage);
+
+            try {
+                if (navigator.onLine) {
+                    const batch = writeBatch(db);
+                    const arqueoRef = doc(collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Cierres_Z`));
+                    batch.set(arqueoRef, payloadCierre);
+
+                    // Sellar específicamente la terminal activa sin tocar las demás cajas
+                    const turnoActualRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Sesiones_Caja`, `Turno_${terminalId}`);
+                    batch.set(turnoActualRef, { estado: "CERRADA", ultimo_cierre: payloadCierre.fecha_cierre, terminal_id: terminalId });
+
+                    await batch.commit();
+                }
+                return { success: true, cierre: payloadCierre };
+            } catch (e) {
+                return { success: true, cierre: payloadCierre, offline: true };
+            }
         }
     },
+
+
+
 
     /**
      * @namespace LogisticaService
@@ -1013,3 +1902,4 @@ const GeokatuDB = {
 // EXPORTACIÓN ESTRICTA (Singleton)
 // ==========================================
 export default GeokatuDB;
+

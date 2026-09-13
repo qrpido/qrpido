@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Terminal Logística | Geokatu</title>
+    <meta name="theme-color" content="#ff6b00">
+    <link rel="stylesheet" href="ui-estilos.css"> 
+    <script src="html5-qrcode.min.js" type="text/javascript"></script> 
+
+    <style>
+        :root {
+            --naranja: #ff6b00; 
+            --bg-oscuro: #0a0a0c; 
+            --glass-bg: rgba(20, 20, 25, 0.85); 
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+        body, html { 
+            margin: 0; padding: 0; height: 100vh; width: 100vw; 
+            font-family: 'Segoe UI', sans-serif; 
+            background: radial-gradient(circle at 50% 0%, #1a1a1f 0%, var(--bg-oscuro) 100%); 
+            color: white; overflow: hidden; 
+        }
+        #pantalla-login {
+            position: fixed; inset: 0; z-index: 9999;
+            background: var(--bg-oscuro);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            padding: 20px;
+        }
+        .panel-login { 
+            width: 100%; max-width: 380px; 
+            background: rgba(15, 15, 18, 0.6); backdrop-filter: blur(19px); 
+            border: 1px solid rgba(255, 107, 0, 0.2); border-radius: 21px; 
+            padding: 34px 21px; box-shadow: 0 34px 55px rgba(0,0,0,0.8); 
+            position: relative; 
+        }
+        .input-boveda { width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); color: white; padding: 13px; border-radius: 13px; margin-bottom: 13px; outline: none; box-sizing: border-box; font-size: 16px; }
+        .input-boveda:focus { border-color: var(--naranja); }
+        .btn-accion-boveda { width: 100%; padding: 15px; border-radius: 13px; border: none; font-weight: 900; cursor: pointer; text-transform: uppercase; background: linear-gradient(135deg, #ff8c00, var(--naranja)); color: white; font-size: 16px; }
+        
+        #app-terminal {
+            display: none; height: 100%; width: 100%; max-width: 600px; margin: 0 auto; 
+            flex-direction: column; position: relative;
+        }
+        .header-terminal {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 15px 20px; border-bottom: 1px solid var(--glass-border);
+            background: rgba(10,10,12,0.9);
+        }
+        .consola-controles { 
+            background: rgba(15, 15, 18, 0.95); padding: 15px; border-bottom: 1px solid var(--glass-border); 
+            display: flex; flex-direction: column; gap: 12px;
+        }
+        .ribbon-categorias { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+        .ribbon-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #aaa; border-radius: 20px; padding: 10px 15px; font-size: 11px; font-weight: bold; text-transform: uppercase; cursor: pointer; flex: 1; text-align: center; }
+        .ribbon-btn.activo { background: var(--naranja); color: white; border-color: var(--naranja); }
+
+        .zona-escaneo {
+            flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            position: relative; overflow-y: auto; padding: 20px;
+        }
+        .luz-escaner {
+            width: 80%; height: 110px; border: 2px dashed rgba(255,107,0,0.5); border-radius: 21px;
+            display: flex; align-items: center; justify-content: center; position: relative;
+            background: radial-gradient(circle, rgba(255,107,0,0.1) 0%, transparent 70%);
+            transition: 0.2s;
+        }
+        .luz-escaner.leyendo {
+            border-color: #00ff64; background: radial-gradient(circle, rgba(0,255,100,0.2) 0%, transparent 70%);
+            box-shadow: 0 0 30px rgba(0,255,100,0.3); transform: scale(1.05);
+        }
+        #lector-camara {
+            width: 100%; max-width: 350px; border-radius: 21px; overflow: hidden; 
+            display: none; border: 2px solid var(--naranja); margin-bottom: 20px;
+            background: black;
+        }
+
+        .ultimo-escaneo {
+            background: var(--glass-bg); backdrop-filter: blur(15px);
+            border: 1px solid var(--glass-border); border-top: 2px solid var(--naranja);
+            border-top-left-radius: 24px; border-top-right-radius: 24px;
+            padding: 21px; box-shadow: 0 -10px 30px rgba(0,0,0,0.6);
+            transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+            position: absolute; bottom: 0; width: 100%; box-sizing: border-box; z-index: 1000;
+        }
+        .ultimo-escaneo.visible { transform: translateY(0); }
+    </style>
+</head>
+<body>
+
+    <!-- LOGIN -->
+    <div id="pantalla-login">
+        <div class="panel-login">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 900; letter-spacing: 2px;">LOGI<span style="color: var(--naranja);">CORE</span></h1>
+                <p style="color: #888; font-size: 11px; text-transform: uppercase;">Control de Stock Físico</p>
+            </div>
+            <input type="email" id="login-email" class="input-boveda" placeholder="Correo de administrador/bodega">
+            <input type="password" id="login-pass" class="input-boveda" placeholder="Contraseña">
+            <button class="btn-accion-boveda" id="btn-login">INICIAR TURNO</button>
+        </div>
+    </div>
+
+    <!-- TERMINAL -->
+    <div id="app-terminal">
+        <div class="header-terminal">
+            <div>
+                <span style="color: var(--naranja); font-weight: 900; font-size: 18px;">GEOKATU LOGÍSTICA</span>
+                <span id="txt-operador" style="display: block; font-size: 10px; color: #888; text-transform: uppercase;">Operador: Conectando...</span>
+            </div>
+            <button id="btn-logout" style="background: transparent; border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 50%; width: 35px; height: 35px; cursor: pointer;">🚪</button>
+        </div>
+
+        <div class="consola-controles">
+            <label style="font-size: 10px; color: #aaa; text-transform: uppercase; font-weight: bold;">Operación de Stock</label>
+            <div class="ribbon-categorias" id="selector-operacion">
+                <button class="ribbon-btn activo" data-op="ENTRADA">📥 Entrada (+)</button>
+                <button class="ribbon-btn" data-op="SALIDA">📤 Salida (-)</button>
+                <button class="ribbon-btn" data-op="AUDITORIA">🔍 Consulta</button>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                <span style="font-size: 12px; color: #aaa;">Cantidad a aplicar por escaneo:</span>
+                <input type="number" id="input-unidades-lote" value="1" min="1" style="width: 70px; background: rgba(0,0,0,0.5); border: 1px solid var(--naranja); color: white; text-align: center; border-radius: 8px; padding: 6px; font-weight: bold;">
+            </div>
+        </div>
+
+        <div class="zona-escaneo">
+            <div id="lector-camara"></div>
+
+            <h3 style="color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 2px;">ESPERANDO PRODUCTO...</h3>
+            <div id="luz-estado" class="luz-escaner">
+                <span style="font-size: 40px; filter: grayscale(100%); opacity: 0.5;">🔫</span>
+            </div>
+            <p style="font-size: 10px; color: #555; margin-top: 20px; text-align: center;">Usa el lector USB-C/Bluetooth o enciende la cámara.</p>
+            
+            <button class="btn-accion-boveda" id="btn-toggle-camara" style="width: auto; padding: 10px 20px; font-size: 12px; margin-top: 20px;">
+                📷 ACTIVAR CÁMARA
+            </button>
+        </div>
+
+        <!-- TARJETA INFORMATIVA -->
+        <div id="tarjeta-producto" class="ultimo-escaneo">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <span id="badge-estado" style="background: #00ff64; color: black; font-size: 10px; padding: 3px 8px; border-radius: 8px; font-weight: bold; text-transform: uppercase;">ACTUALIZADO</span>
+                    <h2 id="prod-nombre" style="margin: 8px 0 0 0; font-size: 18px; color: white;">Producto</h2>
+                </div>
+                <div style="text-align: right;">
+                    <p style="margin: 0; font-size: 10px; color: #aaa;">CÓDIGO:</p>
+                    <p id="prod-codigo" style="margin: 0; font-family: monospace; font-size: 14px; color: var(--naranja); font-weight: bold;">---</p>
+                </div>
+            </div>
+            
+            <div style="background: rgba(0,0,0,0.3); border-radius: 12px; padding: 12px; margin-top: 15px; border: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between;">
+                <div>
+                    <p style="margin: 0; font-size: 11px; color: #888;">Operación: <strong id="res-operacion" style="color: white;">ENTRADA</strong></p>
+                    <p style="margin: 5px 0 0 0; font-size: 11px; color: #888;">Origen: <span id="res-hardware" style="color: #aaa;">USB</span></p>
+                </div>
+                <div style="text-align: right;">
+                    <p style="margin: 0; font-size: 11px; color: #888;">Stock Resultante:</p>
+                    <p id="res-stock" style="margin: 2px 0 0 0; font-size: 18px; color: #00ff64; font-weight: bold;">0</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import GeokatuDB from './core-db.js';
+        import { MotorLector } from './lector-motor.js';
+
+        let idNegocio = localStorage.getItem('geokatu_active_uid') || null;
+        let operacionActual = 'ENTRADA';
+        let catalogoLocal = [];
+
+        // 1. SESIÓN
+        GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
+            if (user) {
+                idNegocio = user.uid;
+                localStorage.setItem('geokatu_active_uid', user.uid);
+                localStorage.setItem('qrpido_session_validated', 'true');
+                document.getElementById('pantalla-login').style.display = 'none';
+                document.getElementById('app-terminal').style.display = 'flex';
+                document.getElementById('txt-operador').innerText = `Operador: ${user.email}`;
+
+               // Sincronizar catálogo para tener existencias en memoria
+                const res = await GeokatuDB.PosService.descargarCatalogoLocal(idNegocio);
+                catalogoLocal = res.success ? res.data : GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio);
+
+                // 📡 RADAR EN VIVO: Si el cajero vende en pos.html, el stock actualiza aquí al instante
+                GeokatuDB.InventarioService.escucharCambiosStock(idNegocio, (prodActualizado) => {
+                    const prodLocal = catalogoLocal.find(p => p.id_prod === prodActualizado.id_prod);
+                    if (prodLocal && prodActualizado.stock_actual !== undefined) {
+                        prodLocal.stock_actual = prodActualizado.stock_actual;
+                        localStorage.setItem(`geokatu_catalogo_${idNegocio}`, JSON.stringify(catalogoLocal));
+
+                        // Si el bodeguero tiene en pantalla la tarjeta de este producto, actualizar número
+                        const codigoPantalla = document.getElementById('prod-codigo').innerText;
+                        if (codigoPantalla === prodLocal.codigo_barras || codigoPantalla === prodLocal.id_prod) {
+                            document.getElementById('res-stock').innerText = prodActualizado.stock_actual;
+                        }
+                    }
+                });
+            } else {
+
+                document.getElementById('pantalla-login').style.display = 'flex';
+                document.getElementById('app-terminal').style.display = 'none';
+            }
+        });
+
+        document.getElementById('btn-login').addEventListener('click', async () => {
+            const email = document.getElementById('login-email').value.trim();
+            const pass = document.getElementById('login-pass').value;
+            const res = await GeokatuDB.SecurityService.iniciarSesion(email, pass);
+            if (!res.success) alert("Error de acceso: " + res.error);
+        });
+
+        document.getElementById('btn-logout').addEventListener('click', async () => {
+            await motor.apagarCamara();
+            await GeokatuDB.SecurityService.cerrarSesion();
+        });
+
+        // 2. MOTOR DE LECTURA HÍBRIDO
+        const motor = new MotorLector({
+            contenedorId: 'lector-camara',
+            onLectura: (codigo, origen) => {
+                procesarMovimientoStock(codigo, origen);
+            },
+            onError: (err) => console.warn('[Stock] Cámara:', err)
+        });
+
+        const btnToggleCamara = document.getElementById('btn-toggle-camara');
+        btnToggleCamara.addEventListener('click', (e) => {
+            e.stopPropagation();
+            motor.toggleCamara(btnToggleCamara);
+        });
+
+        // 3. LOGICA DE NEGOCIO Y ACTUALIZACIÓN DEL KARDEX
+        async function procesarMovimientoStock(codigo, origenHardware) {
+            const luz = document.getElementById('luz-estado');
+            luz.classList.add('leyendo');
+
+            const unidadesLote = Math.max(1, Number(document.getElementById('input-unidades-lote').value) || 1);
+            
+            // Buscar producto en memoria
+            const prod = catalogoLocal.find(p => p.codigo_barras === codigo || p.id_prod === codigo);
+
+            if (!prod) {
+                luz.classList.remove('leyendo');
+                alert(`⚠️ Producto con código ${codigo} no existe en el catálogo.`);
+                return;
+            }
+
+            // Aplicar cambio aritmético al stock
+            let nuevoStock = prod.stock_actual !== undefined ? prod.stock_actual : 0;
+            let delta = 0;
+
+            if (operacionActual === 'ENTRADA') {
+                delta = unidadesLote;
+                nuevoStock += delta;
+            } else if (operacionActual === 'SALIDA') {
+                delta = -unidadesLote;
+                nuevoStock = Math.max(0, nuevoStock + delta);
+            }
+
+            // Actualizar memoria RAM y localStorage
+            if (operacionActual !== 'AUDITORIA') {
+                prod.stock_actual = nuevoStock;
+                localStorage.setItem(`geokatu_catalogo_${idNegocio}`, JSON.stringify(catalogoLocal));
+            }
+
+            // Renderizar datos en la tarjeta
+            document.getElementById('prod-nombre').innerText = prod.nombre;
+            document.getElementById('prod-codigo').innerText = codigo;
+            document.getElementById('res-operacion').innerText = operacionActual;
+            document.getElementById('res-hardware').innerText = origenHardware;
+            document.getElementById('res-stock').innerText = nuevoStock;
+            document.getElementById('tarjeta-producto').classList.add('visible');
+
+            // Registrar movimiento en Firestore (Kardex)
+            if (operacionActual !== 'AUDITORIA') {
+                await GeokatuDB.InventarioService.registrarMovimientoFisico(
+                    prod.id_prod, 
+                    operacionActual === 'ENTRADA' ? "PROVEEDOR" : "BODEGA", 
+                    operacionActual === 'ENTRADA' ? "BODEGA" : "CLIENTE", 
+                    operacionActual
+                    unidadesLote 
+                );
+            }
+
+            luz.classList.remove('leyendo');
+
+            setTimeout(() => {
+                document.getElementById('tarjeta-producto').classList.remove('visible');
+            }, 3500);
+        }
+
+        // 4. CONTROL DE SELECTORES
+        document.querySelectorAll('#selector-operacion .ribbon-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('#selector-operacion .ribbon-btn').forEach(b => b.classList.remove('activo'));
+                btn.classList.add('activo');
+                operacionActual = btn.getAttribute('data-op');
+            });
+        });
+    </script>
+</body>
+</html>
+
+

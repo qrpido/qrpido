@@ -1,13 +1,5 @@
 // auth-mando.js - Módulo de Autenticación Centralizada (Cero Magic Links)
-import { getAuth, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import GeokatuDB from './core-db.js';
-
-// PERSISTENCIA DE SESIÓN EXPLÍCITA (Evita cierres de sesión involuntarios al navegar atrás o recargar)
-const auth = getAuth();
-setPersistence(auth, browserLocalPersistence)
-    .catch((error) => {
-        console.error("Error fijando persistencia de auth:", error);
-    });
 
 window.toggleVerPassword = function(inputId, btn) {
     const el = document.getElementById(inputId);
@@ -119,55 +111,19 @@ window.iniciarConGoogle = async () => {
 };
 
 window.iniciarSesion = async () => {
-    // 1. Verificamos que el usuario haya resuelto la cajita
-    const captchaToken = typeof grecaptcha !== 'undefined' ? grecaptcha.getResponse() : null;
-    if (!captchaToken) return alert("Por favor, valida que eres humano marcando la casilla de seguridad.");
-
     const email = document.getElementById('login-email').value.trim();
     const pass = document.getElementById('login-pass').value;
-    const btn = document.getElementById('btn-login-accion');
-    if (btn) { btn.innerText = "Verificando seguridad..."; btn.disabled = true; }
-    
-    try {
-        // 2. Le pedimos a la Cloud Function que valide el token con la clave privada
-        const { getFunctions, httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js');
-        const functions = getFunctions();
-        const validarFirma = httpsCallable(functions, 'validarFirmaHumana');
-        
-        await validarFirma({ token: captchaToken });
+    const { success, error } = await GeokatuDB.SecurityService.iniciarSesion(email, pass);
+    if (!success) {
+        alert("Error: " + error);
+    } else {
+        localStorage.setItem('qrpido_session_validated', 'true'); // 🔑 Entregamos llave a usuario recurrente
+        const modal = document.getElementById('modal-login');
+        if (modal) modal.classList.remove('activo');
 
-        // 3. Si llegamos aquí, el usuario es 100% humano. Procedemos con Firebase Auth.
-        if (btn) btn.innerText = "Ingresando...";
-        
-        const { success, error, data: userData } = await GeokatuDB.SecurityService.iniciarSesion(email, pass);
-        
-        if (success) {
-            localStorage.setItem('qrpido_session_validated', 'true');
-            const modal = document.getElementById('modal-login');
-            if (modal) modal.classList.remove('activo');
-
-            const infoNegocio = await GeokatuDB.AdminService.obtenerNegocioPorUsuario(userData.uid);
-            
-            if (infoNegocio.success && infoNegocio.data) {
-                const perfil = infoNegocio.data.categoria_maestra || infoNegocio.data.niche || 'comercio';
-                if (perfil === 'inmuebles' || perfil === 'inmobiliaria') {
-                    window.location.href = 'boveda-inmuebles.html';
-                } else {
-                    window.location.href = 'boveda-comercio.html';
-                }
-            } else {
-                window.location.href = 'acceso.html?onboarding=true';
-            }
-        } else {
-            alert("Error de acceso: " + error);
-            if (btn) { btn.innerText = "Iniciar Sesión"; btn.disabled = false; }
-            if (typeof grecaptcha !== 'undefined') grecaptcha.reset();
+        if(window.location.pathname.includes('tramites.html')) {
+            location.reload();
         }
-
-    } catch (error) {
-        alert("Alerta de seguridad: " + error.message);
-        if (btn) { btn.innerText = "Iniciar Sesión"; btn.disabled = false; }
-        if (typeof grecaptcha !== 'undefined') grecaptcha.reset();
     }
 };
 
@@ -183,88 +139,9 @@ window.cerrarSesion = async () => {
 };
 
 window.loginGoogleRadar = async () => {
-    // 1. Capturamos la cajita de seguridad
-    const contenedorCaptcha = document.querySelector('.recaptcha-container');
-    const captchaToken = typeof grecaptcha !== 'undefined' ? grecaptcha.getResponse() : null;
-
-    // 2. Si NO ha marcado la casilla, activamos la alerta visual ROJA y detenemos el proceso
-    if (!captchaToken) {
-        if (contenedorCaptcha) {
-            contenedorCaptcha.style.transition = "all 0.3s ease";
-            contenedorCaptcha.style.border = "2px solid #ff4444";
-            contenedorCaptcha.style.borderRadius = "8px";
-            contenedorCaptcha.style.padding = "4px";
-            contenedorCaptcha.style.backgroundColor = "rgba(255, 68, 68, 0.1)";
-            
-            // Animación de "temblor" para llamar la atención del usuario
-            contenedorCaptcha.animate([
-                { transform: 'translateX(0)' }, { transform: 'translateX(-5px)' },
-                { transform: 'translateX(5px)' }, { transform: 'translateX(0)' }
-            ], { duration: 300 });
-        }
-        alert("⚠️ Por favor, marca la casilla 'No soy un robot' antes de usar Google.");
-        return; 
-    }
-
-    // 3. Si ya la marcó, limpiamos el color rojo
-    if (contenedorCaptcha) {
-        contenedorCaptcha.style.border = "none";
-        contenedorCaptcha.style.backgroundColor = "transparent";
-    }
-
-    // 4. Desactivamos interacciones del mapa mientras carga
-    const modalLogin = document.getElementById('modal-login');
-    if (modalLogin) modalLogin.innerHTML = "<h3 style='color: #ff6b00; text-align: center;'>Verificando credenciales...</h3>";
-
-    try {
-        // 5. Validamos la firma humana con el Cadenero (Backend)
-        const { getFunctions, httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js');
-        const functions = getFunctions();
-        const validarFirma = httpsCallable(functions, 'validarFirmaHumana');
-        
-        await validarFirma({ token: captchaToken });
-
-        // 6. Si pasamos la seguridad, invocamos a Google Auth
-        const { success, error, esNuevo, data: userData } = await GeokatuDB.SecurityService.iniciarConGoogle();
-        
-        if (success) {
-            localStorage.setItem('qrpido_session_validated', 'true');
-            
-            if (esNuevo) {
-                if (modalLogin) modalLogin.classList.remove('activo');
-                if (typeof window.dispararOnboardingPerfiles === 'function') {
-                    window.dispararOnboardingPerfiles();
-                } else {
-                    window.location.href = 'acceso.html?onboarding=true';
-                }
-            } else {
-                const infoNegocio = await GeokatuDB.AdminService.obtenerNegocioPorUsuario(userData.uid);
-                
-                if (infoNegocio.success && infoNegocio.data) {
-                    const perfil = infoNegocio.data.categoria_maestra || infoNegocio.data.niche || 'comercio';
-                    if (perfil === 'inmuebles' || perfil === 'inmobiliaria') {
-                        window.location.href = 'boveda-inmuebles.html';
-                    } else {
-                        window.location.href = 'boveda-comercio.html';
-                    }
-                } else {
-                    if (modalLogin) modalLogin.classList.remove('activo');
-                    if (typeof window.dispararOnboardingPerfiles === 'function') {
-                        window.dispararOnboardingPerfiles();
-                    }
-                }
-            }
-        } else {
-            alert("Error con Google: " + error);
-            if (modalLogin) modalLogin.classList.remove('activo'); 
-            if (typeof grecaptcha !== 'undefined') grecaptcha.reset();
-        }
-
-    } catch (err) {
-        alert("Alerta de seguridad: " + err.message);
-        if (typeof grecaptcha !== 'undefined') grecaptcha.reset();
-        if (modalLogin) modalLogin.classList.remove('activo'); // Restaurar UI
-    }
+    const { success, error } = await GeokatuDB.SecurityService.iniciarConGoogle();
+    if (success) window.location.href = 'admin.html';
+    else alert("Error con Google: " + error);
 };
 
 window.loginTradicionalRadar = async () => {
@@ -343,54 +220,3 @@ GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
         if (btnConductorTrans) btnConductorTrans.style.display = 'none';
     }
 });
-
-// ==========================================
-// ENRUTADOR INTELIGENTE (El Semáforo de Bóvedas)
-// ==========================================
-window.irAMiOficinaInteligente = async () => {
-    if(navigator.vibrate) navigator.vibrate(50);
-    
-    try {
-        // 1. Atrapamos al usuario actual
-        let currentUser = null;
-        await new Promise(resolve => {
-            GeokatuDB.SecurityService.observarEstadoSesion(u => {
-                currentUser = u;
-                resolve();
-            });
-        });
-
-        if (!currentUser) {
-            alert("Debes iniciar sesión primero.");
-            return;
-        }
-
-        // 2. Buscamos su perfil de negocio en la Base de Datos
-        const infoNegocio = await GeokatuDB.AdminService.obtenerNegocioPorUsuario(currentUser.uid);
-        
-        // 3. Lógica del Semáforo
-        if (infoNegocio.success && infoNegocio.data) {
-            // TIENE PERFIL: Leemos su etiqueta
-            const perfil = infoNegocio.data.categoria_maestra || infoNegocio.data.niche || 'comercio';
-            
-            if (perfil === 'inmuebles' || perfil === 'inmobiliaria') {
-                window.location.href = 'boveda-inmuebles.html';
-            } else {
-                window.location.href = 'boveda-comercio.html';
-            }
-        } else {
-            // ES UN FANTASMA: Acaba de registrarse con Google y no tiene perfil.
-            const menuLlave = document.getElementById('menu-llave');
-            if (menuLlave) menuLlave.style.display = 'none';
-
-            if (typeof window.dispararOnboardingPerfiles === 'function') {
-                window.dispararOnboardingPerfiles();
-            } else {
-                window.location.href = 'acceso.html?onboarding=true';
-            }
-        }
-    } catch (error) {
-        console.error("Error en el enrutador:", error);
-        alert("Hubo un problema al cargar tu bóveda. Intenta de nuevo.");
-    }
-};
