@@ -196,19 +196,91 @@ function parsearCodigoBalanza(codigo) {
 // ==========================================
 // 3. MOTOR DE ESCÁNER Y PROCESAMIENTO
 // ==========================================
-const motor = new MotorLector({
-    contenedorId: 'lector-camara',
-    onLectura: (codigo) => {
-        procesarEntradaCodigo(codigo);
-    },
-    onError: (err) => console.warn('[POS] Escáner:', err)
-});
+let scannerPosInstancia = null;
+
+window.escanearParaPOS = () => {
+    const visor = document.getElementById('lector-camara');
+    const btnCam = document.getElementById('btn-toggle-camara');
+    if (!visor) return;
+
+    if (visor.style.display === "block") {
+        if (scannerPosInstancia && scannerPosInstancia.isScanning) {
+            scannerPosInstancia.stop().then(() => {
+                visor.style.display = "none";
+                if (btnCam) btnCam.innerHTML = `<span class="material-symbols-outlined">qr_code_scanner</span> Cámara`;
+            }).catch(() => {
+                visor.style.display = "none";
+            });
+        } else {
+            visor.style.display = "none";
+            if (btnCam) btnCam.innerHTML = `<span class="material-symbols-outlined">qr_code_scanner</span> Cámara`;
+        }
+        return;
+    }
+
+    visor.style.display = "block";
+    if (btnCam) btnCam.innerHTML = `<span class="material-symbols-outlined">close</span> Cerrar`;
+
+    const configFormatos = {
+        formatsToSupport: [
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.QR_CODE
+        ],
+        verbose: false
+    };
+
+    if (!scannerPosInstancia) {
+        scannerPosInstancia = new Html5Qrcode("lector-camara", configFormatos);
+    }
+
+    const configEscaneo = {
+        fps: 20,
+        qrbox: (anchoVista, altoVista) => {
+            const w = Math.floor(anchoVista * 0.85);
+            const h = Math.floor(Math.min(altoVista * 0.55, 120));
+            return { width: w, height: h };
+        },
+        aspectRatio: 1.333333
+    };
+
+    scannerPosInstancia.start(
+        { facingMode: "environment" },
+        configEscaneo,
+        (codigoDecodificado) => {
+            if (navigator.vibrate) navigator.vibrate([100]);
+
+            scannerPosInstancia.stop().then(() => {
+                visor.style.display = "none";
+                if (btnCam) btnCam.innerHTML = `<span class="material-symbols-outlined">qr_code_scanner</span> Cámara`;
+            }).catch(() => {
+                visor.style.display = "none";
+                if (btnCam) btnCam.innerHTML = `<span class="material-symbols-outlined">qr_code_scanner</span> Cámara`;
+            });
+
+            procesarEntradaCodigo(codigoDecodificado);
+        },
+        () => {}
+    ).catch((err) => {
+        console.error("Error al iniciar cámara POS:", err);
+        alert("Verifica los permisos de cámara en tu navegador.");
+        visor.style.display = "none";
+        if (btnCam) btnCam.innerHTML = `<span class="material-symbols-outlined">qr_code_scanner</span> Cámara`;
+    });
+};
 
 const btnToggleCamara = document.getElementById('btn-toggle-camara');
-btnToggleCamara.addEventListener('click', (e) => {
-    e.stopPropagation();
-    motor.toggleCamara(btnToggleCamara);
-});
+if (btnToggleCamara) {
+    btnToggleCamara.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.escanearParaPOS();
+    });
+}
+
 
 const inputBuscador = document.getElementById('buscador-principal');
 inputBuscador.addEventListener('keydown', (e) => {
@@ -1845,7 +1917,7 @@ document.getElementById('btn-confirmar-apertura').addEventListener('click', asyn
             btnCaja.innerText = "Caja Abierta";
             btnCaja.style.color = "var(--accent-green)";
         }
-        alert(`Caja abierta con base de $${base.toLocaleString()}. ¡Buenas ventas!`);
+        window.mostrarAvisoPos(`Caja abierta con base de $${base.toLocaleString()}. ¡Buenas ventas!`);
     } else {
         alert("Error al abrir caja: " + res.error);
     }

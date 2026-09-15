@@ -169,9 +169,15 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
     <span style="font-size: 16px; line-height: 1; margin-bottom: 2px;">🚌</span>
     <span style="font-size: 7px; color: #aaa !important; font-weight: bold; text-transform: uppercase; line-height: 1; text-align: center;">Rutas</span>
 </div>
+<!-- Nuevo botón magnético adaptado para reemplazar el selector roto anterior -->
+<div id="btn-radar-magnetico" class="btn-flotante-gps" style="bottom: auto; right: auto; top: 300px; left: 15px; width: 45px; height: 45px; border-radius: 50%; background-color: #1e1e1e !important; border: 1px solid #444 !important; box-shadow: 0 4px 15px rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column;" onclick="if(!window.isDraggingRadar) window.toggleRadarIsla()">
+    <span style="font-size: 16px; line-height: 1; margin-bottom: 2px;">🌐</span>
+    <span style="font-size: 7px; color: #aaa !important; font-weight: bold; text-transform: uppercase; line-height: 1; text-align: center;">Radar</span>
+</div>
+
 
 <script>
-    // 🧲 MOTOR FÍSICO: Satélites (Firmas y Transporte)
+    // 🧲 MOTOR FÍSICO: Satélites (Firmas, Transporte y Radar)
     (function() {
         const btnFirma = document.getElementById('btn-firmas-magnetico');
         if(!btnFirma) return;
@@ -231,6 +237,36 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
             setTimeout(() => window.isDraggingTransporte = false, 50);
         });
     })();
+
+    (function() {
+        const btnRadar = document.getElementById('btn-radar-magnetico');
+        if(!btnRadar) return;
+        let isDragging = false, startY, startX, initialTop, initialLeft;
+        const MARGEN_X = 15;
+        btnRadar.addEventListener('touchstart', (e) => {
+            isDragging = false; window.isDraggingRadar = false;
+            startY = e.touches[0].clientY; startX = e.touches[0].clientX;
+            initialTop = btnRadar.getBoundingClientRect().top; initialLeft = btnRadar.getBoundingClientRect().left;
+            btnRadar.style.transition = 'none'; 
+        }, {passive: true});
+        btnRadar.addEventListener('touchmove', (e) => {
+            const deltaY = e.touches[0].clientY - startY; const deltaX = e.touches[0].clientX - startX;
+            if (Math.abs(deltaY) > 5 || Math.abs(deltaX) > 5) {
+                isDragging = true; window.isDraggingRadar = true;
+                btnRadar.style.top = (initialTop + deltaY) + 'px'; btnRadar.style.left = (initialLeft + deltaX) + 'px'; btnRadar.style.right = 'auto'; 
+            }
+        }, {passive: true});
+        btnRadar.addEventListener('touchend', (e) => {
+            btnRadar.style.transition = 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
+            if (!isDragging) return;
+            const rect = btnRadar.getBoundingClientRect(); const midScreen = window.innerWidth / 2;
+            if (rect.left + (rect.width/2) < midScreen) { btnRadar.style.left = MARGEN_X + 'px'; btnRadar.style.right = 'auto'; } 
+            else { btnRadar.style.left = 'auto'; btnRadar.style.right = MARGEN_X + 'px'; }
+            if (rect.top < 80) btnRadar.style.top = '80px';
+            if (rect.bottom > window.innerHeight - 100) btnRadar.style.top = (window.innerHeight - 100 - rect.height) + 'px';
+            setTimeout(() => window.isDraggingRadar = false, 50);
+        });
+    })();
 </script>
 
 <div id="pantalla-carga">
@@ -266,45 +302,133 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
 
         <div class="contenedor-llave" id="btn-portal-mando-contenedor" style="border-radius: 50%;">
             <button class="btn-login" id="btn-portal-mando" onclick="toggleSubmenu()">🔑</button>
-            <div id="submenu-llave" class="submenu-llave">
-                <button id="btn-login-submenu" class="btn-submenu" onclick="abrirModal('modal-login'); toggleSubmenu()">🔑 Iniciar Sesión</button>
-                <button id="btn-mi-oficina" class="btn-submenu" onclick="window.irAMiOficinaInteligente(); toggleSubmenu()" style="display:none; background: var(--naranja); color: white; border: none; font-weight: bold;">🏪 Ir a Mi Oficina</button>
-                <button id="btn-panel-empresa" class="btn-submenu" onclick="window.abrirModal('modal-crm-corporativo'); toggleSubmenu()" style="display:none; background: #00f5d4; color: black; font-weight: bold; border: none;">💼 Consola Empresa</button>
-                <button id="btn-panel-conductor" class="btn-submenu" onclick="window.location.href='domiciliarios.html'" style="display:none; background: var(--naranja); color: white; font-weight: bold; border: none;">🚖 Modo Conductor</button>
-                <button id="btn-acceso-moderacion" class="btn-submenu" onclick="window.location.href='moderacion.html'" style="display:none; border-color: #00ff64; color: #00ff64;">⚖️ Panel Moderación</button>
-                <button id="btn-acceso-superadmin" class="btn-submenu" onclick="window.location.href='qrpido.html'" style="display:none; border-color: #00aaff; color: #00aaff;">👁️ Cerebro Central</button>
-                <button class="btn-submenu" onclick="abrirModal('modal-soporte'); toggleSubmenu()" style="border-color: var(--naranja); color: var(--naranja);">💬 Centro de Ayuda</button>
+            <div id="submenu-llave" class="submenu-llave" style="width: 130px;">
+                <button id="btn-login-submenu" class="btn-submenu" onclick="abrirModal('modal-login'); toggleSubmenu()" style="text-align: left; font-size: 11px;">Iniciar Sesion</button>
+                <button id="btn-oficina" class="btn-submenu" onclick="if(window.irAMiOficinaInteligente) window.irAMiOficinaInteligente(); toggleSubmenu()" style="display:none; text-align: left; font-size: 11px;">Oficina</button>
+                <button id="btn-bodega" class="btn-submenu" onclick="window.location.href='boveda-comercio.html'; toggleSubmenu()" style="display:none; text-align: left; font-size: 11px;">Bodega</button>
+                <button id="btn-pos" class="btn-submenu" onclick="window.location.href='pos.html'; toggleSubmenu()" style="display:none; text-align: left; font-size: 11px;">POS</button>
+                <button id="btn-catalogo" class="btn-submenu" onclick="window.location.href='negocio.html'; toggleSubmenu()" style="display:none; text-align: left; font-size: 11px;">Catalogo</button>
+                <button id="btn-inventario" class="btn-submenu" onclick="window.location.href='inventario.html'; toggleSubmenu()" style="display:none; text-align: left; font-size: 11px;">Inventario</button>
+                <button id="btn-faq" class="btn-submenu" onclick="abrirModal('modal-soporte'); toggleSubmenu()" style="text-align: left; font-size: 11px;">FAQ</button>
+                <button id="btn-salir" class="btn-submenu" onclick="if(window.cerrarSesion) window.cerrarSesion(); toggleSubmenu()" style="display:none; text-align: left; font-size: 11px; color: #ff4444; border-color: rgba(255,68,68,0.3);">Salir</button>
             </div>
         </div>
     </div> 
 </div>
 
-<!-- 🪐 MÁQUINA DE ESTADOS FAM (BURBUJA EVOLUCIONADA) -->
-<div id="fam-container" style="position: fixed; top: 85px; right: 15px; z-index: 9999; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; pointer-events: none;">
-
-    <!-- FASE 0: Burbuja Magnética en Reposo -->
-    <div id="fam-burbuja" class="btn-flotante-gps" style="position: relative; top: 0; left: 0; right: 0; bottom: 0; width: 45px; height: 45px; background-color: #1e1e1e !important; border: 1px solid #444 !important; border-radius: 50%; box-shadow: 0 4px 15px rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; cursor: pointer; pointer-events: all; transition: all 0.4s cubic-bezier(0.68, -0.55, 0.26, 1.55);" onclick="abrirFamEstado1()">
-        <span style="font-size: 20px;">🎛️</span>
-    </div>
-
-    <!-- FASE 1: Expansión Vertical (Mitosis) -->
-    <div id="fam-categorias" class="fam-panel colapsado" style="flex-direction: column; pointer-events: all;" onclick="event.stopPropagation()">
-        <button class="tag-pill" onclick="abrirFamEstado2('negocios')">🏪 Negocios</button>
-        <button class="tag-pill" onclick="abrirFamEstado2('inmuebles')">🏠 Inmuebles</button>
-        <button class="tag-pill" onclick="abrirFamEstado2('servicios')">🛠️ Servicios</button>
-        <button class="tag-pill" onclick="abrirFamEstado2('aliados')">🤝 Aliados</button>
-        <button class="tag-pill" onclick="window.location.href='pulso.html'">📰 Pulso</button>
-    </div>
-
-    <!-- FASE 2: Aislamiento Profundo Horizontal -->
-    <div id="fam-filtros" class="fam-panel colapsado" style="flex-direction: row; align-items: center; pointer-events: all; max-width: 85vw; overflow-x: auto; background: rgba(20, 20, 25, 0.95); border-color: #00f5d4;" onclick="event.stopPropagation()">
-        <div style="display: flex; gap: 5px; flex-shrink: 0; margin-right: 5px;">
-            <button class="btn-micro" onclick="volverFamEstado1()" style="background: rgba(255,255,255,0.1); color: white;">↩️</button>
-            <button class="btn-micro" onclick="cerrarFamTotalmente()" style="background: rgba(255,68,68,0.2); color: #ff4444;">✖</button>
+<!-- =========================================================
+     RADAR INTELIGENTE: ISLA DINÁMICA DE FILTRADO ÁUREO
+     ========================================================= -->
+<div id="radar-isla-container" style="position: fixed; bottom: 95px; right: 20px; z-index: 9999; display: flex; flex-direction: column; align-items: flex-end; pointer-events: none;">
+    
+    <div id="radar-panel-flotante" style="width: 280px; background: rgba(15, 15, 20, 0.92); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 107, 0, 0.3); border-radius: 24px; padding: 16px; box-shadow: 0 15px 40px rgba(0,0,0,0.8); transform: scale(0.8) translateY(20px); opacity: 0; pointer-events: none; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); margin-bottom: 12px; box-sizing: border-box;">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px;">
+            <span style="font-size: 11px; font-weight: 900; color: var(--naranja); text-transform: uppercase; letter-spacing: 1px;">Radar Urbano</span>
+            <button onclick="window.cerrarRadarIsla()" style="background: rgba(255,255,255,0.1); border: none; color: #aaa; width: 24px; height: 24px; border-radius: 50%; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center;">✖</button>
         </div>
-        <div id="fam-contenido-filtros" style="display: flex; gap: 8px; flex: 1;"></div>
+
+        <div style="display: flex; gap: 6px; margin-bottom: 12px; overflow-x: auto; scrollbar-width: none;">
+            <button class="radar-tab-btn activo" onclick="window.cambiarTabRadar('negocios', this)">Negocios</button>
+            <button class="radar-tab-btn" onclick="window.cambiarTabRadar('inmuebles', this)">Inmuebles</button>
+            <button class="radar-tab-btn" onclick="window.cambiarTabRadar('servicios', this)">Servicios</button>
+            <button class="radar-tab-btn" onclick="window.location.href='pulso.html'">Pulso</button>
+        </div>
+
+        <div id="radar-subfiltros-container" style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.05); border-radius: 14px; padding: 10px; min-height: 50px; display: flex; flex-direction: column; gap: 8px;">
+            <!-- Contenido dinámico -->
+        </div>
     </div>
 </div>
+
+<style>
+    .radar-tab-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #aaa; padding: 6px 12px; border-radius: 12px; font-size: 11px; font-weight: 800; cursor: pointer; white-space: nowrap; transition: 0.2s; }
+    .radar-tab-btn.activo { background: var(--naranja); color: white; border-color: var(--naranja); box-shadow: 0 4px 12px rgba(255,107,0,0.4); }
+    .radar-select-glas { width: 100%; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.12); color: white; padding: 8px 12px; border-radius: 10px; font-size: 12px; outline: none; box-sizing: border-box; }
+    .radar-select-glas option { background: #111; color: white; }
+</style>
+
+<script>
+    window.toggleRadarIsla = function() {
+        if (navigator.vibrate) navigator.vibrate(20);
+        const panel = document.getElementById('radar-panel-flotante');
+        const isOpen = panel.style.opacity === '1';
+        if (isOpen) {
+            window.cerrarRadarIsla();
+        } else {
+            panel.style.transform = 'scale(1) translateY(0)';
+            panel.style.opacity = '1';
+            panel.style.pointerEvents = 'all';
+            window.cambiarTabRadar('negocios', document.querySelector('.radar-tab-btn'));
+        }
+    };
+
+    window.cerrarRadarIsla = function() {
+        const panel = document.getElementById('radar-panel-flotante');
+        if (panel) {
+            panel.style.transform = 'scale(0.8) translateY(20px)';
+            panel.style.opacity = '0';
+            panel.style.pointerEvents = 'none';
+        }
+    };
+
+    window.cambiarTabRadar = function(categoria, btnElement) {
+        if (navigator.vibrate) navigator.vibrate(15);
+        document.querySelectorAll('.radar-tab-btn').forEach(b => b.classList.remove('activo'));
+        if (btnElement) btnElement.classList.add('activo');
+
+        window.categoriaActivaGlobal = categoria;
+        const subContainer = document.getElementById('radar-subfiltros-container');
+
+        if (categoria === 'inmuebles') {
+            subContainer.innerHTML = `
+                <div style="font-size: 10px; font-weight: bold; color: #888; text-transform: uppercase;">Filtros Inmobiliarios</div>
+                <select id="f-presupuesto" class="radar-select-glas" onchange="if(window.barridoRadar) window.barridoRadar()">
+                    <option value="">Rango de Precio</option>
+                    <option value="bajo">Económico (- 1.5M)</option>
+                    <option value="medio">Medio (1.5M - 3M)</option>
+                    <option value="alto">Premium (+ 3M)</option>
+                </select>
+                <select id="f-estrato" class="radar-select-glas" onchange="if(window.barridoRadar) window.barridoRadar()">
+                    <option value="">Seleccionar Estrato</option>
+                    <option value="e12">Estrato 1 y 2</option>
+                    <option value="e34">Estrato 3 y 4</option>
+                    <option value="e56">Estrato 5 y 6</option>
+                </select>
+            `;
+        } else if (categoria === 'servicios') {
+            subContainer.innerHTML = `
+                <div style="font-size: 10px; font-weight: bold; color: #888; text-transform: uppercase;">Filtro de Servicios</div>
+                <select id="f-servicio-tipo" class="radar-select-glas" onchange="if(window.barridoRadar) window.barridoRadar()">
+                    <option value="">Todos los servicios</option>
+                    <option value="reparacion">Reparaciones y Hogar</option>
+                    <option value="belleza">Belleza y Cuidado</option>
+                    <option value="salud">Salud y Bienestar</option>
+                </select>
+            `;
+        } else {
+            subContainer.innerHTML = `
+                <div style="font-size: 10px; font-weight: bold; color: #888; text-transform: uppercase;">Explorando Negocios</div>
+                <span style="font-size: 12px; color: #ddd; padding: 4px 0;">Mostrando todos los comercios activos en el radio del radar.</span>
+            `;
+        }
+
+        window.zonaNecesitaDescarga = true;
+        if (typeof window.descargarNegociosDeFirebase === 'function') {
+            window.descargarNegociosDeFirebase();
+        }
+    };
+
+    document.addEventListener('click', (e) => {
+        const panel = document.getElementById('radar-panel-flotante');
+        const btnRadar = document.getElementById('btn-radar-magnetico');
+        if (panel && panel.style.opacity === '1') {
+            if (!panel.contains(e.target) && !btnRadar.contains(e.target)) {
+                window.cerrarRadarIsla();
+            }
+        }
+    });
+</script>
 
 <button id="btn-cargar-zona" onclick="if(window.descargarNegociosDeFirebase) window.descargarNegociosDeFirebase()">🔍 Buscar en esta zona</button>
 
@@ -944,18 +1068,27 @@ window.addEventListener('DOMContentLoaded', () => {
     const observerAuth = new MutationObserver(() => {
         const panelActivo = document.getElementById('panel-usuario-activo');
         const btnLoginSub = document.getElementById('btn-login-submenu');
-        const btnMiOficina = document.getElementById('btn-mi-oficina');
-        const btnModoConductor = document.getElementById('btn-panel-conductor'); 
+        const btnOficina = document.getElementById('btn-oficina');
+        const btnBodega = document.getElementById('btn-bodega');
+        const btnPos = document.getElementById('btn-pos');
+        const btnCatalogo = document.getElementById('btn-catalogo');
+        const btnInventario = document.getElementById('btn-inventario');
+        const btnSalir = document.getElementById('btn-salir');
         
-        if (panelActivo) {
-            const usuarioLogueado = panelActivo.style.display !== 'none';
-            if (btnLoginSub) btnLoginSub.style.display = usuarioLogueado ? 'none' : 'block';
-            if (btnMiOficina) btnMiOficina.style.display = usuarioLogueado ? 'block' : 'none';
-            if (btnModoConductor) btnModoConductor.style.display = usuarioLogueado ? 'block' : 'none'; 
-        }
+        // Verificamos si hay un usuario autenticado globalmente
+        const usuarioLogueado = Boolean(window.idUsuarioActual || (panelActivo && panelActivo.style.display !== 'none'));
+
+        if (btnLoginSub) btnLoginSub.style.display = usuarioLogueado ? 'none' : 'block';
+        if (btnOficina) btnOficina.style.display = usuarioLogueado ? 'block' : 'none';
+        if (btnBodega) btnBodega.style.display = usuarioLogueado ? 'block' : 'none';
+        if (btnPos) btnPos.style.display = usuarioLogueado ? 'block' : 'none';
+        if (btnCatalogo) btnCatalogo.style.display = usuarioLogueado ? 'block' : 'none';
+        if (btnInventario) btnInventario.style.display = usuarioLogueado ? 'block' : 'none';
+        if (btnSalir) btnSalir.style.display = usuarioLogueado ? 'block' : 'none';
     });
-    const nodoObservado = document.getElementById('panel-usuario-activo');
-    if (nodoObservado) observerAuth.observe(nodoObservado, { attributes: true, attributeFilter: ['style'] });
+    
+    // Observamos tanto el panel activo como cambios generales de sesión
+    observerAuth.observe(document.body, { childList: true, subtree: true, attributes: true });
 });
 
 window.toggleSubmenu = () => document.getElementById('submenu-llave').classList.toggle('activo');

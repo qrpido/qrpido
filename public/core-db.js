@@ -1057,29 +1057,31 @@ const GeokatuDB = {
             };
         },
 
-        descargarCatalogoLocal: async (idNegocio) => {
+                descargarCatalogoLocal: async (idNegocio) => {
             if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
             try {
                 const productosRef = collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`);
-                const q = query(productosRef, where("eliminado", "==", false));
-                const snap = await getDocs(q);
+                const snap = await getDocs(productosRef);
 
                 const catalogoLocal = [];
                 snap.forEach(docSnap => {
                     const d = docSnap.data();
-                    catalogoLocal.push({ 
-                        id_prod: docSnap.id, 
-                        codigo_barras: d.codigo_barras || "",
-                        plu: d.plu || "",
-                        nombre: d.nombre || "Sin nombre",
-                        precio: d.precio || 0,
-                        stock_actual: d.stock_actual !== undefined ? d.stock_actual : 999,
-                        impuesto: d.impuesto || "19",
-                        icono: d.icono || "inventory_2",
-                        es_pesable: Boolean(d.es_pesable),
-                        unidad_medida: d.unidad_medida || (d.es_pesable ? "kg" : "und")
-                    });
+                    if (d.eliminado !== true) {
+                        catalogoLocal.push({ 
+                            id_prod: docSnap.id, 
+                            codigo_barras: d.codigo_barras ? String(d.codigo_barras).trim() : "",
+                            plu: d.plu ? String(d.plu).trim() : "",
+                            nombre: d.nombre || "Sin nombre",
+                            precio: Number(d.precio) || 0,
+                            stock_actual: d.stock_actual !== undefined ? d.stock_actual : 0,
+                            impuesto: d.impuesto || "19",
+                            icono: d.icono || "inventory_2",
+                            es_pesable: Boolean(d.es_pesable),
+                            unidad_medida: d.unidad_medida || (d.es_pesable ? "kg" : "und")
+                        });
+                    }
                 });
+
 
                 localStorage.setItem(`geokatu_catalogo_${idNegocio}`, JSON.stringify(catalogoLocal));
                 return { success: true, cantidad: catalogoLocal.length, data: catalogoLocal };
