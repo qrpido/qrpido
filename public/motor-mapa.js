@@ -271,11 +271,19 @@ window.arrancarMotor = async function() {
             window.maplibregl.addProtocol("pmtiles", protocol.tile);
         }
 
-        construirMapa();
+                construirMapa();
         
+        // 🚀 DESCARGA INICIAL OBLIGATORIA: Cargar comercios de la ciudad de inmediato
+        mapa.once('load', () => {
+            if (window.descargarNegociosDeFirebase) {
+                window.descargarNegociosDeFirebase();
+            }
+        });
+
         if (typeof window.construirCarrusel === 'function') {
             window.construirCarrusel();
         }
+
 
         setTimeout(() => {
             const pantallaCarga = document.getElementById('pantalla-carga');
@@ -567,12 +575,22 @@ window.construirMapa = function() {
 
     mapa = window.mapa; 
 
-    mapa.addControl(new maplibregl.GeolocateControl({
+        const geolocateControl = new maplibregl.GeolocateControl({
         positionOptions: { enableHighAccuracy: true },
         trackUserLocation: true,       
         showUserHeading: true,         
         fitBoundsOptions: { maxZoom: 16 } 
-    }), 'bottom-right');
+    });
+
+    geolocateControl.on('geolocate', () => {
+        // En cuanto el usuario o GPS ubica la posición, descargar los comercios de esa zona
+        if (window.descargarNegociosDeFirebase) {
+            window.descargarNegociosDeFirebase();
+        }
+    });
+
+    mapa.addControl(geolocateControl, 'bottom-right');
+
 
     window.mapa.on('load', () => {
         console.log("🟢 [WebGL Engine] Mapa base cargado. Aplicando filtro inicial...");
@@ -751,10 +769,7 @@ window.barridoRadar = function(filtroTexto = "") {
         if(catActualObj && catActualObj.id !== 'todos') {
             if (catActualObj.id === 'aliados') {
                 if (p.red_afiliados !== true && p.red_afiliados !== 'SI') return false;
-            } else if (catActualObj.id === 'negocios') {
-                // 💉 LA CURA DEL ASESINO: Ahora el mapa acepta "comercio" y "negocio" por igual
-                if (p.tipo_modelo !== 'negocio' && p.tipo_modelo !== 'comercio' && p.categoria_maestra !== 'comercio') return false;
-            } else if (p.tipo_modelo !== catActualObj.tipo) {
+           } else if (catActualObj.id === 'negocios') { const esComercioValido = ['negocio', 'comercio', 'tienda'].includes(p.tipo_modelo) || p.categoria_maestra === 'comercio' || Boolean(p.nombre && !p.es_inmueble_real && p.tipo_modelo !== 'conductor'); if (!esComercioValido) return false; }  else if (p.tipo_modelo !== catActualObj.tipo) {
                 return false;
             }
         }
@@ -949,17 +964,7 @@ window.barridoRadar = function(filtroTexto = "") {
             htmlAtributosGorras = `data-emoji="${emojiGorra}" data-anclaje="${claseAnclaje}"`;
         }
 
-        let htmlPin = '';
-        if (esAliado) {
-            htmlPin = `<div class="pin-wrapper pin-moneda-magica ${claseFuego}" style="border-color: #FFD700;" ${htmlAtributosGorras}><img src="${p.link_pin || logoSeguro}" class="pin-img" onerror="window.imagenRotaToGlass(this, '${nombreLimpio}')"></div>`;
-        } else {
-            htmlPin = `
-            <div class="pin-wrapper ${claseForma} ${claseAnimacion} ${claseFuego}"
-            style="--color-main: ${c1}; --color-sec: ${c2};" ${htmlAtributosGorras}>
-            <img src="${p.link_pin || logoSeguro}" class="pin-img" onerror="window.imagenRotaToGlass(this, '${nombreLimpio}')">
-            </div>`;
-        }
-
+      
         let tituloRenderizado = '';
         const urlSeguraPng = p.nombre_png ? escapeQuotes(p.nombre_png) : '';
 
@@ -990,44 +995,133 @@ window.barridoRadar = function(filtroTexto = "") {
         : (p.username ? `/${p.username.toLowerCase()}` : `negocio.html?id=${encodeURIComponent(p.codigo)}`);
 
         const usernameParaCompartir = p.username ? `'${p.username.toLowerCase()}'` : `null`;
+       // 🚦 LÓGICA DE SEMÁFORO DE CONFIANZA
+        const mod = p.estado_moderacion || 'pendiente';
+        let semaforoColor = '#ff4444'; // Rojo por defecto (sin verificación)
+        let semaforoTexto = 'Sin verificación oficial';
+
+        if (mod === 'aprobado' || mod === 'aprobado_activo' || p.verificado_geokatu === true) {
+            semaforoColor = '#00ff64'; // Verde
+            semaforoTexto = 'Comercio 100% verificado';
+        } else if (mod === 'en_revision' || mod === 'pendiente') {
+            semaforoColor = '#ffcc00'; // Amarillo
+            semaforoTexto = 'En proceso de verificación';
+        }
+
+        const semaforoId = `sem-${p.codigo}`;
 
         const htmlPopup = `
         <div style="position: relative;">
-            <button class="btn-fav-popup js-action-favorito" style="${favStyleBtn}" data-codigo="${window.sanitizarAtributo(encodeURIComponent(p.codigo))}" data-nombre="${window.sanitizarAtributo(nombreLimpio)}" data-precio="${window.sanitizarAtributo(p.precio || 0)}" data-portada="${window.sanitizarAtributo(portadaSegura)}" data-whatsapp="${window.sanitizarAtributo(p.whatsapp || '')}">${corazon}</button>
+            <!-- Botón Favorito (Esquina Superior Izquierda) -->
+            <button class="btn-fav-popup js-action-favorito" style="${favStyleBtn}" data-codigo="${window.sanitizarAtributo(encodeURIComponent(p.codigo))}" data-nombre="${window.sanitizarAtributo(nombreLimpio)}" data-precio="${window.sanitizarAtributo(p.precio || 0)}" data-portada="${window.sanitizarAtributo(portadaSegura)}" data-whatsapp="${window.sanitizarAtributo((p.whatsapp || p.whatsApp || '').toString().replace(/\D/g, ''))}">${corazon}</button>
+
+            <!-- Botón Compartir (Esquina Superior Derecha) -->
             <button class="btn-compartir js-action-compartir" data-codigo="${window.sanitizarAtributo(encodeURIComponent(p.codigo))}" data-nombre="${window.sanitizarAtributo(nombreLimpio)}" data-username="${window.sanitizarAtributo(usernameParaCompartir)}"><svg style="pointer-events: none;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg></button>
+
+            <!-- Imagen Portada de Fondo -->
             <img src="${portadaUsada}" class="popup-portada" style="border-color: ${c1}" onerror="window.imagenRotaToGlass(this, '${nombreLimpio}')">
         </div>
+
         <div class="popup-info">
             <img src="${logoSeguro}" class="popup-logo" style="border-color: ${c1};" onerror="window.imagenRotaToGlass(this, '${nombreLimpio}')">
+            
             <div class="popup-title-wrapper" style="margin-bottom: 8px; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;">
                 ${badgeRemate} ${badgeCobertura}
             </div>
+
             ${tituloRenderizado}
+
             <div class="estrellas" style="margin-top: 5px;">${estrellasHtml}</div>
             <p class="texto-piedra">${textoNicho}</p>
+            
+            <!-- 🚦 REQ 9: SEMÁFORO REUBICADO AL CENTRO INFERIOR (Antes del botón de acción) -->
+            <div class="contenedor-semaforo-inferior" style="display: flex; justify-content: center; align-items: center; width: 100%; margin-top: 8px; margin-bottom: 8px;">
+                <button type="button" class="semaforo-badge-btn" onclick="window.mostrarMensajeSemaforo('${semaforoId}', '${semaforoColor}', '${semaforoTexto}')" title="${semaforoTexto}" style="display: inline-flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.5); border: 1px solid ${semaforoColor}; border-radius: 14px; padding: 4px 12px; cursor: pointer;">
+                    <svg class="semaforo-luz-svg" viewBox="0 0 24 24" fill="${semaforoColor}" style="width: 10px; height: 10px; flex-shrink: 0;">
+                        <circle cx="12" cy="12" r="8" />
+                    </svg>
+                    <span style="color: ${semaforoColor}; font-size: 10px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;">${semaforoTexto}</span>
+                </button>
+            </div>
+            <div id="${semaforoId}" class="semaforo-tooltip" style="display: none; border-left: 3px solid ${semaforoColor}; color: ${semaforoColor}; margin-bottom: 8px; font-size: 11px; text-align: center;"></div>
+
+            <!-- Botón de Acción Principal -->
             <a href="${window.sanitizarURL(linkDestino)}" class="btn-catalogo js-action-ver-detalles" data-codigo="${window.sanitizarAtributo(encodeURIComponent(p.codigo))}" data-nicho="${window.sanitizarAtributo(sanitizarTexto(p.niche))}" style="background: ${c2}; color: ${estaAbierto ? '#ffffff' : '#aaaaaa'} !important; text-shadow: 0 1px 2px rgba(0,0,0,0.5); pointer-events: ${estaAbierto ? 'all' : 'none'};">${estaAbierto ? 'VER DETALLES' : 'CERRADO AHORA'}</a>
         </div>`;
 
         if (!window.marcadoresRadar[p.codigo]) {
-            // 1. elDOM ya no es un contenedor fantasma, es directamente el pin-wrapper
             const elDOM = document.createElement('div');
-            elDOM.className = `pin-wrapper ${claseForma} ${claseAnimacion} ${claseFuego}`;
-            
-            // 2. Le inyectamos la gorra y las variables CSS directo a la raíz
-            if (emojiGorra) {
-                elDOM.setAttribute('data-emoji', emojiGorra);
-                elDOM.setAttribute('data-anclaje', claseAnclaje);
+            elDOM.style.width = '60px';
+            elDOM.style.height = '60px';
+            elDOM.style.display = 'flex';
+            elDOM.style.justifyContent = 'center';
+            elDOM.style.alignItems = 'center';
+            elDOM.style.cursor = 'pointer';
+
+            // Fábrica SVG de silueta idéntica a la de boveda-comercio.html
+            let svgSilueta = '<path d="M 30,57 C 30,57 10,38 10,20 C 10,9 19,3 30,3 C 41,3 50,9 50,20 C 50,38 30,57 30,57 Z" />';
+            if (claseForma === 'forma-esfera') svgSilueta = '<circle cx="30" cy="30" r="26" />';
+            else if (claseForma === 'forma-triangulo') svgSilueta = '<polygon points="6,8 54,8 30,54" stroke-linejoin="round" />';
+            else if (claseForma === 'forma-estrella') svgSilueta = '<polygon points="30,4 38,23 57,23 42,34 48,53 30,42 12,53 18,34 3,23 22,23" stroke-linejoin="round" />';
+            else if (claseForma === 'forma-hexagono') svgSilueta = '<polygon points="30,4 53,17 53,43 30,56 7,43 7,17" stroke-linejoin="round" />';
+            else if (claseForma === 'forma-corazon') svgSilueta = '<path d="M 30 16 C 22 2 10 6 10 20 C 10 35 25 45 30 57 C 35 45 50 35 50 20 C 50 6 38 2 30 16 Z" stroke-linejoin="round" />';
+            else if (claseForma === 'forma-arbol') svgSilueta = '<polygon points="26,56 34,56 34,42 50,42 30,6 10,42 26,42" stroke-linejoin="round" />';
+            else if (claseForma === 'forma-hongo') svgSilueta = '<path d="M 24 56 L 36 56 L 36 36 L 52 36 C 52 15 44 8 30 8 C 16 8 8 15 8 36 L 24 36 Z" stroke-linejoin="round" />';
+            else if (claseForma === 'forma-paleta') svgSilueta = '<path d="M 28 56 L 32 56 L 32 37 A 16 16 0 1 0 28 37 Z" stroke-linejoin="round" />';
+
+            // 💉 REQ 8: Selector de imagen con prioridad y validación estricta
+            const urlCandidata = p.portada || p.imagen_perfil || p.foto_portada || p.link_pin || logoSeguro;
+            const tieneFotoValida = typeof urlCandidata === 'string' && urlCandidata.trim().length > 5 && urlCandidata !== 'null' && urlCandidata !== 'undefined';
+
+            // SVG Fallback Corporativo (#111 de fondo con acento áureo #ff6b00)
+            const inicialesFallback = (sanitizarTexto(p.nombre) || 'GK').substring(0, 2).toUpperCase();
+            const fallbackSVGAureo = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60"><rect width="60" height="60" rx="30" fill="%23111111"/><text x="30" y="36" font-size="20" font-weight="900" font-family="system-ui, sans-serif" fill="%23ff6b00" text-anchor="middle" dominant-baseline="middle">${inicialesFallback}</text><circle cx="30" cy="30" r="27" stroke="%23ff6b00" stroke-width="2" fill="none" opacity="0.6"/></svg>`;
+
+            const urlFondoFinal = tieneFotoValida ? urlCandidata : fallbackSVGAureo;
+
+            // Soporte intacto para aliados (moneda dorada) y formas estándar
+            const claseVisualPin = esAliado ? `pin-moneda-magica ${claseFuego}` : `${claseForma} ${claseAnimacion} ${claseFuego}`;
+            const colorPinMain = esAliado ? '#FFD700' : c1;
+            const colorPinSec = esAliado ? '#1a1600' : c2;
+
+            elDOM.innerHTML = `
+                <div class="pin-wrapper ${claseVisualPin}" 
+                     data-forma="${claseForma}"
+                     style="--color-main: ${colorPinMain}; --color-sec: ${colorPinSec};"
+                     ${emojiGorra ? `data-emoji="${emojiGorra}" data-anclaje="${claseAnclaje}"` : ''}>
+                    <svg class="svg-pin-fondo" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">${svgSilueta}</svg>
+                    <div class="img-pin-interior" 
+                         style="background-image: url('${urlFondoFinal}'); background-size: cover; background-position: center; background-repeat: no-repeat; background-color: #111111; width: 100%; height: 100%; border-radius: 50%;"
+                         role="img"
+                         aria-label="${nombreLimpio}">
+                    </div>
+                </div>
+            `;
+
+            // Respaldo asíncrono si el servidor arroja error 404 o falla de red
+            if (tieneFotoValida) {
+                const imgPreload = new Image();
+                imgPreload.onerror = () => {
+                    const contenedorImg = elDOM.querySelector('.img-pin-interior');
+                    if (contenedorImg) {
+                        contenedorImg.style.backgroundImage = `url('${fallbackSVGAureo}')`;
+                    }
+                };
+                imgPreload.src = urlCandidata;
             }
-            elDOM.style.setProperty('--color-main', c1);
-            elDOM.style.setProperty('--color-sec', c2);
-            
-            // 3. El HTML interno es SOLO la imagen (nada de divs anidados)
-            elDOM.innerHTML = `<img src="${p.link_pin || logoSeguro}" class="pin-img" onerror="window.imagenRotaToGlass(this, '${nombreLimpio}')">`;
 
-            const popup = new maplibregl.Popup({ offset: 22, closeButton: false, closeOnClick: true, maxWidth: 'none' })
-                .setHTML(htmlPopup);
+            // 📏 REQ 10: Anclaje bottom + elevación de 82px (60px pin + 22px de falange)
+            const popup = new maplibregl.Popup({ 
+    anchor: 'bottom',
+    offset: [0, -75], // Altura del pin (60px) + margen de falange (15px)
+    closeButton: false, 
+    closeOnClick: true, 
+    maxWidth: 'none' 
+}).setHTML(htmlPopup);
 
-            const marker = new maplibregl.Marker({ element: elDOM, anchor: 'center' })
+
+
+            const marker = new maplibregl.Marker({ element: elDOM, anchor: 'bottom' })
                 .setLngLat([pos.lng, pos.lat])
                 .setPopup(popup)
                 .addTo(mapa);
@@ -1047,10 +1141,30 @@ window.barridoRadar = function(filtroTexto = "") {
             window.marcadoresRadar[p.codigo] = marker;
         }
 
+        
+// 🚦 NOTIFICACIÓN TEMPORAL DE SEMÁFORO EN POPUP
+        window.mostrarMensajeSemaforo = function(idContenedor, color, texto) {
+            const el = document.getElementById(idContenedor);
+            if (!el) return;
+            
+            el.innerText = `🚦 ${texto}`;
+            el.style.display = 'block';
+            
+            // Reinicia la animación de desvanecimiento
+            el.style.animation = 'none';
+            el.offsetHeight; // Forzar reflow en el navegador
+            el.style.animation = 'desvanecerSemaforo 6s forwards cubic-bezier(0.4, 0, 0.2, 1)';
+            
+            setTimeout(() => {
+                if (el) el.style.display = 'none';
+            }, 6000);
+        };
+
         window.cerrarTarjetaInmueble = function(event, elemento) {
             event.stopPropagation(); 
             elemento.closest('.tarjeta-hibrida').style.display = 'none';
         };
+
 
         if (categoriaActivaGlobal === 'inmuebles') {
             tarjetasHibridasHtml += `
@@ -1446,3 +1560,5 @@ window.instanciarMinimapaBoveda = function(contenedorId, lat = 4.8133, lng = -75
         }
     };
 };
+
+

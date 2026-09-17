@@ -8,15 +8,19 @@ export class MotorLector {
      * @param {Function} config.onLectura - Callback: (codigo, origenHardware) => void
      * @param {Function} [config.onError] - Callback para capturar fallos o advertencias
      */
-    constructor({ contenedorId = 'lector-camara', onLectura, onError }) {
+    constructor({ contenedorId = 'lector-camara', onLectura, onError, cooldownMs = 400 }) {
         this.contenedorId = contenedorId;
         this.onLectura = onLectura;
         this.onError = onError || console.warn;
+        this.cooldownMs = cooldownMs;
+
+        // --- Sintetizador Acústico Nativo (Web Audio API) ---
+        this.audioCtx = null;
 
         // --- Estado Escáner Físico (USB-C / Bluetooth) ---
         this.bufferUSB = '';
         this.ultimoTiempoTecla = 0;
-       this.tiempoLimiteHardware = 80; // 🛡️ Tolerancia ampliada (80ms) para pistolas Bluetooth/USB en picos de CPU
+        this.tiempoLimiteHardware = 80; // 🛡️ Tolerancia ampliada (80ms) para pistolas Bluetooth/USB en picos de CPU
 
         // --- Estado Cámara Híbrida ---
         this.camaraEncendida = false;
@@ -292,28 +296,85 @@ export class MotorLector {
 
 
     // =========================================================================
-    // 6. DESPACHO UNIFICADO Y ANTI-DUPLICADOS
+    // 6. DESPACHO UNIFICADO, FEEDBACK AUDITIVO Y ANTI-DUPLICADOS
     // =========================================================================
+    _inicializarAudio() {
+        if (!this.audioCtx) {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (AudioContextClass) {
+                this.audioCtx = new AudioContextClass();
+            }
+        }
+        if (this.audioCtx && this.audioCtx.state === 'suspended') {
+            this.audioCtx.resume();
+        }
+    }
+
+    emitirTono(tipo = 'EXITO') {
+        try {
+            this._inicializarAudio();
+            if (!this.audioCtx) return;
+
+            const osc = this.audioCtx.createOscillator();
+            const gain = this.audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(this.audioCtx.destination);
+
+            const ahora = this.audioCtx.currentTime;
+
+            if (tipo === 'EXITO') {
+                // Tono corto y agudo (estilo scanner industrial)
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1800, ahora);
+                gain.gain.setValueAtTime(0.15, ahora);
+                gain.gain.exponentialRampToValueAtTime(0.01, ahora + 0.08);
+                osc.start(ahora);
+                osc.stop(ahora + 0.08);
+            } else if (tipo === 'UBICACION') {
+                // Doble tono ascendente armónico
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(900, ahora);
+                osc.frequency.exponentialRampToValueAtTime(1800, ahora + 0.12);
+                gain.gain.setValueAtTime(0.15, ahora);
+                gain.gain.exponentialRampToValueAtTime(0.01, ahora + 0.15);
+                osc.start(ahora);
+                osc.stop(ahora + 0.15);
+            } else if (tipo === 'ERROR') {
+                // Tono grave disonante
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(220, ahora);
+                gain.gain.setValueAtTime(0.2, ahora);
+                gain.gain.exponentialRampToValueAtTime(0.01, ahora + 0.25);
+                osc.start(ahora);
+                osc.stop(ahora + 0.25);
+            }
+        } catch (e) {
+            // Audio suprimido por políticas del navegador
+        }
+    }
+
     _gestionarLecturaConFiltro(codigo, origen) {
         if (this.bloqueoLectura) return;
         this.bloqueoLectura = true;
 
         this._emitirLectura(codigo, origen);
 
-        // Cooldown de 1.5 segundos para no volver a registrar el mismo código de inmediato
+        // Cooldown optimizado para Batch Scan
         setTimeout(() => {
             this.bloqueoLectura = false;
-        }, 1500);
+        }, this.cooldownMs);
     }
 
     _emitirLectura(codigo, origen) {
         if (navigator.vibrate) {
-            navigator.vibrate(80);
+            navigator.vibrate(50);
         }
+        this.emitirTono('EXITO');
         if (typeof this.onLectura === 'function') {
             this.onLectura(codigo, origen);
         }
     }
 }
+
 
 

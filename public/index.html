@@ -169,11 +169,7 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
     <span style="font-size: 16px; line-height: 1; margin-bottom: 2px;">🚌</span>
     <span style="font-size: 7px; color: #aaa !important; font-weight: bold; text-transform: uppercase; line-height: 1; text-align: center;">Rutas</span>
 </div>
-<!-- Nuevo botón magnético adaptado para reemplazar el selector roto anterior -->
-<div id="btn-radar-magnetico" class="btn-flotante-gps" style="bottom: auto; right: auto; top: 300px; left: 15px; width: 45px; height: 45px; border-radius: 50%; background-color: #1e1e1e !important; border: 1px solid #444 !important; box-shadow: 0 4px 15px rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column;" onclick="if(!window.isDraggingRadar) window.toggleRadarIsla()">
-    <span style="font-size: 16px; line-height: 1; margin-bottom: 2px;">🌐</span>
-    <span style="font-size: 7px; color: #aaa !important; font-weight: bold; text-transform: uppercase; line-height: 1; text-align: center;">Radar</span>
-</div>
+
 
 
 <script>
@@ -238,35 +234,7 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         });
     })();
 
-    (function() {
-        const btnRadar = document.getElementById('btn-radar-magnetico');
-        if(!btnRadar) return;
-        let isDragging = false, startY, startX, initialTop, initialLeft;
-        const MARGEN_X = 15;
-        btnRadar.addEventListener('touchstart', (e) => {
-            isDragging = false; window.isDraggingRadar = false;
-            startY = e.touches[0].clientY; startX = e.touches[0].clientX;
-            initialTop = btnRadar.getBoundingClientRect().top; initialLeft = btnRadar.getBoundingClientRect().left;
-            btnRadar.style.transition = 'none'; 
-        }, {passive: true});
-        btnRadar.addEventListener('touchmove', (e) => {
-            const deltaY = e.touches[0].clientY - startY; const deltaX = e.touches[0].clientX - startX;
-            if (Math.abs(deltaY) > 5 || Math.abs(deltaX) > 5) {
-                isDragging = true; window.isDraggingRadar = true;
-                btnRadar.style.top = (initialTop + deltaY) + 'px'; btnRadar.style.left = (initialLeft + deltaX) + 'px'; btnRadar.style.right = 'auto'; 
-            }
-        }, {passive: true});
-        btnRadar.addEventListener('touchend', (e) => {
-            btnRadar.style.transition = 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
-            if (!isDragging) return;
-            const rect = btnRadar.getBoundingClientRect(); const midScreen = window.innerWidth / 2;
-            if (rect.left + (rect.width/2) < midScreen) { btnRadar.style.left = MARGEN_X + 'px'; btnRadar.style.right = 'auto'; } 
-            else { btnRadar.style.left = 'auto'; btnRadar.style.right = MARGEN_X + 'px'; }
-            if (rect.top < 80) btnRadar.style.top = '80px';
-            if (rect.bottom > window.innerHeight - 100) btnRadar.style.top = (window.innerHeight - 100 - rect.height) + 'px';
-            setTimeout(() => window.isDraggingRadar = false, 50);
-        });
-    })();
+   
 </script>
 
 <div id="pantalla-carga">
@@ -285,6 +253,31 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
 
 <div id="toast-fantasma" class="toast-fantasma">No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.</div>
 <div id="offline-banner" class="toast-fantasma" style="background: rgba(255, 68, 68, 0.9); border-color: #ff4444; top: 10%; box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 15px rgba(255,68,68,0.4);">⚠️ Sin conexión. Mostrando mapa guardado.</div>
+<!-- CASCADA FLUIDA DE CRISTAL (RADAR UNIFICADO) -->
+<div id="cascada-filtros-maestro" class="cascada-filtros-wrapper">
+    <button type="button" class="btn-burbuja-filtro-raiz" id="btn-filtro-raiz" onclick="window.toggleCascadaFiltros()">
+        <span>🧭</span>
+        <span id="txt-filtro-raiz">Explorar</span>
+        <span id="flecha-filtro-raiz" style="font-size: 9px; opacity: 0.7;">▾</span>
+    </button>
+
+    <div class="burbujas-hijas-lista" id="lista-burbujas-hijas">
+        <div class="burbuja-item" onclick="window.seleccionarBurbujaFiltro('comercio', '🏢 Comercios')">
+            <span>🏢</span> Comercios
+        </div>
+        <div class="burbuja-item" onclick="window.seleccionarBurbujaFiltro('inmueble', '🏠 Inmuebles')">
+            <span>🏠</span> Inmuebles
+        </div>
+        <div class="burbuja-item" onclick="window.seleccionarBurbujaFiltro('servicio', '🛠️ Servicios')">
+            <span>🛠️</span> Servicios
+        </div>
+        <div class="burbuja-item" onclick="window.seleccionarBurbujaFiltro('logistica', '🚲 Flota Activa')">
+            <span>🚲</span> Flota Activa
+        </div>
+    </div>
+
+    <div class="panel-vertical-mercadolibre" id="panel-mercadolibre-subfiltros"></div>
+</div>
 
 <!-- BLOQUE SUPERIOR (Buscador, Llave, Corazón) -->
 <div class="top-ui ui-visible" id="caja-buscador">
@@ -316,119 +309,7 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
     </div> 
 </div>
 
-<!-- =========================================================
-     RADAR INTELIGENTE: ISLA DINÁMICA DE FILTRADO ÁUREO
-     ========================================================= -->
-<div id="radar-isla-container" style="position: fixed; bottom: 95px; right: 20px; z-index: 9999; display: flex; flex-direction: column; align-items: flex-end; pointer-events: none;">
-    
-    <div id="radar-panel-flotante" style="width: 280px; background: rgba(15, 15, 20, 0.92); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 107, 0, 0.3); border-radius: 24px; padding: 16px; box-shadow: 0 15px 40px rgba(0,0,0,0.8); transform: scale(0.8) translateY(20px); opacity: 0; pointer-events: none; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); margin-bottom: 12px; box-sizing: border-box;">
-        
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px;">
-            <span style="font-size: 11px; font-weight: 900; color: var(--naranja); text-transform: uppercase; letter-spacing: 1px;">Radar Urbano</span>
-            <button onclick="window.cerrarRadarIsla()" style="background: rgba(255,255,255,0.1); border: none; color: #aaa; width: 24px; height: 24px; border-radius: 50%; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center;">✖</button>
-        </div>
 
-        <div style="display: flex; gap: 6px; margin-bottom: 12px; overflow-x: auto; scrollbar-width: none;">
-            <button class="radar-tab-btn activo" onclick="window.cambiarTabRadar('negocios', this)">Negocios</button>
-            <button class="radar-tab-btn" onclick="window.cambiarTabRadar('inmuebles', this)">Inmuebles</button>
-            <button class="radar-tab-btn" onclick="window.cambiarTabRadar('servicios', this)">Servicios</button>
-            <button class="radar-tab-btn" onclick="window.location.href='pulso.html'">Pulso</button>
-        </div>
-
-        <div id="radar-subfiltros-container" style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.05); border-radius: 14px; padding: 10px; min-height: 50px; display: flex; flex-direction: column; gap: 8px;">
-            <!-- Contenido dinámico -->
-        </div>
-    </div>
-</div>
-
-<style>
-    .radar-tab-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #aaa; padding: 6px 12px; border-radius: 12px; font-size: 11px; font-weight: 800; cursor: pointer; white-space: nowrap; transition: 0.2s; }
-    .radar-tab-btn.activo { background: var(--naranja); color: white; border-color: var(--naranja); box-shadow: 0 4px 12px rgba(255,107,0,0.4); }
-    .radar-select-glas { width: 100%; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.12); color: white; padding: 8px 12px; border-radius: 10px; font-size: 12px; outline: none; box-sizing: border-box; }
-    .radar-select-glas option { background: #111; color: white; }
-</style>
-
-<script>
-    window.toggleRadarIsla = function() {
-        if (navigator.vibrate) navigator.vibrate(20);
-        const panel = document.getElementById('radar-panel-flotante');
-        const isOpen = panel.style.opacity === '1';
-        if (isOpen) {
-            window.cerrarRadarIsla();
-        } else {
-            panel.style.transform = 'scale(1) translateY(0)';
-            panel.style.opacity = '1';
-            panel.style.pointerEvents = 'all';
-            window.cambiarTabRadar('negocios', document.querySelector('.radar-tab-btn'));
-        }
-    };
-
-    window.cerrarRadarIsla = function() {
-        const panel = document.getElementById('radar-panel-flotante');
-        if (panel) {
-            panel.style.transform = 'scale(0.8) translateY(20px)';
-            panel.style.opacity = '0';
-            panel.style.pointerEvents = 'none';
-        }
-    };
-
-    window.cambiarTabRadar = function(categoria, btnElement) {
-        if (navigator.vibrate) navigator.vibrate(15);
-        document.querySelectorAll('.radar-tab-btn').forEach(b => b.classList.remove('activo'));
-        if (btnElement) btnElement.classList.add('activo');
-
-        window.categoriaActivaGlobal = categoria;
-        const subContainer = document.getElementById('radar-subfiltros-container');
-
-        if (categoria === 'inmuebles') {
-            subContainer.innerHTML = `
-                <div style="font-size: 10px; font-weight: bold; color: #888; text-transform: uppercase;">Filtros Inmobiliarios</div>
-                <select id="f-presupuesto" class="radar-select-glas" onchange="if(window.barridoRadar) window.barridoRadar()">
-                    <option value="">Rango de Precio</option>
-                    <option value="bajo">Económico (- 1.5M)</option>
-                    <option value="medio">Medio (1.5M - 3M)</option>
-                    <option value="alto">Premium (+ 3M)</option>
-                </select>
-                <select id="f-estrato" class="radar-select-glas" onchange="if(window.barridoRadar) window.barridoRadar()">
-                    <option value="">Seleccionar Estrato</option>
-                    <option value="e12">Estrato 1 y 2</option>
-                    <option value="e34">Estrato 3 y 4</option>
-                    <option value="e56">Estrato 5 y 6</option>
-                </select>
-            `;
-        } else if (categoria === 'servicios') {
-            subContainer.innerHTML = `
-                <div style="font-size: 10px; font-weight: bold; color: #888; text-transform: uppercase;">Filtro de Servicios</div>
-                <select id="f-servicio-tipo" class="radar-select-glas" onchange="if(window.barridoRadar) window.barridoRadar()">
-                    <option value="">Todos los servicios</option>
-                    <option value="reparacion">Reparaciones y Hogar</option>
-                    <option value="belleza">Belleza y Cuidado</option>
-                    <option value="salud">Salud y Bienestar</option>
-                </select>
-            `;
-        } else {
-            subContainer.innerHTML = `
-                <div style="font-size: 10px; font-weight: bold; color: #888; text-transform: uppercase;">Explorando Negocios</div>
-                <span style="font-size: 12px; color: #ddd; padding: 4px 0;">Mostrando todos los comercios activos en el radio del radar.</span>
-            `;
-        }
-
-        window.zonaNecesitaDescarga = true;
-        if (typeof window.descargarNegociosDeFirebase === 'function') {
-            window.descargarNegociosDeFirebase();
-        }
-    };
-
-    document.addEventListener('click', (e) => {
-        const panel = document.getElementById('radar-panel-flotante');
-        const btnRadar = document.getElementById('btn-radar-magnetico');
-        if (panel && panel.style.opacity === '1') {
-            if (!panel.contains(e.target) && !btnRadar.contains(e.target)) {
-                window.cerrarRadarIsla();
-            }
-        }
-    });
-</script>
 
 <button id="btn-cargar-zona" onclick="if(window.descargarNegociosDeFirebase) window.descargarNegociosDeFirebase()">🔍 Buscar en esta zona</button>
 
@@ -948,120 +829,242 @@ window.buscarCiudadGlobal = async function() {
     } catch (e) { console.error("Error en la búsqueda SIG:", e); } finally { btn.innerText = originalIcon; }
 };
 </script>
-
+<!-- =========================================================================
+     CONTROLADOR UNIFICADO DE FILTROS EN CASCADA E INMUEBLES (GEOKATU RADAR)
+     ========================================================================= -->
 <script>
-// --- MÁQUINA DE ESTADOS FAM (BURBUJA EVOLUCIONADA) ---
-let famEstadoActual = 0; // 0: Reposo, 1: Categorías, 2: Filtros
-
-window.abrirFamEstado1 = function() {
-    if (navigator.vibrate) navigator.vibrate(20);
-    famEstadoActual = 1;
-    document.getElementById('fam-burbuja').classList.add('colapsado');
-    document.getElementById('fam-filtros').classList.add('colapsado');
-    
-    const panelCat = document.getElementById('fam-categorias');
-    panelCat.style.visibility = 'visible';
-    panelCat.classList.remove('colapsado');
+window.categoriaFiltroActiva = null;
+window.inmueblesCache = [];
+window.filtrosInmueblesEstado = {
+    operacion: 'todos',
+    tipo: 'todos',
+    habitaciones: 'todos'
 };
 
-window.abrirFamEstado2 = function(tipo) {
-    if (navigator.vibrate) navigator.vibrate(20);
-    famEstadoActual = 2;
-    document.getElementById('fam-categorias').classList.add('colapsado');
-    
-    const contenido = document.getElementById('fam-contenido-filtros');
-    if (tipo === 'inmuebles') {
-        window.categoriaActivaGlobal = 'inmuebles';
-        contenido.innerHTML = `
-            <select id="f-presupuesto" class="select-glass" style="margin:0; padding:6px; font-size:12px;" onchange="if(window.barridoRadar) window.barridoRadar()"><option value="">Presupuesto</option><option value="bajo">- 1M</option><option value="medio">1-3M</option><option value="alto">+ 3M</option></select>
-            <select id="f-estrato" class="select-glass" style="margin:0; padding:6px; font-size:12px;" onchange="if(window.barridoRadar) window.barridoRadar()"><option value="">Estrato</option><option value="e12">1-2</option><option value="e34">3-4</option></select>
-        `;
-    } else if (tipo === 'aliados') {
-        window.categoriaActivaGlobal = 'aliados';
-        contenido.innerHTML = `<span style="color:#FFD700; font-weight:bold; font-size:12px; white-space: nowrap;">🤝 Red de Aliados</span>`;
-    } else {
-        window.categoriaActivaGlobal = tipo;
-        contenido.innerHTML = `<span style="color:#00f5d4; font-weight:bold; font-size:12px; white-space: nowrap;">⚡ Explorando ${tipo}</span>`;
+window.toggleCascadaFiltros = function() {
+    const contenedor = document.getElementById('cascada-filtros-maestro');
+    const flecha = document.getElementById('flecha-filtro-raiz');
+    const btnRaiz = document.getElementById('btn-filtro-raiz');
+
+    if (!contenedor) return;
+
+    if (contenedor.classList.contains('modo-seleccion')) {
+        window.resetearFiltrosCascada();
+        return;
     }
+
+    const estaAbierto = contenedor.classList.toggle('abierto');
+    if (btnRaiz) btnRaiz.classList.toggle('activo', estaAbierto);
+    if (flecha) flecha.innerText = estaAbierto ? '▴' : '▾';
+};
+
+window.seleccionarBurbujaFiltro = async function(tipo, labelTexto) {
+    if (navigator.vibrate) navigator.vibrate(25);
+
+    const contenedor = document.getElementById('cascada-filtros-maestro');
+    const panel = document.getElementById('panel-mercadolibre-subfiltros');
+    const txtRaiz = document.getElementById('txt-filtro-raiz');
+
+    if (!contenedor || !panel) return;
+
+    window.categoriaFiltroActiva = tipo;
+    contenedor.classList.add('modo-seleccion');
+    if (txtRaiz) txtRaiz.innerText = "Restablecer ✕";
+
+    document.querySelectorAll('.burbuja-item').forEach(el => {
+        if (el.innerText.includes(labelTexto.replace(/^[^\s]+\s/, ''))) {
+            el.classList.add('seleccionada');
+        } else {
+            el.classList.remove('seleccionada');
+        }
+    });
+
+    if (tipo === 'inmueble') {
+        panel.innerHTML = `
+            <div class="filtro-ml-seccion-titulo">Operación</div>
+            <div class="filtro-ml-opcion activa" onclick="window.aplicarSubfiltroML('operacion', 'todos', this)">Todas</div>
+            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('operacion', 'arriendo', this)">Arriendo</div>
+            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('operacion', 'venta', this)">Venta</div>
+            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('operacion', 'dias', this)">Alquiler por Días</div>
+
+            <div class="filtro-ml-seccion-titulo">Tipo de Inmueble</div>
+            <div class="filtro-ml-opcion activa" onclick="window.aplicarSubfiltroML('tipo', 'todos', this)">Todos</div>
+            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('tipo', 'apartamento', this)">Apartamentos</div>
+            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('tipo', 'casa', this)">Casas</div>
+            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('tipo', 'local', this)">Locales</div>
+            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('tipo', 'finca', this)">Fincas / Lotes</div>
+
+            <div class="filtro-ml-seccion-titulo">Habitaciones</div>
+            <div class="filtro-ml-opcion activa" onclick="window.aplicarSubfiltroML('habitaciones', 'todos', this)">Cualquiera</div>
+            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('habitaciones', '1', this)">1 Habitación</div>
+            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('habitaciones', '2', this)">2 Habitaciones</div>
+            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('habitaciones', '3+', this)">3 o más</div>
+        `;
+        panel.style.display = 'block';
+
+        // Consulta en tiempo real al motor de base de datos
+        await window.consultarInmueblesRadar();
+
+    } else if (tipo === 'comercio') {
+        panel.innerHTML = `
+            <div class="filtro-ml-seccion-titulo">Comercios</div>
+            <div class="filtro-ml-opcion activa" onclick="window.aplicarSubfiltroML('rubro', 'todos', this)">Todos</div>
+            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('rubro', 'restaurante', this)">Restaurantes y Cafés</div>
+            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('rubro', 'supermercado', this)">Supermercados</div>
+            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('rubro', 'moda', this)">Moda y Ropa</div>
+        `;
+        panel.style.display = 'block';
+        window.cerrarSheetInmuebles();
+        if (typeof window.filtrarPinesPorModelo === 'function') window.filtrarPinesPorModelo('comercio');
+
+    } else if (tipo === 'servicio') {
+        panel.innerHTML = `
+            <div class="filtro-ml-seccion-titulo">Servicios</div>
+            <div class="filtro-ml-opcion activa" onclick="window.aplicarSubfiltroML('servicio', 'todos', this)">Todos los servicios</div>
+            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('servicio', 'reparacion', this)">Reparación / Hogar</div>
+            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('servicio', 'belleza', this)">Belleza y Estética</div>
+        `;
+        panel.style.display = 'block';
+        window.cerrarSheetInmuebles();
+        if (typeof window.filtrarPinesPorModelo === 'function') window.filtrarPinesPorModelo('servicio');
+
+    } else if (tipo === 'logistica') {
+        panel.style.display = 'none';
+        window.cerrarSheetInmuebles();
+        if (typeof window.conmutarVistaEcosistema === 'function') window.conmutarVistaEcosistema('transporte');
+    }
+};
+
+window.aplicarSubfiltroML = function(criterio, valor, elemento) {
+    if (navigator.vibrate) navigator.vibrate(15);
+
+    let hermano = elemento.previousElementSibling;
+    while (hermano && !hermano.classList.contains('filtro-ml-seccion-titulo')) {
+        hermano.classList.remove('activa');
+        hermano = hermano.previousElementSibling;
+    }
+    hermano = elemento.nextElementSibling;
+    while (hermano && !hermano.classList.contains('filtro-ml-seccion-titulo')) {
+        hermano.classList.remove('activa');
+        hermano = hermano.nextElementSibling;
+    }
+    elemento.classList.add('activa');
+
+    if (window.categoriaFiltroActiva === 'inmueble') {
+        window.filtrosInmueblesEstado[criterio] = valor;
+        window.renderizarInmueblesFiltrados();
+    }
+};
+
+window.consultarInmueblesRadar = async function() {
+    if (!window.GeokatuDB_Global || !window.mapa) return;
+
+    const centro = window.mapa.getCenter();
+    const radio = 8000; // 8 km
     
-    window.zonaNecesitaDescarga = true; 
-    if (typeof window.descargarNegociosDeFirebase === 'function') window.descargarNegociosDeFirebase();
-
-    const panelFiltros = document.getElementById('fam-filtros');
-    panelFiltros.style.visibility = 'visible';
-    panelFiltros.classList.remove('colapsado');
+    try {
+        const res = await window.GeokatuDB_Global.RadarService.buscarInmueblesEnRadar(centro.lat, centro.lng, radio);
+        if (res.success) {
+            window.inmueblesCache = res.data || [];
+            window.renderizarInmueblesFiltrados();
+        }
+    } catch (e) {
+        console.error("Error consultando inmuebles en el radar:", e);
+    }
 };
 
-window.volverFamEstado1 = function() {
-    if (navigator.vibrate) navigator.vibrate(20);
-    famEstadoActual = 1;
-    document.getElementById('fam-filtros').classList.add('colapsado');
-    document.getElementById('fam-categorias').classList.remove('colapsado');
+window.renderizarInmueblesFiltrados = function() {
+    const sheet = document.getElementById('lista-inmuebles-sheet');
+    const btnCerrar = document.getElementById('btn-cerrar-inmuebles');
+    if (!sheet) return;
+
+    let filtrados = window.inmueblesCache.filter(item => {
+        const f = window.filtrosInmueblesEstado;
+        if (f.operacion !== 'todos' && item.tipo_operacion !== f.operacion) return false;
+        if (f.tipo !== 'todos' && item.subtipo_inmueble !== f.tipo) return false;
+        if (f.habitaciones !== 'todos') {
+            const habs = Number(item.habitaciones) || 0;
+            if (f.habitaciones === '1' && habs !== 1) return false;
+            if (f.habitaciones === '2' && habs !== 2) return false;
+            if (f.habitaciones === '3+' && habs < 3) return false;
+        }
+        return true;
+    });
+
+    if (filtrados.length === 0) {
+        sheet.innerHTML = `
+            <div style="background: rgba(10,10,12,0.85); backdrop-filter: blur(10px); padding: 15px 25px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); color: #ccc; font-size: 12px; pointer-events: all;">
+                No hay inmuebles disponibles con estos filtros en la zona.
+            </div>`;
+    } else {
+        sheet.innerHTML = filtrados.map(inm => `
+            <div class="tarjeta-hibrida" style="border-color: var(--naranja);" onclick="window.centrarInmueble(${inm.lat}, ${inm.lng}, '${inm.id}')">
+                <img class="tarjeta-hibrida-img" src="${inm.foto_portada || inm.imagen || 'https://via.placeholder.com/300x150/0a0a0c/ff6b00?text=Inmueble'}" onerror="window.imagenRotaToGlass(this, '${inm.nombre}')">
+                <div class="tarjeta-hibrida-info">
+                    <span class="tarjeta-hibrida-nicho" style="color: var(--naranja);">${inm.tipo_operacion ? inm.tipo_operacion.toUpperCase() : 'INMUEBLE'}</span>
+                    <h4 class="tarjeta-hibrida-titulo">${window.sanitizarTexto(inm.nombre || 'Propiedad')}</h4>
+                    <span style="font-weight: 900; font-size: 13px; color: #00ff64;">$${Number(inm.precio || 0).toLocaleString()} COP</span>
+                    <span style="font-size: 10px; color: #888;">${inm.habitaciones ? inm.habitaciones + ' hab • ' : ''}${inm.area ? inm.area + ' m²' : ''}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    sheet.style.display = 'flex';
+    sheet.classList.add('activo');
+    if (btnCerrar) btnCerrar.style.display = 'flex';
 };
 
-window.cerrarFamTotalmente = function() {
-    if (navigator.vibrate) navigator.vibrate(20);
-    famEstadoActual = 0;
-    document.getElementById('fam-categorias').classList.add('colapsado');
-    document.getElementById('fam-filtros').classList.add('colapsado');
-    document.getElementById('fam-burbuja').classList.remove('colapsado');
+window.centrarInmueble = function(lat, lng, id) {
+    if (window.mapa && lat && lng) {
+        window.mapa.flyTo({ center: [lng, lat], zoom: 17 });
+    }
+};
+
+window.cerrarSheetInmuebles = function() {
+    const sheet = document.getElementById('lista-inmuebles-sheet');
+    const btnCerrar = document.getElementById('btn-cerrar-inmuebles');
+    if (sheet) {
+        sheet.classList.remove('activo');
+        sheet.style.display = 'none';
+    }
+    if (btnCerrar) btnCerrar.style.display = 'none';
+};
+
+window.resetearFiltrosCascada = function() {
+    const contenedor = document.getElementById('cascada-filtros-maestro');
+    const panel = document.getElementById('panel-mercadolibre-subfiltros');
+    const txtRaiz = document.getElementById('txt-filtro-raiz');
+    const flecha = document.getElementById('flecha-filtro-raiz');
+    const btnRaiz = document.getElementById('btn-filtro-raiz');
+
+    window.categoriaFiltroActiva = null;
+    if (contenedor) contenedor.classList.remove('modo-seleccion', 'abierto');
+    if (btnRaiz) btnRaiz.classList.remove('activo');
+    if (txtRaiz) txtRaiz.innerText = "Explorar";
+    if (flecha) flecha.innerText = "▾";
+    if (panel) panel.style.display = 'none';
+
+    document.querySelectorAll('.burbuja-item').forEach(el => el.classList.remove('seleccionada'));
+    window.cerrarSheetInmuebles();
+
+    if (typeof window.filtrarPinesPorModelo === 'function') {
+        window.filtrarPinesPorModelo('todos');
+    }
 };
 
 document.addEventListener('click', (e) => {
-    if (famEstadoActual === 1) {
-        const container = document.getElementById('fam-container');
-        if (container && !container.contains(e.target)) {
-            window.cerrarFamTotalmente();
-        }
+    const contenedor = document.getElementById('cascada-filtros-maestro');
+    if (contenedor && !contenedor.contains(e.target) && !contenedor.classList.contains('modo-seleccion')) {
+        contenedor.classList.remove('abierto');
+        document.getElementById('btn-filtro-raiz')?.classList.remove('activo');
+        const flecha = document.getElementById('flecha-filtro-raiz');
+        if (flecha) flecha.innerText = '▾';
     }
 });
+</script>
 
-setTimeout(() => {
-    if(window.mapa) {
-        window.mapa.on('dragstart', () => { 
-            if(famEstadoActual === 1) window.cerrarFamTotalmente(); 
-        });
-    }
-}, 2000);
-
-(function() {
-    const contenedor = document.getElementById('fam-container');
-    const burbuja = document.getElementById('fam-burbuja');
-    if(!burbuja || !contenedor) return;
-    
-    let isDragging = false;
-    let startX, startY;
-
-    burbuja.addEventListener('touchstart', (e) => {
-        isDragging = false;
-        startX = e.touches[0].clientX; startY = e.touches[0].clientY;
-        contenedor.style.transition = 'none'; 
-    }, {passive: true});
-
-    burbuja.addEventListener('touchmove', (e) => {
-        const deltaX = e.touches[0].clientX - startX;
-        const deltaY = e.touches[0].clientY - startY;
-        if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
-            isDragging = true;
-            contenedor.style.transform = `translateX(${deltaX}px)`;
-        }
-    }, {passive: true});
-
-    burbuja.addEventListener('touchend', (e) => {
-        contenedor.style.transition = 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
-        contenedor.style.transform = `translateX(0px)`;
-        if (!isDragging) return;
-        
-        const rect = burbuja.getBoundingClientRect();
-        const midScreen = window.innerWidth / 2;
-        
-        if (rect.left + (rect.width/2) < midScreen) {
-            contenedor.classList.add('left-side');
-        } else {
-            contenedor.classList.remove('left-side');
-        }
-    });
-})();
+<script>
 
 // Espía de sesión para botones
 window.addEventListener('DOMContentLoaded', () => {
@@ -1117,3 +1120,5 @@ aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
 
 </body>
 </html>
+
+

@@ -1,0 +1,578 @@
+/* =======================================================
+   GEOKATU SIG - LIENZO INFINITO & HUD FLOTANTE (mapatienda.css)
+   ADN Áureo, Cero Esquinas Cuadradas, Canvas Inmersivo
+   ======================================================= */
+
+:root {
+    --naranja: #ff6b00;
+    --bg-oscuro: #0a0a0c;
+    --glass-bg: rgba(18, 18, 24, 0.88);
+    --glass-border: rgba(255, 255, 255, 0.12);
+    --linea-guia: #00ff64;
+
+    /* Escala Fibonacci */
+    --sp-micro: 8px;
+    --sp-sm: 13px;
+    --sp-md: 21px;
+    --sp-lg: 34px;
+    --sp-xl: 55px;
+
+    /* Tipografía */
+    --texto-sm: 10px;
+    --texto-base: 14px;
+    --texto-h3: 20px;
+}
+
+* {
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    background: var(--bg-oscuro);
+    color: white;
+}
+
+/* =======================================================
+   1. LIENZO INFINITO Y MATRIZ MATEMÁTICA
+   ======================================================= */
+#viewport-infinito {
+    position: absolute;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    cursor: grab;
+    background: radial-gradient(circle at center, #181820 0%, #0a0a0c 100%);
+    touch-action: none; /* 🛡️ OBLIGATORIO: Anula el scroll nativo del navegador para permitir paneo y pinch fluido */
+}
+
+#viewport-infinito:active {
+    cursor: grabbing;
+}
+
+#capa-transform {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+    will-change: transform;
+}
+
+/* Rejilla y Contorno de Tienda */
+#rejilla-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+}
+
+/* Capa de Muebles Colocados */
+.mueble-bloque {
+    position: absolute;
+    background: rgba(255, 107, 0, 0.28);
+    border: 2px solid var(--naranja);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: move;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    touch-action: none;
+}
+
+.mueble-bloque.seleccionado {
+    border-color: #00ff64;
+    box-shadow: 0 0 25px rgba(0, 255, 100, 0.4);
+    z-index: 50;
+}
+
+.mueble-bloque.radar-activo {
+    background: rgba(0, 255, 100, 0.5) !important;
+    border-color: #00ff64 !important;
+    animation: pulsoRadar 0.8s infinite alternate ease-in-out;
+}
+
+@keyframes pulsoRadar {
+    from { transform: scale(1); }
+    to { transform: scale(1.08); filter: drop-shadow(0 0 20px #00ff64); }
+}
+
+.mueble-subdivisiones {
+    position: absolute;
+    inset: 2px;
+    display: grid;
+    pointer-events: none;
+    gap: 2px;
+}
+
+.subdivision-celda {
+    border: 1px dashed rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+.mueble-etiqueta {
+    font-size: 11px;
+    font-weight: 800;
+    color: white;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+    pointer-events: none;
+    text-align: center;
+    padding: 4px;
+    z-index: 2;
+}
+
+/* Pivote Flotante de Giro 45° */
+.pivote-giro {
+    position: absolute;
+    bottom: -36px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--naranja);
+    color: white;
+    border: 2px solid white;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.8);
+    z-index: 60;
+}
+
+.mueble-bloque.seleccionado .pivote-giro {
+    display: flex;
+}
+
+/* Líneas Guía Magnéticas (Estilo Canva) */
+.linea-guia {
+    position: absolute;
+    pointer-events: none;
+    z-index: 99;
+    display: none;
+}
+
+.linea-guia.horizontal {
+    height: 1.5px;
+    left: 0;
+    right: 0;
+    background: var(--linea-guia);
+    box-shadow: 0 0 6px var(--linea-guia);
+}
+
+.linea-guia.vertical {
+    width: 1.5px;
+    top: 0;
+    bottom: 0;
+    background: var(--linea-guia);
+    box-shadow: 0 0 6px var(--linea-guia);
+}
+
+/* =======================================================
+   2. HUD FLOTANTE Y BURBUJAS MAGNÉTICAS
+   ======================================================= */
+.hud-barra-superior {
+    position: fixed;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    padding: 6px 14px;
+    border-radius: 30px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+}
+
+.hud-radar-input {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 12px;
+    outline: none;
+    width: 140px;
+}
+
+.btn-radar-buscar {
+    background: var(--naranja);
+    border: none;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 800;
+    cursor: pointer;
+    text-transform: uppercase;
+}
+
+/* Burbujas Magnéticas Inferiores */
+.hud-burbujas-dock {
+    position: fixed;
+    bottom: 25px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    display: flex;
+    gap: 15px;
+}
+
+.burbuja-fab {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    color: white;
+    border-radius: 30px;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+    transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1), border-color 0.2s;
+}
+
+.burbuja-fab:active {
+    transform: scale(0.94);
+}
+
+.burbuja-fab.destacada {
+    background: linear-gradient(135deg, #ff8c00, var(--naranja));
+    border-color: rgba(255,255,255,0.3);
+    box-shadow: 0 10px 25px rgba(255,107,0,0.4);
+}
+
+/* =======================================================
+   3. MODALES FLOTANTES EXPANDIBLES (WIZARDS)
+   ======================================================= */
+.modal-flotante-wrap {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 20px;
+}
+
+.modal-tarjeta-boveda {
+    background: rgba(18, 18, 22, 0.96);
+    border: 1px solid var(--glass-border);
+    border-top: 2px solid var(--naranja);
+    border-radius: 20px;
+    width: 100%;
+    max-width: 380px;
+    padding: 22px;
+    box-shadow: 0 25px 50px rgba(0,0,0,0.9);
+    animation: zoomBurbuja 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes zoomBurbuja {
+    from { opacity: 0; transform: scale(0.85); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.input-modal {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    padding: 10px 14px;
+    border-radius: 12px;
+    margin-top: 5px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    outline: none;
+}
+
+.input-modal:focus {
+    border-color: var(--naranja);
+}
+
+.btn-modal-accion {
+    width: 100%;
+    background: linear-gradient(135deg, #ff8c00, var(--naranja));
+    color: white;
+    border: none;
+    padding: 14px;
+    border-radius: 12px;
+    font-weight: 800;
+    font-size: 12px;
+    text-transform: uppercase;
+    cursor: pointer;
+    margin-top: 8px;
+    box-shadow: 0 6px 20px rgba(255,107,0,0.3);
+}
+
+.btn-modal-accion:active {
+    transform: scale(0.96);
+}
+
+/* Modal de Impresión QR */
+#modal-impresion .modal-tarjeta-boveda {
+    max-width: 520px;
+    max-height: 85vh;
+    overflow-y: auto;
+    background: white;
+    color: black;
+}
+
+.grid-qrs-print {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin: 15px 0;
+}
+
+.tarjeta-qr-print {
+    border: 1px dashed #777;
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+    background: #fdfdfd;
+}
+
+.tarjeta-qr-print canvas {
+    width: 100px !important;
+    height: 100px !important;
+}
+
+/* =======================================================
+   4. MENÚ FLOTANTE CONTEXTUAL SOBRE MUEBLE ACTIVO
+   ======================================================= */
+.menu-contextual-mueble {
+    position: absolute;
+    top: -42px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: none;
+    align-items: center;
+    gap: 6px;
+    background: rgba(15, 15, 20, 0.95);
+    border: 1px solid var(--naranja);
+    border-radius: 20px;
+    padding: 4px 8px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.8);
+    z-index: 70;
+}
+
+.mueble-bloque.seleccionado .menu-contextual-mueble {
+    display: flex;
+}
+
+.btn-mini-contextual {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 6px;
+    border-radius: 6px;
+    transition: background 0.15s ease;
+}
+
+.btn-mini-contextual:hover,
+.btn-mini-contextual:active {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.btn-mini-contextual.peligro {
+    color: #ff5555;
+}
+
+.btn-mini-contextual.peligro:hover,
+.btn-mini-contextual.peligro:active {
+    background: rgba(255, 50, 50, 0.25);
+}
+
+/* =======================================================
+   5. CALIBRACIÓN PARA IMPRESORAS TÉRMICAS BLUETOOTH (58mm/80mm)
+   ======================================================= */
+@media print {
+    body, html {
+        background: white !important;
+        color: black !important;
+        height: auto !important;
+        overflow: visible !important;
+    }
+
+    #viewport-infinito,
+    .hud-barra-superior,
+    .hud-burbujas-dock,
+    #modal-area,
+    #modal-mueble {
+        display: none !important;
+    }
+
+    #modal-impresion {
+        position: static !important;
+        background: transparent !important;
+        display: block !important;
+        padding: 0 !important;
+    }
+
+    #modal-impresion .modal-tarjeta-boveda {
+        box-shadow: none !important;
+        border: none !important;
+        padding: 0 !important;
+        max-width: 100% !important;
+    }
+
+    #modal-impresion button {
+        display: none !important;
+    }
+
+    .grid-qrs-print {
+        display: block !important;
+        margin: 0 !important;
+    }
+
+    .tarjeta-qr-print {
+        width: 54mm !important;
+        margin: 0 auto 5mm auto !important;
+        padding: 4mm 2mm !important;
+        border: 1px dashed #444 !important;
+        page-break-after: always !important;
+        break-after: page !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+        background: white !important;
+        box-sizing: border-box !important;
+    }
+
+    .tarjeta-qr-print canvas {
+        width: 36mm !important;
+        height: 36mm !important;
+    }
+
+    .tarjeta-qr-print p {
+        color: black !important;
+        font-size: 8pt !important;
+        margin-top: 2mm !important;
+    }
+
+    .tarjeta-qr-print span {
+        color: black !important;
+        font-weight: 900 !important;
+    }
+}
+
+/* =======================================================
+   6. PINCELES DE TRAZADO IRREGULAR (MUROS Y COLUMNAS)
+   ======================================================= */
+.celda-muro {
+    background: rgba(255, 68, 68, 0.3) !important;
+    border: 1px dashed #ff4444 !important;
+    cursor: not-allowed !important;
+}
+
+.celda-muro::after {
+    content: '🧱';
+    font-size: 10px;
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hud-herramientas-dibujo {
+    position: fixed;
+    top: 75px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    display: none;
+    gap: 8px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(12px);
+    padding: 6px 12px;
+    border-radius: 20px;
+}
+
+.btn-herramienta-dibujo {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 14px;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.btn-herramienta-dibujo.activo {
+    background: var(--naranja);
+    border-color: var(--naranja);
+}
+
+/* =======================================================
+   7. CONTRA-ROTACIÓN REACTIVA UI & SELECTOR DE CARAS (REQ 14 & 15)
+   ======================================================= */
+.contra-rotacion {
+    transform-origin: center center;
+    will-change: transform;
+    backface-visibility: hidden;
+}
+
+/* Tabs selectoras de caras en modal de diseño/edición */
+.selector-caras-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 4px;
+    border-radius: 12px;
+}
+
+.tab-cara-btn {
+    flex: 1;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ccc;
+    padding: 8px 4px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s ease;
+}
+
+.tab-cara-btn.activa {
+    background: var(--naranja);
+    border-color: var(--naranja);
+    color: white;
+    box-shadow: 0 2px 8px rgba(255, 107, 0, 0.4);
+}

@@ -5,204 +5,573 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Terminal Logística | Geokatu</title>
     <meta name="theme-color" content="#ff6b00">
-    <link rel="stylesheet" href="ui-estilos.css"> 
-    <script src="html5-qrcode.min.js" type="text/javascript"></script> 
+    <link rel="stylesheet" href="stock.css"> 
+    <script src="html5-qrcode.min.js" type="text/javascript"></script>
 
     <style>
         :root {
-            --naranja: #ff6b00; 
-            --bg-oscuro: #0a0a0c; 
-            --glass-bg: rgba(20, 20, 25, 0.85); 
-            --glass-border: rgba(255, 255, 255, 0.1);
+            --naranja: #ff6b00;
+            --bg-oscuro: #0a0a0c;
+            --accent-green: #00ff64;
         }
-        body, html { 
-            margin: 0; padding: 0; height: 100vh; width: 100vw; 
-            font-family: 'Segoe UI', sans-serif; 
-            background: radial-gradient(circle at 50% 0%, #1a1a1f 0%, var(--bg-oscuro) 100%); 
-            color: white; overflow: hidden; 
-        }
-        #pantalla-login {
-            position: fixed; inset: 0; z-index: 9999;
-            background: var(--bg-oscuro);
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            padding: 20px;
-        }
-        .panel-login { 
-            width: 100%; max-width: 380px; 
-            background: rgba(15, 15, 18, 0.6); backdrop-filter: blur(19px); 
-            border: 1px solid rgba(255, 107, 0, 0.2); border-radius: 21px; 
-            padding: 34px 21px; box-shadow: 0 34px 55px rgba(0,0,0,0.8); 
-            position: relative; 
-        }
-        .input-boveda { width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); color: white; padding: 13px; border-radius: 13px; margin-bottom: 13px; outline: none; box-sizing: border-box; font-size: 16px; }
-        .input-boveda:focus { border-color: var(--naranja); }
-        .btn-accion-boveda { width: 100%; padding: 15px; border-radius: 13px; border: none; font-weight: 900; cursor: pointer; text-transform: uppercase; background: linear-gradient(135deg, #ff8c00, var(--naranja)); color: white; font-size: 16px; }
-        
-        #app-terminal {
-            display: none; height: 100%; width: 100%; max-width: 600px; margin: 0 auto; 
-            flex-direction: column; position: relative;
-        }
-        .header-terminal {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 15px 20px; border-bottom: 1px solid var(--glass-border);
-            background: rgba(10,10,12,0.9);
-        }
-        .consola-controles { 
-            background: rgba(15, 15, 18, 0.95); padding: 15px; border-bottom: 1px solid var(--glass-border); 
-            display: flex; flex-direction: column; gap: 12px;
-        }
-        .ribbon-categorias { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
-        .ribbon-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #aaa; border-radius: 20px; padding: 10px 15px; font-size: 11px; font-weight: bold; text-transform: uppercase; cursor: pointer; flex: 1; text-align: center; }
-        .ribbon-btn.activo { background: var(--naranja); color: white; border-color: var(--naranja); }
 
-        .zona-escaneo {
-            flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-            position: relative; overflow-y: auto; padding: 20px;
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background: var(--bg-oscuro);
+            font-family: 'Segoe UI', sans-serif;
+            color: white;
         }
-        .luz-escaner {
-            width: 80%; height: 110px; border: 2px dashed rgba(255,107,0,0.5); border-radius: 21px;
-            display: flex; align-items: center; justify-content: center; position: relative;
-            background: radial-gradient(circle, rgba(255,107,0,0.1) 0%, transparent 70%);
+
+        #app-terminal {
+            height: 100vh;
+            max-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        /* Mitad Superior: Visor y Controles Fijos */
+        .zona-escaneo-superior {
+            flex-shrink: 0;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(15, 15, 20, 0.95);
+            border-bottom: 1px solid rgba(255, 107, 0, 0.3);
+            padding: 10px 15px;
+            box-sizing: border-box;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.8);
+            z-index: 100;
+        }
+
+        #lector-camara {
+            width: 100%;
+            max-width: 480px;
+            height: 190px;
+            border-radius: 14px;
+            overflow: hidden;
+            border: 2px solid var(--naranja);
+            background: #000;
+            margin-bottom: 8px;
+            box-shadow: 0 0 15px rgba(255, 107, 0, 0.3);
+        }
+
+        #lector-camara video {
+            object-fit: cover !important;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* Switch Ráfaga con Branding */
+        .toggle-rafaga-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.05);
+            transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+            user-select: none;
+        }
+
+        .toggle-rafaga-pill.activo {
+            border-color: var(--naranja) !important;
+            background: rgba(255, 107, 0, 0.18) !important;
+            box-shadow: 0 0 12px rgba(255, 107, 0, 0.5);
+        }
+
+        .toggle-rafaga-pill.activo span {
+            color: #fff !important;
+            font-weight: 900 !important;
+        }
+
+        /* Mitad Inferior: Consola Scrollable */
+        .consola-scrollable {
+            flex: 1;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+            padding: 15px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .luz-pestillo {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #555;
             transition: 0.2s;
         }
-        .luz-escaner.leyendo {
-            border-color: #00ff64; background: radial-gradient(circle, rgba(0,255,100,0.2) 0%, transparent 70%);
-            box-shadow: 0 0 30px rgba(0,255,100,0.3); transform: scale(1.05);
+        .luz-pestillo.leyendo {
+            background: var(--accent-green);
+            box-shadow: 0 0 8px var(--accent-green);
         }
-        #lector-camara {
-            width: 100%; max-width: 350px; border-radius: 21px; overflow: hidden; 
-            display: none; border: 2px solid var(--naranja); margin-bottom: 20px;
-            background: black;
+        .luz-pestillo.bloqueado {
+            background: #ffaa00;
+            box-shadow: 0 0 8px #ffaa00;
         }
-
-        .ultimo-escaneo {
-            background: var(--glass-bg); backdrop-filter: blur(15px);
-            border: 1px solid var(--glass-border); border-top: 2px solid var(--naranja);
-            border-top-left-radius: 24px; border-top-right-radius: 24px;
-            padding: 21px; box-shadow: 0 -10px 30px rgba(0,0,0,0.6);
-            transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
-            position: absolute; bottom: 0; width: 100%; box-sizing: border-box; z-index: 1000;
-        }
-        .ultimo-escaneo.visible { transform: translateY(0); }
     </style>
 </head>
 <body>
 
-    <!-- LOGIN -->
-    <div id="pantalla-login">
+    <!-- PANTALLA LOGIN -->
+    <div id="pantalla-login" style="display: flex; position: fixed; inset: 0; background: var(--bg-oscuro); z-index: 10000; align-items: center; justify-content: center;">
         <div class="panel-login">
             <div style="text-align: center; margin-bottom: 20px;">
                 <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 900; letter-spacing: 2px;">LOGI<span style="color: var(--naranja);">CORE</span></h1>
                 <p style="color: #888; font-size: 11px; text-transform: uppercase;">Control de Stock Físico</p>
             </div>
-            <input type="email" id="login-email" class="input-boveda" placeholder="Correo de administrador/bodega">
+            <input type="email" id="login-email" class="input-boveda" placeholder="Correo de bodega / operador">
             <input type="password" id="login-pass" class="input-boveda" placeholder="Contraseña">
             <button class="btn-accion-boveda" id="btn-login">INICIAR TURNO</button>
         </div>
     </div>
 
-    <!-- TERMINAL -->
-    <div id="app-terminal">
-        <div class="header-terminal">
+    <!-- TERMINAL ACTIVA -->
+    <div id="app-terminal" style="display: none;">
+        
+        <!-- CABECERA PRINCIPAL -->
+        <div class="header-terminal" style="padding: 10px 15px; flex-shrink: 0;">
             <div>
-                <span style="color: var(--naranja); font-weight: 900; font-size: 18px;">GEOKATU LOGÍSTICA</span>
+                <span style="color: var(--naranja); font-weight: 900; font-size: 17px; letter-spacing: 1px;">GEOKATU LOGÍSTICA</span>
                 <span id="txt-operador" style="display: block; font-size: 10px; color: #888; text-transform: uppercase;">Operador: Conectando...</span>
             </div>
-            <button id="btn-logout" style="background: transparent; border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 50%; width: 35px; height: 35px; cursor: pointer;">🚪</button>
-        </div>
-
-        <div class="consola-controles">
-            <label style="font-size: 10px; color: #aaa; text-transform: uppercase; font-weight: bold;">Operación de Stock</label>
-            <div class="ribbon-categorias" id="selector-operacion">
-                <button class="ribbon-btn activo" data-op="ENTRADA">📥 Entrada (+)</button>
-                <button class="ribbon-btn" data-op="SALIDA">📤 Salida (-)</button>
-                <button class="ribbon-btn" data-op="AUDITORIA">🔍 Consulta</button>
-            </div>
-
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-                <span style="font-size: 12px; color: #aaa;">Cantidad a aplicar por escaneo:</span>
-                <input type="number" id="input-unidades-lote" value="1" min="1" style="width: 70px; background: rgba(0,0,0,0.5); border: 1px solid var(--naranja); color: white; text-align: center; border-radius: 8px; padding: 6px; font-weight: bold;">
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button onclick="window.open('visor-tienda.html', '_blank')" title="Ver Mapa de Piso y Caducidades" style="background: rgba(96,165,250,0.15); border: 1px solid #60a5fa; color: #60a5fa; padding: 6px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer;">
+                    🗺️ Visor
+                </button>
+                <button id="btn-logout" style="background: transparent; border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 50%; width: 34px; height: 34px; cursor: pointer;">🚪</button>
             </div>
         </div>
 
-        <div class="zona-escaneo">
-            <div id="lector-camara"></div>
+        <!-- 📸 MITAD SUPERIOR FIJA: VISOR DE CÁMARA Y TOGGLE DE RÁFAGA -->
+        <div class="zona-escaneo-superior">
+            <div id="lector-camara" style="display: none;"></div>
 
-            <h3 style="color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 2px;">ESPERANDO PRODUCTO...</h3>
-            <div id="luz-estado" class="luz-escaner">
-                <span style="font-size: 40px; filter: grayscale(100%); opacity: 0.5;">🔫</span>
+            <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 480px; gap: 10px;">
+                <button class="btn-accion-boveda" id="btn-toggle-camara" style="width: auto; padding: 9px 16px; font-size: 11px; margin: 0;">
+                    📷 <span id="txt-btn-camara">ACTIVAR CÁMARA</span>
+                </button>
+
+                <!-- SWITCH MODO RÁFAGA (CINTA TRANSPORTADORA) -->
+                <label id="toggle-rafaga-wrapper" class="toggle-rafaga-pill" title="Escaneo continuo sin cerrar la cámara">
+                    <input type="checkbox" id="chk-modo-rafaga" style="accent-color: var(--naranja); cursor: pointer;">
+                    <span id="txt-modo-rafaga" style="font-size: 10.5px; font-weight: bold; color: #aaa; text-transform: uppercase;">Ráfaga</span>
+                </label>
+
+                <!-- ESTADO DEL PESTILLO ÓPTICO -->
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <span id="luz-estado" class="luz-pestillo"></span>
+                    <span id="txt-estado-latch" style="font-size: 10px; color: #777; font-family: monospace;">LISTO</span>
+                </div>
             </div>
-            <p style="font-size: 10px; color: #555; margin-top: 20px; text-align: center;">Usa el lector USB-C/Bluetooth o enciende la cámara.</p>
-            
-            <button class="btn-accion-boveda" id="btn-toggle-camara" style="width: auto; padding: 10px 20px; font-size: 12px; margin-top: 20px;">
-                📷 ACTIVAR CÁMARA
-            </button>
         </div>
 
-        <!-- TARJETA INFORMATIVA -->
-        <div id="tarjeta-producto" class="ultimo-escaneo">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                <div>
-                    <span id="badge-estado" style="background: #00ff64; color: black; font-size: 10px; padding: 3px 8px; border-radius: 8px; font-weight: bold; text-transform: uppercase;">ACTUALIZADO</span>
-                    <h2 id="prod-nombre" style="margin: 8px 0 0 0; font-size: 18px; color: white;">Producto</h2>
+        <!-- 📜 MITAD INFERIOR SCROLLABLE: CONTROLES, KARDEX Y TARJETA -->
+        <div class="consola-scrollable">
+            <div class="consola-controles" style="margin: 0;">
+                <label style="font-size: 10px; color: #aaa; text-transform: uppercase; font-weight: bold;">Operación de Stock</label>
+                <div class="ribbon-categorias" id="selector-operacion">
+                    <button class="ribbon-btn activo" data-op="ENTRADA">📥 Entrada (+)</button>
+                    <button class="ribbon-btn" data-op="SALIDA">📤 Salida (-)</button>
+                    <button class="ribbon-btn" data-op="REUBICAR">📍 Reubicar</button>
+                    <button class="ribbon-btn" data-op="AUDITORIA">🔍 Consulta</button>
                 </div>
-                <div style="text-align: right;">
-                    <p style="margin: 0; font-size: 10px; color: #aaa;">CÓDIGO:</p>
-                    <p id="prod-codigo" style="margin: 0; font-family: monospace; font-size: 14px; color: var(--naranja); font-weight: bold;">---</p>
+
+                <div id="banner-cascada" class="banner-cascada-wms" style="display: none;">
+                    <div>
+                        <span style="color: #aaa;">Ubicación:</span>
+                        <span id="txt-mueble-activo" class="tag-coord">MUEBLE: ---</span>
+                        <span id="txt-comp-activo" class="tag-coord">BIN: ---</span>
+                    </div>
+                    <button id="btn-reset-cascada" style="background: transparent; border: none; color: #ff4444; font-weight: bold; cursor: pointer;">✕</button>
+                </div>
+
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px;">
+                    <span style="font-size: 12px; color: #aaa;">Cantidad a aplicar por escaneo:</span>
+                    <input type="number" id="input-unidades-lote" value="1" min="1" style="width: 75px; background: rgba(0,0,0,0.5); border: 1px solid var(--naranja); color: white; text-align: center; border-radius: 8px; padding: 6px; font-weight: bold;">
                 </div>
             </div>
-            
-            <div style="background: rgba(0,0,0,0.3); border-radius: 12px; padding: 12px; margin-top: 15px; border: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between;">
-                <div>
-                    <p style="margin: 0; font-size: 11px; color: #888;">Operación: <strong id="res-operacion" style="color: white;">ENTRADA</strong></p>
-                    <p style="margin: 5px 0 0 0; font-size: 11px; color: #888;">Origen: <span id="res-hardware" style="color: #aaa;">USB</span></p>
+
+            <!-- TARJETA INFORMATIVA FLUIDA DEL ÚLTIMO ARTÍCULO -->
+            <div id="tarjeta-producto" class="ultimo-escaneo" style="position: static; transform: none; width: 100%; box-sizing: border-box; display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                        <span id="badge-estado" style="background: #00ff64; color: black; font-size: 10px; padding: 3px 8px; border-radius: 8px; font-weight: bold; text-transform: uppercase;">ACTUALIZADO</span>
+                        <h2 id="prod-nombre" style="margin: 8px 0 0 0; font-size: 16px; color: white;">Producto</h2>
+                    </div>
+                    <div style="text-align: right;">
+                        <p style="margin: 0; font-size: 10px; color: #aaa;">CÓDIGO:</p>
+                        <p id="prod-codigo" style="margin: 0; font-family: monospace; font-size: 13px; color: var(--naranja); font-weight: bold;">---</p>
+                    </div>
                 </div>
-                <div style="text-align: right;">
-                    <p style="margin: 0; font-size: 11px; color: #888;">Stock Resultante:</p>
-                    <p id="res-stock" style="margin: 2px 0 0 0; font-size: 18px; color: #00ff64; font-weight: bold;">0</p>
+                
+                <div style="background: rgba(0,0,0,0.3); border-radius: 12px; padding: 12px; margin-top: 10px; border: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between;">
+                    <div>
+                        <p style="margin: 0; font-size: 11px; color: #888;">Operación: <strong id="res-operacion" style="color: white;">ENTRADA</strong></p>
+                        <p style="margin: 4px 0 0 0; font-size: 11px; color: #888;">Hardware: <span id="res-hardware" style="color: #aaa;">USB</span></p>
+                    </div>
+                    <div style="text-align: right;">
+                        <p style="margin: 0; font-size: 11px; color: #888;">Stock Resultante:</p>
+                        <p id="res-stock" style="margin: 2px 0 0 0; font-size: 20px; color: #00ff64; font-weight: 900;">0</p>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- MODAL IN SITU: ALTA RÁPIDA -->
+    <div id="modal-alta-rapida" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); z-index: 10000; align-items: center; justify-content: center; padding: 15px; box-sizing: border-box;">
+        <div style="background: rgba(20,20,25,0.98); border: 1px solid var(--naranja); border-radius: 20px; width: 100%; max-width: 400px; padding: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.9); box-sizing: border-box;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 style="margin: 0; font-size: 15px; color: var(--naranja); text-transform: uppercase;">✨ Producto Nuevo Detectado</h3>
+                <button id="btn-cerrar-alta" style="background: none; border: none; color: #888; font-size: 18px; cursor: pointer;">✕</button>
+            </div>
+
+            <p style="font-size: 11px; color: #aaa; margin: 0 0 12px 0;">El código escaneado no existe en catálogo. Complétalo para ingresarlo al stock físico.</p>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                <div style="width: 90px; height: 90px; border: 1px dashed var(--naranja); border-radius: 12px; background: rgba(255,107,0,0.05); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; flex-shrink: 0;" onclick="document.getElementById('alta-foto-input').click()">
+                    <input type="file" id="alta-foto-input" accept="image/*" capture="environment" style="display: none;">
+                    <img id="alta-foto-preview" src="" style="display: none; width: 100%; height: 100%; object-fit: cover;">
+                    <span id="alta-foto-icono" style="font-size: 22px;">📸</span>
+                    <span id="alta-foto-txt" style="font-size: 9px; color: var(--naranja); font-weight: bold; margin-top: 2px;">FOTO</span>
+                </div>
+
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                    <input type="text" id="alta-codigo" class="input-boveda" readonly style="margin: 0; padding: 8px; font-size: 12px; font-family: monospace; color: var(--naranja); font-weight: bold;">
+                    <input type="text" id="alta-nombre" class="input-boveda" placeholder="Nombre del producto" style="margin: 0; padding: 8px; font-size: 12px;">
+                    <input type="number" id="alta-precio" class="input-boveda" placeholder="Precio ($)" style="margin: 0; padding: 8px; font-size: 12px;">
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+                <div>
+                    <label style="font-size: 10px; color: #888; text-transform: uppercase;">Cantidad:</label>
+                    <input type="number" id="alta-cantidad" class="input-boveda" value="1" min="1" style="margin: 4px 0 0 0; padding: 8px; font-size: 13px; font-weight: bold; text-align: center; color: #00ff64;">
+                </div>
+                <div>
+                    <label style="font-size: 10px; color: #888; text-transform: uppercase;">Categoría:</label>
+                    <input type="text" id="alta-categoria" class="input-boveda" value="General" style="margin: 4px 0 0 0; padding: 8px; font-size: 12px;">
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+                <div>
+                    <label style="font-size: 10px; color: #888; text-transform: uppercase;">N° de Lote:</label>
+                    <input type="text" id="alta-lote" class="input-boveda" placeholder="Ej: L-2026-A" style="margin: 4px 0 0 0; padding: 8px; font-size: 12px; font-family: monospace;">
+                </div>
+                <div>
+                    <label style="font-size: 10px; color: #888; text-transform: uppercase; color: #ffaa00;">Fecha Vencimiento:</label>
+                    <input type="date" id="alta-vencimiento" class="input-boveda" style="margin: 4px 0 0 0; padding: 8px; font-size: 11px; color: white;">
+                </div>
+            </div>
+
+            <button id="btn-guardar-alta-rapida" class="btn-accion-boveda" style="margin: 0; padding: 12px; font-size: 13px;">
+                INCORPORAR AL STOCK
+            </button>
+        </div>
+    </div>
+
+    <!-- CONTROLADOR REACTIVO Y MOTOR DE ESCANEO -->
     <script type="module">
         import GeokatuDB from './core-db.js';
-        import { MotorLector } from './lector-motor.js';
 
         let idNegocio = localStorage.getItem('geokatu_active_uid') || null;
         let operacionActual = 'ENTRADA';
         let catalogoLocal = [];
 
-        // 1. SESIÓN
+        // --- ESTADO DE LA MÁQUINA DE RELOCALIZACIÓN ESPACIAL ---
+        let ubicacionCascada = {
+            idEstante: null,
+            idCompartimiento: null,
+            zona: 'BODEGA'
+        };
+
+        const resetCascada = () => {
+            ubicacionCascada.idEstante = null;
+            ubicacionCascada.idCompartimiento = null;
+            document.getElementById('txt-mueble-activo').innerText = "MUEBLE: ---";
+            document.getElementById('txt-comp-activo').innerText = "BIN: ---";
+            document.getElementById('banner-cascada').style.display = operacionActual === 'REUBICAR' ? 'flex' : 'none';
+        };
+        document.getElementById('btn-reset-cascada').addEventListener('click', resetCascada);
+
+        // --- SINTETIZADOR DE TONOS WEB AUDIO API ---
+        let audioCtx = null;
+        function emitirTono(tipo = 'EXITO') {
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                const ahora = audioCtx.currentTime;
+
+                if (tipo === 'EXITO') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(1850, ahora);
+                    gain.gain.setValueAtTime(0.2, ahora);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ahora + 0.08);
+                    osc.start(ahora);
+                    osc.stop(ahora + 0.08);
+                } else if (tipo === 'ERROR') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(220, ahora);
+                    gain.gain.setValueAtTime(0.25, ahora);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ahora + 0.25);
+                    osc.start(ahora);
+                    osc.stop(ahora + 0.25);
+                }
+            } catch (e) {}
+        }
+
+        // =========================================================================
+        // MOTOR DE ESCANEO DE CÁMARA DIRECTO (EAN-13, CODE-128, RÁFAGA INDUSTRIAL)
+        // =========================================================================
+        let scannerInstancia = null;
+        let camaraEncendida = false;
+        let pestilloBloqueado = false;
+        let ultimoCodigoLeido = null;
+        let timerDesbloqueoPestillo = null;
+
+        const visorCamara = document.getElementById('lector-camara');
+        const btnToggleCamara = document.getElementById('btn-toggle-camara');
+        const txtBtnCamara = document.getElementById('txt-btn-camara');
+        const chkRafaga = document.getElementById('chk-modo-rafaga');
+        const wrapperRafaga = document.getElementById('toggle-rafaga-wrapper');
+        const luzEstado = document.getElementById('luz-estado');
+        const txtEstadoLatch = document.getElementById('txt-estado-latch');
+
+        chkRafaga.addEventListener('change', () => {
+            if (chkRafaga.checked) {
+                wrapperRafaga.classList.add('activo');
+                if (navigator.vibrate) navigator.vibrate(30);
+            } else {
+                wrapperRafaga.classList.remove('activo');
+            }
+        });
+
+        // Configuración idéntica a boveda-comercio y pos.html
+        const configFormatos = {
+            formatsToSupport: [
+                Html5QrcodeSupportedFormats.EAN_13,
+                Html5QrcodeSupportedFormats.EAN_8,
+                Html5QrcodeSupportedFormats.CODE_128,
+                Html5QrcodeSupportedFormats.CODE_39,
+                Html5QrcodeSupportedFormats.UPC_A,
+                Html5QrcodeSupportedFormats.UPC_E,
+                Html5QrcodeSupportedFormats.QR_CODE
+            ],
+            verbose: false
+        };
+
+        const configEscaneo = {
+            fps: 20,
+            qrbox: (anchoVista, altoVista) => {
+                const w = Math.floor(anchoVista * 0.88);
+                const h = Math.floor(Math.min(altoVista * 0.55, 130));
+                return { width: w, height: h };
+            },
+            aspectRatio: 1.333333
+        };
+
+        const encenderCamara = async () => {
+            visorCamara.style.display = 'block';
+            txtBtnCamara.innerText = "APAGAR CÁMARA";
+            btnToggleCamara.style.background = "#ff4444";
+            camaraEncendida = true;
+
+            if (!scannerInstancia) {
+                scannerInstancia = new Html5Qrcode("lector-camara", configFormatos);
+            }
+
+            try {
+                await scannerInstancia.start(
+                    { facingMode: "environment" },
+                    configEscaneo,
+                    (codigoDecodificado) => {
+                        onLecturaOptica(codigoDecodificado);
+                    },
+                    () => {}
+                );
+            } catch (err) {
+                console.error("Fallo al iniciar cámara:", err);
+                alert("No se pudo iniciar la cámara trasera. Verifica los permisos.");
+                apagarCamara();
+            }
+        };
+
+        const apagarCamara = async () => {
+            if (scannerInstancia && scannerInstancia.isScanning) {
+                try {
+                    await scannerInstancia.stop();
+                } catch (e) {}
+            }
+            visorCamara.style.display = 'none';
+            txtBtnCamara.innerText = "ACTIVAR CÁMARA";
+            btnToggleCamara.style.background = "";
+            camaraEncendida = false;
+        };
+
+        btnToggleCamara.addEventListener('click', () => {
+            if (camaraEncendida) apagarCamara();
+            else encenderCamara();
+        });
+
+        // PESTILLO CONCURRENTE DE CINTA TRANSPORTADORA
+        function onLecturaOptica(codigo) {
+            const esRafaga = chkRafaga.checked;
+
+            // Si el pestillo está bloqueado procesando el ítem previo, ignorar frame
+            if (pestilloBloqueado) return;
+
+            // En ráfaga, no duplicar el mismo código si sigue enfrente de la cámara
+            if (esRafaga && codigo === ultimoCodigoLeido) return;
+
+            pestilloBloqueado = true;
+            ultimoCodigoLeido = codigo;
+            luzEstado.className = "luz-pestillo bloqueado";
+            txtEstadoLatch.innerText = "PROCESANDO...";
+
+            procesarMovimientoStock(codigo, "CÁMARA");
+
+            if (!esRafaga) {
+                apagarCamara();
+                pestilloBloqueado = false;
+                luzEstado.className = "luz-pestillo";
+                txtEstadoLatch.innerText = "LISTO";
+            } else {
+                // Intervalo de enfriamiento de cinta transportadora (800ms)
+                clearTimeout(timerDesbloqueoPestillo);
+                timerDesbloqueoPestillo = setTimeout(() => {
+                    pestilloBloqueado = false;
+                    ultimoCodigoLeido = null;
+                    luzEstado.className = "luz-pestillo";
+                    txtEstadoLatch.innerText = "LISTO";
+                }, 800);
+            }
+        }
+
+        // =========================================================================
+        // LECTOR FÍSICO NATIVO (PISTOLA USB-C / BLUETOOTH EN WINDOW)
+        // =========================================================================
+        let bufferUSB = '';
+        let ultimoTiempoTecla = 0;
+        window.addEventListener('keydown', (e) => {
+            if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+
+            const ahora = performance.now();
+            if (ahora - ultimoTiempoTecla > 80) bufferUSB = '';
+            ultimoTiempoTecla = ahora;
+
+            if (e.key === 'Enter') {
+                if (bufferUSB.length >= 3) {
+                    e.preventDefault();
+                    const cod = bufferUSB.trim();
+                    bufferUSB = '';
+                    procesarMovimientoStock(cod, "PISTOLA_USB");
+                }
+                return;
+            }
+            if (e.key.length === 1) bufferUSB += e.key;
+        }, true);
+
+        // =========================================================================
+        // PROCESAMIENTO ATÓMICO Y KARDEX
+        // =========================================================================
+        async function procesarMovimientoStock(codigo, origenHardware) {
+            if (navigator.vibrate) navigator.vibrate(50);
+            emitirTono('EXITO');
+
+            // Caso A: QR Mueble (GEO-M-)
+            if (codigo.startsWith('GEO-M-')) {
+                ubicacionCascada.idEstante = codigo;
+                document.getElementById('txt-mueble-activo').innerText = `MUEBLE: ${codigo.replace('GEO-M-', '')}`;
+                document.getElementById('banner-cascada').style.display = 'flex';
+                return;
+            }
+
+            // Caso B: QR Compartimiento (GEO-P-)
+            if (codigo.startsWith('GEO-P-')) {
+                ubicacionCascada.idCompartimiento = codigo;
+                document.getElementById('txt-comp-activo').innerText = `BIN: ${codigo.replace('GEO-P-', '')}`;
+                document.getElementById('banner-cascada').style.display = 'flex';
+                return;
+            }
+
+            // Caso C: Producto (EAN-13 / SKU)
+            const unidadesLote = Math.max(1, Number(document.getElementById('input-unidades-lote').value) || 1);
+            const prod = catalogoLocal.find(p => p.codigo_barras === codigo || p.id_prod === codigo);
+
+            if (!prod) {
+                emitirTono('ERROR');
+                abrirModalAltaRapida(codigo, unidadesLote);
+                return;
+            }
+
+            let tipoKardex = operacionActual === 'REUBICAR' ? 'TRASLADO_INTERNO' : operacionActual;
+            let nuevoStock = prod.stock_actual !== undefined ? prod.stock_actual : 0;
+
+            if (tipoKardex === 'ENTRADA') nuevoStock += unidadesLote;
+            else if (tipoKardex === 'SALIDA') nuevoStock = Math.max(0, nuevoStock - unidadesLote);
+
+            if (operacionActual !== 'AUDITORIA') {
+                prod.stock_actual = nuevoStock;
+                localStorage.setItem(`geokatu_catalogo_${idNegocio}`, JSON.stringify(catalogoLocal));
+            }
+
+            // Proyección en la tarjeta inferior (sin tapar el visor)
+            const tarjeta = document.getElementById('tarjeta-producto');
+            document.getElementById('prod-nombre').innerText = prod.nombre;
+            document.getElementById('prod-codigo').innerText = codigo;
+            document.getElementById('res-operacion').innerText = operacionActual;
+            document.getElementById('res-hardware').innerText = origenHardware;
+            document.getElementById('res-stock').innerText = nuevoStock;
+            tarjeta.style.display = 'block';
+
+            if (operacionActual !== 'AUDITORIA') {
+                await GeokatuDB.InventarioService.registrarMovimientoFisico(
+                    prod.id_prod, 
+                    operacionActual === 'ENTRADA' ? "PROVEEDOR" : (ubicacionCascada.idCompartimiento || "BODEGA"), 
+                    operacionActual === 'ENTRADA' ? (ubicacionCascada.idCompartimiento || "BODEGA") : (operacionActual === 'SALIDA' ? "CLIENTE" : ubicacionCascada.idCompartimiento), 
+                    tipoKardex,
+                    unidadesLote,
+                    {
+                        idEstanteDestino: ubicacionCascada.idEstante,
+                        idCompDestino: ubicacionCascada.idCompartimiento,
+                        zona: ubicacionCascada.zona
+                    }
+                );
+            }
+        }
+
+        // =========================================================================
+        // SESIÓN Y ALTA RÁPIDA
+        // =========================================================================
         GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
             if (user) {
                 idNegocio = user.uid;
                 localStorage.setItem('geokatu_active_uid', user.uid);
-                localStorage.setItem('qrpido_session_validated', 'true');
                 document.getElementById('pantalla-login').style.display = 'none';
                 document.getElementById('app-terminal').style.display = 'flex';
                 document.getElementById('txt-operador').innerText = `Operador: ${user.email}`;
 
-               // Sincronizar catálogo para tener existencias en memoria
                 const res = await GeokatuDB.PosService.descargarCatalogoLocal(idNegocio);
                 catalogoLocal = res.success ? res.data : GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio);
-
-                // 📡 RADAR EN VIVO: Si el cajero vende en pos.html, el stock actualiza aquí al instante
-                GeokatuDB.InventarioService.escucharCambiosStock(idNegocio, (prodActualizado) => {
-                    const prodLocal = catalogoLocal.find(p => p.id_prod === prodActualizado.id_prod);
-                    if (prodLocal && prodActualizado.stock_actual !== undefined) {
-                        prodLocal.stock_actual = prodActualizado.stock_actual;
-                        localStorage.setItem(`geokatu_catalogo_${idNegocio}`, JSON.stringify(catalogoLocal));
-
-                        // Si el bodeguero tiene en pantalla la tarjeta de este producto, actualizar número
-                        const codigoPantalla = document.getElementById('prod-codigo').innerText;
-                        if (codigoPantalla === prodLocal.codigo_barras || codigoPantalla === prodLocal.id_prod) {
-                            document.getElementById('res-stock').innerText = prodActualizado.stock_actual;
-                        }
-                    }
-                });
             } else {
-
                 document.getElementById('pantalla-login').style.display = 'flex';
                 document.getElementById('app-terminal').style.display = 'none';
             }
@@ -212,99 +581,97 @@
             const email = document.getElementById('login-email').value.trim();
             const pass = document.getElementById('login-pass').value;
             const res = await GeokatuDB.SecurityService.iniciarSesion(email, pass);
-            if (!res.success) alert("Error de acceso: " + res.error);
+            if (!res.success) alert("Error: " + res.error);
         });
 
         document.getElementById('btn-logout').addEventListener('click', async () => {
-            await motor.apagarCamara();
+            await apagarCamara();
             await GeokatuDB.SecurityService.cerrarSesion();
         });
 
-        // 2. MOTOR DE LECTURA HÍBRIDO
-        const motor = new MotorLector({
-            contenedorId: 'lector-camara',
-            onLectura: (codigo, origen) => {
-                procesarMovimientoStock(codigo, origen);
-            },
-            onError: (err) => console.warn('[Stock] Cámara:', err)
-        });
-
-        const btnToggleCamara = document.getElementById('btn-toggle-camara');
-        btnToggleCamara.addEventListener('click', (e) => {
-            e.stopPropagation();
-            motor.toggleCamara(btnToggleCamara);
-        });
-
-        // 3. LOGICA DE NEGOCIO Y ACTUALIZACIÓN DEL KARDEX
-        async function procesarMovimientoStock(codigo, origenHardware) {
-            const luz = document.getElementById('luz-estado');
-            luz.classList.add('leyendo');
-
-            const unidadesLote = Math.max(1, Number(document.getElementById('input-unidades-lote').value) || 1);
-            
-            // Buscar producto en memoria
-            const prod = catalogoLocal.find(p => p.codigo_barras === codigo || p.id_prod === codigo);
-
-            if (!prod) {
-                luz.classList.remove('leyendo');
-                alert(`⚠️ Producto con código ${codigo} no existe en el catálogo.`);
-                return;
-            }
-
-            // Aplicar cambio aritmético al stock
-            let nuevoStock = prod.stock_actual !== undefined ? prod.stock_actual : 0;
-            let delta = 0;
-
-            if (operacionActual === 'ENTRADA') {
-                delta = unidadesLote;
-                nuevoStock += delta;
-            } else if (operacionActual === 'SALIDA') {
-                delta = -unidadesLote;
-                nuevoStock = Math.max(0, nuevoStock + delta);
-            }
-
-            // Actualizar memoria RAM y localStorage
-            if (operacionActual !== 'AUDITORIA') {
-                prod.stock_actual = nuevoStock;
-                localStorage.setItem(`geokatu_catalogo_${idNegocio}`, JSON.stringify(catalogoLocal));
-            }
-
-            // Renderizar datos en la tarjeta
-            document.getElementById('prod-nombre').innerText = prod.nombre;
-            document.getElementById('prod-codigo').innerText = codigo;
-            document.getElementById('res-operacion').innerText = operacionActual;
-            document.getElementById('res-hardware').innerText = origenHardware;
-            document.getElementById('res-stock').innerText = nuevoStock;
-            document.getElementById('tarjeta-producto').classList.add('visible');
-
-            // Registrar movimiento en Firestore (Kardex)
-            if (operacionActual !== 'AUDITORIA') {
-                await GeokatuDB.InventarioService.registrarMovimientoFisico(
-                    prod.id_prod, 
-                    operacionActual === 'ENTRADA' ? "PROVEEDOR" : "BODEGA", 
-                    operacionActual === 'ENTRADA' ? "BODEGA" : "CLIENTE", 
-                    operacionActual
-                    unidadesLote 
-                );
-            }
-
-            luz.classList.remove('leyendo');
-
-            setTimeout(() => {
-                document.getElementById('tarjeta-producto').classList.remove('visible');
-            }, 3500);
-        }
-
-        // 4. CONTROL DE SELECTORES
         document.querySelectorAll('#selector-operacion .ribbon-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('#selector-operacion .ribbon-btn').forEach(b => b.classList.remove('activo'));
                 btn.classList.add('activo');
                 operacionActual = btn.getAttribute('data-op');
+                document.getElementById('banner-cascada').style.display = operacionActual === 'REUBICAR' ? 'flex' : 'none';
             });
+        });
+
+        // Alta Rápida In Situ
+        let fotoAltaBlob = null;
+        function abrirModalAltaRapida(codigo, cantSugerida) {
+            document.getElementById('alta-codigo').value = codigo;
+            document.getElementById('alta-nombre').value = '';
+            document.getElementById('alta-precio').value = '';
+            document.getElementById('alta-cantidad').value = cantSugerida || 1;
+            document.getElementById('modal-alta-rapida').style.display = 'flex';
+        }
+        document.getElementById('btn-cerrar-alta').addEventListener('click', () => {
+            document.getElementById('modal-alta-rapida').style.display = 'none';
+        });
+
+        document.getElementById('alta-foto-input').addEventListener('change', (e) => {
+            const f = e.target.files[0];
+            if (f) {
+                fotoAltaBlob = f;
+                const r = new FileReader();
+                r.onload = (ev) => {
+                    const img = document.getElementById('alta-foto-preview');
+                    img.src = ev.target.result;
+                    img.style.display = 'block';
+                    document.getElementById('alta-foto-icono').style.display = 'none';
+                    document.getElementById('alta-foto-txt').style.display = 'none';
+                };
+                r.readAsDataURL(f);
+            }
+        });
+
+        document.getElementById('btn-guardar-alta-rapida').addEventListener('click', async () => {
+            const btn = document.getElementById('btn-guardar-alta-rapida');
+            const codigo = document.getElementById('alta-codigo').value.trim();
+            const nom = document.getElementById('alta-nombre').value.trim();
+            const pre = parseFloat(document.getElementById('alta-precio').value) || 0;
+            const cant = Math.max(1, parseFloat(document.getElementById('alta-cantidad').value) || 1);
+
+            if (!nom) return alert("Nombre obligatorio.");
+            btn.innerText = "GUARDANDO..."; btn.disabled = true;
+
+            try {
+                let imgUrl = "";
+                if (fotoAltaBlob) {
+                    const up = await GeokatuDB.AdminService.subirArchivo(`productos/${idNegocio}/${Date.now()}.webp`, fotoAltaBlob);
+                    if (up.success) imgUrl = up.data;
+                }
+
+                const nuevoProd = {
+                    nombre: nom,
+                    precio: pre,
+                    codigo_barras: codigo,
+                    stock_actual: cant,
+                    categoria: document.getElementById('alta-categoria').value.trim() || "General",
+                    imagen: imgUrl,
+                    almacen_id_inicial: ubicacionCascada.idEstante || "BODEGA_GENERAL",
+                    fecha_creacion: new Date().toISOString(),
+                    agotado: false
+                };
+
+                const res = await GeokatuDB.AdminService.guardarProducto(idNegocio, null, nuevoProd);
+                if (!res.success) throw new Error(res.error);
+
+                nuevoProd.id_prod = res.id_generado;
+                catalogoLocal.push(nuevoProd);
+                localStorage.setItem(`geokatu_catalogo_${idNegocio}`, JSON.stringify(catalogoLocal));
+
+                document.getElementById('modal-alta-rapida').style.display = 'none';
+                procesarMovimientoStock(codigo, "ALTA_RÁPIDA");
+            } catch (err) {
+                alert("Error: " + err.message);
+            } finally {
+                btn.innerText = "INCORPORAR AL STOCK";
+                btn.disabled = false;
+            }
         });
     </script>
 </body>
 </html>
-
-

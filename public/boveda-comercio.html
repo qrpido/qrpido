@@ -6,11 +6,15 @@
     <title>Bóveda Comercial | Geokatu</title>
       
     <link rel="stylesheet" href="admin-boveda.css">
-    <link href="https://unpkg.com/maplibre-gl@3.3.1/dist/maplibre-gl.css" rel="stylesheet" />
-    <script src="https://unpkg.com/maplibre-gl@3.3.1/dist/maplibre-gl.js"></script>
-    <script src="https://unpkg.com/pmtiles@2.11.0/dist/index.js"></script>
-    <script type="module" src="auth-mando.js"></script>
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <link rel="stylesheet" href="./maplibre-gl.css" />
+    <script src="./maplibre-gl.js"></script>
+    <script src="./pmtiles.js"></script>
+    <script type="module" src="./auth-mando.js"></script>
+    <script src="./html5-qrcode.min.js"></script>
+    <script type="text/javascript" src="https://checkout.wompi.co/widget.js"></script>
+
+
+
 </head>
 
 <body class="boveda-ui">
@@ -311,9 +315,10 @@
             <div class="oficina-header" style="border:none; margin-bottom:0; padding-bottom:0;">
                 <img id="ui-logo" src="" class="oficina-logo" style="display:none; background: var(--bg-oscuro);">
                 <div class="oficina-info">
-                    <h3 id="ui-nombre" style="color: white; margin-bottom: 5px;">MI TIENDA</h3>
-                    <div class="badge-plan">ESTADO: ACTIVO</div>
-                </div>
+    <h3 id="ui-nombre" style="color: white; margin-bottom: 5px;">MI TIENDA</h3>
+    <div class="badge-plan">ESTADO: ACTIVO</div>
+    <div id="billing-alert-container" style="margin-top: 6px;"></div>
+               </div>
             </div> 
         </div> 
 
@@ -341,9 +346,10 @@
                 <div id="mini-mapa-perfil" style="width: 100%; height: 100%; background: #111;"></div>
 
                                <!-- Botón Principal Flotante: Cambia entre ✏️ y ❌ -->
-                <button type="button" id="btn-master-lapiz-dashboard" onclick="window.toggleModoEdicionMinimalista()" title="Editar perfil">
-                    ✏️
-                </button>
+               <button type="button" id="btn-nueva-sede-dashboard" onclick="window.abrirModalNuevaSede()" title="Añadir Nueva Sucursal" style="position: absolute; bottom: 80px; right: 15px; background: rgba(15, 15, 20, 0.9); color: #00ff64; border: 1px solid rgba(0, 255, 100, 0.4); border-radius: 50%; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; box-shadow: 0 6px 20px rgba(0,0,0,0.6); z-index: 50; transition: transform 0.2s;">
+    🏢+
+</button>
+
 
             </div>
             
@@ -371,14 +377,39 @@
 
         <!-- PESTAÑA 3: OPERACIONES (CENTRO DE CONTROL Y EQUIPO) -->
         <div id="content-operaciones" class="tab-content" style="display: none; padding: 15px; flex-direction: column; gap: 15px;">
-            <!-- Acceso Directo a la Terminal de Venta -->
-            <div class="panel-operaciones-bloque destacado" style="text-align: center;">
-                <h3 style="margin: 0 0 6px 0; color: white; font-size: 15px; text-transform: uppercase; letter-spacing: 1px;">Terminal Punto de Venta</h3>
-                <p style="margin: 0 0 16px 0; font-size: 12px; color: #aaa; line-height: 1.4;">Interfaz optimizada para cobros rapidos, lectura de codigo de barras y tickets de caja.</p>
-                <button type="button" onclick="window.open('pos.html', '_blank')" class="btn-submit" style="margin: 0 auto; width: auto; min-width: 200px; padding: 12px 24px !important; display: inline-flex; align-items: center; justify-content: center;">
-                    Abrir Terminal de Caja
-                </button>
+            <!-- Ecosistema Operativo Tripartito: POS, WMS Bodega y Plano SIG -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;">
+                <div class="panel-operaciones-bloque destacado" style="text-align: center; padding: 14px 10px;">
+                    <span style="font-size: 24px;">💳</span>
+                    <h4 style="margin: 4px 0; color: white; font-size: 12px; text-transform: uppercase;">Punto de Venta</h4>
+                    <button type="button" onclick="window.open('pos.html', '_blank')" class="btn-submit" style="margin: 6px auto 0 auto; width: 100%; padding: 8px !important; font-size: 11px;">
+                        Abrir POS
+                    </button>
+                </div>
+                <div class="panel-operaciones-bloque" style="text-align: center; padding: 14px 10px; border-color: rgba(255,107,0,0.4); background: rgba(255,107,0,0.06);">
+                    <span style="font-size: 24px;">👁️</span>
+                    <h4 style="margin: 4px 0; color: var(--naranja); font-size: 12px; text-transform: uppercase;">Visor de Piso</h4>
+                    <button type="button" onclick="window.open('visor-tienda.html', '_blank')" class="btn-submit" style="margin: 6px auto 0 auto; width: 100%; padding: 8px !important; font-size: 11px;">
+                        Abrir Radar
+                    </button>
+                </div>
+                <div class="panel-operaciones-bloque" style="text-align: center; padding: 14px 10px; border-color: rgba(0,255,100,0.3); background: rgba(0,255,100,0.05);">
+                    <span style="font-size: 24px;">📦</span>
+                    <h4 style="margin: 4px 0; color: #00ff64; font-size: 12px; text-transform: uppercase;">Terminal Stock</h4>
+                    <button type="button" onclick="window.open('stock.html', '_blank')" class="btn-submit" style="margin: 6px auto 0 auto; width: 100%; padding: 8px !important; font-size: 11px; background: #00ff64; color: black;">
+                        Abrir WMS
+                    </button>
+                </div>
+                <div class="panel-operaciones-bloque" style="text-align: center; padding: 14px 10px; border-color: rgba(96,165,250,0.3); background: rgba(96,165,250,0.05);">
+                    <span style="font-size: 24px;">🗺️</span>
+                    <h4 style="margin: 4px 0; color: #60a5fa; font-size: 12px; text-transform: uppercase;">Mapa Tienda</h4>
+                    <button type="button" onclick="window.open('mapatienda.html', '_blank')" class="btn-submit" style="margin: 6px auto 0 auto; width: 100%; padding: 8px !important; font-size: 11px; background: #2563eb;">
+                        Ver Plano SIG
+                    </button>
+                </div>
             </div>
+
+
 
             <!-- MODULO DE IDENTIDAD FISCAL Y MIGRACION SIIGO / DIAN -->
             <div class="panel-operaciones-bloque">
@@ -618,8 +649,11 @@
         import * as geofire from 'https://cdn.jsdelivr.net/npm/geofire-common@5.2.0/+esm';
 
         import GeokatuDB from './core-db.js';
+        import { BillingGuard } from './billing-guard.js';
         
         window.GeokatuDB = GeokatuDB;
+        window.BillingGuard = BillingGuard;
+
         window.generarGeohash = function(lat, lng) { return geofire.geohashForLocation([lat, lng]); };
 
         let datosTienda = {};
@@ -649,6 +683,8 @@
             document.getElementById('prodPrecio').value = p.precio; 
             document.getElementById('prodCategoria').value = p.categoria || ''; 
             document.getElementById('prodEditId').value = id; 
+            const inputStockEdit = document.getElementById('prodStockInicial');
+            if (inputStockEdit) inputStockEdit.value = p.stock_actual !== undefined ? p.stock_actual : 0;
             document.getElementById('prodImagenActual').value = p.imagen || '';
             const bCode = document.getElementById('prodBarcode');
             if (bCode) bCode.value = p.codigo_barras || '';
@@ -661,6 +697,10 @@
             if (lblUnidad) lblUnidad.innerText = met.unidad || 'g';
             const valMet = document.getElementById('prodMedidaValor');
             if (valMet) valMet.value = met.valor || '';
+// Hidratar Galería y Editorial
+            document.getElementById('prodGaleriaActual').value = JSON.stringify(p.galeria || []);
+            document.getElementById('prodCuerpoTexto').value = p.cuerpo_texto || '';
+            document.getElementById('prodPosicionImagen').value = p.posicion_imagen || 'izquierda';
 
             // Hidratar Clasificación Retail
             const clas = p.clasificacion || {};
@@ -683,6 +723,9 @@
             document.getElementById('prodPrecio').value = ''; 
             document.getElementById('prodCategoria').value = ''; 
             document.getElementById('prodEditId').value = ''; 
+            const inputStockLimpio = document.getElementById('prodStockInicial');
+            if (inputStockLimpio) inputStockLimpio.value = '';
+ 
             const bCode = document.getElementById('prodBarcode');
             if (bCode) bCode.value = '';
 
@@ -693,6 +736,10 @@
             document.getElementById('prodMedidaUnidad').value = 'g';
             const lblUnidad = document.getElementById('label-unidad-activa');
             if (lblUnidad) lblUnidad.innerText = 'g';
+document.getElementById('prodGaleriaActual').value = '[]';
+            document.getElementById('prodGaleriaFiles').value = '';
+            document.getElementById('prodCuerpoTexto').value = '';
+            document.getElementById('prodPosicionImagen').value = 'izquierda';
 
             // Limpieza de retail
             const detRet = document.getElementById('prodRetailDetalle');
@@ -721,9 +768,10 @@
             
             const content = document.getElementById(`content-${tabId}`);
             if (content) {
-                content.style.display = (tabId === 'ajustes') ? 'flex' : 'block';
+                content.style.display = (tabId === 'ajustes' || tabId === 'operaciones') ? 'flex' : 'block';
                 content.classList.add('activo');
             }
+
 
             const btnActivo = document.querySelector(`.tab-btn[onclick*="${tabId}"]`);
             if (btnActivo) btnActivo.classList.add('activo');
@@ -742,6 +790,107 @@
                 }
             }
         };
+window.abrirModalNuevaSede = function() {
+    document.getElementById('sede-nuevo-id').value = `SEDE_${Date.now().toString(16).slice(-4).toUpperCase()}`;
+    document.getElementById('sede-nuevo-nombre').value = `${datosTienda.nombre || 'Mi Tienda'} - Sucursal`;
+    document.getElementById('sede-nuevo-direccion').value = '';
+    document.getElementById('modal-crear-sede').style.display = 'flex';
+};
+
+window.confirmarCreacionSede = async function() {
+    const idSede = document.getElementById('sede-nuevo-id').value.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+    const nombreSede = document.getElementById('sede-nuevo-nombre').value.trim();
+    const direccionSede = document.getElementById('sede-nuevo-direccion').value.trim();
+    const btn = document.getElementById('btn-confirmar-crear-sede');
+
+    if (!idSede || !nombreSede) {
+        return alert("El código y nombre de la sede son requeridos.");
+    }
+
+    btn.innerText = "Creando Sucursal...";
+    btn.disabled = true;
+
+    try {
+        // Hereda el centro del minimapa con un desplazamiento ligero para no superponerse
+        const centro = window.miniMapaPerfil ? window.miniMapaPerfil.getCenter() : { lat: 4.8133, lng: -75.6961 };
+        const nuevaLat = centro.lat + (Math.random() * 0.002 - 0.001);
+        const nuevaLng = centro.lng + (Math.random() * 0.002 - 0.001);
+
+        const nuevaSedeDoc = {
+            id_sede: idSede,
+            nombre: nombreSede,
+            direccion: direccionSede,
+            Coordenadas: { latitude: nuevaLat, longitude: nuevaLng },
+            geohash: window.generarGeohash(nuevaLat, nuevaLng),
+            fecha_creacion: new Date().toISOString()
+        };
+
+        const { doc, setDoc, getFirestore } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+        const db = getFirestore();
+
+        // 1. Guardar en la subcolección de Almacenes/Sedes de la tienda
+        await setDoc(doc(db, `Directorio/${window.idNegocioLogueado}/Sedes_Sucursales`, idSede), nuevaSedeDoc);
+
+        // 2. Inicializar su plano espacial correspondiente en blanco
+        await window.GeokatuDB.RadarService.guardarMapaBodega(window.idNegocioLogueado, idSede, {
+            perimetro: { anchoM: 12, largoM: 18 },
+            elementos: [],
+            muros: [],
+            sede: idSede
+        });
+
+        alert(`✅ Sucursal [${idSede}] creada. Ya puedes diseñar su plano en mapatienda.html.`);
+        document.getElementById('modal-crear-sede').style.display = 'none';
+
+        // Pintar el nuevo pin en el minimapa
+        window.dibujarPinSucursalEnMinimapa(nuevaSedeDoc);
+
+    } catch (e) {
+        console.error("Error fundando sede:", e);
+        alert("Error al fundar sucursal: " + e.message);
+    } finally {
+        btn.innerText = "Fundar Sucursal 🚀";
+        btn.disabled = false;
+    }
+};
+
+window.dibujarPinSucursalEnMinimapa = function(sede) {
+    if (!window.miniMapaPerfil) return;
+
+    const el = document.createElement('div');
+    el.className = 'pin-wrapper anim-salto';
+    el.setAttribute('data-forma', 'forma-gota');
+    el.style.setProperty('--color-main', '#00ff64');
+    el.style.cursor = 'pointer';
+    el.innerHTML = `
+        <svg class="svg-pin-fondo" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 30,57 C 30,57 10,38 10,20 C 10,9 19,3 30,3 C 41,3 50,9 50,20 C 50,38 30,57 30,57 Z" />
+        </svg>
+        <span class="texto-centro-masa" style="display:flex; font-size: 8px;">SEDE<br>${sede.id_sede.slice(-4)}</span>
+    `;
+
+    const marker = new maplibregl.Marker({ element: el, draggable: true, anchor: 'bottom' })
+        .setLngLat([sede.Coordenadas.longitude, sede.Coordenadas.latitude])
+        .addTo(window.miniMapaPerfil);
+
+    marker.on('dragend', async () => {
+        const pos = marker.getLngLat();
+        const hash = window.generarGeohash(pos.lat, pos.lng);
+        const { doc, updateDoc, getFirestore } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+        await updateDoc(doc(getFirestore(), `Directorio/${window.idNegocioLogueado}/Sedes_Sucursales`, sede.id_sede), {
+            Coordenadas: { latitude: pos.lat, longitude: pos.lng },
+            geohash: hash
+        });
+    });
+
+    el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        localStorage.setItem('geokatu_sede_activa', sede.id_sede);
+        if (confirm(`¿Abrir plano y gestión de la sucursal [${sede.nombre}]?`)) {
+            window.open('mapatienda.html', '_blank');
+        }
+    });
+};
 
 
         // --- DICCIONARIO DE EMOJIS ---
@@ -768,32 +917,62 @@
         };
         setTimeout(() => window.cargarDiccionarioEmojis(), 500);
 
-        // --- COMPRESIÓN DE IMÁGENES ---
-        window.comprimirImagen = function(file, maxWidth = 800, quality = 0.5, forceSquare = false) {
-            return new Promise((resolve) => {
-                if (!file) return resolve(file);
+        // --- COMPRESIÓN Y SANITIZACIÓN BLINDADA DE IMÁGENES ---
+        window.comprimirImagen = function(file, maxWidth = 800, quality = 0.7, forceSquare = false) {
+            return new Promise((resolve, reject) => {
+                if (!file) return resolve(null);
+
+                const tipoMime = (file.type || '').toLowerCase();
+                if (tipoMime.includes('svg') || tipoMime.includes('html') || tipoMime.includes('xml')) {
+                    alert("Por seguridad solo se admiten imágenes JPG, PNG o WebP.");
+                    return reject(new Error("Formato prohibido"));
+                }
+
                 const reader = new FileReader();
                 reader.onload = function(event) {
                     const img = new Image();
                     img.onload = function() {
-                        let width = img.width, height = img.height;
+                        let width = img.width;
+                        let height = img.height;
                         let sx = 0, sy = 0, sWidth = width, sHeight = height;
+
                         if (forceSquare) {
                             const size = Math.min(width, height);
-                            sx = (width - size) / 2; sy = (height - size) / 2;
-                            sWidth = size; sHeight = size; width = size; height = size;
+                            sx = (width - size) / 2;
+                            sy = (height - size) / 2;
+                            sWidth = size;
+                            sHeight = size;
+                            width = size;
+                            height = size;
                         }
-                        if (width > maxWidth) { height = Math.round((height * maxWidth) / width); width = maxWidth; }
-                        const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
-                        const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, width, height);
+
+                        if (width > maxWidth) {
+                            height = Math.round((height * maxWidth) / width);
+                            width = maxWidth;
+                        }
+
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.clearRect(0, 0, width, height);
                         ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, width, height);
-                        canvas.toBlob(blob => { resolve(blob || file); }, 'image/webp', quality);
+
+                        canvas.toBlob(blob => {
+                            if (!blob) return resolve(file);
+                            resolve(blob);
+                        }, 'image/webp', quality);
                     };
-                    img.onerror = () => resolve(file); img.src = event.target.result;
+
+                    img.onerror = () => reject(new Error("Archivo de imagen no válido"));
+                    img.src = event.target.result;
                 };
-                reader.onerror = () => resolve(file); reader.readAsDataURL(file);
+
+                reader.onerror = () => reject(new Error("Error leyendo el archivo"));
+                reader.readAsDataURL(file);
             });
         };
+
 
         // --- VARIABLES GLOBALES DEL CATÁLOGO ---
         window.listaProductosGlobal = [];
@@ -812,24 +991,35 @@
             if (!window.idNegocioLogueado) return;
             const nom = document.getElementById('prodNombre').value.trim();
             const pre = document.getElementById('prodPrecio').value.trim();
+            const stockInput = document.getElementById('prodStockInicial')?.value.trim();
+            const cantStock = stockInput !== "" ? Math.max(0, parseFloat(stockInput)) : 0;
             const editId = document.getElementById('prodEditId').value;
             if (!nom || !pre) return alert("El nombre y el precio son obligatorios.");
             
             const btn = document.getElementById('btn-submit-producto'); btn.innerText = "Guardando..."; btn.disabled = true;
             try {
-                let urlImg = document.getElementById('prodImagenActual').value;
+                const barcodeVal = document.getElementById('prodBarcode')?.value.trim() || "";
+                let urlImg = document.getElementById('prodImagenActual').value.trim() || '';
                 const f = document.getElementById('prodImagenFile').files[0];
-                if (f) { 
-                    const blobImg = await window.comprimirImagen(f, 800, 0.7, true);
-                    const { success: upSuccess, data: url, error: upError } = await GeokatuDB.AdminService.subirArchivo(`productos/${window.idNegocioLogueado}/${Date.now()}.webp`, blobImg);
-                    if (!upSuccess) throw new Error(upError); urlImg = url; 
+
+                if (f) {
+                    const resFoto = await GeokatuDB.AdminService.subirFotoProductoCanonica(
+    window.idNegocioLogueado,
+    barcodeVal,
+    f,
+    'frontal'
+);
+if (!resFoto.success) throw new Error(resFoto.error || "Error al subir la fotografía");
+urlImg = resFoto.url;
+
+                    if (!upSuccess) throw new Error(upError || "Error al subir la fotografía canónica");
+                    urlImg = url;
                 }
-                                
+
                 let monedaActual = datosTienda.moneda || 'COP';
                 let precioInput = parseFloat(pre);
                 let precioInt64 = monedaActual === 'USD' ? Math.round(precioInput * 100) : Math.round(precioInput);
-                
-                    const barcodeVal = document.getElementById('prodBarcode')?.value.trim() || "";
+
                 
                 // Nuevos datos métricos y retail
                 const medidaMagnitud = document.getElementById('prodMedidaMagnitud')?.value || 'peso';
@@ -840,12 +1030,33 @@
                 const retailCodigo = document.getElementById('prodRetailCodigo')?.value || 'STD';
                 const retailDetalle = document.getElementById('prodRetailDetalle')?.value.trim() || '';
 
+               // Procesamiento de galería secundaria WebP
+                let arrayGaleria = JSON.parse(document.getElementById('prodGaleriaActual').value || "[]");
+                const galeriaFiles = document.getElementById('prodGaleriaFiles').files;
+                if (galeriaFiles && galeriaFiles.length > 0) {
+                    const limite = Math.min(galeriaFiles.length, 4);
+                    for (let i = 0; i < limite; i++) {
+                        const blobG = await window.comprimirImagen(galeriaFiles[i], 600, 0.7, true);
+                        const { success: upG, data: urlG } = await GeokatuDB.AdminService.subirArchivo(`productos/${window.idNegocioLogueado}/gal_${Date.now()}_${i}.webp`, blobG);
+                        if (upG) arrayGaleria.push(urlG);
+                    }
+                    arrayGaleria = arrayGaleria.slice(-4); // Retener máximo 4
+                }
+
+                const cuerpoEditorial = document.getElementById('prodCuerpoTexto')?.value.trim() || '';
+                const posImg = document.getElementById('prodPosicionImagen')?.value || 'izquierda';
+
                 let pObj = { 
                     nombre: nom, 
                     precio: precioInt64, 
                     codigo_barras: barcodeVal, 
+                    stock_actual: cantStock,
                     categoria: document.getElementById('prodCategoria').value || "General", 
                     imagen: urlImg,
+                    galeria: arrayGaleria,
+                    cuerpo_texto: cuerpoEditorial,
+                    posicion_imagen: posImg,
+                    en_piso_venta: true, // Nace público por defecto
                     metrica: {
                         magnitud: medidaMagnitud,
                         unidad: medidaUnidad,
@@ -857,7 +1068,13 @@
                         detalle: retailDetalle
                     }
                 };
-                if (!editId) { pObj.agotado = false; pObj.fecha_creacion = new Date().toISOString(); pObj.layout = 'layout-grid'; }
+                if (!editId) { 
+                    pObj.agotado = cantStock === 0; 
+                    pObj.fecha_creacion = new Date().toISOString(); 
+                    pObj.layout = 'layout-grid';
+                    pObj.orden = Date.now(); // Index secuencial de entrada
+                }
+
 
                 
                 const { success, error } = await GeokatuDB.AdminService.guardarProducto(window.idNegocioLogueado, editId, pObj);
@@ -912,33 +1129,84 @@
                     cont.innerHTML = `<div style='grid-column: span 2; text-align:center; color:#888; padding: 20px 0;'>No hay resultados en esta categoría.</div>`;
                 }
 
+                // Ordenar por índice secuencial
+                datosARenderizar.sort((a, b) => (a.orden || 0) - (b.orden || 0));
+
                 datosARenderizar.forEach(p => {
                     const lClass = p.layout || 'layout-grid';
                     const card = document.createElement('div'); 
                     card.className = `producto-card ${lClass} ${p.agotado ? 'agotado' : ''}`;
                     card.id = `card-${p.id_prod}`;
+                    card.setAttribute('draggable', 'true');
+                    card.dataset.id = p.id_prod;
                     
-                    // 1er Clic: Mostrar el lápiz sutil
                     card.onclick = () => window.mostrarLapizProducto(`${p.id_prod}`);
-                    
-                    let arrayFotos = (p.galeria && p.galeria.length > 0) ? p.galeria : [p.imagen || 'https://via.placeholder.com/150/0a0a0c/ff6b00?text=FOTO'];
-                    let galeriaHTML = arrayFotos.map(img => `<img src="${img}">`).join('');
+
+                    let cuerpoHTML = '';
+                    const imgPrincipal = (p.imagen && p.imagen.trim().length > 10) 
+    ? p.imagen 
+    : 'https://via.placeholder.com/150/0a0a0c/ff6b00?text=FOTO';
+
+
+                    if (lClass === 'layout-hero') {
+                        // 1. VISTA COMPLETA (HERO DE 2 FILAS)
+                        cuerpoHTML = `
+                            <div class="card-hero-header"><h3 class="prod-nombre">${p.nombre}</h3></div>
+                            <div class="card-hero-img-box"><img src="${imgPrincipal}"></div>
+                            <div class="card-hero-footer">
+                                <p class="prod-desc">${p.cuerpo_texto || 'Artículo destacado del catálogo.'}</p>
+                                <b class="prod-precio">$${p.precio}</b>
+                            </div>
+                        `;
+                    } else if (lClass === 'layout-galeria-split') {
+                        // 2. VISTA AMPLIADA (MITAD FOTO + 4 MINIATURAS)
+                        const gal = p.galeria && p.galeria.length > 0 ? p.galeria : [imgPrincipal, imgPrincipal, imgPrincipal, imgPrincipal];
+                        const miniaturas = gal.slice(0, 4).map(m => `<img src="${m}">`).join('');
+                        cuerpoHTML = `
+                            <div class="split-top-row">
+                                <div class="split-main-photo"><img src="${imgPrincipal}"></div>
+                                <div class="split-thumbnails-grid">${miniaturas}</div>
+                            </div>
+                            <div class="split-bottom-row">
+                                <h4 class="prod-nombre">${p.nombre}</h4>
+                                <b class="prod-precio">$${p.precio}</b>
+                            </div>
+                        `;
+                    } else if (lClass === 'layout-articulo') {
+                        // 3. VISTA ARTÍCULO / EDITORIAL
+                        const floatDir = p.posicion_imagen === 'derecha' ? 'float-derecha' : 'float-izquierda';
+                        cuerpoHTML = `
+                            <div class="card-articulo-wrapper">
+                                <h3 class="articulo-titulo">${p.nombre}</h3>
+                                <div class="articulo-cuerpo">
+                                    <div class="articulo-img-box ${floatDir}"><img src="${imgPrincipal}"></div>
+                                    <p class="articulo-texto">${p.cuerpo_texto || 'Sin descripción editorial añadida.'}</p>
+                                </div>
+                                <div class="articulo-footer"><b class="prod-precio">$${p.precio}</b></div>
+                            </div>
+                        `;
+                    } else {
+                        // 4. VISTA TRADICIONAL (GRID 1x1)
+                        cuerpoHTML = `
+                            <div class="galeria-scroll" style="height: 110px; width: 100%; border-radius: 8px;">
+                                <img src="${imgPrincipal}">
+                            </div>
+                            <div class="prod-info-wrapper" style="margin-top: 10px; width: 100%; text-align: center;">
+                                <h4 class="prod-nombre">${p.nombre}</h4>
+                                <b class="prod-precio">$${p.precio}</b>
+                            </div>
+                        `;
+                    }
 
                     card.innerHTML = `
-                        <div class="galeria-scroll" style="height: ${lClass === 'layout-hero' ? '220px' : '110px'}; width: 100%; border-radius: 8px;">${galeriaHTML}</div>
-                        <div class="prod-info-wrapper" style="margin-top: 10px; width: 100%; text-align: center;">
-                            <h4 class="prod-nombre">${p.nombre}</h4>
-                            <b class="prod-precio">$${p.precio}</b>
-                        </div>
-                        
-                                                <!-- El lápiz sutil (Invisible por defecto) -->
+                        ${cuerpoHTML}
+                        <!-- Botón Lápiz -->
                         <div class="card-lapiz-btn" id="lapiz-${p.id_prod}" onclick="event.stopPropagation(); window.abrirMenuEdicionProducto('${p.id_prod}')">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--naranja)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
                             </svg>
                         </div>
-
-                        <!-- El menú oscuro (Invisible por defecto) -->
+                        <!-- Menú de Opciones -->
                         <div class="card-opciones-menu" id="menu-${p.id_prod}">
                             <button class="btn-accion btn-edit" onclick="event.stopPropagation(); window.prepararEdicion('${p.id_prod}')">📝 Modificar</button>
                             <button class="btn-accion btn-toggle" onclick="event.stopPropagation(); window.rotarLayoutProducto('${p.id_prod}', '${lClass}')">👁️ Diseño</button>
@@ -946,8 +1214,20 @@
                             <button class="btn-accion btn-delete" onclick="event.stopPropagation(); window.eliminarProducto('${p.id_prod}')">🗑️ Borrar</button>
                         </div>
                     `;
+
+                    // Listeners de Reordenamiento Drag & Drop
+                    card.addEventListener('dragstart', (e) => {
+                        e.dataTransfer.setData('text/plain', p.id_prod);
+                        card.classList.add('arrastrando');
+                    });
+                    card.addEventListener('dragend', () => card.classList.remove('arrastrando'));
+
                     cont.appendChild(card);
                 });
+
+                // Inicializar contenedor de drop una sola vez
+                window.habilitarContenedorDrop(cont);
+
             } catch (e) {
                 console.error(e); if (reiniciar) cont.innerHTML = "<p style='grid-column: span 2; color:#ff4444; text-align:center;'>Error cargando el catálogo.</p>";
             }
@@ -1003,23 +1283,23 @@
         // --- FUNCIÓN DE ROTACIÓN VISUAL (LAYOUT) ---
         window.rotarLayoutProducto = async function(id, layoutActual) {
             if (navigator.vibrate) navigator.vibrate(30);
-            const secuencia = ['layout-grid', 'layout-lista', 'layout-hero', 'layout-texto'];
+            const secuencia = ['layout-grid', 'layout-hero', 'layout-galeria-split', 'layout-articulo'];
             let idx = secuencia.indexOf(layoutActual);
             let nuevoLayout = secuencia[(idx + 1) % secuencia.length];
             
-            // Reflejo inmediato en pantalla
             const card = document.getElementById(`card-${id}`);
             if (card) {
-                card.classList.remove(layoutActual, 'show-opciones');
+                secuencia.forEach(cls => card.classList.remove(cls));
+                card.classList.remove('show-opciones');
                 card.classList.add(nuevoLayout);
             }
 
-            // Actualización en memoria y base de datos
             const p = window.listaProductosGlobal.find(x => x.id_prod === id);
             if (p) p.layout = nuevoLayout;
             await GeokatuDB.AdminService.actualizarProducto(window.idNegocioLogueado, id, { layout: nuevoLayout });
-            window.cargarMisProductos(false); // Refresca silenciosamente
+            window.cargarMisProductos(false);
         };
+
 
         window.mostrarOpcionesProducto = (id) => {
             const card = document.getElementById(`card-${id}`);
@@ -1700,7 +1980,11 @@ window.actualizarNombreImagenUI = (input, idTexto) => {
             const payload = {};
             if (inputNom && inputNom.value.trim()) payload.nombre = inputNom.value.trim();
             if (selectSec) payload.niche = selectSec.value;
-            if (inputTel && inputTel.value.trim()) payload.whatsApp = inputTel.value.trim();
+            if (inputTel && inputTel.value.trim()) {
+                const telLimpio = inputTel.value.trim().replace(/\D/g, '');
+                payload.whatsapp = telLimpio;
+                payload.whatsApp = telLimpio; // Compatibilidad temporal
+            }
 
             Object.assign(datosTienda, payload);
 
@@ -1726,14 +2010,19 @@ window.actualizarNombreImagenUI = (input, idTexto) => {
 
             const nom = inputNom ? inputNom.value.trim() : '';
             const niche = selectSec ? selectSec.value : '';
-            const tel = inputTel ? inputTel.value.trim() : '';
+            const tel = inputTel ? inputTel.value.trim().replace(/\D/g, '') : '';
 
             if (!nom || nom === 'Mi Nueva Tienda' || !tel || tel === 'Sin Número' || !datosTienda.portada || !datosTienda.logo) {
                 alert("Completa tu nombre comercial, teléfono, portada y logo antes de continuar.");
                 return;
             }
 
-            const payload = { nombre: nom, niche: niche, whatsApp: tel };
+            const payload = { 
+                nombre: nom, 
+                niche: niche, 
+                whatsapp: tel,
+                whatsApp: tel 
+            };
             Object.assign(datosTienda, payload);
 
             try {
@@ -1745,6 +2034,7 @@ window.actualizarNombreImagenUI = (input, idTexto) => {
 
             window.continuarDesdePopup();
         };
+
 
         // ==========================================
         // 3. TARJETA MODAL (POPUP) NÍTIDA Y DEBAJO DEL PIN
@@ -2269,7 +2559,11 @@ window.actualizarNombreImagenUI = (input, idTexto) => {
                 if (success && data) {
                     datosTienda = data; window.idNegocioLogueado = data.id || user.uid;
                     
+                    // 🚦 Escudo de Facturación: Evalúa cuota y renderiza estado en el header
+                    BillingGuard.verificarEstadoCuota(datosTienda.facturacion_control, 'billing-alert-container');
+
                     if (datosTienda.progreso_boveda === 100) {
+
                         document.getElementById('dashboard-screen').style.display = 'flex';
                         document.getElementById('ui-nombre').innerText = datosTienda.nombre;
                         if (datosTienda.logo) { document.getElementById('ui-logo').src = datosTienda.logo; document.getElementById('ui-logo').style.display = 'block'; }
@@ -2766,6 +3060,58 @@ window.escanearParaCatalogo = () => {
             };
             reader.readAsText(file);
         };
+let timerPersistenciaOrden = null;
+
+        window.habilitarContenedorDrop = function(contenedor) {
+            if (contenedor._dropListo) return;
+            contenedor._dropListo = true;
+
+            contenedor.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                const draggingCard = document.querySelector('.producto-card.arrastrando');
+                if (!draggingCard) return;
+
+                const afterElement = Array.from(contenedor.querySelectorAll('.producto-card:not(.arrastrando)')).reduce((closest, child) => {
+                    const box = child.getBoundingClientRect();
+                    const offset = e.clientY - box.top - box.height / 2;
+                    if (offset < 0 && offset > closest.offset) {
+                        return { offset: offset, element: child };
+                    } else {
+                        return closest;
+                    }
+                }, { offset: Number.NEGATIVE_INFINITY }).element;
+
+                if (afterElement == null) {
+                    contenedor.appendChild(draggingCard);
+                } else {
+                    contenedor.insertBefore(draggingCard, afterElement);
+                }
+            });
+
+            contenedor.addEventListener('drop', () => {
+                clearTimeout(timerPersistenciaOrden);
+                timerPersistenciaOrden = setTimeout(async () => {
+                    const cards = Array.from(contenedor.querySelectorAll('.producto-card'));
+                    const { writeBatch, doc, getFirestore } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+                    const db = getFirestore();
+                    const batch = writeBatch(db);
+
+                    cards.forEach((card, index) => {
+                        const idProd = card.dataset.id;
+                        if (idProd) {
+                            const ref = doc(db, `Directorio/${window.idNegocioLogueado}/productos`, idProd);
+                            batch.update(ref, { orden: index });
+                            const pRAM = window.listaProductosGlobal.find(x => x.id_prod === idProd);
+                            if (pRAM) pRAM.orden = index;
+                        }
+                    });
+
+                    await batch.commit();
+                    if (navigator.vibrate) navigator.vibrate(40);
+                    console.log("[Catálogo Feed] Nuevo orden persistido en Firestore.");
+                }, 600);
+            });
+        };
 
     </script>
 
@@ -2825,14 +3171,16 @@ window.escanearParaCatalogo = () => {
 
             <!-- FILA ÁUREA: FOTO IZQUIERDA (1) + 3 FILAS DERECHA (1.618) -->
 <div id="tour-target-formulario" class="aurea-master-container">
-                <!-- Izquierda: Foto cuadrada armónica -->
-                <div class="aurea-photo-box file-upload-wrapper">
-                    <input type="file" id="prodImagenFile" class="file-upload-input" accept="image/*" style="position:absolute; inset:0; width:100%; height:100%; opacity:0; z-index:2; cursor:pointer;" onchange="window.actualizarNombreImagenUI(this, 'file-upload-text')">
-                    <div class="file-upload-ui" id="file-upload-text">
-                        <span style="font-size:18px;">📸</span>
-                        <span>Foto</span>
-                    </div>
-                </div>
+    <!-- Izquierda: Foto cuadrada armónica con disparo directo al sensor trasero -->
+    <div class="aurea-photo-box file-upload-wrapper">
+    <input type="file" id="prodImagenFile" class="file-upload-input" accept="image/*" capture="environment" style="position:absolute; inset:0; width:100%; height:100%; opacity:0; z-index:2; cursor:pointer;" onchange="window.actualizarNombreImagenUI(this, 'file-upload-text')">
+    <div class="file-upload-ui" id="file-upload-text">
+        <span style="font-size:18px;">📸</span>
+        <span>Foto</span>
+    </div>
+</div>
+
+
 
                 <!-- Derecha: 3 filas exactas armonizadas con la altura de la foto -->
                 <div class="aurea-inputs-stack">
@@ -2840,11 +3188,13 @@ window.escanearParaCatalogo = () => {
                     <input type="text" id="prodBarcode" class="input-form" placeholder="Código de barras (EAN)">
                     <!-- Fila 2: Nombre del artículo -->
                     <input type="text" id="prodNombre" class="input-form" placeholder="Nombre del artículo">
-                    <!-- Fila 3: Dividida perfecta por mitad (Precio | Categoría) -->
-                    <div class="aurea-split-row">
+                   <!-- Fila 3: Triada Áurea (Precio | Stock | Categoría) -->
+                    <div class="aurea-split-row" style="display: grid !important; grid-template-columns: 1fr 1fr 1.2fr; gap: 6px;">
                         <input type="number" step="any" id="prodPrecio" class="input-form" placeholder="Precio ($)">
+                        <input type="number" step="any" id="prodStockInicial" class="input-form" placeholder="Stock Cant." min="0">
                         <input type="text" id="prodCategoria" class="input-form" placeholder="Categoría">
                     </div>
+
                                       <!-- Fila 4: Métrica (Izquierda) y Clasificación (Derecha provisional para balance visual) -->
                     <div class="aurea-modulos-row">
                         <!-- MÓDULO IZQUIERDO: MAGNITUD Y MEDIDA -->
@@ -2893,6 +3243,35 @@ window.escanearParaCatalogo = () => {
 
                 </div>
             </div>
+<!-- 📰 PANEL EDITORIAL Y GALERÍA COMPLEMENTARIA (Opcional) -->
+            <details style="margin-top: 8px; border-color: rgba(255,107,0,0.25);">
+                <summary style="font-size: 11px; padding: 10px 14px; color: var(--naranja);">
+                    📸 Galería Split & Post Editorial (Opcional) ▾
+                </summary>
+                <div style="padding: 10px 14px; display: flex; flex-direction: column; gap: 8px;">
+                    <!-- Subida múltiple para Galería Split (hasta 4 fotos) -->
+                    <div>
+                        <label class="section-title" style="margin-bottom: 4px; font-size: 10px;">Fotos Galería (Máx. 4):</label>
+                        <input type="file" id="prodGaleriaFiles" class="input-form" accept="image/*" multiple style="padding: 8px; font-size: 11px; margin-bottom: 0;">
+                        <input type="hidden" id="prodGaleriaActual" value="[]">
+                    </div>
+
+                    <!-- Texto Editorial -->
+                    <div>
+                        <label class="section-title" style="margin-bottom: 4px; font-size: 10px;">Cuerpo Editorial / Historia del Artículo:</label>
+                        <textarea id="prodCuerpoTexto" class="input-form" placeholder="Escribe la reseña o historia del producto para la Vista Artículo..." style="min-height: 60px; font-size: 11.5px; margin-bottom: 0;"></textarea>
+                    </div>
+
+                    <!-- Alineación de Imagen -->
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <label class="section-title" style="margin: 0; font-size: 10px;">Alineación Imagen Artículo:</label>
+                        <select id="prodPosicionImagen" class="input-form" style="width: 120px; padding: 6px; font-size: 11px; margin-bottom: 0;">
+                            <option value="izquierda" selected>Izquierda</option>
+                            <option value="derecha">Derecha</option>
+                        </select>
+                    </div>
+                </div>
+            </details>
 
             <!-- BOTÓN GUARDAR PRINCIPAL -->
             <button class="btn-submit" id="btn-submit-producto" style="margin-top: 4px !important;" onclick="window.guardarProducto()">GUARDAR EN CATÁLOGO</button>
@@ -2920,9 +3299,29 @@ window.escanearParaCatalogo = () => {
         </div>
     </div>
 </div>
+<!-- MODAL FUNDACIÓN DE SUCURSAL -->
+<div id="modal-crear-sede" class="velo-inmersivo" style="display: none; align-items: center; justify-content: center; z-index: 100015;">
+    <div class="foco-onboarding" data-titulo-ob="NUEVA SUCURSAL" style="position: relative; width: 90% !important; max-width: 380px !important;">
+        <button type="button" onclick="document.getElementById('modal-crear-sede').style.display='none'" style="position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.1); border: none; color: white; width: 30px; height: 30px; border-radius: 50%; cursor: pointer;">✕</button>
+        <p style="font-size: 11px; color: #888; text-align: center; margin: 0 0 15px 0;">Crea una sucursal clonando tu catálogo maestro.</p>
+        
+        <label class="section-title" style="margin-bottom: 4px;">Identificador de Sede (ID Plano)</label>
+        <input type="text" id="sede-nuevo-id" class="input-form" placeholder="Ej: SUCURSAL_02, SEDE_CUBA" style="text-transform: uppercase; font-family: monospace;">
+
+        <label class="section-title" style="margin-bottom: 4px;">Nombre Comercial de la Sede</label>
+        <input type="text" id="sede-nuevo-nombre" class="input-form" placeholder="Ej: Mi Tienda - Sede Cuba">
+
+        <label class="section-title" style="margin-bottom: 4px;">Dirección Física</label>
+        <input type="text" id="sede-nuevo-direccion" class="input-form" placeholder="Ej: Cra 25 # 68-12">
+
+        <button type="button" id="btn-confirmar-crear-sede" class="btn-submit" onclick="window.confirmarCreacionSede()">Fundar Sucursal 🚀</button>
+    </div>
+</div>
 
 </body>
 </html>
+
+
 
 
 

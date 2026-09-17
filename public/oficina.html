@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Oficina de Control y Operaciones | GEOKATU</title>
+    
+    <link rel="stylesheet" href="admin-boveda.css">
+    <style>
+        .oficina-kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: var(--sp-sm);
+            margin-bottom: var(--sp-md);
+        }
+        .kpi-card {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--glass-border);
+            border-radius: 13px;
+            padding: var(--sp-sm);
+            text-align: center;
+        }
+        .kpi-card .valor {
+            font-size: 20px;
+            font-weight: 900;
+            font-family: monospace;
+            margin-top: 4px;
+            display: block;
+        }
+        .badge-alerta-urgente {
+            background: rgba(255, 68, 68, 0.2);
+            color: #ff4444;
+            border: 1px solid rgba(255, 68, 68, 0.4);
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .incidente-item {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--glass-border);
+            border-left: 3px solid #ff4444;
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .tarea-item {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--glass-border);
+            border-left: 3px solid var(--naranja);
+            border-radius: 10px;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    </style>
+</head>
+<body class="boveda-ui">
+
+    <!-- PANTALLA DE ACCESO -->
+    <div id="login-screen" style="display: none;">
+        <div class="panel-login">
+            <div class="logo-login">GEO<span>KATU</span></div>
+            <div class="sub-logo">Consola de Mando y Oficina</div>
+            <button class="btn-google" onclick="window.iniciarSesionGoogle()">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" width="18" height="18" alt="G">
+                Acceder como Administrador
+            </button>
+            <p style="text-align: center; font-size: 11px; color: #666; margin: 0;">Exclusivo para dueños y supervisores asignados.</p>
+        </div>
+    </div>
+
+    <!-- PANTALLA PRINCIPAL DE OFICINA -->
+    <main id="dashboard-screen" style="display: none; height: 100vh; flex-direction: column; overflow-y: auto; max-width: 550px; margin: 0 auto;">
+        
+        <!-- CABECERA -->
+        <header class="panel-admin" style="margin-bottom: 10px; border-radius: 0 0 21px 21px;">
+            <div class="oficina-header" style="border: none; margin: 0; padding: 0;">
+                <img id="ofi-logo" src="" class="oficina-logo" style="display: none;">
+                <div class="oficina-info" style="flex: 1;">
+                    <h3 id="ofi-nombre" style="margin: 0; font-size: 18px;">CARGANDO COMERCIO...</h3>
+                    <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
+                        <span id="ofi-estado-cuenta" class="badge-plan">ESTADO: ACTIVO</span>
+                        <span id="ofi-uid-badge" style="font-size: 10px; color: #888; font-family: monospace;">---</span>
+                    </div>
+                </div>
+                <button type="button" onclick="window.cerrarSesionOficina()" style="background: transparent; border: 1px solid rgba(255,255,255,0.15); color: #ff5555; border-radius: 8px; padding: 6px 10px; font-size: 11px; font-weight: bold; cursor: pointer;">
+                    Salir
+                </button>
+            </div>
+        </header>
+
+        <!-- ACCESOS RÁPIDOS AL ECOSISTEMA -->
+        <section style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 0 15px 12px 15px;">
+            <button type="button" onclick="window.open('pos.html', '_blank')" class="btn-submit" style="margin: 0; padding: 10px 4px !important; font-size: 10px; background: #ff6b00;">
+                💳 POS
+            </button>
+            <button type="button" onclick="window.open('mapatienda.html', '_blank')" class="btn-submit" style="margin: 0; padding: 10px 4px !important; font-size: 10px; background: #2563eb;">
+                🗺️ Plano
+            </button>
+            <button type="button" onclick="window.open('stock.html', '_blank')" class="btn-submit" style="margin: 0; padding: 10px 4px !important; font-size: 10px; background: #00ff64; color: black;">
+                📦 Stock
+            </button>
+            <button type="button" onclick="window.open('boveda-comercio.html', '_blank')" class="btn-submit" style="margin: 0; padding: 10px 4px !important; font-size: 10px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">
+                ⚙️ Bóveda
+            </button>
+        </section>
+
+        <!-- TABS DE GESTIÓN -->
+        <nav class="tabs" style="margin: 0 15px 15px 15px;">
+            <button class="tab-btn activo" onclick="window.cambiarTabOficina('kpis')">📊 Métricas</button>
+            <button class="tab-btn" onclick="window.cambiarTabOficina('alertas')" id="tab-btn-alertas">
+                🚨 Auditoría <span id="badge-contador-alertas" style="display: none; background: #ff4444; color: white; border-radius: 10px; padding: 1px 5px; font-size: 9px; margin-left: 2px;">0</span>
+            </button>
+            <button class="tab-btn" onclick="window.cambiarTabOficina('equipo')">👥 Personal</button>
+            <button class="tab-btn" onclick="window.cambiarTabOficina('tareas')">📋 Tareas</button>
+        </nav>
+
+        <!-- PESTAÑA 1: MÉTRICAS E INDICADORES -->
+        <section id="tab-kpis" class="tab-content activo" style="padding: 15px; margin: 0 15px;">
+            <label class="section-title">Resumen Operativo en Tiempo Real</label>
+            <div class="oficina-kpi-grid">
+                <div class="kpi-card">
+                    <span style="font-size: 11px; color: #888; text-transform: uppercase;">Ventas del Día</span>
+                    <strong class="valor" id="kpi-ventas-dia" style="color: #00ff64;">$0</strong>
+                </div>
+                <div class="kpi-card">
+                    <span style="font-size: 11px; color: #888; text-transform: uppercase;">Tickets Emitidos</span>
+                    <strong class="valor" id="kpi-tickets-cant" style="color: #60a5fa;">0</strong>
+                </div>
+                <div class="kpi-card">
+                    <span style="font-size: 11px; color: #888; text-transform: uppercase;">Artículos Activos</span>
+                    <strong class="valor" id="kpi-articulos-total">0</strong>
+                </div>
+                <div class="kpi-card">
+                    <span style="font-size: 11px; color: #888; text-transform: uppercase;">Incidencias</span>
+                    <strong class="valor" id="kpi-alertas-activas" style="color: #ffaa00;">0</strong>
+                </div>
+            </div>
+
+            <div class="panel-operaciones-bloque" style="margin-top: 10px;">
+                <h4 style="margin: 0 0 8px 0; font-size: 12px; color: #bbb; text-transform: uppercase;">Estado de Sincronización Fiscal</h4>
+                <p id="txt-estado-fiscal-siigo" style="font-size: 12px; color: #aaa; margin: 0;">
+                    Consultando enlace con DIAN / Siigo...
+                </p>
+            </div>
+        </section>
+
+        <!-- PESTAÑA 2: BANDEJA DE AUDITORÍA Y QUIEBRES DE STOCK -->
+        <section id="tab-alertas" class="tab-content" style="padding: 15px; margin: 0 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div>
+                    <h4 style="margin: 0; font-size: 13px; text-transform: uppercase; color: #ff4444;">Incidentes de Stock Negativo</h4>
+                    <span style="font-size: 11px; color: #888;">Ventas concretadas en mostrador con stock teórico en cero o menor</span>
+                </div>
+                <button type="button" onclick="window.cargarAlertasSeguridad()" style="background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border); color: #fff; padding: 6px 10px; border-radius: 8px; font-size: 11px; cursor: pointer;">
+                    🔄 Refrescar
+                </button>
+            </div>
+
+            <div id="contenedor-alertas-lista">
+                <p style="text-align: center; color: #666; padding: 30px 0; font-size: 12px;">Cargando incidentes...</p>
+            </div>
+        </section>
+
+        <!-- PESTAÑA 3: PERSONAL Y ACCESOS -->
+        <section id="tab-equipo" class="tab-content" style="padding: 15px; margin: 0 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div>
+                    <h4 style="margin: 0; font-size: 13px; text-transform: uppercase; color: white;">Equipo Autorizado</h4>
+                    <span style="font-size: 11px; color: #888;">Operarios de caja y bodega registrados</span>
+                </div>
+                <button type="button" onclick="window.open('boveda-comercio.html', '_blank')" style="background: var(--naranja); color: white; border: none; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: bold; cursor: pointer;">
+                    + Crear Operario
+                </button>
+            </div>
+
+            <div id="contenedor-equipo-lista">
+                <p style="text-align: center; color: #666; padding: 30px 0; font-size: 12px;">Cargando personal...</p>
+            </div>
+        </section>
+
+        <!-- PESTAÑA 4: TAREAS Y COMUNICACIÓN INTERNA -->
+        <section id="tab-tareas" class="tab-content" style="padding: 15px; margin: 0 15px;">
+            <div class="panel-operaciones-bloque" style="margin-bottom: 15px;">
+                <label class="section-title" style="margin-bottom: 6px;">Asignar Nueva Tarea o Comunicado</label>
+                <input type="text" id="tarea-titulo" class="input-form" placeholder="Ej: Realizar inventario de lácteos en Góndola 3">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <select id="tarea-destinatario" class="input-form">
+                        <option value="TODOS">📢 Para todo el personal</option>
+                    </select>
+                    <select id="tarea-prioridad" class="input-form">
+                        <option value="NORMAL">Prioridad Normal</option>
+                        <option value="URGENTE">⚠️ Prioridad Urgente</option>
+                    </select>
+                </div>
+                <button type="button" class="btn-submit" onclick="window.crearTareaInterna()" style="margin: 0;">
+                    Publicar Tarea
+                </button>
+            </div>
+
+            <label class="section-title">Bitácora de Tareas en Curso</label>
+            <div id="contenedor-tareas-lista">
+                <p style="text-align: center; color: #666; padding: 20px 0; font-size: 12px;">Cargando tareas...</p>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- MODAL DE CONCILIACIÓN FÍSICA EN ANAQUEL -->
+    <div id="modal-conciliacion" class="bottom-sheet-overlay">
+        <div class="bottom-sheet activo" style="max-width: 420px; margin: 0 auto; border-radius: 20px 20px 0 0;">
+            <div class="bottom-sheet-header">
+                <div class="bottom-sheet-drag"></div>
+                <h3 class="bottom-sheet-titulo">Conciliar Stock Físico</h3>
+                <button type="button" class="bottom-sheet-cerrar" onclick="window.cerrarModalConciliacion()">✖</button>
+            </div>
+            <div class="bottom-sheet-content">
+                <p style="font-size: 11.5px; color: #aaa; margin: 0 0 10px 0;">
+                    Ingresa las unidades reales contadas en el anaquel o estante. El sistema reajustará el catálogo y asentará el movimiento en Kardex.
+                </p>
+                <input type="hidden" id="concilia-alerta-id">
+                <input type="hidden" id="concilia-prod-id">
+
+                <div style="background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); padding: 10px; border-radius: 10px; font-size: 12px; margin-bottom: 12px;">
+                    <strong id="concilia-prod-nombre" style="color: white; display: block;">---</strong>
+                    <span id="concilia-prod-desfase" style="color: #ff4444; font-family: monospace;">---</span>
+                </div>
+
+                <label class="section-title" style="margin-bottom: 4px;">Conteo Físico Real en Estante:</label>
+                <input type="number" id="concilia-stock-real" step="any" min="0" class="input-form" placeholder="Cantidad física real contada" style="font-size: 18px; font-family: monospace; font-weight: bold; color: #00ff64; text-align: center;">
+
+                <label class="section-title" style="margin-bottom: 4px;">Motivo / Explicación del Ajuste:</label>
+                <input type="text" id="concilia-motivo" class="input-form" placeholder="Ej: Factura de proveedor no registrada previamente">
+
+                <div style="display: flex; gap: 8px; margin-top: 10px;">
+                    <button type="button" class="btn-submit" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); color: #ccc;" onclick="window.cerrarModalConciliacion()">
+                        Cancelar
+                    </button>
+                    <button type="button" class="btn-submit" style="background: #00ff64; color: #000;" onclick="window.ejecutarConciliacionAlerta()">
+                        Confirmar y Cuadrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT DEL MOTOR DE OFICINA -->
+    <script type="module">
+        import GeokatuDB from './core-db.js';
+        import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, orderBy, limit, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+        import { getAuth } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+
+        const db = getFirestore();
+        const auth = getAuth();
+
+        let idNegocio = localStorage.getItem('geokatu_active_uid') || null;
+        let datosComercio = {};
+        let desuscripcionAlertas = null;
+
+        // --- 1. SESIÓN Y CONTROL DE ACCESO ---
+        GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
+            if (user) {
+                idNegocio = user.uid;
+                await GeokatuDB.SecurityService.sellarSesionTerminalLocal(user.uid);
+                
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('dashboard-screen').style.display = 'flex';
+                document.getElementById('ofi-uid-badge').innerText = `ID: ${user.uid.slice(0, 8)}...`;
+
+                await inicializarOficina();
+            } else {
+                document.getElementById('login-screen').style.display = 'block';
+                document.getElementById('dashboard-screen').style.display = 'none';
+                if (typeof desuscripcionAlertas === 'function') desuscripcionAlertas();
+            }
+        });
+
+        window.iniciarSesionGoogle = async function() {
+            const res = await GeokatuDB.SecurityService.iniciarConGoogle();
+            if (!res.success) alert("Error de acceso: " + res.error);
+        };
+
+        window.cerrarSesionOficina = async function() {
+            if (confirm("¿Cerrar sesión de la consola de administración?")) {
+                await GeokatuDB.SecurityService.cerrarSesion();
+                GeokatuDB.SecurityService.destruirSesionTerminalLocal();
+                window.location.reload();
+            }
+        };
+
+        // --- 2. INICIALIZACIÓN DE LA OFICINA ---
+        async function inicializarOficina() {
+            // Cargar datos maestros del negocio
+            const resNeg = await GeokatuDB.AdminService.obtenerNegocioPorUsuario(idNegocio, auth.currentUser?.email, "admin");
+            if (resNeg.success && resNeg.data) {
+                datosComercio = resNeg.data;
+                document.getElementById('ofi-nombre').innerText = datosComercio.nombre || "COMERCIO GEOKATU";
+                if (datosComercio.logo) {
+                    const imgLogo = document.getElementById('ofi-logo');
+                    imgLogo.src = datosComercio.logo;
+                    imgLogo.style.display = 'block';
+                }
+                const badgePlan = document.getElementById('ofi-estado-cuenta');
+                badgePlan.innerText = `PLAN: ${datosComercio.premium ? 'PREMIUM VIP' : 'ESTÁNDAR'}`;
+                if (datosComercio.premium) badgePlan.classList.add('premium');
+
+                // Diagnóstico Siigo
+                const fis = datosComercio.perfil_fiscal;
+                const txtSiigo = document.getElementById('txt-estado-fiscal-siigo');
+                if (fis && fis.siigo_user) {
+                    txtSiigo.innerHTML = `Conexión API Siigo configurada para <strong>${fis.razon_social || datosComercio.nombre}</strong> (NIT: ${fis.nit || 'Sin registrar'}).`;
+                } else {
+                    txtSiigo.innerText = "Operando en modo comprobante equivalente POS local (sin llaves Siigo configuradas).";
+                }
+            }
+
+            // Cargar datos de pestañas
+            await Promise.all([
+                cargarKpisDashboard(),
+                cargarAlertasSeguridad(),
+                cargarEquipoOficina(),
+                cargarTareasOficina()
+            ]);
+        }
+
+        // --- 3. GESTIÓN DE TABS ---
+        window.cambiarTabOficina = function(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => {
+                el.classList.remove('activo');
+                el.style.display = 'none';
+            });
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('activo'));
+
+            const content = document.getElementById(`tab-${tabId}`);
+            if (content) {
+                content.style.display = 'block';
+                content.classList.add('activo');
+            }
+
+            const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick')?.includes(tabId));
+            if (targetBtn) targetBtn.classList.add('activo');
+        };
+
+        // --- 4. KPIs EN TIEMPO REAL ---
+        async function cargarKpisDashboard() {
+            try {
+                // Ventas acumuladas de la caja guardadas en LocalStorage / Firestore
+                const acum = JSON.parse(localStorage.getItem(`geokatu_acumulado_${idNegocio}`) || "{}");
+                const totalVendido = (acum.efectivo || 0) + (acum.tarjeta || 0) + (acum.nequi || 0);
+                document.getElementById('kpi-ventas-dia').innerText = `$${totalVendido.toLocaleString('es-CO')}`;
+
+                // Contador de productos
+                const prodsSnap = await getDocs(collection(db, `Directorio/${idNegocio}/productos`));
+                let cantProds = 0;
+                prodsSnap.forEach(d => { if (!d.data().eliminado) cantProds++; });
+                document.getElementById('kpi-articulos-total').innerText = cantProds;
+
+                // Conteo de tickets emitidos
+                const ventasSnap = await getDocs(query(collection(db, `Directorio/${idNegocio}/Ventas_POS`), limit(100)));
+                document.getElementById('kpi-tickets-cant').innerText = ventasSnap.size;
+            } catch (err) {
+                console.warn("[Oficina] Error cargando métricas:", err.message);
+            }
+        }
+
+        // --- 5. BANDEJA DE AUDITORÍA Y CONCILIACIÓN DE INCIDENTES ---
+        window.cargarAlertasSeguridad = function() {
+            if (typeof desuscripcionAlertas === 'function') desuscripcionAlertas();
+
+            const contenedor = document.getElementById('contenedor-alertas-lista');
+            const qAlertas = query(
+                collection(db, "Alertas_Seguridad"),
+                where("id_negocio", "==", idNegocio),
+                where("estado", "==", "requiere_auditoria_urgente"),
+                orderBy("timestamp_alerta", "desc"),
+                limit(50)
+            );
+
+            desuscripcionAlertas = onSnapshot(qAlertas, (snap) => {
+                const total = snap.size;
+                document.getElementById('kpi-alertas-activas').innerText = total;
+                const badgeBtn = document.getElementById('badge-contador-alertas');
+                if (badgeBtn) {
+                    badgeBtn.innerText = total;
+                    badgeBtn.style.display = total > 0 ? 'inline-block' : 'none';
+                }
+
+                if (snap.empty) {
+                    contenedor.innerHTML = `
+                        <div style="text-align: center; padding: 40px 10px; color: #888;">
+                            <span style="font-size: 30px;">✅</span>
+                            <h4 style="color: white; margin: 8px 0 4px 0;">Inventario en Orden</h4>
+                            <p style="font-size: 11.5px; margin: 0;">No se han detectado ventas con stock desfasado ni quiebres de anaquel.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = '';
+                snap.forEach(docSnap => {
+                    const a = docSnap.data();
+                    const fecha = new Date(a.timestamp_alerta).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                    html += `
+                        <div class="incidente-item">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span class="badge-alerta-urgente">Quiebre en Caja</span>
+                                <span style="font-size: 10px; color: #888; font-family: monospace;">${fecha}</span>
+                            </div>
+                            <div>
+                                <strong style="font-size: 13px; color: white;">${a.nombre_producto || 'Producto sin nombre'}</strong>
+                                <p style="font-size: 11px; color: #aaa; margin: 2px 0 0 0;">
+                                    Saldo resultante en sistema: <strong style="color: #ff4444; font-family: monospace;">${a.stock_negativo_registrado} und</strong> (Venta: ${a.cantidad_despachada} und)
+                                </p>
+                                <span style="font-size: 10px; color: #666;">Cajero: ${a.cajero} · Ticket: ${a.ticket_origen || 'POS'}</span>
+                            </div>
+                            <button type="button" class="btn-submit" style="margin-top: 4px !important; padding: 8px !important; font-size: 11px; background: rgba(0, 255, 100, 0.15); border: 1px solid rgba(0, 255, 100, 0.4); color: #00ff64;" onclick="window.abrirModalConciliacion('${docSnap.id}', '${a.id_producto}', '${(a.nombre_producto || '').replace(/'/g, "\\'")}', '${a.stock_negativo_registrado}')">
+                                ⚖️ Conciliar Conteo en Anaquel
+                            </button>
+                        </div>
+                    `;
+                });
+                contenedor.innerHTML = html;
+            }, (err) => {
+                console.error("Error en listener de alertas:", err);
+                contenedor.innerHTML = `<p style="color: #ff4444; text-align: center; font-size: 12px;">Error al cargar auditorías: ${err.message}</p>`;
+            });
+        };
+
+        // Modal de Conciliación
+        window.abrirModalConciliacion = function(idAlerta, idProd, nombreProd, stockActualNegativo) {
+            document.getElementById('concilia-alerta-id').value = idAlerta;
+            document.getElementById('concilia-prod-id').value = idProd;
+            document.getElementById('concilia-prod-nombre').innerText = nombreProd;
+            document.getElementById('concilia-prod-desfase').innerText = `Saldo registrado: ${stockActualNegativo} und`;
+            document.getElementById('concilia-stock-real').value = '';
+            document.getElementById('concilia-motivo').value = '';
+
+            const modal = document.getElementById('modal-conciliacion');
+            modal.style.display = 'flex';
+            modal.classList.add('activo');
+            setTimeout(() => document.getElementById('concilia-stock-real').focus(), 100);
+        };
+
+        window.cerrarModalConciliacion = function() {
+            const modal = document.getElementById('modal-conciliacion');
+            modal.style.display = 'none';
+            modal.classList.remove('activo');
+        };
+
+        window.ejecutarConciliacionAlerta = async function() {
+            const idAlerta = document.getElementById('concilia-alerta-id').value;
+            const idProd = document.getElementById('concilia-prod-id').value;
+            const stockReal = document.getElementById('concilia-stock-real').value;
+            const motivo = document.getElementById('concilia-motivo').value.trim();
+
+            if (stockReal === "" || isNaN(stockReal) || Number(stockReal) < 0) {
+                alert("Por favor digita la cantidad física contada (0 o mayor).");
+                return;
+            }
+
+            const res = await GeokatuDB.InventarioService.resolverAlertaStock(
+                idNegocio,
+                idAlerta,
+                idProd,
+                stockReal,
+                motivo || "Ajuste físico en góndola/anaquel"
+            );
+
+            if (res.success) {
+                alert("✅ Inventario conciliado y Kardex actualizado exitosamente.");
+                window.cerrarModalConciliacion();
+            } else {
+                alert("Error al resolver la alerta: " + res.error);
+            }
+        };
+
+        // --- 6. EQUIPO DE COLABORADORES ---
+        async function cargarEquipoOficina() {
+            const contenedor = document.getElementById('contenedor-equipo-lista');
+            const selectDest = document.getElementById('tarea-destinatario');
+            try {
+                const snap = await getDocs(collection(db, `Directorio/${idNegocio}/Equipo`));
+                if (snap.empty) {
+                    contenedor.innerHTML = `<p style="text-align: center; color: #666; padding: 20px;">No hay personal registrado.</p>`;
+                    return;
+                }
+
+                let html = '';
+                selectDest.innerHTML = '<option value="TODOS">📢 Para todo el personal</option>';
+
+                snap.forEach(d => {
+                    const emp = d.data();
+                    selectDest.innerHTML += `<option value="${d.id}">${emp.nombre || emp.email} (${emp.rol || 'Cajero'})</option>`;
+
+                    html += `
+                        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong style="color: white; font-size: 13px;">${emp.nombre || emp.email}</strong>
+                                <span style="display: block; font-size: 11px; color: #888;">${emp.email} · Rol: <strong style="color: var(--naranja);">${emp.rol || 'Cajero'}</strong></span>
+                            </div>
+                            <span style="background: rgba(255,107,0,0.2); color: var(--naranja); padding: 3px 8px; border-radius: 6px; font-family: monospace; font-size: 11px; font-weight: 900;">
+                                PIN: ${emp.codigo_cajero || '----'}
+                            </span>
+                        </div>
+                    `;
+                });
+                contenedor.innerHTML = html;
+            } catch (e) {
+                console.warn("[Oficina] Error cargando equipo:", e);
+                contenedor.innerHTML = `<p style="color: #ff4444; font-size: 11px;">Error al cargar personal.</p>`;
+            }
+        }
+
+        // --- 7. TAREAS Y COMUNICACIÓN INTERNA ---
+        window.crearTareaInterna = async function() {
+            const titulo = document.getElementById('tarea-titulo').value.trim();
+            const destinatario = document.getElementById('tarea-destinatario').value;
+            const prioridad = document.getElementById('tarea-prioridad').value;
+
+            if (!titulo) return alert("Escribe la descripción de la tarea.");
+
+            try {
+                const docTarea = doc(collection(db, `Directorio/${idNegocio}/Tareas_Internas`));
+                await setDoc(docTarea, {
+                    titulo: titulo,
+                    destinatario_uid: destinatario,
+                    prioridad: prioridad,
+                    completada: false,
+                    creador: auth.currentUser?.email || "ADMIN",
+                    fecha_creacion: new Date().toISOString()
+                });
+
+                document.getElementById('tarea-titulo').value = '';
+                alert("Tarea registrada y notificada.");
+                cargarTareasOficina();
+            } catch (err) {
+                alert("Error al guardar tarea: " + err.message);
+            }
+        };
+
+        async function cargarTareasOficina() {
+            const contenedor = document.getElementById('contenedor-tareas-lista');
+            try {
+                const snap = await getDocs(query(
+                    collection(db, `Directorio/${idNegocio}/Tareas_Internas`),
+                    where("completada", "==", false),
+                    orderBy("fecha_creacion", "desc"),
+                    limit(20)
+                ));
+
+                if (snap.empty) {
+                    contenedor.innerHTML = `<p style="text-align: center; color: #666; padding: 20px;">No hay tareas pendientes en la bitácora.</p>`;
+                    return;
+                }
+
+                let html = '';
+                snap.forEach(docSnap => {
+                    const t = docSnap.data();
+                    const colorPrioridad = t.prioridad === 'URGENTE' ? '#ff4444' : 'var(--naranja)';
+
+                    html += `
+                        <div class="tarea-item" style="border-left-color: ${colorPrioridad};">
+                            <div>
+                                <span style="font-size: 10px; font-weight: bold; color: ${colorPrioridad}; text-transform: uppercase;">${t.prioridad}</span>
+                                <strong style="display: block; font-size: 13px; color: white; margin: 2px 0;">${t.titulo}</strong>
+                                <span style="font-size: 10px; color: #888;">Asignado a: ${t.destinatario_uid === 'TODOS' ? 'Todo el equipo' : 'Personal específico'}</span>
+                            </div>
+                            <button type="button" onclick="window.marcarTareaCompletada('${docSnap.id}')" style="background: rgba(0,255,100,0.15); border: 1px solid rgba(0,255,100,0.4); color: #00ff64; border-radius: 6px; padding: 6px 10px; font-size: 11px; cursor: pointer;">
+                                ✔️ Listo
+                            </button>
+                        </div>
+                    `;
+                });
+                contenedor.innerHTML = html;
+            } catch (e) {
+                console.warn("[Oficina] Error cargando tareas:", e);
+                contenedor.innerHTML = `<p style="color: #888; font-size: 11px; text-align: center;">Sin registros previos.</p>`;
+            }
+        }
+
+        window.marcarTareaCompletada = async function(idTarea) {
+            try {
+                await updateDoc(doc(db, `Directorio/${idNegocio}/Tareas_Internas`, idTarea), {
+                    completada: true,
+                    fecha_completada: new Date().toISOString()
+                });
+                cargarTareasOficina();
+            } catch (e) {
+                alert("Error al actualizar tarea: " + e.message);
+            }
+        };
+    </script>
+</body>
+</html>
+

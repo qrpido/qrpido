@@ -1,514 +1,532 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>QRpido - Cerebro Central</title>
-<meta name="theme-color" content="#0a0a0c">
-<style>
-:root {
---naranja: #ff6b00;
---bg-oscuro: #0a0a0c;
---fondo-cristal: rgba(20, 20, 25, 0.85);
---borde-cristal: rgba(255, 255, 255, 0.1);
---rojo-alerta: #ff4444;
---azul-corp: #00aaff;
---verde-sui: #00f5d4;
---amarillo-aviso: #ffcc00;
-}
-/* Estilos para el log y radar */
-.live-scroll { max-height: 250px; overflow-y: auto; scrollbar-width: thin; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 10px; border: 1px solid var(--borde-cristal); font-family: monospace; font-size: 11px; }
-.radar-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-.status-pill { padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; text-transform: uppercase; }
-.pill-buscando { background: var(--amarillo-aviso); color: black; }
-.pill-camino { background: var(--azul-corp); color: white; }
-.kill-switch-btn { width: 100%; padding: 15px; background: rgba(255,68,68,0.1); border: 2px solid var(--rojo-alerta); color: var(--rojo-alerta); border-radius: 12px; font-weight: 900; cursor: pointer; margin-top: 20px; transition: 0.3s; }
-.kill-switch-btn.active { background: var(--rojo-alerta); color: white; box-shadow: 0 0 20px var(--rojo-alerta); }
-body, html {
-margin: 0; padding: 0;
-font-family: 'Segoe UI', sans-serif;
-background: var(--bg-oscuro);
-color: white;
-min-height: 100vh;
-}
-.header-admin {
-background: var(--glass-bg); backdrop-filter: blur(15px);
-border-bottom: 1px solid var(--azul-corp); padding: 15px 20px;
-display: flex; justify-content: space-between; align-items: center;
-}
-.header-admin h1 {
-margin: 0; font-size: 20px; font-weight: 900;
-text-transform: uppercase; letter-spacing: 2px;
-color: var(--azul-corp); text-shadow: 0 0 10px rgba(0,170,255,0.3);
-}
-.btn-logout {
-background: transparent; border: 1px solid var(--rojo-alerta);
-color: var(--rojo-alerta); padding: 5px 15px; border-radius: 8px;
-font-weight: bold; cursor: pointer; transition: 0.3s;
-}
-.dashboard-container { padding: 20px; }
-/* === TARJETAS ESTADÍSTICAS === */
-.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px; }
-.stat-card {
-background: linear-gradient(135deg, rgba(255,107,0,0.1) 0%, rgba(0,0,0,0.4) 100%);
-border: 1px solid var(--naranja); border-radius: 15px; padding: 20px;
-text-align: center; box-shadow: 0 5px 15px rgba(255,107,0,0.2);
-}
-.stat-number { font-size: 32px; font-weight: 900; color: white; margin: 0; }
-.stat-label { font-size: 11px; color: var(--naranja); text-transform: uppercase; font-weight: bold; letter-spacing: 1px; }
-/* === SECCIÓN DE EQUIPO === */
-.section-title { font-size: 16px; color: #aaa; text-transform: uppercase; border-bottom: 1px solid var(--glass-border); padding-bottom: 5px; margin-bottom: 15px; }
-.search-container { display: flex; gap: 10px; margin-bottom: 20px; }
-.input-search {
-flex: 1; background: var(--glass-bg); border: 1px solid var(--azul-corp);
-color: white; padding: 12px 15px; border-radius: 25px; outline: none;
-}
-.btn-search {
-background: var(--azul-corp); color: black; border: none;
-padding: 0 20px; border-radius: 25px; font-weight: bold; cursor: pointer;
-}
-.card-moderador {
-background: var(--glass-bg); border: 1px solid var(--glass-border);
-border-radius: 15px; padding: 15px; margin-bottom: 15px;
-display: flex; justify-content: space-between; align-items: center;
-}
-.mod-info h3 { margin: 0 0 5px 0; font-size: 15px; color: white; }
-.mod-info p { margin: 0; font-size: 12px; color: #888; }
-.btn-eliminar-mod {
-background: rgba(255,68,68,0.1); border: 1px solid var(--rojo-alerta);
-color: var(--rojo-alerta); padding: 8px 12px; border-radius: 8px;
-font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.3s;
-}
-.btn-eliminar-mod:active { transform: scale(0.9); }
-#auth-lock {
-position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-background: var(--bg-oscuro); z-index: 9999;
-display: flex; flex-direction: column; justify-content: center; align-items: center;
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Geokatu - Cerebro Central y Torre de Control</title>
+    <meta name="theme-color" content="#0a0a0c">
+    <style>
+        :root {
+            --naranja: #ff6b00;
+            --bg-oscuro: #0a0a0c;
+            --fondo-cristal: rgba(20, 20, 25, 0.85);
+            --borde-cristal: rgba(255, 255, 255, 0.08);
+            --rojo-alerta: #ff4444;
+            --azul-corp: #60a5fa;
+            --verde-neon: #00ff64;
+            --amarillo-aviso: #ffcc00;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: radial-gradient(circle at 50% 0%, #161622 0%, var(--bg-oscuro) 100%);
+            color: white;
+            min-height: 100vh;
+        }
+
+        /* --- HEADER MAESTRO --- */
+        .header-admin {
+            background: var(--fondo-cristal);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border-bottom: 1px solid rgba(255, 107, 0, 0.3);
+            padding: 15px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .header-admin h1 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--naranja);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-logout {
+            background: transparent;
+            border: 1px solid var(--rojo-alerta);
+            color: var(--rojo-alerta);
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 11px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn-logout:hover { background: rgba(255, 68, 68, 0.15); }
+
+        .dashboard-container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        /* --- TARJETAS DE TELEMETRÍA --- */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 12px;
+            margin-bottom: 25px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, rgba(255,107,0,0.08) 0%, rgba(15,15,20,0.85) 100%);
+            border: 1px solid var(--borde-cristal);
+            border-radius: 16px;
+            padding: 16px 12px;
+            text-align: center;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .stat-card:hover { border-color: rgba(255,107,0,0.3); }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: 900;
+            color: white;
+            margin: 0 0 4px 0;
+            font-family: monospace;
+        }
+
+        .stat-label {
+            font-size: 10px;
+            color: #888;
+            text-transform: uppercase;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            margin: 0;
+        }
+
+        .section-title {
+            font-size: 12px;
+            color: #aaa;
+            text-transform: uppercase;
+            font-weight: 900;
+            letter-spacing: 1px;
+            border-bottom: 1px solid var(--borde-cristal);
+            padding-bottom: 6px;
+            margin: 25px 0 15px 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* --- BUSCADOR Y ASIGNACIÓN DE MODERADORES --- */
+        .search-container {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .input-search {
+            flex: 1;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid var(--borde-cristal);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 13px;
+            outline: none;
+            box-sizing: border-box;
+        }
+        .input-search:focus { border-color: var(--naranja); }
+
+        .btn-search {
+            background: var(--naranja);
+            color: white;
+            border: none;
+            padding: 0 20px;
+            border-radius: 12px;
+            font-weight: 800;
+            font-size: 12px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn-search:hover { filter: brightness(1.1); }
+        .btn-search:disabled { background: #444; cursor: not-allowed; }
+
+        /* --- LISTA DE MODERADORES --- */
+        .card-moderador {
+            background: var(--fondo-cristal);
+            border: 1px solid var(--borde-cristal);
+            border-radius: 12px;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .mod-info h3 { margin: 0 0 2px 0; font-size: 13px; color: white; }
+        .mod-info p { margin: 0; font-size: 11px; color: #888; }
+
+        .btn-eliminar-mod {
+            background: rgba(255,68,68,0.1);
+            border: 1px solid var(--rojo-alerta);
+            color: var(--rojo-alerta);
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn-eliminar-mod:hover { background: rgba(255,68,68,0.25); }
+
+        /* --- KILL SWITCH --- */
+        .kill-switch-btn {
+            width: 100%;
+            padding: 14px;
+            background: rgba(255,68,68,0.1);
+            border: 2px solid var(--rojo-alerta);
+            color: var(--rojo-alerta);
+            border-radius: 12px;
+            font-weight: 900;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            margin-top: 25px;
+            transition: 0.3s;
+        }
+        .kill-switch-btn.active {
+            background: var(--rojo-alerta);
+            color: white;
+            box-shadow: 0 0 25px rgba(255,68,68,0.6);
+        }
+
+        /* --- PANTALLA DE BLOQUEO ZERO TRUST --- */
+        #auth-lock {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-oscuro);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+    </style>
 </head>
 <body>
-<div id="auth-lock">
-<h2 style="color: var(--azul-corp); animation: pulse 1.5s infinite;">Acceso Restringido</h2>
-<p style="color: #888;">Validando privilegios SuperAdmin...</p>
-</div>
-<header class="header-admin">
-<h1>👁️ Cerebro Central</h1>
-<button class="btn-logout" onclick="cerrarSesion()">Salir</button>
-</header>
-<div class="dashboard-container">
-    <div class="stats-grid">
-        <div class="stat-card" onclick="window.location.href='moderacion.html'" style="cursor:pointer; border-color: var(--azul-corp);">
-            <p class="stat-number" id="stat-pendientes" style="color: var(--azul-corp);">-</p>
-            <p class="stat-label">Moderación</p>
-        </div>
-        <div class="stat-card">
-            <p class="stat-number" id="stat-activos">-</p>
-            <p class="stat-label">Negocios OK</p>
-        </div>
+
+    <!-- 1. BARRERA DE SEGURIDAD ZERO-TRUST (SOLO SUPERADMIN) -->
+    <div id="auth-lock">
+        <h2 style="color: var(--naranja); letter-spacing: 2px; margin-bottom: 5px;">GEOKATU CONTROL</h2>
+        <p style="color: #888; font-size: 12px; margin: 0;">Validando credencial SuperAdmin...</p>
     </div>
 
-   <h2 class="section-title">💰 Bóveda Financiera Global</h2>
-    <div class="stats-grid" style="grid-template-columns: 1fr 1fr 1fr;">
-        <div class="stat-card" style="padding: 10px; border-color: var(--azul-corp);">
-            <p class="stat-number" id="stat-saldo-malla" style="font-size: 18px; color: var(--azul-corp);">$0</p>
-            <p class="stat-label" style="font-size: 8px;">Saldo en Malla</p>
-        </div>
-        <div class="stat-card" style="padding: 10px; border-color: var(--naranja);">
-            <p class="stat-number" id="stat-comisiones" style="font-size: 18px; color: var(--naranja);">$0</p>
-            <p class="stat-label" style="font-size: 8px;">Comisiones (10%)</p>
-        </div>
-        <div class="stat-card" style="padding: 10px; border-color: var(--rojo-alerta);">
-            <p class="stat-number" id="stat-pagos-pendientes" style="font-size: 18px; color: var(--rojo-alerta);">$0</p>
-            <p class="stat-label" style="font-size: 8px;">Deuda Domiciliarios</p>
-        </div>
-    </div>
+    <!-- 2. CABECERA MAESTRA -->
+    <header class="header-admin">
+        <h1>👁️ Cerebro Central Geokatu</h1>
+        <button class="btn-logout" onclick="window.cerrarSesionSuperAdmin()">Cerrar Sesión</button>
+    </header>
 
-          <h2 class="section-title" style="color: var(--verde-sui);">📡 Telemetría: Ejecución de Carritos</h2>
-    <div class="stats-grid" style="grid-template-columns: 1fr 1.618fr 1fr; gap: 10px;">
-        
-        <div class="stat-card" style="padding: 15px; border-color: rgba(0, 245, 212, 0.3);">
-            <p class="stat-number" id="stat-intentos-global" style="font-size: 20px; color: white;">0</p>
-            <p class="stat-label" style="font-size: 8px;">Clics WA</p>
-        </div>
+    <div class="dashboard-container">
 
-        <div class="stat-card" style="padding: 15px; border-color: var(--verde-sui); transform: scale(1.05); box-shadow: 0 0 15px rgba(0,245,212,0.15);">
-            <p class="stat-number" id="stat-ratio-global" style="font-size: 28px; color: var(--verde-sui);">0%</p>
-            <p class="stat-label" style="font-size: 9px;">Conversión</p>
-        </div>
-
-        <div class="stat-card" style="padding: 15px; border-color: rgba(0, 245, 212, 0.3);">
-            <p class="stat-number" id="stat-validados-global" style="font-size: 20px; color: white;">0</p>
-            <p class="stat-label" style="font-size: 8px;">Tickets OK</p>
-        </div>
-
-    </div>
-
-
-    
-    <h2 class="section-title" style="margin-top: 20px; color: var(--azul-corp);">💎 Reservas Híbridas (Web3 Live)</h2>
-    <div class="stats-grid" style="grid-template-columns: 1fr 1fr;">
-        <div class="stat-card" style="padding: 15px; border-color: var(--verde-sui);">
-            <p class="stat-number" id="stat-sui-live" style="font-size: 22px; color: var(--verde-sui);">Cargando...</p>
-            <p class="stat-label" style="font-size: 9px;">SUI Network (Gas)</p>
-        </div>
-        <div class="stat-card" style="padding: 15px; border-color: #0052ff;">
-            <p class="stat-number" id="stat-base-live" style="font-size: 22px; color: #0052ff;">Cargando...</p>
-            <p class="stat-label" style="font-size: 9px;">Base L2 (Contrato)</p>
-        </div>
-    </div>
-
-    <h2 class="section-title" style="color: var(--amarillo-aviso);">⚖️ Tribunal de Evasión (Observación)</h2>
-    <div id="tribunal-container" class="live-scroll" style="margin-bottom: 20px;">
-        <p style="text-align:center; color:#555; padding: 20px;">Escaneando anomalías en conversión...</p>
-    </div>
-
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h2 class="section-title">🛰️ Radar de Despachos en Vivo</h2>
-        <button id="btn-toggle-radar" onclick="toggleRadarStream()" style="font-size: 9px; background: var(--azul-corp); border:none; padding: 4px 8px; border-radius: 4px; font-weight:bold; cursor:pointer;">PAUSAR STREAM</button>
-    </div>
-    <div id="radar-vivo" class="live-scroll">
-        <p style="text-align:center; color:#555; padding: 20px;">Iniciando escucha de Malla de Gas...</p>
-    </div>
-
-    <h2 class="section-title" style="margin-top: 20px;">⛓️ Log Inmutabilidad SUI (Web3)</h2>
-    <div id="sui-log" class="live-scroll" style="background: #000; color: var(--verde-sui); font-size: 9px; height: 120px;">
-        <p style="color:#555; text-align:center;">[SISTEMA] Esperando firmas de la red SUI...</p>
-    </div>
-
-    <button id="kill-switch" class="kill-switch-btn" onclick="activarKillSwitch()">
-        🛑 ACTIVAR PAUSA DE EMERGENCIA (TICKETS)
-    </button>
-<h2 class="section-title">Reclutar Agente Moderador</h2>
-<div class="search-container">
-<input type="email" id="input-nuevo-mod" class="input-search" placeholder="Correo de la cuenta QRpido del agente...">
-<button class="btn-search" id="btn-add-mod" onclick="buscarYnombrar()">Otorgar Placa</button>
-</div>
-<h2 class="section-title">Escuadrón Activo</h2>
-<div id="lista-moderadores">
-<p style="text-align:center; color:#888; font-size:12px;">Cargando escuadrón...</p>
-</div>
-</div>
-<script type="module">
-import QRpidoDB from './core-db.js';
-window.sanitizarTexto = function(texto) {
-if (!texto) return '';
-const div = document.createElement('div');
-div.textContent = texto;
-return div.innerHTML;
-};
-// 1. ESCUDO SUPER ADMIN
-QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
-if (user) {
-const { success, data } = await QRpidoDB.SecurityService.obtenerRolAdmin(user.uid);
-if (success && data.rol === 'superadmin') {
-document.getElementById('auth-lock').style.display = 'none';
-arrancarCerebro();
-} else {
-alert("⛔ ACCESO DENEGADO: Solo el Arquitecto (SuperAdmin) puede entrar aquí.");
-window.location.href = 'index.html';
-}
-} else {
-window.location.href = 'index.html';
-}
-});
-window.cerrarSesion = async () => {
-await QRpidoDB.SecurityService.cerrarSesion();
-};
-let radarEscuchando = true;
-
-async function arrancarCerebro() {
-    cargarEstadisticasFinancieras();
-    consultarSaldosBlockchain(); 
-    cargarModeradores();
-    cargarTribunalEvasion();
-    iniciarEscuchaRadar();
-    chequearEstadoKillSwitch();
-    iniciarMonitorWeb3();
-}
-
-// Interrogación Directa a RPCs Públicos (Cero RAM / Cero Librerías)
-async function consultarSaldosBlockchain() {
-    const DIR_TESORERIA_SUI = "0x966bb847123c0999b3b02eca0456349558363b76148f5c4edf8d7d831b1a7d84";
-    const DIR_CONTRATO_BASE = "0xEBC3D776557C72Ae9e42309eAc761866212421a9";
-
-    // 1. Fetch nativo a SUI Mainnet
-    try {
-        const resSui = await fetch('https://fullnode.mainnet.sui.io:443', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "suix_getBalance", params: [DIR_TESORERIA_SUI] })
-        });
-        const dataSui = await resSui.json();
-        const suiFormateado = (parseInt(dataSui.result.totalBalance) / 1000000000).toFixed(2);
-        document.getElementById('stat-sui-live').innerText = `${suiFormateado} SUI`;
-    } catch (e) {
-        document.getElementById('stat-sui-live').innerText = "Error SUI";
-    }
-
-        // 2. Fetch nativo a Base Mainnet (EVM)
-    try {
-        const resBase = await fetch('https://mainnet.base.org', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "eth_getBalance", params: [DIR_CONTRATO_BASE, "latest"] })
-        });
-        const dataBase = await resBase.json();
-        
-        // Conversión a Wei y luego a ETH
-        const saldoWei = parseInt(dataBase.result, 16);
-        const saldoRealETH = saldoWei / 1e18;
-        
-        // Sensibilidad de 8 decimales. Elimina ceros inútiles a la derecha.
-        const baseFormateado = saldoRealETH > 0 ? saldoRealETH.toFixed(8).replace(/\.?0+$/, '') : "0";
-        
-        document.getElementById('stat-base-live').innerText = `${baseFormateado} ETH`;
-    } catch (e) {
-        document.getElementById('stat-base-live').innerText = "Error Base";
-    }
-
-
-}
-
-// 1. Monitor Financiero y Telemetría Global
-async function cargarEstadisticasFinancieras() {
-    const { success, data } = await QRpidoDB.AdminService.obtenerEstadisticasGlobales();
-    if(success) {
-        document.getElementById('stat-activos').innerText = data.activos || 0;
-        document.getElementById('stat-pendientes').innerText = data.pendientes || 0;
-
-        // Cálculos Financieros Estrictos
-        const saldoMalla = data.saldo_total_comercios || 0;
-        const comisionesPlataforma = data.ingresos_brutos * 0.10 || 0; 
-        const deudaDomiciliarios = data.pagos_pendientes_logistica || 0;
-
-        document.getElementById('stat-saldo-malla').innerText = "$ " + saldoMalla.toLocaleString('es-CO');
-        document.getElementById('stat-comisiones').innerText = "$ " + comisionesPlataforma.toLocaleString('es-CO');
-        document.getElementById('stat-pagos-pendientes').innerText = "$ " + deudaDomiciliarios.toLocaleString('es-CO');
-
-        // Telemetría de Conversión
-        const clicsTotales = data.intentos_whatsapp_global || 0;
-        const validadosTotales = data.ordenes_validadas_global || 0;
-        const ratio = clicsTotales > 0 ? ((validadosTotales / clicsTotales) * 100).toFixed(1) : 0;
-
-        document.getElementById('stat-intentos-global').innerText = clicsTotales.toLocaleString('es-CO');
-        document.getElementById('stat-validados-global').innerText = validadosTotales.toLocaleString('es-CO');
-        document.getElementById('stat-ratio-global').innerText = ratio + "%";
-    }
-}
-
-// 2. Tribunal de Evasión (El Verdugo Silencioso)
-async function cargarTribunalEvasion() {
-    const cont = document.getElementById('tribunal-container');
-    const { success, data } = await QRpidoDB.AdminService.obtenerNegociosEnObservacion();
-    if(!success || data.length === 0) {
-        cont.innerHTML = '<p style="text-align:center; color:var(--verde-sui); padding:10px;">✅ Todos los comercios operan bajo ratios normales.</p>';
-        return;
-    }
-    let html = '';
-    data.forEach(n => {
-        const conversion = ((n.ordenes_validadas / n.intentos_whatsapp) * 100).toFixed(1);
-        html += `
-        <div class="radar-row" style="color: var(--amarillo-aviso); align-items: center;">
-            <span>${n.nombre.substring(0,10)}</span>
-            <span>Conv: ${conversion}%</span>
-            <div style="display: flex; gap: 5px;">
-                <button onclick="window.open('https://wa.me/${n.whatsApp}')" style="background:none; border:1px solid var(--azul-corp); color:var(--azul-corp); font-size:9px; cursor:pointer; padding: 3px 6px; border-radius: 4px;">AUDITAR</button>
-                <button onclick="ejecutarIndulto('${n.id}')" style="background:none; border:1px solid var(--verde-sui); color:var(--verde-sui); font-size:9px; cursor:pointer; padding: 3px 6px; border-radius: 4px;">PERDONAR</button>
+        <!-- 3. PANEL DE TELEMETRÍA DEL ECOSISTEMA -->
+        <h2 class="section-title">📊 Salud y Estado de la Red</h2>
+        <div class="stats-grid">
+            <div class="stat-card" onclick="window.location.href='moderacion.html'" style="cursor: pointer; border-color: rgba(255,107,0,0.4);">
+                <p class="stat-number" id="stat-pendientes" style="color: var(--naranja);">-</p>
+                <p class="stat-label">Bóvedas en Cola</p>
             </div>
-        </div>`;
-    });
-    cont.innerHTML = html;
-}
+            <div class="stat-card">
+                <p class="stat-number" id="stat-activos" style="color: var(--verde-neon);">-</p>
+                <p class="stat-label">Comercios en Vivo</p>
+            </div>
+            <div class="stat-card">
+                <p class="stat-number" id="stat-productos" style="color: var(--azul-corp);">-</p>
+                <p class="stat-label">SKUs en Red</p>
+            </div>
+            <div class="stat-card">
+                <p class="stat-number" id="stat-operarios" style="color: white;">-</p>
+                <p class="stat-label">Operadores POS</p>
+            </div>
+        </div>
 
-window.ejecutarIndulto = async (idNegocio) => {
-    if(!confirm("¿Estás seguro de perdonar a este comercio? Se reiniciarán sus contadores de WhatsApp y saldrá del Tribunal.")) return;
-    
-    const { success, error } = await QRpidoDB.AdminService.perdonarNegocio(idNegocio);
-    if(success) {
-        alert("✅ Comercio perdonado. Sus métricas han sido reseteadas.");
-        cargarTribunalEvasion(); 
-    } else {
-        alert("Error al perdonar: " + error);
-    }
-};
+        <!-- 4. TELEMETRÍA DE VENTAS Y TRANSACCIONES -->
+        <h2 class="section-title">💳 Volumen Transaccional Retail</h2>
+        <div class="stats-grid" style="grid-template-columns: 1fr 1fr;">
+            <div class="stat-card">
+                <p class="stat-number" id="stat-total-ventas" style="color: var(--verde-neon);">$0</p>
+                <p class="stat-label">Ventas POS Registradas</p>
+            </div>
+            <div class="stat-card">
+                <p class="stat-number" id="stat-tickets-emitidos" style="color: var(--azul-corp);">0</p>
+                <p class="stat-label">Tickets Fiscales / Tirillas</p>
+            </div>
+        </div>
 
-// 4. Explorador SUI Ligero (Delegado al Core-DB)
-function iniciarMonitorWeb3() {
-    const log = document.getElementById('sui-log');
-    
-    QRpidoDB.AdminService.escucharHashesSUI((docData) => {
-        if (docData.seguridad_web3 && docData.seguridad_web3.txID_pago) {
-            const p = document.createElement('p');
-            p.style.margin = "4px 0";
-            p.style.borderBottom = "1px dotted rgba(0, 245, 212, 0.2)";
-            p.style.paddingBottom = "4px";
-            
-            const horaFormato = new Date().toLocaleTimeString('es-CO');
-            p.innerHTML = `[${horaFormato}] <span style="color:#fff">TX:</span> <span style="font-family: monospace; letter-spacing: 1px;">${docData.seguridad_web3.txID_pago.substring(0,24)}...</span> ✅`;
-            
-            // Borra el mensaje de "Esperando..." inicial
-            if (log.innerHTML.includes("[SISTEMA] Esperando")) log.innerHTML = "";
-            
-            log.prepend(p);
+        <!-- 5. RECLUTAMIENTO Y GESTIÓN DE MODERADORES -->
+        <h2 class="section-title">🛡️ Asignar Agente Moderador</h2>
+        <div class="search-container">
+            <input type="email" id="input-nuevo-mod" class="input-search" placeholder="Correo del operador a promover (ej: moderador@geokatu.com)...">
+            <button class="btn-search" id="btn-add-mod" onclick="window.promoverAModerador()">Otorgar Placa</button>
+        </div>
 
-            // OPTIMIZACIÓN DE RAM
-            while (log.children.length > 10) {
-                log.removeChild(log.lastChild);
+        <h2 class="section-title">👥 Escuadrón de Moderación Activo</h2>
+        <div id="lista-moderadores">
+            <p style="text-align: center; color: #888; font-size: 12px;">Cargando escuadrón de agentes...</p>
+        </div>
+
+        <!-- 6. PROTOCOLO DE CONTENCIÓN (KILL SWITCH) -->
+        <button id="kill-switch" class="kill-switch-btn" onclick="window.alternarKillSwitchGlobal()">
+            🛑 ACTIVAR PAUSA DE EMERGENCIA (TICKETS Y ACCESOS)
+        </button>
+
+    </div>
+
+    <!-- 7. SCRIPT DEL MOTOR CENTRAL -->
+    <script type="module">
+        import GeokatuDB from './core-db.js';
+        import { getFirestore, collection, query, where, getDocs, doc, setDoc, updateDoc, deleteDoc, collectionGroup } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const db = getFirestore();
+
+        window.sanitizarTexto = function(texto) {
+            if (!texto) return '';
+            const div = document.createElement('div');
+            div.textContent = texto;
+            return div.innerHTML;
+        };
+
+        // --- VERIFICACIÓN DE IDENTIDAD ZERO-TRUST ---
+        GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
+            if (user) {
+                try {
+                    const { success, data } = await GeokatuDB.SecurityService.obtenerRolAdmin(user.uid);
+                    if (success && data.rol === 'superadmin') {
+                        document.getElementById('auth-lock').style.display = 'none';
+                        window.arrancarTorreDeControl();
+                    } else {
+                        alert("⛔ ACCESO DENEGADO: Este módulo está reservado exclusivamente para la administración general.");
+                        window.location.href = 'index.html';
+                    }
+                } catch (err) {
+                    console.error("Fallo de seguridad:", err);
+                    window.location.href = 'index.html';
+                }
+            } else {
+                window.location.href = 'index.html';
+            }
+        });
+
+        window.cerrarSesionSuperAdmin = async () => {
+            await GeokatuDB.SecurityService.cerrarSesion();
+            window.location.href = 'index.html';
+        };
+
+        window.arrancarTorreDeControl = async () => {
+            await Promise.all([
+                window.cargarMetricasGlobales(),
+                window.cargarEscuadronModeradores(),
+                window.verificarEstadoKillSwitch()
+            ]);
+        };
+
+        // --- 1. RECOLECCIÓN DE TELEMETRÍA GLOBAL ---
+        window.cargarMetricasGlobales = async () => {
+            try {
+                const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+                
+                // 1 sola lectura atómica en lugar de 100.000
+                const docMetricas = await getDoc(doc(db, "sistema", "metricas_red"));
+                
+                if (docMetricas.exists()) {
+                    const m = docMetricas.data();
+                    document.getElementById('stat-activos').innerText = m.total_comercios_activos || 0;
+                    document.getElementById('stat-pendientes').innerText = m.total_comercios_pendientes || 0;
+                    document.getElementById('stat-productos').innerText = m.total_skus || 0;
+                    document.getElementById('stat-operarios').innerText = m.total_operarios || 0;
+                    document.getElementById('stat-total-ventas').innerText = `$ ${Math.round(m.volumen_ventas_pos || 0).toLocaleString('es-CO')}`;
+                    document.getElementById('stat-tickets-emitidos').innerText = m.tickets_emitidos || 0;
+                } else {
+                    // Inicialización por primera vez
+                    document.getElementById('stat-activos').innerText = "0";
+                    document.getElementById('stat-pendientes').innerText = "0";
+                    document.getElementById('stat-productos').innerText = "0";
+                    document.getElementById('stat-operarios').innerText = "0";
+                    document.getElementById('stat-total-ventas').innerText = "$ 0";
+                    document.getElementById('stat-tickets-emitidos').innerText = "0";
+                }
+            } catch (err) {
+                console.error("Error cargando métricas consolidadas:", err);
+            }
+        };
+
+
+        // --- 2. GESTIÓN DEL ESCUADRÓN DE MODERADORES ---
+        window.cargarEscuadronModeradores = async () => {
+            const cont = document.getElementById('lista-moderadores');
+            try {
+                // Consultar usuarios con rol asignado en la colección Admins
+                const qMods = query(collection(db, "Admins"));
+                const snap = await getDocs(qMods);
+
+                if (snap.empty) {
+                    cont.innerHTML = '<p style="text-align:center; color:#888; font-style:italic;">No hay agentes de moderación activos.</p>';
+                    return;
+                }
+
+                let html = '';
+                snap.forEach(docSnap => {
+                    const mod = docSnap.data();
+                    const fecha = mod.fecha_asignacion ? new Date(mod.fecha_asignacion).toLocaleDateString('es-CO') : 'Activo';
+                    const rolLabel = (mod.rol || 'moderador').toUpperCase();
+
+                    html += `
+                        <div class="card-moderador" id="mod-${docSnap.id}">
+                            <div class="mod-info">
+                                <h3>🛡️ ${window.sanitizarTexto(mod.nombre || mod.email)} <span style="font-size:9px; background:rgba(96,165,250,0.2); color:#60a5fa; padding:2px 6px; border-radius:4px;">${rolLabel}</span></h3>
+                                <p>${window.sanitizarTexto(mod.email)} · Alta: ${fecha}</p>
+                            </div>
+                            <button class="btn-eliminar-mod" onclick="window.revocarPlaca('${docSnap.id}', '${window.sanitizarTexto(mod.email)}')">
+                                🗑️ Revocar Placa
+                            </button>
+                        </div>
+                    `;
+                });
+
+                cont.innerHTML = html;
+
+            } catch (e) {
+                console.error("Error cargando moderadores:", e);
+                cont.innerHTML = `<p style="color:var(--rojo-alerta); font-size:12px;">Error al cargar agentes: ${e.message}</p>`;
+            }
+        };
+
+        window.promoverAModerador = async () => {
+            const input = document.getElementById('input-nuevo-mod');
+            const email = input.value.trim().toLowerCase();
+            const btn = document.getElementById('btn-add-mod');
+
+            if (!email) return alert("Por favor ingresa un correo electrónico válido.");
+
+            btn.innerText = "BUSCANDO..."; btn.disabled = true;
+
+            try {
+                // 1. Buscar en la colección global de operadores para encontrar su UID
+                const qOp = query(collection(db, "Usuarios_Operadores"), where("email", "==", email));
+                const snapOp = await getDocs(qOp);
+
+                let targetUid = null;
+                let targetNombre = email.split('@')[0];
+
+                if (!snapOp.empty) {
+                    targetUid = snapOp.docs[0].id;
+                    targetNombre = snapOp.docs[0].data().nombre || targetNombre;
+                } else {
+                    // Si no está en operadores, buscar por su ID directo en Directorio o registrar por correo
+                    targetUid = email.replace(/[^a-zA-Z0-9]/g, '_');
+                }
+
+                if (!confirm(`¿Confirmas otorgar placa de MODERADOR a:\n${email}?\n\nTendrá permisos para aprobar y rechazar comercios en moderacion.html.`)) {
+                    btn.innerText = "Otorgar Placa"; btn.disabled = false;
+                    return;
+                }
+
+                // Guardar en la colección Admins
+                await setDoc(doc(db, "Admins", targetUid), {
+                    uid: targetUid,
+                    email: email,
+                    nombre: targetNombre,
+                    rol: "moderador",
+                    fecha_asignacion: new Date().toISOString()
+                }, { merge: true });
+
+                alert("✅ Placa otorgada con éxito. El agente ya puede acceder a moderacion.html.");
+                input.value = '';
+                window.cargarEscuadronModeradores();
+
+            } catch (err) {
+                alert("Error al promover agente: " + err.message);
+            } finally {
+                btn.innerText = "Otorgar Placa"; btn.disabled = false;
+            }
+        };
+
+        window.revocarPlaca = async (uid, email) => {
+            if (!confirm(`⚠️ ¿Deseas revocar inmediatamente la placa de moderador a:\n${email}?\n\nPerderá acceso al centro de moderación.`)) return;
+
+            try {
+                await deleteDoc(doc(db, "Admins", uid));
+                document.getElementById(`mod-${uid}`)?.remove();
+                alert("Placa revocada.");
+                if (document.querySelectorAll('#lista-moderadores .card-moderador').length === 0) {
+                    window.cargarEscuadronModeradores();
+                }
+            } catch (err) {
+                alert("Error revocando permisos: " + err.message);
+            }
+        };
+
+        // --- 3. KILL SWITCH GLOBAL DE EMERGENCIA ---
+        window.verificarEstadoKillSwitch = async () => {
+            try {
+                const { success, data } = await GeokatuDB.LocalService.obtenerConfiguracion();
+                if (success && data && data.bloqueo_tickets === true) {
+                    aplicarUIKillSwitch(true);
+                } else {
+                    aplicarUIKillSwitch(false);
+                }
+            } catch (e) {
+                aplicarUIKillSwitch(false);
+            }
+        };
+
+        window.alternarKillSwitchGlobal = async () => {
+            const btn = document.getElementById('kill-switch');
+            const estaBloqueado = btn.classList.contains('active');
+            const nuevoEstado = !estaBloqueado;
+
+            const aviso = nuevoEstado 
+                ? "⚠️ ALERTA MÁXIMA:\n¿Confirmas pausar la emisión de tickets, ventas y pedidos en toda la plataforma?"
+                : "🛡️ ¿Confirmas restablecer la plataforma y permitir nuevamente transacciones?";
+
+            if (!confirm(aviso)) return;
+
+            btn.innerText = "TRANSMITIENDO A LA RED...";
+
+            try {
+                const refConfig = doc(db, "Configuracion_Global", "sistema");
+                await setDoc(refConfig, {
+                    bloqueo_tickets: nuevoEstado,
+                    ultima_modificacion: new Date().toISOString()
+                }, { merge: true });
+
+                aplicarUIKillSwitch(nuevoEstado);
+                alert(nuevoEstado ? "🚨 Plataforma pausada exitosamente." : "✅ Plataforma reabierta y operativa.");
+            } catch (err) {
+                alert("Fallo al aplicar Kill Switch: " + err.message);
+                aplicarUIKillSwitch(estaBloqueado);
+            }
+        };
+
+        function aplicarUIKillSwitch(bloqueado) {
+            const btn = document.getElementById('kill-switch');
+            if (bloqueado) {
+                btn.classList.add('active');
+                btn.innerText = "🚨 SISTEMA BLOQUEADO (TRANSACCIONES PAUSADAS)";
+            } else {
+                btn.classList.remove('active');
+                btn.innerText = "🛑 ACTIVAR PAUSA DE EMERGENCIA (TICKETS Y ACCESOS)";
             }
         }
-    });
-}
-
-// 3. Radar en Vivo con Gestión de RAM (Malla de Gas)
-function iniciarEscuchaRadar() {
-    const cont = document.getElementById('radar-vivo');
-    QRpidoDB.LogisticaService.escucharRadarActivo((res) => {
-        if (!radarEscuchando) return;
-        if (res.success && res.data) {
-            let html = '';
-            const ordenes = Object.entries(res.data).reverse().slice(0, 15);
-            
-            ordenes.forEach(([ticketId, info]) => {
-                const estado = info.estado || 'BUSCANDO';
-                let clasePill = 'pill-buscando';
-                if (estado === 'EN_TRANSITO') clasePill = 'pill-camino';
-                if (estado === 'ENTREGADO') clasePill = 'pill-ok'; 
-
-                const comercio = info.comercio_nombre ? info.comercio_nombre.substring(0, 12) : 'Negocio';
-                const flete = info.valor_flete ? `$${info.valor_flete.toLocaleString('es-CO')}` : '---';
-
-                html += `
-                <div class="radar-row" style="grid-template-columns: 1fr 1.5fr 1fr 1fr; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); padding: 8px;">
-                    <span style="color:var(--azul-corp); font-weight: 900;">#${ticketId.substring(0,6)}</span>
-                    <span style="color: white; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${comercio}</span>
-                    <span style="color: var(--naranja);">${flete}</span>
-                    <span class="status-pill ${clasePill}" style="text-align: center;">${estado.replace('_', ' ')}</span>
-                </div>`;
-            });
-            cont.innerHTML = html || '<p style="text-align:center; color:#555;">La Malla de Gas está en silencio.</p>';
-        } else {
-            cont.innerHTML = '<p style="text-align:center; color:#555;">La Malla de Gas está en silencio.</p>';
-        }
-    });
-}
-
-window.toggleRadarStream = () => {
-    radarEscuchando = !radarEscuchando;
-    const btn = document.getElementById('btn-toggle-radar');
-    btn.innerText = radarEscuchando ? "PAUSAR STREAM" : "REANUDAR STREAM";
-    btn.style.background = radarEscuchando ? "var(--azul-corp)" : "var(--naranja)";
-    if(radarEscuchando) iniciarEscuchaRadar();
-};
-
-// 5. Kill Switch (Control de Crisis Nivel Arquitecto)
-window.activarKillSwitch = async () => {
-    const estadoActual = document.getElementById('kill-switch').classList.contains('active');
-    const msg = estadoActual 
-        ? "🛡️ ¿Deseas REABRIR la plataforma? Se permitirá nuevamente la generación de códigos TOTP." 
-        : "⚠️ PELIGRO: ¿CONFIRMAS EL BLOQUEO TOTAL? Se detendrá la creación de órdenes logísticas a nivel de base de datos.";
-    
-    if(!confirm(msg)) return;
-
-    const nuevoEstado = !estadoActual;
-    const btn = document.getElementById('kill-switch');
-    btn.innerText = "Sincronizando con el servidor...";
-
-    const { success, error } = await QRpidoDB.AdminService.actualizarConfiguracionGlobal({ bloqueo_tickets_totp: nuevoEstado });
-    
-    if(success) {
-        actualizarUIKillSwitch(nuevoEstado);
-    } else {
-        alert("Error al accionar el Kill Switch: " + error);
-        actualizarUIKillSwitch(estadoActual); 
-    }
-};
-
-function actualizarUIKillSwitch(bloqueado) {
-    const btn = document.getElementById('kill-switch');
-    if(bloqueado) {
-        btn.classList.add('active');
-        btn.innerText = "🚨 SISTEMA BLOQUEADO (TICKETS Y TOTP PAUSADOS)";
-    } else {
-        btn.classList.remove('active');
-        btn.innerText = "🛑 ACTIVAR PAUSA DE EMERGENCIA (TICKETS)";
-    }
-}
-
-async function chequearEstadoKillSwitch() {
-    const { success, data } = await QRpidoDB.AdminService.obtenerConfiguracionGlobal();
-    if(success && data.bloqueo_tickets_totp) {
-        actualizarUIKillSwitch(true);
-    } else {
-        actualizarUIKillSwitch(false);
-    }
-}
-
-// 2. LÓGICA DE RECLUTAMIENTO
-window.buscarYnombrar = async () => {
-const input = document.getElementById('input-nuevo-mod');
-const email = input.value.trim();
-if(!email) return alert("Escribe un correo.");
-const btn = document.getElementById('btn-add-mod');
-btn.innerText = "Buscando..."; btn.disabled = true;
-const busqueda = await QRpidoDB.AdminService.buscarUsuarioParaModerador(email);
-if(!busqueda.success) {
-alert(busqueda.error);
-btn.innerText = "Otorgar Placa"; btn.disabled = false;
-return;
-}
-const confirmacion = confirm(`Usuario encontrado: ${busqueda.data.nombre}\n\n¿Estás seguro de otorgarle privilegios de moderador a esta cuenta? Tienen poder para eliminar negocios.`);
-if(confirmacion) {
-const otorgar = await QRpidoDB.AdminService.nombrarModerador(busqueda.data.uid, email);
-if(otorgar.success) {
-alert("¡Placa otorgada con éxito! El agente ya puede acceder a moderacion.html");
-input.value = '';
-cargarModeradores(); 
-} else {
-alert("Error interno: " + otorgar.error);
-}
-}
-btn.innerText = "Otorgar Placa"; btn.disabled = false;
-};
-
-// 3. LISTAR Y ELIMINAR ESCUADRÓN
-async function cargarModeradores() {
-const contenedor = document.getElementById('lista-moderadores');
-const { success, data } = await QRpidoDB.AdminService.obtenerEquipoModeradores();
-if(!success || data.length === 0) {
-contenedor.innerHTML = '<p style="text-align:center; color:#888; font-style:italic;">No tienes agentes activos.</p>';
-return;
-}
-let htmlMods = '';
-data.forEach(mod => {
-const fecha = mod.fecha_ingreso ? new Date(mod.fecha_ingreso).toLocaleDateString('es-CO') : 'Antiguo';
-htmlMods += `
-<div class="card-moderador" id="mod-${mod.uid}">
-<div class="mod-info">
-<h3>🛡️ Agente</h3>
-<p>${sanitizarTexto(mod.email)}</p>
-<p style="font-size:10px; color:#555; margin-top:3px;">Asignado: ${fecha}</p>
-</div>
-<button class="btn-eliminar-mod" onclick="eliminarAgente('${mod.uid}', '${sanitizarTexto(mod.email)}')">
-🗑️ Revocar
-</button>
-</div>`;
-});
-contenedor.innerHTML = htmlMods;
-}
-
-window.eliminarAgente = async (uid, email) => {
-if(!confirm(`⚠️ ATENCIÓN ⚠️\n\n¿Estás seguro que deseas revocar los privilegios de moderador a:\n${email}?\n\nPerderá acceso al panel de moderación inmediatamente.`)) return;
-const { success, error } = await QRpidoDB.AdminService.revocarModerador(uid);
-if(success) {
-document.getElementById(`mod-${uid}`).remove();
-if(document.querySelectorAll('.card-moderador').length === 0) cargarModeradores();
-} else {
-alert("Error al revocar permisos: " + error);
-}
-};
-</script>
+    </script>
 </body>
 </html>
-
 

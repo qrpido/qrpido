@@ -313,114 +313,262 @@ details[open] { background: rgba(20,20,25,0.8); border-color: rgba(255,107,0,0.3
     100% { transform: translate3d(0, -20px, 0) scale(1.15) rotate(8deg); filter: drop-shadow(0 20px 15px rgba(255,107,0,0.8)); }
 }
 
-/* === 📍 MOTOR GEOMÉTRICO DE PINES (AJUSTE MILIMÉTRICO FINAL) === */
-.pin-wrapper {
-    position: relative; display: inline-flex; width: 50px; height: 50px; 
-    transition: all 0.3s ease; z-index: 10;
-    filter: drop-shadow(0px 6px 8px rgba(0,0,0,0.6));
-    justify-content: center; align-items: center;
-    --rotacion: 0deg; 
+=========================================================================
+   GEOKATU - INTEGRACIÓN LIMPIA DE PINES EN INDEX (DELEGA A PINES.CSS)
+   ========================================================================= */
+.maplibregl-marker {
+    overflow: visible !important;
+    cursor: pointer;
 }
 
-/* 1. Esfera Perfecta */
-.forma-esfera { background: transparent !important; border: none !important; }
-.forma-esfera img { 
-    border-radius: 50% !important; border: 2px solid var(--color-main, #ff6b00) !important; 
-    box-sizing: border-box !important; width: 50px !important; height: 50px !important; 
-    position: absolute !important; top: 0 !important; left: 0 !important;
-    transform: none !important; margin: 0 !important; padding: 0 !important;
+/* El mapa permite ver los pines a tamaño completo en cualquier nivel de zoom */
+#mapa-qrpido .pin-wrapper {
+    transform-origin: bottom center;
+    overflow: visible !important;
+}
+/* =========================================================
+   INSIGNIA SUTIL SEMÁFORO DE CONFIANZA EN POPUP
+   ========================================================= */
+.contenedor-semaforo-inferior {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100% !important;
+    margin-top: 8px !important;
+    margin-bottom: 6px !important;
+    position: relative;
+    z-index: 5;
 }
 
-/* 2. Gota Clásica */
-.forma-gota { background: transparent !important; border: none !important; border-radius: 0 !important; }
-.forma-gota::before {
-    content: ""; position: absolute; inset: 0;
-    background: var(--color-main, #ff6b00);
-    clip-path: path('M 25 50 C 25 50 8 32 8 17 C 8 7.6 15.6 0 25 0 C 34.4 0 42 7.6 42 17 C 42 32 25 50 25 50 Z');
-    z-index: -1;
-    transform: scale(1.1); 
-}
-.forma-gota img { 
-    width: 40px !important; height: 40px !important; 
-    position: absolute !important; top: 2px !important; left: 4px !important; 
-    clip-path: path('M 21 42 C 21 42 6.7 26.8 6.7 14.2 C 6.7 6.3 13.1 0 21 0 C 28.9 0 35.3 6.3 35.3 14.2 C 35.3 26.8 21 42 21 42 Z') !important;
-    border: none !important; border-radius: 0 !important;
-    transform: scale(1.1) !important;
-    margin: 0 !important; padding: 0 !important;
-}
-
-/* 3. Triángulo */
-.forma-triangulo { background: transparent !important; border: none !important; border-radius: 0 !important; }
-.forma-triangulo::before {
-    content: ""; position: absolute; inset: 0;
-    clip-path: polygon(10% 0%, 90% 0%, 100% 10%, 55% 95%, 50% 100%, 45% 95%, 0% 10%);
-    background: var(--color-main, #ff6b00); z-index: -1;
-}
-.forma-triangulo img { 
-    clip-path: polygon(10% 0%, 90% 0%, 100% 10%, 55% 95%, 50% 100%, 45% 95%, 0% 10%) !important; 
-    width: 86% !important; height: 86% !important; 
-    position: absolute !important; top: 4% !important; left: 7% !important;
-    border-radius: 0 !important; border: none !important; transform: none !important; margin: 0 !important; padding: 0 !important;
+.semaforo-badge-btn {
+    position: relative !important; /* 💉 CIRUGÍA: Ya no flota arriba */
+    top: auto !important;
+    left: auto !important;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+    padding: 4px 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    z-index: 5;
+    transition: transform 0.2s ease, background 0.2s;
 }
 
-/* 4. Hoja Orgánica */
-.forma-hoja { 
-    background: transparent !important; border: none !important; border-radius: 0 !important; 
-    --rotacion: 15deg; 
-    transform: rotate(15deg);
-}
-.forma-hoja::before {
-    content: ""; position: absolute; inset: 0;
-    background: var(--color-main, #ff6b00);
-    clip-path: path('M 25 50 C 0 35 5 15 25 0 C 45 25 40 45 25 50 Z');
-    z-index: -1;
-}
-.forma-hoja img { 
-    width: 44px !important; height: 44px !important; 
-    position: absolute !important; top: 3px !important; left: 3px !important; 
-    clip-path: path('M 22 44 C 0 30.8 4.4 13.2 22 0 C 39.6 22 35.2 39.6 22 44 Z') !important;
-    border: none !important; border-radius: 0 !important; 
-    transform: none !important; margin: 0 !important; padding: 0 !important;
+.semaforo-badge-btn:active {
+    transform: scale(0.95);
 }
 
-/* 5. Flor (Girasol 🌻) */
-.forma-flor { background: transparent !important; border: none !important; border-radius: 0 !important; }
-.forma-flor::before {
-    content: ""; position: absolute; width: 75px; height: 75px; top: -12.5px; left: -12.5px;
-    background: linear-gradient(to bottom, #FFD700 0%, #FFD700 76%, #4CAF50 77%, #2E7D32 100%);
-    clip-path: polygon(50% 100%, 53% 75%, 50% 82%, 65% 70%, 58% 65%, 75% 68%, 68% 58%, 85% 60%, 75% 50%, 95% 45%, 80% 40%, 95% 25%, 78% 28%, 85% 10%, 70% 18%, 65% 0%, 58% 12%, 50% 0%, 42% 12%, 35% 0%, 30% 18%, 15% 10%, 22% 28%, 5% 25%, 20% 40%, 5% 45%, 25% 50%, 15% 60%, 32% 58%, 25% 68%, 42% 65%, 35% 70%, 50% 82%, 47% 75%);
-    z-index: -1;
-}
-.forma-flor img { 
-    border-radius: 50% !important; border: 2px solid #5d4037 !important; 
-    box-sizing: border-box !important; 
-    width: 42px !important; height: 42px !important; 
-    position: absolute !important; top: -3px !important; left: 4px !important;
-    transform: none !important; margin: 0 !important; padding: 0 !important;
+.semaforo-luz-svg {
+    width: 10px;
+    height: 10px;
+    filter: drop-shadow(0 0 4px currentColor);
+    flex-shrink: 0;
 }
 
-/* 🏃 Animaciones Limpias */
-@keyframes salto { 0%, 100% { transform: translateY(0) rotate(var(--rotacion)); } 50% { transform: translateY(-10px) rotate(var(--rotacion)); } }
-.anim-salto { animation: salto 1.5s infinite ease-in-out; }
-
-@keyframes flotar { 0%, 100% { transform: translateY(0) rotate(var(--rotacion)); } 50% { transform: translateY(-5px) rotate(var(--rotacion)); } }
-.anim-flotar { animation: flotar 2.5s infinite ease-in-out; }
-
-@keyframes latido { 0%, 100% { transform: scale(1) rotate(var(--rotacion)); } 50% { transform: scale(1.1) rotate(var(--rotacion)); } }
-.anim-latido { animation: latido 1.2s infinite ease-in-out; }
-
-/* 🌸 Emojis Tamaño Doble y Posiciones Matemáticas Universales */
-.pin-wrapper[data-emoji]::after {
-    content: attr(data-emoji); position: absolute;
-    font-size: 26px !important; z-index: 20; 
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));
-    display: flex; align-items: center; justify-content: center;
+/* Tooltip posicionado inmediatamente sobre la píldora al pie */
+.semaforo-tooltip {
+    position: relative !important; /* 💉 CIRUGÍA: Fluye dentro del cuerpo */
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    background: rgba(15, 15, 20, 0.96);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.8);
+    z-index: 50;
+    pointer-events: none;
+    margin: 4px auto 8px auto;
+    width: 90%;
+    animation: desvanecerSemaforo 6s forwards cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.pin-wrapper[data-anclaje="anclaje-arriba"]::after { top: -20px; left: 50%; margin-left: -13px; }
-.pin-wrapper[data-anclaje="anclaje-esquina"]::after { top: -10px; right: -10px; }
-.pin-wrapper[data-anclaje="anclaje-montura"]::after { bottom: -20px; left: 50%; margin-left: -14px; font-size: 32px !important; z-index: -1; }
 
-.forma-triangulo[data-anclaje="anclaje-arriba"]::after { top: -20px !important; }
-.forma-flor[data-anclaje="anclaje-arriba"]::after { top: -32px !important; } 
-.forma-gota[data-anclaje="anclaje-arriba"]::after { top: -24px !important; margin-left: -16px !important; }
+
+
+@keyframes desvanecerSemaforo {
+    0% { opacity: 0; transform: translateY(-4px); }
+    10% { opacity: 1; transform: translateY(0); }
+    70% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-4px); visibility: hidden; }
+}
+
+/* =========================================================
+   SISTEMA DE FILTROS EN CASCADA Y CRISTAL (GEOKATU RADAR)
+   ========================================================= */
+.cascada-filtros-wrapper {
+    position: fixed;
+    top: 78px;
+    left: 15px;
+    z-index: 1500;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.btn-burbuja-filtro-raiz {
+    pointer-events: auto;
+    background: rgba(20, 20, 25, 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+    padding: 8px 16px;
+    border-radius: 25px;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.2);
+    transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.btn-burbuja-filtro-raiz:active { transform: scale(0.95); }
+.btn-burbuja-filtro-raiz.activo {
+    border-color: var(--naranja);
+    box-shadow: 0 0 15px rgba(255, 107, 0, 0.4);
+}
+
+.burbujas-hijas-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+    transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.cascada-filtros-wrapper.abierto .burbujas-hijas-lista {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.burbuja-item {
+    background: rgba(15, 15, 20, 0.7);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ddd;
+    padding: 7px 14px;
+    border-radius: 20px;
+    font-size: 11.5px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.25s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    width: max-content;
+}
+.burbuja-item:hover, .burbuja-item:active {
+    background: rgba(255, 107, 0, 0.2);
+    border-color: var(--naranja);
+    color: #fff;
+    transform: translateX(4px);
+}
+
+.cascada-filtros-wrapper.modo-seleccion .burbuja-item:not(.seleccionada) {
+    display: none;
+}
+.burbuja-item.seleccionada {
+    background: var(--naranja) !important;
+    color: #fff !important;
+    border-color: var(--naranja) !important;
+    box-shadow: 0 0 15px rgba(255, 107, 0, 0.5);
+}
+
+.panel-vertical-mercadolibre {
+    display: none;
+    pointer-events: auto;
+    background: rgba(10, 10, 14, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 16px;
+    padding: 12px 14px;
+    width: 230px;
+    max-height: 55vh;
+    overflow-y: auto;
+    box-shadow: 0 12px 35px rgba(0,0,0,0.7);
+    animation: deslizarAbajo 0.3s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+.panel-vertical-mercadolibre::-webkit-scrollbar { width: 3px; }
+.panel-vertical-mercadolibre::-webkit-scrollbar-thumb { background: rgba(255,107,0,0.4); border-radius: 3px; }
+
+@keyframes deslizarAbajo {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.filtro-ml-seccion-titulo {
+    font-size: 10px;
+    font-weight: 900;
+    color: var(--naranja);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 8px 0 4px 0;
+}
+.filtro-ml-seccion-titulo:first-child { margin-top: 0; }
+
+.filtro-ml-opcion {
+    padding: 6px 8px;
+    font-size: 11.5px;
+    color: #ccc;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.filtro-ml-opcion:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+}
+.filtro-ml-opcion.activa {
+    background: rgba(255, 107, 0, 0.2);
+    color: var(--naranja);
+    font-weight: bold;
+}
+/* =========================================================================
+  ANCLAJE DE POPUP MAPLIBRE Y DISTANCIA FALANGE
+   ========================================================================= */
+.maplibregl-popup {
+    transform-origin: bottom center !important;
+    z-index: 1200 !important;
+}
+.maplibregl-popup-anchor-bottom {
+    margin-bottom: 22px !important; /* Distancia falange: no ocluye la cabeza del pin */
+}
+
+/* El contenido del popup emerge suavemente hacia arriba */
+.maplibregl-popup-content {
+    animation: escalaPopupEmergente 0.25s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    transform-origin: bottom center;
+}
+
+@keyframes escalaPopupEmergente {
+    0% {
+        opacity: 0;
+        transform: scale(0.92) translateY(8px);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+

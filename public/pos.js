@@ -1,4 +1,5 @@
 import GeokatuDB from './core-db.js';
+import { BillingGuard } from './billing-guard.js';
 import { MotorLector } from './lector-motor.js';
 import { MotorBalanza } from './balanza-motor.js';
 import { MotorCajonMonedero } from './cajon-motor.js';
@@ -7,11 +8,11 @@ import { getAuth } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth
 const auth = getAuth();
 
 
-
 // ==========================================
 // ESTADO GLOBAL DE LA TERMINAL POS
 // ==========================================
 let idNegocio = localStorage.getItem('geokatu_active_uid') || null;
+let controlFacturacionActivo = null; // 🚦 Control de cupo y recargas
 let catalogoLocal = [];
 let carrito = [];
 let ticketsEnEspera = [];
@@ -45,9 +46,21 @@ GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
         // 🛡️ SELLADO DE ENCLAVE CRIPTOGRÁFICO DE TERMINAL LOCAL
         await GeokatuDB.SecurityService.sellarSesionTerminalLocal(idTenant);
 
+        // 🚦 Lectura de estado fiscal y cuota del comercio matriz
+        try {
+            const { success: sNeg, data: dNeg } = await GeokatuDB.LocalService.getDetails(idTenant);
+            if (sNeg && dNeg) {
+                controlFacturacionActivo = dNeg.facturacion_control || null;
+                BillingGuard.verificarEstadoCuota(controlFacturacionActivo, 'pos-alerta-facturas');
+            }
+        } catch (eFact) {
+            console.warn("[BillingGuard] Fallo al consultar estado de cuota:", eFact.message);
+        }
+
         // Auditoría de perfil de operario y políticas de seguridad de contraseñas
         const { getFirestore, doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
         const db = getFirestore();
+
         
         try {
             const docOperario = await getDoc(doc(db, `Directorio/${idNegocio}/Equipo`, user.uid));
@@ -426,11 +439,13 @@ function agregarAlCarrito(producto, cantidadASumar = 1, forzarReemplazo = false,
     const cantidadPrevia = itemExistente ? itemExistente.cantidad : 0;
     const nuevaCantidad = forzarReemplazo ? cantidadASumar : (cantidadPrevia + cantidadASumar);
 
-    // Validación de stock físico
+    // Advertencia no bloqueante de stock teórico
     if (producto.stock_actual !== undefined && nuevaCantidad > producto.stock_actual) {
-        alert(`⚠️ Stock insuficiente. Disponible: ${producto.stock_actual}`);
-        return;
+        if (typeof window.mostrarAvisoPos === 'function') {
+            window.mostrarAvisoPos(`⚠️ Stock teórico superado para "${producto.nombre}". Se registrará para auditoría.`);
+        }
     }
+
 
     // Si viene con precio fijado por balanza (prefijos 22/23) o con cantidad forzada
     if (itemExistente && !precioForzado) {
@@ -461,11 +476,11 @@ function modificarCantidad(index, delta) {
     const nuevaCantidad = item.cantidad + (delta * paso);
 
     if (delta > 0 && prodCatalogo && prodCatalogo.stock_actual !== undefined) {
-        if (nuevaCantidad > prodCatalogo.stock_actual) {
-            alert(`Máximo stock alcanzado (${prodCatalogo.stock_actual} ${item.unidad_medida}).`);
-            return;
+        if (nuevaCantidad > prodCatalogo.stock_actual && typeof window.mostrarAvisoPos === 'function') {
+            window.mostrarAvisoPos(`⚠️ Venta sobrepasando stock teórico de anaquel.`);
         }
     }
+
 
     item.cantidad = item.es_pesable ? parseFloat(nuevaCantidad.toFixed(3)) : Math.round(nuevaCantidad);
 
@@ -489,10 +504,11 @@ function actualizarCantidadDirecta(index, valorStr) {
     }
 
     if (prodCatalogo && prodCatalogo.stock_actual !== undefined && cantidadValidada > prodCatalogo.stock_actual) {
-        alert(`Stock insuficiente (${prodCatalogo.stock_actual} ${item.unidad_medida} disponible).`);
-        renderizarCarrito();
-        return;
+        if (typeof window.mostrarAvisoPos === 'function') {
+            window.mostrarAvisoPos(`⚠️ Cantidad fijada supera stock en sistema.`);
+        }
     }
+
 
     item.cantidad = cantidadValidada;
     renderizarCarrito();
@@ -905,8 +921,17 @@ document.querySelectorAll('.btn-pay').forEach(btn => {
 function procesarAbonoPago(metodo) {
     if (carrito.length === 0) return alert("El carrito está vacío.");
 
+    // 🛑 FRENO PREVENTIVO BILLING GUARD: Si consumió las 1.300 facturas sin saldo, bloquea y abre modal
+    if (controlFacturacionActivo) {
+        const estadoCuota = BillingGuard.verificarEstadoCuota(controlFacturacionActivo, 'pos-alerta-facturas');
+        if (estadoCuota.bloqueado) {
+            return; // Bloqueo total: el modal de paquetes se despliega en pantalla completa
+        }
+    }
+
     const totalTicket = obtenerTotalTicketActual();
     const pagadoHastaAhora = calcularTotalPagadoHastaAhora();
+
     const remanente = totalTicket - pagadoHastaAhora;
 
     if (remanente <= 0) {
@@ -1039,6 +1064,19 @@ async function ejecutarVentaFinalDefinitiva() {
             : Number(prodMaestro.precio);
         let subtotal = item.precio_fijado_balanza ? precioFinal : Math.round(precioFinal * item.cantidad);
 
+        // 🛡️ ENLACE ESPACIAL AUTOMÁTICO: Deducir compartimiento activo en Piso de Venta
+        let idCompPisoVenta = "BIN_INICIAL";
+        try {
+            const stockUbisLocal = JSON.parse(localStorage.getItem(`geokatu_stock_ubis_${idNegocio}`) || "[]");
+            // Buscar la primera ubicación del producto que esté en zona de piso de ventas con stock > 0
+            const ubiPiso = stockUbisLocal.find(u => u.id_prod === prodMaestro.id_prod && u.zona === 'PISO_VENTA' && u.cantidad > 0);
+            if (ubiPiso && ubiPiso.id_compartimiento) {
+                idCompPisoVenta = ubiPiso.id_compartimiento;
+            }
+        } catch (eUbi) {
+            console.warn("[POS Contexto Espacial] Usando compartimiento por defecto:", eUbi);
+        }
+
         totalVentaCalculado += subtotal;
         productosAuditados.push({
             id_prod: prodMaestro.id_prod,
@@ -1052,9 +1090,11 @@ async function ejecutarVentaFinalDefinitiva() {
             cantidad: item.cantidad,
             subtotal: subtotal,
             precio_fijado_balanza: !!item.precio_fijado_balanza,
-            nota: item.nota || ""
+            nota: item.nota || "",
+            id_compartimiento: idCompPisoVenta // 📍 Coordenada física para descuento atómico en el estante
         });
     }
+
 
 
     const switchDian = document.getElementById('switch-dian');
@@ -2443,4 +2483,5 @@ async function abrirModalFacturaDigitalQR(ticketId) {
 document.getElementById('btn-cerrar-qr')?.addEventListener('click', () => {
     document.getElementById('modal-factura-qr').style.display = 'none';
 });
+
 

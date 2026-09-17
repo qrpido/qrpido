@@ -1,13 +1,14 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>QRpido - Centro de Moderación</title>
+    <title>Geokatu - Centro de Moderación y Activación</title>
     <meta name="theme-color" content="#0a0a0c">
     
+    <link rel="stylesheet" href="pines.css">
+    
     <style>
-        /* === VARIABLES DEL SISTEMA QRPIDO === */
         :root {
             --naranja: #ff6b00;
             --bg-oscuro: #0a0a0c;
@@ -15,20 +16,24 @@
             --glass-border: rgba(255, 255, 255, 0.1);
             --verde-neon: #00ff64;
             --rojo-alerta: #ff4444;
+            --azul-info: #60a5fa;
         }
+
         body, html {
-            margin: 0; padding: 0;
-            font-family: 'Segoe UI', sans-serif;
-            background: var(--bg-oscuro);
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: radial-gradient(circle at 50% 0%, #1a1a24 0%, var(--bg-oscuro) 100%);
             color: white;
             min-height: 100vh;
         }
-        /* === HEADER Y NAVEGACIÓN === */
+
+        /* --- HEADER Y NAVEGACIÓN --- */
         .header-admin {
             background: var(--glass-bg);
             backdrop-filter: blur(15px);
-            border-bottom: 1px solid var(--naranja);
-            padding: 15px 20px;
+            border-bottom: 1px solid rgba(255, 107, 0, 0.3);
+            padding: 15px 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -36,430 +41,559 @@
             top: 0;
             z-index: 1000;
         }
+
         .header-admin h1 {
-            margin: 0; font-size: 20px; font-weight: 900;
-            text-transform: uppercase; letter-spacing: 2px;
-            color: var(--naranja); text-shadow: 0 0 10px rgba(255,107,0,0.3);
+            margin: 0;
+            font-size: 18px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--naranja);
         }
+
         .btn-logout {
-            background: transparent; border: 1px solid var(--rojo-alerta);
-            color: var(--rojo-alerta); padding: 5px 15px; border-radius: 8px;
-            font-weight: bold; cursor: pointer; transition: 0.3s;
+            background: transparent;
+            border: 1px solid var(--rojo-alerta);
+            color: var(--rojo-alerta);
+            padding: 6px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
         }
+        .btn-logout:hover { background: rgba(255, 68, 68, 0.15); }
+
         .tabs-container {
-            display: flex; gap: 10px; padding: 15px 20px;
-            background: rgba(0,0,0,0.5);
+            display: flex;
+            gap: 10px;
+            padding: 15px 20px;
+            background: rgba(0,0,0,0.4);
+            max-width: 900px;
+            margin: 0 auto;
         }
+
         .tab-btn {
-            flex: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
-            color: #aaa; padding: 10px; border-radius: 12px; font-weight: bold;
-            text-transform: uppercase; cursor: pointer; transition: 0.3s;
+            flex: 1;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--glass-border);
+            color: #aaa;
+            padding: 10px;
+            border-radius: 12px;
+            font-weight: 800;
+            font-size: 12px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: 0.3s;
         }
+
         .tab-btn.activo {
-            background: var(--naranja); color: white; border-color: var(--naranja);
-            box-shadow: 0 0 15px rgba(255,107,0,0.4);
+            background: var(--naranja);
+            color: white;
+            border-color: var(--naranja);
+            box-shadow: 0 4px 15px rgba(255,107,0,0.4);
         }
-        .tab-content { display: none; padding: 20px; }
-        .tab-content.activo { display: block; animation: fadeIn 0.4s; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        /* === TARJETAS DE MODERACIÓN (GLASSMORPHISM) === */
+
+        .tab-content {
+            display: none;
+            padding: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .tab-content.activo {
+            display: block;
+            animation: fadeIn 0.4s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* --- TARJETAS DE COMERCIO (EXPEDIENTE) --- */
         .card-moderacion {
-            background: var(--glass-bg); backdrop-filter: blur(10px);
-            border: 1px solid var(--glass-border); border-radius: 15px;
-            padding: 15px; margin-bottom: 20px;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 18px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+            display: grid;
+            grid-template-columns: 80px 1fr 240px;
+            gap: 20px;
+            align-items: center;
         }
-        .card-header { border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; margin-bottom: 10px; }
-        .card-title { margin: 0; font-size: 18px; font-weight: 900; color: white; }
-        .badge-tipo { 
-            display: inline-block; background: rgba(255,255,255,0.1); 
-            padding: 3px 8px; border-radius: 8px; font-size: 11px; 
-            text-transform: uppercase; margin-top: 5px; color: #ccc;
+
+        @media (max-width: 768px) {
+            .card-moderacion {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
         }
-        /* === HERRAMIENTAS TÁCTICAS === */
-        .tools-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
-        
+
+        .pin-preview-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.3);
+            border-radius: 14px;
+            padding: 10px;
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .card-header {
+            margin-bottom: 8px;
+        }
+
+        .card-title {
+            margin: 0 0 4px 0;
+            font-size: 18px;
+            font-weight: 900;
+            color: white;
+        }
+
+        .badge-sector {
+            display: inline-block;
+            background: rgba(255, 107, 0, 0.15);
+            color: var(--naranja);
+            border: 1px solid rgba(255, 107, 0, 0.3);
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .info-row {
+            font-size: 12px;
+            color: #aaa;
+            margin: 4px 0;
+        }
+        .info-row strong { color: #eee; }
+
+        /* --- HERRAMIENTAS TÁCTICAS --- */
+        .tools-grid {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
         .btn-tool {
-            display: flex; align-items: center; justify-content: center; gap: 5px;
-            padding: 8px; border-radius: 8px; font-size: 12px; font-weight: bold;
-            text-decoration: none; border: 1px solid var(--glass-border);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: bold;
+            text-decoration: none;
+            border: 1px solid var(--glass-border);
+            cursor: pointer;
         }
-        .tool-wsp { background: rgba(37, 211, 102, 0.1); color: #25D366; border-color: rgba(37, 211, 102, 0.3); }
-        .tool-ig { background: rgba(225, 48, 108, 0.1); color: #E1306C; border-color: rgba(225, 48, 108, 0.3); }
-        .tool-map { background: rgba(0, 170, 255, 0.1); color: #00aaff; border-color: rgba(0, 170, 255, 0.3); grid-column: span 2; }
-        .tool-vitrina { background: rgba(255, 107, 0, 0.1); color: var(--naranja); border-color: rgba(255, 107, 0, 0.3); grid-column: span 2; }
-        .info-row { font-size: 13px; color: #aaa; margin: 5px 0; }
-        .info-row strong { color: #ddd; }
-        /* === CONTROLES DE ACCIÓN (APROBAR/RECHAZAR) === */
-        .action-box { 
-            background: rgba(0,0,0,0.4); padding: 10px; 
-            border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);
+
+        .tool-wsp { background: rgba(37, 211, 102, 0.15); color: #25D366; border-color: rgba(37, 211, 102, 0.3); }
+        .tool-wsp:hover { background: rgba(37, 211, 102, 0.3); }
+
+        .tool-map { background: rgba(96, 165, 250, 0.15); color: var(--azul-info); border-color: rgba(96, 165, 250, 0.3); }
+        .tool-map:hover { background: rgba(96, 165, 250, 0.3); }
+
+        .tool-cat { background: rgba(255, 255, 255, 0.08); color: white; border-color: rgba(255, 255, 255, 0.15); }
+        .tool-cat:hover { background: rgba(255, 255, 255, 0.15); }
+
+        /* --- CAJA DE RESOLUCIÓN --- */
+        .action-box {
+            background: rgba(0,0,0,0.5);
+            padding: 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.06);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
-        
+
         .select-motivo {
-            width: 100%; background: rgba(255,255,255,0.05); color: white;
-            border: 1px solid var(--glass-border); padding: 10px;
-            border-radius: 8px; margin-bottom: 10px; outline: none;
+            width: 100%;
+            background: rgba(255,255,255,0.05);
+            color: white;
+            border: 1px solid var(--glass-border);
+            padding: 8px;
+            border-radius: 8px;
+            font-size: 11px;
+            outline: none;
         }
         .select-motivo option { background: var(--bg-oscuro); color: white; }
-        .action-buttons { display: flex; gap: 10px; }
-        .btn-action { 
-            flex: 1; padding: 12px; border: none; border-radius: 8px;
-            font-weight: 900; text-transform: uppercase; cursor: pointer; transition: 0.3s;
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
         }
-        .btn-aprobar { background: var(--verde-neon); color: black; box-shadow: 0 0 10px rgba(0,255,100,0.3); }
-        .btn-rechazar { background: transparent; border: 1px solid var(--rojo-alerta); color: var(--rojo-alerta); }
-        .btn-action:active { transform: scale(0.95); }
-        /* === BUSCADOR HISTORIAL === */
-        .search-container { display: flex; gap: 10px; margin-bottom: 20px; }
-        .input-search {
-            flex: 1; background: var(--glass-bg); border: 1px solid var(--naranja);
-            color: white; padding: 12px 15px; border-radius: 25px; outline: none;
+
+        .btn-action {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 800;
+            font-size: 11px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: 0.2s;
         }
-        .btn-search {
-            background: var(--naranja); color: white; border: none;
-            padding: 0 20px; border-radius: 25px; font-weight: bold; cursor: pointer;
+
+        .btn-aprobar {
+            background: var(--verde-neon);
+            color: black;
+            box-shadow: 0 4px 12px rgba(0,255,100,0.3);
         }
-        .mensaje-vacio { text-align: center; color: #888; font-style: italic; padding: 40px 20px; }
-        
-        /* Pantalla de Carga Autenticación */
+        .btn-aprobar:hover { filter: brightness(1.1); }
+
+        .btn-rechazar {
+            background: transparent;
+            border: 1px solid var(--rojo-alerta);
+            color: var(--rojo-alerta);
+        }
+        .btn-rechazar:hover { background: rgba(255,68,68,0.1); }
+
+        .mensaje-vacio {
+            text-align: center;
+            color: #888;
+            font-size: 13px;
+            padding: 50px 20px;
+        }
+
+        /* PANTALLA ZERO-TRUST */
         #auth-lock {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: var(--bg-oscuro); z-index: 9999;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            position: fixed;
+            inset: 0;
+            background: var(--bg-oscuro);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
         }
     </style>
 </head>
 <body>
+
+    <!-- 1. PANTALLA ZERO TRUST (VERIFICACIÓN DE RANGO ADMIN) -->
     <div id="auth-lock">
-        <h2 style="color: var(--naranja); animation: pulse 1.5s infinite;">Verificando Credenciales...</h2>
-        <p style="color: #888;">Protocolo Zero Trust</p>
-    </div>
-    <header class="header-admin">
-        <h1>Centro Control</h1>
-        <button class="btn-logout" onclick="cerrarSesion()">Salir</button>
-    </header>
-    <div class="tabs-container">
-        <button class="tab-btn activo" onclick="cambiarTab('pendientes', this)">Pendientes</button>
-        <button class="tab-btn" onclick="cambiarTab('historial', this)">Historial</button>
-        <button class="tab-btn" style="border-color: var(--rojo-alerta); color: var(--rojo-alerta);" onclick="cambiarTab('tribunal', this)">⚖️ Tribunal</button>
+        <h2 style="color: var(--naranja); letter-spacing: 2px;">GEOKATU CONTROL</h2>
+        <p style="color: #888; font-size: 12px;">Validando privilegios de Superusuario...</p>
     </div>
 
+    <!-- 2. CABECERA -->
+    <header class="header-admin">
+        <h1>Centro de Activación</h1>
+        <button class="btn-logout" onclick="window.cerrarSesionAdmin()">Cerrar Sesión</button>
+    </header>
+
+    <!-- 3. SELECTOR DE FLUJOS -->
+    <div class="tabs-container">
+        <button class="tab-btn activo" onclick="window.cambiarTab('pendientes', this)">Pendientes por Activar</button>
+        <button class="tab-btn" onclick="window.cambiarTab('activos', this)">Comercios en Vivo</button>
+        <button class="tab-btn" style="border-color: var(--rojo-alerta); color: var(--rojo-alerta);" onclick="window.cambiarTab('historial', this)">Cementerio / Rechazos</button>
+    </div>
+
+    <!-- 4. BANDEJA: COMERCIOS PENDIENTES DE REVISIÓN -->
     <main id="tab-pendientes" class="tab-content activo">
         <div id="contenedor-pendientes">
-            <div class="mensaje-vacio">Buscando negocios en cola... ⏳</div>
+            <div class="mensaje-vacio">Escaneando bóvedas en espera... ⏳</div>
         </div>
     </main>
+
+    <!-- 5. BANDEJA: COMERCIOS ACTIVOS EN EL MAPA -->
+    <main id="tab-activos" class="tab-content">
+        <div id="contenedor-activos">
+            <div class="mensaje-vacio">Cargando directorio activo... ⏳</div>
+        </div>
+    </main>
+
+    <!-- 6. BANDEJA: HISTORIAL DE RECHAZOS Y BANEOS -->
     <main id="tab-historial" class="tab-content">
-        <div class="search-container">
-            <input type="email" id="input-correo-historial" class="input-search" placeholder="Escribe el correo a buscar...">
-            <button class="btn-search" onclick="buscarEnHistorial()">Buscar</button>
-        </div>
-        
-        <div id="resultado-historial">
-            <div class="mensaje-vacio">Ingresa un correo exacto para buscar en la Bóveda de Rechazos.</div>
+        <div id="contenedor-historial">
+            <div class="mensaje-vacio">No hay registros en el historial de rechazos.</div>
         </div>
     </main>
+
+    <!-- 7. SCRIPT DEL MOTOR DE MODERACIÓN Y AUDITORÍA -->
     <script type="module">
-        import QRpidoDB from './core-db.js';
-        // Escudo Anti-XSS nativo
-        window.sanitizarTexto = function(texto) {
-            if (!texto) return '';
-            const div = document.createElement('div');
-            div.textContent = texto;
-            return div.innerHTML;
-        };
-        // Variables Globales de Estado (Para cuidar la RAM)
+        import GeokatuDB from './core-db.js';
+        import { getFirestore, collection, query, where, getDocs, doc, updateDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const db = getFirestore();
         window.memoriaPendientes = [];
-                // 1. PROTOCOLO DE SEGURIDAD ZERO TRUST (Rango Militar)
-        QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
+        window.memoriaActivos = [];
+
+        window.sanitizarTexto = function(str) {
+            if (!str) return '';
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        };
+
+        // --- PROTOCOLO DE IDENTIDAD: COMPROBACIÓN ZERO-TRUST ---
+        GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
             if (user) {
-                // El usuario está logueado, ahora verificamos en la base de datos si es de la élite
-                const { success, data } = await QRpidoDB.SecurityService.obtenerRolAdmin(user.uid);
-                
-                if (success && (data.rol === 'admin' || data.rol === 'moderador' || data.rol === 'superadmin')) {
-                    // ¡Es uno de los nuestros! Le quitamos el candado visual
-                    document.getElementById('auth-lock').style.display = 'none';
-                    cargarPendientes();
-                } else {
-                    // Es un civil (dueño de negocio normal) intentando hackear el panel
-                    alert("⛔ ACCESO DENEGADO: Tu cuenta no tiene rango de moderador.");
-                    window.location.href = 'index.html'; 
+                try {
+                    const { success, data } = await GeokatuDB.SecurityService.obtenerRolAdmin(user.uid);
+                    if (success && (data.rol === 'superadmin' || data.rol === 'admin' || data.rol === 'moderador')) {
+                        document.getElementById('auth-lock').style.display = 'none';
+                        window.cargarComerciosPendientes();
+                    } else {
+                        alert("⛔ Acceso Restringido: Tu cuenta no posee privilegios de Moderación Geokatu.");
+                        window.location.href = 'index.html';
+                    }
+                } catch (e) {
+                    alert("Fallo de autenticación: " + e.message);
+                    window.location.href = 'index.html';
                 }
             } else {
-                // No está logueado
-                window.location.href = 'index.html'; 
+                window.location.href = 'index.html';
             }
         });
-        window.cerrarSesion = async () => {
-            await QRpidoDB.SecurityService.cerrarSesion();
+
+        window.cerrarSesionAdmin = async () => {
+            await GeokatuDB.SecurityService.cerrarSesion();
+            window.location.href = 'index.html';
         };
-        // 2. SISTEMA DE PESTAÑAS
+
         window.cambiarTab = (idTab, btn) => {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('activo'));
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('activo'));
             document.getElementById(`tab-${idTab}`).classList.add('activo');
             btn.classList.add('activo');
+
+            if (idTab === 'activos') window.cargarComerciosActivos();
+            if (idTab === 'pendientes') window.cargarComerciosPendientes();
         };
-        // 3. CARGAR NEGOCIOS PENDIENTES
-        async function cargarPendientes() {
-            const contenedor = document.getElementById('contenedor-pendientes');
-            contenedor.innerHTML = '<div class="mensaje-vacio">Escaneando base de datos... ⏳</div>';
-            const { success, data, error } = await QRpidoDB.AdminService.obtenerNegociosPendientes();
-            
-            if (!success) {
-                contenedor.innerHTML = `<div class="mensaje-vacio" style="color:var(--rojo-alerta);">Error: ${error}</div>`;
-                return;
+
+        // --- FÁBRICA SVG PARA PREVISUALIZAR EL PIN EN LA TARJETA ---
+        function generarPreviewPinHTML(pinPack, c1, linkPin) {
+            let fClass = 'forma-gota', aClass = 'anim-salto', eAnclaje = '', eEmoji = '';
+            if (pinPack) {
+                const p = pinPack.split('|');
+                fClass = p[0] || 'forma-gota';
+                aClass = p[1] || 'anim-salto';
+                if (p.length > 2) { eAnclaje = p[2] || ''; eEmoji = p[3] || ''; }
             }
-            if (data.length === 0) {
-                contenedor.innerHTML = '<div class="mensaje-vacio">✅ Todo limpio. No hay negocios pendientes.</div>';
-                return;
-            }
-            // Guardamos en la memoria RAM local para acceder a ellos al momento de rechazar
-            window.memoriaPendientes = data;
-            
-            let htmlCards = '';
-            data.forEach(n => {
-                const nombreLimpio = sanitizarTexto(n.nombre || 'Sin Nombre');
-                const telefonoLimpio = sanitizarTexto(n.whatsapp || '').replace(/\D/g,''); // Solo números
-                
-                // Generador de Mensaje WSP Dinámico
-                const mensajeWsp = encodeURIComponent(`Hola ${nombreLimpio}, soy del equipo de verificación de QRpido. Nos comunicamos para validar tu catálogo y habilitar tu negocio en el mapa.`);
-                const linkWsp = telefonoLimpio ? `https://wa.me/${telefonoLimpio}?text=${mensajeWsp}` : '#';
-                                const linkIg = n.instagram ? sanitizarTexto(n.instagram) : null;
-               const linkTienda = `negocio.html?id=${encodeURIComponent(n.id)}`;
 
-// CORRECCIÓN: Adaptación atómica al payload estructurado de la selfie y cédulas de index.js
-const kycObj = n.evidencia_kyc || {};
-const linkFrente = kycObj.frente ? sanitizarTexto(kycObj.frente) : null;
-const linkRostro = kycObj.rostro ? sanitizarTexto(kycObj.rostro) : null;
+            let svgSilueta = '<path d="M 30,57 C 30,57 10,38 10,20 C 10,9 19,3 30,3 C 41,3 50,9 50,20 C 50,38 30,57 30,57 Z" />';
+            if (fClass === 'forma-esfera') svgSilueta = '<circle cx="30" cy="30" r="26" />';
+            else if (fClass === 'forma-triangulo') svgSilueta = '<polygon points="6,8 54,8 30,54" stroke-linejoin="round" />';
+            else if (fClass === 'forma-estrella') svgSilueta = '<polygon points="30,4 38,23 57,23 42,34 48,53 30,42 12,53 18,34 3,23 22,23" stroke-linejoin="round" />';
+            else if (fClass === 'forma-hexagono') svgSilueta = '<polygon points="30,4 53,17 53,43 30,56 7,43 7,17" stroke-linejoin="round" />';
+            else if (fClass === 'forma-corazon') svgSilueta = '<path d="M 30 16 C 22 2 10 6 10 20 C 10 35 25 45 30 57 C 35 45 50 35 50 20 C 50 6 38 2 30 16 Z" stroke-linejoin="round" />';
 
-// El badge se activa si el estado_moderacion en Firestore es el correcto
-const badgeKycPendiente = n.estado_moderacion === "en_revision_kyc" ? `<div class="badge-tipo" style="background: rgba(255, 107, 0, 0.1); color: var(--naranja); border: 1px solid var(--naranja);">⏳ KYC Por Verificar</div>` : '';
-const badgeWeb3 = n.wallet_sui ? `<div class="badge-tipo" style="background: rgba(0, 255, 100, 0.1); color: var(--verde-neon); border: 1px solid var(--verde-neon); box-shadow: 0 0 8px rgba(0,255,100,0.3);">🔗 Billetera SUI Forjada</div>` : '';
+            const emojiAttr = (eEmoji && eEmoji !== '|') ? `data-emoji="${eEmoji}" data-anclaje="${eAnclaje}"` : '';
 
-                htmlCards += `
-                <div class="card-moderacion" id="card-${n.id}">
-                    <div class="card-header">
-                        <h3 class="card-title">${nombreLimpio}</h3>
-                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                            <div class="badge-tipo">${sanitizarTexto(n.tipo_modelo || 'Desconocido')}</div>
-                            ${badgeWeb3}
-                        </div>
-                    </div>
-                    
-                    <p class="info-row"><strong>✉️ Correo:</strong> ${sanitizarTexto(n.email)}</p>
-                    <p class="info-row"><strong>📍 Zona:</strong> ${sanitizarTexto(n.categoria || 'No especificada')}</p>
-                    <p class="info-row" style="font-size:10px;"><strong>🧭 Coordenadas:</strong> 
-                        ${n.Coordenadas ? `${n.Coordenadas.latitude}, ${n.Coordenadas.longitude}` : 'Falta anclar PIN'}
-                    </p>
-                                        <div class="tools-grid">
-                        <a href="${linkWsp}" target="_blank" class="btn-tool tool-wsp" ${!telefonoLimpio ? 'style="opacity:0.3; pointer-events:none;"' : ''}>
-                            💬 Validar WSP
-                        </a>
-                        ${linkIg ? `<a href="${linkIg}" target="_blank" class="btn-tool tool-ig">📸 Instagram</a>` : `<div class="btn-tool" style="opacity:0.3;">Sin IG</div>`}
-                        <a href="${linkTienda}" target="_blank" class="btn-tool tool-vitrina">🔍 Visualizar Catálogo</a>
-                        ${linkFrente ? `<a href="${linkFrente}" target="_blank" class="btn-tool" style="background: rgba(0,170,255,0.1); color: #00aaff; border-color: rgba(0,170,255,0.3);">🪪 Ver Cédula</a>` : `<div class="btn-tool" style="opacity:0.3;">Falta Cédula</div>`} 
-// CAMBIO: Corrección en el cierre de etiquetas HTML para evitar desbordes en el Tools-Grid
-${linkRostro ? `<a href="${linkRostro}" target="_blank" class="btn-tool" style="background: rgba(255,107,0,0.1); color: var(--naranja); border-color: rgba(255,107,0,0.3);">🤳 Ver Selfie</a>` : `<div class="btn-tool" style="opacity:0.3;">Falta Selfie</div>`}
-
-                    </div>
-
-                    <div class="action-box">
-                                                <select id="motivo-${n.id}" class="select-motivo">
-                            <option value="">Selecciona motivo de rechazo...</option>
-                            <option value="pornografia">🚫 Pornografía / Contenido Explícito</option>
-                            <option value="ilicito">🛑 Negocio Ilícito / Prohibido</option>
-                            <option value="whatsapp_invalido">📵 WhatsApp Inválido / No responde</option>
-                            <option value="tipo_invalido">❌ Invalidación Tipo de Negocio</option>
-                            <option value="kyc_invalido">🪪 Documento KYC Inválido / Falso</option>
-                            <option value="spam" style="color:var(--rojo-alerta); font-weight:bold;">🔥 SPAM / Cuenta Falsa (A Lista Negra)</option>
-                        </select>
-
-                        
-                        <div class="action-buttons">
-                            <button class="btn-action btn-rechazar" onclick="ejecutarRechazo('${n.id}')">Eliminar</button>
-                            <button class="btn-action btn-aprobar" onclick="ejecutarAprobacion('${n.id}')">Aprobar</button>
-                        </div>
-                    </div>
-                </div>`;
-            });
-            contenedor.innerHTML = htmlCards;
+            return `
+                <div class="pin-wrapper ${aClass}" data-forma="${fClass}" style="--color-main: ${c1 || '#ff6b00'}; width: 50px; height: 50px;" ${emojiAttr}>
+                    <svg class="svg-pin-fondo" viewBox="0 0 60 60">${svgSilueta}</svg>
+                    <img src="${linkPin || 'https://via.placeholder.com/60/0a0a0c/ff6b00?text=PIN'}" class="img-pin-interior" style="display: block;">
+                </div>
+            `;
         }
-        // 4. ACCIONES DE MODERACIÓN
-        window.ejecutarAprobacion = async (id) => {
-            if(!confirm("¿Seguro que deseas habilitar este negocio en el mapa público?")) return;
-            
+
+        // --- CARGAR PENDIENTES ---
+        window.cargarComerciosPendientes = async () => {
+            const cont = document.getElementById('contenedor-pendientes');
+            cont.innerHTML = '<div class="mensaje-vacio">Analizando solicitudes pendientes... ⏳</div>';
+
+            try {
+                // Consultamos directorio buscando estado_moderacion == 'pendiente'
+                const qP = query(collection(db, "Directorio"), where("estado_moderacion", "==", "pendiente"));
+                const snap = await getDocs(qP);
+
+                if (snap.empty) {
+                    cont.innerHTML = '<div class="mensaje-vacio">✅ No hay comercios pendientes. Toda la red está verificada.</div>';
+                    return;
+                }
+
+                window.memoriaPendientes = [];
+                snap.forEach(d => window.memoriaPendientes.push({ id: d.id, ...d.data() }));
+
+                let html = '';
+                window.memoriaPendientes.forEach(c => {
+                    const nombre = window.sanitizarTexto(c.nombre || 'Sin Nombre');
+                    const tel = (c.whatsapp || c.whatsApp || '').toString().replace(/\D/g, '');
+                    const c1 = c.color_principal || '#ff6b00';
+                    const lat = c.Coordenadas?.latitude || 0;
+                    const lng = c.Coordenadas?.longitude || 0;
+
+                    // Mensaje de asistencia Concierge Onboarding
+                    const msgWsp = encodeURIComponent(`Hola ${nombre}! 👋 Te saludamos del equipo técnico de Geokatu Pereira. Vemos que estás forjando tu comercio. Queremos ayudarte a validar tu local para que aparezca verificado en el mapa y enseñarte a configurar tu terminal de stock y POS.`);
+                    const linkWsp = tel ? `https://wa.me/${tel}?text=${msgWsp}` : '#';
+                    const linkMaps = (lat && lng) ? `https://www.google.com/maps?q=${lat},${lng}` : '#';
+
+                    html += `
+                        <div class="card-moderacion" id="card-${c.id}">
+                            <div class="pin-preview-box">
+                                ${generarPreviewPinHTML(c.pin_pack, c1, c.link_pin || c.logo)}
+                                <span style="font-size: 9px; color: #888; margin-top: 6px;">VISTA PIN</span>
+                            </div>
+
+                            <div>
+                                <div class="card-header">
+                                    <h3 class="card-title">${nombre}</h3>
+                                    <span class="badge-sector">${c.niche || 'COMERCIO'}</span>
+                                </div>
+                                <p class="info-row"><strong>✉️ Correo:</strong> ${c.email || 'N/A'}</p>
+                                <p class="info-row"><strong>📱 WhatsApp:</strong> ${c.whatsapp || c.whatsApp || 'Sin registrar'}</p>
+                                <p class="info-row"><strong>📍 Geohash:</strong> ${c.geohash || 'Sin geohash'} (${lat.toFixed(4)}, ${lng.toFixed(4)})</p>
+                                
+                                <div class="tools-grid">
+                                    <a href="${linkWsp}" target="_blank" class="btn-tool tool-wsp" ${!tel ? 'style="opacity:0.3; pointer-events:none;"' : ''}>
+                                        💬 Entrevista WhatsApp
+                                    </a>
+                                    <a href="${linkMaps}" target="_blank" class="btn-tool tool-map" ${(!lat || !lng) ? 'style="opacity:0.3; pointer-events:none;"' : ''}>
+                                        🗺️ Ver en Google Maps
+                                    </a>
+                                    <a href="negocio.html?id=${c.id}" target="_blank" class="btn-tool tool-cat">
+                                        👁️ Vista Previa Catálogo
+                                    </a>
+                                </div>
+                            </div>
+
+                            <div class="action-box">
+                                <select id="motivo-${c.id}" class="select-motivo">
+                                    <option value="">Opciones de rechazo...</option>
+                                    <option value="whatsapp_invalido">📵 WhatsApp No responde / Inválido</option>
+                                    <option value="ubicacion_falsa">📍 Ubicación inexistente o sospechosa</option>
+                                    <option value="contenido_inapropiado">🚫 Contenido no permitido</option>
+                                    <option value="spam">🔥 Perfil de prueba / Spam</option>
+                                </select>
+                                <div class="action-buttons">
+                                    <button class="btn-action btn-rechazar" onclick="window.rechazarComercio('${c.id}')">Rechazar</button>
+                                    <button class="btn-action btn-aprobar" onclick="window.activarComercio('${c.id}')">Aprobar y Publicar</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                cont.innerHTML = html;
+
+            } catch (err) {
+                console.error("Error cargando pendientes:", err);
+                cont.innerHTML = `<div class="mensaje-vacio" style="color:var(--rojo-alerta);">Error: ${err.message}</div>`;
+            }
+        };
+
+        // --- CARGAR ACTIVOS ---
+        window.cargarComerciosActivos = async () => {
+            const cont = document.getElementById('contenedor-activos');
+            cont.innerHTML = '<div class="mensaje-vacio">Consultando red de comercios activos... ⏳</div>';
+
+            try {
+                const qA = query(collection(db, "Directorio"), where("estado_moderacion", "==", "aprobado"));
+                const snap = await getDocs(qA);
+
+                if (snap.empty) {
+                    cont.innerHTML = '<div class="mensaje-vacio">No hay comercios aprobados aún.</div>';
+                    return;
+                }
+
+                let html = '';
+                snap.forEach(d => {
+                    const c = d.data();
+                    html += `
+                        <div class="card-moderacion" id="card-${d.id}" style="grid-template-columns: 80px 1fr 140px;">
+                            <div class="pin-preview-box">
+                                ${generarPreviewPinHTML(c.pin_pack, c.color_principal, c.link_pin || c.logo)}
+                            </div>
+                            <div>
+                                <h3 class="card-title">${window.sanitizarTexto(c.nombre)}</h3>
+                                <p class="info-row"><strong>📱 WhatsApp:</strong> ${c.whatsApp || 'N/A'}</p>
+                                <p class="info-row"><strong>📅 Activado:</strong> ${c.fecha_aprobacion ? new Date(c.fecha_aprobacion).toLocaleDateString() : 'Activo'}</p>
+                            </div>
+                            <div>
+                                <button class="btn-action btn-rechazar" style="width: 100%;" onclick="window.suspenderComercio('${d.id}')">Pausar del Mapa</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                cont.innerHTML = html;
+            } catch (e) {
+                cont.innerHTML = `<div class="mensaje-vacio" style="color:var(--rojo-alerta);">${e.message}</div>`;
+            }
+        };
+
+        // --- ACCIONES MAESTRAS ---
+        window.activarComercio = async (id) => {
+            if (!confirm("¿Deseas activar y publicar este comercio en el mapa público de Geokatu?")) return;
+
             const btn = document.querySelector(`#card-${id} .btn-aprobar`);
-            btn.innerText = '⏳...'; btn.disabled = true;
-          // CAMBIO: Separación sintáctica del comentario para ejecución asíncrona limpia
-const { success, error } = await QRpidoDB.AdminService.actualizarNegocio(id, { 
-    estado_moderacion: "aprobado_activo", 
-    kyc_verificado: true, 
-    estado_aliado: "activo", 
-    fecha_aprobacion: new Date().toISOString() 
-});
+            btn.innerText = "ACTIVANDO..."; btn.disabled = true;
 
-            if(success) {
-                document.getElementById(`card-${id}`).remove();
-                // Si la pantalla se queda vacía, recargamos para ver si hay más
-                if(document.querySelectorAll('.card-moderacion').length === 0) cargarPendientes();
-            } else {
-                alert("Error al aprobar: " + error);
-                btn.innerText = 'Aprobar'; btn.disabled = false;
+            try {
+                const ref = doc(db, "Directorio", id);
+                await updateDoc(ref, {
+                    estado_moderacion: "aprobado",
+                    verificado_geokatu: true,
+                    fecha_aprobacion: new Date().toISOString()
+                });
+
+                alert("✅ ¡Comercio aprobado! Ya es visible para todos los ciudadanos en el mapa de index.html.");
+                document.getElementById(`card-${id}`)?.remove();
+                if (document.querySelectorAll('#contenedor-pendientes .card-moderacion').length === 0) {
+                    window.cargarComerciosPendientes();
+                }
+            } catch (err) {
+                alert("Error al aprobar: " + err.message);
+                btn.innerText = "Aprobar y Publicar"; btn.disabled = false;
             }
         };
-        window.ejecutarRechazo = async (id) => {
-            const selectMotivo = document.getElementById(`motivo-${id}`);
-            const motivo = selectMotivo.value;
-            if(!motivo) {
-                alert("Debes seleccionar un motivo antes de rechazar y eliminar este negocio.");
-                selectMotivo.focus();
-                return;
-            }
-            const mensajeBlacklist = motivo === 'spam' ? '\n\n⚠️ ATENCIÓN: Al marcarlo como SPAM, su correo irá a la Lista Negra.' : '';
-            if(!confirm("¿Seguro que deseas rechazar y destruir la cuenta de este negocio?" + mensajeBlacklist)) return;
+
+        window.rechazarComercio = async (id) => {
+            const select = document.getElementById(`motivo-${id}`);
+            const motivo = select.value;
+            if (!motivo) return alert("Por favor selecciona un motivo para justificar el rechazo.");
+
+            if (!confirm("¿Confirmas el rechazo de este comercio? Se archivará su registro.")) return;
+
             const btn = document.querySelector(`#card-${id} .btn-rechazar`);
-            btn.innerText = '⏳...'; btn.disabled = true;
-            // Rescatamos los datos de la memoria local para mandarlos al cementerio
-            const datosNegocio = window.memoriaPendientes.find(n => n.id === id);
-            const { success, error } = await QRpidoDB.AdminService.rechazarNegocio(id, datosNegocio, motivo);
-            
-            if(success) {
-                document.getElementById(`card-${id}`).remove();
-                if(document.querySelectorAll('.card-moderacion').length === 0) cargarPendientes();
-            } else {
-                alert("Error al rechazar: " + error);
-                btn.innerText = 'Eliminar'; btn.disabled = false;
-            }
-        };
-        // 5. BUSCADOR DE HISTORIAL (CEMENTERIO)
-        window.buscarEnHistorial = async () => {
-            const input = document.getElementById('input-correo-historial');
-            const correo = input.value.trim();
-            const contenedor = document.getElementById('resultado-historial');
-            if(!correo) {
-                contenedor.innerHTML = '<div class="mensaje-vacio">Escribe un correo para buscar.</div>';
-                return;
-            }
-            contenedor.innerHTML = '<div class="mensaje-vacio">Buscando en la Bóveda de Rechazos... ⏳</div>';
-            const { success, data, error } = await QRpidoDB.AdminService.buscarRechazoPorCorreo(correo);
-            if(!success) {
-                contenedor.innerHTML = `<div class="mensaje-vacio" style="color:var(--rojo-alerta);">Error: ${error}</div>`;
-                return;
-            }
-            if(!data) {
-                contenedor.innerHTML = `
-                <div class="card-moderacion" style="text-align:center; border-color: #555;">
-                    <div style="font-size:30px; margin-bottom:10px;">👻</div>
-                    <h3 style="margin:0;">No existe</h3>
-                    <p style="color:#aaa; font-size:12px;">No encontramos registros de rechazo para:<br><b>${sanitizarTexto(correo)}</b></p>
-                </div>`;
-                return;
-            }
-                        // Mapeo amigable de los motivos
-            const motivosLegibles = {
-                'pornografia': '🚫 Contenido Explícito',
-                'ilicito': '🛑 Negocio Ilícito',
-                'whatsapp_invalido': '📵 WSP Inválido',
-                'tipo_invalido': '❌ Tipo Inválido',
-                'kyc_invalido': '🪪 Documento KYC Falso o Ilegible'
-            };
+            btn.innerText = "ARCHIVANDO..."; btn.disabled = true;
 
-            const motivoAmostrar = motivosLegibles[data.motivo_rechazo] || data.motivo_rechazo;
-            const fecha = new Date(data.fecha_rechazo).toLocaleDateString('es-CO');
-            contenedor.innerHTML = `
-            <div class="card-moderacion" style="border-color: var(--rojo-alerta);">
-                <div class="card-header">
-                    <h3 class="card-title">${sanitizarTexto(data.nombre)}</h3>
-                    <div class="badge-tipo" style="background: rgba(255,68,68,0.2); color: var(--rojo-alerta);">Rechazado el ${fecha}</div>
-                </div>
-                <p class="info-row"><strong>✉️ Correo:</strong> ${sanitizarTexto(data.email)}</p>
-                <p class="info-row"><strong>📱 WhatsApp:</strong> ${sanitizarTexto(data.whatsapp)}</p>
-                <p class="info-row"><strong>📍 Dirección:</strong> ${sanitizarTexto(data.direccion)}</p>
-                <div style="margin-top:15px; padding:10px; background:rgba(0,0,0,0.5); border-radius:8px; border-left:3px solid var(--rojo-alerta);">
-                    <p style="margin:0; font-size:11px; color:#aaa; text-transform:uppercase;">Motivo del Dictamen:</p>
-                    <p style="margin:5px 0 0 0; font-weight:bold; color:white;">${motivoAmostrar}</p>
-                </div>
-            </div>`;
-        };
-
-        // 6. FUNCIONES DEL TRIBUNAL P2P (Auditoría en Sombra)
-        window.buscarEnTribunal = async () => {
-            const input = document.getElementById('input-buscar-tribunal');
-            const idComercio = input.value.trim();
-            const contenedor = document.getElementById('resultado-tribunal');
-            
-            if(!idComercio) return;
-            contenedor.innerHTML = '<div class="mensaje-vacio">Analizando métricas atómicas de evasión... ⏳</div>';
-            
-            const { success, data, error } = await QRpidoDB.LocalService.getDetails(idComercio);
-            if(!success || !data) {
-                contenedor.innerHTML = '<div class="mensaje-vacio" style="color:var(--rojo-alerta);">Comercio no encontrado en el Directorio.</div>';
-                return;
-            }
-            
-            const intentos = data.intentos_whatsapp || 0;
-            const validadas = data.ordenes_validadas || 0;
-            const fugas = intentos - validadas;
-            const apelaciones = data.apelaciones_ganadas || 0;
-            const limite = apelaciones > 0 ? 9 : 50;
-            const estado = data.estado_aliado || 'activo';
-            
-            contenedor.innerHTML = `
-            <div class="card-moderacion">
-                <div class="card-header">
-                    <h3 class="card-title">${sanitizarTexto(data.nombre)}</h3>
-                    <div class="badge-tipo" style="background: ${estado.includes('baneado') ? 'rgba(255,68,68,0.2)' : 'rgba(0,255,100,0.2)'}; color: ${estado.includes('baneado') ? 'var(--rojo-alerta)' : 'var(--verde-neon)'};">${estado.toUpperCase()}</div>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
-                    <div style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px; text-align: center;">
-                        <p style="font-size: 10px; color: #888; margin: 0 0 5px 0;">INTENTOS WSP</p>
-                        <h3 style="margin: 0; color: white;">${intentos}</h3>
-                    </div>
-                    <div style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px; text-align: center;">
-                        <p style="font-size: 10px; color: #888; margin: 0 0 5px 0;">ORDENES VALIDADAS</p>
-                        <h3 style="margin: 0; color: var(--verde-neon);">${validadas}</h3>
-                    </div>
-                </div>
-                <p style="font-size: 13px; color: #ddd; text-align: center;">Fugas Detectadas: <span style="color: ${fugas >= limite ? 'var(--rojo-alerta)' : 'var(--naranja)'}; font-weight: bold; font-size: 16px;">${fugas}</span> / Límite: ${limite}</p>
-                <p style="font-size: 11px; color: #aaa; text-align: center;">Apelaciones ganadas previas: ${apelaciones}</p>
+            try {
+                const cData = window.memoriaPendientes.find(x => x.id === id) || {};
                 
-                <div class="action-buttons" style="margin-top: 15px;">
-                    <button class="btn-action btn-rechazar" onclick="ejecutarHardBan('${idComercio}')">Hard Ban</button>
-                    <button class="btn-action btn-aprobar" onclick="perdonarComercio('${idComercio}', ${apelaciones})">Perdonar (Strike 2)</button>
-                </div>
-            </div>`;
+                // Mover a la colección de auditoría de rechazos
+                await setDoc(doc(db, "Rechazos_Directorio", id), {
+                    ...cData,
+                    motivo_rechazo: motivo,
+                    fecha_rechazo: new Date().toISOString()
+                });
+
+                // Marcar en Directorio como rechazado para ocultarlo
+                await updateDoc(doc(db, "Directorio", id), {
+                    estado_moderacion: "rechazado",
+                    motivo_rechazo: motivo
+                });
+
+                document.getElementById(`card-${id}`)?.remove();
+                alert("Registro archivado en Bóveda de Rechazos.");
+            } catch (err) {
+                alert("Error al rechazar: " + err.message);
+                btn.disabled = false;
+            }
         };
 
-        window.perdonarComercio = async (id, apelacionesActuales) => {
-            if(!confirm("¿Aprobar apelación? El umbral de tolerancia bajará a 9 fugas para este comercio.")) return;
-            const payload = { estado_aliado: 'activo', apelaciones_ganadas: apelacionesActuales + 1, ordenes_validadas: 0, intentos_whatsapp: 0 };
-            const { success, error } = await QRpidoDB.AdminService.actualizarNegocio(id, payload);
-            if(success) { alert("Comercio perdonado."); buscarEnTribunal(); } else { alert("Error: " + error); }
-        };
-
-        window.ejecutarHardBan = async (id) => {
-            if(!confirm("¿Seguro? El negocio perderá acceso total por evasión y quedará marcado en la base de datos de infractores.")) return;
-            const { success, error } = await QRpidoDB.AdminService.actualizarNegocio(id, { estado_aliado: 'baneado_permanente' });
-            if(success) { alert("Hard Ban ejecutado con éxito."); buscarEnTribunal(); } else { alert("Error: " + error); }
+        window.suspenderComercio = async (id) => {
+            if (!confirm("¿Deseas pausar este comercio? Dejará de ser visible en el radar.")) return;
+            try {
+                await updateDoc(doc(db, "Directorio", id), {
+                    estado_moderacion: "suspendido"
+                });
+                document.getElementById(`card-${id}`)?.remove();
+            } catch (e) {
+                alert("Error: " + e.message);
+            }
         };
     </script>
-
-    <main id="tab-tribunal" class="tab-content">
-        <div style="background: rgba(255, 68, 68, 0.1); border: 1px solid var(--rojo-alerta); padding: 15px; border-radius: 12px; margin-bottom: 20px;">
-            <h3 style="color: var(--rojo-alerta); margin-top: 0; margin-bottom: 5px;">🚨 Disputas por Evasión</h3>
-            <p style="font-size: 12px; color: #ddd; margin: 0;">Revisa los casos de comercios marcados por el algoritmo. Exige pruebas del chat de WhatsApp antes de Perdonar.</p>
-        </div>
-        <div class="search-container">
-            <input type="text" id="input-buscar-tribunal" class="input-search" placeholder="ID del Negocio a auditar...">
-            <button class="btn-search" style="background: var(--rojo-alerta);" onclick="buscarEnTribunal()">Auditar</button>
-        </div>
-        <div id="resultado-tribunal">
-            <div class="mensaje-vacio">Busca un ID para ver sus métricas atómicas de evasión.</div>
-        </div>
-    </main>
 </body>
 </html>
-
 

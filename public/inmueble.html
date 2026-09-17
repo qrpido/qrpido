@@ -3,684 +3,948 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cargando Propiedad... | QRpido</title>
+    <title>Inmuebles | Geokatu</title>
    
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#ff6b00">
-    <link rel="apple-touch-icon" href="https://via.placeholder.com/192/0a0a0c/ff6b00?text=QR">
+    <link rel="apple-touch-icon" href="https://via.placeholder.com/192/0a0a0c/ff6b00?text=GK">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-        <style>
+
+    <style>
         :root {
             --color-marca: #ff6b00;
+            --naranja: #ff6b00;
             --bg-oscuro: #0a0a0c;
             --glass-bg: rgba(20, 20, 25, 0.75);
             --glass-border: rgba(255, 255, 255, 0.1);
            
-            /* 📐 Sistema Áureo (1.618) & Fibonacci */
+            /* Sistema Áureo & Fibonacci */
             --texto-sm: 10px;
             --texto-base: 16px;
-            --texto-h3: 26px;
-            --texto-h1: 42px;
+            --texto-h3: 22px;
+            --texto-h1: 32px;
             
-            /* Espaciados de Fibonacci */
             --sp-micro: 8px;
             --sp-sm: 13px;
             --sp-md: 21px;
             --sp-lg: 34px;
             --sp-xl: 55px;
         }
-        body, html { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg-oscuro); color: white; scroll-behavior: smooth; overflow-x: hidden; font-size: var(--texto-base); }
+
+        body, html { 
+            margin: 0; 
+            padding: 0; 
+            font-family: 'Segoe UI', sans-serif; 
+            background: var(--bg-oscuro); 
+            color: white; 
+            scroll-behavior: smooth; 
+            overflow-x: hidden; 
+            font-size: var(--texto-base);
+            touch-action: pan-y;
+            overscroll-behavior-y: contain;
+        }
        
-        /* === FONDOS Y CRISTAL === */
-        #fondo-pantalla { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; object-fit: cover; z-index: -2; opacity: 0.2; }
-        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: 20px; }
+        /* Fondo Ambiental */
+        #fondo-pantalla { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100vh; 
+            object-fit: cover; 
+            z-index: -2; 
+            opacity: 0.15; 
+            filter: blur(15px);
+            transition: opacity 0.5s ease;
+        }
+
+        .glass-panel { 
+            background: var(--glass-bg); 
+            backdrop-filter: blur(20px); 
+            -webkit-backdrop-filter: blur(20px); 
+            border: 1px solid var(--glass-border); 
+            border-radius: 20px; 
+        }
        
-        /* === SKELETON SHIMMER LOADING === */
-        .shimmer-box { position: relative; overflow: hidden; background: rgba(255,255,255,0.05) !important; color: transparent !important; border-color: transparent !important; text-shadow: none !important; box-shadow: none !important; pointer-events: none; }
+        /* Shimmer Loading */
+        .shimmer-box { 
+            position: relative; 
+            overflow: hidden; 
+            background: rgba(255,255,255,0.05) !important; 
+            color: transparent !important; 
+            border-color: transparent !important; 
+            pointer-events: none; 
+        }
         .shimmer-box * { visibility: hidden; }
-        .shimmer-box::after { content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent); animation: shimmer 1.5s infinite; }
+        .shimmer-box::after { 
+            content: ''; 
+            position: absolute; 
+            top: 0; 
+            left: -100%; 
+            width: 50%; 
+            height: 100%; 
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent); 
+            animation: shimmer 1.5s infinite; 
+        }
         @keyframes shimmer { 100% { left: 100%; } }
-        /* === NAVEGACIÓN FLOTANTE === */
-        .nav-flotante { position: absolute; top: 15px; left: 15px; right: 15px; display: flex; justify-content: space-between; z-index: 100; pointer-events: none; }
-        .btn-nav { pointer-events: all; background: rgba(0,0,0,0.6); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 50%; width: 40px; height: 40px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.5); text-decoration: none; }
-        .btn-nav:active { transform: scale(0.9); background: var(--color-marca); border-color: var(--color-marca); }
-                /* === GALERÍA ÁUREA === */
-        .galeria-container { width: 100%; position: relative; margin-bottom: var(--sp-md); }
-        .galeria-wrapper { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; border-radius: 0 0 30px 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); border-bottom: 2px solid var(--color-marca); }
+
+        /* Navegación Flotante */
+        .nav-flotante { 
+            position: fixed; 
+            top: 15px; 
+            left: 15px; 
+            right: 15px; 
+            display: flex; 
+            justify-content: space-between; 
+            z-index: 500; 
+            pointer-events: none; 
+        }
+        .btn-nav { 
+            pointer-events: all; 
+            background: rgba(10,10,15,0.7); 
+            backdrop-filter: blur(12px); 
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.2); 
+            color: white; 
+            border-radius: 50%; 
+            width: 44px; 
+            height: 44px; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            cursor: pointer; 
+            transition: all 0.25s ease; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.6); 
+            text-decoration: none; 
+        }
+        .btn-nav:active { 
+            transform: scale(0.92); 
+            background: var(--color-marca); 
+            border-color: var(--color-marca); 
+        }
+        
+        /* Contenedor Tinder Swipeable */
+        #tarjeta-inmueble-activa {
+            width: 100%;
+            transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.35s ease;
+            will-change: transform, opacity;
+        }
+
+        /* Galería */
+        .galeria-container { 
+            width: 100%; 
+            position: relative; 
+            margin-bottom: var(--sp-md); 
+        }
+        .galeria-wrapper { 
+            display: flex; 
+            overflow-x: auto; 
+            scroll-snap-type: x mandatory; 
+            scrollbar-width: none; 
+            -webkit-overflow-scrolling: touch; 
+            border-radius: 0 0 28px 28px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8); 
+            border-bottom: 2px solid var(--color-marca); 
+            background: #000;
+        }
         .galeria-wrapper::-webkit-scrollbar { display: none; }
-        .galeria-img { width: 100%; height: 61.8vh; flex-shrink: 0; scroll-snap-align: start; object-fit: cover; }
+        .galeria-img { 
+            width: 100%; 
+            height: 55vh; 
+            min-height: 320px;
+            max-height: 500px;
+            flex-shrink: 0; 
+            scroll-snap-align: start; 
+            object-fit: cover; 
+        }
        
-        .indicador-galeria { position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); padding: 5px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; letter-spacing: 2px; border: 1px solid rgba(255,255,255,0.2); }
-               /* === INFO DE PROPIEDAD (MID) === */
-        .info-container { padding: 0 var(--sp-md); padding-bottom: calc(var(--sp-xl) * 2); /* Espacio para el CTA flotante */ }
+        .indicador-galeria { 
+            position: absolute; 
+            bottom: 15px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            background: rgba(0,0,0,0.7); 
+            backdrop-filter: blur(6px); 
+            padding: 4px 14px; 
+            border-radius: 20px; 
+            font-size: 11px; 
+            font-weight: 800; 
+            letter-spacing: 1.5px; 
+            border: 1px solid rgba(255,255,255,0.2); 
+        }
+
+        /* Información Principal */
+        .info-container { 
+            padding: 0 var(--sp-md); 
+            padding-bottom: 120px; 
+            max-width: 600px;
+            margin: 0 auto;
+        }
        
-        .badge-venta { background: var(--color-marca); color: white; padding: var(--sp-micro) var(--sp-sm); border-radius: 20px; font-size: var(--text-micro); font-weight: 900; text-transform: uppercase; letter-spacing: 1px; display: inline-block; margin-bottom: var(--sp-micro); box-shadow: 0 0 10px rgba(255,107,0,0.4); }
+        .badge-operacion { 
+            background: var(--color-marca); 
+            color: white; 
+            padding: 4px 12px; 
+            border-radius: 12px; 
+            font-size: 11px; 
+            font-weight: 900; 
+            text-transform: uppercase; 
+            letter-spacing: 1px; 
+            display: inline-block; 
+            margin-bottom: 6px; 
+            box-shadow: 0 0 12px rgba(255,107,0,0.4); 
+        }
        
-        .titulo-propiedad { margin: 0 0 var(--sp-micro) 0; font-size: var(--texto-h1); font-weight: 900; line-height: 1.2; text-shadow: 0 2px 10px rgba(0,0,0,0.8); }
-        .precio-propiedad { margin: 0 0 var(--sp-sm) 0; font-size: var(--texto-h1); color: var(--color-marca); font-weight: 900; text-shadow: 0 0 15px rgba(255,107,0,0.4); }
-        /* === BADGES DE CARACTERÍSTICAS === */
-        .badges-row { display: flex; gap: var(--sp-micro); overflow-x: auto; padding-bottom: var(--sp-micro); margin-bottom: var(--sp-sm); scrollbar-width: none; }
+        .titulo-propiedad { 
+            margin: 0 0 6px 0; 
+            font-size: var(--texto-h1); 
+            font-weight: 900; 
+            line-height: 1.15; 
+            text-shadow: 0 2px 10px rgba(0,0,0,0.8); 
+        }
+        .precio-propiedad { 
+            margin: 0 0 14px 0; 
+            font-size: 26px; 
+            color: #00ff64; 
+            font-weight: 900; 
+            text-shadow: 0 0 15px rgba(0,255,100,0.3); 
+        }
+
+        /* Badges de Atributos */
+        .badges-row { 
+            display: flex; 
+            gap: 8px; 
+            overflow-x: auto; 
+            padding-bottom: 6px; 
+            margin-bottom: 16px; 
+            scrollbar-width: none; 
+        }
         .badges-row::-webkit-scrollbar { display: none; }
-        .badge-cristal { background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); padding: var(--sp-micro) var(--sp-sm); border-radius: 15px; display: flex; align-items: center; gap: var(--sp-micro); font-weight: bold; font-size: var(--text-micro); white-space: nowrap; backdrop-filter: blur(10px); }
-        .badge-cristal span { color: var(--color-marca); font-size: var(--texto-base); }
-        /* === DESCRIPCIÓN === */
-        .seccion-titulo { font-size: var(--texto-h3); font-weight: 900; text-transform: uppercase; letter-spacing: 1px; margin-bottom: var(--sp-sm); color: var(--color-marca); border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: var(--sp-micro); }
-        .descripcion-texto { color: #ccc; font-size: var(--texto-base); line-height: 1.6; margin-bottom: var(--sp-lg); background: rgba(0,0,0,0.3); padding: var(--sp-md); border-radius: 15px; border: 1px solid rgba(255,255,255,0.05); }
-        /* === AGENCIA INFO === */
-        .agencia-card { display: flex; align-items: center; gap: var(--sp-sm); padding: var(--sp-md); margin-bottom: var(--sp-lg); cursor: pointer; transition: 0.3s; }
+        .badge-cristal { 
+            background: rgba(255,255,255,0.06); 
+            border: 1px solid var(--glass-border); 
+            padding: 7px 12px; 
+            border-radius: 14px; 
+            display: flex; 
+            align-items: center; 
+            gap: 6px; 
+            font-weight: bold; 
+            font-size: 12px; 
+            white-space: nowrap; 
+            backdrop-filter: blur(10px); 
+        }
+        .badge-cristal span { color: var(--color-marca); font-size: 14px; }
+
+        /* Botón Mapa Radar */
+        .btn-ver-mapa {
+            width: 100%; 
+            padding: 13px; 
+            border-radius: 14px; 
+            background: rgba(255, 107, 0, 0.1); 
+            color: var(--color-marca); 
+            border: 1px solid var(--color-marca); 
+            font-weight: 800; 
+            font-size: 12.5px; 
+            letter-spacing: 0.5px;
+            margin-bottom: 22px; 
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            gap: 8px; 
+            transition: all 0.2s ease;
+        }
+        .btn-ver-mapa:active { transform: scale(0.97); background: rgba(255, 107, 0, 0.2); }
+
+        .seccion-titulo { 
+            font-size: 12px; 
+            font-weight: 900; 
+            text-transform: uppercase; 
+            letter-spacing: 1.5px; 
+            margin-bottom: 8px; 
+            color: var(--color-marca); 
+            border-bottom: 1px solid rgba(255,255,255,0.08); 
+            padding-bottom: 6px; 
+        }
+        .descripcion-texto { 
+            color: #ddd; 
+            font-size: 13.5px; 
+            line-height: 1.6; 
+            margin-bottom: 25px; 
+            background: rgba(0,0,0,0.35); 
+            padding: 16px; 
+            border-radius: 16px; 
+            border: 1px solid rgba(255,255,255,0.05); 
+        }
+
+        /* Ficha Inmobiliaria */
+        .agencia-card { 
+            display: flex; 
+            align-items: center; 
+            gap: 12px; 
+            padding: 14px 16px; 
+            margin-bottom: 25px; 
+            cursor: pointer; 
+            transition: all 0.2s ease; 
+        }
         .agencia-card:active { transform: scale(0.98); border-color: var(--color-marca); }
-        .agencia-logo { width: 50px; height: 50px; border-radius: 50%; border: 2px solid var(--color-marca); object-fit: cover; }
-        .agencia-info h4 { margin: 0 0 3px 0; font-size: 14px; color: white; }
-        .agencia-info p { margin: 0; font-size: 12px; color: #888; }
-        /* === ESPACIO ADSENSE === */
-        .adsense-container { width: 100%; min-height: 100px; background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.2); border-radius: 15px; margin-bottom: 30px; display: flex; align-items: center; justify-content: center; color: #666; font-size: 12px; text-transform: uppercase; font-weight: bold; letter-spacing: 2px; }
-                /* === OTRAS OPCIONES (CARRUSEL INFERIOR) === */
-        .otras-opciones-wrapper { display: flex; gap: var(--sp-sm); overflow-x: auto; padding-bottom: var(--sp-sm); scrollbar-width: none; align-items: stretch; }
+        .agencia-logo { 
+            width: 46px; 
+            height: 46px; 
+            border-radius: 50%; 
+            border: 2px solid var(--color-marca); 
+            object-fit: cover; 
+            background: #000;
+        }
+        .agencia-info h4 { margin: 0 0 2px 0; font-size: 14px; color: white; }
+        .agencia-info p { margin: 0; font-size: 11.5px; color: #888; }
+
+        /* Otras opciones carrusel */
+        .otras-opciones-wrapper { 
+            display: flex; 
+            gap: 12px; 
+            overflow-x: auto; 
+            padding-bottom: 12px; 
+            scrollbar-width: none; 
+            align-items: stretch; 
+        }
         .otras-opciones-wrapper::-webkit-scrollbar { display: none; }
-        .card-opcion { width: 226px; /* Golden Ratio 140 * 1.618 */ flex-shrink: 0; display: flex; flex-direction: column; text-decoration: none; color: white; overflow: hidden; transition: 0.3s; }
-        .card-opcion:active { transform: scale(0.95); border-color: var(--color-marca); }
-        .card-opcion-img { width: 100%; height: 140px; object-fit: cover; border-radius: 15px 15px 0 0; }
-        .card-opcion-info { padding: 12px; background: rgba(0,0,0,0.5); border-radius: 0 0 15px 15px; flex-grow: 1; }
-        .card-opcion-titulo { margin: 0 0 5px 0; font-size: 13px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .card-opcion-precio { margin: 0; color: var(--color-marca); font-weight: 900; font-size: 15px; }
-        /* BOTÓN DE CAPTACIÓN (UPSELL) */
-        .btn-upsell { width: 100%; background: transparent; border: 1px dashed var(--color-marca); color: var(--color-marca); padding: 15px; border-radius: 15px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; font-size: 12px; cursor: pointer; transition: 0.3s; margin-top: 5px; }
-        .btn-upsell:active { background: rgba(255,107,0,0.1); transform: scale(0.98); }
-        /* === CTA FLOTANTE TINDER (PULSANTE) === */
-        .cta-wrapper { position: fixed; bottom: 0; left: 0; width: 100%; padding: 15px 20px 20px 20px; background: linear-gradient(to top, rgba(10,10,12,1) 60%, rgba(10,10,12,0)); z-index: 1000; box-sizing: border-box; display: flex; gap: 15px; }
+        .card-opcion { 
+            width: 200px; 
+            flex-shrink: 0; 
+            display: flex; 
+            flex-direction: column; 
+            text-decoration: none; 
+            color: white; 
+            overflow: hidden; 
+            border-radius: 16px;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.08);
+            transition: 0.2s; 
+        }
+        .card-opcion:active { transform: scale(0.96); border-color: var(--color-marca); }
+        .card-opcion-img { width: 100%; height: 110px; object-fit: cover; }
+        .card-opcion-info { padding: 10px; flex-grow: 1; }
+        .card-opcion-titulo { margin: 0 0 4px 0; font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .card-opcion-precio { margin: 0; color: #00ff64; font-weight: 900; font-size: 13px; }
+
+        /* Barra de Control Tinder Flotante */
+        .cta-wrapper { 
+            position: fixed; 
+            bottom: 0; 
+            left: 0; 
+            width: 100%; 
+            padding: 15px 20px 20px 20px; 
+            background: linear-gradient(to top, rgba(10,10,12,0.98) 70%, transparent); 
+            z-index: 1000; 
+            box-sizing: border-box; 
+            display: flex; 
+            gap: 12px; 
+            max-width: 600px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
        
-        .btn-pulsante { border: none; border-radius: 30px; font-size: 16px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px; text-shadow: 0 2px 5px rgba(0,0,0,0.5); transition: 0.3s; }
-        .btn-pulsante:active { transform: scale(0.95); }
+        .btn-pulsante { 
+            border: none; 
+            border-radius: 25px; 
+            font-size: 14px; 
+            font-weight: 900; 
+            text-transform: uppercase; 
+            letter-spacing: 1px; 
+            cursor: pointer; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            gap: 8px; 
+            transition: transform 0.2s ease; 
+        }
+        .btn-pulsante:active { transform: scale(0.94); }
        
-                .btn-interesa { background: var(--color-marca); color: white; animation: pulso 2s infinite; flex: 3; height: 55px; min-width: 89px; display: flex; justify-content: center; align-items: center; padding: 0 var(--sp-md); }
-        @keyframes pulso { 0% { box-shadow: 0 0 15px rgba(255,107,0,0.4); } 50% { box-shadow: 0 0 30px rgba(255,107,0,0.8); } 100% { box-shadow: 0 0 15px rgba(255,107,0,0.4); } }
+        .btn-interesa { 
+            background: linear-gradient(135deg, #ff8c00, var(--color-marca)); 
+            color: white; 
+            flex: 3; 
+            height: 52px; 
+            box-shadow: 0 8px 24px rgba(255,107,0,0.4); 
+        }
        
-        .btn-descartar-tinder { flex: 1; background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); color: white; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 5px 15px rgba(0,0,0,0.5); font-size: 22px; }
-        /* === MODALES (REUTILIZADOS) === */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; display: flex; justify-content: center; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .btn-descartar-tinder { 
+            flex: 1; 
+            background: rgba(255,255,255,0.08); 
+            backdrop-filter: blur(10px); 
+            color: #ddd; 
+            border: 1px solid rgba(255,255,255,0.15); 
+            font-size: 18px; 
+            height: 52px;
+        }
+
+        /* Modales */
+        .modal-overlay { 
+            position: fixed; 
+            inset: 0; 
+            background: rgba(0,0,0,0.85); 
+            backdrop-filter: blur(8px);
+            z-index: 2000; 
+            display: flex; 
+            justify-content: center; 
+            align-items: flex-end; 
+            opacity: 0; 
+            pointer-events: none; 
+            transition: opacity 0.3s ease; 
+        }
         .modal-overlay.activo { opacity: 1; pointer-events: all; }
-        .modal-contenido { width: 100%; max-width: 500px; background: var(--glass-bg); backdrop-filter: blur(25px); border-top-left-radius: 30px; border-top-right-radius: 30px; padding: 15px 30px 30px 30px; transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); border-top: 1px solid var(--color-marca); box-sizing: border-box; text-align: center; }
+        .modal-contenido { 
+            width: 100%; 
+            max-width: 500px; 
+            background: rgba(20, 20, 25, 0.98); 
+            border-top: 1px solid var(--color-marca); 
+            border-radius: 28px 28px 0 0; 
+            padding: 20px 25px 35px 25px; 
+            transform: translateY(100%); 
+            transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1); 
+            box-sizing: border-box; 
+            text-align: center; 
+        }
         .modal-overlay.activo .modal-contenido { transform: translateY(0); }
-        .drag-handle { width: 50px; height: 5px; background: rgba(255,255,255,0.3); border-radius: 5px; margin: 0 auto 20px auto; cursor: grab; }
-        .btn-accion-secundaria { width: 100%; padding: 15px; border-radius: 15px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.05); color: white; font-weight: bold; margin-bottom: 10px; cursor: pointer; transition: 0.3s; display: flex; justify-content: center; align-items: center; gap: 8px; }
-        .btn-accion-secundaria:active { background: rgba(255,255,255,0.1); transform: scale(0.95); }
-        /* === UI DE RESCATE OFFLINE === */
-        .offline-banner { position: fixed; top: 0; left: 0; width: 100%; background: #ff4444; color: white; text-align: center; padding: 8px; z-index: 10000; font-weight: 900; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(255,68,68,0.4); display: none; }
+        .drag-handle { width: 44px; height: 5px; background: rgba(255,255,255,0.25); border-radius: 5px; margin: 0 auto 16px auto; }
+        
+        .btn-accion-secundaria { 
+            width: 100%; 
+            padding: 13px; 
+            border-radius: 12px; 
+            border: 1px solid var(--glass-border); 
+            background: rgba(255,255,255,0.06); 
+            color: white; 
+            font-weight: bold; 
+            font-size: 12.5px;
+            cursor: pointer; 
+            transition: 0.2s; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            gap: 6px; 
+        }
+        .btn-accion-secundaria:active { background: rgba(255,255,255,0.12); transform: scale(0.96); }
+
+        .offline-banner { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            background: #ff4444; 
+            color: white; 
+            text-align: center; 
+            padding: 7px; 
+            z-index: 10000; 
+            font-weight: 900; 
+            font-size: 11px; 
+            text-transform: uppercase; 
+            letter-spacing: 1px; 
+            display: none; 
+        }
         .offline-banner.activo { display: block; }
     </style>
 </head>
 <body>
-    <div id="offline-banner" class="offline-banner">⚠️ Sin conexión: Mostrando datos de tu última visita</div>
+    <div id="offline-banner" class="offline-banner">⚠️ Sin conexión: Modo offline activo</div>
     <img id="fondo-pantalla" src="" alt="Fondo Ambiental">
+
+    <!-- Navegación Flotante -->
     <div class="nav-flotante">
         <a href="index.html" class="btn-nav" title="Volver al Radar">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 5"></polyline></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 5"></polyline>
+            </svg>
         </a>
         <div style="display: flex; gap: 10px;">
-            <button class="btn-nav" id="btn-fav-inmueble" onclick="guardarInmuebleActual()" title="Guardar Favorito" style="font-size: 18px; transition: 0.3s;">🤍</button>
-            <button class="btn-nav" onclick="abrirMisGuardados()" title="Mis Guardados" style="font-size: 18px; border-color: #ff4444; color: #ff4444; background: rgba(255, 68, 68, 0.2);">❤️</button>
-            <button class="btn-nav" onclick="abrirModal('overlay-compartir')" title="Compartir Inmueble">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+            <button class="btn-nav" id="btn-fav-inmueble" onclick="window.guardarInmuebleActual()" title="Guardar Favorito" style="font-size: 18px;">🤍</button>
+            <button class="btn-nav" onclick="window.abrirMisGuardados()" title="Mis Guardados" style="font-size: 18px; border-color: #ff4444; color: #ff4444; background: rgba(255, 68, 68, 0.2);">❤️</button>
+            <button class="btn-nav" onclick="window.abrirModal('overlay-compartir')" title="Compartir Inmueble">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="18" cy="5" r="3"></circle>
+                    <circle cx="6" cy="12" r="3"></circle>
+                    <circle cx="18" cy="19" r="3"></circle>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                </svg>
             </button>
         </div>
     </div>
-    <div class="galeria-container">
-        <div class="galeria-wrapper shimmer-box" id="carrusel-imagenes">
-            <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" class="galeria-img">
+
+    <!-- TARJETA DESLIZABLE (TINDER SWIPE ENGINE) -->
+    <div id="tarjeta-inmueble-activa">
+        <!-- Galería de Fotos -->
+        <div class="galeria-container">
+            <div class="galeria-wrapper shimmer-box" id="carrusel-imagenes">
+                <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" class="galeria-img">
+            </div>
+            <div class="indicador-galeria" id="contador-galeria">1 / 1</div>
         </div>
-        <div class="indicador-galeria" id="contador-galeria">1 / 1</div>
+
+        <!-- Información Detallada -->
+        <div class="info-container">
+            <div id="badge-promo-container"></div>
+            <h1 class="titulo-propiedad shimmer-box" id="inmueble-titulo" style="width: 80%; height: 32px; border-radius: 8px;"></h1>
+            <h2 class="precio-propiedad shimmer-box" id="inmueble-precio" style="width: 45%; height: 30px; border-radius: 8px;"></h2>
+
+            <div class="badges-row" id="contenedor-badges">
+                <div class="badge-cristal shimmer-box" style="width: 80px; height: 36px; border-radius: 12px;"></div>
+                <div class="badge-cristal shimmer-box" style="width: 80px; height: 36px; border-radius: 12px;"></div>
+                <div class="badge-cristal shimmer-box" style="width: 80px; height: 36px; border-radius: 12px;"></div>
+            </div>
+
+            <button class="btn-ver-mapa" onclick="window.volarAlMapa()">
+                <span>🗺️</span> VER UBICACIÓN EN EL RADAR GEOKATU
+            </button>
+
+            <h3 class="seccion-titulo">Descripción</h3>
+            <div class="descripcion-texto shimmer-box" id="inmueble-descripcion" style="min-height: 90px; border-radius: 14px;"></div>
+
+            <h3 class="seccion-titulo">Inmobiliaria / Anfitrión</h3>
+            <div class="glass-panel agencia-card" id="tarjeta-agencia" onclick="window.irAPerfilAgencia()">
+                <img id="agencia-logo" class="agencia-logo" src="https://via.placeholder.com/60/0a0a0c/ff6b00?text=INMO">
+                <div class="agencia-info" style="width: 100%;">
+                    <h4 id="agencia-nombre">Cargando Inmobiliaria...</h4>
+                    <p id="agencia-nicho">Aliado Verificado</p>
+                </div>
+                <div style="margin-left: auto; color: var(--color-marca); font-size: 18px;">➔</div>
+            </div>
+
+            <h3 class="seccion-titulo" id="titulo-otras-opciones" style="display: none;">Otras propiedades en la zona</h3>
+            <div class="otras-opciones-wrapper" id="contenedor-otras-opciones"></div>
+
+            <button class="btn-ver-mapa" style="border-style: dashed; margin-top: 25px;" onclick="window.location.href='boveda-inmuebles.html'">
+                🏢 ¿Eres agente o inmobiliaria? Gestiona tu catálogo aquí
+            </button>
+        </div>
     </div>
-    <div class="info-container">
-        <div id="badge-promo-container"></div>
-       
-        <h1 class="titulo-propiedad shimmer-box" id="inmueble-titulo" style="width: 80%; height: 31px; border-radius: 8px; margin: 0 0 5px 0;"></h1>
-        <h2 class="precio-propiedad shimmer-box" id="inmueble-precio" style="width: 50%; height: 38px; border-radius: 8px; margin: 0 0 15px 0;"></h2>
-                <div class="badges-row" id="contenedor-badges">
-            <div class="badge-cristal shimmer-box" style="width: 80px; height: 40px; border-radius: 15px;"></div>
-            <div class="badge-cristal shimmer-box" style="width: 80px; height: 40px; border-radius: 15px;"></div>
-            <div class="badge-cristal shimmer-box" style="width: 80px; height: 40px; border-radius: 15px;"></div>
-        </div>
 
-
-        <button onclick="window.volarAlMapa()" style="width: 100%; padding: 12px; border-radius: 15px; background: rgba(255,255,255,0.05); color: var(--color-marca); border: 1px solid var(--color-marca); font-weight: bold; font-size: 14px; margin-bottom: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: 0.3s;" onactive="this.style.transform='scale(0.98)'">🗺️ VER UBICACIÓN EN EL MAPA</button>
-
-
-        <h3 class="seccion-titulo">Descripción</h3>
-        <div class="descripcion-texto shimmer-box" id="inmueble-descripcion" style="min-height: 100px; border-radius: 15px;"></div>
-        <h3 class="seccion-titulo">Ofrecido por</h3>
-       
-        <div class="glass-panel agencia-card" id="tarjeta-agencia" onclick="" style="border-color: rgba(255,255,255,0.05);">
-            <div id="agencia-logo" class="agencia-logo shimmer-box"></div>
-            <div class="agencia-info" style="width: 100%;">
-                <h4 id="agencia-nombre" class="shimmer-box" style="width: 70%; height: 14px; border-radius: 5px; margin-bottom: 5px;"></h4>
-                <p id="agencia-nicho" class="shimmer-box" style="width: 40%; height: 12px; border-radius: 5px; margin: 0;"></p>
-            </div>
-            <div style="margin-left: auto; color: var(--color-marca);">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-            </div>
-        </div>
-        <div class="adsense-container" id="espacio-publicitario">
-            Espacio Reservado para AdSense
-        </div>
-        <h3 class="seccion-titulo" id="titulo-otras-opciones" style="display: none;">Otras opciones cerca de ti</h3>
-        <div class="otras-opciones-wrapper" id="contenedor-otras-opciones">
-            </div>
-       
-        <button class="btn-upsell" onclick="window.location.href='admin.html'">🏡 ¿Quieres publicar tu inmueble? Hazlo aquí</button>
-    </div>
+    <!-- Barra Inferior de Acción Tipo Tinder -->
     <div class="cta-wrapper">
-        <button class="btn-pulsante btn-descartar-tinder" id="btn-descartar-tinder" onclick="siguientePropiedadTinder()">
-            ✖️
+        <button class="btn-pulsante btn-descartar-tinder" id="btn-descartar-tinder" onclick="window.siguientePropiedadTinder()" title="Siguiente Inmueble (Descartar)">
+            ✕
         </button>
-        <button class="btn-pulsante btn-interesa" id="btn-whatsapp-cta" onclick="">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-            Contactar
+        <button class="btn-pulsante btn-interesa" id="btn-whatsapp-cta">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+            </svg>
+            Me Interesa
         </button>
     </div>
-    <div class="modal-overlay" id="modal-favoritos" onclick="cerrarModal(event, 'modal-favoritos')">
+
+    <!-- Modal: Mis Guardados -->
+    <div class="modal-overlay" id="modal-favoritos" onclick="window.cerrarModal(event, 'modal-favoritos')">
         <div class="modal-contenido" id="sheet-favoritos" style="border-top-color: #ff4444; text-align: left;">
-            <div class="drag-handle" style="margin: 0 auto 20px auto;"></div>
-            <h2 style="color: #ff4444; margin-top: 0; text-transform: uppercase; letter-spacing: 2px; text-align: center; text-shadow: 0 0 10px rgba(255,68,68,0.4);">Mis Guardados</h2>
-            <p style="text-align:center; font-size:12px; color:#aaa; margin-bottom: 20px;">Tus inmuebles de interés guardados en este dispositivo.</p>
-            <div id="lista-favoritos" style="max-height: 60vh; overflow-y: auto; margin-bottom: 20px; scrollbar-width: none;"></div>
+            <div class="drag-handle"></div>
+            <h2 style="color: #ff4444; margin-top: 0; text-transform: uppercase; letter-spacing: 1.5px; text-align: center;">Mis Guardados</h2>
+            <p style="text-align:center; font-size:12px; color:#888; margin-bottom: 16px;">Inmuebles guardados localmente en este dispositivo.</p>
+            <div id="lista-favoritos" style="max-height: 55vh; overflow-y: auto; margin-bottom: 15px; scrollbar-width: none;"></div>
         </div>
     </div>
-    <div class="modal-overlay" id="overlay-compartir" onclick="cerrarModal(event, 'overlay-compartir')">
+
+    <!-- Modal: Compartir -->
+    <div class="modal-overlay" id="overlay-compartir" onclick="window.cerrarModal(event, 'overlay-compartir')">
         <div class="modal-contenido" id="sheet-compartir">
             <div class="drag-handle"></div>
-            <h2 style="margin-top: 0; color: var(--color-marca); text-shadow: 0 0 5px rgba(255,107,0,0.3); text-transform: uppercase; letter-spacing: 2px;">Compartir Propiedad</h2>
-           
-            <div id="qr-code-container" style="background: white; padding: 15px; border-radius: 20px; display: inline-block; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); line-height: 0;">
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 10px;">
-                <button class="btn-pulsante btn-interesa" id="btn-descargar-qr" onclick="descargarQR()" style="animation: none; padding: 15px; font-size: 14px;">⬇️ DESCARGAR QR</button>
-                <div style="display: flex; gap: 10px;">
-                    <button class="btn-accion-secundaria" onclick="copiarEnlace()" style="margin: 0; flex: 1;">🔗 Copiar Link</button>
-                    <button class="btn-accion-secundaria" onclick="compartirNativo()" style="margin: 0; flex: 1;">📲 Compartir</button>
+            <h2 style="margin-top: 0; color: var(--color-marca); text-transform: uppercase; letter-spacing: 1.5px; font-size: 18px;">Compartir Propiedad</h2>
+            <div id="qr-code-container" style="background: white; padding: 14px; border-radius: 18px; display: inline-block; margin-bottom: 16px; line-height: 0;"></div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <button class="btn-pulsante btn-interesa" id="btn-descargar-qr" onclick="window.descargarQR()" style="padding: 12px; font-size: 13px;">⬇️ DESCARGAR QR</button>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn-accion-secundaria" onclick="window.copiarEnlace()" style="flex: 1;">🔗 Copiar Link</button>
+                    <button class="btn-accion-secundaria" onclick="window.compartirNativo()" style="flex: 1;">📲 Compartir</button>
                 </div>
             </div>
         </div>
     </div>
+
     <script type="module">
-        import QRpidoDB from './core-db.js';
-        let datosAgencia = null;
-        let propiedadActual = null;
-       
-                window.propiedadesGlobales = []; // Necesario para la mecánica Tinder
-        window.contadorRecargas = 0; // Algoritmo Monetización
-        
-        // 🛸 NUEVO: MOTOR DE VUELO AL MAPA PRINCIPAL
-        window.volarAlMapa = function() {
-            if (!propiedadActual) return;
-            
-            // Extraemos las coordenadas de la base de datos de la propiedad
-            let lat, lng;
-            if (propiedadActual.Coordenadas) {
-                lat = propiedadActual.Coordenadas.latitude;
-                lng = propiedadActual.Coordenadas.longitude;
-            }
+        import GeokatuDB from './core-db.js';
 
+        window.GeokatuDB = GeokatuDB;
+        window.datosAgencia = null;
+        window.propiedadActual = null;
+        window.propiedadesGlobales = [];
 
-            if (!lat || !lng) {
-                alert("📍 El dueño no fijó las coordenadas exactas de esta propiedad en el mapa.");
-                return;
-            }
-
-
-            // Despegamos hacia index.html inyectando la misión en la URL
-            const idAgencia = datosAgencia.id_interno || datosAgencia.codigo;
-            window.location.href = `index.html?enfocar=${encodeURIComponent(propiedadActual.id_prod)}&lat=${lat}&lng=${lng}`;
-        };
-
-
-        // === PERSISTENCIA ANÓNIMA (TINDER MATCHES) ===
-
-
-        window.toggleFavorito = function(id, nombre, precio, foto, whatsapp, event) {
-            if (event) { event.preventDefault(); event.stopPropagation(); }
-            if (navigator.vibrate) navigator.vibrate(30);
-           
-            let favs = JSON.parse(localStorage.getItem('qrpido_favoritos_anon')) || [];
-            const index = favs.findIndex(x => x.id === id);
-           
-            if (index > -1) {
-                favs.splice(index, 1);
-            } else {
-                favs.push({ id, nombre, precio, foto, whatsapp });
-            }
-            localStorage.setItem('qrpido_favoritos_anon', JSON.stringify(favs));
-            
-            // PUENTE CROSS-TAB: Notificar cambios a otras pestañas y a la actual instantáneamente
-            window.dispatchEvent(new Event('qrpido_favoritos_actualizados'));
-            if ('BroadcastChannel' in window) {
-                new BroadcastChannel('qrpido_canal_favs').postMessage({ action: 'actualizar_pines' });
-            }
-
-
-// ANALYTICS: Medir si el usuario guarda o quita de favoritos
-const accion = index > -1 ? 'remove_favorite' : 'add_favorite';
-QRpidoDB.LocalService.registrarEventoAnalytics(accion, {
-    property_id: id,
-    property_name: nombre
-});
-           
-            if (propiedadActual && propiedadActual.id_prod === id) {
-                const btnFav = document.getElementById('btn-fav-inmueble');
-                if (btnFav) {
-                    const isFav = favs.some(x => x.id === id);
-                    btnFav.innerText = isFav ? '❤️' : '🤍';
-                    btnFav.style.background = isFav ? 'rgba(255,68,68,0.2)' : 'rgba(0,0,0,0.6)';
-                    btnFav.style.borderColor = isFav ? '#ff4444' : 'rgba(255,255,255,0.2)';
-                }
-            }
-        };
-                window.guardarInmuebleActual = function() {
-            if (!propiedadActual) return;
-            const titulo = propiedadActual.nombre;
-            const precio = propiedadActual.precio || 0;
-            const foto = propiedadActual.imagen || '';
-            const ws = datosAgencia ? (datosAgencia.whatsApp || datosAgencia.whatsapp) : '';
-            window.toggleFavorito(propiedadActual.id_prod, titulo, precio, foto, ws, null);
-        };
-        window.abrirMisGuardados = function() {
-            const lista = document.getElementById('lista-favoritos');
-            let favs = JSON.parse(localStorage.getItem('qrpido_favoritos_anon')) || [];
-           
-            if (favs.length === 0) {
-                lista.innerHTML = '<p style="text-align:center; color:#888; padding: 20px; border: 1px dashed rgba(255,255,255,0.2); border-radius: 15px;">No tienes ningún inmueble guardado aún. 🤍</p>';
-            } else {
-                let html = '';
-                favs.forEach(f => {
-                    const precioTxt = f.precio && parseFloat(f.precio) > 0 ? '$' + parseFloat(f.precio).toLocaleString('es-CO') : 'Consultar';
-                    const wsLink = f.whatsapp && f.whatsapp.trim() !== '' ? `https://wa.me/${f.whatsapp}?text=${encodeURIComponent('Hola, vengo de QRpido y me interesa: ' + f.nombre)}` : '#';
-                   
-                    html += `
-                    <div style="display: flex; gap: 15px; align-items: center; background: rgba(0,0,0,0.5); padding: 12px; border-radius: 15px; margin-bottom: 12px; border: 1px solid rgba(255,68,68,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
-                        <img src="${f.foto}" style="width: 60px; height: 60px; border-radius: 12px; object-fit: cover;">
-                        <div style="flex: 1; overflow: hidden; text-align: left;">
-                            <h4 style="margin: 0 0 5px 0; font-size: 14px; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${f.nombre}</h4>
-                            <p style="margin: 0; color: var(--color-marca); font-weight: bold; font-size: 13px;">${precioTxt}</p>
-                        </div>
-                        ${wsLink !== '#' ? `<a href="${wsLink}" target="_blank" style="background: var(--color-marca); color: white; text-decoration: none; padding: 8px 12px; border-radius: 10px; font-weight: bold; font-size: 12px; box-shadow: 0 2px 5px rgba(255,107,0,0.4);">Chat</a>` : ''}
-                        <button onclick="window.toggleFavorito('${f.id}', null, null, null, null, event); window.abrirMisGuardados();" style="background: rgba(255,68,68,0.1); border: 1px solid rgba(255,68,68,0.5); color: #ff4444; border-radius: 50%; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.3s;">✖</button>
-                    </div>`;
-                });
-                lista.innerHTML = html;
-            }
-            abrirModal('modal-favoritos');
-        };
-        // === ESCUDO ANTI-XSS ===
         window.sanitizarTexto = function(texto) {
             if (texto === null || texto === undefined) return '';
             const div = document.createElement('div');
             div.textContent = texto;
             return div.innerHTML;
         };
-        // === LÓGICA DE FORMATEO MONETARIO (Patrón Int64 / Unidad Menor) ===
-        window.formatearMoneda = function(valorInt64, moneda = 'COP') {
-            if (moneda === 'USD') {
-                return (valorInt64 / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-            }
-            return '$' + valorInt64.toLocaleString('es-CO');
+
+        window.formatearMoneda = function(valor, moneda = 'COP') {
+            const num = Number(valor) || 0;
+            if (moneda === 'USD') return (num / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+            return '$' + num.toLocaleString('es-CO') + ' COP';
         };
-        // === LÓGICA DE HORARIOS ===
-        function verificarHorarioOperativo() {
-            if (!datosAgencia.horario_apertura || !datosAgencia.horario_cierre) return true;
-            const ahora = new Date();
-            const horaActual = ahora.getHours() * 60 + ahora.getMinutes();
-            const [hDesde, mDesde] = datosAgencia.horario_apertura.split(':').map(Number);
-            const [hHasta, mHasta] = datosAgencia.horario_cierre.split(':').map(Number);
-            const minDesde = hDesde * 60 + mDesde;
-            const minHasta = hHasta * 60 + mHasta;
-            if (minHasta < minDesde) {
-                return horaActual >= minDesde || horaActual <= minHasta;
-            } else {
-                return horaActual >= minDesde && horaActual <= minHasta;
-            }
-        }
-        // === MÓDULO PRE-FETCHING AGRESIVO (PROMPT 4) ===
-        window.precargarSiguientesImagenes = function(currentIndex) {
-            if (!window.propiedadesGlobales || window.propiedadesGlobales.length <= 1) return;
-            // Precargar las imágenes de las siguientes 2 propiedades en la cola
-            for (let i = 1; i <= 2; i++) {
-                let nextIndex = (currentIndex + i) % window.propiedadesGlobales.length;
-                let propToPrefetch = window.propiedadesGlobales[nextIndex];
-               
-                if (propToPrefetch) {
-                    // Precargar imagen principal
-                    if (propToPrefetch.imagen) {
-                        const imgObj = new Image();
-                        imgObj.src = propToPrefetch.imagen;
-                    }
-                    // Precargar primera imagen de la galería extra (para la transición inmediata del carrusel)
-                    if (propToPrefetch.galeria_extra && propToPrefetch.galeria_extra.length > 0) {
-                        const imgGalObj = new Image();
-                        imgGalObj.src = propToPrefetch.galeria_extra[0];
-                    }
-                }
-            }
-        };
-        // Escudo Anti-Salida (Cierra modales con botón Atrás)
-        history.pushState(null, document.title, window.location.href);
-        window.addEventListener('popstate', function(event) {
-            const modal = document.getElementById('overlay-compartir');
-            if (modal.classList.contains('activo')) {
-                modal.classList.remove('activo');
-                history.pushState(null, document.title, window.location.href);
-            } else {
-                history.back();
-            }
-        });
-        // UI Helpers
+
         window.abrirModal = (id) => document.getElementById(id).classList.add('activo');
-        window.cerrarModal = (e, id) => { if (e.target.id === id) document.getElementById(id).classList.remove('activo'); }
-       
-        function aplicarSwipeAbajo(modalId, contentId) {
-            const modal = document.getElementById(modalId);
-            const content = document.getElementById(contentId);
-            let startY = 0, currentY = 0;
-            content.addEventListener('touchstart', e => startY = e.touches[0].clientY, {passive: true});
-            content.addEventListener('touchmove', e => {
-                currentY = e.touches[0].clientY;
-                if(currentY > startY && content.scrollTop === 0) content.style.transform = `translateY(${currentY - startY}px)`;
-            }, {passive: true});
-            content.addEventListener('touchend', () => {
-                if (currentY - startY > 100 && content.scrollTop === 0) modal.classList.remove('activo');
-                content.style.transform = '';
-            });
-        }
-        aplicarSwipeAbajo('overlay-compartir', 'sheet-compartir');
-        aplicarSwipeAbajo('modal-favoritos', 'sheet-favoritos');
-        async function construirLanding() {
+        window.cerrarModal = (e, id) => { if (e.target.id === id) document.getElementById(id).classList.remove('activo'); };
+
+        // === ARQUITECTURA DE DATOS Y CARGA ===
+        async function construirInmueblesFeed() {
             const urlParams = new URLSearchParams(window.location.search);
             const idAgencia = urlParams.get('id');
             const idItem = urlParams.get('item');
-            if (!idAgencia) {
-                document.querySelector('.info-container').innerHTML = "<h2 style='color:#ff4444; text-align:center;'>Error: Enlace inválido.</h2>";
-                return;
-            }
+
             try {
-                                // 1. Obtener Datos de la Agencia vía Core (Maneja Caché y Ruteo)
-const resAgencia = await QRpidoDB.LocalService.getDetails(idAgencia);
-if (!resAgencia.success) throw new Error(resAgencia.error);
-datosAgencia = resAgencia.data;
-// ... (mantiene lógica de colores y UI)
-// 2. Obtener Propiedades vía Radar (Aísla la estructura de colecciones)
-const resProps = await QRpidoDB.RadarService.obtenerProductosPublicos(idAgencia, { limite: 10 });
-if (!resProps.success) throw new Error(resProps.error);
-if (resProps.data.length === 0) throw new Error("Esta agencia no tiene propiedades publicadas.");
-window.propiedadesGlobales = resProps.data;
-               
+                // 1. Si viene agencia específica, cargar su catálogo
+                if (idAgencia) {
+                    const resAgencia = await GeokatuDB.LocalService.getDetails(idAgencia);
+                    if (resAgencia.success) window.datosAgencia = resAgencia.data;
+                    
+                    const resProps = await GeokatuDB.RadarService.obtenerProductosPublicos(idAgencia, { limite: 25 });
+                    if (resProps.success && resProps.data.length > 0) {
+                        window.propiedadesGlobales = resProps.data;
+                    }
+                }
+
+                // 2. Si no hay propiedades de agencia o se entra directo, barrer radar general de inmuebles
+                if (!window.propiedadesGlobales || window.propiedadesGlobales.length === 0) {
+                    const resRadar = await GeokatuDB.RadarService.buscarInmueblesEnRadar(4.8133, -75.6961, 25000);
+                    if (resRadar.success && resRadar.data.length > 0) {
+                        window.propiedadesGlobales = resRadar.data;
+                    }
+                }
+
+                if (window.propiedadesGlobales.length === 0) {
+                    throw new Error("No hay inmuebles disponibles en este momento.");
+                }
+
+                // Determinar propiedad activa
                 if (idItem) {
-                    propiedadActual = window.propiedadesGlobales.find(p => p.id_prod === idItem) || window.propiedadesGlobales[0];
+                    window.propiedadActual = window.propiedadesGlobales.find(p => p.id_prod === idItem || p.id === idItem) || window.propiedadesGlobales[0];
                 } else {
-                    propiedadActual = window.propiedadesGlobales[0];
+                    window.propiedadActual = window.propiedadesGlobales[0];
                 }
-                document.title = `${propiedadActual.nombre} | ${datosAgencia.nombre}`;
-                              // 3. Renderizar Propiedad Principal
-                renderizarPropiedad(propiedadActual, datosAgencia.whatsApp || datosAgencia.whatsapp);
-                // 4. Renderizar Otras Opciones
-                let otras = window.propiedadesGlobales.filter(p => p.id_prod !== propiedadActual.id_prod);
-                if (otras.length > 0) window.renderizarOtrasOpciones(otras);
-                prepararQR();
-                // INYECCIÓN PROMPT 4: Iniciar precarga de las siguientes tarjetas
-                let currentIndex = window.propiedadesGlobales.findIndex(p => p.id_prod === propiedadActual.id_prod);
-                window.precargarSiguientesImagenes(currentIndex);
-// ANALYTICS: Registro de vista de propiedad y agencia
-QRpidoDB.LocalService.registrarEventoAnalytics('view_property', {
-    property_id: propiedadActual.id_prod,
-    property_name: propiedadActual.nombre,
-    agency_id: idAgencia,
-    agency_name: datosAgencia.nombre
-});
+
+                // Obtener datos de la agencia dueña si no los tenemos
+                const idPadre = window.propiedadActual.id_negocio_padre || idAgencia;
+                if (idPadre && (!window.datosAgencia || window.datosAgencia.id !== idPadre)) {
+                    const resPadre = await GeokatuDB.LocalService.getDetails(idPadre);
+                    if (resPadre.success) window.datosAgencia = resPadre.data;
+                }
+
+                window.renderizarPropiedad(window.propiedadActual);
+                window.actualizarOtrasOpciones();
+                window.prepararQR();
+
             } catch (e) {
-                console.error(e);
-                document.querySelector('.info-container').innerHTML = `<h3 style='color:#ff4444; text-align:center; padding: 20px;'>${e.message}</h3>`;
+                console.error("Fallo al construir feed de inmuebles:", e);
+                document.querySelector('.info-container').innerHTML = `
+                    <div style="text-align: center; padding: 40px 15px;">
+                        <span style="font-size: 40px;">🏠</span>
+                        <h3 style="color:#ff6b00; margin-top: 10px;">${e.message}</h3>
+                        <a href="index.html" style="color:#fff; text-decoration: underline; font-size: 13px;">Volver al Radar</a>
+                    </div>`;
             }
         }
-        // === MECÁNICA TINDER (Siguiente Propiedad sin recargar) ===
-        window.siguientePropiedadTinder = function() {
+
+        window.renderizarPropiedad = function(prop) {
+            if (!prop) return;
+
+            // Retirar placeholders
+            ['inmueble-titulo', 'inmueble-precio', 'inmueble-descripcion', 'carrusel-imagenes'].forEach(id => {
+                document.getElementById(id)?.classList.remove('shimmer-box');
+            });
+
+            document.getElementById('inmueble-titulo').innerText = prop.nombre || 'Propiedad sin título';
+            document.getElementById('inmueble-precio').innerText = window.formatearMoneda(prop.precio);
+            document.getElementById('inmueble-descripcion').innerText = prop.cuerpo_texto || prop.descripcion || "Inmueble verificado con excelente ubicación.";
+
+            document.title = `${prop.nombre} | Geokatu Inmuebles`;
+
+            // Badge de operación
+            const opContainer = document.getElementById('badge-promo-container');
+            const tipoOp = prop.tipo_operacion || (prop.badge ? prop.badge : 'DISPONIBLE');
+            opContainer.innerHTML = `<div class="badge-operacion">${window.sanitizarTexto(tipoOp)}</div>`;
+
+            // Badges técnicos
+            const bCont = document.getElementById('contenedor-badges');
+            let bHtml = '';
+            if (prop.subtipo_inmueble) bHtml += `<div class="badge-cristal"><span>🏢</span> ${window.sanitizarTexto(prop.subtipo_inmueble)}</div>`;
+            if (prop.habitaciones) bHtml += `<div class="badge-cristal"><span>🛏️</span> ${prop.habitaciones} Hab</div>`;
+            if (prop.banos) bHtml += `<div class="badge-cristal"><span>🚿</span> ${prop.banos} Baños</div>`;
+            if (prop.area_m2) bHtml += `<div class="badge-cristal"><span>📐</span> ${prop.area_m2} m²</div>`;
+            if (prop.estrato) bHtml += `<div class="badge-cristal"><span>🏙️</span> Estrato ${prop.estrato}</div>`;
+            bCont.innerHTML = bHtml || '<div class="badge-cristal"><span>🔑</span> Listo para entrega</div>';
+
+            // Galería
+            const carrusel = document.getElementById('carrusel-imagenes');
+            const imgMain = prop.foto_portada || prop.imagen || 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?q=80&w=1080&auto=format&fit=crop';
+            let galeria = [imgMain];
+            if (Array.isArray(prop.galeria)) galeria = galeria.concat(prop.galeria.filter(Boolean));
+
+            carrusel.innerHTML = galeria.map((img, i) => `
+                <img src="${img}" class="galeria-img" loading="${i === 0 ? 'eager' : 'lazy'}" onerror="this.src='https://via.placeholder.com/600x400/0a0a0c/ff6b00?text=Inmueble'">
+            `).join('');
+
+            const contador = document.getElementById('contador-galeria');
+            contador.innerText = `1 / ${galeria.length}`;
+            carrusel.onscroll = () => {
+                const idx = Math.round(carrusel.scrollLeft / carrusel.clientWidth) + 1;
+                contador.innerText = `${idx} / ${galeria.length}`;
+            };
+
+            // Fondo dinámico
+            document.getElementById('fondo-pantalla').src = imgMain;
+
+            // Inmobiliaria
+            const agenciaNom = window.datosAgencia ? window.datosAgencia.nombre : 'Inmobiliaria Aliada';
+            const agenciaLogo = window.datosAgencia?.logo || 'https://via.placeholder.com/60/0a0a0c/ff6b00?text=INMO';
+            document.getElementById('agencia-nombre').innerText = agenciaNom;
+            document.getElementById('agencia-logo').src = agenciaLogo;
+
+            // Botón Contacto WhatsApp
+            const tel = prop.whatsapp || (window.datosAgencia?.whatsApp || window.datosAgencia?.whatsapp || '');
+            const btnWs = document.getElementById('btn-whatsapp-cta');
+            const msg = `Hola, vi en Geokatu el inmueble: *${prop.nombre}* (${window.formatearMoneda(prop.precio)}). ¿Está disponible?`;
+            btnWs.onclick = () => {
+                if (tel) {
+                    window.open(`https://wa.me/${tel.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+                } else {
+                    alert("Contacto directo no configurado por el anunciante.");
+                }
+            };
+
+            // Estado de favoritos
+            window.actualizarBotonFavorito();
+        };
+
+        // === MECÁNICA TINDER (SWIPE & NEXT) ===
+        window.siguientePropiedadTinder = function(direccion = 'izquierda') {
             if (!window.propiedadesGlobales || window.propiedadesGlobales.length <= 1) {
-                alert("Has visto todas las propiedades destacadas de esta agencia.");
+                alert("Has visto todas las propiedades del radar.");
                 return;
             }
-            if (navigator.vibrate) navigator.vibrate(40);
-           
-            let currentIndex = window.propiedadesGlobales.findIndex(p => p.id_prod === propiedadActual.id_prod);
-            let nextIndex = (currentIndex + 1) % window.propiedadesGlobales.length;
-            propiedadActual = window.propiedadesGlobales[nextIndex];
-           
-                        // Actualizar URL de forma silenciosa para el Botón de Compartir
-            window.history.pushState({}, '', `inmueble.html?id=${datosAgencia.id_interno}&item=${propiedadActual.id_prod}`);
-           
-            // Renderizado inmersivo inmediato
-            renderizarPropiedad(propiedadActual, datosAgencia.whatsApp || datosAgencia.whatsapp);
-           
-            // Refrescar el bloque de 'Otras Opciones'
-            let otras = window.propiedadesGlobales.filter(p => p.id_prod !== propiedadActual.id_prod);
-            window.contadorRecargas = 0; // Resetear Adsense trigger
-            window.renderizarOtrasOpciones(otras);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-const infoContainer = document.querySelector('.info-container');
-const galeriaContainer = document.querySelector('.galeria-container');
-// Ocultar suavemente
-infoContainer.style.opacity = '0';
-galeriaContainer.style.opacity = '0';
-setTimeout(() => {
-    // Renderizado inmersivo inmediato
-    renderizarPropiedad(propiedadActual, datosAgencia.whatsApp || datosAgencia.whatsapp);
-    let otras = window.propiedadesGlobales.filter(p => p.id_prod !== propiedadActual.id_prod);
-    window.contadorRecargas = 0; 
-    window.renderizarOtrasOpciones(otras);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    // Aparecer suavemente
-    infoContainer.style.transition = 'opacity 0.3s ease';
-    galeriaContainer.style.transition = 'opacity 0.3s ease';
-    infoContainer.style.opacity = '1';
-    galeriaContainer.style.opacity = '1';
-}, 150); // Milisegundos de transición
-            // INYECCIÓN PROMPT 4: Continuar la cadena de precarga
-            window.precargarSiguientesImagenes(nextIndex);
-// ANALYTICS: Medir el "Skip" o navegación tipo Tinder
-QRpidoDB.LocalService.registrarEventoAnalytics('tinder_skip_next', {
-    previous_property: window.propiedadesGlobales[currentIndex].id_prod,
-    new_property: propiedadActual.id_prod
-});
-        }
-        window.renderizarPropiedad = function(prop, whatsapp) {
-            document.getElementById('inmueble-titulo').classList.remove('shimmer-box');
-            document.getElementById('inmueble-precio').classList.remove('shimmer-box');
-            document.getElementById('inmueble-descripcion').classList.remove('shimmer-box');
-            document.getElementById('contenedor-badges').innerHTML = '';
-            document.getElementById('carrusel-imagenes').classList.remove('shimmer-box');
-            document.getElementById('inmueble-titulo').innerText = prop.nombre;
-            document.getElementById('inmueble-precio').innerText = formatearMoneda(prop.precio, datosAgencia.moneda);
-            document.getElementById('inmueble-descripcion').innerText = prop.cuerpo_articulo || "Sin descripción detallada por el momento.";
-            document.title = `${prop.nombre} | ${datosAgencia.nombre}`;
-            if (prop.badge) {
-                document.getElementById('badge-promo-container').innerHTML = `<div class="badge-venta">${sanitizarTexto(prop.badge)}</div>`;
-            } else {
-                document.getElementById('badge-promo-container').innerHTML = '';
-            }
-            let badgesHtml = '';
-            if (prop.categoria) badgesHtml += `<div class="badge-cristal"><span>📍</span> ${sanitizarTexto(prop.categoria)}</div>`;
-            if (prop.cuartos) badgesHtml += `<div class="badge-cristal"><span>🛏️</span> ${sanitizarTexto(prop.cuartos).replace('hab',' Hab')}</div>`;
-            if (prop.estrato) badgesHtml += `<div class="badge-cristal"><span>🏙️</span> Estrato ${sanitizarTexto(prop.estrato).replace('e','')}</div>`;
-            document.getElementById('contenedor-badges').innerHTML = badgesHtml || '<div class="badge-cristal"><span>🔑</span> Disponible</div>';
-                        const carrusel = document.getElementById('carrusel-imagenes');
-            // Fallback elegante si la propiedad no tiene imagen
-            const imgPrincipal = (prop.imagen && prop.imagen.trim() !== '') ? prop.imagen : 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?q=80&w=1080&auto=format&fit=crop';
-           
-            let imagenesGaleria = [imgPrincipal];
-            if (prop.galeria_extra && Array.isArray(prop.galeria_extra)) {
-                // Filtramos por si hay strings vacíos en el array
-                imagenesGaleria = imagenesGaleria.concat(prop.galeria_extra.filter(i => i && i.trim() !== ''));
-            }
-           
-            // RAM DROP: Forzar recolección de basura purgando el src antes de destruir los nodos
-            Array.from(carrusel.getElementsByTagName('img')).forEach(img => { img.src = ''; });
-            carrusel.innerHTML = '';
-            
-            // DOM INSERTION: Usar insertAdjacentHTML evita repintados masivos
-            imagenesGaleria.forEach((img, idx) => {
-                carrusel.insertAdjacentHTML('beforeend', `<img src="${img}" class="galeria-img" loading="${idx === 0 ? 'eager' : 'lazy'}">`);
-            });
-            const indicador = document.getElementById('contador-galeria');
-            indicador.innerText = `1 / ${imagenesGaleria.length}`;
-            carrusel.addEventListener('scroll', () => {
-                const index = Math.round(carrusel.scrollLeft / carrusel.clientWidth) + 1;
-                indicador.innerText = `${index} / ${imagenesGaleria.length}`;
-            });
-            const textoWs = `Hola, vengo de QRpido. Me interesa la propiedad: *${prop.nombre}* (${formatearMoneda(prop.precio, datosAgencia.moneda)}). ¿Podrías darme más información?`;
-            const btnWs = document.getElementById('btn-whatsapp-cta');
-           
-            if (!verificarHorarioOperativo()) {
-                btnWs.innerText = "CERRADO POR AHORA";
-                btnWs.disabled = true;
-                btnWs.style.background = "#555";
-                btnWs.style.animation = "none";
-                btnWs.style.cursor = "not-allowed";
-                btnWs.onclick = null;
-            } else {
-                btnWs.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg> Me Interesa`;
-                btnWs.disabled = false;
-                btnWs.style.background = "var(--color-marca)";
-                btnWs.style.animation = "pulso 2s infinite";
-                btnWs.style.cursor = "pointer";
-                btnWs.onclick = async () => {
-    const originalHtml = btnWs.innerHTML;
-    btnWs.innerHTML = "⏳ CONECTANDO...";
-    btnWs.disabled = true;
 
+            if (navigator.vibrate) navigator.vibrate(30);
 
-    try {
-        // ANALYTICS ASÍNCRONO: Garantizamos el registro del lead antes de salir
-        await QRpidoDB.LocalService.registrarEventoAnalytics('lead_whatsapp_click', {
-            property_id: prop.id_prod,
-            property_name: prop.nombre,
-            agency_id: datosAgencia.id_interno
-        });
-    } catch(e) {
-        console.warn("Analytics falló, pero el lead continúa", e);
-    } finally {
-        btnWs.innerHTML = originalHtml;
-        btnWs.disabled = false;
-        window.open(`https://wa.me/${whatsapp}?text=${encodeURIComponent(textoWs)}`, '_blank');
-    }
-};
-            }
-           
-            // Actualizar estado visual del botón de favorito
-            let favs = JSON.parse(localStorage.getItem('qrpido_favoritos_anon')) || [];
-            const btnFav = document.getElementById('btn-fav-inmueble');
-            if (btnFav) {
-                const isFav = favs.some(x => x.id === prop.id_prod);
-                btnFav.innerText = isFav ? '❤️' : '🤍';
-                btnFav.style.background = isFav ? 'rgba(255,68,68,0.2)' : 'rgba(0,0,0,0.6)';
-                btnFav.style.borderColor = isFav ? '#ff4444' : 'rgba(255,255,255,0.2)';
-            }
-            prepararQR(); // Actualizar QR silenciosamente
-        }
-        // === MECÁNICA UPSELLING & MONETIZACIÓN (AdSense Inyección) ===
-        window.recargarOpciones = function() {
-            if(navigator.vibrate) navigator.vibrate(30);
-            window.contadorRecargas++;
-           
-            let otras = window.propiedadesGlobales.filter(p => p.id_prod !== propiedadActual.id_prod);
-            // Shuffle
-            otras.sort(() => 0.5 - Math.random());
-           
-            window.renderizarOtrasOpciones(otras);
-        }
-        window.renderizarOtrasOpciones = function(otrasParam) {
-            document.getElementById('titulo-otras-opciones').style.display = 'block';
-            const contenedor = document.getElementById('contenedor-otras-opciones');
-            let html = '';
-           
-            let limiteMostrar = 5;
-            let aMostrar = otrasParam.slice(0, limiteMostrar);
-           
-                                    aMostrar.forEach(p => {
-                const whApp = datosAgencia.whatsApp || datosAgencia.whatsapp || '';
-                const mon = datosAgencia.moneda || 'COP';
-                const imgThumb = (p.imagen && p.imagen.trim() !== '') ? p.imagen : 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?q=80&w=300&auto=format&fit=crop';
-               
-                html += `
-                <a href="javascript:void(0)" onclick="history.pushState({}, '', 'inmueble.html?id=${datosAgencia.id_interno}&item=${sanitizarTexto(p.id_prod)}'); propiedadActual = window.propiedadesGlobales.find(x => x.id_prod === '${sanitizarTexto(p.id_prod)}'); renderizarPropiedad(propiedadActual, '${whApp}'); window.scrollTo({top:0, behavior:'smooth'});" class="glass-panel card-opcion">
-                    <img src="${imgThumb}" class="card-opcion-img" loading="lazy">
-                    <div class="card-opcion-info">
-                        <h4 class="card-opcion-titulo">${sanitizarTexto(p.nombre)}</h4>
-                        <p class="card-opcion-precio">${formatearMoneda(p.precio, mon)}</p>
-                    </div>
-                </a>`;
-            });
-            // Algoritmo AdSense: Inyectar anuncio nativo al llegar al click 3
-            if (window.contadorRecargas >= 3) {
-                html += `
-                <div class="glass-panel card-opcion" style="justify-content: center; align-items: center; border: 1px dashed var(--color-marca); background: rgba(255,107,0,0.05); cursor: default;">
-                    <span style="color: #888; font-size: 10px; letter-spacing: 2px;">PUBLICIDAD</span>
-                    <h3 style="color: var(--color-marca); margin: 5px 0; text-align:center;">Espacio reservado<br>AdSense</h3>
-                </div>`;
-            }
-            if(otrasParam.length > 0) {
-                html += `
-                <div style="display: flex; align-items: center; justify-content: center; width: 100px; flex-shrink: 0;">
-                    <button class="btn-accion-secundaria" style="border-radius: 50%; width: 60px; height: 60px; border-color: var(--color-marca); color: var(--color-marca); box-shadow: 0 0 10px rgba(255,107,0,0.2);" onclick="recargarOpciones()">↻</button>
-                </div>`;
-            }
-            contenedor.innerHTML = html;
-        }
-                function prepararQR() {
-            const qrContainer = document.getElementById('qr-code-container');
-            qrContainer.innerHTML = "";
-            qrContainer.style.boxShadow = `0 0 15px var(--color-marca)`;
-           
-            new QRCode(qrContainer, {
-                text: window.location.href,
-                width: 200,
-                height: 200,
-                colorDark : document.documentElement.style.getPropertyValue('--color-marca') || "#ff6b00",
-                colorLight : "#ffffff",
-                correctLevel : QRCode.CorrectLevel.H
-            });
-        }
-        window.copiarEnlace = function() {
-            navigator.clipboard.writeText(window.location.href).then(() => alert('¡Enlace copiado al portapapeles! 🔗'));
-        }
-        window.compartirNativo = async function() {
-            const titulo = document.title;
-            if (navigator.share) {
-                try { await navigator.share({ title: titulo, text: `Mira esta increíble propiedad: ${titulo}`, url: window.location.href }); } catch (err) {}
-            } else { copiarEnlace(); }
-        }
-        window.descargarQR = async function() {
-            const btn = document.getElementById('btn-descargar-qr');
-            const original = btn.innerHTML;
-            btn.innerHTML = "⏳ GENERANDO...";
-           
-            try {
-                const canvas = document.querySelector('#qr-code-container canvas');
-                if (canvas) {
-                    canvas.toBlob(function(blob) {
-                        const urlObj = window.URL.createObjectURL(blob);
-                        const nombre = `Propiedad_${propiedadActual.nombre.replace(/\s+/g, '_')}.png`;
-                        const a = document.createElement('a'); a.style.display = 'none'; a.href = urlObj; a.download = nombre;
-                        document.body.appendChild(a); a.click(); a.remove(); window.URL.revokeObjectURL(urlObj);
-                    }, "image/png");
+            const tarjeta = document.getElementById('tarjeta-inmueble-activa');
+            const translacionX = direccion === 'derecha' ? '120%' : '-120%';
+            const rotacion = direccion === 'derecha' ? '15deg' : '-15deg';
+
+            // Animación de salida fluida
+            tarjeta.style.transform = `translate3d(${translacionX}, 0, 0) rotate(${rotacion})`;
+            tarjeta.style.opacity = '0';
+
+            setTimeout(() => {
+                let currentIndex = window.propiedadesGlobales.findIndex(p => (p.id_prod || p.id) === (window.propiedadActual.id_prod || window.propiedadActual.id));
+                let nextIndex = (currentIndex + 1) % window.propiedadesGlobales.length;
+                window.propiedadActual = window.propiedadesGlobales[nextIndex];
+
+                // Cambio silencioso de URL
+                const idProp = window.propiedadActual.id_prod || window.propiedadActual.id;
+                const idAg = window.propiedadActual.id_negocio_padre || window.datosAgencia?.id || '';
+                window.history.replaceState({}, '', `inmuebles.html?id=${idAg}&item=${idProp}`);
+
+                window.renderizarPropiedad(window.propiedadActual);
+                window.actualizarOtrasOpciones();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+
+                // Retorno instantáneo y aparición suave
+                tarjeta.style.transition = 'none';
+                tarjeta.style.transform = 'translate3d(0, 20px, 0)';
+                setTimeout(() => {
+                    tarjeta.style.transition = 'transform 0.35s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.35s ease';
+                    tarjeta.style.transform = 'translate3d(0, 0, 0)';
+                    tarjeta.style.opacity = '1';
+                }, 30);
+            }, 300);
+        };
+
+        // GESTO TÁCTIL (SWIPE FÍSICO)
+        (function() {
+            const tarjeta = document.getElementById('tarjeta-inmueble-activa');
+            let startX = 0, currentX = 0, startY = 0, currentY = 0;
+            let esSwipe = false;
+
+            tarjeta.addEventListener('touchstart', (e) => {
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+                esSwipe = false;
+            }, { passive: true });
+
+            tarjeta.addEventListener('touchmove', (e) => {
+                currentX = e.touches[0].clientX;
+                currentY = e.touches[0].clientY;
+                const deltaX = currentX - startX;
+                const deltaY = currentY - startY;
+
+                // Si el desplazamiento horizontal domina sobre el vertical
+                if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 20) {
+                    esSwipe = true;
+                    tarjeta.style.transition = 'none';
+                    tarjeta.style.transform = `translate3d(${deltaX}px, 0, 0) rotate(${deltaX * 0.05}deg)`;
+                    tarjeta.style.opacity = `${1 - Math.abs(deltaX) / (window.innerWidth * 1.2)}`;
                 }
-            } catch(e) { console.error(e); }
-            finally { setTimeout(() => { btn.innerHTML = original; }, 1000); }
-        }
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js').catch(err => console.log('PWA falló:', err));
+            }, { passive: true });
+
+            tarjeta.addEventListener('touchend', () => {
+                if (!esSwipe) return;
+                const deltaX = currentX - startX;
+                if (Math.abs(deltaX) > 90) {
+                    window.siguientePropiedadTinder(deltaX > 0 ? 'derecha' : 'izquierda');
+                } else {
+                    tarjeta.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+                    tarjeta.style.transform = 'translate3d(0, 0, 0)';
+                    tarjeta.style.opacity = '1';
+                }
             });
-        }
-        // === DETECCIÓN DE CONEXIÓN (PWA OFFLINE) ===
+        })();
+
+        // === PERSISTENCIA Y FAVORITOS ===
+        window.guardarInmuebleActual = function() {
+            if (!window.propiedadActual) return;
+            const p = window.propiedadActual;
+            const id = p.id_prod || p.id;
+            let favs = JSON.parse(localStorage.getItem('geokatu_favs_inmuebles')) || [];
+            const idx = favs.findIndex(x => x.id === id);
+
+            if (idx > -1) {
+                favs.splice(idx, 1);
+            } else {
+                favs.push({
+                    id: id,
+                    nombre: p.nombre,
+                    precio: p.precio,
+                    foto: p.foto_portada || p.imagen,
+                    whatsapp: p.whatsapp || window.datosAgencia?.whatsapp
+                });
+            }
+            localStorage.setItem('geokatu_favs_inmuebles', JSON.stringify(favs));
+            window.actualizarBotonFavorito();
+        };
+
+        window.actualizarBotonFavorito = function() {
+            const btn = document.getElementById('btn-fav-inmueble');
+            if (!btn || !window.propiedadActual) return;
+            const id = window.propiedadActual.id_prod || window.propiedadActual.id;
+            const favs = JSON.parse(localStorage.getItem('geokatu_favs_inmuebles')) || [];
+            const esFav = favs.some(x => x.id === id);
+            btn.innerText = esFav ? '❤️' : '🤍';
+            btn.style.borderColor = esFav ? '#ff4444' : 'rgba(255,255,255,0.2)';
+        };
+
+        window.abrirMisGuardados = function() {
+            const lista = document.getElementById('lista-favoritos');
+            const favs = JSON.parse(localStorage.getItem('geokatu_favs_inmuebles')) || [];
+
+            if (favs.length === 0) {
+                lista.innerHTML = '<p style="text-align:center; color:#888; padding: 25px 0;">No tienes inmuebles guardados.</p>';
+            } else {
+                lista.innerHTML = favs.map(f => `
+                    <div style="display: flex; gap: 12px; align-items: center; background: rgba(0,0,0,0.4); padding: 10px; border-radius: 14px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.06);">
+                        <img src="${f.foto}" style="width: 55px; height: 55px; border-radius: 10px; object-fit: cover;">
+                        <div style="flex: 1; overflow: hidden; text-align: left;">
+                            <h4 style="margin: 0; font-size: 13px; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${window.sanitizarTexto(f.nombre)}</h4>
+                            <span style="color: #00ff64; font-weight: bold; font-size: 12px;">${window.formatearMoneda(f.precio)}</span>
+                        </div>
+                        <button onclick="window.quitarFavorito('${f.id}')" style="background: none; border: none; color: #ff4444; font-size: 16px; cursor: pointer;">✕</button>
+                    </div>
+                `).join('');
+            }
+            window.abrirModal('modal-favoritos');
+        };
+
+        window.quitarFavorito = function(id) {
+            let favs = JSON.parse(localStorage.getItem('geokatu_favs_inmuebles')) || [];
+            favs = favs.filter(x => x.id !== id);
+            localStorage.setItem('geokatu_favs_inmuebles', JSON.stringify(favs));
+            window.abrirMisGuardados();
+            window.actualizarBotonFavorito();
+        };
+
+        window.volarAlMapa = function() {
+            if (!window.propiedadActual) return;
+            const p = window.propiedadActual;
+            let lat = p.lat || p.Coordenadas?.latitude;
+            let lng = p.lng || p.Coordenadas?.longitude;
+            if (!lat || !lng) return alert("Esta propiedad no tiene coordenadas exactas en el radar.");
+            window.location.href = `index.html?lat=${lat}&lng=${lng}&zoom=17`;
+        };
+
+        window.actualizarOtrasOpciones = function() {
+            const cont = document.getElementById('contenedor-otras-opciones');
+            const tit = document.getElementById('titulo-otras-opciones');
+            const currId = window.propiedadActual.id_prod || window.propiedadActual.id;
+            const otras = window.propiedadesGlobales.filter(p => (p.id_prod || p.id) !== currId).slice(0, 6);
+
+            if (otras.length === 0) {
+                tit.style.display = 'none';
+                cont.innerHTML = '';
+                return;
+            }
+
+            tit.style.display = 'block';
+            cont.innerHTML = otras.map(p => `
+                <div class="card-opcion" onclick="window.seleccionarDirecta('${p.id_prod || p.id}')">
+                    <img class="card-opcion-img" src="${p.foto_portada || p.imagen || 'https://via.placeholder.com/200x110/0a0a0c/ff6b00?text=Inmueble'}">
+                    <div class="card-opcion-info">
+                        <h4 class="card-opcion-titulo">${window.sanitizarTexto(p.nombre)}</h4>
+                        <p class="card-opcion-precio">${window.formatearMoneda(p.precio)}</p>
+                    </div>
+                </div>
+            `).join('');
+        };
+
+        window.seleccionarDirecta = function(id) {
+            window.propiedadActual = window.propiedadesGlobales.find(p => (p.id_prod || p.id) === id);
+            window.renderizarPropiedad(window.propiedadActual);
+            window.actualizarOtrasOpciones();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        // QR y Compartir
+        window.prepararQR = function() {
+            const qrCont = document.getElementById('qr-code-container');
+            if (!qrCont) return;
+            qrCont.innerHTML = "";
+            new QRCode(qrCont, {
+                text: window.location.href,
+                width: 180,
+                height: 180,
+                colorDark: "#ff6b00",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        };
+
+        window.copiarEnlace = function() {
+            navigator.clipboard.writeText(window.location.href).then(() => alert("Enlace copiado al portapapeles 🔗"));
+        };
+
+        window.compartirNativo = async function() {
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: document.title,
+                        text: `Mira esta propiedad en Geokatu: ${window.propiedadActual?.nombre}`,
+                        url: window.location.href
+                    });
+                } catch (e) {}
+            } else {
+                window.copiarEnlace();
+            }
+        };
+
+        window.descargarQR = function() {
+            const canvas = document.querySelector('#qr-code-container canvas');
+            if (!canvas) return;
+            const a = document.createElement('a');
+            a.href = canvas.toDataURL("image/png");
+            a.download = `QR_Inmueble_${Date.now()}.png`;
+            a.click();
+        };
+
         window.addEventListener('offline', () => document.getElementById('offline-banner').classList.add('activo'));
         window.addEventListener('online', () => document.getElementById('offline-banner').classList.remove('activo'));
         if (!navigator.onLine) document.getElementById('offline-banner').classList.add('activo');
-        window.onload = construirLanding;
+
+        window.addEventListener('DOMContentLoaded', construirInmueblesFeed);
     </script>
 </body>
 </html>

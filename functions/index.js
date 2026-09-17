@@ -787,8 +787,19 @@ origen_cuenta: "auth_trigger_cadenero" // Sello de seguridad del backend
 };
 // Usamos set con merge: true por si acaso hay un documento previo
 await db.collection('Directorio').doc(user.uid).set(payloadInicial, { merge: true });
+
+// 🚀 Engrane Suizo: Mantiene qrpido.html actualizado con 0 lecturas masivas
+try {
+    await db.collection('sistema').doc('metricas_red').set({
+        total_comercios_pendientes: admin.firestore.FieldValue.increment(1)
+    }, { merge: true });
+} catch (eMet) {
+    console.warn("[Métricas] No se pudo incrementar contador de comercios:", eMet.message);
+}
+
 console.log(`[GUARDIÁN] Bóveda inicial sellada con éxito para: ${user.uid}`);
 return null;
+
 } catch (error) {
 console.error(`[GUARDIÁN - ERROR CRÍTICO] Falló la creación de bóveda para ${user.uid}:`, error);
 return null;
@@ -1140,6 +1151,15 @@ exports.webhookWompiEventos = functions.runWith({ secrets: [secretoWebhooks] })
                         fecha_confirmacion: admin.firestore.FieldValue.serverTimestamp()
                     }, { merge: true });
 
+                    // 🚀 Engrane Suizo: Registra el volumen cobrado en el acumulado de red
+                    const montoPesos = Math.round(Number(transaction.amount_in_cents || 0) / 100);
+                    try {
+                        await db.collection('sistema').doc('metricas_red').set({
+                            volumen_ventas_pos: admin.firestore.FieldValue.increment(montoPesos),
+                            tickets_emitidos: admin.firestore.FieldValue.increment(1)
+                        }, { merge: true });
+                    } catch (eMet) {}
+
                     console.log(`[WOMPI WEBHOOK] Pedido ${tktId} para negocio ${idNegocio} confirmado con éxito.`);
                 }
             }
@@ -1233,11 +1253,19 @@ exports.crearOperarioComercio = onCall({ memory: '256MB', maxInstances: 10 }, as
             expiracion_clave_temporal: expiracionTemporal
         }, { merge: true });
 
+        // 🚀 Engrane Suizo: Mantiene el contador de equipo de la red en tiempo real
+        try {
+            await db.collection('sistema').doc('metricas_red').set({
+                total_operarios: admin.firestore.FieldValue.increment(1)
+            }, { merge: true });
+        } catch (eMet) {}
+
         return { 
             success: true, 
             uid: userRecord.uid, 
             mensaje: `Operario ${nombre} creado con PIN ${codigoCajero}. Clave provisional válida por 48 horas.` 
         };
+
 
     } catch (error) {
         console.error("[CREAR OPERARIO ERROR]", error);
@@ -1269,5 +1297,7 @@ exports.resetearPasswordOperario = onCall({ memory: '256MB', maxInstances: 10 },
 
     return { success: true, mensaje: "Contraseña temporal restablecida por 48 horas." };
 });
+
+
 
 
