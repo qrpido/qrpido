@@ -498,31 +498,53 @@ window.descargarNegociosDeFirebase = async function() {
             }
         }
         arrayNegocios.forEach(data => {
-            const doc = { id: data.id || data.codigo };
-            let lat, lng;
-            if (data.Coordenadas) {
-                if (typeof data.Coordenadas.latitude === 'function' || typeof data.Coordenadas.lat === 'function') {
-                    lat = data.Coordenadas.latitude ? data.Coordenadas.latitude() : (data.Coordenadas.lat ? data.Coordenadas.lat() : data.Coordenadas._lat);
-                    lng = data.Coordenadas.longitude ? data.Coordenadas.longitude() : (data.Coordenadas.lng ? data.Coordenadas.lng() : data.Coordenadas._long);
-                } else if (data.Coordenadas.latitude !== undefined) {
-                    lat = data.Coordenadas.latitude; lng = data.Coordenadas.longitude;
-                }
+            // ==================== REEMPLAZO QUIRÚRGICO PASO 1 ====================
+            const docId = data.id || data.codigo || data.uid;
+            if (!docId) return;
+
+            let lat = null, lng = null;
+
+            // 1. Extracción polimórfica (GeoPoint, Coordenadas, minúsculas o plano)
+            const coordsObj = data.Coordenadas || data.coordenadas || data.ubicacion;
+            if (coordsObj) {
+                if (typeof coordsObj.latitude === 'function') lat = coordsObj.latitude();
+                else if (coordsObj.latitude !== undefined) lat = coordsObj.latitude;
+                else if (coordsObj.lat !== undefined) lat = coordsObj.lat;
+                else if (coordsObj._lat !== undefined) lat = coordsObj._lat;
+
+                if (typeof coordsObj.longitude === 'function') lng = coordsObj.longitude();
+                else if (coordsObj.longitude !== undefined) lng = coordsObj.longitude;
+                else if (coordsObj.lng !== undefined) lng = coordsObj.lng;
+                else if (coordsObj._long !== undefined) lng = coordsObj._long;
+            } else if (data.lat !== undefined && data.lng !== undefined) {
+                lat = data.lat;
+                lng = data.lng;
+            } else if (data.latitude !== undefined && data.longitude !== undefined) {
+                lat = data.latitude;
+                lng = data.longitude;
             } else if (data.plusCode && typeof OpenLocationCode !== 'undefined') {
                 try {
                     const decoded = OpenLocationCode.decode(data.plusCode);
-                    lat = decoded.latitudeCenter; lng = decoded.longitudeCenter;
+                    lat = decoded.latitudeCenter;
+                    lng = decoded.longitudeCenter;
                 } catch (e) {}
             }
-            if (!lat || !lng || isNaN(lat) || isNaN(lng)) return;
-            
-            // 💉 CIRUGÍA: Permitir el paso a los locales nuevos sin importar el estado de moderación aquí.
-            if (data.geohash) {
-                const distanceInM = calcularDistanciaKm(lat, lng, center[0], center[1]) * 1000;
-                if (distanceInM <= radiusInM) {
-                    const safeData = { ...data, Coordenadas: { latitude: lat, longitude: lng } };
-                    dbDirectorioMap.set(doc.id, { codigo: doc.id, ...safeData });
-                }
+
+            lat = parseFloat(lat);
+            lng = parseFloat(lng);
+            if (isNaN(lat) || isNaN(lng)) return;
+
+            // 2. Validación de distancia sin descartar por ausencia de geohash
+            const distanceInM = calcularDistanciaKm(lat, lng, center[0], center[1]) * 1000;
+            if (distanceInM <= (radiusInM * 1.5)) { // Margen de seguridad visual
+                const safeData = { 
+                    ...data, 
+                    codigo: docId,
+                    Coordenadas: { latitude: lat, longitude: lng } 
+                };
+                dbDirectorioMap.set(docId, safeData);
             }
+
         });
         dbDirectorio = Array.from(dbDirectorioMap.values());
         datosDescargados = true;
@@ -852,6 +874,8 @@ window.barridoRadar = function(filtroTexto = "") {
     }
     
     pinesEnPantalla = [...seleccionAliados, ...seleccionPremium, ...seleccionFreemium];
+
+
 
     const codigosEnPantalla = pinesEnPantalla.map(p => p.codigo);
     for (let idClon in window.marcadoresRadar) {

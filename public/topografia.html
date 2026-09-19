@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Plano Catastral Topográfico | Geokatu CAD</title>
+    <meta name="theme-color" content="#ff6b00">
+    <link rel="stylesheet" href="topografia.css">
+    <link rel="stylesheet" href="./maplibre-gl.css" />
+    <script src="./maplibre-gl.js"></script>
+    <script src="./pmtiles.js"></script>
+</head>
+
+<body>
+
+    <!-- MAPA BASE VECTORIAL EN SEGUNDO PLANO (OFFLINE PMTILES) -->
+    <div id="mapa-fondo-pmtiles"></div>
+
+    <!-- 1. VIEWPORT DE DIBUJO TOPOGRÁFICO -->
+    <div id="viewport-topografia">
+
+        <div id="capa-transform">
+            <canvas id="canvas-plano"></canvas>
+            <!-- Contenedor dinámico de rótulos, cotas métricas y linderos -->
+            <div id="contenedor-textos-libres"></div>
+        </div>
+    </div>
+
+    <!-- 2. HUD SUPERIOR: MÉTRICAS Y HERRAMIENTAS -->
+    <header class="hud-barra-superior" style="position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; align-items: center; gap: 8px;">
+        <div class="satelite-radar-box">
+            <span id="icono-sat" class="icono-satelite-anim">🛰️</span>
+            <span id="badge-pct-gps" class="badge-precision-gps precision-baja">0% (±--m)</span>
+        </div>
+        <button id="btn-modo-texto" class="btn-hud-cad" title="Insertar Cuadro de Texto Libre">📝 + Texto</button>
+        <button id="btn-tabla-coords" class="btn-hud-cad" title="Ver Cuadro de Construcción">📊 Cuadro</button>
+        <button id="btn-exportar-pdf" class="btn-hud-cad verde" title="Generar Plano Catastral Oficial">🖨️ PDF</button>
+
+        <!-- Menú Desplegable Estilo Bóveda -->
+        <div style="position: relative;">
+            <button type="button" class="btn-hud-cad" onclick="document.getElementById('menu-opciones-topografia').classList.toggle('activo')" style="padding: 6px 10px; font-size: 15px;">⋮</button>
+            <div id="menu-opciones-topografia" class="menu-cabecera-dropdown" style="right: 0; left: auto;">
+                <button type="button" onclick="window.guardarBorradorManual()">💾 Guardar Borrador (Caché)</button>
+                <button type="button" onclick="window.limpiarYNuevoPlano()" style="color: #ff4444;">🗑️ Limpiar y Nuevo Plano</button>
+                <button type="button" onclick="window.location.href='index.html'">🗺️ Ir al Mapa Principal</button>
+                <button type="button" onclick="window.GeokatuDB.SecurityService.cerrarSesion().then(()=>window.location.reload())" style="color: #ff4444; border-top: 1px solid rgba(255,255,255,0.05);">Cerrar Sesión</button>
+            </div>
+        </div>
+    </header>
+
+
+
+    <!-- 3. DOCK INFERIOR: CAPTURA DE MOJONES EN CAMPO -->
+    <nav class="hud-dock-inferior">
+        <button id="btn-capturar-mojon" class="burbuja-cad destacada">📍 Fijar Mojón (P1)</button>
+        <button id="btn-cerrar-poligono" class="burbuja-cad" style="display: none; background: #00ff64; color: black;">🔒 Cerrar en P1</button>
+    </nav>
+
+    <!-- 4. MODAL: ASENTAMIENTO DE TRAMO Y DISTANCIA POR CINTA -->
+    <div id="modal-cinta" class="modal-overlay-cad">
+        <div class="modal-tarjeta-cad">
+            <h3 id="txt-titulo-tramo" style="margin: 0 0 8px 0; font-size: 15px; color: var(--naranja); text-transform: uppercase;">
+                Medición de Tramo
+            </h3>
+            <p style="font-size: 11.5px; color: #aaa; margin: 0 0 14px 0;">
+                Digita la distancia real rectificada con cinta métrica y el colindante del lindero:
+            </p>
+
+            <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold;">Distancia en Cinta (Metros):</label>
+            <input type="number" id="input-dist-cinta" step="0.01" min="0.1" class="input-cad" placeholder="Ej: 24.85" style="font-size: 20px; font-weight: 900; color: #00ff64; text-align: center;">
+
+            <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold;">Método de Ángulo / Giro:</label>
+            <select id="select-giro-modo" class="input-cad" style="margin-bottom: 8px;">
+                <option value="GPS_RUMBO" selected>🛰️ Rumbo Cardinal por GPS</option>
+                <option value="GIRO_90_DER">📐 Giro a 90° Derecha (Escuadra)</option>
+                <option value="GIRO_90_IZQ">📐 Giro a 90° Izquierda (Escuadra)</option>
+            </select>
+
+            <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold;">Colindante / Lindero del Costado:</label>
+            <input type="text" id="input-colindante" class="input-cad" placeholder="Ej: HERMINIA SONIA GUTIERREZ JIMENEZ">
+
+
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button type="button" id="btn-cancelar-cinta" class="btn-hud-cad" style="flex: 1; padding: 12px;">Cancelar</button>
+                <button type="button" id="btn-asentar-cinta" class="btn-hud-cad activo" style="flex: 1.5; padding: 12px;">Asentar Vértice</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. MODAL: CUADRO TÉCNICO DE CONSTRUCCIÓN (RUMBOS, DISTANCIAS, COORDENADAS) -->
+    <div id="modal-cuadro-construccion" class="modal-overlay-cad">
+        <div class="modal-tarjeta-cad" style="max-width: 620px; max-height: 85vh; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 8px;">
+                <h3 style="margin: 0; font-size: 14px; text-transform: uppercase; color: var(--naranja);">Cuadro Técnico de Coordenadas</h3>
+                <button type="button" onclick="document.getElementById('modal-cuadro-construccion').style.display='none'" style="background: none; border: none; color: white; font-size: 18px; cursor: pointer;">✕</button>
+            </div>
+            
+            <div style="flex: 1; overflow-y: auto; margin: 12px 0;">
+                <table style="width: 100%; border-collapse: collapse; font-family: monospace; font-size: 11px; text-align: center;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--naranja); color: #aaa;">
+                            <th style="padding: 6px;">TRAMO</th>
+                            <th>DIST (m)</th>
+                            <th>RUMBO</th>
+                            <th>ESTE (X)</th>
+                            <th>NORTE (Y)</th>
+                            <th>COLINDANTE</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-coords-body"></tbody>
+                </table>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; font-size: 11px; font-family: monospace; border-top: 1px dashed var(--glass-border); padding-top: 10px;">
+                <span>PERÍMETRO: <strong id="lbl-perimetro-total" style="color: #00ff64;">0.00 m</strong></span>
+                <span>SUPERFICIE: <strong id="lbl-area-total" style="color: var(--naranja);">0.00 m²</strong></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. LÁMINA VECTORIAL DE SALIDA PARA IMPRESIÓN Y RADICACIÓN OFICIAL -->
+    <section id="lamina-catastral-print">
+        <div class="marco-plano-exterior">
+            <!-- Norte Catastral -->
+            <svg class="norte-simbolo-print" viewBox="0 0 100 100">
+                <polygon points="50,5 65,50 50,42 35,50" fill="#000" />
+                <polygon points="50,50 65,95 50,87 35,95" fill="#888" />
+                <text x="50" y="22" font-size="14" font-weight="900" text-anchor="middle" fill="#fff">N</text>
+            </svg>
+
+            <!-- Espacio central de dibujo del predio -->
+            <div class="canvas-print-render">
+                <canvas id="canvas-print-export"></canvas>
+            </div>
+
+            <!-- Cuadro de Coordenadas Incrustado en la Lámina -->
+            <div style="margin-bottom: 4mm;">
+                <table class="tabla-coordenadas-print" id="tabla-print-inyeccion">
+                    <thead>
+                        <tr style="background: #eee;">
+                            <th>EST. - P.V.</th>
+                            <th>DISTANCIA (m)</th>
+                            <th>RUMBO CATASTRAL</th>
+                            <th>COORDENADA ESTE</th>
+                            <th>COORDENADA NORTE</th>
+                            <th>COLINDANTE OFICIAL</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <!-- Memoria Notarial de Linderos Agrupados -->
+            <div class="rotulo-linderos-texto">
+                <strong style="display: block; font-size: 8pt; text-transform: uppercase; margin-bottom: 1mm;">Descripción Técnica de Linderos y Colindancias:</strong>
+                <span id="rot-memoria-linderos">Esperando cierre de poligonal...</span>
+            </div>
+
+            <!-- Rótulo Oficial de Mensura -->
+            <footer class="rotulo-catastral">
+
+                <div class="rotulo-celda">
+                    <strong style="display: block; font-size: 9pt;">PLANO TOPOGRÁFICO DE LINDEROS</strong>
+                    <span>PROPIETARIO / SOLICITANTE: <b id="rot-propietario">PARTICULAR</b></span><br>
+                    <span>MUNICIPIO / DEPARTAMENTO: <b id="rot-municipio">PEREIRA, RISARALDA</b></span>
+                </div>
+                <div class="rotulo-celda">
+                    <span>ÁREA TOTAL: <b id="rot-area">0.00 m²</b></span><br>
+                    <span>PERÍMETRO: <b id="rot-perimetro">0.00 m</b></span><br>
+                    <span>ESCALA: <b>1:250</b></span>
+                </div>
+                <div class="rotulo-celda" style="text-align: center;">
+                    <span style="display: block; margin-top: 8mm; border-top: 1px solid #000;">FIRMA TOPÓGRAFO / INGENIERO</span>
+                    <span style="font-size: 7pt; color: #555;">MATRÍCULA PROFESIONAL</span>
+                </div>
+            </footer>
+        </div>
+    </section>
+
+    <!-- SCRIPTS MODULARES -->
+    <script type="module" src="topografia.js"></script>
+</body>
+</html>
+
+

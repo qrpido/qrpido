@@ -1251,10 +1251,50 @@ const GeokatuDB = {
         }
     },
 
+    /**
+     * @namespace TopografiaService
+     * Almacenamiento catastral consolidado en un solo disparo (Oneshot Zero-Leak)
+     */
+    TopografiaService: {
+        guardarPlanoCatastralOneshot: async (idNegocio, idPlano, paqueteCatastral) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+            try {
+                const tenantReal = idNegocio || localStorage.getItem('geokatu_active_uid') || (auth.currentUser ? auth.currentUser.uid : null);
+                if (!tenantReal) return { success: false, error: "Identificador de negocio no válido." };
+
+                const docRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/Planos_Topograficos`, idPlano);
+                const payloadConsolidado = {
+                    ...paqueteCatastral,
+                    id_plano: idPlano,
+                    timestamp_guardado: new Date().toISOString(),
+                    usuario: auth.currentUser ? auth.currentUser.email : "TOPOGRAFO_LOCAL"
+                };
+
+                // 1 sola escritura en la nube
+                await setDoc(docRef, payloadConsolidado, { merge: true });
+                return { success: true, idPlano: docRef.id };
+            } catch (e) {
+                return { success: false, error: e.message };
+            }
+        },
+
+        obtenerPlanoCatastral: async (idNegocio, idPlano) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+            try {
+                const tenantReal = idNegocio || localStorage.getItem('geokatu_active_uid') || (auth.currentUser ? auth.currentUser.uid : null);
+                const docRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/Planos_Topograficos`, idPlano);
+                const snap = await getDoc(docRef);
+                return { success: true, data: snap.exists() ? snap.data() : null };
+            } catch (e) {
+                return { success: false, error: e.message };
+            }
+        }
+    },
 
     /**
      * @namespace MediaService
      */
+
     MediaService: {
         obtenerPulsoUrbano: async (filtros) => {
             try {

@@ -42,6 +42,12 @@
         <button id="btn-burbuja-qrs" class="burbuja-fab">🖨️ Imprimir QRs</button>
     </nav>
 
+    <!-- MINIMAPA RADAR FLOTANTE INDEPENDIENTE -->
+    <div id="contenedor-minimapa" title="Minimapa de Navegación">
+        <canvas id="canvas-minimapa"></canvas>
+    </div>
+
+
     <!-- 4. MODAL PARAMÉTRICO: DELIMITAR ÁREA -->
     <div id="modal-area" class="modal-flotante-wrap">
         <div class="modal-tarjeta-boveda">
@@ -170,15 +176,26 @@
         let modoPincelMuros = false;
         let celdasMurosBloqueadas = new Set(); // Coordenadas "x,y" bloqueadas por muros/columnas
 
-        // Estado y Restricciones de Viewport (Requerimiento 13)
+       // Estado y Restricciones de Viewport Estilo CAD (Rango Libre 0.15x a 5.0x)
         let viewport = { x: 40, y: 100, escala: 1 };
-        const SCALE_MAX = 3.0;
+        const SCALE_MIN = 0.15; // Permite alejarte para ver la nave industrial completa desde arriba
+        const SCALE_MAX = 5.0;  // Permite acercarte a nivel de milímetros a un bin o producto
 
         function obtenerScaleMin() {
-            const anchoTotalPlanoPx = perimetro.anchoM * METRO_PX;
-            const escalaAjuste = window.innerWidth / anchoTotalPlanoPx;
-            return Math.min(escalaAjuste, 1.0);
+            return SCALE_MIN;
         }
+
+        // Función estilo AutoCAD: Zoom Extents (Centra y ajusta todo el plano en pantalla)
+        window.zoomExtents = function() {
+            const planoW = perimetro.anchoM * METRO_PX;
+            const planoH = perimetro.largoM * METRO_PX;
+            const factor = Math.min((window.innerWidth * 0.85) / planoW, (window.innerHeight * 0.85) / planoH);
+            viewport.escala = Math.max(SCALE_MIN, Math.min(factor, 2.0));
+            viewport.x = (window.innerWidth - planoW * viewport.escala) / 2;
+            viewport.y = (window.innerHeight - planoH * viewport.escala) / 2;
+            actualizarTransform();
+        };
+
 
         const capaTransform = document.getElementById('capa-transform');
         const canvasRejilla = document.getElementById('rejilla-canvas');
@@ -187,8 +204,162 @@
         const guiaH = document.getElementById('guia-h');
         const guiaV = document.getElementById('guia-v');
 
+        // Referencias del minimapa independiente
+        const canvasMinimapa = document.getElementById('canvas-minimapa');
+        const ctxMinimapa = canvasMinimapa ? canvasMinimapa.getContext('2d') : null;
+
         function actualizarTransform() {
             capaTransform.style.transform = `translate3d(${viewport.x}px, ${viewport.y}px, 0) scale(${viewport.escala})`;
+            
+            // Sincroniza la cuadrícula infinita exterior con la escala y desplazamiento del plano
+            const tamRejilla = METRO_PX * viewport.escala;
+            vpEl.style.backgroundSize = `${tamRejilla}px ${tamRejilla}px`;
+            vpEl.style.backgroundPosition = `${viewport.x}px ${viewport.y}px`;
+
+            renderizarMinimapa();
+        }
+
+
+        function renderizarMinimapa() {
+            if (!ctxMinimapa || !canvasMinimapa) return;
+
+            const dpr = window.devicePixelRatio || 1;
+            const rectMini = canvasMinimapa.getBoundingClientRect();
+            if (canvasMinimapa.width !== rectMini.width * dpr || canvasMinimapa.height !== rectMini.height * dpr) {
+                canvasMinimapa.width = rectMini.width * dpr;
+                canvasMinimapa.height = rectMini.height * dpr;
+            }
+
+            ctxMinimapa.save();
+            ctxMinimapa.scale(dpr, dpr);
+            ctxMinimapa.clearRect(0, 0, rectMini.width, rectMini.height);
+
+            const planoW = perimetro.anchoM * METRO_PX;
+            const planoH = perimetro.largoM * METRO_PX;
+
+            // Escala de ajuste para encajar la tienda dentro del minimapa
+            const escalaMini = Math.min((rectMini.width - 20) / planoW, (rectMini.height - 20) / planoH);
+            const offsetX = (rectMini.width - planoW * escalaMini) / 2;
+            const offsetY = (rectMini.height - planoH * escalaMini) / 2;
+
+            // 1. Dibujar contorno del perímetro
+            ctxMinimapa.fillStyle = 'rgba(25, 25, 32, 0.9)';
+            ctxMinimapa.fillRect(offsetX, offsetY, planoW * escalaMini, planoH * escalaMini);
+            ctxMinimapa.strokeStyle = '#ff6b00';
+            ctxMinimapa.lineWidth = 1.5;
+            ctxMinimapa.strokeRect(offsetX, offsetY, planoW * escalaMini, planoH * escalaMini);
+
+            // 2. Muros
+            ctxMinimapa.fillStyle = 'rgba(255, 68, 68, 0.6)';
+            celdasMurosBloqueadas.forEach(coord => {
+                const [cx, cy] = coord.split(',').map(Number);
+                ctxMinimapa.fillRect(
+                    offsetX + cx * METRO_PX * escalaMini,
+                    offsetY + cy * METRO_PX * escalaMini,
+                    METRO_PX * escalaMini,
+                    METRO_PX * escalaMini
+                );
+            });
+
+            // 3. Muebles emplazados
+            ctxMinimapa.fillStyle = '#ff6b00';
+            muebles.forEach(m => {
+                ctxMinimapa.fillRect(
+                    offsetX + m.x * escalaMini,
+                    offsetY + m.y * escalaMini,
+                    (m.anchoM * METRO_PX) * escalaMini,
+                    (m.largoM * METRO_PX) * escalaMini
+                );
+            });
+
+            // 4. Marco de Visión CAD (Frustum de Cámara + Sombreado de Extensión)
+            const camMundoX = -viewport.x / viewport.escala;
+            const camMundoY = -viewport.y / viewport.escala;
+            const camMundoW = window.innerWidth / viewport.escala;
+            const camMundoH = window.innerHeight / viewport.escala;
+
+            // Relleno semitransparente del visor activo
+            ctxMinimapa.fillStyle = 'rgba(0, 255, 100, 0.12)';
+            ctxMinimapa.fillRect(
+                offsetX + camMundoX * escalaMini,
+                offsetY + camMundoY * escalaMini,
+                camMundoW * escalaMini,
+                camMundoH * escalaMini
+            );
+
+            // Borde flúor característico de AutoCAD
+            ctxMinimapa.strokeStyle = '#00ff64';
+            ctxMinimapa.lineWidth = 1.8;
+            ctxMinimapa.strokeRect(
+                offsetX + camMundoX * escalaMini,
+                offsetY + camMundoY * escalaMini,
+                camMundoW * escalaMini,
+                camMundoH * escalaMini
+            );
+
+            // Mira en cruz en el centro del visor
+            const centroVisorX = offsetX + (camMundoX + camMundoW / 2) * escalaMini;
+            const centroVisorY = offsetY + (camMundoY + camMundoH / 2) * escalaMini;
+            ctxMinimapa.strokeStyle = 'rgba(0, 255, 100, 0.5)';
+            ctxMinimapa.lineWidth = 1;
+            ctxMinimapa.beginPath();
+            ctxMinimapa.moveTo(centroVisorX - 4, centroVisorY);
+            ctxMinimapa.lineTo(centroVisorX + 4, centroVisorY);
+            ctxMinimapa.moveTo(centroVisorX, centroVisorY - 4);
+            ctxMinimapa.lineTo(centroVisorX, centroVisorY + 4);
+            ctxMinimapa.stroke();
+
+
+            ctxMinimapa.restore();
+        }
+
+
+
+       // Navegación Dinámica sobre el Minimapa (Arrastre de Viewport CAD en Vivo)
+        if (canvasMinimapa) {
+            let arrastrandoMinimapa = false;
+
+            const moverCamaraDesdeMinimapa = (e) => {
+                const rect = canvasMinimapa.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const clickY = e.clientY - rect.top;
+
+                const planoW = perimetro.anchoM * METRO_PX;
+                const planoH = perimetro.largoM * METRO_PX;
+                const escalaMini = Math.min((rect.width - 20) / planoW, (rect.height - 20) / planoH);
+                const offsetX = (rect.width - planoW * escalaMini) / 2;
+                const offsetY = (rect.height - planoH * escalaMini) / 2;
+
+                // Coordenada virtual del modelo 2D
+                const mundoX = (clickX - offsetX) / escalaMini;
+                const mundoY = (clickY - offsetY) / escalaMini;
+
+                // Centra la cámara del lienzo principal suavemente
+                viewport.x = (window.innerWidth / 2) - (mundoX * viewport.escala);
+                viewport.y = (window.innerHeight / 2) - (mundoY * viewport.escala);
+                actualizarTransform();
+            };
+
+            canvasMinimapa.addEventListener('pointerdown', (e) => {
+                e.stopPropagation();
+                arrastrandoMinimapa = true;
+                canvasMinimapa.setPointerCapture(e.pointerId);
+                moverCamaraDesdeMinimapa(e);
+            });
+
+            canvasMinimapa.addEventListener('pointermove', (e) => {
+                if (!arrastrandoMinimapa) return;
+                e.stopPropagation();
+                moverCamaraDesdeMinimapa(e);
+            });
+
+            const finDragMini = (e) => {
+                arrastrandoMinimapa = false;
+                try { canvasMinimapa.releasePointerCapture(e.pointerId); } catch (_) {}
+            };
+
+            canvasMinimapa.addEventListener('pointerup', finDragMini);
+            canvasMinimapa.addEventListener('pointercancel', finDragMini);
         }
 
 
@@ -204,13 +375,14 @@
 
             ctxRejilla.clearRect(0, 0, w, h);
 
-            // Suelo del área comercial delimitada
-            ctxRejilla.fillStyle = 'rgba(25, 25, 32, 0.9)';
+            // Suelo del área comercial delimitada (Mesa de trabajo activa)
+            ctxRejilla.fillStyle = '#21212b';
             ctxRejilla.fillRect(0, 0, w, h);
 
-            // Líneas métricas de cuadrícula (cada 1 metro)
-            ctxRejilla.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+            // Líneas métricas de cuadrícula interna (cada 1 metro dentro de la tienda)
+            ctxRejilla.strokeStyle = 'rgba(255, 255, 255, 0.09)';
             ctxRejilla.lineWidth = 1;
+
 
             for (let x = 0; x <= w; x += METRO_PX) {
                 ctxRejilla.beginPath();
@@ -501,12 +673,13 @@
 
                 const snap = calcularSmartGuides(mueble, nuevoX, nuevoY);
                 
-                // Restricción de colisión con muros
+               // Restricción de colisión con muros
                 if (!verificarColisionMuros(snap.x, snap.y, mueble.anchoM, mueble.largoM)) {
                     mueble.x = snap.x;
                     mueble.y = snap.y;
                     el.style.left = `${snap.x}px`;
                     el.style.top = `${snap.y}px`;
+                    renderizarMinimapa();
                 }
             });
 
@@ -960,9 +1133,11 @@
                     celdasMurosBloqueadas = new Set();
                 }
                 redibujarArea();
-                renderizarMuebles();
-                actualizarTransform();
-                console.log(`[GEOKATU SIG] Plano de sede [${idSedeActiva}] cargado correctamente.`);
+            renderizarMuebles();
+            actualizarTransform();
+            renderizarMinimapa();
+            console.log(`[GEOKATU SIG] Plano de sede [${idSedeActiva}] cargado correctamente.`);
+
             } catch (err) {
                 console.warn("[GEOKATU SIG] No se pudo cargar plano previo:", err);
             }

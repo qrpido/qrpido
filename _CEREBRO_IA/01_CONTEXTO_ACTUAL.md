@@ -1,41 +1,49 @@
-​🧠 Contexto General de QRpido (Versión SaaS Autónoma) Actualizado
-​Proyecto: Plataforma B2C/B2B de radar urbano con enfoque en hiper-optimización de recursos, descentralización financiera y validación inmutable de logística P2P.
-Estrategia Actual de Producto: Modelo SaaS de dos niveles (Freemium y Premium). Captura asincrónica de intención de compra (Carritos 24/7). El paquete Premium incluye la inyección de la pasarela Wompi del propio comercio para pagos directos (blindaje legal y fiscal para QRpido). Motor logístico Trustless basado en blockchain (Recibos Inmutables) completamente invisible para el usuario.
-Stack: Vanilla JS, CSS nativo modularizado, Firebase v10 (Hosting, Firestore, RTDB, Auth, Cloud Functions), Leaflet, Node.js 20, SDK de SUI (@mysten/sui), API Wompi.
-Entorno de Pruebas Base: * Cliente: Android con 1.5GB/2GB de RAM (Gama de entrada). Presupuesto de memoria estricto: <60MB RAM (apuntando a <30MB en módulos de mapa).
-​Servidor: Alpine Linux en terminal móvil (Acode). [HITO] Despliegue exitoso de backend en GCP superando bloqueos de IAM y Artifact Registry directamente desde un smartphone.
-​🏗️ Estado de la Arquitectura
-​Frontend (Mapa y UI): * index.html hiper-optimizado (GPU, 60 FPS, consumo fijo de 9.5MB RAM). Interfaz con Proporción Áurea.
-​Implementación del "Golden Design System" fundado en archivo independiente (ui-estilos.css) con variables en español (--naranja, --bg-oscuro, --texto-base) para la modularización progresiva de estilos.
-​[HITO] Cerebro Central (qrpido.html): Dashboard SuperAdmin hiper-ligero. Monitoreo logístico vía onValue controlado y lectura Web3 Híbrida (SUI y Base L2) mediante fetch directo a nodos RPC públicos (Cero SDKs, cero impacto en RAM).
-​DOM Garbage Collector: Limpieza automática de nodos (logs de SUI) inyectada en Vanilla JS para prevenir fugas de memoria en sesiones largas.
-​Estéticas matemáticas: Grillas (grid) en qrpido.html construidas bajo la Proporción Áurea estricta (1 : 1.618 : 1).
-​Gestión de contraseñas nativa del SO.
-​Seguridad UI y Legal: * Implementación de "Trampa Honeypot" (0 bytes) contra bots y escudo legal (Contrato de Mandato) en el registro en lugar de reCAPTCHA.
-​Búnker jurídico operativo (terminos.html) con escudos corporativos (Anti-DIAN, Anti-SIC, MinTrabajo, Cesión de M&A) y Habeas Data adaptado a Web3 con limitación técnica por inmutabilidad (SUI).
-​[HITO] Kill Switch: Botón de emergencia en el Cerebro Central conectado directamente a Firestore para cortar la generación de códigos TOTP a nivel global ante ataques.
-​Herramientas de Medición: * "Burbuja Magnética" (Micro-Profiler) inyectada para medir FPS, RAM y DOM.
-​Backend (Roles, Tesorería y Seguridad Web2): * Autenticación mediante Google SSO y contraseñas estándar (Rechazo absoluto de Magic Links por vectores de phishing).
-​Tesorería Central: Webhook de Wompi en index.js para recargas de saldo (gasolina logística) con validación de firmas criptográficas. Comisión matemática fijada al 10% inquebrantable desde el backend.
-​Firebase Firestore configurado con reglas estrictas de jerarquía Zero-Trust.
-​Roles:
-​Usuario: Navegación y compra gratuita.
-​Dueño: Gestión de bóveda (admin.html). Nivel Freemium (básico) o Premium (Wompi propio inyectado).
-​Moderador/Embajador: Aprobación por zona y dueños de cuadrante (reciben 25% de la comisión de QRpido).
-​Superadmin: Control total (Cerebro Central), Hard-Delete e indultos de tribunal de evasión.
-​Backend (El Oráculo Web3 y Malla de Gas): * Arquitectura Custodial sin fricción. Derivación de billeteras HD en la red SUI usando Contadores Atómicos en Firestore (index.js).
-​Notario SUI: Reemplazo absoluto de los Smart Contracts de Escrow (bloqueo de tokens) por Sui Events (Recibos Inmutables). Menor costo, cero fricción de Coin Locking y máxima trazabilidad legal.
-​Anticipador de Flujo (Malla de Gas): Fragmentación en Firebase Realtime Database (RTDB) usando transacciones atómicas para soportar miles de validaciones de entrega concurrentes. [HITO] Dust Sweeper programado para reciclar micro-fracciones de gas huérfanas cada 24h.
-​Smart Contracts condicionados a validaciones estrictas desde Firebase (Proof of Delivery: DEL-XXXX) con penalizaciones anti-fuerza bruta. Semilla maestra protegida en Google Cloud Secret Manager.
-​⚠️ Reglas de IA Activas (Protocolo de Asistencia)
-​NUNCA generar código completo.
-​Usar formato de "Buscar y Reemplazar" quirúrgico (> BUSCA ESTE BLOQUE EXACTO... > PÍSALO CON ESTO...).
-​Operar y diagnosticar basados EXCLUSIVAMENTE en datos reales del log del Micro-Profiler o terminal.
-​Priorizar lógica matemática (Fibonacci/Áurea) en UI y delegación a GPU en animaciones.
-​Mantener estrictamente el estándar del proyecto para variables de diseño: todo en español (ej. --texto-base, --color-primario).
-​⚠️ PROTOCOLO DE CIRUGÍA ESTRICTA (HARD RULE):
-​Tienes estrictamente PROHIBIDO generar reescrituras completas de archivos. Tu objetivo principal es el ahorro extremo de tokens y cómputo.
-Si la modificación requiere alterar código existente, estás OBLIGADO a usar EXCLUSIVAMENTE el formato:
-> BUSCA ESTE BLOQUE EXACTO...
-> PÍSALO CON ESTO...
-Límite de generación: Nunca me entregues un bloque de código mayor a 40 líneas a menos que sea un archivo nuevo creado desde cero. Si rompes esta regla y me das código de más, consideraré que fallaste la instrucción base. Eres un cirujano con bisturí, no un bulldozer.
+# 🧠 Contexto General de GEOKATU B2B (Versión SaaS Autónoma)
+
+**Proyecto:** Plataforma SaaS B2B/B2C de radar urbano, WMS retail georreferenciado y punto de venta POS con facturación electrónica y control fiscal preventivo.  
+**Estrategia Actual de Producto:** Modelo SaaS de dos niveles (Freemium de 1.300 facturas de bienvenida y Planes Prepago de recarga mediante pasarela Wompi integrada). WMS espacial basado en planos de tiendas multi-sede y góndolas físicas de hasta 4 caras de exhibición (`GEO-{idNegocio}-{idSede}-{idMueble}-{cara}-{nivel}-{bin}`).
+
+**Stack Tecnológico:** 
+- **Frontend:** Vanilla JS, CSS nativo modularizado (`ui-estilos.css`, `admin-boveda.css`, `mapatienda.css`), MapLibre GL JS, PMTiles, HTML5-Qrcode.
+- **Backend & Base de Datos:** Firebase v10 (Hosting, Firestore, RTDB, Auth, Cloud Functions), SDKs de geolocalización y pasarela Wompi Widget.
+- **Entorno de Pruebas Base:** Cliente móvil Android de recursos acotados (<60MB RAM); terminal Alpine Linux con Acode para construcción y despliegue directo en GCP.
+
+---
+
+## 🏗️ Estado de la Arquitectura y Módulos Activos
+
+1. **Frontend (Radar y Mapa Principal - `index.html`):**
+   - Motor MapLibre optimizado con control de zoom semántico, marcadores SVG vectoriales con formas personalizadas (gotas, esferas, árboles, etc.) e inyección de portadas institucionales en formato WebP.
+   - Píldora de semáforo operativo al pie del popup y separación geométrica de falange (~22px de margen flotante sobre el pin).
+   - Sistema de filtros en cascada de cristal ("Explorar") para alternar entre Comercios, Inmuebles, Servicios y Flota Activa con renderizado híbrido de tarjetas.
+
+2. **Bóveda Comercial y Catálogo (`boveda-comercio.html` & `negocio.html`):**
+   - Onboarding guiado en fases para diseño de pines, paleta de marca y geolocalización interactiva.
+   - Grilla de productos con 4 variantes editoriales (Grid, Hero 2 filas, Split de galería y Artículo/Editorial) con soporte de arrastrar y soltar (Drag & Drop) y persistencia secuencial del feed.
+   - Edición in situ de perfiles y productos sin diálogos bloqueantes (`window.prompt`), sincronización con compresión automática a WebP en el cliente y soporte multi-sede (`SALA_VENTAS`, `BODEGA_CENTRAL`, etc.).
+
+3. **Motor Espacial 2D y Editor de Góndolas (`mapatienda.html`):**
+   - Viewport con paneo fluido y gestos multitáctil dual (pinch-to-zoom) con restricciones estrictas de escala mínima (`scaleMin`) y máxima (`scaleMax`).
+   - Contra-rotación reactiva (`transform: rotate(-θdeg)`) en etiquetas, badges y controles de los estantes para mantener la legibilidad horizontal sin importar el ángulo cardinal de la góndola.
+   - Arquitectura comercial basada en Caras de Exhibición (1 a 4 caras: Frontal A, Posterior B, Cabeceras C y D) con generación de códigos canónicos de bins (`GEO-P-{idMueble}-{cara}-{nivel}-{bin}`).
+
+4. **Terminal POS y Control Fiscal (Billing Guard):**
+   - Caja registradora nativa con soporte de pistola de códigos de barras, pesaje de báscula en vivo y Split Payments (Efectivo, Tarjeta, Nequi).
+   - **Billing Guard (Modelo de Negocio):** Control preventivo de la cuota freemium (1.300 facturas mensuales). Muestra alertas sutiles en Zona Verde, proactivas en Zona Ámbar (1.000+ facturas) y bloqueantes en Zona Roja (1.300+ facturas sin saldo prepagado), conectando de inmediato con el modal de recarga vía Wompi.
+   - Emisión de comprobantes y tirillas térmicas con soporte para Facturación Electrónica DIAN / CUFE o Contingencia Tipo 04.
+
+5. **Seguridad y Reglas (`firestore.rules` & `core-db.js`):**
+   - Arquitectura Zero-Trust con roles diferenciados para dueños (`isOwner`) y operarios/cajeros (`isEmployeeOf`).
+   - Permisos de escritura atómicos en subcolecciones de inventario (`stock_ubicaciones`), ventas (`Ventas_POS`) y kardex de almacén.
+   - Inyección de `tenantReal` para garantizar que las sucursales y terminales remotas impacten el inventario del comercio matriz correcto.
+
+---
+
+## ⚠️ Reglas de IA Activas (Protocolo de Asistencia Quirúrgica)
+
+- **Cero Código Completo:** Prohibido reescribir archivos enteros.
+- **Formato Estricto:** Toda intervención se realiza exclusivamente mediante:
+  > BUSCA ESTE BLOQUE EXACTO...  
+  > PÍSALO CON ESTO...  
+- **Límite de Generación:** Nunca entregar bloques de código mayores a 500 líneas a menos que se trate de un archivo nuevo creado desde cero.
+- **Estándar de Diseño:** Mantener variables en español (`--naranja`, --bg-oscuro, `--texto-base`) y optimización estricta para consumo de memoria en dispositivos móviles.

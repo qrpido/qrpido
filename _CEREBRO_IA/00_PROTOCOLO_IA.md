@@ -1,33 +1,71 @@
-​⚙️ Protocolo Operativo del Ecosistema (Sistema Operativo IA)
-​Este documento rige cómo la Inteligencia Artificial interactúa con el código fuente del proyecto QRpido, utilizando el sistema de archivos (Filesystem) como fuente de la verdad y memoria a largo plazo.
-​FASE 1: Arquitectura del Contexto (El Filesystem)
-​Ref: Joyitas 1, 2, 3 y 8 (El entorno instruye, el andamiaje estandariza y la data es la ventaja).
-​La carpeta es el Prompt: La ubicación desde donde se envían los datos define el marco mental de la IA. No mezclar archivos de configuración (Firebase) con archivos de interfaz (CSS) en la misma solicitud a menos que sea estrictamente necesario.
-​Andamiaje Estándar (Scaffold): Todo proyecto o módulo complejo debe tener su estructura de soporte en la carpeta _CEREBRO_IA/:
-​00_PROTOCOLO_IA.md (Este documento).
-​01_CONTEXTO_ACTUAL.md (Estado general de la arquitectura y módulos activos).
-​02_BITACORA_APRENDIZAJES.md (Registro de bugs críticos resueltos y decisiones técnicas).
-​03_ROADMAP.md (Lista de tareas y próximos pasos lógicos).
-​Data Propietaria: El valor de QRpido reside en estos archivos de contexto, no en la memoria volátil del chat de IA. Estos archivos deben actualizarse constantemente.
-​FASE 2: Disciplina de Sesión (El Bucle de Trabajo)
-​Ref: Joyitas 4 y 5 (Automatizar disciplina y convertir sesiones en memoria).
-​Cada vez que se requiera asistencia de la IA, se debe seguir este ciclo estricto para evitar alucinaciones y dilución de atención:
-​Apertura de Sesión (Context Injection): * Iniciar un chat nuevo para cada tarea o módulo distinto.
-​Pegar el contenido de 01_CONTEXTO_ACTUAL.md y definir claramente el objetivo del día.
-​Regla de Modificación (Cero Código Completo):
-​La IA tiene prohibido reescribir archivos enteros.
-​Toda modificación se hará mediante el formato quirúrgico: BUSCA ESTE BLOQUE EXACTO -> PÍSALO CON ESTO.
-​Cierre de Sesión (Wrap-Up):
-​Antes de abandonar el chat, solicitar a la IA un resumen estructurado de la sesión.
-​El resumen debe incluir: decisiones tomadas, errores corregidos y código modificado.
-​Transferir este resumen manualmente a 02_BITACORA_APRENDIZAJES.md.
-​FASE 3: Síntesis Estratégica (Dream Cycle)
-​Ref: Joyita 6 (Conectar ideas en frío).
-​Procesamiento Nocturno/Matutino: * Al menos una vez por semana (o cada mañana), abrir un chat de análisis.
-​Alimentar a la IA con los últimos Wrap-ups de la bitácora y notas sueltas.
-​Solicitar un "Dream Cycle": que la IA cruce la información, detecte posibles cuellos de botella en la arquitectura y sugiera el plan de acción para el 03_ROADMAP.md.
-​FASE 4: Perímetro de Seguridad (Zero Trust)
-​Ref: Joyita 7 (Seguridad son límites).
-​Aislamiento por defecto: La IA no tiene contexto global real, solo simula tenerlo. Se le debe tratar como un contenedor aislado en cada chat.
-​Desconfianza Sistemática: Todo código generado por la IA (especialmente reglas de bases de datos, lógicas de pago o autenticación) se considera sospechoso hasta que se verifique manualmente su impacto en el resto de la aplicación.
-​Sanitización de Salidas: Nunca aplicar un cambio propuesto por la IA si la instrucción de "Buscar" no coincide de manera exacta y literal con el código en el editor local (Acode). Si no coincide, se aborta la instrucción y se exige corrección.
+# ⚙️ PROTOCOLO OPERATIVO DEL ECOSISTEMA (GEOKATU OS / IA ENGINE)
+
+Este documento rige la interacción estricta entre la Inteligencia Artificial y el código fuente de **GEOKATU**, utilizando el sistema de archivos local (`_CEREBRO_IA/`) como memoria persistente, ancla contextual y única fuente de la verdad técnica.
+
+---
+
+## FASE 1: ARQUITECTURA DEL CONTEXTO (FILESYSTEM COMO PROMPT)
+
+1. **La Carpeta es el Prompt:**
+   - La ubicación desde donde se gestionan los módulos define el marco mental de trabajo. 
+   - Queda prohibido mezclar lógicas de infraestructura o reglas (`firestore.rules`, `core-db.js`) con capas de presentación (`pines.css`, `ui-estilos.css`) en la misma solicitud salvo interdependencia crítica.
+
+2. **Andamiaje Estándar (`_CEREBRO_IA/`):**
+   Toda intervención técnica se sustenta en la estructura visible en el gestor de archivos:
+   - `00_PROTOCOLO_IA.md`: Este manifiesto de reglas y disciplina operativa.
+   - `01_CONTEXTO_ACTUAL.md`: Estado vigente de la arquitectura, esquema Firestore y módulos activos.
+   - `02_BITACORA_ERRORES.md`: Registro forense de fallos críticos resueltos, causas raíz y decisiones inmutables.
+   - `03_ROADMAP.md`: Ruta secuencial de sprints, requerimientos funcionales y pasos lógicos.
+   - `04_BOVEDA_PROMPTS.md`: Búnker de prompts maestros reutilizables de alta precisión.
+   - `INDICE_ARQUITECTURA.txt`: Mapa relacional de dependencias entre HTML, motores JS y hojas de estilo.
+
+3. **Data Propietaria Inmutable:**
+   - El valor estratégico de GEOKATU reside en estos archivos Markdown, no en la memoria volátil o temporal de una sesión de chat.
+
+---
+
+## FASE 2: DISCIPLINA DE SESIÓN (BUCLE QUIRÚRGICO DE TRABAJO)
+
+1. **Apertura de Sesión (Context Injection):**
+   - Abrir una sesión limpia para cada CUJ, sprint o requerimiento aislado.
+   - Inyectar el bloque pertinente de `01_CONTEXTO_ACTUAL.md` y delimitar un único objetivo operativo.
+
+2. **Regla de Oro: Cero Regeneraciones de Archivos Completos:**
+   - La IA tiene estrictamente prohibido reescribir documentos enteros (`.html`, `.js`, `.css`).
+   - Toda alteración debe entregarse bajo el protocolo quirúrgico estricto:
+     ```text
+     BUSCAR ESTE BLOQUE EXACTO:
+     [código literal existente en Acode]
+
+     REEMPLAZARLO POR:
+     [código sustituto probado y validado]
+     ```
+
+3. **Cierre de Sesión y Transferencia (Wrap-Up):**
+   - Antes de cerrar o reiniciar una ventana de trabajo, exigir un resumen de cambios (errores prevenidos, variables añadidas y mutaciones de esquema).
+   - Volcar este reporte inmediatamente en `02_BITACORA_ERRORES.md`.
+
+---
+
+## FASE 3: AUDITORÍA DE MODELO Y REVENUE (BILLING GUARD)
+
+1. **Inspección de Cuotas Fiscales:**
+   - Toda intervención sobre `core-db.js`, `pos.js` o `boveda-comercio.html` debe respetar el modelo freemium de **1.300 facturas de bienvenida**.
+   - Ninguna función de venta puede omitir la verificación preventiva (`BillingGuard`) ni el incremento atómico en `facturacion_control.facturas_emitidas_mes`.
+
+2. **Aislamiento Multi-Sede y WMS:**
+   - Todo identificador espacial debe estructurarse bajo la nomenclatura canónica:
+     `GEO-{idNegocio}-{idSede}-{idMueble}-{cara}-{nivel}-{bin}`.
+   - Queda prohibido hardcodear sedes estáticas en llamadas a `Planos_Almacenes`.
+
+---
+
+## FASE 4: PERÍMETRO DE SEGURIDAD (ZERO TRUST & REGLAS)
+
+1. **Aislamiento de Sesión:**
+   - La IA simula contexto pero carece de memoria global; opera como un contenedor aislado.
+   - Toda llamada en terminales físicas debe desacoplar el UID del dueño respecto al UID del operario autenticado (`isEmployeeOf`).
+
+2. **Sanitización de Salidas y Aborto Inmediato:**
+   - Si un bloque "BUSCAR" propuesto por la IA difiere en una sola coma, salto de línea o indentación respecto al editor local en Termux/Acode, **la modificación se aborta de inmediato**.
+   - No se aplican suposiciones en caliente sobre el código de producción.
