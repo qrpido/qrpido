@@ -286,6 +286,46 @@
     <!-- CONTROLADOR REACTIVO Y MOTOR DE ESCANEO -->
     <script type="module">
         import GeokatuDB from './core-db.js';
+        // Compresor y rasterizador blindado a WebP plano
+        window.comprimirImagen = function(file, maxWidth = 800, quality = 0.7, forceSquare = false) {
+            return new Promise((resolve, reject) => {
+                if (!file) return resolve(null);
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        let width = img.width, height = img.height;
+                        let sx = 0, sy = 0, sWidth = width, sHeight = height;
+
+                        if (forceSquare) {
+                            const size = Math.min(width, height);
+                            sx = (width - size) / 2; sy = (height - size) / 2;
+                            sWidth = size; sHeight = size; width = size; height = size;
+                        }
+
+                        if (width > maxWidth) {
+                            height = Math.round((height * maxWidth) / width);
+                            width = maxWidth;
+                        }
+
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.clearRect(0, 0, width, height);
+                        ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, width, height);
+
+                        canvas.toBlob(blob => {
+                            resolve(blob || file);
+                        }, 'image/webp', quality);
+                    };
+                    img.onerror = () => reject(new Error("Archivo de imagen no válido"));
+                    img.src = event.target.result;
+                };
+                reader.onerror = () => reject(new Error("Error leyendo el archivo"));
+                reader.readAsDataURL(file);
+            });
+        };
 
         let idNegocio = localStorage.getItem('geokatu_active_uid') || null;
         let operacionActual = 'ENTRADA';
@@ -492,90 +532,112 @@
         // =========================================================================
         // PROCESAMIENTO ATÓMICO Y KARDEX
         // =========================================================================
-        async function procesarMovimientoStock(codigo, origenHardware) {
-            if (navigator.vibrate) navigator.vibrate(50);
+async function procesarMovimientoStock(codigo, origenHardware) {
+    if (navigator.vibrate) navigator.vibrate(50);
+
+    // Caso A: QR Mueble (GEO-M-)
+    if (codigo.startsWith('GEO-M-')) {
+        emitirTono('EXITO');
+        ubicacionCascada.idEstante = codigo;
+        document.getElementById('txt-mueble-activo').innerText = `MUEBLE: ${codigo.replace('GEO-M-', '')}`;
+        document.getElementById('banner-cascada').style.display = 'flex';
+        return;
+    }
+
+    // Caso B: QR Compartimiento (GEO-P-)
+    if (codigo.startsWith('GEO-P-')) {
+        emitirTono('EXITO');
+        ubicacionCascada.idCompartimiento = codigo;
+        document.getElementById('txt-comp-activo').innerText = `BIN: ${codigo.replace('GEO-P-', '')}`;
+        document.getElementById('banner-cascada').style.display = 'flex';
+        return;
+    }
+
+    // Caso C: Producto (EAN-13 / SKU)
+    const unidadesLote = Math.max(1, Number(document.getElementById('input-unidades-lote').value) || 1);
+    
+    // 1. Buscar en inventario propio del negocio
+    let prod = catalogoLocal.find(p => p.codigo_barras === codigo || p.id_prod === codigo);
+
+    // 2. Si no existe localmente, consultar la Matriz Global en IndexedDB (0 ms)
+    let autoCompletadoMatriz = null;
+    if (!prod) {
+        autoCompletadoMatriz = await GeokatuDB.CatalogoMatrizService.obtenerProductoPorCodigo(codigo);
+        
+        if (autoCompletadoMatriz) {
+            // Producto detectado en catálogo maestro: Abrir modal pre-completado con autocompletado
             emitirTono('EXITO');
-
-            // Caso A: QR Mueble (GEO-M-)
-            if (codigo.startsWith('GEO-M-')) {
-                ubicacionCascada.idEstante = codigo;
-                document.getElementById('txt-mueble-activo').innerText = `MUEBLE: ${codigo.replace('GEO-M-', '')}`;
-                document.getElementById('banner-cascada').style.display = 'flex';
-                return;
-            }
-
-            // Caso B: QR Compartimiento (GEO-P-)
-            if (codigo.startsWith('GEO-P-')) {
-                ubicacionCascada.idCompartimiento = codigo;
-                document.getElementById('txt-comp-activo').innerText = `BIN: ${codigo.replace('GEO-P-', '')}`;
-                document.getElementById('banner-cascada').style.display = 'flex';
-                return;
-            }
-
-            // Caso C: Producto (EAN-13 / SKU)
-            const unidadesLote = Math.max(1, Number(document.getElementById('input-unidades-lote').value) || 1);
-            const prod = catalogoLocal.find(p => p.codigo_barras === codigo || p.id_prod === codigo);
-
-            if (!prod) {
-                emitirTono('ERROR');
-                abrirModalAltaRapida(codigo, unidadesLote);
-                return;
-            }
-
-            let tipoKardex = operacionActual === 'REUBICAR' ? 'TRASLADO_INTERNO' : operacionActual;
-            let nuevoStock = prod.stock_actual !== undefined ? prod.stock_actual : 0;
-
-            if (tipoKardex === 'ENTRADA') nuevoStock += unidadesLote;
-            else if (tipoKardex === 'SALIDA') nuevoStock = Math.max(0, nuevoStock - unidadesLote);
-
-            if (operacionActual !== 'AUDITORIA') {
-                prod.stock_actual = nuevoStock;
-                localStorage.setItem(`geokatu_catalogo_${idNegocio}`, JSON.stringify(catalogoLocal));
-            }
-
-            // Proyección en la tarjeta inferior (sin tapar el visor)
-            const tarjeta = document.getElementById('tarjeta-producto');
-            document.getElementById('prod-nombre').innerText = prod.nombre;
-            document.getElementById('prod-codigo').innerText = codigo;
-            document.getElementById('res-operacion').innerText = operacionActual;
-            document.getElementById('res-hardware').innerText = origenHardware;
-            document.getElementById('res-stock').innerText = nuevoStock;
-            tarjeta.style.display = 'block';
-
-            if (operacionActual !== 'AUDITORIA') {
-                await GeokatuDB.InventarioService.registrarMovimientoFisico(
-                    prod.id_prod, 
-                    operacionActual === 'ENTRADA' ? "PROVEEDOR" : (ubicacionCascada.idCompartimiento || "BODEGA"), 
-                    operacionActual === 'ENTRADA' ? (ubicacionCascada.idCompartimiento || "BODEGA") : (operacionActual === 'SALIDA' ? "CLIENTE" : ubicacionCascada.idCompartimiento), 
-                    tipoKardex,
-                    unidadesLote,
-                    {
-                        idEstanteDestino: ubicacionCascada.idEstante,
-                        idCompDestino: ubicacionCascada.idCompartimiento,
-                        zona: ubicacionCascada.zona
-                    }
-                );
-            }
+            abrirModalAltaRapida(codigo, unidadesLote, autoCompletadoMatriz);
+            return;
         }
+    }
+
+    // 3. Si tampoco existe en la Matriz Global: Abrir modal completamente blanco
+    if (!prod) {
+        emitirTono('ERROR');
+        abrirModalAltaRapida(codigo, unidadesLote, null);
+        return;
+    }
+
+    // Producto existente en el inventario propio del negocio
+    emitirTono('EXITO');
+    let tipoKardex = operacionActual === 'REUBICAR' ? 'TRASLADO_INTERNO' : operacionActual;
+    let nuevoStock = prod.stock_actual !== undefined ? prod.stock_actual : 0;
+
+    if (tipoKardex === 'ENTRADA') nuevoStock += unidadesLote;
+    else if (tipoKardex === 'SALIDA') nuevoStock = Math.max(0, nuevoStock - unidadesLote);
+
+    if (operacionActual !== 'AUDITORIA') {
+        prod.stock_actual = nuevoStock;
+        localStorage.setItem(`geokatu_catalogo_${idNegocio}`, JSON.stringify(catalogoLocal));
+    }
+
+    // Proyección en la tarjeta inferior
+    const tarjeta = document.getElementById('tarjeta-producto');
+    document.getElementById('prod-nombre').innerText = prod.nombre;
+    document.getElementById('prod-codigo').innerText = codigo;
+    document.getElementById('res-operacion').innerText = operacionActual;
+    document.getElementById('res-hardware').innerText = origenHardware;
+    document.getElementById('res-stock').innerText = nuevoStock;
+    tarjeta.style.display = 'block';
+
+    if (operacionActual !== 'AUDITORIA') {
+        await GeokatuDB.InventarioService.registrarMovimientoFisico(
+            prod.id_prod, 
+            operacionActual === 'ENTRADA' ? "PROVEEDOR" : (ubicacionCascada.idCompartimiento || "BODEGA"), 
+            operacionActual === 'ENTRADA' ? (ubicacionCascada.idCompartimiento || "BODEGA") : (operacionActual === 'SALIDA' ? "CLIENTE" : ubicacionCascada.idCompartimiento), 
+            tipoKardex,
+            unidadesLote,
+            {
+                idEstanteDestino: ubicacionCascada.idEstante,
+                idCompDestino: ubicacionCascada.idCompartimiento,
+                zona: ubicacionCascada.zona
+            }
+        );
+    }
+}
 
         // =========================================================================
         // SESIÓN Y ALTA RÁPIDA
         // =========================================================================
-        GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
-            if (user) {
-                idNegocio = user.uid;
-                localStorage.setItem('geokatu_active_uid', user.uid);
-                document.getElementById('pantalla-login').style.display = 'none';
-                document.getElementById('app-terminal').style.display = 'flex';
-                document.getElementById('txt-operador').innerText = `Operador: ${user.email}`;
+GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
+    if (user) {
+        idNegocio = user.uid;
+        localStorage.setItem('geokatu_active_uid', user.uid);
+        document.getElementById('pantalla-login').style.display = 'none';
+        document.getElementById('app-terminal').style.display = 'flex';
+        document.getElementById('txt-operador').innerText = `Operador: ${user.email}`;
 
-                const res = await GeokatuDB.PosService.descargarCatalogoLocal(idNegocio);
-                catalogoLocal = res.success ? res.data : GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio);
-            } else {
-                document.getElementById('pantalla-login').style.display = 'flex';
-                document.getElementById('app-terminal').style.display = 'none';
-            }
-        });
+        const res = await GeokatuDB.PosService.descargarCatalogoLocal(idNegocio);
+        catalogoLocal = res.success ? res.data : GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio);
+
+        // 🚀 Inicialización/Verificación atómica de la Matriz Global en IndexedDB
+        GeokatuDB.CatalogoMatrizService.inicializarMatriz();
+    } else {
+        document.getElementById('pantalla-login').style.display = 'flex';
+        document.getElementById('app-terminal').style.display = 'none';
+    }
+});
 
         document.getElementById('btn-login').addEventListener('click', async () => {
             const email = document.getElementById('login-email').value.trim();
@@ -600,16 +662,38 @@
 
         // Alta Rápida In Situ
         let fotoAltaBlob = null;
-        function abrirModalAltaRapida(codigo, cantSugerida) {
-            document.getElementById('alta-codigo').value = codigo;
-            document.getElementById('alta-nombre').value = '';
-            document.getElementById('alta-precio').value = '';
-            document.getElementById('alta-cantidad').value = cantSugerida || 1;
-            document.getElementById('modal-alta-rapida').style.display = 'flex';
-        }
+function abrirModalAltaRapida(codigo, cantSugerida, datosMatriz = null) {
+    const tituloModal = document.querySelector('#modal-alta-rapida h3');
+    
+    document.getElementById('alta-codigo').value = codigo;
+    document.getElementById('alta-precio').value = '';
+    document.getElementById('alta-cantidad').value = cantSugerida || 1;
+
+    if (datosMatriz) {
+        // Pre-completado instantáneo desde la Matriz Global
+        document.getElementById('alta-nombre').value = datosMatriz.nombre;
+        document.getElementById('alta-categoria').value = datosMatriz.categoria;
+        tituloModal.innerHTML = '⚡ Producto Matriz Detectado';
+        tituloModal.style.color = '#00ff64';
+    } else {
+        // Formulario en blanco para código no catalogado
+        document.getElementById('alta-nombre').value = '';
+        document.getElementById('alta-categoria').value = 'General';
+        tituloModal.innerHTML = '✨ Producto Nuevo Detectado';
+        tituloModal.style.color = 'var(--naranja)';
+    }
+
+    document.getElementById('modal-alta-rapida').style.display = 'flex';
+}
         document.getElementById('btn-cerrar-alta').addEventListener('click', () => {
             document.getElementById('modal-alta-rapida').style.display = 'none';
+            fotoAltaBlob = null;
+            document.getElementById('alta-foto-input').value = '';
+            document.getElementById('alta-foto-preview').style.display = 'none';
+            document.getElementById('alta-foto-icono').style.display = 'block';
+            document.getElementById('alta-foto-txt').style.display = 'block';
         });
+
 
         document.getElementById('alta-foto-input').addEventListener('change', (e) => {
             const f = e.target.files[0];
@@ -637,12 +721,21 @@
             if (!nom) return alert("Nombre obligatorio.");
             btn.innerText = "GUARDANDO..."; btn.disabled = true;
 
-            try {
+                        try {
                 let imgUrl = "";
                 if (fotoAltaBlob) {
-                    const up = await GeokatuDB.AdminService.subirArchivo(`productos/${idNegocio}/${Date.now()}.webp`, fotoAltaBlob);
-                    if (up.success) imgUrl = up.data;
+                    // 1. Reducción obligatoria a WebP plano < 2MB para cumplir con Storage
+                    const blobWebp = await window.comprimirImagen(fotoAltaBlob, 800, 0.7, true);
+                    const pathFoto = `productos/${idNegocio}/${codigo}_${Date.now()}.webp`;
+                    
+                    const up = await GeokatuDB.AdminService.subirArchivo(pathFoto, blobWebp);
+                    if (up.success) {
+                        imgUrl = up.data;
+                    } else {
+                        console.warn("Fallo subiendo foto en stock.html:", up.error);
+                    }
                 }
+
 
                 const nuevoProd = {
                     nombre: nom,
@@ -663,8 +756,17 @@
                 catalogoLocal.push(nuevoProd);
                 localStorage.setItem(`geokatu_catalogo_${idNegocio}`, JSON.stringify(catalogoLocal));
 
+                                // Limpieza completa del modal y reseteo de la cámara
+                fotoAltaBlob = null;
+                document.getElementById('alta-foto-input').value = '';
+                document.getElementById('alta-foto-preview').style.display = 'none';
+                document.getElementById('alta-foto-preview').src = '';
+                document.getElementById('alta-foto-icono').style.display = 'block';
+                document.getElementById('alta-foto-txt').style.display = 'block';
                 document.getElementById('modal-alta-rapida').style.display = 'none';
+
                 procesarMovimientoStock(codigo, "ALTA_RÁPIDA");
+
             } catch (err) {
                 alert("Error: " + err.message);
             } finally {

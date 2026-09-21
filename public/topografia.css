@@ -89,7 +89,6 @@ body, html {
     backface-visibility: hidden;
 }
 
-/* Cuadros de texto libres colocados a voluntad */
 .cuadro-texto-cad {
     position: absolute;
     background: rgba(15, 15, 20, 0.85);
@@ -115,7 +114,6 @@ body, html {
     box-shadow: 0 0 15px rgba(0,255,100,0.4);
 }
 
-/* Linderos Acotados sobre Aristas */
 .etiqueta-lindero {
     position: absolute;
     font-family: monospace;
@@ -129,7 +127,7 @@ body, html {
 }
 
 /* =======================================================
-   3. HUD SUPERIOR Y DOCKS FLOTANTES
+   3. HUD SUPERIOR Y DOCKS FLOTANTES (CORREGIDOS)
    ======================================================= */
 .hud-barra-superior {
     position: fixed;
@@ -144,9 +142,17 @@ body, html {
     border: 1px solid var(--glass-border);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    padding: 6px 14px;
+    padding: 6px 12px;
     border-radius: 30px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    max-width: 95vw;
+    box-sizing: border-box;
+    overflow-x: auto;
+    scrollbar-width: none; /* Oculta scrollbar en Firefox */
+}
+
+.hud-barra-superior::-webkit-scrollbar {
+    display: none; /* Oculta scrollbar en Chrome/Safari */
 }
 
 .btn-hud-cad {
@@ -160,11 +166,67 @@ body, html {
     cursor: pointer;
     transition: 0.2s;
     text-transform: uppercase;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .btn-hud-cad:active { transform: scale(0.95); }
 .btn-hud-cad.activo { background: var(--naranja); border-color: var(--naranja); }
 .btn-hud-cad.verde { background: var(--verde-cierre); color: #000; border-color: var(--verde-cierre); }
+.btn-tres-puntos { padding: 6px 10px; font-size: 14px; }
+
+/* Menú Desplegable Bóveda */
+.menu-boveda-container {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.menu-cabecera-dropdown {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 42px;
+    background: rgba(20, 20, 26, 0.96);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.8);
+    flex-direction: column;
+    min-width: 210px;
+    z-index: 1100;
+    overflow: hidden;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+
+.menu-cabecera-dropdown.activo {
+    display: flex;
+}
+
+.menu-cabecera-dropdown button {
+    background: transparent;
+    border: none;
+    color: #e0e0e0;
+    text-align: left;
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    transition: background 0.15s ease;
+}
+
+.menu-cabecera-dropdown button:active,
+.menu-cabecera-dropdown button:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.menu-cabecera-dropdown .btn-peligro {
+    color: #ff4444;
+}
+
+.menu-cabecera-dropdown .btn-separador {
+    border-top: 1px solid var(--glass-border);
+}
 
 .hud-dock-inferior {
     position: fixed;
@@ -293,7 +355,6 @@ body, html {
         position: relative;
     }
 
-    /* Rótulo de Ingeniería Catastral */
     .rotulo-catastral {
         border: 1.5px solid #000;
         display: grid;
@@ -330,6 +391,7 @@ body, html {
         z-index: 50;
     }
 }
+
 /* =======================================================
    6. RADAR SATELITAL DE PRECISIÓN Y MEMORIA DE LINDEROS
    ======================================================= */
@@ -341,6 +403,7 @@ body, html {
     border: 1px solid var(--glass-border);
     padding: 3px 8px;
     border-radius: 12px;
+    flex-shrink: 0;
 }
 
 .icono-satelite-anim {
@@ -364,13 +427,13 @@ body, html {
     font-weight: 800;
     padding: 2px 6px;
     border-radius: 6px;
+    white-space: nowrap;
 }
 
 .precision-optima { background: rgba(0, 255, 100, 0.15); color: #00ff64; border: 1px solid rgba(0, 255, 100, 0.4); }
 .precision-media  { background: rgba(255, 170, 0, 0.15); color: #ffaa00; border: 1px solid rgba(255, 170, 0, 0.4); }
 .precision-baja   { background: rgba(255, 68, 68, 0.15);  color: #ff4444; border: 1px solid rgba(255, 68, 68, 0.4); }
 
-/* Cuadro notarial en lámina print */
 .rotulo-linderos-texto {
     border: 1px solid #000;
     border-top: none;
@@ -381,6 +444,7 @@ body, html {
     text-align: justify;
     box-sizing: border-box;
 }
+
 /* =======================================================
    7. MAPA BASE VECTORIAL DESVANECIDO Y AVATAR GPS EN VIVO
    ======================================================= */
@@ -390,12 +454,11 @@ body, html {
     width: 100vw;
     height: 100vh;
     z-index: 0;
-    opacity: 0.38; /* Filtro desvanecido para que resalte la geometría CAD */
+    opacity: 0.38;
     filter: grayscale(80%) brightness(0.7);
-    pointer-events: none; /* Toda interacción táctil va al motor CAD */
+    pointer-events: none;
 }
 
-/* Cono/Avatar de Posición en Tiempo Real */
 .avatar-gps-campo {
     width: 16px;
     height: 16px;
@@ -410,4 +473,3 @@ body, html {
     0% { transform: scale(0.85); box-shadow: 0 0 6px #00ff64; }
     100% { transform: scale(1.25); box-shadow: 0 0 20px #00ff64; }
 }
-

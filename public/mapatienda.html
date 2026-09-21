@@ -119,7 +119,6 @@
                 Cara Frontal: 16 Bins | Total Góndola: 16 Bins
             </p>
 
-
             <div style="display: flex; gap: 10px;">
                 <button id="btn-cancelar-mueble" class="btn-modal-accion" style="background: rgba(255,255,255,0.1);">Cerrar</button>
                 <button id="btn-crear-mueble" class="btn-modal-accion">Guardar Mueble</button>
@@ -166,8 +165,6 @@
             }
         });
 
-
-
         // Escala métrica: 1 metro = 60 píxeles
         const METRO_PX = 60;
         let perimetro = { anchoM: 12, largoM: 18 };
@@ -176,16 +173,15 @@
         let modoPincelMuros = false;
         let celdasMurosBloqueadas = new Set(); // Coordenadas "x,y" bloqueadas por muros/columnas
 
-       // Estado y Restricciones de Viewport Estilo CAD (Rango Libre 0.15x a 5.0x)
+        // Estado y Restricciones de Viewport Estilo CAD (Rango Libre 0.15x a 5.0x)
         let viewport = { x: 40, y: 100, escala: 1 };
-        const SCALE_MIN = 0.15; // Permite alejarte para ver la nave industrial completa desde arriba
-        const SCALE_MAX = 5.0;  // Permite acercarte a nivel de milímetros a un bin o producto
+        const SCALE_MIN = 0.15;
+        const SCALE_MAX = 5.0;
 
         function obtenerScaleMin() {
             return SCALE_MIN;
         }
 
-        // Función estilo AutoCAD: Zoom Extents (Centra y ajusta todo el plano en pantalla)
         window.zoomExtents = function() {
             const planoW = perimetro.anchoM * METRO_PX;
             const planoH = perimetro.largoM * METRO_PX;
@@ -196,7 +192,6 @@
             actualizarTransform();
         };
 
-
         const capaTransform = document.getElementById('capa-transform');
         const canvasRejilla = document.getElementById('rejilla-canvas');
         const ctxRejilla = canvasRejilla.getContext('2d');
@@ -204,21 +199,18 @@
         const guiaH = document.getElementById('guia-h');
         const guiaV = document.getElementById('guia-v');
 
-        // Referencias del minimapa independiente
         const canvasMinimapa = document.getElementById('canvas-minimapa');
         const ctxMinimapa = canvasMinimapa ? canvasMinimapa.getContext('2d') : null;
 
         function actualizarTransform() {
             capaTransform.style.transform = `translate3d(${viewport.x}px, ${viewport.y}px, 0) scale(${viewport.escala})`;
             
-            // Sincroniza la cuadrícula infinita exterior con la escala y desplazamiento del plano
             const tamRejilla = METRO_PX * viewport.escala;
             vpEl.style.backgroundSize = `${tamRejilla}px ${tamRejilla}px`;
             vpEl.style.backgroundPosition = `${viewport.x}px ${viewport.y}px`;
 
             renderizarMinimapa();
         }
-
 
         function renderizarMinimapa() {
             if (!ctxMinimapa || !canvasMinimapa) return;
@@ -237,19 +229,16 @@
             const planoW = perimetro.anchoM * METRO_PX;
             const planoH = perimetro.largoM * METRO_PX;
 
-            // Escala de ajuste para encajar la tienda dentro del minimapa
             const escalaMini = Math.min((rectMini.width - 20) / planoW, (rectMini.height - 20) / planoH);
             const offsetX = (rectMini.width - planoW * escalaMini) / 2;
             const offsetY = (rectMini.height - planoH * escalaMini) / 2;
 
-            // 1. Dibujar contorno del perímetro
             ctxMinimapa.fillStyle = 'rgba(25, 25, 32, 0.9)';
             ctxMinimapa.fillRect(offsetX, offsetY, planoW * escalaMini, planoH * escalaMini);
             ctxMinimapa.strokeStyle = '#ff6b00';
             ctxMinimapa.lineWidth = 1.5;
             ctxMinimapa.strokeRect(offsetX, offsetY, planoW * escalaMini, planoH * escalaMini);
 
-            // 2. Muros
             ctxMinimapa.fillStyle = 'rgba(255, 68, 68, 0.6)';
             celdasMurosBloqueadas.forEach(coord => {
                 const [cx, cy] = coord.split(',').map(Number);
@@ -261,7 +250,6 @@
                 );
             });
 
-            // 3. Muebles emplazados
             ctxMinimapa.fillStyle = '#ff6b00';
             muebles.forEach(m => {
                 ctxMinimapa.fillRect(
@@ -272,13 +260,11 @@
                 );
             });
 
-            // 4. Marco de Visión CAD (Frustum de Cámara + Sombreado de Extensión)
             const camMundoX = -viewport.x / viewport.escala;
             const camMundoY = -viewport.y / viewport.escala;
             const camMundoW = window.innerWidth / viewport.escala;
             const camMundoH = window.innerHeight / viewport.escala;
 
-            // Relleno semitransparente del visor activo
             ctxMinimapa.fillStyle = 'rgba(0, 255, 100, 0.12)';
             ctxMinimapa.fillRect(
                 offsetX + camMundoX * escalaMini,
@@ -287,7 +273,6 @@
                 camMundoH * escalaMini
             );
 
-            // Borde flúor característico de AutoCAD
             ctxMinimapa.strokeStyle = '#00ff64';
             ctxMinimapa.lineWidth = 1.8;
             ctxMinimapa.strokeRect(
@@ -297,7 +282,6 @@
                 camMundoH * escalaMini
             );
 
-            // Mira en cruz en el centro del visor
             const centroVisorX = offsetX + (camMundoX + camMundoW / 2) * escalaMini;
             const centroVisorY = offsetY + (camMundoY + camMundoH / 2) * escalaMini;
             ctxMinimapa.strokeStyle = 'rgba(0, 255, 100, 0.5)';
@@ -309,13 +293,9 @@
             ctxMinimapa.lineTo(centroVisorX, centroVisorY + 4);
             ctxMinimapa.stroke();
 
-
             ctxMinimapa.restore();
         }
 
-
-
-       // Navegación Dinámica sobre el Minimapa (Arrastre de Viewport CAD en Vivo)
         if (canvasMinimapa) {
             let arrastrandoMinimapa = false;
 
@@ -330,11 +310,9 @@
                 const offsetX = (rect.width - planoW * escalaMini) / 2;
                 const offsetY = (rect.height - planoH * escalaMini) / 2;
 
-                // Coordenada virtual del modelo 2D
                 const mundoX = (clickX - offsetX) / escalaMini;
                 const mundoY = (clickY - offsetY) / escalaMini;
 
-                // Centra la cámara del lienzo principal suavemente
                 viewport.x = (window.innerWidth / 2) - (mundoX * viewport.escala);
                 viewport.y = (window.innerHeight / 2) - (mundoY * viewport.escala);
                 actualizarTransform();
@@ -362,8 +340,6 @@
             canvasMinimapa.addEventListener('pointercancel', finDragMini);
         }
 
-
-        // --- 1. DIBUJO DE LA REJILLA, ÁREA Y MUROS IRREGULARES ---
         function redibujarArea() {
             const w = perimetro.anchoM * METRO_PX;
             const h = perimetro.largoM * METRO_PX;
@@ -375,14 +351,11 @@
 
             ctxRejilla.clearRect(0, 0, w, h);
 
-            // Suelo del área comercial delimitada (Mesa de trabajo activa)
             ctxRejilla.fillStyle = '#21212b';
             ctxRejilla.fillRect(0, 0, w, h);
 
-            // Líneas métricas de cuadrícula interna (cada 1 metro dentro de la tienda)
             ctxRejilla.strokeStyle = 'rgba(255, 255, 255, 0.09)';
             ctxRejilla.lineWidth = 1;
-
 
             for (let x = 0; x <= w; x += METRO_PX) {
                 ctxRejilla.beginPath();
@@ -397,12 +370,10 @@
                 ctxRejilla.stroke();
             }
 
-            // Perímetro exterior de pared
             ctxRejilla.strokeStyle = '#ff6b00';
             ctxRejilla.lineWidth = 3;
             ctxRejilla.strokeRect(0, 0, w, h);
 
-            // Pintar celdas de muros irregulares guardadas
             celdasMurosBloqueadas.forEach(coord => {
                 const [cx, cy] = coord.split(',').map(Number);
                 ctxRejilla.fillStyle = 'rgba(255, 68, 68, 0.45)';
@@ -413,7 +384,6 @@
             });
         }
 
-       // --- 2. VIEWPORT: PANEO Y PINCH-TO-ZOOM MULTITÁCTIL DUAL (REQ 13) ---
         const vpEl = document.getElementById('viewport-infinito');
         const punterosActivos = new Map();
         let distanciaInicialPinch = 0;
@@ -447,12 +417,10 @@
             punterosActivos.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
             if (punterosActivos.size === 1) {
-                // Paneo con 1 dedo o cursor
                 viewport.x = e.clientX - inicioArrastreUnico.x;
                 viewport.y = e.clientY - inicioArrastreUnico.y;
                 actualizarTransform();
             } else if (punterosActivos.size === 2) {
-                // Zoom multitáctil de 2 dedos (Pinch-to-zoom)
                 const pts = Array.from(punterosActivos.values());
                 const distActual = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
                 if (distanciaInicialPinch === 0) return;
@@ -466,7 +434,6 @@
                     y: (pts[0].y + pts[1].y) / 2
                 };
 
-                // Ajuste de traslación respecto al pivote del gesto
                 viewport.x = centroActual.x - ((centroInicialPinch.x - viewport.x) / viewport.escala) * nuevaEscala;
                 viewport.y = centroActual.y - ((centroInicialPinch.y - viewport.y) / viewport.escala) * nuevaEscala;
                 viewport.escala = nuevaEscala;
@@ -485,7 +452,6 @@
         vpEl.addEventListener('pointerup', limpiarPuntero);
         vpEl.addEventListener('pointercancel', limpiarPuntero);
 
-        // Zoom pivote con rueda de ratón para escritorio
         vpEl.addEventListener('wheel', (e) => {
             e.preventDefault();
             const escalaMin = obtenerScaleMin();
@@ -502,8 +468,6 @@
             }
         }, { passive: false });
 
-
-        // --- 3. PINCEL DE MUROS E IRREGULARIDADES ---
         document.getElementById('btn-modo-muros').addEventListener('click', () => {
             modoPincelMuros = !modoPincelMuros;
             const btn = document.getElementById('btn-modo-muros');
@@ -517,7 +481,7 @@
             }
         });
 
-        canvasRejilla.style.pointerEvents = 'auto'; // Permitir clics sobre el canvas para pintar muros
+        canvasRejilla.style.pointerEvents = 'auto';
         canvasRejilla.addEventListener('pointerdown', (e) => {
             if (!modoPincelMuros) return;
             const rect = canvasRejilla.getBoundingClientRect();
@@ -536,7 +500,6 @@
             redibujarArea();
         });
 
-        // Validación matemática de colisión con muros
         function verificarColisionMuros(x, y, anchoM, largoM) {
             const minX = Math.floor(x / METRO_PX);
             const minY = Math.floor(y / METRO_PX);
@@ -553,21 +516,18 @@
             return false;
         }
 
-        // --- 4. CREACIÓN Y CONTRA-ROTACIÓN REACTIVA DE UI (REQ 14) ---
         let muebleEnEdicion = null;
 
         function aplicarContraRotacion(el, angulo) {
-    const elementosUI = el.querySelectorAll('.contra-rotacion');
-    elementosUI.forEach(elem => {
-        if (elem.classList.contains('menu-contextual-mueble') || elem.classList.contains('pivote-giro')) {
-            // Preserva el centrado horizontal del pivote y del menú contextual
-            elem.style.transform = `translateX(-50%) rotate(${-angulo}deg)`;
-        } else {
-            elem.style.transform = `rotate(${-angulo}deg)`;
+            const elementosUI = el.querySelectorAll('.contra-rotacion');
+            elementosUI.forEach(elem => {
+                if (elem.classList.contains('menu-contextual-mueble') || elem.classList.contains('pivote-giro')) {
+                    elem.style.transform = `translateX(-50%) rotate(${-angulo}deg)`;
+                } else {
+                    elem.style.transform = `rotate(${-angulo}deg)`;
+                }
+            });
         }
-    });
-}
-
 
         function renderizarMuebles() {
             contenedorMuebles.innerHTML = '';
@@ -585,7 +545,6 @@
                 const rot = m.rotacion || 0;
                 el.style.transform = `rotate(${rot}deg)`;
 
-                // 1. Menú contextual con contra-rotación
                 const menuContextual = document.createElement('div');
                 menuContextual.classList.add('menu-contextual-mueble', 'contra-rotacion');
                 menuContextual.innerHTML = `
@@ -608,7 +567,6 @@
                 });
                 el.appendChild(menuContextual);
 
-                // 2. Indicador visual esquemático de compartimientos (Cara A predeterminada)
                 const subGrid = document.createElement('div');
                 subGrid.classList.add('mueble-subdivisiones');
                 const binsFrontal = (m.caras && m.caras.A) ? (m.caras.A.bins || 4) : 4;
@@ -621,14 +579,12 @@
                 }
                 el.appendChild(subGrid);
 
-                // 3. Etiqueta de texto con contra-rotación horizontal permanente
                 const tag = document.createElement('div');
                 tag.classList.add('mueble-etiqueta', 'contra-rotacion');
                 const totalBins = m.compartimientos ? m.compartimientos.length : 0;
                 tag.innerText = `${m.nombre}\n[${m.zona === 'BODEGA' ? 'Bodega' : 'Piso Venta'}]\n${totalBins} Bins`;
                 el.appendChild(tag);
 
-                // 4. Pivote de giro con contra-rotación
                 const pivote = document.createElement('div');
                 pivote.classList.add('pivote-giro', 'contra-rotacion');
                 pivote.innerHTML = '🔄';
@@ -643,11 +599,9 @@
                 iniciarDragMueble(el, m);
                 contenedorMuebles.appendChild(el);
                 
-                // Ejecutar contra-rotación inicial
                 aplicarContraRotacion(el, rot);
             });
         }
-
 
         function iniciarDragMueble(el, mueble) {
             let offsetArrastre = { x: 0, y: 0 };
@@ -673,7 +627,6 @@
 
                 const snap = calcularSmartGuides(mueble, nuevoX, nuevoY);
                 
-               // Restricción de colisión con muros
                 if (!verificarColisionMuros(snap.x, snap.y, mueble.anchoM, mueble.largoM)) {
                     mueble.x = snap.x;
                     mueble.y = snap.y;
@@ -755,7 +708,6 @@
             document.querySelectorAll('.mueble-bloque').forEach(m => m.classList.remove('seleccionado'));
         }
 
-        // --- 5. CONTROL DE MODALES FLOTANTES ---
         document.getElementById('btn-burbuja-area').addEventListener('click', () => {
             document.getElementById('modal-area').style.display = 'flex';
         });
@@ -769,7 +721,6 @@
             redibujarArea();
         });
 
-        // --- 5. ARQUITECTURA FÍSICA MULTI-CARA Y BINS CANÓNICOS (REQ 15) ---
         let caraActivaModal = 'A';
         let configCarasEnMemoria = {
             A: { niveles: 4, bins: 4, activa: true },
@@ -786,7 +737,6 @@
             const niv = Number(inputNiveles.value) || 0;
             const bins = Number(inputSubdivs.value) || 0;
             
-            // Sincronizar cara en memoria
             configCarasEnMemoria[caraActivaModal].niveles = niv;
             configCarasEnMemoria[caraActivaModal].bins = bins;
             configCarasEnMemoria[caraActivaModal].activa = (niv > 0 && bins > 0);
@@ -803,14 +753,12 @@
         inputNiveles.addEventListener('input', actualizarPreviewBins);
         inputSubdivs.addEventListener('input', actualizarPreviewBins);
 
-        // Control de Tabs selectoras de Cara
         document.querySelectorAll('#dock-selector-caras .tab-cara-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 document.querySelectorAll('#dock-selector-caras .tab-cara-btn').forEach(b => b.classList.remove('activa'));
                 btn.classList.add('activa');
                 caraActivaModal = btn.dataset.cara;
 
-                // Cargar datos de la cara activa
                 inputNiveles.value = configCarasEnMemoria[caraActivaModal].niveles || 0;
                 inputSubdivs.value = configCarasEnMemoria[caraActivaModal].bins || 0;
                 actualizarPreviewBins();
@@ -842,6 +790,7 @@
             });
             return compartimientos;
         }
+
         function abrirModalEditarMueble(m) {
             muebleEnEdicion = m;
             document.getElementById('modal-mueble-titulo').innerText = `Editar: ${m.nombre}`;
@@ -850,7 +799,6 @@
             document.getElementById('mueble-ancho').value = m.anchoM;
             document.getElementById('mueble-largo').value = m.largoM;
 
-            // Clonar configuración de caras guardadas
             configCarasEnMemoria = JSON.parse(JSON.stringify(m.caras || {
                 A: { niveles: m.niveles || 4, bins: m.subdivisionesXNivel || 4, activa: true },
                 B: { niveles: 0, bins: 0, activa: false },
@@ -858,7 +806,6 @@
                 D: { niveles: 0, bins: 0, activa: false }
             }));
 
-            // Reset tab a Frontal (A)
             caraActivaModal = 'A';
             document.querySelectorAll('#dock-selector-caras .tab-cara-btn').forEach(b => {
                 b.classList.toggle('activa', b.dataset.cara === 'A');
@@ -880,7 +827,7 @@
 
             configCarasEnMemoria = {
                 A: { niveles: 4, bins: 4, activa: true },
-                B: { niveles: 4, bins: 4, activa: true }, // Doble faz por defecto en retail
+                B: { niveles: 4, bins: 4, activa: true },
                 C: { niveles: 0, bins: 0, activa: false },
                 D: { niveles: 0, bins: 0, activa: false }
             };
@@ -901,53 +848,18 @@
         });
 
         document.getElementById('btn-crear-mueble').addEventListener('click', () => {
-    const nombre = document.getElementById('mueble-nombre').value.trim() || "Góndola";
-    const zona = document.getElementById('mueble-zona').value;
-    const anchoM = Number(document.getElementById('mueble-ancho').value) || 2;
-    const largoM = Number(document.getElementById('mueble-largo').value) || 4;
+            const nombre = document.getElementById('mueble-nombre').value.trim() || "Góndola";
+            const zona = document.getElementById('mueble-zona').value;
+            const anchoM = Number(document.getElementById('mueble-ancho').value) || 2;
+            const largoM = Number(document.getElementById('mueble-largo').value) || 4;
 
-    // Sincronización forzada síncrona de la cara abierta en pantalla
-    const nivActual = Number(document.getElementById('mueble-niveles').value) || 0;
-    const binsActual = Number(document.getElementById('mueble-subdivs').value) || 0;
-    configCarasEnMemoria[caraActivaModal].niveles = nivActual;
-    configCarasEnMemoria[caraActivaModal].bins = binsActual;
-    configCarasEnMemoria[caraActivaModal].activa = (nivActual > 0 && binsActual > 0);
+            const nivActual = Number(document.getElementById('mueble-niveles').value) || 0;
+            const binsActual = Number(document.getElementById('mueble-subdivs').value) || 0;
+            configCarasEnMemoria[caraActivaModal].niveles = nivActual;
+            configCarasEnMemoria[caraActivaModal].bins = binsActual;
+            configCarasEnMemoria[caraActivaModal].activa = (nivActual > 0 && binsActual > 0);
 
-    actualizarPreviewBins();
-
-    if (muebleEnEdicion) {
-        muebleEnEdicion.nombre = nombre;
-        muebleEnEdicion.zona = zona;
-        muebleEnEdicion.anchoM = anchoM;
-        muebleEnEdicion.largoM = largoM;
-        muebleEnEdicion.caras = JSON.parse(JSON.stringify(configCarasEnMemoria));
-        muebleEnEdicion.compartimientos = generarMatrizCanonicaBins(muebleEnEdicion.id_mueble, muebleEnEdicion.caras);
-        muebleEnEdicion = null;
-    } else {
-                const idGenerado = "M" + Date.now().toString(16).toUpperCase().slice(-5);
-                const carasCopia = JSON.parse(JSON.stringify(configCarasEnMemoria));
-                const compartimientos = generarMatrizCanonicaBins(idGenerado, carasCopia);
-
-                const nuevoMueble = {
-                    id_mueble: idGenerado,
-                    qr: `GEO-M-${idGenerado}`,
-                    nombre: nombre,
-                    zona: zona,
-                    anchoM: anchoM,
-                    largoM: largoM,
-                    caras: carasCopia,
-                    compartimientos: compartimientos,
-                    x: 80,
-                    y: 80,
-                    rotacion: 0
-                };
-                muebles.push(nuevoMueble);
-            }
-
-    document.getElementById('modal-mueble').style.display = 'none';
-    renderizarMuebles();
-});
-
+            actualizarPreviewBins();
 
             if (muebleEnEdicion) {
                 muebleEnEdicion.nombre = nombre;
@@ -982,8 +894,6 @@
             renderizarMuebles();
         });
 
-
-        // --- 6. PERSISTENCIA EN FIRESTORE (INCLUYENDO MUROS) ---
         document.getElementById('btn-guardar-nube').addEventListener('click', async () => {
             if (!idNegocio) {
                 alert("Inicia sesión para respaldar el plano en la nube.");
@@ -1003,8 +913,6 @@
             }
         });
 
-
-       // --- 7. RADAR ESPACIAL: LOCALIZAR SKU Y CARA ACTIVA (REQ 15) ---
         document.getElementById('btn-ejecutar-radar').addEventListener('click', async () => {
             const sku = document.getElementById('input-radar-sku').value.trim();
             if (!sku || !idNegocio) {
@@ -1019,7 +927,6 @@
                 const ubi = res.data[0];
                 const idComp = ubi.id_compartimiento || ubi.id || "";
                 
-                // Búsqueda por ID directo, QR o coincidencia dentro del arreglo de compartimientos canónicos
                 const mueble = muebles.find(m => {
                     if (m.id_mueble === ubi.id_estante || m.qr === ubi.id_estante) return true;
                     return (m.compartimientos || []).some(c => c.id_comp === idComp);
@@ -1030,12 +937,10 @@
                     if (el) {
                         el.classList.add('radar-activo');
                         
-                        // Centrado del viewport en el objetivo espacial
                         viewport.x = (window.innerWidth / 2) - ((mueble.x + (mueble.anchoM * METRO_PX) / 2) * viewport.escala);
                         viewport.y = (window.innerHeight / 2) - ((mueble.y + (mueble.largoM * METRO_PX) / 2) * viewport.escala);
                         actualizarTransform();
 
-                        // Desglose canónico GEO-P-{idMueble}-{cara}-{nivel}-{bin}
                         const partes = idComp.split('-');
                         let detalleUbicacion = idComp;
                         if (partes.length >= 6) {
@@ -1055,8 +960,6 @@
             }
         });
 
-
-        // --- 8. GENERACIÓN DE SEÑALÉTICA QR ---
         document.getElementById('btn-burbuja-qrs').addEventListener('click', () => {
             const contenedor = document.getElementById('contenedor-qrs-render');
             contenedor.innerHTML = '';
@@ -1079,7 +982,6 @@
                     cardC.innerHTML += `<p style="margin: 4px 0 0 0; font-size: 10px;">${m.nombre} [Cara ${comp.cara || 'A'}]<br>${comp.nivel || ''}-${comp.bin || ''}<br><span style="color:#0088ff; font-weight: bold;">${comp.id_comp}</span></p>`;
                     contenedor.appendChild(cardC);
                 });
-
             });
 
             document.getElementById('modal-impresion').style.display = 'flex';
@@ -1089,7 +991,6 @@
             document.getElementById('modal-impresion').style.display = 'none';
         });
 
-        // --- 9. AUTO-CARGA DEL PLANO PERSISTIDO ---
         async function hidratarPlanoNube() {
             if (!idNegocio) return;
             try {
@@ -1125,7 +1026,6 @@
                         celdasMurosBloqueadas = new Set();
                     }
                 } else {
-                    // Si la sede no tiene plano guardado previamente, reinicia a valores limpios
                     perimetro = { anchoM: 12, largoM: 18 };
                     document.getElementById('area-ancho').value = 12;
                     document.getElementById('area-largo').value = 18;
@@ -1133,23 +1033,18 @@
                     celdasMurosBloqueadas = new Set();
                 }
                 redibujarArea();
-            renderizarMuebles();
-            actualizarTransform();
-            renderizarMinimapa();
-            console.log(`[GEOKATU SIG] Plano de sede [${idSedeActiva}] cargado correctamente.`);
-
+                renderizarMuebles();
+                actualizarTransform();
+                renderizarMinimapa();
+                console.log(`[GEOKATU SIG] Plano de sede [${idSedeActiva}] cargado correctamente.`);
             } catch (err) {
                 console.warn("[GEOKATU SIG] No se pudo cargar plano previo:", err);
             }
         }
 
-
-        // Inicialización
         redibujarArea();
         actualizarTransform();
         hidratarPlanoNube();
     </script>
 </body>
 </html>
-
-

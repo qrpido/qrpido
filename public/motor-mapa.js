@@ -1584,5 +1584,46 @@ window.instanciarMinimapaBoveda = function(contenedorId, lat = 4.8133, lng = -75
         }
     };
 };
+/* =========================================================================
+   PUENTE DE FILTRADO DE PINES POR CÓDIGO DE BARRAS (motor-mapa.js)
+   ========================================================================= */
+window.addEventListener('ejecutar-filtro-mapa-producto', (e) => {
+    const { barcode, idsComercios } = e.detail;
+
+    if (!window.mapa) return;
+
+    if (!idsComercios || idsComercios.length === 0) {
+        const toast = document.getElementById('toast-fantasma');
+        if (toast) {
+            toast.innerText = "No hay comercios locales con stock activo de este artículo.";
+            toast.classList.add('activo');
+            setTimeout(() => toast.classList.remove('activo'), 3500);
+        }
+        return;
+    }
+
+    // Filtrar capa de pines vectoriales en MapLibre GL JS
+    if (window.mapa.getLayer('pines-comercios-layer')) {
+        window.mapa.setFilter('pines-comercios-layer', [
+            'in',
+            ['get', 'id_comercio'],
+            ['literal', idsComercios]
+        ]);
+    } else if (window.mapa.getLayer('capa-comercios-pines')) {
+        window.mapa.setFilter('capa-comercios-pines', [
+            'in',
+            ['get', 'id_comercio'],
+            ['literal', idsComercios]
+        ]);
+    }
+
+    // Actualizar input del buscador principal con el resultado
+    const inputBuscador = document.getElementById('input-buscador');
+    if (inputBuscador) {
+        inputBuscador.value = `Stock: ${barcode} (${idsComercios.length} tiendas)`;
+    }
+
+    if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+});
 
 

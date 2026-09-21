@@ -1002,19 +1002,22 @@ window.dibujarPinSucursalEnMinimapa = function(sede) {
                 let urlImg = document.getElementById('prodImagenActual').value.trim() || '';
                 const f = document.getElementById('prodImagenFile').files[0];
 
-                if (f) {
-                    const resFoto = await GeokatuDB.AdminService.subirFotoProductoCanonica(
-    window.idNegocioLogueado,
-    barcodeVal,
-    f,
-    'frontal'
-);
-if (!resFoto.success) throw new Error(resFoto.error || "Error al subir la fotografía");
-urlImg = resFoto.url;
-
-                    if (!upSuccess) throw new Error(upError || "Error al subir la fotografía canónica");
-                    urlImg = url;
+                                if (f) {
+                    // 1. Compresión y sanitización forzosa a WebP
+                    const blobWebp = await window.comprimirImagen(f, 800, 0.7, true);
+                    
+                    // 2. Ruta canónica autorizada por las reglas de Storage
+                    const nombreFoto = barcodeVal ? `${barcodeVal}_${Date.now()}.webp` : `${Date.now()}.webp`;
+                    const pathStorage = `productos/${window.idNegocioLogueado}/${nombreFoto}`;
+                    
+                    // 3. Subida a través del método real de core-db.js
+                    const resSubida = await GeokatuDB.AdminService.subirArchivo(pathStorage, blobWebp);
+                    if (!resSubida.success) {
+                        throw new Error(resSubida.error || "Error al subir la fotografía a Storage");
+                    }
+                    urlImg = resSubida.data;
                 }
+
 
                 let monedaActual = datosTienda.moneda || 'COP';
                 let precioInput = parseFloat(pre);
@@ -3320,9 +3323,3 @@ let timerPersistenciaOrden = null;
 
 </body>
 </html>
-
-
-
-
-
-

@@ -35,16 +35,26 @@
         `;
         document.body.appendChild(errDiv);
 
-        document.getElementById('btn-bajar-error').onclick = () => {
-            const contextData = window.qrpidoLog ? window.qrpidoLog.join('\n') : "Sin historial de rendimiento";
-            const data = "=== REPORTE DE CRASH ===\n\n" + window.qrpidoErrorLog.join('---\n') + "\n=== CONTEXTO ===\n" + contextData;
-            const blob = new Blob([data], { type: 'text/plain' });
-            const a = document.createElement('a'); 
-            a.href = URL.createObjectURL(blob);
-            a.download = `CRASH_REPORT_${new Date().getTime()}.txt`; 
-            a.click();
-        };
+        document.getElementById('btn-bajar-error').onclick = () => window.descargarReporteTecnico();
     }
+
+    // Descarga directa del Informe de Diagnóstico
+    window.descargarReporteTecnico = function() {
+        const contextData = window.qrpidoLog ? window.qrpidoLog.join('\n') : "Sin historial de rendimiento";
+        const errorData = window.qrpidoErrorLog && window.qrpidoErrorLog.length > 0 
+            ? window.qrpidoErrorLog.join('---\n') 
+            : "No se registran errores críticos en la sesión actual.";
+        const data = "=== REPORTE TÉCNICO Y DIAGNÓSTICO GEOKATU ===\nGenerado: " + new Date().toISOString() + "\n\n" +
+                     "=== ERRORES REGISTRADOS ===\n" + errorData + "\n\n" +
+                     "=== CONTEXTO DE EJECUCIÓN (LOGS) ===\n" + contextData;
+        const blob = new Blob([data], { type: 'text/plain' });
+        const a = document.createElement('a'); 
+        a.href = URL.createObjectURL(blob);
+        a.download = `GEOKATU_DIAGNOSTICO_${Date.now()}.txt`; 
+        a.click();
+        const sub = document.getElementById('submenu-brujula');
+        if (sub) sub.classList.remove('activo');
+    };
 
     // 🛡️ ESCUDO 1: Errores de sintaxis y gráficos fantasma
     window.onerror = function(message, source, lineno, colno, error) {
@@ -75,6 +85,7 @@
 <link rel="stylesheet" href="maplibre-gl.css" />
 <script src="maplibre-gl.js"></script>
 <script src="pmtiles.js"></script>
+<script src="html5-qrcode.min.js"></script>
 <link rel="stylesheet" href="pines.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/openlocationcode@1.0.4/openlocationcode.min.js"></script>
@@ -118,38 +129,18 @@
     color: #aaaaaa !important; font-size: 18px !important; padding: 4px 8px !important; border-radius: 0 16px 0 0 !important;
 }
 .maplibregl-popup-close-button:hover { background-color: rgba(255, 107, 0, 0.2) !important; color: #ff6b00 !important; }
-
-/* EFECTO MITOSIS ELÁSTICA (FAM) */
-.fam-panel {
-    background: rgba(10, 10, 12, 0.85); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
-    border: 1px solid var(--naranja); border-radius: 20px; padding: 10px;
-    display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;
-    transform-origin: top right;
-    transition: all 0.4s cubic-bezier(0.68, -0.55, 0.26, 1.55);
-    opacity: 1; transform: scale(1);
-    box-shadow: 0 10px 25px rgba(0,0,0,0.6);
-}
-.fam-panel.colapsado {
-    opacity: 0; transform: scale(0.5) translateY(-20px); pointer-events: none; position: absolute; visibility: hidden;
-}
-.btn-micro {
-    width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.1);
-    display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 14px;
-}
-#fam-container.left-side { align-items: flex-start; left: 15px; right: auto; }
-#fam-container.left-side .fam-panel { transform-origin: top left; justify-content: flex-start; }
 </style>
 
 <script>
 // 1. ESCUDO XSS ESTRICTO
 window.sanitizarTexto = function(texto) {
-if (texto === null || texto === undefined) return '';
-return texto.toString().replace(/[&<>"']/g, function(m) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[m]; });
+    if (texto === null || texto === undefined) return '';
+    return texto.toString().replace(/[&<>"']/g, function(m) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[m]; });
 };
 // 2. ESCUDO CONTRA ENLACES MALICIOSOS
 window.sanitizarURL = function(url) {
-if (!url) return '#'; const sanitizada = window.sanitizarTexto(url);
-if (sanitizada.toLowerCase().trim().startsWith('javascript:')) return '#'; return sanitizada;
+    if (!url) return '#'; const sanitizada = window.sanitizarTexto(url);
+    if (sanitizada.toLowerCase().trim().startsWith('javascript:')) return '#'; return sanitizada;
 };
 window.sanitizarAtributo = window.sanitizarTexto;
 window.imagenRotaToGlass = function(imgElement, nombreRef) {
@@ -161,80 +152,54 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
 </head>
 <body class="ui-light">
 
-<div id="btn-firmas-magnetico" class="btn-flotante-gps" style="bottom: auto; right: auto; top: 180px; left: 15px; width: 45px; height: 45px; border-radius: 50%; background-color: #1e1e1e !important; border: 1px solid #444 !important; box-shadow: 0 4px 15px rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column;" onclick="if(!window.isDraggingFirmas) window.location.href='tramites.html'">
-    <span style="font-size: 16px; line-height: 1; margin-bottom: 2px;">✍️</span>
-    <span style="font-size: 7px; color: #aaa !important; font-weight: bold; text-transform: uppercase; line-height: 1; text-align: center;">Firmas</span>
+<!-- =========================================================================
+     BOTÓN SATÉLITE MAGNÉTICO CLONADO: ESCÁNER DE CÓDIGO DE BARRAS / QR (📷)
+     ========================================================================= -->
+<div id="btn-escaner-magnetico" class="btn-flotante-gps" style="bottom: auto; right: auto; top: 140px; left: 15px; width: 45px; height: 45px; border-radius: 50%; background-color: #1e1e1e !important; border: 1.5px solid var(--naranja) !important; box-shadow: 0 4px 15px rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column; cursor: pointer;">
+    <span style="font-size: 16px; line-height: 1; margin-bottom: 2px;">📷</span>
+    <span style="font-size: 7px; color: var(--naranja) !important; font-weight: bold; text-transform: uppercase; line-height: 1; text-align: center;">Escanear</span>
 </div>
-<div id="btn-transporte-magnetico" class="btn-flotante-gps" style="bottom: auto; right: auto; top: 240px; left: 15px; width: 45px; height: 45px; border-radius: 50%; background-color: #1e1e1e !important; border: 1px solid #444 !important; box-shadow: 0 4px 15px rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column;" onclick="if(!window.isDraggingTransporte) window.conmutarVistaEcosistema('transporte')">
-    <span style="font-size: 16px; line-height: 1; margin-bottom: 2px;">🚌</span>
-    <span style="font-size: 7px; color: #aaa !important; font-weight: bold; text-transform: uppercase; line-height: 1; text-align: center;">Rutas</span>
-</div>
-
-
 
 <script>
-    // 🧲 MOTOR FÍSICO: Satélites (Firmas, Transporte y Radar)
+    // 🧲 MOTOR FÍSICO: Arrastre elástico y anclaje magnético a bordes
     (function() {
-        const btnFirma = document.getElementById('btn-firmas-magnetico');
-        if(!btnFirma) return;
+        const btnScan = document.getElementById('btn-escaner-magnetico');
+        if(!btnScan) return;
         let isDragging = false, startY, startX, initialTop, initialLeft;
         const MARGEN_X = 15;
-        btnFirma.addEventListener('touchstart', (e) => {
-            isDragging = false; window.isDraggingFirmas = false;
+
+        btnScan.addEventListener('touchstart', (e) => {
+            isDragging = false; window.isDraggingScan = false;
             startY = e.touches[0].clientY; startX = e.touches[0].clientX;
-            initialTop = btnFirma.getBoundingClientRect().top; initialLeft = btnFirma.getBoundingClientRect().left;
-            btnFirma.style.transition = 'none'; 
+            initialTop = btnScan.getBoundingClientRect().top; initialLeft = btnScan.getBoundingClientRect().left;
+            btnScan.style.transition = 'none'; 
         }, {passive: true});
-        btnFirma.addEventListener('touchmove', (e) => {
+
+        btnScan.addEventListener('touchmove', (e) => {
             const deltaY = e.touches[0].clientY - startY; const deltaX = e.touches[0].clientX - startX;
             if (Math.abs(deltaY) > 5 || Math.abs(deltaX) > 5) {
-                isDragging = true; window.isDraggingFirmas = true;
-                btnFirma.style.top = (initialTop + deltaY) + 'px'; btnFirma.style.left = (initialLeft + deltaX) + 'px'; btnFirma.style.right = 'auto'; 
+                isDragging = true; window.isDraggingScan = true;
+                btnScan.style.top = (initialTop + deltaY) + 'px'; btnScan.style.left = (initialLeft + deltaX) + 'px'; btnScan.style.right = 'auto'; 
             }
         }, {passive: true});
-        btnFirma.addEventListener('touchend', (e) => {
-            btnFirma.style.transition = 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
-            if (!isDragging) return;
-            const rect = btnFirma.getBoundingClientRect(); const midScreen = window.innerWidth / 2;
-            if (rect.left + (rect.width/2) < midScreen) { btnFirma.style.left = MARGEN_X + 'px'; btnFirma.style.right = 'auto'; } 
-            else { btnFirma.style.left = 'auto'; btnFirma.style.right = MARGEN_X + 'px'; }
-            if (rect.top < 80) btnFirma.style.top = '80px';
-            if (rect.bottom > window.innerHeight - 100) btnFirma.style.top = (window.innerHeight - 100 - rect.height) + 'px';
-            setTimeout(() => window.isDraggingFirmas = false, 50);
-        });
-    })();
 
-    (function() {
-        const btnTrans = document.getElementById('btn-transporte-magnetico');
-        if(!btnTrans) return;
-        let isDragging = false, startY, startX, initialTop, initialLeft;
-        const MARGEN_X = 15;
-        btnTrans.addEventListener('touchstart', (e) => {
-            isDragging = false; window.isDraggingTransporte = false;
-            startY = e.touches[0].clientY; startX = e.touches[0].clientX;
-            initialTop = btnTrans.getBoundingClientRect().top; initialLeft = btnTrans.getBoundingClientRect().left;
-            btnTrans.style.transition = 'none'; 
-        }, {passive: true});
-        btnTrans.addEventListener('touchmove', (e) => {
-            const deltaY = e.touches[0].clientY - startY; const deltaX = e.touches[0].clientX - startX;
-            if (Math.abs(deltaY) > 5 || Math.abs(deltaX) > 5) {
-                isDragging = true; window.isDraggingTransporte = true;
-                btnTrans.style.top = (initialTop + deltaY) + 'px'; btnTrans.style.left = (initialLeft + deltaX) + 'px'; btnTrans.style.right = 'auto'; 
+        btnScan.addEventListener('touchend', () => {
+            btnScan.style.transition = 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
+            if (!isDragging) return;
+            const rect = btnScan.getBoundingClientRect(); const midScreen = window.innerWidth / 2;
+            if (rect.left + (rect.width/2) < midScreen) { btnScan.style.left = MARGEN_X + 'px'; btnScan.style.right = 'auto'; } 
+            else { btnScan.style.left = 'auto'; btnScan.style.right = MARGEN_X + 'px'; }
+            if (rect.top < 80) btnScan.style.top = '80px';
+            if (rect.bottom > window.innerHeight - 100) btnScan.style.top = (window.innerHeight - 100 - rect.height) + 'px';
+            setTimeout(() => window.isDraggingScan = false, 50);
+        });
+
+        btnScan.addEventListener('click', () => {
+            if (!window.isDraggingScan && typeof window.abrirEscanerCamara === 'function') {
+                window.abrirEscanerCamara();
             }
-        }, {passive: true});
-        btnTrans.addEventListener('touchend', (e) => {
-            btnTrans.style.transition = 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
-            if (!isDragging) return;
-            const rect = btnTrans.getBoundingClientRect(); const midScreen = window.innerWidth / 2;
-            if (rect.left + (rect.width/2) < midScreen) { btnTrans.style.left = MARGEN_X + 'px'; btnTrans.style.right = 'auto'; } 
-            else { btnTrans.style.left = 'auto'; btnTrans.style.right = MARGEN_X + 'px'; }
-            if (rect.top < 80) btnTrans.style.top = '80px';
-            if (rect.bottom > window.innerHeight - 100) btnTrans.style.top = (window.innerHeight - 100 - rect.height) + 'px';
-            setTimeout(() => window.isDraggingTransporte = false, 50);
         });
     })();
-
-   
 </script>
 
 <div id="pantalla-carga">
@@ -253,46 +218,60 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
 
 <div id="toast-fantasma" class="toast-fantasma">No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.</div>
 <div id="offline-banner" class="toast-fantasma" style="background: rgba(255, 68, 68, 0.9); border-color: #ff4444; top: 10%; box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 15px rgba(255,68,68,0.4);">⚠️ Sin conexión. Mostrando mapa guardado.</div>
-<!-- CASCADA FLUIDA DE CRISTAL (RADAR UNIFICADO) -->
-<div id="cascada-filtros-maestro" class="cascada-filtros-wrapper">
-    <button type="button" class="btn-burbuja-filtro-raiz" id="btn-filtro-raiz" onclick="window.toggleCascadaFiltros()">
-        <span>🧭</span>
-        <span id="txt-filtro-raiz">Explorar</span>
-        <span id="flecha-filtro-raiz" style="font-size: 9px; opacity: 0.7;">▾</span>
-    </button>
 
-    <div class="burbujas-hijas-lista" id="lista-burbujas-hijas">
-        <div class="burbuja-item" onclick="window.seleccionarBurbujaFiltro('comercio', '🏢 Comercios')">
-            <span>🏢</span> Comercios
-        </div>
-        <div class="burbuja-item" onclick="window.seleccionarBurbujaFiltro('inmueble', '🏠 Inmuebles')">
-            <span>🏠</span> Inmuebles
-        </div>
-        <div class="burbuja-item" onclick="window.seleccionarBurbujaFiltro('servicio', '🛠️ Servicios')">
-            <span>🛠️</span> Servicios
-        </div>
-        <div class="burbuja-item" onclick="window.seleccionarBurbujaFiltro('logistica', '🚲 Flota Activa')">
-            <span>🚲</span> Flota Activa
-        </div>
+<!-- =========================================================================
+     BOTÓN BRÚJULA (🧭) CON MENÚ CLONADO EXACTO AL DE LA LLAVE (🔑)
+     ========================================================================= -->
+<div class="contenedor-brujula-flotante" id="btn-brujula-contenedor">
+    <button class="btn-login" id="btn-brujula" onclick="toggleSubmenuBrujula()">🧭</button>
+    <div id="submenu-brujula" class="submenu-brujula">
+        <button class="btn-submenu" onclick="window.seleccionarFiltroBrujula('comercio')">Comercios</button>
+        <button class="btn-submenu" onclick="window.seleccionarFiltroBrujula('inmueble')">Inmuebles</button>
+        <button class="btn-submenu" onclick="window.seleccionarFiltroBrujula('servicio')">Servicios</button>
+        <button class="btn-submenu" onclick="window.seleccionarFiltroBrujula('logistica')">Flota Activa</button>
+        <button class="btn-submenu" onclick="window.location.href='tramites.html'">Firmas P2P</button>
+        <button class="btn-submenu" onclick="window.conmutarVistaEcosistema('transporte'); toggleSubmenuBrujula()">Rutas Transporte</button>
+        <!-- 👈 NUEVA OPCIÓN INTEGRADA AQUÍ -->
+        <button class="btn-submenu" onclick="window.abrirMenuPerformance()">Performance</button>
+        <button class="btn-submenu" onclick="window.descargarReporteTecnico()" style="color: var(--naranja); border-color: rgba(255,107,0,0.4);">Reporte Técnico</button>
     </div>
 
-    <div class="panel-vertical-mercadolibre" id="panel-mercadolibre-subfiltros"></div>
+    <!-- Panel de Subfiltros tipo MercadoLibre -->
+    <div class="panel-vertical-mercadolibre" id="panel-mercadolibre-subfiltros" style="position: absolute; top: 60px; left: 170px;"></div>
 </div>
 
-<!-- BLOQUE SUPERIOR (Buscador, Llave, Corazón) -->
+<!-- =========================================================================
+     BLOQUE SUPERIOR: BUSCADOR [ TEXTO ] [ ⋮ ] [ 🔍 ] Y LLAVE (🔑)
+     ========================================================================= -->
 <div class="top-ui ui-visible" id="caja-buscador">
     <div class="header-row">
-        <div class="search-wrapper shimmer-box" id="wrapper-buscador" style="border-radius: 25px;">
+        <!-- BUSCADOR PRINCIPAL -->
+        <div class="search-wrapper" id="wrapper-buscador" style="border-radius: 25px;">
             <input type="text" id="input-buscador" class="search-bar" placeholder="Escribe negocio, producto o ciudad...">
+            
+            <!-- Botón 3 Puntos -->
+            <button id="btn-tres-puntos" class="btn-opciones-tres-puntos" type="button" title="Tipo de búsqueda">⋮</button>
+
+            <!-- Lupa a la derecha -->
             <button class="btn-lupa" id="btn-lupa" onclick="buscarCiudadGlobal()">🔍</button>
+
+            <!-- Menú Popover de 3 Opciones de Texto -->
+            <div id="menu-tipos" class="menu-seleccion-tipo">
+                <div class="opcion-tipo seleccionado" data-tipo="comercios">
+                    <span>Buscar comercios</span> <span>✓</span>
+                </div>
+                <div class="opcion-tipo" data-tipo="articulos">
+                    <span>Buscar artículos</span>
+                </div>
+                <div class="opcion-tipo" data-tipo="ubicacion">
+                    <span>Buscar ubicación geográfica</span>
+                </div>
+            </div>
         </div>
 
         <button id="btn-filtro-corazon" class="btn-login" style="background: rgba(255, 68, 68, 0.2); border-color: #ff4444; color: #ff4444;" onclick="toggleMapaFavoritos()" title="Filtrar Mis Guardados">🤍</button>
 
-        <div id="contenedor-saldo-universal" style="display: none; align-items: center; justify-content: center; margin-right: 5px;">
-            <button class="btn-login" id="btn-saldo-global" style="width: auto; padding: 0 12px; border-radius: 20px; font-size: 13px; font-weight: bold; border-color: #00ff64; color: #00ff64; background: rgba(0, 255, 100, 0.1);" onclick="if(window.abrirPasarelaRecarga) window.abrirPasarelaRecarga();"><span id="texto-saldo-global">$0</span> <span style="font-size: 10px; margin-left: 4px;">▶️</span></button>
-        </div>
-
+        <!-- LLAVE MAESTRA -->
         <div class="contenedor-llave" id="btn-portal-mando-contenedor" style="border-radius: 50%;">
             <button class="btn-login" id="btn-portal-mando" onclick="toggleSubmenu()">🔑</button>
             <div id="submenu-llave" class="submenu-llave" style="width: 130px;">
@@ -308,8 +287,6 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         </div>
     </div> 
 </div>
-
-
 
 <button id="btn-cargar-zona" onclick="if(window.descargarNegociosDeFirebase) window.descargarNegociosDeFirebase()">🔍 Buscar en esta zona</button>
 
@@ -587,14 +564,14 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
 </div>
 
 <script>
-        const dataPerfiles = {
+    const dataPerfiles = {
         'comerciante': {
             titulo: '<span style="color: #ff6b00; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.8));">SOCIO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);"> COMERCIAL</span>',
             desc: 'Digitaliza tu local o tus servicios. Construye un catálogo exclusivo que conecta a tus clientes directamente a tu WhatsApp o Telegram. Administra empleados, gestiona tu punto de venta y haz seguimiento de inventario en tiempo real (puedes incluso conectar lectores de código de barras USB a tu celular). Controla múltiples bodegas y tiendas separadas desde un solo lugar. ¡Bienvenido a la red social de comerciantes más única del mundo!',
             img: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
             destino: 'boveda-comercio.html',
-            tipo_modelo: 'negocio',           // 💉 ADN del perfil
-            categoria_maestra: 'comercio'     // 💉 Sector
+            tipo_modelo: 'negocio',
+            categoria_maestra: 'comercio'
         },
         'inmuebles': {
             titulo: '<span style="color: #ff6b00; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.8));">INMO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);">BILIARIA</span>',
@@ -622,7 +599,6 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         }
     };
 
-
     let perfilSeleccionado = null;
 
     window.dispararOnboardingPerfiles = function() {
@@ -646,15 +622,13 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         setTimeout(() => { heroUI.style.display = 'none'; }, 400); 
     };
 
-        window.redirigirAlOnboarding = async function() {
+    window.redirigirAlOnboarding = async function() {
         if (!perfilSeleccionado) return;
         const perfil = dataPerfiles[perfilSeleccionado];
         
-        // UX: Bloqueamos el botón y avisamos que estamos procesando
         const btn = document.querySelector('.btn-hero-primario');
         if (btn) { btn.innerText = "Preparando Bóveda..."; btn.disabled = true; }
 
-        // Sellar el ADN en la base de datos antes de viajar
         if (window.idUsuarioActual && window.GeokatuDB_Global) {
             try {
                 await window.GeokatuDB_Global.AdminService.actualizarNegocio(window.idUsuarioActual, {
@@ -673,7 +647,6 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
             window.location.href = perfil.destino;
         }, 500);
     };
-
 </script>
 
 <script type="module">
@@ -751,26 +724,12 @@ document.body.addEventListener('click', (e) => {
 
 import './profiler.js';
 
-window.abrirPasarelaRecarga = async function() {
-    const { default: GeokatuDB } = await import('./core-db.js');
-    GeokatuDB.SecurityService.observarEstadoSesion((user) => {
-        if (!user) { document.getElementById('modal-login').classList.add('activo'); return; }
-        const m = prompt("¿Cuánto deseas recargar para logística P2P? (Mínimo $10,000 COP)", "10000");
-        if (isNaN(parseInt(m)) || parseInt(m) < 10000) return alert("Monto inválido. Mínimo es $10,000 COP.");
-        const checkout = new WidgetCheckout({ 
-            currency: 'COP', amountInCents: parseInt(m) * 100, reference: `RECARGA_${user.uid}_${Date.now()}`, publicKey: 'pub_test_Q5YDA9nmBDCcb4mqzB8S9B69YreS78uG' 
-        });
-        checkout.open(r => { if(r.transaction?.status === 'APPROVED') { alert("✅ ¡Recarga en proceso! El saldo logístico se reflejará en breve."); } });
-    });
-};
-
 import('./core-db.js').then(({ default: GeokatuDB }) => {
-    window.GeokatuDB_Global = GeokatuDB; // 💉 Exponemos la BD al entorno global
+    window.GeokatuDB_Global = GeokatuDB;
 
     GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
         if (user) {
-            window.idUsuarioActual = user.uid; // 💉 Guardamos el UID para el carrusel
-            
+            window.idUsuarioActual = user.uid;
             const infoNegocio = await GeokatuDB.AdminService.obtenerNegocioPorUsuario(user.uid);
             if (!infoNegocio.success || !infoNegocio.data) {
                 console.log("FANTASMA DETECTADO: Forzando Onboarding...");
@@ -829,8 +788,9 @@ window.buscarCiudadGlobal = async function() {
     } catch (e) { console.error("Error en la búsqueda SIG:", e); } finally { btn.innerText = originalIcon; }
 };
 </script>
+
 <!-- =========================================================================
-     CONTROLADOR UNIFICADO DE FILTROS EN CASCADA E INMUEBLES (GEOKATU RADAR)
+     CONTROLADOR DE FILTROS E INMUEBLES DESDE LA BRÚJULA (🧭)
      ========================================================================= -->
 <script>
 window.categoriaFiltroActiva = null;
@@ -841,45 +801,20 @@ window.filtrosInmueblesEstado = {
     habitaciones: 'todos'
 };
 
-window.toggleCascadaFiltros = function() {
-    const contenedor = document.getElementById('cascada-filtros-maestro');
-    const flecha = document.getElementById('flecha-filtro-raiz');
-    const btnRaiz = document.getElementById('btn-filtro-raiz');
-
-    if (!contenedor) return;
-
-    if (contenedor.classList.contains('modo-seleccion')) {
-        window.resetearFiltrosCascada();
-        return;
-    }
-
-    const estaAbierto = contenedor.classList.toggle('abierto');
-    if (btnRaiz) btnRaiz.classList.toggle('activo', estaAbierto);
-    if (flecha) flecha.innerText = estaAbierto ? '▴' : '▾';
+window.toggleSubmenuBrujula = () => {
+    const sub = document.getElementById('submenu-brujula');
+    if (sub) sub.classList.toggle('activo');
 };
 
-window.seleccionarBurbujaFiltro = async function(tipo, labelTexto) {
+window.seleccionarFiltroBrujula = async function(tipo) {
     if (navigator.vibrate) navigator.vibrate(25);
+    window.toggleSubmenuBrujula();
 
-    const contenedor = document.getElementById('cascada-filtros-maestro');
     const panel = document.getElementById('panel-mercadolibre-subfiltros');
-    const txtRaiz = document.getElementById('txt-filtro-raiz');
-
-    if (!contenedor || !panel) return;
-
     window.categoriaFiltroActiva = tipo;
-    contenedor.classList.add('modo-seleccion');
-    if (txtRaiz) txtRaiz.innerText = "Restablecer ✕";
-
-    document.querySelectorAll('.burbuja-item').forEach(el => {
-        if (el.innerText.includes(labelTexto.replace(/^[^\s]+\s/, ''))) {
-            el.classList.add('seleccionada');
-        } else {
-            el.classList.remove('seleccionada');
-        }
-    });
 
     if (tipo === 'inmueble') {
+        if (!panel) return;
         panel.innerHTML = `
             <div class="filtro-ml-seccion-titulo">Operación</div>
             <div class="filtro-ml-opcion activa" onclick="window.aplicarSubfiltroML('operacion', 'todos', this)">Todas</div>
@@ -901,35 +836,20 @@ window.seleccionarBurbujaFiltro = async function(tipo, labelTexto) {
             <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('habitaciones', '3+', this)">3 o más</div>
         `;
         panel.style.display = 'block';
-
-        // Consulta en tiempo real al motor de base de datos
         await window.consultarInmueblesRadar();
 
     } else if (tipo === 'comercio') {
-        panel.innerHTML = `
-            <div class="filtro-ml-seccion-titulo">Comercios</div>
-            <div class="filtro-ml-opcion activa" onclick="window.aplicarSubfiltroML('rubro', 'todos', this)">Todos</div>
-            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('rubro', 'restaurante', this)">Restaurantes y Cafés</div>
-            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('rubro', 'supermercado', this)">Supermercados</div>
-            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('rubro', 'moda', this)">Moda y Ropa</div>
-        `;
-        panel.style.display = 'block';
+        if (panel) panel.style.display = 'none';
         window.cerrarSheetInmuebles();
         if (typeof window.filtrarPinesPorModelo === 'function') window.filtrarPinesPorModelo('comercio');
 
     } else if (tipo === 'servicio') {
-        panel.innerHTML = `
-            <div class="filtro-ml-seccion-titulo">Servicios</div>
-            <div class="filtro-ml-opcion activa" onclick="window.aplicarSubfiltroML('servicio', 'todos', this)">Todos los servicios</div>
-            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('servicio', 'reparacion', this)">Reparación / Hogar</div>
-            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('servicio', 'belleza', this)">Belleza y Estética</div>
-        `;
-        panel.style.display = 'block';
+        if (panel) panel.style.display = 'none';
         window.cerrarSheetInmuebles();
         if (typeof window.filtrarPinesPorModelo === 'function') window.filtrarPinesPorModelo('servicio');
 
     } else if (tipo === 'logistica') {
-        panel.style.display = 'none';
+        if (panel) panel.style.display = 'none';
         window.cerrarSheetInmuebles();
         if (typeof window.conmutarVistaEcosistema === 'function') window.conmutarVistaEcosistema('transporte');
     }
@@ -958,10 +878,8 @@ window.aplicarSubfiltroML = function(criterio, valor, elemento) {
 
 window.consultarInmueblesRadar = async function() {
     if (!window.GeokatuDB_Global || !window.mapa) return;
-
     const centro = window.mapa.getCenter();
-    const radio = 8000; // 8 km
-    
+    const radio = 8000;
     try {
         const res = await window.GeokatuDB_Global.RadarService.buscarInmueblesEnRadar(centro.lat, centro.lng, radio);
         if (res.success) {
@@ -1031,42 +949,16 @@ window.cerrarSheetInmuebles = function() {
     if (btnCerrar) btnCerrar.style.display = 'none';
 };
 
-window.resetearFiltrosCascada = function() {
-    const contenedor = document.getElementById('cascada-filtros-maestro');
-    const panel = document.getElementById('panel-mercadolibre-subfiltros');
-    const txtRaiz = document.getElementById('txt-filtro-raiz');
-    const flecha = document.getElementById('flecha-filtro-raiz');
-    const btnRaiz = document.getElementById('btn-filtro-raiz');
-
-    window.categoriaFiltroActiva = null;
-    if (contenedor) contenedor.classList.remove('modo-seleccion', 'abierto');
-    if (btnRaiz) btnRaiz.classList.remove('activo');
-    if (txtRaiz) txtRaiz.innerText = "Explorar";
-    if (flecha) flecha.innerText = "▾";
-    if (panel) panel.style.display = 'none';
-
-    document.querySelectorAll('.burbuja-item').forEach(el => el.classList.remove('seleccionada'));
-    window.cerrarSheetInmuebles();
-
-    if (typeof window.filtrarPinesPorModelo === 'function') {
-        window.filtrarPinesPorModelo('todos');
-    }
-};
-
 document.addEventListener('click', (e) => {
-    const contenedor = document.getElementById('cascada-filtros-maestro');
-    if (contenedor && !contenedor.contains(e.target) && !contenedor.classList.contains('modo-seleccion')) {
-        contenedor.classList.remove('abierto');
-        document.getElementById('btn-filtro-raiz')?.classList.remove('activo');
-        const flecha = document.getElementById('flecha-filtro-raiz');
-        if (flecha) flecha.innerText = '▾';
+    const contenedorBrujula = document.getElementById('btn-brujula-contenedor');
+    if (contenedorBrujula && !contenedorBrujula.contains(e.target)) {
+        document.getElementById('submenu-brujula')?.classList.remove('activo');
     }
 });
 </script>
 
 <script>
-
-// Espía de sesión para botones
+// Espía de sesión para Bóveda
 window.addEventListener('DOMContentLoaded', () => {
     const observerAuth = new MutationObserver(() => {
         const panelActivo = document.getElementById('panel-usuario-activo');
@@ -1078,7 +970,6 @@ window.addEventListener('DOMContentLoaded', () => {
         const btnInventario = document.getElementById('btn-inventario');
         const btnSalir = document.getElementById('btn-salir');
         
-        // Verificamos si hay un usuario autenticado globalmente
         const usuarioLogueado = Boolean(window.idUsuarioActual || (panelActivo && panelActivo.style.display !== 'none'));
 
         if (btnLoginSub) btnLoginSub.style.display = usuarioLogueado ? 'none' : 'block';
@@ -1090,7 +981,6 @@ window.addEventListener('DOMContentLoaded', () => {
         if (btnSalir) btnSalir.style.display = usuarioLogueado ? 'block' : 'none';
     });
     
-    // Observamos tanto el panel activo como cambios generales de sesión
     observerAuth.observe(document.body, { childList: true, subtree: true, attributes: true });
 });
 
@@ -1118,7 +1008,332 @@ aplicarSwipeAbajo('overlay-compartir', 'sheet-compartir');
 aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
 </script>
 
+<!-- MODAL CÁMARA ESCÁNER CON BORDE NEÓN -->
+<dialog id="modal-camara-escaneo" class="modal-dialog-camara">
+    <div class="modal-camara-inner">
+        <div class="modal-header-camara">
+            <span>📸 Escanear Código de Barras / QR</span>
+            <button onclick="window.cerrarCamaraModal()" style="background:transparent; border:none; color:#aaa; font-size:18px; cursor:pointer;">✕</button>
+        </div>
+        <div id="lector-camara-modal" class="visor-camara-box"></div>
+        <p style="font-size:11px; color:#aaa; text-align:center; margin:10px 0 0 0;">Coloca el código dentro del marco</p>
+    </div>
+</dialog>
+
+<!-- CONTENEDOR FLOTANTE PARA MODALES Y BURBUJAS DE PRODUCTO -->
+<div id="contenedor-modales-productos"></div>
+
+<!-- LÓGICA DEL MOTOR DE ESCANEO, MODAL UNIFICADA Y BUSCADOR TEXTUAL -->
+<script type="module">
+    import GeokatuDB from './core-db.js';
+
+    // --- SINTETIZADOR DE AUDIO FEEDBACK ---
+    let audioCtx = null;
+    function emitirTono(tipo = 'EXITO') {
+        try {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            const ahora = audioCtx.currentTime;
+
+            if (tipo === 'EXITO') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1850, ahora);
+                gain.gain.setValueAtTime(0.2, ahora);
+                gain.gain.exponentialRampToValueAtTime(0.01, ahora + 0.08);
+                osc.start(ahora);
+                osc.stop(ahora + 0.08);
+            } else {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(220, ahora);
+                gain.gain.setValueAtTime(0.25, ahora);
+                gain.gain.exponentialRampToValueAtTime(0.01, ahora + 0.25);
+                osc.start(ahora);
+                osc.stop(ahora + 0.25);
+            }
+        } catch (e) {}
+    }
+
+    // --- 1. CONTROL DEL MENÚ DE 3 PUNTOS (100% TEXTO / SIN DISPARO DE CÁMARA) ---
+    const btnTresPuntos = document.getElementById('btn-tres-puntos');
+    const menuTipos = document.getElementById('menu-tipos');
+    const opcionesTipos = document.querySelectorAll('.opcion-tipo');
+    const inputBuscador = document.getElementById('input-buscador');
+
+    btnTresPuntos.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menuTipos.classList.toggle('activo');
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#wrapper-buscador')) {
+            menuTipos.classList.remove('activo');
+        }
+    });
+
+    opcionesTipos.forEach(opcion => {
+        opcion.addEventListener('click', (e) => {
+            e.stopPropagation();
+            opcionesTipos.forEach(o => {
+                o.classList.remove('seleccionado');
+                const check = o.querySelector('span:last-child');
+                if (check && check.innerText === '✓') check.remove();
+            });
+
+            opcion.classList.add('seleccionado');
+            opcion.innerHTML += ' <span>✓</span>';
+            menuTipos.classList.remove('activo');
+
+            const tipo = opcion.dataset.tipo;
+            if (tipo === 'articulos') {
+                inputBuscador.placeholder = "Escribe el nombre del artículo...";
+            } else if (tipo === 'comercios') {
+                inputBuscador.placeholder = "Escribe negocio, rubro o tienda...";
+            } else if (tipo === 'ubicacion') {
+                inputBuscador.placeholder = "Escribe dirección, barrio o ciudad...";
+            }
+        });
+    });
+
+    // --- 2. MOTOR DE ESCANEO DE CÁMARA (Html5Qrcode) ---
+    let scannerInstancia = null;
+
+    window.abrirEscanerCamara = function() {
+        const modalCamara = document.getElementById('modal-camara-escaneo');
+        modalCamara.showModal();
+
+        if (!scannerInstancia) {
+            scannerInstancia = new Html5Qrcode("lector-camara-modal", {
+                formatsToSupport: [
+                    Html5QrcodeSupportedFormats.EAN_13,
+                    Html5QrcodeSupportedFormats.EAN_8,
+                    Html5QrcodeSupportedFormats.CODE_128,
+                    Html5QrcodeSupportedFormats.QR_CODE
+                ],
+                verbose: false
+            });
+        }
+
+        scannerInstancia.start(
+            { facingMode: "environment" },
+            {
+                fps: 20,
+                qrbox: (ancho, alto) => ({
+                    width: Math.floor(ancho * 0.85),
+                    height: Math.floor(Math.min(alto * 0.55, 120))
+                }),
+                aspectRatio: 1.333333
+            },
+            async (codigoLeido) => {
+                await window.cerrarCamaraModal();
+                emitirTono('EXITO');
+                if (navigator.vibrate) navigator.vibrate(50);
+
+                // Consulta de doble capa en core-db.js
+                const res = await GeokatuDB.RadarService.buscarComerciosPorCodigoEAN(codigoLeido);
+                
+                // Muestra modal unificada
+                window.crearModalProductoUnificado(res.producto, res.comerciosIDs);
+
+                // Filtra inmediatamente en el mapa
+                window.dispararFiltroComercios(codigoLeido, res.comerciosIDs);
+            },
+            () => {}
+        ).catch(err => {
+            console.error("Fallo al iniciar visor de cámara:", err);
+            window.cerrarCamaraModal();
+            alert("No se pudo acceder a la cámara. Comprueba los permisos.");
+        });
+    };
+
+    window.cerrarCamaraModal = async function() {
+        if (scannerInstancia && scannerInstancia.isScanning) {
+            try { await scannerInstancia.stop(); } catch (e) {}
+        }
+        document.getElementById('modal-camara-escaneo').close();
+    };
+
+        // =========================================================================
+    // 3. FICHA INFORMATIVA DE PRODUCTO (SOLO LECTURA PARA EL CONSUMIDOR)
+    // =========================================================================
+    window.crearModalProductoUnificado = function(datos, idsComerciosValidos = []) {
+        const modalId = `modal-prod-${Date.now()}`;
+        const cantidadTiendas = idsComerciosValidos.length;
+        
+        // Formateo visual de precio
+        const precioNumero = parseFloat(datos.precio) || 0;
+        const precioFormateado = precioNumero > 0 
+            ? `$${precioNumero.toLocaleString('es-CO')}` 
+            : 'Consultar en tienda';
+
+        const modalHTML = `
+            <div id="${modalId}" class="modal-producto-unificado modal-consumidor">
+                <!-- Cabecera Arrastrable -->
+                <div class="modal-header-prod" id="header-${modalId}">
+                    <h3>✨ ARTÍCULO DETECTADO</h3>
+                    <div class="controles-acciones-prod">
+                        <button class="btn-accion-prod" title="Minimizar a Burbuja" onclick="window.minimizarABurbuja('${modalId}', '${datos.nombre}')">🔽</button>
+                        <button class="btn-accion-prod" title="Cerrar" onclick="document.getElementById('${modalId}').remove()">✕</button>
+                    </div>
+                </div>
+
+                <!-- Bloque Principal: Foto + Nombre + EAN -->
+                <div class="grid-top-producto">
+                    <div class="foto-placeholder-gk">
+                        ${datos.imagen ? `<img src="${datos.imagen}" alt="${datos.nombre}">` : `<span>📦</span>`}
+                    </div>
+                    <div class="producto-datos-principales">
+                        <div class="pill-codigo-ean">
+                            <span>🏷️</span> <span class="txt-ean">${datos.barcode}</span>
+                        </div>
+                        <h2 class="producto-nombre-display">${datos.nombre || 'Producto no identificado'}</h2>
+                        <span class="badge-categoria-tag">${datos.categoria || 'General'}</span>
+                    </div>
+                </div>
+
+                <!-- Métricas Informativas de Solo Lectura -->
+                <div class="panel-info-consumidor">
+                    <div class="caja-metrica-consumidor">
+                        <span class="metrica-label">Precio Referencia</span>
+                        <span class="metrica-valor-precio">${precioFormateado}</span>
+                    </div>
+                    <div class="caja-metrica-consumidor">
+                        <span class="metrica-label">Disponibilidad</span>
+                        <span class="metrica-valor-stock ${cantidadTiendas > 0 ? 'con-stock' : 'sin-stock'}">
+                            ${cantidadTiendas > 0 ? `🟢 ${cantidadTiendas} tienda${cantidadTiendas > 1 ? 's' : ''}` : '🔴 Agotado cerca'}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Botón de Filtrado en Mapa -->
+                <button class="btn-filtrar-comercios-gk" onclick="window.dispararFiltroComercios('${datos.barcode}', ${JSON.stringify(idsComerciosValidos)})">
+                    📍 ${cantidadTiendas > 0 ? `VER ${cantidadTiendas} TIENDA${cantidadTiendas > 1 ? 'S' : ''} EN EL MAPA` : 'BUSCAR TIENDAS CERCANAS'}
+                </button>
+            </div>
+        `;
+
+        document.getElementById('contenedor-modales-productos').insertAdjacentHTML('beforeend', modalHTML);
+        const modalEl = document.getElementById(modalId);
+        window.hacerElementoArrastrable(modalEl, document.getElementById(`header-${modalId}`));
+    };
+
+    // --- 4. MINIMIZACIÓN A BURBUJAS MAGNÉTICAS FLOTANTES ---
+    window.minimizarABurbuja = function(modalId, nombreProd) {
+        const modalEl = document.getElementById(modalId);
+        if (!modalEl) return;
+        modalEl.style.display = 'none';
+
+        const burbujaId = `burbuja-${modalId}`;
+        const iniciales = (nombreProd || 'Prod').substring(0, 7) + '..';
+
+        const burbujaHTML = `
+            <div id="${burbujaId}" class="burbuja-producto-flotante" style="top: 200px; left: 20px;">
+                <span class="burbuja-badge">🏷️</span>
+                <div class="burbuja-contenido">
+                    <strong style="font-size:12px;">📦</strong>
+                    <span>${iniciales}</span>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', burbujaHTML);
+        const burbujaEl = document.getElementById(burbujaId);
+
+        burbujaEl.addEventListener('click', () => {
+            if (burbujaEl.dataset.dragging === 'true') return;
+            modalEl.style.display = 'block';
+            burbujaEl.remove();
+        });
+
+        window.hacerElementoArrastrable(burbujaEl, burbujaEl);
+    };
+
+    // --- 5. FÍSICA DE ARRASTRE DE MODALES Y BURBUJAS ---
+    window.hacerElementoArrastrable = function(contenedor, trigger) {
+        let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+        const handle = trigger || contenedor;
+
+        handle.onmousedown = arrastreIniciar;
+        handle.ontouchstart = arrastreIniciar;
+
+        function arrastreIniciar(e) {
+            contenedor.dataset.dragging = 'false';
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            pos3 = clientX;
+            pos4 = clientY;
+
+            document.onmouseup = arrastreDetener;
+            document.ontouchend = arrastreDetener;
+            document.onmousemove = arrastreMover;
+            document.ontouchmove = arrastreMover;
+        }
+
+        function arrastreMover(e) {
+            contenedor.dataset.dragging = 'true';
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            pos1 = pos3 - clientX;
+            pos2 = pos4 - clientY;
+            pos3 = clientX;
+            pos4 = clientY;
+
+            contenedor.style.top = (contenedor.offsetTop - pos2) + "px";
+            contenedor.style.left = (contenedor.offsetLeft - pos1) + "px";
+            contenedor.style.transform = 'none';
+        }
+
+        function arrastreDetener() {
+            document.onmouseup = null;
+            document.onmousemove = null;
+            document.ontouchend = null;
+            document.ontouchmove = null;
+        }
+    };
+
+    // --- 6. COMUNICACIÓN DIRECTA CON MAPLIBRE GL JS ---
+    window.dispararFiltroComercios = function(barcode, idsComercios) {
+        window.dispatchEvent(new CustomEvent('ejecutar-filtro-mapa-producto', {
+            detail: { barcode, idsComercios }
+        }));
+    };
+      // --- INTEGRACIÓN DE PERFORMANCE DENTRO DE 🧭 ---
+    window.abrirMenuPerformance = function() {
+        if (typeof window.toggleSubmenuBrujula === 'function') {
+            window.toggleSubmenuBrujula();
+        }
+        if (typeof window.toggleProfiler === 'function') {
+            window.toggleProfiler();
+            return;
+        }
+        // Disparo por selector o trigger oculto del profiler
+        const trigger = document.querySelector('[data-profiler-hidden-trigger="true"]')
+            || document.querySelector('#btn-profiler, #profiler-btn, #burbuja-profiler, #btn-performance');
+        if (trigger) {
+            trigger.click();
+        }
+    };
+
+    // Asegurar ocultamiento del botón verde flotante cuando profiler.js lo inyecte
+    const neutralizarBotonVerde = () => {
+        document.querySelectorAll('div, button').forEach(el => {
+            if (el.id === 'btn-escaner-magnetico' || el.id === 'btn-brujula' || el.closest('#caja-buscador')) return;
+            const s = window.getComputedStyle(el);
+            if (s.position === 'fixed' && (s.borderColor?.includes('0, 255') || s.borderColor?.includes('#00ff') || el.innerHTML.includes('📊'))) {
+                el.style.setProperty('display', 'none', 'important');
+                el.setAttribute('data-profiler-hidden-trigger', 'true');
+            }
+        });
+    };
+    window.addEventListener('DOMContentLoaded', neutralizarBotonVerde);
+    setTimeout(neutralizarBotonVerde, 300);
+    setTimeout(neutralizarBotonVerde, 1200);
+
+</script>
+
 </body>
 </html>
-
-

@@ -18,7 +18,6 @@
 
     <!-- 1. VIEWPORT DE DIBUJO TOPOGRÁFICO -->
     <div id="viewport-topografia">
-
         <div id="capa-transform">
             <canvas id="canvas-plano"></canvas>
             <!-- Contenedor dinámico de rótulos, cotas métricas y linderos -->
@@ -27,28 +26,27 @@
     </div>
 
     <!-- 2. HUD SUPERIOR: MÉTRICAS Y HERRAMIENTAS -->
-    <header class="hud-barra-superior" style="position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; align-items: center; gap: 8px;">
+    <header class="hud-barra-superior">
         <div class="satelite-radar-box">
             <span id="icono-sat" class="icono-satelite-anim">🛰️</span>
             <span id="badge-pct-gps" class="badge-precision-gps precision-baja">0% (±--m)</span>
         </div>
+        
         <button id="btn-modo-texto" class="btn-hud-cad" title="Insertar Cuadro de Texto Libre">📝 + Texto</button>
         <button id="btn-tabla-coords" class="btn-hud-cad" title="Ver Cuadro de Construcción">📊 Cuadro</button>
         <button id="btn-exportar-pdf" class="btn-hud-cad verde" title="Generar Plano Catastral Oficial">🖨️ PDF</button>
 
         <!-- Menú Desplegable Estilo Bóveda -->
-        <div style="position: relative;">
-            <button type="button" class="btn-hud-cad" onclick="document.getElementById('menu-opciones-topografia').classList.toggle('activo')" style="padding: 6px 10px; font-size: 15px;">⋮</button>
-            <div id="menu-opciones-topografia" class="menu-cabecera-dropdown" style="right: 0; left: auto;">
+        <div class="menu-boveda-container">
+            <button type="button" id="btn-toggle-menu-opciones" class="btn-hud-cad btn-tres-puntos" title="Más opciones">⋮</button>
+            <div id="menu-opciones-topografia" class="menu-cabecera-dropdown">
                 <button type="button" onclick="window.guardarBorradorManual()">💾 Guardar Borrador (Caché)</button>
-                <button type="button" onclick="window.limpiarYNuevoPlano()" style="color: #ff4444;">🗑️ Limpiar y Nuevo Plano</button>
+                <button type="button" onclick="window.limpiarYNuevoPlano()" class="btn-peligro">🗑️ Limpiar y Nuevo Plano</button>
                 <button type="button" onclick="window.location.href='index.html'">🗺️ Ir al Mapa Principal</button>
-                <button type="button" onclick="window.GeokatuDB.SecurityService.cerrarSesion().then(()=>window.location.reload())" style="color: #ff4444; border-top: 1px solid rgba(255,255,255,0.05);">Cerrar Sesión</button>
+                <button type="button" onclick="window.GeokatuDB.SecurityService.cerrarSesion().then(()=>window.location.reload())" class="btn-peligro btn-separador">Cerrar Sesión</button>
             </div>
         </div>
     </header>
-
-
 
     <!-- 3. DOCK INFERIOR: CAPTURA DE MOJONES EN CAMPO -->
     <nav class="hud-dock-inferior">
@@ -79,7 +77,6 @@
             <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold;">Colindante / Lindero del Costado:</label>
             <input type="text" id="input-colindante" class="input-cad" placeholder="Ej: HERMINIA SONIA GUTIERREZ JIMENEZ">
 
-
             <div style="display: flex; gap: 10px; margin-top: 10px;">
                 <button type="button" id="btn-cancelar-cinta" class="btn-hud-cad" style="flex: 1; padding: 12px;">Cancelar</button>
                 <button type="button" id="btn-asentar-cinta" class="btn-hud-cad activo" style="flex: 1.5; padding: 12px;">Asentar Vértice</button>
@@ -87,7 +84,7 @@
         </div>
     </div>
 
-    <!-- 5. MODAL: CUADRO TÉCNICO DE CONSTRUCCIÓN (RUMBOS, DISTANCIAS, COORDENADAS) -->
+    <!-- 5. MODAL: CUADRO TÉCNICO DE CONSTRUCCIÓN -->
     <div id="modal-cuadro-construccion" class="modal-overlay-cad">
         <div class="modal-tarjeta-cad" style="max-width: 620px; max-height: 85vh; display: flex; flex-direction: column;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 8px;">
@@ -118,22 +115,19 @@
         </div>
     </div>
 
-    <!-- 6. LÁMINA VECTORIAL DE SALIDA PARA IMPRESIÓN Y RADICACIÓN OFICIAL -->
+    <!-- 6. LÁMINA VECTORIAL DE SALIDA PARA IMPRESIÓN -->
     <section id="lamina-catastral-print">
         <div class="marco-plano-exterior">
-            <!-- Norte Catastral -->
             <svg class="norte-simbolo-print" viewBox="0 0 100 100">
                 <polygon points="50,5 65,50 50,42 35,50" fill="#000" />
                 <polygon points="50,50 65,95 50,87 35,95" fill="#888" />
                 <text x="50" y="22" font-size="14" font-weight="900" text-anchor="middle" fill="#fff">N</text>
             </svg>
 
-            <!-- Espacio central de dibujo del predio -->
             <div class="canvas-print-render">
                 <canvas id="canvas-print-export"></canvas>
             </div>
 
-            <!-- Cuadro de Coordenadas Incrustado en la Lámina -->
             <div style="margin-bottom: 4mm;">
                 <table class="tabla-coordenadas-print" id="tabla-print-inyeccion">
                     <thead>
@@ -150,15 +144,12 @@
                 </table>
             </div>
 
-            <!-- Memoria Notarial de Linderos Agrupados -->
             <div class="rotulo-linderos-texto">
                 <strong style="display: block; font-size: 8pt; text-transform: uppercase; margin-bottom: 1mm;">Descripción Técnica de Linderos y Colindancias:</strong>
                 <span id="rot-memoria-linderos">Esperando cierre de poligonal...</span>
             </div>
 
-            <!-- Rótulo Oficial de Mensura -->
             <footer class="rotulo-catastral">
-
                 <div class="rotulo-celda">
                     <strong style="display: block; font-size: 9pt;">PLANO TOPOGRÁFICO DE LINDEROS</strong>
                     <span>PROPIETARIO / SOLICITANTE: <b id="rot-propietario">PARTICULAR</b></span><br>
@@ -177,9 +168,26 @@
         </div>
     </section>
 
-    <!-- SCRIPTS MODULARES -->
+    <!-- CONTROLADOR DEL MENÚ DESPLEGABLE -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const btnMenu = document.getElementById('btn-toggle-menu-opciones');
+            const menuDrop = document.getElementById('menu-opciones-topografia');
+
+            if (btnMenu && menuDrop) {
+                btnMenu.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    menuDrop.classList.toggle('activo');
+                });
+
+                document.addEventListener('click', (e) => {
+                    if (!menuDrop.contains(e.target) && e.target !== btnMenu) {
+                        menuDrop.classList.remove('activo');
+                    }
+                });
+            }
+        });
+    </script>
     <script type="module" src="topografia.js"></script>
 </body>
 </html>
-
-

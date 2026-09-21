@@ -105,10 +105,110 @@ const _verificarAcceso = () => {
 };
 
 
+// =========================================================================
+// SERVICIO CATÁLOGO MATRIZ GLOBAL (INDEXEDDB OFFLINE-FIRST 0ms)
+// =========================================================================
+const DB_NAME_MATRIZ = 'GeokatuMatrizDB';
+const DB_VERSION_MATRIZ = 1;
+const STORE_MATRIZ = 'productos_matriz';
+
+function abrirDBMatriz() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME_MATRIZ, DB_VERSION_MATRIZ);
+        request.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(STORE_MATRIZ)) {
+                db.createObjectStore(STORE_MATRIZ, { keyPath: 'codigo_barras' });
+            }
+        };
+        request.onsuccess = (e) => resolve(e.target.result);
+        request.onerror = (e) => reject(e.target.error);
+    });
+}
+
+export const CatalogoMatrizService = {
+    /**
+     * Verifica e inicializa la base de datos de la Matriz Global en IndexedDB.
+     */
+    async inicializarMatriz() {
+        try {
+            const db = await abrirDBMatriz();
+            const tx = db.transaction(STORE_MATRIZ, 'readonly');
+            const store = tx.objectStore(STORE_MATRIZ);
+            const countReq = store.count();
+
+            const count = await new Promise((res) => {
+                countReq.onsuccess = () => res(countReq.result);
+                countReq.onerror = () => res(0);
+            });
+
+            // Si la BD ya contiene registros, la hidratación previa fue exitosa
+            if (count > 0) {
+                console.log(`[IndexedDB Matriz] BD lista con ${count} productos indexados.`);
+                return { success: true, count };
+            }
+
+            // Descarga inicial desde /catalogo_matriz.json
+            console.log('[IndexedDB Matriz] Hidratando matriz desde /catalogo_matriz.json...');
+            const resp = await fetch('/catalogo_matriz.json');
+            if (!resp.ok) throw new Error(`Error HTTP: ${resp.status}`);
+            const data = await resp.json();
+
+            const categorias = data.n || [];
+            const productos = data.p || [];
+
+            // Transacción masiva de escritura
+            const txWrite = db.transaction(STORE_MATRIZ, 'readwrite');
+            const storeWrite = txWrite.objectStore(STORE_MATRIZ);
+
+            for (let i = 0; i < productos.length; i++) {
+                const [barcode, nombre, idxCat] = productos[i];
+                storeWrite.put({
+                    codigo_barras: String(barcode).trim(),
+                    nombre: nombre,
+                    categoria: categorias[idxCat] || 'General'
+                });
+            }
+
+            await new Promise((res, rej) => {
+                txWrite.oncomplete = () => res();
+                txWrite.onerror = (e) => rej(e.target.error);
+            });
+
+            console.log(`[IndexedDB Matriz] Hidratación completada: ${productos.length} registros.`);
+            return { success: true, count: productos.length };
+        } catch (err) {
+            console.error('[IndexedDB Matriz] Error durante inicialización:', err);
+            return { success: false, error: err.message };
+        }
+    },
+
+    /**
+     * Busca un código de barras en la Matriz Global IndexedDB (Respuesta 0ms)
+     * @param {string} barcode 
+     * @returns {Promise<{codigo_barras: string, nombre: string, categoria: string}|null>}
+     */
+    async obtenerProductoPorCodigo(barcode) {
+        try {
+            const db = await abrirDBMatriz();
+            const tx = db.transaction(STORE_MATRIZ, 'readonly');
+            const store = tx.objectStore(STORE_MATRIZ);
+            const query = store.get(String(barcode).trim());
+
+            return new Promise((resolve) => {
+                query.onsuccess = () => resolve(query.result || null);
+                query.onerror = () => resolve(null);
+            });
+        } catch (err) {
+            console.error('[IndexedDB Matriz] Error en consulta por código:', err);
+            return null;
+        }
+    }
+};
 
 
 const GeokatuDB = {
-
+    CatalogoMatrizService,
     /**
      * @namespace InventarioService
      * Tuberías de datos en tiempo real y conexiones con la blockchain
@@ -1133,6 +1233,129 @@ const GeokatuDB = {
             } catch (e) {
                 return { success: false, error: "Error obteniendo productos", details: e.message };
             }
+        },
+    
+        
+        /**
+         * Motor de Doble Capa por Código de Barras (IndexedDB 0 ms + micro-payload)
+         * Capa 1: Resuelve Nombre y Categoría offline (IndexedDB Matriz Global -> Fallback LocalStorage).
+         * Capa 2: Consulta qué comercios locales poseen disponibilidad activa (Firestore / Caché).
+         */
+        buscarComerciosPorCodigoEAN: async function(codigoBarras) {
+            const barcodeClean = String(codigoBarras).trim();
+            
+            let productoInfo = {
+                barcode: barcodeClean,
+                nombre: "Producto no registrado",
+                categoria: "General",
+                precio: "0",
+                costo: "0",
+                stock_actual: "1",
+                unidad: "STD",
+                lote: "",
+                vencimiento: "",
+                nota: "",
+                imagen: ""
+            };
+
+            // -----------------------------------------------------------------
+            // 1. CAPA 1: Resolución en Maestro Global (IndexedDB primero, luego RAM/LS)
+            // -----------------------------------------------------------------
+            let matchMaestro = null;
+
+            // A. Intento prioritario en IndexedDB (CatalogoMatrizService)
+            if (CatalogoMatrizService && typeof CatalogoMatrizService.obtenerProductoPorCodigo === 'function') {
+                matchMaestro = await CatalogoMatrizService.obtenerProductoPorCodigo(barcodeClean);
+            }
+
+            // B. Fallback a localStorage si la IndexedDB aún no estuviera lista
+            if (!matchMaestro) {
+                const catalogoMatriz = JSON.parse(localStorage.getItem('geokatu_catalogo_matriz') || "[]");
+                const matchLS = catalogoMatriz.find(p => Array.isArray(p) ? p[0] === barcodeClean : (p.codigo === barcodeClean || p.codigo_barras === barcodeClean));
+                if (matchLS) {
+                    matchMaestro = {
+                        nombre: Array.isArray(matchLS) ? matchLS[1] : (matchLS.nombre || matchLS.n),
+                        categoria: Array.isArray(matchLS) ? matchLS[2] : (matchLS.categoria || "General")
+                    };
+                }
+            }
+
+            // Asignación si se encontró en maestro
+            if (matchMaestro) {
+                productoInfo.nombre = matchMaestro.nombre || productoInfo.nombre;
+                productoInfo.categoria = matchMaestro.categoria || productoInfo.categoria;
+            }
+
+            // -----------------------------------------------------------------
+            // 2. CAPA 2: Búsqueda del stock activo de comercios (Red / Offline)
+            // -----------------------------------------------------------------
+            const comerciosCoincidentes = [];
+            try {
+                if (navigator.onLine) {
+                    // Consulta Micro-Payload a Firestore
+                    const qSnapshot = await getDocs(
+                        query(collectionGroup(db, _SCHEMA.SubColeccionProductos), where("codigo_barras", "==", barcodeClean))
+                    );
+
+                    qSnapshot.forEach((docSnap) => {
+                        const data = docSnap.data();
+                        const idComercioPadre = docSnap.ref.parent.parent ? docSnap.ref.parent.parent.id : null;
+                        
+                        // Validar stock positivo y que no esté marcado como eliminado
+                        if (idComercioPadre && Number(data.stock_actual) > 0 && !data.eliminado) {
+                            comerciosCoincidentes.push({
+                                id_comercio: idComercioPadre,
+                                precio: Number(data.precio) || 0,
+                                stock: Number(data.stock_actual) || 0,
+                                id_producto: docSnap.id
+                            });
+
+                            // Si el producto no estaba en la matriz nacional, adoptar datos del comercio
+                            if (!matchMaestro) {
+                                productoInfo.nombre = data.nombre || productoInfo.nombre;
+                                productoInfo.precio = data.precio || productoInfo.precio;
+                                productoInfo.costo = data.costo || productoInfo.costo;
+                                productoInfo.categoria = data.categoria || productoInfo.categoria;
+                                productoInfo.unidad = data.unidad_medida || productoInfo.unidad;
+                                productoInfo.imagen = data.imagen || productoInfo.imagen;
+                            }
+                        }
+                    });
+                } else {
+                    // Fallback Offline: consultar inventario local del comercio activo en este dispositivo
+                    const idActive = localStorage.getItem('geokatu_active_uid');
+                    if (idActive) {
+                        const localStock = JSON.parse(localStorage.getItem(`geokatu_catalogo_${idActive}`) || "[]");
+                        const itemLocal = localStock.find(p => p.codigo_barras === barcodeClean || p.id_prod === barcodeClean);
+                        if (itemLocal && Number(itemLocal.stock_actual) > 0 && !itemLocal.eliminado) {
+                            comerciosCoincidentes.push({
+                                id_comercio: idActive,
+                                precio: itemLocal.precio || 0,
+                                stock: itemLocal.stock_actual || 0,
+                                id_producto: itemLocal.id_prod
+                            });
+
+                            if (!matchMaestro) {
+                                productoInfo.nombre = itemLocal.nombre || productoInfo.nombre;
+                                productoInfo.precio = itemLocal.precio || productoInfo.precio;
+                                productoInfo.costo = itemLocal.costo || productoInfo.costo;
+                                productoInfo.categoria = itemLocal.categoria || productoInfo.categoria;
+                                productoInfo.unidad = itemLocal.unidad_medida || productoInfo.unidad;
+                                productoInfo.imagen = itemLocal.imagen || productoInfo.imagen;
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn("[Core-DB] Advertencia en consulta Capa 2:", err.message);
+            }
+
+            return {
+                success: true,
+                producto: productoInfo,
+                comerciosIDs: comerciosCoincidentes.map(c => c.id_comercio),
+                detallesComercios: comerciosCoincidentes
+            };
         },
         buscarEnRadar: async (lat, lng, radiusInM) => {
             if (!db || typeof geofire === 'undefined') return { success: false, error: 'Firebase o GeofireX no listos' };

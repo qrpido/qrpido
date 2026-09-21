@@ -12,7 +12,6 @@ let cuadrosTexto = []; // [{ id, x, y, texto }]
 let gpsActual = null;
 let posicionEnVivoLocal = null;
 let poligonoCerrado = false;
-let cuadroTextoSeleccionado = null;
 let modoTextoActivo = false;
 
 // Garantizar sesión y enclave local antes de cualquier operación
@@ -45,11 +44,15 @@ function restaurarBorradorLocal() {
             vertices = b.vertices;
             cuadrosTexto = b.cuadrosTexto || [];
             poligonoCerrado = Boolean(b.poligonoCerrado);
+
+            // Reconstruir anotaciones de texto guardadas
+            cuadrosTexto.forEach(ct => renderizarElementoTextoDOM(ct));
+
             if (poligonoCerrado) {
                 document.getElementById('btn-capturar-mojon').style.display = 'none';
                 document.getElementById('btn-cerrar-poligono').style.display = 'none';
             } else if (vertices.length >= 3) {
-                document.getElementById('btn-cerrar-poligono').style.display = 'block';
+                document.getElementById('btn-cerrar-poligono').style.display = 'flex';
             }
             return true;
         }
@@ -59,10 +62,8 @@ function restaurarBorradorLocal() {
     return false;
 }
 
-
 // Instancia del mapa base MapLibre
 let mapaBase = null;
-
 
 // 2. Viewport 2D estilo Model Space CAD
 let viewport = { x: window.innerWidth / 2, y: window.innerHeight / 2, escala: 8.0 }; // 1 metro = 8 px
@@ -100,7 +101,7 @@ function actualizarTransform() {
 
 // 3. Control Táctil y de Cursor sobre el Viewport (Pan & Zoom CAD)
 vpEl.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.cuadro-texto-cad') || e.target.closest('.hud-barra-superior') || e.target.closest('.hud-dock-inferior')) return;
+    if (e.target.closest('.cuadro-texto-cad') || e.target.closest('.hud-barra-superior') || e.target.closest('.hud-dock-inferior') || e.target.closest('.modal-overlay-cad')) return;
     
     if (modoTextoActivo) {
         crearCuadroTextoLibre(e.clientX, e.clientY);
@@ -140,7 +141,7 @@ vpEl.addEventListener('wheel', (e) => {
     }
 }, { passive: false });
 
-// 4. Módulo Satelital con Interpolación Fluida a 60 FPS (Heredado de motor-mapa.js)
+// 4. Módulo Satelital con Interpolación Fluida
 let rafIdOperario = null;
 let coordsGpsAnteriores = null;
 
@@ -157,7 +158,7 @@ if ('geolocation' in navigator) {
                 precision: acc
             };
 
-            // Interpolación elástica suave entre lecturas del satélite
+            // Interpolación elástica entre lecturas del satélite
             if (vertices.length > 0 && !poligonoCerrado) {
                 const vBase = vertices[0];
 
@@ -167,7 +168,7 @@ if ('geolocation' in navigator) {
 
                 if (rafIdOperario) cancelAnimationFrame(rafIdOperario);
                 const tInicio = performance.now();
-                const duracionTransicionMs = 800; // Suavizado entre ticks de satélite
+                const duracionTransicionMs = 800;
                 const latIni = coordsGpsAnteriores.lat;
                 const lngIni = coordsGpsAnteriores.lng;
 
@@ -175,7 +176,6 @@ if ('geolocation' in navigator) {
                     let p = (tActual - tInicio) / duracionTransicionMs;
                     if (p > 1) p = 1;
 
-                    // Interpolación lineal continua (Lerp)
                     const latInterp = latIni + (latNueva - latIni) * p;
                     const lngInterp = lngIni + (lngNueva - lngIni) * p;
 
@@ -196,17 +196,13 @@ if ('geolocation' in navigator) {
                 rafIdOperario = requestAnimationFrame(interpolarPaso);
             }
 
-
-            // Mover cámara de MapLibre suavemente de fondo
             if (mapaBase) {
                 mapaBase.setCenter([pos.coords.longitude, pos.coords.latitude]);
             }
 
-
             const iconoSat = document.getElementById('icono-sat');
             const badgePct = document.getElementById('badge-pct-gps');
 
-            // Mapeo físico: <=2.5m = 100% óptimo; >=25m = 10% crítico
             let pct = Math.round(Math.max(10, Math.min(100, 100 - ((acc - 2.5) / 22.5) * 90)));
             badgePct.innerText = `${pct}% (±${acc.toFixed(1)}m)`;
 
@@ -233,7 +229,6 @@ if ('geolocation' in navigator) {
     );
 }
 
-
 function proyeccionLocalMetros(lat, lng, refLat, refLng) {
     const R = 6378137;
     const dLat = (lat - refLat) * Math.PI / 180;
@@ -250,8 +245,6 @@ function calcularRumboCatastral(deltaE, deltaN) {
     if (deg < 0) deg += 360;
 
     let cuadrante = "N";
-    let anguloCuad = deg;
-
     if (deg >= 0 && deg <= 90) {
         cuadrante = `N ${formatoDMS(deg)} E`;
     } else if (deg > 90 && deg <= 180) {
@@ -283,10 +276,9 @@ btnCapturar.addEventListener('click', () => {
     if (!gpsActual) return alert("Esperando señal satelital estable...");
 
     if (vertices.length === 0) {
-        // P1 Ancla
         vertices.push({
             id: 1,
-            e: 500000.00, // Coordenada base local estandarizada
+            e: 500000.00,
             n: 1000000.00,
             distCinta: 0,
             rumboStr: "---",
@@ -294,6 +286,7 @@ btnCapturar.addEventListener('click', () => {
             gpsOrigen: { ...gpsActual }
         });
         btnCapturar.innerText = "📍 Marcar Mojón (P2)";
+        guardarBorradorEnDispositivo();
         dibujarPlano();
     } else {
         const sig = vertices.length + 1;
@@ -321,14 +314,12 @@ document.getElementById('btn-asentar-cinta').addEventListener('click', () => {
     } else if (modoGiro === 'GIRO_90_IZQ' && vAnt.azimut !== undefined) {
         azimut = vAnt.azimut - (Math.PI / 2);
     } else {
-        // Orientación por vector satelital
         const cAct = proyeccionLocalMetros(gpsActual.lat, gpsActual.lng, vBase.gpsOrigen.lat, vBase.gpsOrigen.lng);
         const deltaE = (500000.00 + cAct.e) - vAnt.e;
         const deltaN = (1000000.00 + cAct.n) - vAnt.n;
         azimut = Math.atan2(deltaE, deltaN);
     }
 
-    // Normalizar azimut entre 0 y 2PI
     azimut = (azimut + 2 * Math.PI) % (2 * Math.PI);
 
     const nuevoE = vAnt.e + dist * Math.sin(azimut);
@@ -349,24 +340,22 @@ document.getElementById('btn-asentar-cinta').addEventListener('click', () => {
     btnCapturar.innerText = `📍 Marcar Mojón (P${vertices.length + 1})`;
 
     if (vertices.length >= 3) {
-        btnCerrar.style.display = 'block';
+        btnCerrar.style.display = 'flex';
     }
 
-    guardarBorradorEnDispositivo(); // Persiste en móvil (0 llamadas de red)
+    guardarBorradorEnDispositivo();
     dibujarPlano();
 });
-
 
 document.getElementById('btn-cancelar-cinta').addEventListener('click', () => {
     modalCinta.style.display = 'none';
 });
 
-// 6. Cierre de Circuito y Compensación Bowditch
+// 6. Cierre de Circuito
 btnCerrar.addEventListener('click', () => {
     const distFinal = parseFloat(prompt(`Distancia medida con cinta desde P${vertices.length} de regreso a P1 (metros):`));
     if (isNaN(distFinal) || distFinal <= 0.1) return;
 
-    // Tramo de regreso antes de ajustar
     const ultimo = vertices[vertices.length - 1];
     const primero = vertices[0];
     const deltaE_cierre = primero.e - ultimo.e;
@@ -374,7 +363,7 @@ btnCerrar.addEventListener('click', () => {
     const rumboFinal = calcularRumboCatastral(deltaE_cierre, deltaN_cierre);
 
     vertices.push({
-        id: 1, // Regreso a P1
+        id: 1,
         e: primero.e,
         n: primero.n,
         distCinta: distFinal,
@@ -390,7 +379,6 @@ btnCerrar.addEventListener('click', () => {
     dibujarPlano();
     guardarBorradorEnDispositivo();
 
-    // 🚀 ONESHOT AL SERVIDOR: Empaquetar el plano completo en un solo tiro
     (async () => {
         const areaTexto = document.getElementById('rot-area')?.innerText || "0.00 m²";
         const perimetroTexto = document.getElementById('rot-perimetro')?.innerText || "0.00 m";
@@ -415,37 +403,50 @@ btnCerrar.addEventListener('click', () => {
                 paqueteOneshot
             );
             if (resCloud.success) {
-                alert(`✅ Poligonal cerrada y sincronizada en la nube en 1 sola transmisión.\nSuperficie: ${areaTexto}`);
+                alert(`✅ Poligonal cerrada y sincronizada en la nube.\nSuperficie: ${areaTexto}`);
                 return;
             }
         }
-        alert(`✅ Poligonal cerrada exitosamente.\nGuardada en memoria local del dispositivo.\nSuperficie: ${areaTexto}`);
+        alert(`✅ Poligonal cerrada exitosamente.\nGuardada en memoria local.\nSuperficie: ${areaTexto}`);
     })();
 });
-
 
 // 7. Cuadros de Texto Libres sobre el Plano
 document.getElementById('btn-modo-texto').addEventListener('click', () => {
     modoTextoActivo = !modoTextoActivo;
     document.getElementById('btn-modo-texto').classList.toggle('activo', modoTextoActivo);
-    if (modoTextoActivo) alert("Toca cualquier lugar del plano para insertar un cuadro de texto (ej. linderos, notas o cotas).");
+    if (modoTextoActivo) alert("Toca cualquier lugar del plano para insertar un cuadro de texto.");
 });
 
 function crearCuadroTextoLibre(clientX, clientY) {
     const texto = prompt("Texto para la anotación del plano:", "LINDERO NORTE");
     if (!texto) return;
 
-    // Coordenadas relativas al lienzo transformado
     const mundoX = (clientX - viewport.x) / viewport.escala;
     const mundoY = (clientY - viewport.y) / viewport.escala;
 
+    const objTexto = {
+        id: Date.now(),
+        x: mundoX,
+        y: mundoY,
+        texto: texto
+    };
+
+    cuadrosTexto.push(objTexto);
+    renderizarElementoTextoDOM(objTexto);
+    guardarBorradorEnDispositivo();
+
+    modoTextoActivo = false;
+    document.getElementById('btn-modo-texto').classList.remove('activo');
+}
+
+function renderizarElementoTextoDOM(objTexto) {
     const el = document.createElement('div');
     el.className = 'cuadro-texto-cad contra-rotacion';
-    el.innerText = texto;
-    el.style.left = `${mundoX}px`;
-    el.style.top = `${mundoY}px`;
+    el.innerText = objTexto.texto;
+    el.style.left = `${objTexto.x}px`;
+    el.style.top = `${objTexto.y}px`;
 
-    // Hacer arrastrable el cuadro de texto
     let arrastrandoTexto = false;
     let offset = { x: 0, y: 0 };
 
@@ -461,20 +462,28 @@ function crearCuadroTextoLibre(clientX, clientY) {
 
     el.addEventListener('pointermove', (e) => {
         if (!arrastrandoTexto) return;
-        el.style.left = `${(e.clientX / viewport.escala) - offset.x}px`;
-        el.style.top = `${(e.clientY / viewport.escala) - offset.y}px`;
+        const nuevaX = (e.clientX / viewport.escala) - offset.x;
+        const nuevaY = (e.clientY / viewport.escala) - offset.y;
+        el.style.left = `${nuevaX}px`;
+        el.style.top = `${nuevaY}px`;
+        objTexto.x = nuevaX;
+        objTexto.y = nuevaY;
     });
 
-    const finTexto = () => { arrastrandoTexto = false; };
+    const finTexto = () => {
+        if (arrastrandoTexto) {
+            arrastrandoTexto = false;
+            guardarBorradorEnDispositivo();
+        }
+    };
+
     el.addEventListener('pointerup', finTexto);
     el.addEventListener('pointercancel', finTexto);
 
     contenedorTextos.appendChild(el);
-    modoTextoActivo = false;
-    document.getElementById('btn-modo-texto').classList.remove('activo');
 }
 
-// 8. Renderizado Vectorial sobre el Canvas
+// 8. Renderizado Vectorial
 function dibujarPlano() {
     const dpr = window.devicePixelRatio || 1;
     ctx.save();
@@ -489,7 +498,6 @@ function dibujarPlano() {
     const v0 = vertices[0];
     ctx.translate(viewport.x, viewport.y);
 
-    // Dibujar polígono
     ctx.beginPath();
     ctx.strokeStyle = poligonoCerrado ? '#00ff64' : '#ff6b00';
     ctx.lineWidth = 2.5 / (viewport.escala / 8.0);
@@ -507,7 +515,7 @@ function dibujarPlano() {
     }
     ctx.stroke();
 
-    // LÍNEA ELÁSTICA EN VIVO (Rubber-band): Del último mojón fijado hasta tus pies
+    // Línea elástica dinámica
     if (!poligonoCerrado && vertices.length > 0 && posicionEnVivoLocal) {
         const ultimoMojon = vertices[vertices.length - 1];
         const ux = (ultimoMojon.e - v0.e);
@@ -515,7 +523,6 @@ function dibujarPlano() {
         const px = (posicionEnVivoLocal.e - v0.e);
         const py = -(posicionEnVivoLocal.n - v0.n);
 
-        // Línea discontinua que sigue tu paso
         ctx.save();
         ctx.beginPath();
         ctx.setLineDash([4 / (viewport.escala / 8.0), 4 / (viewport.escala / 8.0)]);
@@ -526,7 +533,6 @@ function dibujarPlano() {
         ctx.stroke();
         ctx.restore();
 
-        // Avatar de tu posición en vivo sobre el plano
         ctx.fillStyle = '#00ff64';
         ctx.beginPath();
         ctx.arc(px, py, 6 / (viewport.escala / 8.0), 0, Math.PI * 2);
@@ -535,31 +541,26 @@ function dibujarPlano() {
         ctx.lineWidth = 2 / (viewport.escala / 8.0);
         ctx.stroke();
 
-        // Distancia aproximada estimada mientras caminas
         const distAprox = Math.hypot(posicionEnVivoLocal.e - ultimoMojon.e, posicionEnVivoLocal.n - ultimoMojon.n);
         ctx.fillStyle = '#00ff64';
         ctx.font = `bold ${10 / (viewport.escala / 8.0)}px monospace`;
         ctx.fillText(`~${distAprox.toFixed(1)}m (GPS)`, px + 8 / (viewport.escala / 8.0), py + 4 / (viewport.escala / 8.0));
     }
 
-
-    // Dibujar mojones, acotaciones y nombres de colindantes en las aristas
+    // Dibujar mojones
     vertices.forEach((v, idx) => {
         const x = (v.e - v0.e);
         const y = -(v.n - v0.n);
 
-        // Círculo de Mojón
         ctx.fillStyle = idx === 0 ? '#00ff64' : '#ff6b00';
         ctx.beginPath();
         ctx.arc(x, y, 4 / (viewport.escala / 8.0), 0, Math.PI * 2);
         ctx.fill();
 
-        // Identificador P1, P2...
         ctx.fillStyle = '#ffffff';
         ctx.font = `bold ${10 / (viewport.escala / 8.0)}px monospace`;
         ctx.fillText(`P${v.id}`, x + 6 / (viewport.escala / 8.0), y - 6 / (viewport.escala / 8.0));
 
-        // Acotado métrico sobre la arista
         if (idx > 0 && v.distCinta > 0) {
             const vAnt = vertices[idx - 1];
             const midX = ((vAnt.e - v0.e) + x) / 2;
@@ -574,7 +575,6 @@ function dibujarPlano() {
     ctx.restore();
 }
 
-// Agrupador Notarial de Linderos Continuos (P1 a P8 con el mismo colindante)
 function generarMemoriaLinderosNotarial() {
     if (vertices.length < 2) return "Sin linderos asentados.";
     
@@ -609,10 +609,12 @@ function generarMemoriaLinderosNotarial() {
     }).join(" ");
 }
 
-// 9. Actualización del Cuadro de Coordenadas y Salida PDF
+// 9. Actualización del Cuadro de Coordenadas
 function actualizarTablaCoordenadasDOM() {
     const tbodyModal = document.getElementById('tabla-coords-body');
     const tbodyPrint = document.querySelector('#tabla-print-inyeccion tbody');
+    if (!tbodyModal || !tbodyPrint) return;
+
     tbodyModal.innerHTML = '';
     tbodyPrint.innerHTML = '';
 
@@ -637,9 +639,8 @@ function actualizarTablaCoordenadasDOM() {
         tbodyPrint.innerHTML += filaHTML;
     }
 
-    // Cálculo de área por Gauss
     let area = 0;
-    const n = vertices.length - 1; // Sin duplicar el cierre
+    const n = vertices.length - 1;
     for (let i = 0; i < n; i++) {
         const j = (i + 1) % n;
         area += (vertices[i].e * vertices[j].n) - (vertices[j].e * vertices[i].n);
@@ -649,60 +650,66 @@ function actualizarTablaCoordenadasDOM() {
     document.getElementById('lbl-perimetro-total').innerText = `${perimetro.toFixed(2)} m`;
     document.getElementById('lbl-area-total').innerText = `${areaFinal.toFixed(2)} m² (${(areaFinal / 10000).toFixed(4)} ha)`;
 
-    // Sincronizar en rótulo de impresión
     document.getElementById('rot-area').innerText = `${areaFinal.toFixed(2)} m²`;
     document.getElementById('rot-perimetro').innerText = `${perimetro.toFixed(2)} m`;
 
-    // Inyectar redacción notarial consolidada
     const elMemoria = document.getElementById('rot-memoria-linderos');
     if (elMemoria) {
         elMemoria.innerText = generarMemoriaLinderosNotarial();
     }
 }
 
-
 document.getElementById('btn-tabla-coords').addEventListener('click', () => {
     actualizarTablaCoordenadasDOM();
     document.getElementById('modal-cuadro-construccion').style.display = 'flex';
 });
 
-// 10. Disparador de Exportación Vectorial a PDF
+// 10. Exportación Vectorial Centrada a PDF
 document.getElementById('btn-exportar-pdf').addEventListener('click', () => {
     if (!poligonoCerrado) return alert("Debes cerrar el polígono en P1 antes de generar el plano de radicación.");
 
     actualizarTablaCoordenadasDOM();
     
-    // Proyectar copia del canvas al tamaño del pliego de impresión
     const canvasPrint = document.getElementById('canvas-print-export');
     const ctxPrint = canvasPrint.getContext('2d');
     canvasPrint.width = 1200;
     canvasPrint.height = 700;
 
-    // Dibujado nítido centrado para la hoja técnica
     ctxPrint.clearRect(0, 0, 1200, 700);
     ctxPrint.strokeStyle = '#000000';
     ctxPrint.lineWidth = 2;
 
-    const v0 = vertices[0];
-    const factorPrint = 12.0;
+    // Ajuste de encuadre automático en la lámina
+    let minE = Infinity, maxE = -Infinity, minN = Infinity, maxN = -Infinity;
+    vertices.forEach(v => {
+        if (v.e < minE) minE = v.e;
+        if (v.e > maxE) maxE = v.e;
+        if (v.n < minN) minN = v.n;
+        if (v.n > maxN) maxN = v.n;
+    });
+
+    const centroE = (minE + maxE) / 2;
+    const centroN = (minN + maxN) / 2;
+    const anchoM = maxE - minE || 10;
+    const altoM = maxN - minN || 10;
+    const factorPrint = Math.min(1000 / anchoM, 550 / altoM);
 
     ctxPrint.save();
     ctxPrint.translate(600, 350);
 
     ctxPrint.beginPath();
     vertices.forEach((v, idx) => {
-        const x = (v.e - v0.e) * factorPrint;
-        const y = -(v.n - v0.n) * factorPrint;
+        const x = (v.e - centroE) * factorPrint;
+        const y = -(v.n - centroN) * factorPrint;
         if (idx === 0) ctxPrint.moveTo(x, y);
         else ctxPrint.lineTo(x, y);
     });
     ctxPrint.closePath();
     ctxPrint.stroke();
 
-    // Vértices y cotas impresas
-    vertices.forEach((v, idx) => {
-        const x = (v.e - v0.e) * factorPrint;
-        const y = -(v.n - v0.n) * factorPrint;
+    vertices.forEach((v) => {
+        const x = (v.e - centroE) * factorPrint;
+        const y = -(v.n - centroN) * factorPrint;
         ctxPrint.fillStyle = '#000';
         ctxPrint.beginPath();
         ctxPrint.arc(x, y, 4, 0, Math.PI * 2);
@@ -713,19 +720,18 @@ document.getElementById('btn-exportar-pdf').addEventListener('click', () => {
 
     ctxPrint.restore();
 
-    // Lanzar impresión PDF vectorial
     setTimeout(() => {
         window.print();
     }, 200);
 });
 
-// Inicialización con rescate de memoria local
+// Inicialización
 redimensionarLienzo();
 restaurarBorradorLocal();
 actualizarTransform();
 dibujarPlano();
 
-// Inicializar mapa vectorial de fondo (.pmtiles) con Geolocate y Heading de motor-mapa.js
+// Mapa vectorial de fondo (.pmtiles)
 try {
     const protocol = new pmtiles.Protocol();
     maplibregl.addProtocol("pmtiles", protocol.tile);
@@ -741,7 +747,7 @@ try {
     const controlGeoloc = new maplibregl.GeolocateControl({
         positionOptions: { enableHighAccuracy: true },
         trackUserLocation: true,
-        showUserHeading: true // Cono de orientación por brújula nativo
+        showUserHeading: true
     });
 
     mapaBase.addControl(controlGeoloc);
@@ -752,14 +758,13 @@ try {
     console.warn("Modo plano sin mapa vectorial de fondo:", e.message);
 }
 
-// ==========================================
-// CONTROLADORES DE MENÚ DE CAMPO (Caché y Cierre)
-// ==========================================
+// CONTROLADORES DE MENÚ DE CAMPO
 window.guardarBorradorManual = function() {
     if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
     guardarBorradorEnDispositivo();
-    alert("💾 ¡Progreso asegurado! Las coordenadas y linderos están respaldados en la caché de tu dispositivo.");
-    document.getElementById('menu-opciones-topografia').classList.remove('activo');
+    alert("💾 ¡Progreso asegurado! Las coordenadas y linderos están respaldados en la memoria local.");
+    const menu = document.getElementById('menu-opciones-topografia');
+    if (menu) menu.classList.remove('activo');
 };
 
 window.limpiarYNuevoPlano = function() {
@@ -773,16 +778,8 @@ window.limpiarYNuevoPlano = function() {
         document.getElementById('btn-cerrar-poligono').style.display = 'none';
         document.getElementById('contenedor-textos-libres').innerHTML = '';
         redimensionarLienzo();
-        document.getElementById('menu-opciones-topografia').classList.remove('activo');
+        const menu = document.getElementById('menu-opciones-topografia');
+        if (menu) menu.classList.remove('activo');
         alert("🧹 Plano reiniciado desde cero.");
     }
 };
-
-// Cerrar menú flotante al hacer clic fuera
-document.addEventListener('click', (e) => {
-    const menu = document.getElementById('menu-opciones-topografia');
-    if (menu && menu.classList.contains('activo') && !e.target.closest('button[onclick*="menu-opciones-topografia"]')) {
-        menu.classList.remove('activo');
-    }
-});
-
