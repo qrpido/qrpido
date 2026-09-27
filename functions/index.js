@@ -507,8 +507,12 @@ const anotacionesTexto = resultadoTexto[0].textAnnotations;
 const textoExtraido = anotacionesTexto && anotacionesTexto.length > 0 ? anotacionesTexto[0].description.toUpperCase() : "";
 const esDocumentoValido = textoExtraido.includes("REPUBLICA DE COLOMBIA") ||
 textoExtraido.includes("CEDULA DE CIUDADANIA") ||
+textoExtraido.includes("REPUBLICA BOLIVARIANA DE VENEZUELA") ||
+textoExtraido.includes("CEDULA DE IDENTIDAD") ||
 textoExtraido.includes("REPUBLICA") ||
-textoExtraido.includes("COLOMBIA");
+textoExtraido.includes("COLOMBIA") ||
+textoExtraido.includes("VENEZUELA");
+
 if (!esDocumentoValido) {
 return { success: false, mensaje: "Rechazado: El documento frontal no parece ser una Cédula legítima." };
 }
@@ -780,11 +784,13 @@ const payloadInicial = {
 nombre: "Mi Nueva Tienda",
 email: user.email || "",
 premium: false,
+pais: "COL",
 estado_moderacion: "pendiente",
 fecha_registro: admin.firestore.FieldValue.serverTimestamp(),
 progreso_boveda: 10,
 origen_cuenta: "auth_trigger_cadenero" // Sello de seguridad del backend
 };
+
 // Usamos set con merge: true por si acaso hay un documento previo
 await db.collection('Directorio').doc(user.uid).set(payloadInicial, { merge: true });
 
@@ -928,13 +934,14 @@ exports.despacharFacturaSiigoPOS = functions.firestore
         const { idNegocio, ticketId } = context.params;
         const db = admin.firestore();
 
-        // 🛡️ CONTENCIÓN DE COSTOS: Si no pidió factura electrónica, omitir
-        if (!venta.factura_electronica) {
+        // 🛡️ CONTENCIÓN DE COSTOS: Omitir si es Venezuela o no solicitó factura electrónica DIAN
+        if (venta.pais_operacion === 'VEN' || !venta.factura_electronica) {
             return snap.ref.update({
-                "despacho_fiscal.estado": "OMITIDO_CONSUMIDOR_FINAL",
+                "despacho_fiscal.estado": venta.pais_operacion === 'VEN' ? "OMITIDO_VENEZUELA" : "OMITIDO_CONSUMIDOR_FINAL",
                 "despacho_fiscal.timestamp": admin.firestore.FieldValue.serverTimestamp()
             });
         }
+
 
         try {
             // 1. Obtener credenciales del comercio
@@ -1057,20 +1064,69 @@ exports.consolidarCierreZSiigo = functions.firestore
             const negocioDoc = await db.collection('Directorio').doc(idNegocio).get();
             if (!negocioDoc.exists) return null;
 
-            const configFiscal = negocioDoc.data().perfil_fiscal;
-            if (!configFiscal || configFiscal.proveedor !== 'SIIGO' || !configFiscal.siigo_user || !configFiscal.siigo_key) {
+            const datosNegocio = negocioDoc.data();
+            const configFiscal = datosNegocio.perfil_fiscal;
+            if (datosNegocio.pais === 'VEN' || !configFiscal || configFiscal.proveedor !== 'SIIGO' || !configFiscal.siigo_user || !configFiscal.siigo_key) {
                 return snap.ref.update({ 
                     "siigo_journal_ready.sincronizado_siigo": false, 
-                    "siigo_journal_ready.motivo": "SIN_CONFIGURACION" 
+                    "siigo_journal_ready.motivo": datosNegocio.pais === 'VEN' ? "OMITIDO_VENEZUELA" : "SIN_CONFIGURACION" 
                 });
             }
 
-            const bearerToken = await obtenerTokenSiigo(configFiscal.siigo_user, configFiscal.siigo_key);
-            const journalPayload = cierre.siigo_journal_ready?.payload;
 
-            if (!journalPayload) {
-                throw new Error("El Cierre Z no contiene payload de comprobante diario.");
+            const bearerToken = await obtenerTokenSiigo(configFiscal.siigo_user, configFiscal.siigo_key);
+            let journalPayload = cierre.siigo_journal_ready?.payload;
+
+            if (!journalPayload || !Array.isArray(journalPayload.items)) {
+                throw new Error("El Cierre Z no contiene un payload de comprobante diario válido.");
             }
+
+            // 🛡️ 1. Identificación fiscal obligatoria de tercero para cada fila de Siigo
+            const nitComercioLimpio = String(configFiscal.nit || datosNegocio.nit || "222222222222").replace(/\D/g, '');
+
+            // 🛡️ 2. Resolución dinámica del tipo de comprobante de diario
+            const idComprobanteDiario = configFiscal.codigo_comprobante_cierre_z || 
+                                       configFiscal.codigo_comprobante_diario || 
+                                       journalPayload.document?.id || 240;
+
+            // 🛡️ 3. Normalización y balanceo matemático estricto de partida doble
+            let sumaDebitos = 0;
+            let sumaCreditos = 0;
+
+            const itemsNormalizados = journalPayload.items.map(item => {
+                const deb = Math.round(Number(item.debit) || 0);
+                const cred = Math.round(Number(item.credit) || 0);
+                sumaDebitos += deb;
+                sumaCreditos += cred;
+
+                return {
+                    account: { code: String(item.account?.code || "11050501").trim() },
+                    customer: { identification: nitComercioLimpio }, // Requisito mandatorio de Siigo API
+                    description: String(item.description || `Cierre Z ${cierreId}`).substring(0, 255),
+                    debit: deb,
+                    credit: cred
+                };
+            });
+
+            // Ajuste automático por diferencias de redondeo o desbalance contable
+            const diferenciaBalance = sumaDebitos - sumaCreditos;
+            if (diferenciaBalance !== 0) {
+                console.warn(`[SIIGO BALANCE Z] Descuadre detectado: ${diferenciaBalance}. Cuadrando en cuenta de ajuste.`);
+                itemsNormalizados.push({
+                    account: { code: configFiscal.cuenta_ajuste_descuadre || "42958101" },
+                    customer: { identification: nitComercioLimpio },
+                    description: `Ajuste de cuadre Cierre Z ${cierreId}`,
+                    debit: diferenciaBalance < 0 ? Math.abs(diferenciaBalance) : 0,
+                    credit: diferenciaBalance > 0 ? diferenciaBalance : 0
+                });
+            }
+
+            const payloadDefinitivoSiigo = {
+                document: { id: idComprobanteDiario },
+                date: journalPayload.date || new Date().toISOString().split('T')[0],
+                items: itemsNormalizados,
+                observations: (journalPayload.observations || `Cierre Z GEOKATU POS - ${cierreId}`).substring(0, 255)
+            };
 
             const resJournal = await fetch('https://api.siigo.com/v1/journals', {
                 method: 'POST',
@@ -1079,7 +1135,7 @@ exports.consolidarCierreZSiigo = functions.firestore
                     'Authorization': `Bearer ${bearerToken}`,
                     'Partner-Id': 'GeokatuPOS'
                 },
-                body: JSON.stringify(journalPayload)
+                body: JSON.stringify(payloadDefinitivoSiigo)
             });
 
             const dataJournal = await resJournal.json();
@@ -1096,6 +1152,7 @@ exports.consolidarCierreZSiigo = functions.firestore
             return snap.ref.update({
                 "siigo_journal_ready.sincronizado_siigo": true,
                 "siigo_journal_ready.siigo_id": dataJournal.id,
+                "siigo_journal_ready.consecutivo": dataJournal.name || null,
                 "siigo_journal_ready.timestamp": admin.firestore.FieldValue.serverTimestamp()
             });
 
@@ -1108,6 +1165,7 @@ exports.consolidarCierreZSiigo = functions.firestore
             });
         }
     });
+
 // ============================================================================
 // 19. WEBHOOK SEGURO DE PASARELA WOMPI (Validación Criptográfica con Checksum)
 // ============================================================================

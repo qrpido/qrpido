@@ -3,351 +3,398 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Terminal Logística | Geokatu</title>
-    <meta name="theme-color" content="#ff6b00">
+    <title>Terminal WMS | GEOKATU Logística</title>
+    <meta name="theme-color" content="#0a0a0c">
     <link rel="stylesheet" href="stock.css"> 
     <script src="html5-qrcode.min.js" type="text/javascript"></script>
-
-    <style>
-        :root {
-            --naranja: #ff6b00;
-            --bg-oscuro: #0a0a0c;
-            --accent-green: #00ff64;
-        }
-
-        html, body {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            overflow: hidden;
-            background: var(--bg-oscuro);
-            font-family: 'Segoe UI', sans-serif;
-            color: white;
-        }
-
-        #app-terminal {
-            height: 100vh;
-            max-height: 100dvh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            box-sizing: border-box;
-        }
-
-        /* Mitad Superior: Visor y Controles Fijos */
-        .zona-escaneo-superior {
-            flex-shrink: 0;
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            background: rgba(15, 15, 20, 0.95);
-            border-bottom: 1px solid rgba(255, 107, 0, 0.3);
-            padding: 10px 15px;
-            box-sizing: border-box;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.8);
-            z-index: 100;
-        }
-
-        #lector-camara {
-            width: 100%;
-            max-width: 480px;
-            height: 190px;
-            border-radius: 14px;
-            overflow: hidden;
-            border: 2px solid var(--naranja);
-            background: #000;
-            margin-bottom: 8px;
-            box-shadow: 0 0 15px rgba(255, 107, 0, 0.3);
-        }
-
-        #lector-camara video {
-            object-fit: cover !important;
-            width: 100% !important;
-            height: 100% !important;
-        }
-
-        /* Switch Ráfaga con Branding */
-        .toggle-rafaga-pill {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            cursor: pointer;
-            padding: 6px 14px;
-            border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            background: rgba(255, 255, 255, 0.05);
-            transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
-            user-select: none;
-        }
-
-        .toggle-rafaga-pill.activo {
-            border-color: var(--naranja) !important;
-            background: rgba(255, 107, 0, 0.18) !important;
-            box-shadow: 0 0 12px rgba(255, 107, 0, 0.5);
-        }
-
-        .toggle-rafaga-pill.activo span {
-            color: #fff !important;
-            font-weight: 900 !important;
-        }
-
-        /* Mitad Inferior: Consola Scrollable */
-        .consola-scrollable {
-            flex: 1;
-            overflow-y: auto !important;
-            -webkit-overflow-scrolling: touch;
-            padding: 15px;
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .luz-pestillo {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #555;
-            transition: 0.2s;
-        }
-        .luz-pestillo.leyendo {
-            background: var(--accent-green);
-            box-shadow: 0 0 8px var(--accent-green);
-        }
-        .luz-pestillo.bloqueado {
-            background: #ffaa00;
-            box-shadow: 0 0 8px #ffaa00;
-        }
-    </style>
 </head>
 <body>
 
-    <!-- PANTALLA LOGIN -->
-    <div id="pantalla-login" style="display: flex; position: fixed; inset: 0; background: var(--bg-oscuro); z-index: 10000; align-items: center; justify-content: center;">
-        <div class="panel-login">
-            <div style="text-align: center; margin-bottom: 20px;">
-                <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 900; letter-spacing: 2px;">LOGI<span style="color: var(--naranja);">CORE</span></h1>
-                <p style="color: #888; font-size: 11px; text-transform: uppercase;">Control de Stock Físico</p>
+    <!-- 1. PANTALLA LOGIN DE BÓVEDA -->
+    <div id="pantalla-login" class="pantalla-completa-centro">
+        <div class="panel-boveda">
+            <div class="brand-encabezado">
+                <svg class="icono-svg-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                </svg>
+                <h1 class="logo-titulo">LOGI<span>CORE</span></h1>
+                <span class="subtexto-brand">Terminal de Control Físico</span>
             </div>
-            <input type="email" id="login-email" class="input-boveda" placeholder="Correo de bodega / operador">
-            <input type="password" id="login-pass" class="input-boveda" placeholder="Contraseña">
-            <button class="btn-accion-boveda" id="btn-login">INICIAR TURNO</button>
+            <input type="email" id="login-email" class="input-boveda" placeholder="Operario o correo de almacén" autocomplete="username">
+            <input type="password" id="login-pass" class="input-boveda" placeholder="Contraseña de terminal" autocomplete="current-password">
+            <button class="btn-primario-wms" id="btn-login">Iniciar Turno</button>
         </div>
     </div>
 
-    <!-- TERMINAL ACTIVA -->
-    <div id="app-terminal" style="display: none;">
+    <!-- 2. TERMINAL OPERATIVA WMS -->
+    <main id="app-terminal">
         
         <!-- CABECERA PRINCIPAL -->
-        <div class="header-terminal" style="padding: 10px 15px; flex-shrink: 0;">
-            <div>
-                <span style="color: var(--naranja); font-weight: 900; font-size: 17px; letter-spacing: 1px;">GEOKATU LOGÍSTICA</span>
-                <span id="txt-operador" style="display: block; font-size: 10px; color: #888; text-transform: uppercase;">Operador: Conectando...</span>
+        <header class="header-terminal">
+            <div class="brand-terminal">
+                <svg class="icono-svg-peq" viewBox="0 0 24 24" fill="none" stroke="var(--naranja)" stroke-width="2.2">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                </svg>
+                <div>
+                    <strong class="titulo-terminal">GEOKATU WMS</strong>
+                    <span id="txt-operador" class="operador-chip">Conectando...</span>
+                </div>
             </div>
-            <div style="display: flex; gap: 8px; align-items: center;">
-                <button onclick="window.open('visor-tienda.html', '_blank')" title="Ver Mapa de Piso y Caducidades" style="background: rgba(96,165,250,0.15); border: 1px solid #60a5fa; color: #60a5fa; padding: 6px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer;">
-                    🗺️ Visor
+            <div class="acciones-cabecera">
+                <button id="btn-abrir-visor" class="btn-icono-texto" title="Ver Plano SIG">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+                        <line x1="8" y1="2" x2="8" y2="18"></line>
+                        <line x1="16" y1="6" x2="16" y2="22"></line>
+                    </svg>
+                    <span>Plano</span>
                 </button>
-                <button id="btn-logout" style="background: transparent; border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 50%; width: 34px; height: 34px; cursor: pointer;">🚪</button>
-            </div>
-        </div>
-
-        <!-- 📸 MITAD SUPERIOR FIJA: VISOR DE CÁMARA Y TOGGLE DE RÁFAGA -->
-        <div class="zona-escaneo-superior">
-            <div id="lector-camara" style="display: none;"></div>
-
-            <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 480px; gap: 10px;">
-                <button class="btn-accion-boveda" id="btn-toggle-camara" style="width: auto; padding: 9px 16px; font-size: 11px; margin: 0;">
-                    📷 <span id="txt-btn-camara">ACTIVAR CÁMARA</span>
+                <button id="btn-logout" class="btn-icono-redondo" title="Cerrar Turno">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
                 </button>
-
-                <!-- SWITCH MODO RÁFAGA (CINTA TRANSPORTADORA) -->
-                <label id="toggle-rafaga-wrapper" class="toggle-rafaga-pill" title="Escaneo continuo sin cerrar la cámara">
-                    <input type="checkbox" id="chk-modo-rafaga" style="accent-color: var(--naranja); cursor: pointer;">
-                    <span id="txt-modo-rafaga" style="font-size: 10.5px; font-weight: bold; color: #aaa; text-transform: uppercase;">Ráfaga</span>
-                </label>
-
-                <!-- ESTADO DEL PESTILLO ÓPTICO -->
-                <div style="display: flex; align-items: center; gap: 6px;">
-                    <span id="luz-estado" class="luz-pestillo"></span>
-                    <span id="txt-estado-latch" style="font-size: 10px; color: #777; font-family: monospace;">LISTO</span>
-                </div>
             </div>
-        </div>
+        </header>
 
-        <!-- 📜 MITAD INFERIOR SCROLLABLE: CONTROLES, KARDEX Y TARJETA -->
-        <div class="consola-scrollable">
-            <div class="consola-controles" style="margin: 0;">
-                <label style="font-size: 10px; color: #aaa; text-transform: uppercase; font-weight: bold;">Operación de Stock</label>
-                <div class="ribbon-categorias" id="selector-operacion">
-                    <button class="ribbon-btn activo" data-op="ENTRADA">📥 Entrada (+)</button>
-                    <button class="ribbon-btn" data-op="SALIDA">📤 Salida (-)</button>
-                    <button class="ribbon-btn" data-op="REUBICAR">📍 Reubicar</button>
-                    <button class="ribbon-btn" data-op="AUDITORIA">🔍 Consulta</button>
-                </div>
-
-                <div id="banner-cascada" class="banner-cascada-wms" style="display: none;">
-                    <div>
-                        <span style="color: #aaa;">Ubicación:</span>
-                        <span id="txt-mueble-activo" class="tag-coord">MUEBLE: ---</span>
-                        <span id="txt-comp-activo" class="tag-coord">BIN: ---</span>
-                    </div>
-                    <button id="btn-reset-cascada" style="background: transparent; border: none; color: #ff4444; font-weight: bold; cursor: pointer;">✕</button>
-                </div>
-
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px;">
-                    <span style="font-size: 12px; color: #aaa;">Cantidad a aplicar por escaneo:</span>
-                    <input type="number" id="input-unidades-lote" value="1" min="1" style="width: 75px; background: rgba(0,0,0,0.5); border: 1px solid var(--naranja); color: white; text-align: center; border-radius: 8px; padding: 6px; font-weight: bold;">
-                </div>
+        <!-- NÚCLEO DE ESCANEO Y BÚSQUEDA -->
+        <section class="consola-scrollable">
+            
+            <!-- BUSCADOR MANUAL DIRECTO -->
+            <div class="caja-busqueda-manual">
+                <svg class="icono-lupa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="input-busqueda-manual" placeholder="Buscar por código de barras, SKU o nombre..." autocomplete="off">
+                <button id="btn-limpiar-busqueda" class="btn-limpiar" style="display: none;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
             </div>
 
-            <!-- TARJETA INFORMATIVA FLUIDA DEL ÚLTIMO ARTÍCULO -->
-            <div id="tarjeta-producto" class="ultimo-escaneo" style="position: static; transform: none; width: 100%; box-sizing: border-box; display: none;">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <div>
-                        <span id="badge-estado" style="background: #00ff64; color: black; font-size: 10px; padding: 3px 8px; border-radius: 8px; font-weight: bold; text-transform: uppercase;">ACTUALIZADO</span>
-                        <h2 id="prod-nombre" style="margin: 8px 0 0 0; font-size: 16px; color: white;">Producto</h2>
-                    </div>
-                    <div style="text-align: right;">
-                        <p style="margin: 0; font-size: 10px; color: #aaa;">CÓDIGO:</p>
-                        <p id="prod-codigo" style="margin: 0; font-family: monospace; font-size: 13px; color: var(--naranja); font-weight: bold;">---</p>
+            <!-- BANNER DE UBICACIÓN FÍSICA SELECCIONADA -->
+            <div id="banner-cascada" class="banner-cascada-wms">
+                <div class="tags-ubicacion">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="var(--naranja)" stroke-width="2">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                    </svg>
+                    <span id="txt-mueble-activo" class="tag-coord">MUEBLE: ---</span>
+                    <span id="txt-comp-activo" class="tag-coord">BIN: ---</span>
+                </div>
+                <div class="acciones-cascada">
+                    <button id="btn-abrir-selector-ubicacion" class="btn-accion-mini">Asignar</button>
+                    <button id="btn-reset-cascada" class="btn-accion-mini peligro" title="Desvincular">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- VISOR DE CÁMARA INDUSTRIAL (HUD) -->
+            <div class="panel-camara-hud">
+                <div id="lector-camara" class="visor-camara-marco" style="display: none;">
+                    <div class="mira-hud-esquinas"></div>
+                    <div class="laser-escaneo"></div>
+                </div>
+
+                <div class="barra-herramientas-camara">
+                    <button id="btn-toggle-camara" class="btn-camara-disparador">
+                        <svg class="icono-svg-btn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                            <circle cx="12" cy="13" r="4"></circle>
+                        </svg>
+                        <span id="txt-btn-camara">Activar Cámara</span>
+                    </button>
+
+                    <!-- BOTÓN DE LINTERNA / FLASH -->
+                    <button id="btn-toggle-flash" class="btn-icono-cuadrado" style="display: none;" title="Encender Linterna">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                        </svg>
+                    </button>
+
+                    <!-- TOGGLE RÁFAGA INDUSTRIAL -->
+                    <label id="toggle-rafaga-wrapper" class="toggle-pill" title="Escaneo continuo sin cerrar visor">
+                        <input type="checkbox" id="chk-modo-rafaga">
+                        <span>Ráfaga</span>
+                    </label>
+
+                    <!-- ESTADO DEL PESTILLO ÓPTICO -->
+                    <div class="indicador-latch">
+                        <span id="luz-estado" class="luz-pestillo"></span>
+                        <span id="txt-estado-latch" class="txt-latch">Listo</span>
                     </div>
                 </div>
+            </div>
+
+            <!-- ESTADO INFORMATIVO VACÍO -->
+            <div id="estado-espera-pantalla" class="pantalla-placeholder">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+                    <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                    <path d="M7 15h0M2 9.5h20"></path>
+                </svg>
+                <h3>Terminal en Espera</h3>
+                <p>Usa la cámara, la pistola óptica USB-C o el buscador manual para inspeccionar un artículo.</p>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- 3. MODAL UNIFICADO: INSPECCIÓN / OPERACIÓN / ALTA -->
+    <div id="modal-producto-detalle" class="modal-overlay" style="display: none;">
+        <div class="modal-card-wms">
+            <div class="modal-header-barra">
+                <div class="cabecera-estado">
+                    <span id="badge-tipo-modal" class="badge-status">Inspección de Artículo</span>
+                    <span id="detalle-ean-sub" class="txt-mono-sub">---</span>
+                </div>
+                <button id="btn-cerrar-modal-prod" class="btn-cerrar-x" title="Cerrar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="modal-scroll-interior">
                 
-                <div style="background: rgba(0,0,0,0.3); border-radius: 12px; padding: 12px; margin-top: 10px; border: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between;">
-                    <div>
-                        <p style="margin: 0; font-size: 11px; color: #888;">Operación: <strong id="res-operacion" style="color: white;">ENTRADA</strong></p>
-                        <p style="margin: 4px 0 0 0; font-size: 11px; color: #888;">Hardware: <span id="res-hardware" style="color: #aaa;">USB</span></p>
+                <!-- IDENTIDAD DEL PRODUCTO -->
+                <div class="grid-producto-identidad">
+                    <div id="box-foto-prod" class="foto-slot-contenedor" title="Fotografía de producto">
+                        <input type="file" id="input-archivo-foto" accept="image/*" capture="environment" style="display: none;">
+                        <img id="img-producto-render" src="" alt="Foto" style="display: none;">
+                        <div id="ph-foto-iconos" class="foto-placeholder-iconos">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                <polyline points="21 15 16 10 5 21"></polyline>
+                            </svg>
+                            <span>Foto</span>
+                        </div>
                     </div>
-                    <div style="text-align: right;">
-                        <p style="margin: 0; font-size: 11px; color: #888;">Stock Resultante:</p>
-                        <p id="res-stock" style="margin: 2px 0 0 0; font-size: 20px; color: #00ff64; font-weight: 900;">0</p>
+
+                    <div class="campos-identidad">
+                        <div class="campo-bloque">
+                            <label>Código de Barras / SKU</label>
+                            <input type="text" id="campo-codigo" class="input-wms-dato mono" readonly>
+                        </div>
+                        <div class="campo-bloque">
+                            <label>Nombre del Artículo</label>
+                            <input type="text" id="campo-nombre" class="input-wms-dato" readonly placeholder="Descripción del producto">
+                        </div>
                     </div>
+                </div>
+
+                <!-- MÉTRICAS Y DATOS TÉCNICOS -->
+                <div class="grid-metricas-3col">
+                    <div class="campo-bloque">
+                        <label>Precio Venta ($)</label>
+                        <input type="number" id="campo-precio" class="input-wms-dato" readonly placeholder="0">
+                    </div>
+                    <div class="campo-bloque">
+                        <label>Stock en Sistema</label>
+                        <input type="text" id="campo-stock-actual" class="input-wms-dato resaltado" readonly value="0">
+                    </div>
+                    <div class="campo-bloque">
+                        <label>Categoría</label>
+                        <input type="text" id="campo-categoria" class="input-wms-dato" readonly placeholder="General">
+                    </div>
+                </div>
+
+                <!-- UBICACIÓN ESPACIAL RESUELTA -->
+                <div class="panel-coordenadas-analisis">
+                    <div class="coord-col">
+                        <span class="lbl-dim">Mueble / Anaquel:</span>
+                        <strong id="det-mueble-ubicado">Sin Asignar</strong>
+                    </div>
+                    <div class="coord-col">
+                        <span class="lbl-dim">Compartimiento (Bin):</span>
+                        <strong id="det-bin-ubicado" class="txt-verde">---</strong>
+                    </div>
+                </div>
+
+                <!-- CAMPOS ADICIONALES (LOTES Y CADUCIDAD PARA PRODUCTO NUEVO O EDICIÓN) -->
+                <div id="bloque-lote-vencimiento" class="grid-metricas-2col" style="display: none;">
+                    <div class="campo-bloque">
+                        <label>N° Lote</label>
+                        <input type="text" id="campo-lote" class="input-wms-dato mono" placeholder="L-2026">
+                    </div>
+                    <div class="campo-bloque">
+                        <label>Fecha Vencimiento</label>
+                        <input type="date" id="campo-vencimiento" class="input-wms-dato">
+                    </div>
+                </div>
+
+                <!-- SECCIÓN CRÍTICA: CANTIDAD A OPERAR (VACÍA POR DEFECTO) -->
+                <div class="seccion-operacion-cuadro">
+                    <div class="cabecera-cantidad">
+                        <label for="input-cantidad-operar">Cantidad a Aplicar en Operación:</label>
+                        <span id="tooltip-alerta-cantidad" class="tooltip-aviso-elegante">Digita una cantidad primero</span>
+                    </div>
+                    <input type="number" id="input-cantidad-operar" class="input-cantidad-principal" placeholder="0" min="1" step="any">
+                </div>
+
+                <!-- BOTONES DE ACCIÓN FÍSICA -->
+                <div class="dock-acciones-operacion">
+                    <button type="button" id="btn-op-editar" class="btn-operacion accion-editar" title="Modificar datos del artículo">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                        </svg>
+                        <span id="txt-btn-editar">Editar</span>
+                    </button>
+                    <button type="button" id="btn-op-ingreso" class="btn-operacion accion-ingreso" title="Asentar entrada al stock">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        <span>Ingreso</span>
+                    </button>
+                    <button type="button" id="btn-op-salida" class="btn-operacion accion-salida" title="Asentar salida de stock">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        <span>Salida</span>
+                    </button>
+                    <button type="button" id="btn-op-reubicar" class="btn-operacion accion-reubicar" title="Trasladar a otro estante o bin">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                            <circle cx="12" cy="10" r="3"></circle>
+                        </svg>
+                        <span>Reubicar</span>
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. MODAL SELECTOR DE UBICACIÓN (MAPATIENDA -> STOCK) -->
+    <div id="modal-selector-ubicacion" class="modal-overlay" style="display: none;">
+        <div class="modal-card-wms" style="max-width: 440px;">
+            <div class="modal-header-barra">
+                <span class="badge-status">Asignar Espacio Físico</span>
+                <button id="btn-cerrar-modal-ubi" class="btn-cerrar-x">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-scroll-interior">
+                <div class="campo-bloque" style="margin-bottom: 12px;">
+                    <label>1. Seleccionar Mueble / Estantería:</label>
+                    <select id="select-mueble-wms" class="select-wms">
+                        <option value="">-- Selecciona un mueble --</option>
+                    </select>
+                </div>
+                <div class="campo-bloque" style="margin-bottom: 15px;">
+                    <label>2. Compartimiento (Bin):</label>
+                    <select id="select-bin-wms" class="select-wms" disabled>
+                        <option value="">-- Primero selecciona el mueble --</option>
+                    </select>
+                </div>
+                <div class="fila-botones-doble">
+                    <button id="btn-cancelar-select-ubi" class="btn-secundario-wms">Cancelar</button>
+                    <button id="btn-confirmar-select-ubi" class="btn-primario-wms" disabled>Fijar Ubicación</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- MODAL IN SITU: ALTA RÁPIDA -->
-    <div id="modal-alta-rapida" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); z-index: 10000; align-items: center; justify-content: center; padding: 15px; box-sizing: border-box;">
-        <div style="background: rgba(20,20,25,0.98); border: 1px solid var(--naranja); border-radius: 20px; width: 100%; max-width: 400px; padding: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.9); box-sizing: border-box;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h3 style="margin: 0; font-size: 15px; color: var(--naranja); text-transform: uppercase;">✨ Producto Nuevo Detectado</h3>
-                <button id="btn-cerrar-alta" style="background: none; border: none; color: #888; font-size: 18px; cursor: pointer;">✕</button>
+    <!-- 5. MODAL ELEGANTE DE CONFIRMACIÓN DE SALIDA (ANTI-SALIDA ACCIDENTAL) -->
+    <div id="modal-confirmar-salida" class="modal-overlay" style="display: none; z-index: 20000;">
+        <div class="modal-card-wms" style="max-width: 360px; text-align: center;">
+            <div class="icono-aviso-centro">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--naranja)" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
             </div>
-
-            <p style="font-size: 11px; color: #aaa; margin: 0 0 12px 0;">El código escaneado no existe en catálogo. Complétalo para ingresarlo al stock físico.</p>
-
-            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                <div style="width: 90px; height: 90px; border: 1px dashed var(--naranja); border-radius: 12px; background: rgba(255,107,0,0.05); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; flex-shrink: 0;" onclick="document.getElementById('alta-foto-input').click()">
-                    <input type="file" id="alta-foto-input" accept="image/*" capture="environment" style="display: none;">
-                    <img id="alta-foto-preview" src="" style="display: none; width: 100%; height: 100%; object-fit: cover;">
-                    <span id="alta-foto-icono" style="font-size: 22px;">📸</span>
-                    <span id="alta-foto-txt" style="font-size: 9px; color: var(--naranja); font-weight: bold; margin-top: 2px;">FOTO</span>
-                </div>
-
-                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                    <input type="text" id="alta-codigo" class="input-boveda" readonly style="margin: 0; padding: 8px; font-size: 12px; font-family: monospace; color: var(--naranja); font-weight: bold;">
-                    <input type="text" id="alta-nombre" class="input-boveda" placeholder="Nombre del producto" style="margin: 0; padding: 8px; font-size: 12px;">
-                    <input type="number" id="alta-precio" class="input-boveda" placeholder="Precio ($)" style="margin: 0; padding: 8px; font-size: 12px;">
-                </div>
+            <h3 class="titulo-dialogo">¿Salir de la Terminal?</h3>
+            <p class="txt-dialogo">Tienes la sesión operativa activa. ¿Deseas volver al portal principal o continuar trabajando?</p>
+            <div class="fila-botones-doble" style="margin-top: 15px;">
+                <button type="button" id="btn-cancelar-salida" class="btn-secundario-wms">Permanecer</button>
+                <button type="button" id="btn-confirmar-salida" class="btn-primario-wms peligro">Sí, Salir</button>
             </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-                <div>
-                    <label style="font-size: 10px; color: #888; text-transform: uppercase;">Cantidad:</label>
-                    <input type="number" id="alta-cantidad" class="input-boveda" value="1" min="1" style="margin: 4px 0 0 0; padding: 8px; font-size: 13px; font-weight: bold; text-align: center; color: #00ff64;">
-                </div>
-                <div>
-                    <label style="font-size: 10px; color: #888; text-transform: uppercase;">Categoría:</label>
-                    <input type="text" id="alta-categoria" class="input-boveda" value="General" style="margin: 4px 0 0 0; padding: 8px; font-size: 12px;">
-                </div>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
-                <div>
-                    <label style="font-size: 10px; color: #888; text-transform: uppercase;">N° de Lote:</label>
-                    <input type="text" id="alta-lote" class="input-boveda" placeholder="Ej: L-2026-A" style="margin: 4px 0 0 0; padding: 8px; font-size: 12px; font-family: monospace;">
-                </div>
-                <div>
-                    <label style="font-size: 10px; color: #888; text-transform: uppercase; color: #ffaa00;">Fecha Vencimiento:</label>
-                    <input type="date" id="alta-vencimiento" class="input-boveda" style="margin: 4px 0 0 0; padding: 8px; font-size: 11px; color: white;">
-                </div>
-            </div>
-
-            <button id="btn-guardar-alta-rapida" class="btn-accion-boveda" style="margin: 0; padding: 12px; font-size: 13px;">
-                INCORPORAR AL STOCK
-            </button>
         </div>
     </div>
 
-    <!-- CONTROLADOR REACTIVO Y MOTOR DE ESCANEO -->
+    <!-- 6. TOAST GLOBAL DE NOTIFICACIONES -->
+    <div id="toast-wms" class="toast-flotante"></div>
+
+    <!-- CONTROLADOR REACTIVO Y MOTOR WMS -->
     <script type="module">
         import GeokatuDB from './core-db.js';
-        // Compresor y rasterizador blindado a WebP plano
-        window.comprimirImagen = function(file, maxWidth = 800, quality = 0.7, forceSquare = false) {
-            return new Promise((resolve, reject) => {
-                if (!file) return resolve(null);
-                const reader = new FileReader();
-                reader.onload = function(event) {
-                    const img = new Image();
-                    img.onload = function() {
-                        let width = img.width, height = img.height;
-                        let sx = 0, sy = 0, sWidth = width, sHeight = height;
 
-                        if (forceSquare) {
-                            const size = Math.min(width, height);
-                            sx = (width - size) / 2; sy = (height - size) / 2;
-                            sWidth = size; sHeight = size; width = size; height = size;
-                        }
-
-                        if (width > maxWidth) {
-                            height = Math.round((height * maxWidth) / width);
-                            width = maxWidth;
-                        }
-
-                        const canvas = document.createElement('canvas');
-                        canvas.width = width;
-                        canvas.height = height;
-                        const ctx = canvas.getContext('2d');
-                        ctx.clearRect(0, 0, width, height);
-                        ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, width, height);
-
-                        canvas.toBlob(blob => {
-                            resolve(blob || file);
-                        }, 'image/webp', quality);
-                    };
-                    img.onerror = () => reject(new Error("Archivo de imagen no válido"));
-                    img.src = event.target.result;
-                };
-                reader.onerror = () => reject(new Error("Error leyendo el archivo"));
-                reader.readAsDataURL(file);
-            });
-        };
-
+        // -------------------------------------------------------------
+        // ESTADO DE TERMINAL
+        // -------------------------------------------------------------
         let idNegocio = localStorage.getItem('geokatu_active_uid') || null;
-        let operacionActual = 'ENTRADA';
+        let idSedeActiva = localStorage.getItem('geokatu_sede_activa') || 'SALA_VENTAS';
         let catalogoLocal = [];
+        let mueblesPlanoTienda = [];
 
-        // --- ESTADO DE LA MÁQUINA DE RELOCALIZACIÓN ESPACIAL ---
         let ubicacionCascada = {
             idEstante: null,
             idCompartimiento: null,
             zona: 'BODEGA'
         };
 
-        const resetCascada = () => {
-            ubicacionCascada.idEstante = null;
-            ubicacionCascada.idCompartimiento = null;
-            document.getElementById('txt-mueble-activo').innerText = "MUEBLE: ---";
-            document.getElementById('txt-comp-activo').innerText = "BIN: ---";
-            document.getElementById('banner-cascada').style.display = operacionActual === 'REUBICAR' ? 'flex' : 'none';
-        };
-        document.getElementById('btn-reset-cascada').addEventListener('click', resetCascada);
+        let productoActivo = null;
+        let modoEdicionActivo = false;
+        let fotoSeleccionadaBlob = null;
 
-        // --- SINTETIZADOR DE TONOS WEB AUDIO API ---
+        // Gestión del Historial (Atrás de Android)
+        window.history.replaceState({ page: 'stock_root' }, '');
+
+        window.addEventListener('popstate', (e) => {
+            const modalDetalle = document.getElementById('modal-producto-detalle');
+            const modalUbi = document.getElementById('modal-selector-ubicacion');
+
+            if (modalDetalle && modalDetalle.style.display === 'flex') {
+                cerrarModalProducto(false);
+                window.history.pushState({ page: 'stock_root' }, '');
+                return;
+            }
+
+            if (modalUbi && modalUbi.style.display === 'flex') {
+                modalUbi.style.display = 'none';
+                window.history.pushState({ page: 'stock_root' }, '');
+                return;
+            }
+
+            // Si está en la pantalla principal y presiona Atrás
+            abrirModalSalida();
+            window.history.pushState({ page: 'stock_root' }, '');
+        });
+
+        function abrirModalSalida() {
+            document.getElementById('modal-confirmar-salida').style.display = 'flex';
+        }
+        function cerrarModalSalida() {
+            document.getElementById('modal-confirmar-salida').style.display = 'none';
+        }
+
+        document.getElementById('btn-cancelar-salida').onclick = cerrarModalSalida;
+        document.getElementById('btn-confirmar-salida').onclick = () => {
+            cerrarModalSalida();
+            window.location.href = 'oficina';
+        };
+
+        // -------------------------------------------------------------
+        // FEEDBACK AUDITIVO Y NOTIFICACIONES
+        // -------------------------------------------------------------
         let audioCtx = null;
         function emitirTono(tipo = 'EXITO') {
             try {
@@ -363,48 +410,58 @@
                 if (tipo === 'EXITO') {
                     osc.type = 'sine';
                     osc.frequency.setValueAtTime(1850, ahora);
-                    gain.gain.setValueAtTime(0.2, ahora);
+                    gain.gain.setValueAtTime(0.18, ahora);
                     gain.gain.exponentialRampToValueAtTime(0.01, ahora + 0.08);
                     osc.start(ahora);
                     osc.stop(ahora + 0.08);
+                } else if (tipo === 'UBICACION') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(950, ahora);
+                    osc.frequency.exponentialRampToValueAtTime(1600, ahora + 0.12);
+                    gain.gain.setValueAtTime(0.2, ahora);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ahora + 0.12);
+                    osc.start(ahora);
+                    osc.stop(ahora + 0.12);
                 } else if (tipo === 'ERROR') {
                     osc.type = 'sawtooth';
                     osc.frequency.setValueAtTime(220, ahora);
                     gain.gain.setValueAtTime(0.25, ahora);
-                    gain.gain.exponentialRampToValueAtTime(0.01, ahora + 0.25);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ahora + 0.22);
                     osc.start(ahora);
-                    osc.stop(ahora + 0.25);
+                    osc.stop(ahora + 0.22);
                 }
             } catch (e) {}
         }
 
-        // =========================================================================
-        // MOTOR DE ESCANEO DE CÁMARA DIRECTO (EAN-13, CODE-128, RÁFAGA INDUSTRIAL)
-        // =========================================================================
+        function notificarToast(mensaje, duracion = 3000) {
+            const toast = document.getElementById('toast-wms');
+            toast.innerText = mensaje;
+            toast.classList.add('visible');
+            setTimeout(() => toast.classList.remove('visible'), duracion);
+        }
+
+        // -------------------------------------------------------------
+        // MOTOR DE CÁMARA (FOCO, BRIGHTNESS Y FLASH)
+        // -------------------------------------------------------------
         let scannerInstancia = null;
         let camaraEncendida = false;
         let pestilloBloqueado = false;
-        let ultimoCodigoLeido = null;
-        let timerDesbloqueoPestillo = null;
+        let flashEncendido = false;
 
         const visorCamara = document.getElementById('lector-camara');
         const btnToggleCamara = document.getElementById('btn-toggle-camara');
         const txtBtnCamara = document.getElementById('txt-btn-camara');
+        const btnFlash = document.getElementById('btn-toggle-flash');
         const chkRafaga = document.getElementById('chk-modo-rafaga');
         const wrapperRafaga = document.getElementById('toggle-rafaga-wrapper');
         const luzEstado = document.getElementById('luz-estado');
         const txtEstadoLatch = document.getElementById('txt-estado-latch');
 
         chkRafaga.addEventListener('change', () => {
-            if (chkRafaga.checked) {
-                wrapperRafaga.classList.add('activo');
-                if (navigator.vibrate) navigator.vibrate(30);
-            } else {
-                wrapperRafaga.classList.remove('activo');
-            }
+            wrapperRafaga.classList.toggle('activo', chkRafaga.checked);
         });
 
-        // Configuración idéntica a boveda-comercio y pos.html
+        // Configuración de formatos ópticos de alto rendimiento
         const configFormatos = {
             formatsToSupport: [
                 Html5QrcodeSupportedFormats.EAN_13,
@@ -418,20 +475,29 @@
             verbose: false
         };
 
-        const configEscaneo = {
-            fps: 20,
-            qrbox: (anchoVista, altoVista) => {
-                const w = Math.floor(anchoVista * 0.88);
-                const h = Math.floor(Math.min(altoVista * 0.55, 130));
-                return { width: w, height: h };
-            },
-            aspectRatio: 1.333333
+        const configCamaraAvanzada = {
+            fps: 24,
+            qrbox: (w, h) => ({
+                width: Math.floor(w * 0.88),
+                height: Math.floor(Math.min(h * 0.55, 140))
+            }),
+            aspectRatio: 1.333333,
+            videoConstraints: {
+                facingMode: { ideal: "environment" },
+                width: { ideal: 1920, min: 1280 },
+                height: { ideal: 1080, min: 720 },
+                advanced: [
+                    { focusMode: "continuous" },
+                    { exposureMode: "continuous" },
+                    { whiteBalanceMode: "continuous" }
+                ]
+            }
         };
 
-        const encenderCamara = async () => {
+        async function encenderCamara() {
             visorCamara.style.display = 'block';
-            txtBtnCamara.innerText = "APAGAR CÁMARA";
-            btnToggleCamara.style.background = "#ff4444";
+            txtBtnCamara.innerText = "Apagar Visor";
+            btnToggleCamara.classList.add('activo');
             camaraEncendida = true;
 
             if (!scannerInstancia) {
@@ -441,73 +507,157 @@
             try {
                 await scannerInstancia.start(
                     { facingMode: "environment" },
-                    configEscaneo,
-                    (codigoDecodificado) => {
-                        onLecturaOptica(codigoDecodificado);
-                    },
+                    configCamaraAvanzada,
+                    (codigoDecodificado) => onLecturaOptica(codigoDecodificado),
                     () => {}
                 );
+
+                // Calibración de brillo y detección de flash
+                calibrarParametrosVideoTrack();
+
             } catch (err) {
-                console.error("Fallo al iniciar cámara:", err);
-                alert("No se pudo iniciar la cámara trasera. Verifica los permisos.");
+                console.error("[Cámara] Error al iniciar:", err);
+                notificarToast("No se pudo iniciar la cámara trasera.");
                 apagarCamara();
             }
-        };
+        }
 
-        const apagarCamara = async () => {
+        async function apagarCamara() {
+            if (flashEncendido) await apagarFlashlight();
             if (scannerInstancia && scannerInstancia.isScanning) {
-                try {
-                    await scannerInstancia.stop();
-                } catch (e) {}
+                try { await scannerInstancia.stop(); } catch (e) {}
             }
             visorCamara.style.display = 'none';
-            txtBtnCamara.innerText = "ACTIVAR CÁMARA";
-            btnToggleCamara.style.background = "";
+            btnFlash.style.display = 'none';
+            txtBtnCamara.innerText = "Activar Cámara";
+            btnToggleCamara.classList.remove('activo');
             camaraEncendida = false;
-        };
+        }
 
         btnToggleCamara.addEventListener('click', () => {
             if (camaraEncendida) apagarCamara();
             else encenderCamara();
         });
 
-        // PESTILLO CONCURRENTE DE CINTA TRANSPORTADORA
+        // Calibración de Hardware (Torch & Exposure)
+        function calibrarParametrosVideoTrack() {
+            const videoEl = document.querySelector('#lector-camara video');
+            const track = videoEl?.srcObject?.getVideoTracks()[0];
+            if (!track) return;
+
+            const caps = track.getCapabilities ? track.getCapabilities() : {};
+
+            // 1. Mostrar botón de flash si el lente lo soporta
+            if (caps.torch) {
+                btnFlash.style.display = 'flex';
+            } else {
+                btnFlash.style.display = 'none';
+            }
+
+            // 2. Compensación de exposición para bodegas con baja luz
+            try {
+                const constr = { advanced: [] };
+                if (caps.focusMode?.includes('continuous')) {
+                    constr.advanced.push({ focusMode: 'continuous' });
+                }
+                if (caps.exposureMode?.includes('continuous')) {
+                    constr.advanced.push({ exposureMode: 'continuous' });
+                }
+                if (caps.exposureCompensation) {
+                    const compensacion = Math.min(caps.exposureCompensation.max, (caps.exposureCompensation.step || 0.5) * 2);
+                    constr.advanced.push({ exposureCompensation: compensacion });
+                }
+                track.applyConstraints(constr).catch(() => {});
+            } catch (e) {}
+        }
+
+        // Tap-to-focus sobre el visor
+        visorCamara.addEventListener('pointerdown', async (e) => {
+            const videoEl = document.querySelector('#lector-camara video');
+            const track = videoEl?.srcObject?.getVideoTracks()[0];
+            if (!track) return;
+
+            // Feedback visual de foco
+            mostrarOndaFoco(e);
+
+            try {
+                const caps = track.getCapabilities ? track.getCapabilities() : {};
+                if (caps.focusMode) {
+                    await track.applyConstraints({
+                        advanced: [{ focusMode: 'continuous' }]
+                    });
+                }
+            } catch (err) {}
+        });
+
+        function mostrarOndaFoco(e) {
+            const rect = visorCamara.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const punto = document.createElement('div');
+            punto.className = 'indicador-tap-foco';
+            punto.style.left = `${x}px`;
+            punto.style.top = `${y}px`;
+            visorCamara.appendChild(punto);
+            setTimeout(() => punto.remove(), 700);
+        }
+
+        // Control de Linterna (Flash)
+        btnFlash.addEventListener('click', async () => {
+            const videoEl = document.querySelector('#lector-camara video');
+            const track = videoEl?.srcObject?.getVideoTracks()[0];
+            if (!track) return;
+
+            flashEncendido = !flashEncendido;
+            try {
+                await track.applyConstraints({
+                    advanced: [{ torch: flashEncendido }]
+                });
+                btnFlash.classList.toggle('activo', flashEncendido);
+            } catch (e) {
+                console.warn("[Flash] No se pudo cambiar el estado de la linterna:", e);
+            }
+        });
+
+        async function apagarFlashlight() {
+            const videoEl = document.querySelector('#lector-camara video');
+            const track = videoEl?.srcObject?.getVideoTracks()[0];
+            if (track) {
+                try {
+                    await track.applyConstraints({ advanced: [{ torch: false }] });
+                } catch (e) {}
+            }
+            flashEncendido = false;
+            btnFlash.classList.remove('activo');
+        }
+
+        // -------------------------------------------------------------
+        // PESTILLO Y PROCESAMIENTO ÓPTICO
+        // -------------------------------------------------------------
         function onLecturaOptica(codigo) {
-            const esRafaga = chkRafaga.checked;
-
-            // Si el pestillo está bloqueado procesando el ítem previo, ignorar frame
             if (pestilloBloqueado) return;
-
-            // En ráfaga, no duplicar el mismo código si sigue enfrente de la cámara
-            if (esRafaga && codigo === ultimoCodigoLeido) return;
-
             pestilloBloqueado = true;
-            ultimoCodigoLeido = codigo;
             luzEstado.className = "luz-pestillo bloqueado";
-            txtEstadoLatch.innerText = "PROCESANDO...";
+            txtEstadoLatch.innerText = "Leyendo";
 
-            procesarMovimientoStock(codigo, "CÁMARA");
+            resolverCodigoEscaneado(codigo, "CÁMARA");
 
-            if (!esRafaga) {
+            if (!chkRafaga.checked) {
                 apagarCamara();
                 pestilloBloqueado = false;
                 luzEstado.className = "luz-pestillo";
-                txtEstadoLatch.innerText = "LISTO";
+                txtEstadoLatch.innerText = "Listo";
             } else {
-                // Intervalo de enfriamiento de cinta transportadora (800ms)
-                clearTimeout(timerDesbloqueoPestillo);
-                timerDesbloqueoPestillo = setTimeout(() => {
+                setTimeout(() => {
                     pestilloBloqueado = false;
-                    ultimoCodigoLeido = null;
                     luzEstado.className = "luz-pestillo";
-                    txtEstadoLatch.innerText = "LISTO";
+                    txtEstadoLatch.innerText = "Listo";
                 }, 800);
             }
         }
 
-        // =========================================================================
-        // LECTOR FÍSICO NATIVO (PISTOLA USB-C / BLUETOOTH EN WINDOW)
-        // =========================================================================
+        // Pistola física USB-C / Bluetooth (Keyboard Wedge)
         let bufferUSB = '';
         let ultimoTiempoTecla = 0;
         window.addEventListener('keydown', (e) => {
@@ -522,258 +672,568 @@
                     e.preventDefault();
                     const cod = bufferUSB.trim();
                     bufferUSB = '';
-                    procesarMovimientoStock(cod, "PISTOLA_USB");
+                    resolverCodigoEscaneado(cod, "PISTOLA_USB");
                 }
                 return;
             }
             if (e.key.length === 1) bufferUSB += e.key;
         }, true);
 
-        // =========================================================================
-        // PROCESAMIENTO ATÓMICO Y KARDEX
-        // =========================================================================
-async function procesarMovimientoStock(codigo, origenHardware) {
-    if (navigator.vibrate) navigator.vibrate(50);
+        // -------------------------------------------------------------
+        // RESOLUTOR CENTRAL DE CÓDIGOS (PRODUCTO, MUEBLE O BIN)
+        // -------------------------------------------------------------
+        async function resolverCodigoEscaneado(codigo, origen) {
+            if (navigator.vibrate) navigator.vibrate(40);
 
-    // Caso A: QR Mueble (GEO-M-)
-    if (codigo.startsWith('GEO-M-')) {
-        emitirTono('EXITO');
-        ubicacionCascada.idEstante = codigo;
-        document.getElementById('txt-mueble-activo').innerText = `MUEBLE: ${codigo.replace('GEO-M-', '')}`;
-        document.getElementById('banner-cascada').style.display = 'flex';
-        return;
-    }
-
-    // Caso B: QR Compartimiento (GEO-P-)
-    if (codigo.startsWith('GEO-P-')) {
-        emitirTono('EXITO');
-        ubicacionCascada.idCompartimiento = codigo;
-        document.getElementById('txt-comp-activo').innerText = `BIN: ${codigo.replace('GEO-P-', '')}`;
-        document.getElementById('banner-cascada').style.display = 'flex';
-        return;
-    }
-
-    // Caso C: Producto (EAN-13 / SKU)
-    const unidadesLote = Math.max(1, Number(document.getElementById('input-unidades-lote').value) || 1);
-    
-    // 1. Buscar en inventario propio del negocio
-    let prod = catalogoLocal.find(p => p.codigo_barras === codigo || p.id_prod === codigo);
-
-    // 2. Si no existe localmente, consultar la Matriz Global en IndexedDB (0 ms)
-    let autoCompletadoMatriz = null;
-    if (!prod) {
-        autoCompletadoMatriz = await GeokatuDB.CatalogoMatrizService.obtenerProductoPorCodigo(codigo);
-        
-        if (autoCompletadoMatriz) {
-            // Producto detectado en catálogo maestro: Abrir modal pre-completado con autocompletado
-            emitirTono('EXITO');
-            abrirModalAltaRapida(codigo, unidadesLote, autoCompletadoMatriz);
-            return;
-        }
-    }
-
-    // 3. Si tampoco existe en la Matriz Global: Abrir modal completamente blanco
-    if (!prod) {
-        emitirTono('ERROR');
-        abrirModalAltaRapida(codigo, unidadesLote, null);
-        return;
-    }
-
-    // Producto existente en el inventario propio del negocio
-    emitirTono('EXITO');
-    let tipoKardex = operacionActual === 'REUBICAR' ? 'TRASLADO_INTERNO' : operacionActual;
-    let nuevoStock = prod.stock_actual !== undefined ? prod.stock_actual : 0;
-
-    if (tipoKardex === 'ENTRADA') nuevoStock += unidadesLote;
-    else if (tipoKardex === 'SALIDA') nuevoStock = Math.max(0, nuevoStock - unidadesLote);
-
-    if (operacionActual !== 'AUDITORIA') {
-        prod.stock_actual = nuevoStock;
-        localStorage.setItem(`geokatu_catalogo_${idNegocio}`, JSON.stringify(catalogoLocal));
-    }
-
-    // Proyección en la tarjeta inferior
-    const tarjeta = document.getElementById('tarjeta-producto');
-    document.getElementById('prod-nombre').innerText = prod.nombre;
-    document.getElementById('prod-codigo').innerText = codigo;
-    document.getElementById('res-operacion').innerText = operacionActual;
-    document.getElementById('res-hardware').innerText = origenHardware;
-    document.getElementById('res-stock').innerText = nuevoStock;
-    tarjeta.style.display = 'block';
-
-    if (operacionActual !== 'AUDITORIA') {
-        await GeokatuDB.InventarioService.registrarMovimientoFisico(
-            prod.id_prod, 
-            operacionActual === 'ENTRADA' ? "PROVEEDOR" : (ubicacionCascada.idCompartimiento || "BODEGA"), 
-            operacionActual === 'ENTRADA' ? (ubicacionCascada.idCompartimiento || "BODEGA") : (operacionActual === 'SALIDA' ? "CLIENTE" : ubicacionCascada.idCompartimiento), 
-            tipoKardex,
-            unidadesLote,
-            {
-                idEstanteDestino: ubicacionCascada.idEstante,
-                idCompDestino: ubicacionCascada.idCompartimiento,
-                zona: ubicacionCascada.zona
+            // Caso A: QR Maestro de Mueble (GEO-M-)
+            if (codigo.startsWith('GEO-M-')) {
+                emitirTono('UBICACION');
+                const idM = codigo.replace('GEO-M-', '');
+                const mMatch = mueblesPlanoTienda.find(m => m.qr === codigo || m.id_mueble === idM || codigo.endsWith(m.id_mueble));
+                ubicacionCascada.idEstante = mMatch ? mMatch.id_mueble : idM;
+                ubicacionCascada.zona = mMatch ? (mMatch.zona || 'PISO_VENTA') : 'BODEGA';
+                actualizarBannerUbicacion();
+                notificarToast(`Mueble fijado: ${mMatch ? mMatch.nombre : idM}`);
+                return;
             }
-        );
-    }
-}
 
-        // =========================================================================
-        // SESIÓN Y ALTA RÁPIDA
-        // =========================================================================
-GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
-    if (user) {
-        idNegocio = user.uid;
-        localStorage.setItem('geokatu_active_uid', user.uid);
-        document.getElementById('pantalla-login').style.display = 'none';
-        document.getElementById('app-terminal').style.display = 'flex';
-        document.getElementById('txt-operador').innerText = `Operador: ${user.email}`;
+            // Caso B: QR Canónico de Compartimiento (GEO-P-)
+            if (codigo.startsWith('GEO-P-')) {
+                emitirTono('UBICACION');
+                ubicacionCascada.idCompartimiento = codigo;
+                const partes = codigo.split('-');
+                const len = partes.length;
+                if (len >= 6) {
+                    const bin = partes[len - 1];
+                    const niv = partes[len - 2];
+                    const cara = partes[len - 3];
+                    const idM = partes[len - 4];
+                    ubicacionCascada.idEstante = idM;
+                    const mMatch = mueblesPlanoTienda.find(m => m.id_mueble === idM || codigo.includes(`-${m.id_mueble}-`));
+                    if (mMatch) {
+                        ubicacionCascada.idEstante = mMatch.id_mueble;
+                        ubicacionCascada.zona = mMatch.zona || 'PISO_VENTA';
+                    }
+                }
+                actualizarBannerUbicacion();
+                notificarToast("Bin asignado como coordenada activa.");
+                return;
+            }
 
-        const res = await GeokatuDB.PosService.descargarCatalogoLocal(idNegocio);
-        catalogoLocal = res.success ? res.data : GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio);
+            // Caso C: Producto Físico (EAN, SKU o Código Interno)
+            emitirTono('EXITO');
 
-        // 🚀 Inicialización/Verificación atómica de la Matriz Global en IndexedDB
-        GeokatuDB.CatalogoMatrizService.inicializarMatriz();
-    } else {
-        document.getElementById('pantalla-login').style.display = 'flex';
-        document.getElementById('app-terminal').style.display = 'none';
-    }
-});
+            // 1. Buscar en catálogo local
+            let prod = catalogoLocal.find(p => p.codigo_barras === codigo || p.id_prod === codigo);
 
-        document.getElementById('btn-login').addEventListener('click', async () => {
+            // 2. Si no existe, consultar Matriz Global IndexedDB (0 ms)
+            let datosMatriz = null;
+            if (!prod && GeokatuDB.CatalogoMatrizService) {
+                datosMatriz = await GeokatuDB.CatalogoMatrizService.obtenerProductoPorCodigo(codigo);
+            }
+
+            // 3. Abrir Modal Informativo (Cero daño / Observación pura)
+            abrirModalProducto(codigo, prod, datosMatriz);
+        }
+
+        // -------------------------------------------------------------
+        // GESTIÓN DEL MODAL UNIFICADO DE PRODUCTO
+        // -------------------------------------------------------------
+        const modalProd = document.getElementById('modal-producto-detalle');
+        const inputCantOperar = document.getElementById('input-cantidad-operar');
+        const tooltipAlerta = document.getElementById('tooltip-alerta-cantidad');
+        const badgeModal = document.getElementById('badge-tipo-modal');
+
+        function abrirModalProducto(codigo, prod = null, datosMatriz = null) {
+            productoActivo = prod || null;
+            modoEdicionActivo = false;
+            fotoSeleccionadaBlob = null;
+
+            // Restablecer campos
+            inputCantOperar.value = ''; // VACÍA por requerimiento estricto
+            tooltipAlerta.classList.remove('visible');
+
+            document.getElementById('campo-codigo').value = codigo;
+            document.getElementById('detalle-ean-sub').innerText = codigo;
+
+            const phIconos = document.getElementById('ph-foto-iconos');
+            const imgRender = document.getElementById('img-producto-render');
+            phIconos.style.display = 'flex';
+            imgRender.style.display = 'none';
+            imgRender.src = '';
+
+            const btnEditar = document.getElementById('btn-op-editar');
+            const bloqueLote = document.getElementById('bloque-lote-vencimiento');
+
+            if (prod) {
+                // Producto EXISTENTE en el negocio (Solo Lectura)
+                badgeModal.innerText = "Artículo Registrado";
+                badgeModal.className = "badge-status existente";
+
+                document.getElementById('campo-nombre').value = prod.nombre || '';
+                document.getElementById('campo-precio').value = prod.precio || 0;
+                document.getElementById('campo-stock-actual').value = `${prod.stock_actual || 0} und`;
+                document.getElementById('campo-categoria').value = prod.categoria || 'General';
+
+                if (prod.imagen) {
+                    imgRender.src = prod.imagen;
+                    imgRender.style.display = 'block';
+                    phIconos.style.display = 'none';
+                }
+
+                document.getElementById('det-mueble-ubicado').innerText = prod.almacen_id_inicial || ubicacionCascada.idEstante || 'PISO_VENTA';
+                document.getElementById('det-bin-ubicado').innerText = ubicacionCascada.idCompartimiento ? ubicacionCascada.idCompartimiento.split('-').slice(-3).join('-') : 'GENERAL';
+
+                bloqueLote.style.display = 'none';
+                btnEditar.style.display = 'flex';
+                document.getElementById('txt-btn-editar').innerText = "Editar";
+
+                setearCamposLectura(true);
+            } else if (datosMatriz) {
+                // Producto detectado en MATRIZ GLOBAL
+                badgeModal.innerText = "Detectado en Matriz Global";
+                badgeModal.className = "badge-status matriz";
+
+                document.getElementById('campo-nombre').value = datosMatriz.nombre || '';
+                document.getElementById('campo-precio').value = '';
+                document.getElementById('campo-stock-actual').value = '0 und';
+                document.getElementById('campo-categoria').value = datosMatriz.categoria || 'General';
+
+                bloqueLote.style.display = 'grid';
+                btnEditar.style.display = 'none';
+
+                setearCamposLectura(false);
+            } else {
+                // Producto TOTALMENTE NUEVO
+                badgeModal.innerText = "Producto No Catalogado";
+                badgeModal.className = "badge-status nuevo";
+
+                document.getElementById('campo-nombre').value = '';
+                document.getElementById('campo-precio').value = '';
+                document.getElementById('campo-stock-actual').value = '0 und';
+                document.getElementById('campo-categoria').value = 'General';
+
+                bloqueLote.style.display = 'grid';
+                btnEditar.style.display = 'none';
+
+                setearCamposLectura(false);
+            }
+
+            modalProd.style.display = 'flex';
+            window.history.pushState({ modal: 'producto' }, '');
+        }
+
+        function setearCamposLectura(soloLectura) {
+            const inputs = ['campo-nombre', 'campo-precio', 'campo-categoria'];
+            inputs.forEach(id => {
+                const el = document.getElementById(id);
+                el.readOnly = soloLectura;
+                el.classList.toggle('editable', !soloLectura);
+            });
+            document.getElementById('box-foto-prod').style.cursor = soloLectura ? 'default' : 'pointer';
+        }
+
+        function cerrarModalProducto(actualizarHistory = true) {
+            modalProd.style.display = 'none';
+            productoActivo = null;
+            modoEdicionActivo = false;
+            fotoSeleccionadaBlob = null;
+            if (actualizarHistory && window.history.state?.modal === 'producto') {
+                window.history.back();
+            }
+        }
+
+        document.getElementById('btn-cerrar-modal-prod').onclick = () => cerrarModalProducto(true);
+
+        // Control de Foto
+        document.getElementById('box-foto-prod').onclick = () => {
+            if (!modoEdicionActivo && productoActivo) return;
+            document.getElementById('input-archivo-foto').click();
+        };
+
+        document.getElementById('input-archivo-foto').onchange = (e) => {
+            const f = e.target.files[0];
+            if (f) {
+                fotoSeleccionadaBlob = f;
+                const r = new FileReader();
+                r.onload = (ev) => {
+                    const img = document.getElementById('img-producto-render');
+                    img.src = ev.target.result;
+                    img.style.display = 'block';
+                    document.getElementById('ph-foto-iconos').style.display = 'none';
+                };
+                r.readAsDataURL(f);
+            }
+        };
+
+        // Botón Editar
+        document.getElementById('btn-op-editar').onclick = () => {
+            modoEdicionActivo = !modoEdicionActivo;
+            setearCamposLectura(!modoEdicionActivo);
+            document.getElementById('txt-btn-editar').innerText = modoEdicionActivo ? "Fijar" : "Editar";
+            if (modoEdicionActivo) {
+                document.getElementById('bloque-lote-vencimiento').style.display = 'grid';
+                document.getElementById('campo-nombre').focus();
+            }
+        };
+
+        // -------------------------------------------------------------
+        // VALIDACIÓN DE CANTIDAD Y OPERACIONES DE STOCK
+        // -------------------------------------------------------------
+        function obtenerCantidadValidada() {
+            const raw = inputCantOperar.value.trim();
+            const num = parseFloat(raw);
+            if (!raw || isNaN(num) || num <= 0) {
+                resaltarAlertaCantidad();
+                return null;
+            }
+            tooltipAlerta.classList.remove('visible');
+            return num;
+        }
+
+        function resaltarAlertaCantidad() {
+            emitirTono('ERROR');
+            if (navigator.vibrate) navigator.vibrate([80, 50, 80]);
+
+            inputCantOperar.classList.remove('shake');
+            void inputCantOperar.offsetWidth; // Force reflow
+            inputCantOperar.classList.add('shake');
+            inputCantOperar.focus();
+
+            tooltipAlerta.classList.add('visible');
+            setTimeout(() => tooltipAlerta.classList.remove('visible'), 4000);
+        }
+
+        inputCantOperar.addEventListener('input', () => {
+            if (inputCantOperar.value.trim()) {
+                tooltipAlerta.classList.remove('visible');
+            }
+        });
+
+        // 1. Ingreso (+)
+        document.getElementById('btn-op-ingreso').onclick = async () => {
+            const cant = obtenerCantidadValidada();
+            if (cant === null) return;
+            await ejecutarOperacionFisica('ENTRADA', cant);
+        };
+
+        // 2. Salida (-)
+        document.getElementById('btn-op-salida').onclick = async () => {
+            const cant = obtenerCantidadValidada();
+            if (cant === null) return;
+            await ejecutarOperacionFisica('SALIDA', cant);
+        };
+
+        // 3. Reubicar
+        document.getElementById('btn-op-reubicar').onclick = async () => {
+            if (!ubicacionCascada.idCompartimiento) {
+                alert("Debes seleccionar primero el mueble o bin de destino en la barra de ubicación.");
+                modalUbi.style.display = 'flex';
+                return;
+            }
+            const cant = obtenerCantidadValidada();
+            if (cant === null) return;
+            await ejecutarOperacionFisica('REUBICAR', cant);
+        };
+
+        async function ejecutarOperacionFisica(tipoOperacion, cantidad) {
+            const codigo = document.getElementById('campo-codigo').value.trim();
+            const nom = document.getElementById('campo-nombre').value.trim();
+            const pre = parseFloat(document.getElementById('campo-precio').value) || 0;
+            const cat = document.getElementById('campo-categoria').value.trim() || 'General';
+
+            if (!nom) return alert("El nombre del producto es obligatorio.");
+
+            notificarToast("Asentando en Kardex físico...");
+
+            try {
+                let imgUrl = productoActivo ? (productoActivo.imagen || "") : "";
+
+                // Subir fotografía WebP si se capturó
+                if (fotoSeleccionadaBlob) {
+                    const blobWebp = await window.comprimirImagen(fotoSeleccionadaBlob, 800, 0.75, true);
+                    const pathFoto = `productos/${idNegocio}/${codigo}_${Date.now()}.webp`;
+                    const up = await GeokatuDB.AdminService.subirArchivo(pathFoto, blobWebp);
+                    imgUrl = (typeof up === 'string') ? up : (up?.data || '');
+                }
+
+                // Si es un producto nuevo, crearlo primero en Firestore con stock 0
+                let prodIdDestino = productoActivo ? productoActivo.id_prod : null;
+
+                if (!productoActivo || modoEdicionActivo) {
+                    const payloadGuardar = {
+                        nombre: nom,
+                        precio: pre,
+                        codigo_barras: codigo,
+                        categoria: cat,
+                        stock_actual: productoActivo ? Number(productoActivo.stock_actual || 0) : 0,
+                        imagen: imgUrl,
+                        almacen_id_inicial: ubicacionCascada.idEstante || "BODEGA_GENERAL",
+                        fecha_creacion: new Date().toISOString(),
+                        agotado: false
+                    };
+
+                    const resGuardar = await GeokatuDB.AdminService.guardarProducto(idNegocio, prodIdDestino, payloadGuardar);
+                    if (!resGuardar.success) throw new Error(resGuardar.error);
+
+                    prodIdDestino = prodIdDestino || resGuardar.id_generado;
+                    payloadGuardar.id_prod = prodIdDestino;
+
+                    const idx = catalogoLocal.findIndex(p => p.id_prod === prodIdDestino);
+                    if (idx !== -1) catalogoLocal[idx] = payloadGuardar;
+                    else catalogoLocal.push(payloadGuardar);
+                }
+
+                // Asentar el movimiento físico oficial en Kardex
+                const esEntrada = tipoOperacion === 'ENTRADA';
+                const esSalida = tipoOperacion === 'SALIDA';
+                const tipoKardex = tipoOperacion === 'REUBICAR' ? 'TRASLADO_INTERNO' : tipoOperacion;
+
+                const resMov = await GeokatuDB.InventarioService.registrarMovimientoFisico(
+                    prodIdDestino,
+                    esEntrada ? "PROVEEDOR" : (ubicacionCascada.idCompartimiento || "BODEGA"),
+                    esSalida ? "CLIENTE" : (ubicacionCascada.idCompartimiento || "PISO_VENTA"),
+                    tipoKardex,
+                    cantidad,
+                    {
+                        idEstanteOrigen: esSalida ? ubicacionCascada.idEstante : null,
+                        idCompOrigen: esSalida ? ubicacionCascada.idCompartimiento : null,
+                        idEstanteDestino: esEntrada ? ubicacionCascada.idEstante : null,
+                        idCompDestino: esEntrada ? ubicacionCascada.idCompartimiento : null,
+                        zona: ubicacionCascada.zona,
+                        lote: document.getElementById('campo-lote').value.trim() || null,
+                        fechaVencimiento: document.getElementById('campo-vencimiento').value || null
+                    }
+                );
+
+                if (!resMov.success) throw new Error(resMov.error);
+
+                emitirTono('EXITO');
+                notificarToast(`Operación [${tipoOperacion}] de ${cantidad} und completada.`);
+                cerrarModalProducto(true);
+
+            } catch (err) {
+                emitirTono('ERROR');
+                alert("Error en operación: " + err.message);
+            }
+        }
+
+        // -------------------------------------------------------------
+        // BÚSQUEDA MANUAL POR TEXTO / EAN
+        // -------------------------------------------------------------
+        const inputBuscarManual = document.getElementById('input-busqueda-manual');
+        const btnLimpiarBusqueda = document.getElementById('btn-limpiar-busqueda');
+
+        inputBuscarManual.addEventListener('input', () => {
+            btnLimpiarBusqueda.style.display = inputBuscarManual.value ? 'flex' : 'none';
+        });
+
+        btnLimpiarBusqueda.onclick = () => {
+            inputBuscarManual.value = '';
+            btnLimpiarBusqueda.style.display = 'none';
+            inputBuscarManual.focus();
+        };
+
+        inputBuscarManual.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const q = inputBuscarManual.value.trim();
+                if (!q) return;
+
+                // 1. Coincidencia exacta
+                const matchExacto = catalogoLocal.find(p => 
+                    p.codigo_barras === q || p.id_prod === q || p.nombre.toLowerCase() === q.toLowerCase()
+                );
+
+                if (matchExacto) {
+                    resolverCodigoEscaneado(matchExacto.codigo_barras || matchExacto.id_prod, "BUSQUEDA_MANUAL");
+                    inputBuscarManual.value = '';
+                    btnLimpiarBusqueda.style.display = 'none';
+                    return;
+                }
+
+                // 2. Coincidencia parcial
+                const parciales = catalogoLocal.filter(p => p.nombre.toLowerCase().includes(q.toLowerCase()));
+                if (parciales.length === 1) {
+                    resolverCodigoEscaneado(parciales[0].codigo_barras || parciales[0].id_prod, "BUSQUEDA_MANUAL");
+                    inputBuscarManual.value = '';
+                    btnLimpiarBusqueda.style.display = 'none';
+                } else if (parciales.length > 1) {
+                    alert(`Se encontraron ${parciales.length} coincidencias. Ingresa el código exacto.`);
+                } else {
+                    // No existe: abrir modal de producto nuevo con el término
+                    resolverCodigoEscaneado(q, "BUSQUEDA_MANUAL");
+                }
+            }
+        });
+
+        // -------------------------------------------------------------
+        // ASIGNACIÓN DE UBICACIÓN (MODAL Y CASCADA)
+        // -------------------------------------------------------------
+        const modalUbi = document.getElementById('modal-selector-ubicacion');
+        const selectMueble = document.getElementById('select-mueble-wms');
+        const selectBin = document.getElementById('select-bin-wms');
+        const btnConfirmarUbi = document.getElementById('btn-confirmar-select-ubi');
+
+        function actualizarBannerUbicacion() {
+            document.getElementById('txt-mueble-activo').innerText = `MUEBLE: ${ubicacionCascada.idEstante || '---'}`;
+            document.getElementById('txt-comp-activo').innerText = `BIN: ${ubicacionCascada.idCompartimiento ? ubicacionCascada.idCompartimiento.split('-').slice(-3).join('-') : '---'}`;
+        }
+
+        document.getElementById('btn-reset-cascada').onclick = () => {
+            ubicacionCascada.idEstante = null;
+            ubicacionCascada.idCompartimiento = null;
+            actualizarBannerUbicacion();
+            notificarToast("Ubicación desvinculada.");
+        };
+
+        document.getElementById('btn-abrir-selector-ubicacion').onclick = () => {
+            poblarSelectorMuebles();
+            modalUbi.style.display = 'flex';
+        };
+        document.getElementById('btn-cerrar-modal-ubi').onclick = () => modalUbi.style.display = 'none';
+        document.getElementById('btn-cancelar-select-ubi').onclick = () => modalUbi.style.display = 'none';
+
+        function poblarSelectorMuebles() {
+            selectMueble.innerHTML = '<option value="">-- Selecciona un mueble --</option>';
+            const optPiso = document.createElement('optgroup');
+            optPiso.label = "Piso de Venta";
+            const optBodega = document.createElement('optgroup');
+            optBodega.label = "Trastienda / Bodega";
+
+            mueblesPlanoTienda.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.id_mueble;
+                const totalBins = m.compartimientos ? m.compartimientos.length : 0;
+                opt.innerText = `${m.nombre} [${m.id_mueble}] (${totalBins} Bins)`;
+                if (m.zona === 'BODEGA') optBodega.appendChild(opt);
+                else optPiso.appendChild(opt);
+            });
+
+            if (optPiso.children.length > 0) selectMueble.appendChild(optPiso);
+            if (optBodega.children.length > 0) selectMueble.appendChild(optBodega);
+        }
+
+        selectMueble.onchange = () => {
+            const idM = selectMueble.value;
+            selectBin.innerHTML = '<option value="">-- Selecciona el bin --</option>';
+            btnConfirmarUbi.disabled = true;
+            if (!idM) { selectBin.disabled = true; return; }
+
+            const muebleSel = mueblesPlanoTienda.find(m => m.id_mueble === idM);
+            if (muebleSel && Array.isArray(muebleSel.compartimientos)) {
+                selectBin.disabled = false;
+                muebleSel.compartimientos.forEach(comp => {
+                    const opt = document.createElement('option');
+                    opt.value = comp.id_comp;
+                    opt.dataset.zona = muebleSel.zona || 'PISO_VENTA';
+                    opt.dataset.estante = muebleSel.id_mueble;
+                    opt.dataset.nombreMueble = muebleSel.nombre;
+                    opt.innerText = `Cara ${comp.cara} > ${comp.nivel}-${comp.bin} (${comp.id_comp.split('-').slice(-3).join('-')})`;
+                    selectBin.appendChild(opt);
+                });
+            }
+        };
+
+        selectBin.onchange = () => {
+            btnConfirmarUbi.disabled = !selectBin.value;
+        };
+
+        btnConfirmarUbi.onclick = () => {
+            const opt = selectBin.options[selectBin.selectedIndex];
+            if (!opt || !opt.value) return;
+
+            ubicacionCascada.idEstante = opt.dataset.estante;
+            ubicacionCascada.idCompartimiento = opt.value;
+            ubicacionCascada.zona = opt.dataset.zona;
+
+            actualizarBannerUbicacion();
+            emitirTono('UBICACION');
+            modalUbi.style.display = 'none';
+        };
+
+        // -------------------------------------------------------------
+        // SESIÓN Y ARRANQUE
+        // -------------------------------------------------------------
+        GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
+            if (user) {
+                const tenantMatriz = localStorage.getItem('geokatu_active_uid');
+                idNegocio = tenantMatriz || user.uid;
+                if (!tenantMatriz) localStorage.setItem('geokatu_active_uid', user.uid);
+
+                document.getElementById('pantalla-login').style.display = 'none';
+                document.getElementById('app-terminal').style.display = 'flex';
+                document.getElementById('txt-operador').innerText = user.email.split('@')[0];
+
+                const res = await GeokatuDB.PosService.descargarCatalogoLocal(idNegocio);
+                catalogoLocal = res.success ? res.data : GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio);
+
+                if (GeokatuDB.CatalogoMatrizService) {
+                    GeokatuDB.CatalogoMatrizService.inicializarMatriz().catch(() => {});
+                }
+
+                // Cargar plano SIG de la tienda
+                try {
+                    const resPlano = await GeokatuDB.RadarService.obtenerMapaBodega(idNegocio, idSedeActiva);
+                    if (resPlano.success && resPlano.data && Array.isArray(resPlano.data.elementos)) {
+                        mueblesPlanoTienda = resPlano.data.elementos;
+                    }
+                } catch (e) {}
+
+            } else {
+                document.getElementById('pantalla-login').style.display = 'flex';
+                document.getElementById('app-terminal').style.display = 'none';
+            }
+        });
+
+        document.getElementById('btn-login').onclick = async () => {
             const email = document.getElementById('login-email').value.trim();
             const pass = document.getElementById('login-pass').value;
             const res = await GeokatuDB.SecurityService.iniciarSesion(email, pass);
             if (!res.success) alert("Error: " + res.error);
-        });
+        };
 
-        document.getElementById('btn-logout').addEventListener('click', async () => {
+        document.getElementById('btn-logout').onclick = async () => {
             await apagarCamara();
             await GeokatuDB.SecurityService.cerrarSesion();
-        });
+        };
 
-        document.querySelectorAll('#selector-operacion .ribbon-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('#selector-operacion .ribbon-btn').forEach(b => b.classList.remove('activo'));
-                btn.classList.add('activo');
-                operacionActual = btn.getAttribute('data-op');
-                document.getElementById('banner-cascada').style.display = operacionActual === 'REUBICAR' ? 'flex' : 'none';
+        document.getElementById('btn-abrir-visor').onclick = () => {
+            window.open('inventario', '_blank');
+        };
+
+        // Compresor WebP cliente
+        window.comprimirImagen = function(file, maxWidth = 800, quality = 0.75, forceSquare = false) {
+            return new Promise((resolve, reject) => {
+                if (!file) return resolve(null);
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        let w = img.width, h = img.height;
+                        let sx = 0, sy = 0, sw = w, sh = h;
+                        if (forceSquare) {
+                            const minSide = Math.min(w, h);
+                            sx = (w - minSide) / 2; sy = (h - minSide) / 2;
+                            sw = minSide; sh = minSide; w = minSide; h = minSide;
+                        }
+                        if (w > maxWidth) {
+                            h = Math.round((h * maxWidth) / w);
+                            w = maxWidth;
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w; canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+                        canvas.toBlob(blob => resolve(blob || file), 'image/webp', quality);
+                    };
+                    img.onerror = () => reject(new Error("Formato de imagen incompatible."));
+                    img.src = e.target.result;
+                };
+                reader.onerror = () => reject(new Error("Error leyendo archivo."));
+                reader.readAsDataURL(file);
             });
-        });
-
-        // Alta Rápida In Situ
-        let fotoAltaBlob = null;
-function abrirModalAltaRapida(codigo, cantSugerida, datosMatriz = null) {
-    const tituloModal = document.querySelector('#modal-alta-rapida h3');
-    
-    document.getElementById('alta-codigo').value = codigo;
-    document.getElementById('alta-precio').value = '';
-    document.getElementById('alta-cantidad').value = cantSugerida || 1;
-
-    if (datosMatriz) {
-        // Pre-completado instantáneo desde la Matriz Global
-        document.getElementById('alta-nombre').value = datosMatriz.nombre;
-        document.getElementById('alta-categoria').value = datosMatriz.categoria;
-        tituloModal.innerHTML = '⚡ Producto Matriz Detectado';
-        tituloModal.style.color = '#00ff64';
-    } else {
-        // Formulario en blanco para código no catalogado
-        document.getElementById('alta-nombre').value = '';
-        document.getElementById('alta-categoria').value = 'General';
-        tituloModal.innerHTML = '✨ Producto Nuevo Detectado';
-        tituloModal.style.color = 'var(--naranja)';
-    }
-
-    document.getElementById('modal-alta-rapida').style.display = 'flex';
-}
-        document.getElementById('btn-cerrar-alta').addEventListener('click', () => {
-            document.getElementById('modal-alta-rapida').style.display = 'none';
-            fotoAltaBlob = null;
-            document.getElementById('alta-foto-input').value = '';
-            document.getElementById('alta-foto-preview').style.display = 'none';
-            document.getElementById('alta-foto-icono').style.display = 'block';
-            document.getElementById('alta-foto-txt').style.display = 'block';
-        });
-
-
-        document.getElementById('alta-foto-input').addEventListener('change', (e) => {
-            const f = e.target.files[0];
-            if (f) {
-                fotoAltaBlob = f;
-                const r = new FileReader();
-                r.onload = (ev) => {
-                    const img = document.getElementById('alta-foto-preview');
-                    img.src = ev.target.result;
-                    img.style.display = 'block';
-                    document.getElementById('alta-foto-icono').style.display = 'none';
-                    document.getElementById('alta-foto-txt').style.display = 'none';
-                };
-                r.readAsDataURL(f);
-            }
-        });
-
-        document.getElementById('btn-guardar-alta-rapida').addEventListener('click', async () => {
-            const btn = document.getElementById('btn-guardar-alta-rapida');
-            const codigo = document.getElementById('alta-codigo').value.trim();
-            const nom = document.getElementById('alta-nombre').value.trim();
-            const pre = parseFloat(document.getElementById('alta-precio').value) || 0;
-            const cant = Math.max(1, parseFloat(document.getElementById('alta-cantidad').value) || 1);
-
-            if (!nom) return alert("Nombre obligatorio.");
-            btn.innerText = "GUARDANDO..."; btn.disabled = true;
-
-                        try {
-                let imgUrl = "";
-                if (fotoAltaBlob) {
-                    // 1. Reducción obligatoria a WebP plano < 2MB para cumplir con Storage
-                    const blobWebp = await window.comprimirImagen(fotoAltaBlob, 800, 0.7, true);
-                    const pathFoto = `productos/${idNegocio}/${codigo}_${Date.now()}.webp`;
-                    
-                    const up = await GeokatuDB.AdminService.subirArchivo(pathFoto, blobWebp);
-                    if (up.success) {
-                        imgUrl = up.data;
-                    } else {
-                        console.warn("Fallo subiendo foto en stock.html:", up.error);
-                    }
-                }
-
-
-                const nuevoProd = {
-                    nombre: nom,
-                    precio: pre,
-                    codigo_barras: codigo,
-                    stock_actual: cant,
-                    categoria: document.getElementById('alta-categoria').value.trim() || "General",
-                    imagen: imgUrl,
-                    almacen_id_inicial: ubicacionCascada.idEstante || "BODEGA_GENERAL",
-                    fecha_creacion: new Date().toISOString(),
-                    agotado: false
-                };
-
-                const res = await GeokatuDB.AdminService.guardarProducto(idNegocio, null, nuevoProd);
-                if (!res.success) throw new Error(res.error);
-
-                nuevoProd.id_prod = res.id_generado;
-                catalogoLocal.push(nuevoProd);
-                localStorage.setItem(`geokatu_catalogo_${idNegocio}`, JSON.stringify(catalogoLocal));
-
-                                // Limpieza completa del modal y reseteo de la cámara
-                fotoAltaBlob = null;
-                document.getElementById('alta-foto-input').value = '';
-                document.getElementById('alta-foto-preview').style.display = 'none';
-                document.getElementById('alta-foto-preview').src = '';
-                document.getElementById('alta-foto-icono').style.display = 'block';
-                document.getElementById('alta-foto-txt').style.display = 'block';
-                document.getElementById('modal-alta-rapida').style.display = 'none';
-
-                procesarMovimientoStock(codigo, "ALTA_RÁPIDA");
-
-            } catch (err) {
-                alert("Error: " + err.message);
-            } finally {
-                btn.innerText = "INCORPORAR AL STOCK";
-                btn.disabled = false;
-            }
-        });
+        };
     </script>
 </body>
 </html>

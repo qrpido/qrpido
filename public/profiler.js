@@ -11,7 +11,7 @@ document.body.insertAdjacentHTML('beforeend', profilerHTML);
 document.getElementById('btn-bajar-data').onclick = () => {
     const logData = window.qrpidoLog ? window.qrpidoLog.join('\n') : "Sin datos";
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([logData], { type: 'text/plain' }));
-    a.download = `AUDITORIA_GEOKATU_${new Date().getTime()}.txt`; a.click();
+    a.download = `AUDITORIA_QRPIDO_${new Date().getTime()}.txt`; a.click();
 };
 
 let fCount = 0, lastFTime = performance.now();
@@ -59,3 +59,4 @@ bubble.addEventListener('touchend', () => {
         bubble.style.left = (bubble.getBoundingClientRect().left + 22.5 > window.innerWidth / 2) ? (window.innerWidth - 50) + 'px' : '5px';
     }
 });
+

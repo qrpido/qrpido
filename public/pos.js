@@ -3,6 +3,7 @@ import { BillingGuard } from './billing-guard.js';
 import { MotorLector } from './lector-motor.js';
 import { MotorBalanza } from './balanza-motor.js';
 import { MotorCajonMonedero } from './cajon-motor.js';
+import { QRLocal } from './qrcode-local.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
 const auth = getAuth();
@@ -29,7 +30,7 @@ let acumuladoTurno = {
     iva_19: 0, 
     exento: 0 
 };
-const motorCajon = new MotorCajonMonedero();
+
 let unsubscribeSemaforoStock = null; // 🛡️ Cerrojo de memoria para ciclo de vida Kiosk
 let cajeroCodigoActivo = localStorage.getItem('geokatu_cajero_pin') || "0000";
 let cajaNumeroActiva = localStorage.getItem('geokatu_caja_num') || "CAJA-01";
@@ -46,13 +47,36 @@ GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
         // 🛡️ SELLADO DE ENCLAVE CRIPTOGRÁFICO DE TERMINAL LOCAL
         await GeokatuDB.SecurityService.sellarSesionTerminalLocal(idTenant);
 
-        // 🚦 Lectura de estado fiscal y cuota del comercio matriz
+        // 🚦 Lectura de estado fiscal y cuota del comercio matriz con persistencia para impresión
         try {
             const { success: sNeg, data: dNeg } = await GeokatuDB.LocalService.getDetails(idTenant);
             if (sNeg && dNeg) {
-                controlFacturacionActivo = dNeg.facturacion_control || null;
-                BillingGuard.verificarEstadoCuota(controlFacturacionActivo, 'pos-alerta-facturas');
+                const pais = dNeg.pais || localStorage.getItem(`geokatu_pais_${idTenant}`);
+                if (pais === 'VEN') {
+                    console.warn("[Router POS] Comercio de Venezuela detectado. Redirigiendo a posven.html...");
+                    window.location.replace('posven.html');
+                    return;
+                }
+
+                const perfilParaTicket = dNeg.perfil_fiscal || {
+
+                    razon_social: dNeg.nombre || "GEOKATU COMERCIO",
+                    nit: dNeg.nit || "",
+                    dv: dNeg.dv || "0",
+                    direccion: dNeg.direccion || "Pereira, Risaralda",
+                    regimen_tributario: dNeg.regimen_tributario || "RESPONSABLE_IVA",
+                    codigo_tienda: dNeg.codigo_tienda || "T-01"
+                };
+                localStorage.setItem(`geokatu_perfil_${idTenant}`, JSON.stringify(perfilParaTicket));
             }
+
+            controlFacturacionActivo = (sNeg && dNeg?.facturacion_control) ? dNeg.facturacion_control : {
+                plan_activo: "FREEMIUM",
+                facturas_emitidas_mes: 0,
+                facturas_cupo_gratis: 1300,
+                facturas_prepago_saldo: 0
+            };
+            BillingGuard.verificarEstadoCuota(controlFacturacionActivo, 'pos-alerta-facturas');
         } catch (eFact) {
             console.warn("[BillingGuard] Fallo al consultar estado de cuota:", eFact.message);
         }
@@ -62,8 +86,12 @@ GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
         const db = getFirestore();
 
         
-        try {
-            const docOperario = await getDoc(doc(db, `Directorio/${idNegocio}/Equipo`, user.uid));
+         try {
+            let docOperario = await getDoc(doc(db, `Directorio/${idNegocio}/Equipo`, user.uid));
+            if (!docOperario.exists()) {
+                docOperario = await getDoc(doc(db, `Directorio/${idNegocio}/Colaboradores`, user.uid));
+            }
+
             if (docOperario.exists()) {
                 const dataOp = docOperario.data();
                 cajeroCodigoActivo = dataOp.codigo_cajero || "0000";
@@ -74,9 +102,10 @@ GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
                     if (dataOp.expiracion_clave_temporal && new Date() > new Date(dataOp.expiracion_clave_temporal)) {
                         alert("⚠️ La contraseña provisional ha expirado por superar el plazo de 48 horas. Solicita al administrador restablecer tu clave.");
                         GeokatuDB.SecurityService.destruirSesionTerminalLocal();
-                        window.location.href = 'boveda-comercio.html';
+                        window.location.href = 'oficina';
                         return;
                     }
+
 
                     const modalPass = document.getElementById('modal-cambio-password-obligatorio');
                     if (modalPass) modalPass.style.display = 'flex';
@@ -101,13 +130,13 @@ GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
 
         await inicializarCaja();
     } else {
-        if (typeof unsubscribeSemaforoStock === 'function') {
+         if (typeof unsubscribeSemaforoStock === 'function') {
             unsubscribeSemaforoStock();
             unsubscribeSemaforoStock = null;
         }
         // 🛡️ DESTRUCCIÓN SEGURA DE ENCLAVE AL SALIR
         GeokatuDB.SecurityService.destruirSesionTerminalLocal();
-        window.location.href = 'boveda-comercio.html';
+        window.location.href = 'oficina';
     }
 });
 
@@ -121,6 +150,24 @@ async function inicializarCaja() {
     cargarTicketsEnEsperaStorage();
     await verificarEstadoTurnoCaja();
 
+    // Sincronización inmediata al arrancar si hay conexión
+    if (navigator.onLine && idNegocio) {
+        GeokatuDB.PosService.sincronizarVentasPendientes(idNegocio).then(res => {
+            actualizarIndicadorCola();
+        }).catch(err => console.warn("[POS AutoSync]:", err));
+    }
+
+
+
+    // 🗺️ Precarga del mapa de ubicaciones WMS para descontar de estantes reales (GEO-P-...)
+    try {
+        const resUbis = await GeokatuDB.InventarioService.obtenerMapaStockTiendaCompleto(idNegocio);
+        if (resUbis.success && Array.isArray(resUbis.data)) {
+            localStorage.setItem(`geokatu_stock_ubis_${idNegocio}`, JSON.stringify(resUbis.data));
+        }
+    } catch (eUbi) {
+        console.warn("[POS WMS] Precarga espacial diferida:", eUbi);
+    }
 
     const res = await GeokatuDB.PosService.descargarCatalogoLocal(idNegocio);
     if (res.success) {
@@ -210,28 +257,30 @@ function parsearCodigoBalanza(codigo) {
 // 3. MOTOR DE ESCÁNER Y PROCESAMIENTO
 // ==========================================
 let scannerPosInstancia = null;
+let escaneoEnCooldown = false;
+
+window.cerrarCamaraPOS = () => {
+    const dock = document.getElementById('scanner-dock');
+    const btnCam = document.getElementById('btn-toggle-camara');
+    if (dock) dock.style.display = 'none';
+    if (btnCam) btnCam.innerHTML = `<span class="material-symbols-outlined">qr_code_scanner</span> Cámara`;
+    if (scannerPosInstancia && scannerPosInstancia.isScanning) {
+        scannerPosInstancia.stop().catch(() => {});
+    }
+    escaneoEnCooldown = false;
+};
 
 window.escanearParaPOS = () => {
-    const visor = document.getElementById('lector-camara');
+    const dock = document.getElementById('scanner-dock');
     const btnCam = document.getElementById('btn-toggle-camara');
-    if (!visor) return;
+    if (!dock) return;
 
-    if (visor.style.display === "block") {
-        if (scannerPosInstancia && scannerPosInstancia.isScanning) {
-            scannerPosInstancia.stop().then(() => {
-                visor.style.display = "none";
-                if (btnCam) btnCam.innerHTML = `<span class="material-symbols-outlined">qr_code_scanner</span> Cámara`;
-            }).catch(() => {
-                visor.style.display = "none";
-            });
-        } else {
-            visor.style.display = "none";
-            if (btnCam) btnCam.innerHTML = `<span class="material-symbols-outlined">qr_code_scanner</span> Cámara`;
-        }
+    if (dock.style.display === "block") {
+        window.cerrarCamaraPOS();
         return;
     }
 
-    visor.style.display = "block";
+    dock.style.display = "block";
     if (btnCam) btnCam.innerHTML = `<span class="material-symbols-outlined">close</span> Cerrar`;
 
     const configFormatos = {
@@ -251,40 +300,45 @@ window.escanearParaPOS = () => {
         scannerPosInstancia = new Html5Qrcode("lector-camara", configFormatos);
     }
 
-    const configEscaneo = {
-        fps: 20,
-        qrbox: (anchoVista, altoVista) => {
-            const w = Math.floor(anchoVista * 0.85);
-            const h = Math.floor(Math.min(altoVista * 0.55, 120));
-            return { width: w, height: h };
-        },
-        aspectRatio: 1.333333
-    };
-
     scannerPosInstancia.start(
         { facingMode: "environment" },
-        configEscaneo,
+        { fps: 20, qrbox: { width: 220, height: 110 } },
         (codigoDecodificado) => {
-            if (navigator.vibrate) navigator.vibrate([100]);
+            if (escaneoEnCooldown) return;
+            escaneoEnCooldown = true;
 
-            scannerPosInstancia.stop().then(() => {
-                visor.style.display = "none";
-                if (btnCam) btnCam.innerHTML = `<span class="material-symbols-outlined">qr_code_scanner</span> Cámara`;
-            }).catch(() => {
-                visor.style.display = "none";
-                if (btnCam) btnCam.innerHTML = `<span class="material-symbols-outlined">qr_code_scanner</span> Cámara`;
-            });
-
+            if (navigator.vibrate) navigator.vibrate(60);
             procesarEntradaCodigo(codigoDecodificado);
+
+            setTimeout(() => {
+                escaneoEnCooldown = false;
+            }, 1200);
         },
         () => {}
-    ).catch((err) => {
+    ).catch(err => {
         console.error("Error al iniciar cámara POS:", err);
-        alert("Verifica los permisos de cámara en tu navegador.");
-        visor.style.display = "none";
-        if (btnCam) btnCam.innerHTML = `<span class="material-symbols-outlined">qr_code_scanner</span> Cámara`;
+        alert("Comprueba los permisos de cámara en tu navegador.");
+        window.cerrarCamaraPOS();
     });
 };
+
+
+window.cerrarCamaraPOS = () => {
+    const contenedor = document.getElementById('contenedor-camara-pos');
+    if (contenedor) contenedor.classList.remove('activo');
+    if (scannerPosInstancia && scannerPosInstancia.isScanning) {
+        scannerPosInstancia.stop().catch(() => {});
+    }
+    pestilloLecturaOptica = false;
+    ultimoCodigoEscaneado = null;
+};
+
+window.cerrarCamaraExterior = (e) => {
+    if (e.target.id === 'contenedor-camara-pos') {
+        window.cerrarCamaraPOS();
+    }
+};
+
 
 const btnToggleCamara = document.getElementById('btn-toggle-camara');
 if (btnToggleCamara) {
@@ -353,8 +407,9 @@ inputBuscador.addEventListener('keydown', (e) => {
 function procesarEntradaCodigo(termino, factorMultiplicador = 1) {
     const terminoLimpio = termino.trim();
 
-   // 🛡️ DEVOLUCIÓN PARCIAL INTELIGENTE POR ESCÁNER DE TICKET
-    if (terminoLimpio.startsWith("TK-")) {
+     // 🛡️ DEVOLUCIÓN PARCIAL INTELIGENTE POR ESCÁNER DE TICKET (TK- o Hash directo de Firestore)
+    const esTicketFiscal = terminoLimpio.startsWith("TK-") || (terminoLimpio.length >= 18 && !/^\d{8,14}$/.test(terminoLimpio));
+    if (esTicketFiscal) {
         window.abrirModalDevolucionParcial(terminoLimpio);
         if (navigator.vibrate) navigator.vibrate([80, 50, 80]);
         return;
@@ -921,11 +976,28 @@ document.querySelectorAll('.btn-pay').forEach(btn => {
 function procesarAbonoPago(metodo) {
     if (carrito.length === 0) return alert("El carrito está vacío.");
 
-    // 🛑 FRENO PREVENTIVO BILLING GUARD: Si consumió las 1.300 facturas sin saldo, bloquea y abre modal
+    // 🛑 FRENO PREVENTIVO BILLING GUARD CON TOLERANCIA DE TURNO ABIERTO (1.300 Facturas)
     if (controlFacturacionActivo) {
         const estadoCuota = BillingGuard.verificarEstadoCuota(controlFacturacionActivo, 'pos-alerta-facturas');
-        if (estadoCuota.bloqueado) {
-            return; // Bloqueo total: el modal de paquetes se despliega en pantalla completa
+        if (estadoCuota && estadoCuota.bloqueado) {
+            // Evaluar si aperturó caja hoy y el turno sigue abierto en curso
+            const fechaApertura = turnoCajaActivo?.fecha_apertura ? new Date(turnoCajaActivo.fecha_apertura) : null;
+            const hoy = new Date();
+            const esTurnoAperturadoHoy = turnoCajaActivo?.estado === 'ABIERTA' && fechaApertura &&
+                fechaApertura.getFullYear() === hoy.getFullYear() &&
+                fechaApertura.getMonth() === hoy.getMonth() &&
+                fechaApertura.getDate() === hoy.getDate();
+
+            if (esTurnoAperturadoHoy) {
+                // Gracia de jornada: Se permite continuar facturando hasta ejecutar el Cierre Z de hoy
+                if (typeof window.mostrarAvisoPos === 'function') {
+                    window.mostrarAvisoPos("⚠️ Límite de 1.300 facturas alcanzado. Se permite facturar hasta realizar el Cierre Z de hoy.");
+                }
+            } else {
+                // Bloqueo estricto: El turno cerró o no ha aperturado caja hoy
+                alert("🛑 Has alcanzado el límite de 1.300 facturas de tu plan y no tienes un turno activo aperturado hoy. Realiza una recarga para continuar.");
+                return;
+            }
         }
     }
 
@@ -958,26 +1030,93 @@ function procesarAbonoPago(metodo) {
         return;
     }
 
+function procesarAbonoPago(metodo) {
+    if (carrito.length === 0) {
+        if (typeof window.mostrarAvisoPos === 'function') {
+            window.mostrarAvisoPos("El carrito está vacío.");
+        } else {
+            alert("El carrito está vacío.");
+        }
+        return;
+    }
+
+    const totalTicket = obtenerTotalTicketActual();
+    const pagadoHastaAhora = calcularTotalPagadoHastaAhora();
+    const remanente = totalTicket - pagadoHastaAhora;
+
+    if (remanente <= 0) {
+        ejecutarVentaFinalDefinitiva();
+        return;
+    }
+
+    // Sanitización robusta: elimina signos de pesos, comas, puntos y espacios
+    const inputElement = document.getElementById('input-monto-abono');
+    const inputValRaw = inputElement ? inputElement.value : "";
+    const inputValSanitizado = String(inputValRaw).replace(/[^0-9.]/g, '');
+    let montoIngresado = parseFloat(inputValSanitizado);
+
+    if (isNaN(montoIngresado) || montoIngresado <= 0) {
+        montoIngresado = remanente;
+    }
+
+    if (metodo === 'TARJETA') {
+        const montoTarjeta = Math.min(montoIngresado, remanente);
+        abrirModalDatafono(montoTarjeta);
+        return;
+    }
+
+    if (metodo === 'NEQUI') {
+        const montoNequi = Math.min(montoIngresado, remanente);
+        aplicarAbonoConfirmado('NEQUI', montoNequi);
+        return;
+    }
+
     if (metodo === 'EFECTIVO') {
-        // En efectivo, si dio más del remanente, se abona exactamente el remanente y el excedente son vueltas
         let montoEfectivoAbonado = montoIngresado;
         let cambioCalculado = 0;
 
         if (montoIngresado > remanente) {
-            cambioCalculado = montoIngresado - remanente;
+    if (metodo === 'TARJETA') {
+        const montoTarjeta = Math.min(montoIngresado, remanente);
+        abrirModalDatafono(montoTarjeta);
+        return;
+    }
+
+    if (metodo === 'NEQUI') {
+        const montoNequi = Math.min(montoIngresado, remanente);
+        aplicarAbonoConfirmado('NEQUI', montoNequi);
+        return;
+    }
+
+    if (metodo === 'EFECTIVO') {
+        let montoEfectivoAbonado = montoIngresado;
+        let cambioCalculado = 0;
+
+        if (montoIngresado > remanente) {
+            cambioCalculado = Math.round(montoIngresado - remanente);
             montoEfectivoAbonado = remanente;
         }
 
-        // Disparar gaveta en cada abono de efectivo
-        motorCajon.dispararAperturaDirecta(0).catch(() => {});
+        if (typeof motorCajon !== 'undefined' && motorCajon.dispararAperturaDirecta) {
+            motorCajon.dispararAperturaDirecta(0).catch(() => {});
+        }
 
         if (cambioCalculado > 0) {
-            alert(`💵 VUELTAS AL CLIENTE: $${cambioCalculado.toLocaleString('es-CO')}`);
+            const txtVueltas = document.getElementById('txt-cambio-vueltas');
+            if (txtVueltas) {
+                txtVueltas.innerText = `Vueltas: $${cambioCalculado.toLocaleString('es-CO')}`;
+                txtVueltas.style.display = 'inline-block';
+            }
+            if (typeof window.mostrarAvisoPos === 'function') {
+                window.mostrarAvisoPos(`Vueltas al cliente: $${cambioCalculado.toLocaleString('es-CO')}`);
+            }
         }
 
         aplicarAbonoConfirmado('EFECTIVO', montoEfectivoAbonado);
     }
 }
+
+
 
 function abrirModalDatafono(montoFraccion) {
     montoPendienteDatafonoTemporal = montoFraccion;
@@ -1064,7 +1203,7 @@ async function ejecutarVentaFinalDefinitiva() {
             : Number(prodMaestro.precio);
         let subtotal = item.precio_fijado_balanza ? precioFinal : Math.round(precioFinal * item.cantidad);
 
-        // 🛡️ ENLACE ESPACIAL AUTOMÁTICO: Deducir compartimiento activo en Piso de Venta
+         // 🛡️ ENLACE ESPACIAL AUTOMÁTICO: Deducir compartimiento activo en Piso de Venta y actualizar caché local
         let idCompPisoVenta = "BIN_INICIAL";
         try {
             const stockUbisLocal = JSON.parse(localStorage.getItem(`geokatu_stock_ubis_${idNegocio}`) || "[]");
@@ -1072,6 +1211,8 @@ async function ejecutarVentaFinalDefinitiva() {
             const ubiPiso = stockUbisLocal.find(u => u.id_prod === prodMaestro.id_prod && u.zona === 'PISO_VENTA' && u.cantidad > 0);
             if (ubiPiso && ubiPiso.id_compartimiento) {
                 idCompPisoVenta = ubiPiso.id_compartimiento;
+                ubiPiso.cantidad = Math.max(0, Number((ubiPiso.cantidad - item.cantidad).toFixed(3)));
+                localStorage.setItem(`geokatu_stock_ubis_${idNegocio}`, JSON.stringify(stockUbisLocal));
             }
         } catch (eUbi) {
             console.warn("[POS Contexto Espacial] Usando compartimiento por defecto:", eUbi);
@@ -1133,9 +1274,13 @@ async function ejecutarVentaFinalDefinitiva() {
    document.getElementById('txt-conexion').innerText = "REGISTRANDO...";
     const res = await GeokatuDB.PosService.procesarVentaLote(idNegocio, ticketPayload);
 
-    if (res.success) {
+        if (res.success) {
         ultimoTicketIdVendido = res.ticketId || res.localId;
         
+        if (typeof window.mostrarAvisoPos === 'function') {
+            window.mostrarAvisoPos(`Venta asentada con éxito. Ticket: ${ultimoTicketIdVendido}`);
+        }
+
         let datosFiscalesResueltos = null;
 
         // 🛡️ BARRERA FISCAL RESOLUCIÓN 000165 DIAN:
@@ -1350,7 +1495,15 @@ function armarTirillaTermica(ticket, ticketId, datosFiscales = null) {
     }
     if (elMetodo) elMetodo.innerText = txtPago;
 
-    if (elTotal) elTotal.innerText = `$${Number(ticket.total).toLocaleString('es-CO')}`;
+   if (elTotal) elTotal.innerText = `$${Number(ticket.total).toLocaleString('es-CO')}`;
+
+    // 4.1 Desglose tributario en tirilla impresa
+    const elBasePrint = document.getElementById('t-base-print');
+    const elIvaPrint = document.getElementById('t-iva-print');
+    const elExentoPrint = document.getElementById('t-exento-print');
+    if (elBasePrint) elBasePrint.innerText = document.getElementById('txt-base')?.innerText || '$0';
+    if (elIvaPrint) elIvaPrint.innerText = document.getElementById('txt-iva19')?.innerText || '$0';
+    if (elExentoPrint) elExentoPrint.innerText = document.getElementById('txt-exento')?.innerText || '$0';
 
     // 5. Renderizado normativo DIAN (CUFE o Contingencia 04)
     if (ticket.factura_electronica) {
@@ -1944,6 +2097,17 @@ document.getElementById('btn-confirmar-apertura').addEventListener('click', asyn
         return;
     }
 
+    // 🛑 "NO ANTES": Si el ciclo ya alcanzó las 1.300 facturas, no se permite abrir un nuevo turno
+    if (controlFacturacionActivo) {
+        const gratis = Number(controlFacturacionActivo.facturas_cupo_gratis) || 1300;
+        const prepago = Number(controlFacturacionActivo.facturas_prepago_saldo) || 0;
+        const emitidas = Number(controlFacturacionActivo.facturas_emitidas_mes) || 0;
+        if (emitidas >= (gratis + prepago)) {
+            alert("🛑 Has alcanzado el límite de 1.300 facturas de tu plan. Debes recargar cupo antes de aperturar un nuevo turno de caja.");
+            return;
+        }
+    }
+
     const res = await GeokatuDB.PosService.abrirTurnoCaja(idNegocio, base, auth.currentUser?.email || "CAJERO", cajaNumeroActiva);
 
     if (res.success) {
@@ -2441,11 +2605,20 @@ document.getElementById('btn-establecer-nueva-pass')?.addEventListener('click', 
     }
 });
 // =========================================================================
-// 15. FACTURA ECOLÓGICA QR (URL FIRMADA DE 60 MINUTOS & ZERO-PAPER)
+// 15. FACTURA ECOLÓGICA QR (URL FIRMADA DE 24 HORAS, WHATSAPP Y ZERO-PAPER)
 // =========================================================================
 window.deseaFacturaEcologicaQR = false;
+window.urlFacturaActiva = "";
+window.ticketIdFacturaActiva = "";
 
-async function generarFirmaFactura60Min(tktId, expTimestamp) {
+window.alternarFacturaEcologica = function(btn) {
+    window.deseaFacturaEcologicaQR = !window.deseaFacturaEcologicaQR;
+    btn.style.borderColor = window.deseaFacturaEcologicaQR ? 'var(--accent-green)' : 'var(--border-soft)';
+    btn.style.background = window.deseaFacturaEcologicaQR ? 'rgba(0,255,100,0.15)' : 'rgba(255,255,255,0.03)';
+    btn.style.color = window.deseaFacturaEcologicaQR ? 'var(--accent-green)' : '#fff';
+};
+
+async function generarFirmaFactura24Horas(tktId, expTimestamp) {
     const encoder = new TextEncoder();
     const data = encoder.encode(`${tktId}:${idNegocio}:${expTimestamp}:GEOKATU_PUBLIC_TKT_SALT`);
     const buffer = await crypto.subtle.digest('SHA-256', data);
@@ -2453,35 +2626,89 @@ async function generarFirmaFactura60Min(tktId, expTimestamp) {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).slice(0, 16).join('');
 }
 
-async function abrirModalFacturaDigitalQR(ticketId) {
+
+async function abrirModalFacturaDigitalQR(ticketId, telefonoPrevio = "") {
     const modalQR = document.getElementById('modal-factura-qr');
     const contenedor = document.getElementById('contenedor-qr-factura');
     if (!modalQR || !contenedor) return;
 
-    // 1. Expiración estricta de 60 minutos (3600 segundos)
-    const exp = Date.now() + (60 * 60 * 1000);
-    const sig = await generarFirmaFactura60Min(ticketId, exp);
+    window.ticketIdFacturaActiva = ticketId;
+    const exp = Date.now() + (24 * 60 * 60 * 1000); // 24 horas
+    const sig = await generarFirmaFactura24Horas(ticketId, exp);
 
-    // 2. Construir la URL amigable hacia el visor
-    const urlVisor = `${window.location.origin}/factura.html?com=${idNegocio}&tkt=${ticketId}&exp=${exp}&sig=${sig}`;
+    window.urlFacturaActiva = `${window.location.origin}/factura?com=${idNegocio}&tkt=${ticketId}&exp=${exp}&sig=${sig}`;
 
-    // 3. Renderizar código QR en un Canvas limpio
     contenedor.innerHTML = '';
     const canvas = document.createElement('canvas');
+    canvas.style.display = 'block';
+    canvas.style.margin = '0 auto';
     contenedor.appendChild(canvas);
 
-    // Usar la librería qrcode estándar o fallback nativo por API de imagen
-    if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
-        QRCode.toCanvas(canvas, urlVisor, { width: 180, margin: 1 });
-    } else {
-        contenedor.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(urlVisor)}" style="border-radius: 8px; display: block; width: 180px; height: 180px;">`;
+    let renderExitoso = false;
+    if (typeof QRLocal !== 'undefined' && QRLocal.dibujarEnCanvas) {
+        try {
+            // quietZone: 4 módulos blancos mandatorios para lectura óptica en pantallas
+            QRLocal.dibujarEnCanvas(canvas, window.urlFacturaActiva, { width: 240, margin: 4 });
+            renderExitoso = true;
+        } catch (_) {}
     }
+
+    if (!renderExitoso) {
+        // Fallback en alta resolución con margin 15px de zona muda
+        contenedor.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=15&data=${encodeURIComponent(window.urlFacturaActiva)}" style="display:block; width:220px; height:220px; margin:0 auto;" alt="QR Factura">`;
+    }
+
+    const inputWp = document.getElementById('input-whatsapp-cliente');
+    if (inputWp) inputWp.value = telefonoPrevio || '';
 
     modalQR.style.display = 'flex';
 }
 
+
+window.enviarFacturaWhatsApp = function() {
+    const inputWp = document.getElementById('input-whatsapp-cliente');
+    const rawTel = inputWp ? inputWp.value.replace(/\D/g, '') : '';
+    if (!rawTel || rawTel.length < 7) {
+        alert("Digita un número de WhatsApp válido.");
+        return;
+    }
+    const numCompleto = rawTel.length === 10 ? `57${rawTel}` : rawTel;
+    const nombreLocal = (document.getElementById('ticket-negocio-nombre')?.innerText || "el comercio").trim();
+    const mensaje = `Hola. Adjuntamos tu comprobante de compra en ${nombreLocal}:\n\nComprobante: ${window.urlFacturaActiva}\nID Ticket: ${window.ticketIdFacturaActiva}\n\nValidez del enlace: 24 horas.`;
+    window.open(`https://wa.me/${numCompleto}?text=${encodeURIComponent(mensaje)}`, '_blank');
+};
+
+window.abrirModalCopiaComprobante = function() {
+    const modal = document.getElementById('modal-buscar-copia');
+    const input = document.getElementById('input-buscar-ticket-id');
+    if (modal) {
+        if (input) input.value = ultimoTicketIdVendido || '';
+        modal.style.display = 'flex';
+        setTimeout(() => input?.focus(), 100);
+    }
+};
+
+window.generarCopiaComprobante = async function() {
+    const input = document.getElementById('input-buscar-ticket-id');
+    const tktId = input ? input.value.trim() : '';
+    if (!tktId) return alert("Ingresa un ID de ticket válido.");
+
+    document.getElementById('modal-buscar-copia').style.display = 'none';
+
+    let telGuardado = "";
+    try {
+        const cola = JSON.parse(localStorage.getItem(`geokatu_sync_cola_${idNegocio}`) || "[]");
+        const tktLocal = cola.find(t => t.ticketIdLocal === tktId || t.ticketId === tktId);
+        if (tktLocal?.cliente?.whatsapp) telGuardado = tktLocal.cliente.whatsapp;
+    } catch (_) {}
+
+    await abrirModalFacturaDigitalQR(tktId, telGuardado);
+};
+
+
 document.getElementById('btn-cerrar-qr')?.addEventListener('click', () => {
     document.getElementById('modal-factura-qr').style.display = 'none';
 });
+
 
 

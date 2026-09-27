@@ -1,28 +1,91 @@
 rules_version = '2';
-
-// 🛡️ BODEGA QRPIDO: Reglas de Seguridad Zero-Trust Estrictas
 service firebase.storage {
   match /b/{bucket}/o {
-    
-    // 1. REGLA GLOBAL: Lectura pública (para el mapa), pero ESCRITURA BLOQUEADA.
-    match /{allPaths=**} {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // 🛡️ Consulta interna Zero-Trust: Valida si es Superadmin en Firestore o por Custom Claim
+    function isSuperadmin() {
+      return isAuthenticated() && (
+        request.auth.token.rol == 'superadmin' ||
+        (
+          firestore.exists(/databases/(default)/documents/Usuarios_Admin/$(request.auth.uid)) &&
+          firestore.get(/databases/(default)/documents/Usuarios_Admin/$(request.auth.uid)).data.rol == 'superadmin'
+        )
+      );
+    }
+
+    // Valida si es el dueño del local, un operario con custom claim o el Superadmin
+    function isOwnerOrOperator(negocioId) {
+      return isAuthenticated() && (
+        request.auth.uid == negocioId ||
+        request.auth.token.id_negocio_padre == negocioId ||
+        isSuperadmin()
+      );
+    }
+
+    // 1. IDENTIDAD Y DISEÑO (Permite subcarpetas con {allPaths=**})
+    match /tiendas/{negocioId}/{allPaths=**} {
       allow read: if true; 
-      allow write: if false; // 🚫 Cerramos la llave maestra. Nadie escribe aquí.
+      allow create, update: if isOwnerOrOperator(negocioId)
+                            && request.resource.size < 2 * 1024 * 1024 
+                            && request.resource.contentType.matches('image/.*');
+      allow delete: if isAuthenticated() && (request.auth.uid == negocioId || isSuperadmin());
     }
 
-    // 2. CARPETA NEGOCIOS: Solo imágenes controladas
-    match /negocios/{negocioId}/{fileName} {
-      // allow create/update evita que un usuario X borre (delete) la foto de otro
-      allow create, update: if request.auth != null 
-                   && request.resource.size < 2 * 1024 * 1024 // 📉 Bajamos a 2MB (Ahorro de RAM y costos)
-                   && request.resource.contentType.matches('image/.*');
+    // 2. INVENTARIO Y CATÁLOGO
+    match /productos/{negocioId}/{allPaths=**} {
+      allow read: if true; 
+      allow create, update: if isOwnerOrOperator(negocioId)
+                            && request.resource.size < 2 * 1024 * 1024 
+                            && request.resource.contentType.matches('image/.*');
+      allow delete: if isAuthenticated() && (request.auth.uid == negocioId || isSuperadmin());
     }
 
-    // 3. CARPETA INMUEBLES: (Preparando el terreno para el sistema Tinder)
-    match /inmuebles/{inmuebleId}/{fileName} {
-      allow create, update: if request.auth != null 
-                   && request.resource.size < 2 * 1024 * 1024 // 📉 Máximo 2MB
-                   && request.resource.contentType.matches('image/.*');
+    // 3. VERIFICACIÓN KYC CRÍTICA (Solo Cloud Functions / Admin SDK)
+    match /kyc/{allPaths=**} {
+      allow read, write: if false; 
+    }
+
+    match /kyc_blindado/{allPaths=**} {
+      allow read, write: if false; 
+    }
+
+    // 4. PULSO URBANO
+    match /pulso_urbano/{allPaths=**} {
+      allow read: if true; 
+      allow create, update: if isAuthenticated() && request.resource.size < 2 * 1024 * 1024 && request.resource.contentType.matches('image/.*');
+    }
+
+    // 5. NEGOCIOS Y BRANDING (Soporta archivos directos y subcarpeta /productos/)
+    match /negocios/{negocioId}/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if isOwnerOrOperator(negocioId) 
+                            && request.resource.size < 2 * 1024 * 1024 
+                            && request.resource.contentType.matches('image/.*');
+      allow delete: if isAuthenticated() && (request.auth.uid == negocioId || isSuperadmin());
+    }
+
+    match /inmuebles/{inmuebleId}/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if isAuthenticated() 
+                            && (request.auth.uid == inmuebleId || isSuperadmin()) 
+                            && request.resource.size < 2 * 1024 * 1024 
+                            && request.resource.contentType.matches('image/.*');
+      allow delete: if isAuthenticated() && (request.auth.uid == inmuebleId || isSuperadmin());
+    }
+
+    // 6. ADUANA JURÍDICA
+    match /boveda_legal/{uidUsuario}/{allPaths=**} {
+      allow read: if isAuthenticated() && (request.auth.uid == uidUsuario || isSuperadmin()); 
+      allow write: if false; 
+    }
+
+    // 7. CIERRE ZERO-TRUST
+    match /{allPaths=**} {
+      allow read, write: if false; 
     }
   }
 }

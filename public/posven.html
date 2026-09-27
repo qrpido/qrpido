@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Caja Registradora Multimoneda POS | GEOKATU Venezuela</title>
+    
+    <link rel="stylesheet" href="estilos-pos.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <script src="html5-qrcode.min.js" type="text/javascript"></script>
+</head>
+<body>
+    <main id="pos-app">
+        <!-- ==========================================
+             PANEL IZQUIERDO: CATÁLOGO Y ENTRADA
+             ========================================== -->
+        <section id="left-panel">
+            <header class="top-bar-catalog">
+                <div class="search-container">
+                    <span class="material-symbols-outlined barcode-icon">barcode_scanner</span>
+                    <input type="text" id="buscador-principal" placeholder="Buscar producto o escanear..." autocomplete="off">
+                </div>
+
+                <!-- TICKER DE TASAS DE CAMBIO EN VIVO (VENEZUELA) -->
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <div id="btn-ajustar-tasa" class="btn-secundario-pos" title="Ajustar o alternar tasa del día" style="padding: 6px 10px; cursor: pointer; border-color: rgba(96,165,250,0.3); background: rgba(96,165,250,0.08);">
+                        <span class="material-symbols-outlined" style="font-size: 16px; color: #60a5fa;">currency_exchange</span>
+                        <div style="display: flex; flex-direction: column; text-align: left; line-height: 1.1;">
+                            <span style="font-size: 9px; color: #888; text-transform: uppercase;" id="tag-tasa-activa">Tasa BCV</span>
+                            <span id="txt-tasa-activa-val" style="font-size: 12px; font-weight: 900; color: #60a5fa; font-family: monospace;">Bs. --.--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BOTÓN DE BALANZA CON INDICADOR DE PESO EN VIVO Y TARA -->
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <button id="btn-menu-balanza" class="btn-secundario-pos" title="Configurar / Conectar Balanza">
+                        <span class="material-symbols-outlined">scale</span>
+                        <span id="txt-peso-vivo" style="display: none; font-family: monospace; font-weight: bold; color: var(--accent-green); margin-left: 4px;">0.000 kg</span>
+                    </button>
+                    <button id="btn-tara-balanza" class="btn-secundario-pos" title="Tarar recipiente a cero (F6)" style="display: none; padding: 10px 8px; font-weight: 900; font-size: 11px; color: var(--color-marca);">
+                        TARA
+                    </button>
+                </div>
+
+                <!-- BOTÓN DE MANUAL OPERATIVO Y ATAJOS -->
+                <button id="btn-manual-ayuda" class="btn-secundario-pos" title="Manual de Operación y Atajos [F1]" style="padding: 10px 12px; border-radius: 50%; min-width: 40px; justify-content: center;">
+                    <span style="font-weight: 900; font-size: 15px; color: var(--color-marca);">?</span>
+                </button>
+
+                <!-- BOTÓN DE CONTROL DE CAJA Y ARQUEO -->
+                <button id="btn-control-caja" class="btn-secundario-pos" title="Control de Caja, Egresos y Cierre Z" style="display: flex; align-items: center; gap: 6px;">
+                    <span class="material-symbols-outlined" style="color: #60a5fa;">point_of_sale</span>
+                    <span id="txt-estado-caja-btn" style="font-size: 12px; font-weight: bold;">Caja</span>
+                </button>
+
+                <!-- BOTÓN DE VENTA LIBRE / ÍTEM ABIERTO -->
+                <button id="btn-abrir-item-libre" type="button" class="btn-item-abierto" title="Cobrar concepto manual o imprevisto">
+                    <span class="material-symbols-outlined" style="font-size: 16px;">add_circle</span>
+                    Ítem Libre
+                </button>
+
+                <button id="btn-toggle-camara" class="btn-camara-pos">
+                    <span class="material-symbols-outlined">qr_code_scanner</span>
+                    Cámara
+                </button>
+            </header>
+
+            <!-- Visor de cámara compacto -->
+            <div id="lector-camara" style="display: none; width: 100%; max-height: 180px; border-radius: 13px; overflow: hidden; border: 2px solid var(--color-marca); margin-bottom: 12px; background: #000; box-shadow: 0 8px 25px rgba(0,0,0,0.8);"></div>
+
+            <div class="catalog-scroll-area">
+                <div class="product-grid" id="grid-rapida">
+                    <p style="grid-column: 1 / -1; text-align: center; color: #666; padding: 40px 0;">Cargando catálogo en USD...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             PANEL DERECHO: TICKET Y CHECKOUT MULTIDIVISA
+             ========================================== -->
+        <section id="right-panel">
+            <div class="ticket-header">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <h2>Ticket Actual</h2>
+                    <span id="cant-items-badge" style="font-size: 11px; background: rgba(255,255,255,0.08); padding: 3px 8px; border-radius: 12px;">0 líneas</span>
+                </div>
+                <div style="display: flex; gap: 6px;">
+                    <button id="btn-pausar-ticket" title="Pausar Ticket Actual" style="background: rgba(255,255,255,0.08); border: 1px solid var(--glass-border); color: #fff; padding: 4px 8px; border-radius: 8px; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                        <span class="material-symbols-outlined" style="font-size: 14px;">pause</span> Pausar
+                    </button>
+                    <button id="btn-ver-espera" title="Ver Tickets en Espera" style="background: rgba(255,107,0,0.15); border: 1px solid var(--color-marca); color: var(--color-marca); padding: 4px 8px; border-radius: 8px; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                        <span class="material-symbols-outlined" style="font-size: 14px;">pending_actions</span>
+                        <span id="badge-en-espera" style="display: none; background: var(--color-marca); color: #000; border-radius: 10px; font-weight: bold; padding: 1px 5px; font-size: 10px;">0</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Contenedor táctil scrolleable del carrito -->
+            <div id="current-sale">
+                <p style="text-align: center; color: #555; margin-top: 50px; font-size: 13px;">El carrito está vacío.<br>Escanea un producto para comenzar.</p>
+            </div>
+
+            <!-- Resumen contable multidivisa y pasarela de cobro -->
+            <div class="checkout-section">
+                <!-- Desglose Tributario y de Conversión Venezuela -->
+                <div class="totals-breakdown" style="grid-template-columns: repeat(2, 1fr); gap: 4px 10px;">
+                    <div><span>Subtotal Base ():</span><strongid="txt-base-usd">0.00</strong></div>
+                    <div><span>IVA (16%):</span> <strong id="txt-iva-usd">$0.00</strong></div>
+                    <div><span>IGTF (3% Divisas):</span> <strong id="txt-igtf-usd" style="color: #f59e0b;">$0.00</strong></div>
+                    <div><span>Exento ():</span><strongid="txt-exento-usd">0.00</strong></div>
+                    
+                    <div style="grid-column: 1 / -1; border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 4px; display: flex; justify-content: space-between;">
+                        <span style="color: #60a5fa; font-weight: bold;">Equivalente Bolívares:</span>
+                        <strong id="txt-total-ves" style="color: #60a5fa; font-size: 12px;">Bs. 0,00</strong>
+                    </div>
+                    <div style="grid-column: 1 / -1; display: flex; justify-content: space-between;">
+                        <span style="color: #ffaa00; font-size: 10px;">Ref. Frontera (COP):</span>
+                        <strong id="txt-total-cop" style="color: #ffaa00; font-size: 11px;">$0 COP</strong>
+                    </div>
+
+                    <!-- Switch de Datos de Cliente / RIF -->
+                    <div style="grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-top: 1px solid rgba(255,255,255,0.05); margin-top: 4px;">
+                        <span style="font-size: 11px; font-weight: bold; color: var(--text-main);">Datos Cliente (RIF / Cédula):</span>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="checkbox" id="switch-rif-cliente" style="accent-color: var(--color-marca); width: 15px; height: 15px;">
+                            <span id="txt-estado-rif" style="font-size: 10px; color: var(--text-muted);">Consumidor Final</span>
+                        </label>
+                    </div>
+
+                    <!-- Formulario Desplegable RIF Venezuela -->
+                    <div id="formulario-rif" style="display: none; grid-column: 1 / -1; background: rgba(0,0,0,0.45); border: 1px solid var(--color-marca); border-radius: 10px; padding: 8px; margin-top: 4px; gap: 6px; flex-direction: column;">
+                        <div style="display: grid; grid-template-columns: 65px 1fr; gap: 6px;">
+                            <select id="rif-tipo-doc" style="background: #16161c; border: 1px solid var(--glass-border); border-radius: 6px; padding: 6px 4px; color: white; font-size: 11px; outline: none;">
+                                <option value="V">V-</option>
+                                <option value="E">E-</option>
+                                <option value="J">J-</option>
+                                <option value="G">G-</option>
+                            </select>
+                            <input type="text" id="rif-numero" placeholder="Cédula / RIF (ej: 18456123)" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 6px; padding: 6px 8px; color: white; font-size: 11px; font-family: monospace; outline: none;">
+                        </div>
+                        <input type="text" id="rif-nombre" placeholder="Nombre / Razón Social" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 6px; padding: 6px 8px; color: white; font-size: 11px; outline: none;">
+                        <input type="text" id="rif-telefono" placeholder="WhatsApp (para comprobante digital)" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 6px; padding: 6px 8px; color: white; font-size: 11px; outline: none;">
+                    </div>
+                </div>
+
+                <!-- Cajón del Total Principal y Saldo Remanente -->
+                <div class="grand-total-box">
+                    <div>
+                        <span style="font-size: 10px; text-transform: uppercase; color: var(--text-muted); display: block;">Total Ticket ($)</span>
+                        <span class="total-amount" id="txt-total">$0.00</span>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="font-size: 10px; text-transform: uppercase; color: #ffaa00; display: block;" id="lbl-estado-saldo">Por Cobrar ($)</span>
+                        <span id="txt-remanente" style="font-size: 20px; font-weight: 900; color: #ffaa00; font-family: monospace;">$0.00</span>
+                        <span id="txt-remanente-ves-badge" style="display: block; font-size: 10px; color: #60a5fa; font-family: monospace;">(Bs. 0,00)</span>
+                    </div>
+                </div>
+
+                <!-- Input interactivo de abono, selector de divisa y cálculo de vueltos -->
+                <div style="background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); border-radius: 10px; padding: 8px 12px; display: flex; flex-direction: column; gap: 4px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <label style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Monto a Recibir</label>
+                        <div style="display: flex; gap: 4px;">
+                            <button type="button" class="btn-moneda-abono activa" data-moneda="USD" style="background: var(--color-marca); color: #000; border: none; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 900; cursor: pointer;">USD $</button>
+                            <button type="button" class="btn-moneda-abono" data-moneda="VES" style="background: rgba(255,255,255,0.08); color: #fff; border: none; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 900; cursor: pointer;">VES Bs</button>
+                            <button type="button" class="btn-moneda-abono" data-moneda="COP" style="background: rgba(255,255,255,0.08); color: #fff; border: none; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 900; cursor: pointer;">COP $</button>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <input type="number" id="input-monto-abono" step="any" min="0" placeholder="Digita abono o selecciona billete" 
+                               onkeydown="if(['e','E','+','-'].includes(event.key)) event.preventDefault();"
+                               style="width: 65%; background: transparent; border: none; font-size: 20px; font-weight: 900; color: #fff; font-family: monospace; outline: none;">
+                        <span id="txt-cambio-vueltas" style="font-size: 11px; font-weight: 900; color: var(--accent-green); font-family: monospace; display: none; text-align: right;">Vuelto: $0.00</span>
+                    </div>
+
+                    <!-- Barra Dinámica de Billetes Kiosk (Denominaciones USD y Exacto) -->
+                    <div id="contenedor-billetes-rapidos" class="quick-cash-bar"></div>
+
+                    <!-- Historial de abonos split acumulados en este ticket -->
+                    <div id="lista-abonos-ticket" style="font-size: 10px; color: #aaa; font-family: monospace; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;"></div>
+                </div>
+
+                <!-- BOTÓN MODALIDAD ECOLÓGICA / COMPROBANTE DIGITAL -->
+                <div style="margin: 6px 0;">
+                    <button id="btn-toggle-eco" type="button" onclick="window.deseaFacturaEcologicaQR = !window.deseaFacturaEcologicaQR; this.style.borderColor = window.deseaFacturaEcologicaQR ? 'var(--accent-green)' : 'var(--glass-border)'; this.style.background = window.deseaFacturaEcologicaQR ? 'rgba(0,255,100,0.15)' : 'rgba(255,255,255,0.03)';" style="width: 100%; padding: 7px; border-radius: 8px; border: 1px dashed var(--glass-border); background: rgba(255,255,255,0.03); color: #fff; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                        <span>🌱</span> Comprobante Digital QR / WhatsApp (Sin Imprimir)
+                    </button>
+                </div>
+
+                <!-- GRILLA DE MÉTODOS DE PAGO VENEZUELA -->
+                <div class="payment-grid" style="grid-template-columns: repeat(3, 1fr); gap: 6px;">
+                    <button class="btn-pay" data-pago="EFECTIVO_USD" style="background: linear-gradient(135deg, #00ff64, #00993a); color: #000;">💵 Dólar $</button>
+                    <button class="btn-pay" data-pago="PAGO_MOVIL" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: #fff;">📲 Pago Móvil</button>
+                    <button class="btn-pay" data-pago="PUNTO_VENTA" style="background: linear-gradient(135deg, #a855f7, #7e22ce); color: #fff;">💳 Punto Débito</button>
+                    <button class="btn-pay" data-pago="ZELLE" style="background: linear-gradient(135deg, #7c3aed, #5b21b6); color: #fff;">🇺🇸 Zelle</button>
+                    <button class="btn-pay" data-pago="EFECTIVO_VES" style="background: linear-gradient(135deg, #0284c7, #0369a1); color: #fff;">🇻🇪 Efectivo Bs</button>
+                    <button class="btn-pay" data-pago="PESOS_COP" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #000;">🇨🇴 Pesos COP</button>
+                    <button class="btn-pay" data-pago="BINANCE_PAY" style="background: linear-gradient(135deg, #eab308, #ca8a04); color: #000; grid-column: 1 / -1;">🟡 Binance Pay (USDT)</button>
+                </div>
+
+                <!-- BOTÓN DE APERTURA MANUAL DEL CAJÓN MONEDERO -->
+                <button id="btn-abrir-cajon" type="button" class="btn-cajon-manual" title="Abrir Cajón Monedero [F7]">
+                    <span class="material-symbols-outlined" style="font-size: 16px;">lock_open</span>
+                    Abrir Cajón Monedero [F7]
+                </button>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             BARRA DE ESTADO INFERIOR
+             ========================================== -->
+        <footer id="status-bar">
+            <div class="status-item connection">
+                <span class="indicator" id="led-conexion"></span>
+                <p>Caja <span id="txt-conexion">CONECTANDO...</span></p>
+            </div>
+            <div class="status-item sync">
+                <p>Cola Offline: <span id="txt-cola-sync" style="font-weight: bold;">0 Pendientes</span></p>
+            </div>
+            <div class="status-item admin-metrics" style="display: flex; align-items: center; gap: 12px;">
+                <button id="btn-abrir-anulacion" class="btn-anular-pos" title="Anular Ticket o Devolución [Ctrl+Z]">
+                    <span class="material-symbols-outlined" style="font-size: 15px;">assignment_return</span>
+                    Anular Ticket
+                </button>
+                <div class="metric-card" style="display: flex; gap: 8px; align-items: center;">
+                    <span style="font-size: 10px; color: #888;">VENTAS HOY:</span>
+                    <strong class="value" id="kpi-ventas-usd" style="color: var(--accent-green); font-family: monospace;">$0.00</strong>
+                    <span id="kpi-ventas-ves" style="font-size: 10px; color: #60a5fa; font-family: monospace;">(Bs. 0)</span>
+                </div>
+            </div>
+        </footer>
+    </main>
+
+    <!-- ==========================================
+         MODALES OPERATIVOS VENEZUELA
+         ========================================== -->
+
+    <!-- MODAL: AJUSTE DE TASAS CAMBIARIAS -->
+    <div id="modal-tasas-cambio" class="modal-datafono-overlay">
+        <div class="modal-datafono-card" style="max-width: 420px; text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 style="margin: 0; font-size: 16px; display: flex; align-items: center; gap: 6px;">
+                    <span class="material-symbols-outlined" style="color: #60a5fa;">currency_exchange</span>
+                    Tasas Cambiarias del Día
+                </h3>
+                <span style="font-size: 10px; background: rgba(96,165,250,0.15); color: #60a5fa; padding: 2px 8px; border-radius: 8px;">Multi-Moneda</span>
+            </div>
+            <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 14px;">Define los valores de conversión para calcular bolívares y pesos colombianos desde la base USD:</p>
+
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+                <div>
+                    <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 2px;">Tasa Oficial BCV (Bs. / USD)</label>
+                    <input type="number" id="input-tasa-bcv" step="0.01" placeholder="Ej: 42.50" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 10px; color: #fff; font-family: monospace; font-size: 14px; outline: none;">
+                </div>
+                <div>
+                    <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 2px;">Tasa Paralela / Mercado Libre (Bs. / USD)</label>
+                    <input type="number" id="input-tasa-paralelo" step="0.01" placeholder="Ej: 49.80" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 10px; color: #fff; font-family: monospace; font-size: 14px; outline: none;">
+                </div>
+                <div>
+                    <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 2px;">Tasa Frontera (COP / USD)</label>
+                    <input type="number" id="input-tasa-cop" step="10" placeholder="Ej: 4050" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 10px; color: #fff; font-family: monospace; font-size: 14px; outline: none;">
+                </div>
+                <div>
+                    <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 2px;">Tasa Activa para Cobros en Bolívares</label>
+                    <select id="select-tasa-activa" style="width: 100%; background: #16161c; border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 10px; color: #fff; font-size: 12px; outline: none;">
+                        <option value="BCV">Tasa Oficial BCV</option>
+                        <option value="PARALELO">Tasa Paralelo / Mercado</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+                <button id="btn-cerrar-tasas" style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #aaa; font-weight: bold; cursor: pointer;">CANCELAR</button>
+                <button id="btn-guardar-tasas" style="flex: 1.5; padding: 10px; border-radius: 8px; border: none; background: #2563eb; color: #fff; font-weight: bold; cursor: pointer;">GUARDAR TASAS</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: REGISTRO PAGO MÓVIL (VES) -->
+    <div id="modal-pagomovil" class="modal-datafono-overlay">
+        <div class="modal-datafono-card" style="max-width: 390px; text-align: left;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <span class="material-symbols-outlined" style="color: #3b82f6; font-size: 28px;">phone_android</span>
+                <h3 style="margin: 0; font-size: 16px;">Cobro por Pago Móvil</h3>
+            </div>
+            <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">Solicita al cliente la confirmación de la transferencia interbancaria:</p>
+
+            <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(59,130,246,0.3); border-radius: 10px; padding: 10px; margin-bottom: 12px; text-align: center;">
+                <span style="font-size: 10px; color: #aaa; text-transform: uppercase; display: block;">Monto en Bolívares a transferir:</span>
+                <span style="font-size: 22px; font-weight: 900; color: #60a5fa; font-family: monospace;" id="pm-monto-ves">Bs. 0,00</span>
+                <span style="font-size: 11px; color: #888; font-family: monospace; display: block;" id="pm-monto-usd-equiv">($0.00 USD)</span>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
+                <div>
+                    <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 2px;">Banco Origen / Emisor</label>
+                    <select id="pm-banco-origen" style="width: 100%; box-sizing: border-box; background: #16161c; border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px; color: #fff; font-size: 11px; outline: none;">
+                        <option value="0102">0102 - Banco de Venezuela</option>
+                        <option value="0134">0134 - Banesco</option>
+                        <option value="0105">0105 - Mercantil</option>
+                        <option value="0108">0108 - BBVA Provincial</option>
+                        <option value="0172">0172 - Bancamiga</option>
+                        <option value="0114">0114 - Bancaribe</option>
+                        <option value="0115">0115 - Banco Exterior</option>
+                        <option value="0163">0163 - Banco del Tesoro</option>
+                        <option value="0175">0175 - Banco Bicentenario</option>
+                        <option value="0191">0191 - BNC Nacional de Crédito</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 2px;">Teléfono del Pagador</label>
+                    <input type="text" id="pm-telefono" placeholder="Ej: 04141234567" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px; color: white; font-family: monospace; font-size: 12px; outline: none;">
+                </div>
+                <div>
+                    <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 2px;">N° Referencia (Últimos 4 a 6 dígitos)</label>
+                    <input type="text" id="pm-referencia" maxlength="10" placeholder="Ej: 4892" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px; color: var(--accent-green); font-family: monospace; font-size: 15px; font-weight: bold; text-align: center; outline: none;">
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+                <button id="btn-cancelar-pm" style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #aaa; font-weight: bold; cursor: pointer;">CANCELAR</button>
+                <button id="btn-confirmar-pm" style="flex: 1.5; padding: 10px; border-radius: 8px; border: none; background: #2563eb; color: white; font-weight: bold; cursor: pointer;">CONFIRMAR PAGO ✔️</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: PUNTO DE VENTA NACIONAL / DÉBITO (VES) -->
+    <div id="modal-puntoventa" class="modal-datafono-overlay">
+        <div class="modal-datafono-card" style="max-width: 380px; text-align: center;">
+            <span class="material-symbols-outlined" style="font-size: 44px; color: #a855f7; margin-bottom: 6px;">point_of_sale</span>
+            <h3 style="margin: 0 0 6px 0; font-size: 17px;">Punto de Venta Débito</h3>
+            <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">Pasa la tarjeta por el dispositivo físico por:</p>
+            
+            <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(168,85,247,0.3); border-radius: 10px; padding: 10px; margin-bottom: 14px;">
+                <span style="font-size: 22px; font-weight: 900; color: #a855f7; font-family: monospace;" id="pos-monto-ves">Bs. 0,00</span>
+                <span style="font-size: 11px; color: #888; font-family: monospace; display: block;" id="pos-monto-usd-equiv">($0.00 USD)</span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;">
+                <input type="text" id="pos-lote" placeholder="N° Lote (ej: 042)" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px; color: white; text-align: center; font-family: monospace; font-size: 12px; outline: none;">
+                <input type="text" id="pos-voucher" placeholder="N° Aprobación (ej: 9812)" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px; color: white; text-align: center; font-family: monospace; font-size: 12px; outline: none;">
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+                <button id="btn-cancelar-pos" style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #aaa; font-weight: bold; cursor: pointer;">CANCELAR</button>
+                <button id="btn-confirmar-pos" style="flex: 1.5; padding: 10px; border-radius: 8px; border: none; background: #7e22ce; color: white; font-weight: bold; cursor: pointer;">APROBADO ✔️</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: COBRO CON ZELLE (USD) -->
+    <div id="modal-zelle" class="modal-datafono-overlay">
+        <div class="modal-datafono-card" style="max-width: 380px; text-align: left;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <span class="material-symbols-outlined" style="color: #a78bfa; font-size: 26px;">account_balance</span>
+                <h3 style="margin: 0; font-size: 16px;">Cobro por Zelle</h3>
+            </div>
+            <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">Verifica la recepción del envío en la banca digital:</p>
+
+            <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(124,58,237,0.3); border-radius: 10px; padding: 10px; margin-bottom: 12px; text-align: center;">
+                <span style="font-size: 10px; color: #aaa; text-transform: uppercase; display: block;">Monto exacto a confirmar:</span>
+                <span style="font-size: 24px; font-weight: 900; color: #a78bfa; font-family: monospace;" id="zelle-monto-usd">$0.00</span>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
+                <input type="text" id="zelle-titular" placeholder="Nombre del Titular de la cuenta emisora" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px; color: white; font-size: 11px; outline: none;">
+                <input type="text" id="zelle-referencia" placeholder="Código de confirmación o memo (Opcional)" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px; color: white; text-align: center; font-family: monospace; font-size: 12px; outline: none;">
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+                <button id="btn-cancelar-zelle" style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #aaa; font-weight: bold; cursor: pointer;">CANCELAR</button>
+                <button id="btn-confirmar-zelle" style="flex: 1.5; padding: 10px; border-radius: 8px; border: none; background: #6d28d9; color: white; font-weight: bold; cursor: pointer;">CONFIRMAR ZELLE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: RESOLUCIÓN DE VUELTOS MULTIMONEDA (THE CHANGE PROBLEM) -->
+    <div id="modal-vuelto-ven" class="modal-datafono-overlay">
+        <div class="modal-datafono-card" style="max-width: 420px; text-align: left;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <span class="material-symbols-outlined" style="color: var(--accent-green); font-size: 28px;">price_check</span>
+                <h3 style="margin: 0; font-size: 16px;">Liquidación de Vueltos</h3>
+            </div>
+            <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">El cliente pagó con un billete mayor. Selecciona cómo entregar el cambio restante:</p>
+
+            <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(0,255,100,0.3); border-radius: 10px; padding: 12px; margin-bottom: 14px; text-align: center;">
+                <span style="font-size: 10px; color: #aaa; text-transform: uppercase; display: block;">Vuelto Pendiente al Cliente:</span>
+                <span style="font-size: 26px; font-weight: 900; color: var(--accent-green); font-family: monospace;" id="vuelto-total-usd">$0.00 USD</span>
+                <div style="display: flex; justify-content: space-around; margin-top: 6px; font-size: 11px; color: #ddd; font-family: monospace;">
+                    <span>Equiv. Bs: <strong id="vuelto-equiv-ves" style="color:#60a5fa;">Bs. 0,00</strong></span>
+                    <span>Equiv. COP: <strong id="vuelto-equiv-cop" style="color:#f59e0b;">$0 COP</strong></span>
+                </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
+                <button type="button" id="btn-vuelto-pm" style="background: rgba(59,130,246,0.15); border: 1px solid #3b82f6; color: #fff; padding: 10px; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: center;">
+                    <span>📲 Devolver por Pago Móvil (Bs.)</span>
+                    <span class="material-symbols-outlined" style="font-size: 16px;">arrow_forward</span>
+                </button>
+                <button type="button" id="btn-vuelto-cop" style="background: rgba(245,158,11,0.15); border: 1px solid #f59e0b; color: #fff; padding: 10px; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: center;">
+                    <span>🇨🇴 Devolver en Efectivo Pesos (COP)</span>
+                    <span class="material-symbols-outlined" style="font-size: 16px;">arrow_forward</span>
+                </button>
+                <button type="button" id="btn-vuelto-usd-fisico" style="background: rgba(0,255,100,0.1); border: 1px solid var(--accent-green); color: #fff; padding: 10px; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: center;">
+                    <span>💵 Devolver en Billetes USD Físicos</span>
+                    <span class="material-symbols-outlined" style="font-size: 16px;">arrow_forward</span>
+                </button>
+                <button type="button" id="btn-vuelto-saldo-favor" style="background: rgba(255,255,255,0.05); border: 1px dashed var(--glass-border); color: #aaa; padding: 8px; border-radius: 8px; font-size: 11px; cursor: pointer; text-align: center;">
+                    Emitir Vale / Saldo a Favor del Cliente
+                </button>
+            </div>
+
+            <button id="btn-cerrar-vuelto" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #fff; font-weight: bold; cursor: pointer;">CERRAR</button>
+        </div>
+    </div>
+
+    <!-- MODAL: TICKETS EN ESPERA -->
+    <div id="modal-espera" class="modal-datafono-overlay">
+        <div class="modal-datafono-card" style="max-width: 440px;">
+            <h3 style="margin-bottom: 12px;">Tickets Retenidos</h3>
+            <div id="lista-tickets-espera" style="max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; text-align: left;"></div>
+            <button id="btn-cerrar-modal-espera" style="margin-top: 15px; width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #fff; cursor: pointer;">Cerrar</button>
+        </div>
+    </div>
+
+    <!-- MODAL: PESAJE RÁPIDO (BALANZA / MANUAL) -->
+    <div id="modal-pesaje" class="modal-datafono-overlay">
+        <div class="modal-datafono-card" style="max-width: 360px;">
+            <span class="material-symbols-outlined" style="font-size: 40px; color: var(--color-marca); margin-bottom: 6px;">scale</span>
+            <h3 id="pesaje-prod-nombre" style="margin: 0 0 4px 0; font-size: 16px;">Producto a Granel</h3>
+            <p id="pesaje-prod-precio" style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">$0.00 / kg</p>
+            
+            <div style="background: rgba(0,0,0,0.5); border: 2px solid var(--color-marca); border-radius: 12px; padding: 12px; margin-bottom: 12px; position: relative;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <span style="font-size: 11px; color: #888; text-transform: uppercase;">Peso en Kilogramos</span>
+                    <span id="badge-tara-activa" style="display: none; font-size: 10px; background: rgba(255,107,0,0.2); color: var(--color-marca); padding: 2px 6px; border-radius: 6px; font-weight: bold;">TARA: 0.000 kg</span>
+                </div>
+                <input type="number" id="input-peso-manual" step="0.001" min="0.001" placeholder="0.000" 
+                       style="width: 100%; background: transparent; border: none; font-size: 32px; font-family: monospace; font-weight: 900; color: var(--accent-green); text-align: center; outline: none;">
+                <button id="btn-tara-modal" type="button" style="margin-top: 6px; width: 100%; background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border); color: var(--text-muted); padding: 6px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: 600;">
+                    Poner en Cero / Tarar Recipiente [F6]
+                </button>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 15px;">
+                <span style="color: var(--text-muted);">Subtotal calculado:</span>
+                <strong id="pesaje-subtotal-calc" style="color: #fff; font-family: monospace;">$0.00</strong>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <button id="btn-cancelar-pesaje" style="flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #aaa; font-weight: bold; cursor: pointer;">CANCELAR</button>
+                <button id="btn-confirmar-pesaje" style="flex: 1; padding: 12px; border-radius: 8px; border: none; background: var(--color-marca); color: #000; font-weight: bold; cursor: pointer;">AGREGAR ↵</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: CONFIGURACIÓN DE BALANZA -->
+    <div id="modal-balanza-config" class="modal-datafono-overlay">
+        <div class="modal-datafono-card" style="max-width: 420px; text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px;">
+                    <span class="material-symbols-outlined" style="color: var(--color-marca);">settings_input_hdmi</span>
+                    Balanza de Mostrador
+                </h3>
+                <span id="tag-estado-balanza" style="font-size: 11px; background: rgba(255,255,255,0.08); padding: 3px 8px; border-radius: 12px; color: #aaa;">Desconectada</span>
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 15px;">Conecta la báscula a tu equipo para leer el peso automáticamente al registrar productos:</p>
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px;">
+                <button id="btn-conectar-usb" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: #fff; padding: 12px; border-radius: 10px; display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                    <span class="material-symbols-outlined" style="color: #60a5fa;">cable</span>
+                    <div>
+                        <strong style="display: block; font-size: 13px;">Conectar por Cable USB / Serial</strong>
+                        <span style="font-size: 11px; color: #888;">Básculas de mostrador en PC (Chrome/Edge)</span>
+                    </div>
+                </button>
+                <button id="btn-conectar-ble" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: #fff; padding: 12px; border-radius: 10px; display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                    <span class="material-symbols-outlined" style="color: #3b82f6;">bluetooth</span>
+                    <div>
+                        <strong style="display: block; font-size: 13px;">Conectar por Bluetooth</strong>
+                        <span style="font-size: 11px; color: #888;">Básculas inalámbricas (Android o PC)</span>
+                    </div>
+                </button>
+                <button id="btn-desconectar-balanza" style="display: none; background: rgba(255,69,58,0.1); border: 1px solid var(--accent-red); color: var(--accent-red); padding: 10px; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer;">
+                    Desconectar Báscula
+                </button>
+            </div>
+            <button id="btn-cerrar-modal-balanza" style="margin-top: 15px; width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #fff; cursor: pointer;">Cerrar</button>
+        </div>
+    </div>
+
+    <!-- MODAL: APERTURA DE CAJA MULTICARTERA -->
+    <div id="modal-apertura-caja" class="modal-datafono-overlay">
+        <div class="modal-datafono-card" style="max-width: 400px; text-align: left;">
+            <div style="text-align: center; margin-bottom: 12px;">
+                <span class="material-symbols-outlined" style="font-size: 44px; color: var(--accent-green);">lock_open</span>
+                <h3 style="margin: 4px 0; font-size: 18px;">Apertura de Caja Multidivisa</h3>
+                <p style="font-size: 11px; color: var(--text-muted); margin: 0;">Ingresa el fondo de cambio inicial en cada moneda:</p>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+                <div style="background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px;">
+                    <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold; display: block;">Base en Dólares Físicos ($ USD)</label>
+                    <input type="number" id="base-caja-usd" placeholder="0.00" step="1" style="width: 100%; background: transparent; border: none; font-size: 20px; font-family: monospace; font-weight: 900; color: var(--accent-green); outline: none;">
+                </div>
+                <div style="background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px;">
+                    <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold; display: block;">Base en Bolívares Efectivo (VES)</label>
+                    <input type="number" id="base-caja-ves" placeholder="0.00" step="10" style="width: 100%; background: transparent; border: none; font-size: 20px; font-family: monospace; font-weight: 900; color: #60a5fa; outline: none;">
+                </div>
+                <div style="background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px;">
+                    <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold; display: block;">Base en Pesos Frontera (COP)</label>
+                    <input type="number" id="base-caja-cop" placeholder="0" step="1000" style="width: 100%; background: transparent; border: none; font-size: 20px; font-family: monospace; font-weight: 900; color: #ffaa00; outline: none;">
+                </div>
+            </div>
+
+            <button id="btn-confirmar-apertura" style="width: 100%; padding: 14px; border-radius: 10px; border: none; background: var(--accent-green); color: #000; font-weight: 900; font-size: 13px; cursor: pointer;">
+                ABRIR TURNO Y COMENZAR
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL: GESTIÓN DE CAJA / ENTRADAS Y SALIDAS MULTIMONEDA -->
+    <div id="modal-movimiento-caja" class="modal-datafono-overlay">
+        <div class="modal-datafono-card" style="max-width: 400px; text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 style="margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px;">
+                    <span class="material-symbols-outlined" style="color: #60a5fa;">payments</span>
+                    Movimiento de Efectivo
+                </h3>
+                <span style="font-size: 10px; background: rgba(0,255,100,0.15); color: var(--accent-green); padding: 2px 8px; border-radius: 10px; font-weight: bold;">TURNO ACTIVO</span>
+            </div>
+
+            <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">Registra salidas o inyecciones de efectivo seleccionando la divisa correspondiente:</p>
+
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
+                <div>
+                    <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 2px;">Tipo de Operación</label>
+                    <select id="mov-tipo-operacion" style="width: 100%; background: #16161c; border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px; color: #fff; font-size: 11px; outline: none;">
+                        <option value="ENTRADA">🟢 Inyección / Refuerzo de Sencillo</option>
+                        <option value="SALIDA">🔴 Salida / Retiro de Efectivo (Gasto Menor)</option>
+                    </select>
+                </div>
+                <div style="display: grid; grid-template-columns: 90px 1fr; gap: 6px;">
+                    <div>
+                        <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 2px;">Moneda</label>
+                        <select id="mov-moneda" style="width: 100%; background: #16161c; border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px; color: #fff; font-size: 11px; outline: none;">
+                            <option value="USD">USD ($)</option>
+                            <option value="VES">VES (Bs.)</option>
+                            <option value="COP">COP ($)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 2px;">Monto</label>
+                        <input type="number" id="mov-monto" placeholder="Ej: 10.00" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px; color: #fff; font-family: monospace; font-size: 13px; outline: none;">
+                    </div>
+                </div>
+                <div>
+                    <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 2px;">Concepto</label>
+                    <input type="text" id="mov-motivo" placeholder="Ej: Pago de hielo, bolsas, flete..." style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px; color: #fff; font-size: 11px; outline: none;">
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                <button id="btn-cancelar-mov-caja" style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #aaa; font-weight: bold; cursor: pointer;">CERRAR</button>
+                <button id="btn-guardar-mov-caja" style="flex: 1; padding: 10px; border-radius: 8px; border: none; background: #2563eb; color: #fff; font-weight: bold; cursor: pointer;">ASENTAR</button>
+            </div>
+
+            <div style="border-top: 1px solid var(--glass-border); padding-top: 10px; display: flex; flex-direction: column; gap: 6px;">
+                <button id="btn-iniciar-informe-x" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid rgba(96,165,250,0.5); background: rgba(96,165,250,0.1); color: #60a5fa; font-size: 11px; font-weight: bold; cursor: pointer;">
+                    📋 Auditoría Parcial (Informe X Multimoneda)
+                </button>
+                <button id="btn-iniciar-cierre-z" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid rgba(255,107,0,0.5); background: rgba(255,107,0,0.1); color: var(--color-marca); font-size: 11px; font-weight: bold; cursor: pointer;">
+                    🔒 Arqueo Definitivo y Cierre Z Multicartera
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ARQUEO Y CIERRE Z MULTICARTERA -->
+    <div id="modal-cierre-z" class="modal-datafono-overlay">
+        <div class="modal-datafono-card" style="max-width: 480px; text-align: left; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                <span class="material-symbols-outlined" style="color: var(--color-marca); font-size: 28px;">receipt_long</span>
+                <h3 style="margin: 0; font-size: 17px;">Arqueo y Cierre Z Multicartera</h3>
+            </div>
+
+            <!-- Resumen Teórico por Bóvedas -->
+            <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px; font-size: 11px; display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between;"><span>Fondo Inicial USD:</span><strong id="cz-base-usd" style="font-family: monospace;">$0.00</strong></div>
+                <div style="display: flex; justify-content: space-between;"><span>Ventas Efectivo USD:</span><strong id="cz-ventas-usd" style="font-family: monospace;">$0.00</strong></div>
+                <div style="display: flex; justify-content: space-between;"><span>Ventas Efectivo VES:</span><strong id="cz-ventas-ves" style="font-family: monospace; color:#60a5fa;">Bs. 0,00</strong></div>
+                <div style="display: flex; justify-content: space-between;"><span>Ventas Efectivo COP:</span><strong id="cz-ventas-cop" style="font-family: monospace; color:#f59e0b;">$0 COP</strong></div>
+                <div style="display: flex; justify-content: space-between;"><span>Total Pago Móvil (VES):</span><strong id="cz-ventas-pm" style="font-family: monospace; color:#60a5fa;">Bs. 0,00</strong></div>
+                <div style="display: flex; justify-content: space-between;"><span>Total Punto de Venta (VES):</span><strong id="cz-ventas-punto" style="font-family: monospace; color:#a855f7;">Bs. 0,00</strong></div>
+                <div style="display: flex; justify-content: space-between;"><span>Total Zelle (USD):</span><strong id="cz-ventas-zelle" style="font-family: monospace; color:#a78bfa;">$0.00</strong></div>
+                <div style="display: flex; justify-content: space-between;"><span>Total Binance USDT:</span><strong id="cz-ventas-usdt" style="font-family: monospace; color:#eab308;">0.00 USDT</strong></div>
+                <div style="border-top: 1px dashed #444; margin-top: 4px; padding-top: 4px; display: flex; justify-content: space-between;">
+                    <span style="font-weight: bold; color: #fff;">Total Venta Consolidada (USD):</span>
+                    <strong id="cz-total-consolidado-usd" style="color: var(--accent-green); font-family: monospace; font-size: 13px;">$0.00</strong>
+                </div>
+            </div>
+
+            <!-- Entradas de Conteo Ciego del Cajero -->
+            <p style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold; margin-bottom: 6px;">Conteo Físico en Gaveta:</p>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+                <div style="background: rgba(0,0,0,0.5); border: 1px solid var(--color-marca); border-radius: 8px; padding: 6px 10px;">
+                    <label style="font-size: 9px; color: #888; text-transform: uppercase; font-weight: bold; display: block;">Efectivo USD Contado</label>
+                    <input type="number" id="cz-contado-usd" step="1" placeholder="0.00" style="width: 100%; background: transparent; border: none; font-size: 16px; font-family: monospace; font-weight: 900; color: #fff; outline: none;">
+                </div>
+                <div style="background: rgba(0,0,0,0.5); border: 1px solid #60a5fa; border-radius: 8px; padding: 6px 10px;">
+                    <label style="font-size: 9px; color: #888; text-transform: uppercase; font-weight: bold; display: block;">Efectivo VES Contado</label>
+                    <input type="number" id="cz-contado-ves" step="10" placeholder="0.00" style="width: 100%; background: transparent; border: none; font-size: 16px; font-family: monospace; font-weight: 900; color: #fff; outline: none;">
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+                <button id="btn-cancelar-cierre-z" style="flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #aaa; font-weight: bold; cursor: pointer;">VOLVER</button>
+                <button id="btn-confirmar-cierre-z" style="flex: 1.5; padding: 12px; border-radius: 8px; border: none; background: var(--color-marca); color: #000; font-weight: 900; font-size: 12px; cursor: pointer;">
+                    SELLAR Y CERRAR TURNO 🖨️
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ÍTEM LIBRE / ARTÍCULO MANUAL -->
+    <div id="modal-item-libre" class="modal-datafono-overlay">
+        <div class="modal-datafono-card" style="max-width: 360px; text-align: left;">
+            <h3 style="margin: 0 0 8px 0; font-size: 16px;">➕ Venta Libre / Ítem Manual</h3>
+            <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">Cobra un artículo imprevisto o servicio sin registrarlo en catálogo:</p>
+            
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
+                <input type="text" id="libre-nombre" placeholder="Concepto (ej. Recarga, Fotocopia, Flete)" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px; color: #fff; font-size: 12px; outline: none;">
+                <input type="number" id="libre-precio" step="0.01" placeholder="Precio en USD ($)" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px; color: #00ff64; font-family: monospace; font-size: 16px; font-weight: bold; outline: none;">
+                <select id="libre-iva" style="width: 100%; box-sizing: border-box; background: #16161c; border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px; color: #fff; font-size: 11px; outline: none;">
+                    <option value="0">Exento de IVA (0%)</option>
+                    <option value="16">Gravado con IVA General (16%)</option>
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+                <button id="btn-cancelar-libre" type="button" style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #aaa; cursor: pointer;">Cancelar</button>
+                <button id="btn-agregar-libre" type="button" style="flex: 1; padding: 10px; border-radius: 8px; border: none; background: var(--accent-green); color: #000; font-weight: bold; cursor: pointer;">Cargar a Venta</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: DEVOLUCIÓN PARCIAL -->
+    <div id="modal-devolucion-parcial" class="modal-datafono-overlay">
+        <div class="modal-datafono-card" style="max-width: 440px; text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3 style="margin: 0; font-size: 16px; color: var(--accent-red);">Devolución Parcial</h3>
+                <span id="dev-ticket-tag" style="font-family: monospace; font-size: 11px; background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px;">TK-0000</span>
+            </div>
+            <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">Marca los artículos que el cliente devuelve. Se reingresará el stock al inventario:</p>
+            
+            <div id="dev-lista-items" style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px;"></div>
+
+            <div style="background: rgba(0,0,0,0.4); border-radius: 8px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <span style="font-size: 11px; color: #aaa;">Total a Reembolsar ($):</span>
+                <strong id="dev-total-reembolso" style="font-size: 16px; color: var(--accent-red); font-family: monospace;">$0.00</strong>
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+                <button id="btn-cancelar-dev" type="button" style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #aaa; cursor: pointer;">Volver</button>
+                <button id="btn-ejecutar-dev-parcial" type="button" style="flex: 1.5; padding: 10px; border-radius: 8px; border: none; background: var(--accent-red); color: #fff; font-weight: bold; cursor: pointer;">Emitir Nota Crédito</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ANULACIÓN DE TICKET COMPLETO -->
+    <div id="modal-anulacion" class="modal-datafono-overlay">
+        <div class="modal-datafono-card" style="max-width: 400px; text-align: left;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <span class="material-symbols-outlined" style="color: var(--accent-red); font-size: 26px;">assignment_return</span>
+                <h3 style="margin: 0; font-size: 16px;">Anular Venta / Devolución</h3>
+            </div>
+            <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 14px;">Esta acción revertirá el ticket y reingresará los productos al inventario:</p>
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
+                <input type="text" id="anulacion-ticket-id" placeholder="ID del ticket (ej: TK-18E4) o escanea el código" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px; color: #fff; font-family: monospace; font-size: 12px; outline: none;">
+                <select id="anulacion-motivo" style="width: 100%; box-sizing: border-box; background: #16161c; border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px; color: #fff; font-size: 11px; outline: none;">
+                    <option value="Error de cobro o digitación">Error de cobro o digitación</option>
+                    <option value="Cliente desistió de la compra">Cliente desistió de la compra</option>
+                    <option value="Devolución de mercancía">Devolución de mercancía</option>
+                    <option value="Fallo en plataforma de pago móvil / punto">Fallo en plataforma de pago móvil / punto</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button id="btn-cancelar-anulacion" type="button" style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #aaa; font-weight: bold; cursor: pointer;">CANCELAR</button>
+                <button id="btn-ejecutar-anulacion" type="button" style="flex: 1; padding: 10px; border-radius: 8px; border: none; background: var(--accent-red); color: white; font-weight: bold; cursor: pointer;">EJECUTAR REVERSIÓN</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: MANUAL OPERATIVO [F1] -->
+    <div id="modal-ayuda-pos" class="modal-datafono-overlay">
+        <div class="modal-datafono-card" style="max-width: 620px; width: 95%; text-align: left; height: 88vh; display: flex; flex-direction: column; padding: 18px 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 12px; margin-bottom: 10px;">
+                <div>
+                    <h3 style="margin: 0; font-size: 17px; display: flex; align-items: center; gap: 8px; color: #fff;">
+                        <span class="material-symbols-outlined" style="color: var(--color-marca);">menu_book</span>
+                        Manual Operativo GEOKATU POS Venezuela
+                    </h3>
+                    <span style="font-size: 11px; color: var(--text-muted);">Terminal Multimoneda B2B</span>
+                </div>
+                <span style="font-size: 11px; background: rgba(255,107,0,0.2); color: var(--color-marca); border: 1px solid rgba(255,107,0,0.4); padding: 3px 8px; border-radius: 6px; font-weight: bold; font-family: monospace;">F1: AYUDA</span>
+            </div>
+
+            <div style="display: flex; gap: 4px; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 8px; overflow-x: auto; scrollbar-width: none;">
+                <button class="tab-ayuda activa" data-tab="tab-atajos">⌨️ Teclado y Scanner</button>
+                <button class="tab-ayuda" data-tab="tab-tasas">💱 Tasas y Divisas</button>
+                <button class="tab-ayuda" data-tab="tab-caja">💵 Turno y Arqueos</button>
+                <button class="tab-ayuda" data-tab="tab-igtf">📄 IVA 16% e IGTF</button>
+                <button class="tab-ayuda" data-tab="tab-balanza">⚖️ Balanza Pesables</button>
+            </div>
+
+            <div id="contenedor-pestanas-ayuda" style="flex: 1; overflow-y: auto; padding-right: 6px; font-size: 12px; color: #ddd; line-height: 1.55;">
+                <div id="tab-atajos" class="panel-ayuda-contenido">
+                    <p style="color: var(--text-muted); margin-bottom: 8px;">Atajos de teclado configurados:</p>
+                    <table class="tabla-atajos-pos">
+                        <tbody>
+                            <tr><td><kbd>F1</kbd></td><td>Abrir o cerrar esta guía.</td></tr>
+                            <tr><td><kbd>F2</kbd></td><td>Llevar cursor al buscador principal.</td></tr>
+                            <tr><td><kbd>F4</kbd></td><td>Cobrar abono en <strong>Dólares Efectivo</strong>.</td></tr>
+                            <tr><td><kbd>F6</kbd></td><td><strong>Tarar</strong> balanza (poner en cero plato).</td></tr>
+                            <tr><td><kbd>F7</kbd></td><td>Abrir gaveta monedero física.</td></tr>
+                            <tr><td><kbd>F8</kbd></td><td>Cobrar con <strong>Pago Móvil</strong>.</td></tr>
+                            <tr><td><kbd>F9</kbd></td><td>Cobrar con <strong>Punto de Venta Débito</strong>.</td></tr>
+                            <tr><td><kbd>Esc</kbd></td><td>Cerrar modales o cancelar operaciones.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="tab-tasas" class="panel-ayuda-contenido" style="display: none;">
+                    <h4 style="color: #60a5fa; margin-bottom: 6px;">Mecánica Multimoneda:</h4>
+                    <ul style="padding-left: 18px; margin: 0;">
+                        <li><strong>Catálogo base USD:</strong> Todos los precios se guardan en dólares para protegerse de la devaluación.</li>
+                        <li><strong>Conversión automática:</strong> Al registrar artículos, el sistema calcula de inmediato el equivalente en Bolívares y Pesos COP según la tasa seleccionada.</li>
+                        <li><strong>Ajuste rápido:</strong> Pulsa el botón de tasa en el encabezado para actualizar el valor oficial BCV o Paralelo en cualquier momento.</li>
+                    </ul>
+                </div>
+
+                <div id="tab-caja" class="panel-ayuda-contenido" style="display: none;">
+                    <h4 style="color: var(--accent-green); margin-bottom: 6px;">Arqueo Multicartera:</h4>
+                    <ul style="padding-left: 18px; margin: 0;">
+                        <li><strong>Bóvedas separadas:</strong> Cada moneda y pasarela (USD, VES, COP, Pago Móvil, Punto) lleva su propio saldo contable.</li>
+                        <li><strong>Cierre Z definitivo:</strong> El arqueo final resume los ingresos totales y genera la equivalencia consolidada en USD.</li>
+                    </ul>
+                </div>
+
+                <div id="tab-igtf" class="panel-ayuda-contenido" style="display: none;">
+                    <h4 style="color: #f59e0b; margin-bottom: 6px;">Impuestos en Venezuela:</h4>
+                    <ul style="padding-left: 18px; margin: 0;">
+                        <li><strong>IVA 16%:</strong> Aplica a productos gravados; los artículos exentos pagan 0%.</li>
+                        <li><strong>IGTF 3%:</strong> Aplica solo sobre la fracción del ticket pagada en moneda extranjera (efectivo USD, Zelle o criptomonedas).</li>
+                    </ul>
+                </div>
+
+                <div id="tab-balanza" class="panel-ayuda-contenido" style="display: none;">
+                    <h4 style="color: var(--color-marca); margin-bottom: 6px;">Báscula y Códigos EAN-13:</h4>
+                    <ul style="padding-left: 18px; margin: 0;">
+                        <li><strong>Lectura en vivo:</strong> Lee el peso vía USB/Serial o Bluetooth.</li>
+                        <li><strong>EAN-13 balanza:</strong> Prefijos 20-21 (peso en gramos) y 22-23 (importe premarcado).</li>
+                    </ul>
+                </div>
+            </div>
+
+            <button id="btn-cerrar-ayuda" style="margin-top: 12px; width: 100%; padding: 11px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #fff; font-weight: bold; cursor: pointer;">
+                ENTENDIDO / VOLVER [ESC]
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL: COMPROBANTE DIGITAL ECOLÓGICO POR CÓDIGO QR -->
+    <div id="modal-factura-qr" class="modal-datafono-overlay">
+        <div class="modal-datafono-card" style="max-width: 320px; text-align: center;">
+            <span class="material-symbols-outlined" style="font-size: 44px; color: var(--accent-green); margin-bottom: 4px;">eco</span>
+            <h3 style="margin: 0 0 4px 0; font-size: 17px;">Comprobante Digital</h3>
+            <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 14px;">El cliente puede escanear este código QR o recibir el enlace por WhatsApp:</p>
+            
+            <div id="contenedor-qr-factura" style="background: #ffffff; padding: 10px; border-radius: 16px; display: inline-block; margin-bottom: 12px; line-height: 0;"></div>
+
+            <p style="font-size: 10px; color: #ffaa00; margin-bottom: 14px;">⏱️ Enlace disponible por 60 minutos.</p>
+            <button id="btn-cerrar-qr" type="button" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #fff; cursor: pointer;">Finalizar</button>
+        </div>
+    </div>
+
+    <!-- MODAL: CAMBIO OBLIGATORIO DE CONTRASEÑA EN PRIMER INICIO -->
+    <div id="modal-cambio-password-obligatorio" class="modal-datafono-overlay" style="z-index: 100050;">
+        <div class="modal-datafono-card" style="max-width: 380px;">
+            <span class="material-symbols-outlined" style="font-size: 42px; color: var(--color-marca); margin-bottom: 8px;">lock_reset</span>
+            <h3 style="margin: 0 0 6px 0; font-size: 17px;">Seguridad de la Terminal</h3>
+            <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 14px;">Has iniciado sesión con una clave provisional. Debes configurar tu contraseña personal definitiva:</p>
+
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+                <input type="password" id="input-nueva-pass" placeholder="Nueva Contraseña (mínimo 6 caracteres)" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 8px; padding: 10px; color: #fff; font-size: 13px; outline: none;">
+                <input type="password" id="input-confirmar-pass" placeholder="Confirmar Nueva Contraseña" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 8px; padding: 10px; color: #fff; font-size: 13px; outline: none;">
+            </div>
+
+            <button type="button" id="btn-establecer-nueva-pass" style="width: 100%; padding: 12px; border-radius: 8px; border: none; background: var(--accent-green); color: #000; font-weight: 900; font-size: 13px; cursor: pointer;">
+                ESTABLECER MI CLAVE Y ENTRAR
+            </button>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         PLANTILLAS DE TIRILLAS TÉRMICAS 58mm (WINDOW.PRINT)
+         ========================================== -->
+    <section id="ticket-impresion">
+        <!-- TIRILLA DE VENTA POS VENEZUELA -->
+        <div id="tirilla-venta-container">
+            <div class="ticket-centro">
+                <h2 style="margin: 0; font-size: 14px; text-transform: uppercase;" id="ticket-negocio-nombre">GEOKATU COMERCIO</h2>
+                <p style="margin: 2px 0;" id="ticket-negocio-rif">RIF: J-00000000-0</p>
+                <p style="margin: 2px 0;" id="ticket-negocio-dir">San Cristóbal, Táchira</p>
+                <p style="margin: 1px 0; font-size: 9px; color: #555;">NOTA DE ENTREGA / COMPROBANTE INTERNO</p>
+            </div>
+            
+            <div class="ticket-linea"></div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; font-size: 10px; font-family: monospace; line-height: 1.3;">
+                <div><strong>CAJA:</strong> <span id="t-caja-cod">CAJA-01</span></div>
+                <div style="text-align: right;"><strong>FECHA:</strong> <span id="t-fecha-corta">00/00/00</span></div>
+                <div><strong>HORA:</strong> <span id="t-hora-corta">00:00</span></div>
+                <div style="text-align: right;"><strong>CAJERO:</strong> <span id="t-cajero-cod">OP #0000</span></div>
+            </div>
+
+            <div class="ticket-linea"></div>
+            <p style="margin: 2px 0;"><strong>TICKET:</strong> <span id="t-id">---</span></p>
+            <p style="margin: 2px 0;"><strong>CLIENTE:</strong> <span id="t-cliente">Consumidor Final</span></p>
+            <p style="margin: 2px 0;" id="t-rif-row"><strong>RIF/CI:</strong> <span id="t-rif">V-00000000</span></p>
+            <div class="ticket-linea"></div>
+
+            <!-- TABLA DE ARTÍCULOS VENDIDOS -->
+            <table class="ticket-tabla">
+                <thead>
+                    <tr>
+                        <th>CANT/DESCRIPCION</th>
+                        <th style="text-align: right;">TOTAL ($)</th>
+                    </tr>
+                </thead>
+                <tbody id="t-items"></tbody>
+            </table>
+
+            <div class="ticket-linea"></div>
+
+            <!-- DESGLOSE TRIBUTARIO VENEZUELA -->
+            <table class="ticket-tabla" style="margin-top: 4px; font-size: 10px;">
+                <tbody>
+                    <tr><td>Subtotal Base:</td><td style="text-align: right;" id="t-base-print">$0.00</td></tr>
+                    <tr><td>IVA 16%:</td><td style="text-align: right;" id="t-iva-print">$0.00</td></tr>
+                    <tr><td>IGTF 3%:</td><td style="text-align: right;" id="t-igtf-print">$0.00</td></tr>
+                    <tr><td>Exento:</td><td style="text-align: right;" id="t-exento-print">$0.00</td></tr>
+                </tbody>
+            </table>
+
+            <div class="ticket-linea"></div>
+            <div class="ticket-total" style="font-size: 14px;">
+                TOTAL USD: <span id="t-total">$0.00</span>
+            </div>
+            <div style="text-align: right; font-size: 11px; font-family: monospace; font-weight: bold; margin-top: 2px;">
+                TOTAL BS: <span id="t-total-ves-print">Bs. 0,00</span>
+            </div>
+            <div style="text-align: right; font-size: 9px; color: #555; font-family: monospace;" id="t-tasa-aplicada-row">
+                Tasa Aplicada: <span id="t-tasa-print">Bs. 0.00 / $</span>
+            </div>
+
+            <div class="ticket-linea"></div>
+            <p style="margin: 2px 0; font-size: 10px;"><strong>PAGOS REGISTRADOS:</strong></p>
+            <p style="margin: 2px 0; font-size: 9.5px; font-family: monospace;" id="t-metodos-desglose">EFECTIVO USD: $0.00</p>
+
+            <div class="ticket-linea"></div>
+
+            <!-- CÓDIGO DE BARRAS NATIVO CODE-128 PARA DEVOLUCIÓN -->
+            <div class="ticket-centro" style="margin: 6px 0;">
+                <svg id="t-barcode-svg" style="max-width: 100%; height: 38px; margin: 0 auto; display: block;"></svg>
+                <p style="font-family: monospace; font-size: 9px; margin-top: 2px; letter-spacing: 2px;" id="t-barcode-text">TK-0000</p>
+            </div>
+
+            <div class="ticket-linea"></div>
+            <div class="ticket-centro" style="font-size: 9px; margin-top: 4px;">
+                <p style="margin: 2px 0;">¡GRACIAS POR SU COMPRA!</p>
+                <p style="margin: 2px 0; color: #555;">Tecnología GEOKATU Venezuela</p>
+            </div>
+        </div>
+
+        <!-- REPORTE CIERRE Z MULTICARTERA -->
+        <div id="tirilla-cierre-z-container" style="display: none;">
+            <div class="ticket-centro">
+                <h2 style="margin: 0; font-size: 14px; text-transform: uppercase;">GEOKATU - CIERRE Z MULTICARTERA</h2>
+                <p style="margin: 2px 0;">SELLADO DIARIO DE CAJA</p>
+            </div>
+            <div class="ticket-linea"></div>
+            <p style="margin: 2px 0;"><strong>TURNO:</strong> <span id="tz-id">---</span></p>
+            <p style="margin: 2px 0;"><strong>CIERRE:</strong> <span id="tz-cierre">---</span></p>
+            <p style="margin: 2px 0;"><strong>CAJERO:</strong> <span id="tz-cajero">---</span></p>
+            <div class="ticket-linea"></div>
+            <table class="ticket-tabla">
+                <tbody>
+                    <tr><td>Fondo Inicial USD:</td><td style="text-align: right;" id="tz-base-usd">$0.00</td></tr>
+                    <tr><td>Efectivo USD:</td><td style="text-align: right;" id="tz-efectivo-usd">$0.00</td></tr>
+                    <tr><td>Efectivo VES:</td><td style="text-align: right;" id="tz-efectivo-ves">Bs. 0,00</td></tr>
+                    <tr><td>Efectivo COP:</td><td style="text-align: right;" id="tz-efectivo-cop">$0 COP</td></tr>
+                    <tr><td>Pago Móvil:</td><td style="text-align: right;" id="tz-pago-movil">Bs. 0,00</td></tr>
+                    <tr><td>Puntos de Venta:</td><td style="text-align: right;" id="tz-punto-venta">Bs. 0,00</td></tr>
+                    <tr><td>Zelle:</td><td style="text-align: right;" id="tz-zelle">$0.00</td></tr>
+                    <tr><td>Binance USDT:</td><td style="text-align: right;" id="tz-usdt">0.00 USDT</td></tr>
+                </tbody>
+            </table>
+            <div class="ticket-linea"></div>
+            <div class="ticket-total" style="text-align: center; font-size: 13px;">
+                TOTAL CONSOLIDADO: <span id="tz-total-consolidado">$0.00 USD</span>
+            </div>
+            <div class="ticket-linea"></div>
+            <div class="ticket-centro" style="font-size: 9px; margin-top: 6px;">
+                <p style="margin: 2px 0;">DOCUMENTO AUDITABLE DE CONTROL INTERNO</p>
+                <p style="margin: 2px 0; color: #555;">Tecnología GEOKATU Venezuela</p>
+            </div>
+        </div>
+
+        <!-- REPORTE INFORME X (AUDITORÍA PARCIAL) -->
+        <div id="tirilla-informe-x-container" style="display: none;">
+            <div class="ticket-centro">
+                <h2 style="margin: 0; font-size: 14px; text-transform: uppercase;">GEOKATU - INFORME X</h2>
+                <p style="margin: 2px 0; font-weight: bold;">*** AUDITORÍA PARCIAL SIN CIERRE ***</p>
+            </div>
+            <div class="ticket-linea"></div>
+            <p style="margin: 2px 0;"><strong>SESIÓN:</strong> <span id="tx-turno">---</span></p>
+            <p style="margin: 2px 0;"><strong>FECHA:</strong> <span id="tx-fecha">---</span></p>
+            <p style="margin: 2px 0;"><strong>CAJERO:</strong> <span id="tx-cajero">---</span></p>
+            <p style="margin: 2px 0;"><strong>SUPERVISOR:</strong> <span id="tx-supervisor">---</span></p>
+            <div class="ticket-linea"></div>
+            <table class="ticket-tabla">
+                <tbody>
+                    <tr><td>Ventas Efectivo USD:</td><td style="text-align: right;" id="tx-efectivo-usd">$0.00</td></tr>
+                    <tr><td>Ventas Pago Móvil:</td><td style="text-align: right;" id="tx-pm-ves">Bs. 0,00</td></tr>
+                    <tr><td>Ventas Punto Débito:</td><td style="text-align: right;" id="tx-punto-ves">Bs. 0,00</td></tr>
+                    <tr><td>Ventas Zelle:</td><td style="text-align: right;" id="tx-zelle-usd">$0.00</td></tr>
+                </tbody>
+            </table>
+            <div class="ticket-linea"></div>
+            <div class="ticket-total" style="text-align: center; font-size: 13px;">
+                TOTAL AUDITADO: <span id="tx-total-usd">$0.00 USD</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- NOTIFICACIÓN TOAST TOPE -->
+    <div id="toast-pos-notif" style="position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-20px); background: #16161a; border: 1px solid rgba(255, 107, 0, 0.4); color: #fff; padding: 12px 20px; border-radius: 12px; font-size: 13px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,0.8); z-index: 100000; opacity: 0; pointer-events: none; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);"></div>
+
+    <!-- Script de Notificación Instantánea -->
+    <script>
+    window.mostrarAvisoPos = function(mensaje) {
+        const toast = document.getElementById('toast-pos-notif');
+        if (!toast) return;
+        toast.innerText = mensaje;
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateX(-50%) translateY(0)';
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(-50%) translateY(-20px)';
+        }, 3000);
+    };
+    </script>
+
+    <!-- LÓGICA OPERATIVA VENEZUELA -->
+    <script type="module" src="./posven.js"></script>
+</body>
+</html>
+

@@ -17,11 +17,32 @@ let miUbicacionMarker = null;
 window.marcadoresRadar = {};
 
 // === ESPÍA DE SESIÓN PARA REGLA DEL DUEÑO ===
+// === ESPIA DE SESION PARA REGLA DEL DUENO ===
 window.idUsuarioActual = null;
-GeokatuDB.SecurityService.observarEstadoSesion((user) => {
+GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
     if (user) {
         window.idUsuarioActual = user.uid;
-        // 💉 Redibujar el radar apenas confirmamos que el dueño entró
+        try {
+            const resDetalles = await GeokatuDB.LocalService.getDetails(user.uid);
+            if (resDetalles.success && resDetalles.data && resDetalles.data.Coordenadas) {
+                const c = resDetalles.data.Coordenadas;
+                const latPropia = c.latitude || c._lat || c.lat;
+                const lngPropia = c.longitude || c._long || c.lng;
+                if (latPropia && lngPropia) {
+                    const docPropio = {
+                        ...resDetalles.data,
+                        codigo: user.uid,
+                        Coordenadas: { latitude: Number(latPropia), longitude: Number(lngPropia) }
+                    };
+                    dbDirectorioMap.set(user.uid, docPropio);
+                    dbDirectorio = Array.from(dbDirectorioMap.values());
+                    datosDescargados = true;
+                }
+            }
+        } catch (e) {
+            console.warn("[Radar] Precarga directa del comercio propio no completada:", e.message);
+        }
+
         if (typeof window.barridoRadar === 'function' && datosDescargados) {
             window.barridoRadar();
         }
@@ -29,6 +50,7 @@ GeokatuDB.SecurityService.observarEstadoSesion((user) => {
         window.idUsuarioActual = null;
     }
 });
+
 
 
 window.sanitizarTexto = function(texto) {
@@ -273,12 +295,7 @@ window.arrancarMotor = async function() {
 
                 construirMapa();
         
-        // 🚀 DESCARGA INICIAL OBLIGATORIA: Cargar comercios de la ciudad de inmediato
-        mapa.once('load', () => {
-            if (window.descargarNegociosDeFirebase) {
-                window.descargarNegociosDeFirebase();
-            }
-        });
+      
 
         if (typeof window.construirCarrusel === 'function') {
             window.construirCarrusel();
@@ -350,19 +367,43 @@ window.arrancarMotor = async function() {
     }
 };
 
+window.validarGeocercaOperativa = function(lat, lng) {
+    // Cobertura combinada: Colombia (incluye islas) y Venezuela
+    const dentroLat = lat >= -4.5 && lat <= 16.0;
+    const dentroLng = lng >= -82.0 && lng <= -59.5;
+    return dentroLat && dentroLng;
+};
+
+window.mostrarCartelFueraDeZona = function() {
+    const toast = document.getElementById('toast-fantasma');
+    if (toast) {
+        toast.innerText = "Esta plataforma funciona solo en Colombia o Venezuela";
+        toast.style.background = "rgba(180, 20, 20, 0.95)";
+        toast.style.borderColor = "#ff4444";
+        toast.style.opacity = '1';
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.background = "";
+            toast.style.borderColor = "";
+        }, 6000);
+    }
+};
+
 window.solicitarGPSInicial = function() {
     if (typeof window.centrarMapaHardware === 'function') {
-        window.centrarMapaHardware();
+        window.centrarMapaHardware(true);
     }
 };
 
 window.iniciarTour = function() {
-    if(localStorage.getItem('geokatu_tour_v1')) { solicitarGPSInicial(); return; }
+    solicitarGPSInicial();
+    if(localStorage.getItem('geokatu_tour_v1')) return;
     document.body.classList.add('tour-active');
     document.getElementById('wrapper-buscador').classList.add('tour-highlight-z');
     const tooltip1 = document.getElementById('tour-step-1');
     if(tooltip1) tooltip1.classList.add('activo');
 };
+
 
 window.siguienteTour1 = function() {
     document.getElementById('wrapper-buscador').classList.remove('tour-highlight-z');
@@ -423,24 +464,44 @@ window.cerrarPanelCristal = function(event) {
     if (panel) panel.style.display = 'none';
 };
 
-window.centrarMapaHardware = function() {
+window.centrarMapaHardware = function(esArranque = false) {
     if (navigator.vibrate) navigator.vibrate(30);
-    
+
     const btnNativo = document.querySelector('.maplibregl-ctrl-geolocate');
-    
     if (btnNativo) {
-        btnNativo.click(); 
+        // Disparar el control oficial de MapLibre para activar el punto y halo del usuario
+        btnNativo.click();
     } else if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition((pos) => {
-            mapa.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 16, duration: 2000 });
-            setTimeout(() => { if (window.descargarNegociosDeFirebase) window.descargarNegociosDeFirebase(); }, 1500);
-        }, () => {
-            zonaNecesitaDescarga = true; 
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+
+            if (mapa) {
+                mapa.flyTo({ center: [lng, lat], zoom: 16, duration: 2000 });
+            }
+
+            if (typeof window.validarGeocercaOperativa === 'function' && !window.validarGeocercaOperativa(lat, lng)) {
+                window.mostrarCartelFueraDeZona();
+            }
+
+            setTimeout(() => {
+                if (window.descargarNegociosDeFirebase) {
+                    window.descargarNegociosDeFirebase();
+                }
+            }, 1200);
+        }, (err) => {
+            console.warn("[GPS] Permiso no concedido o error:", err.message);
+            zonaNecesitaDescarga = true;
             const btnCargar = document.getElementById('btn-cargar-zona');
             if (btnCargar) btnCargar.style.display = 'block';
-        });
+            if (esArranque && window.descargarNegociosDeFirebase) {
+                window.descargarNegociosDeFirebase();
+            }
+        }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 });
     }
 };
+
+
 
 window.dibujarPinesDesdeJSONCache = function(boundsActuales) {
     if (!window.DICCIONARIO_UNIVERSAL || window.DICCIONARIO_UNIVERSAL.length === 0) return;
@@ -479,8 +540,8 @@ window.descargarNegociosDeFirebase = async function() {
         const ne = limites.getNorthEast();
 
         let radiusInM = calcularDistanciaKm(centroActual.lat, centroActual.lng, ne.lat, ne.lng) * 1000;
-        if (radiusInM > 2000) radiusInM = 2000;
-        
+        radiusInM = Math.max(3000, radiusInM);
+
         let success, arrayNegocios, error;
         if (categoriaActivaGlobal === 'inmuebles') {
             const res = await GeokatuDB.RadarService.buscarInmueblesEnRadar(center[0], center[1], radiusInM);
@@ -604,12 +665,19 @@ window.construirMapa = function() {
         fitBoundsOptions: { maxZoom: 16 } 
     });
 
-    geolocateControl.on('geolocate', () => {
-        // En cuanto el usuario o GPS ubica la posición, descargar los comercios de esa zona
+        geolocateControl.on('geolocate', (e) => {
+        if (e && e.coords) {
+            const lat = e.coords.latitude;
+            const lng = e.coords.longitude;
+            if (!window.validarGeocercaOperativa(lat, lng)) {
+                window.mostrarCartelFueraDeZona();
+            }
+        }
         if (window.descargarNegociosDeFirebase) {
             window.descargarNegociosDeFirebase();
         }
     });
+
 
     mapa.addControl(geolocateControl, 'bottom-right');
 
@@ -703,8 +771,9 @@ window.compartirTienda = function(event, codigo, nombre, username) {
             if (username && username !== 'null') {
                 window.linkCompartirActual = baseOriginal + '/' + username;
             } else {
-                window.linkCompartirActual = baseOriginal + window.location.pathname.replace('index.html', '') + 'negocio.html?id=' + codigo;
+                window.linkCompartirActual = baseOriginal + window.location.pathname.replace('index.html', '') + 'negocio?id=' + codigo;
             }
+
             window.nombreCompartirActual = nombre;
             const qrContainer = document.getElementById('qr-code-container');
             qrContainer.innerHTML = ""; qrContainer.style.boxShadow = `0 0 15px var(--naranja)`;
@@ -993,10 +1062,11 @@ window.barridoRadar = function(filtroTexto = "") {
         const urlSeguraPng = p.nombre_png ? escapeQuotes(p.nombre_png) : '';
 
         if (urlSeguraPng && urlSeguraPng.trim() !== '') {
-            tituloRenderizado = `<img src="${urlSeguraPng}" alt="${nombreLimpio}" style="max-height: 35px; max-width: 90%; object-fit: contain; margin: 0 auto; display: block; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">`;
+            tituloRenderizado = `<img src="urlSeguraPng"alt="{nombreLimpio}" style="max-height: 35px; max-width: 90%; object-fit: contain; margin: 0 auto; display: block; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"><h3 class="popup-title" style="display:none; text-shadow: 0 0 5px c1;">{sanitizarTexto(p.nombre || 'Negocio')}</h3>`;
         } else {
-            tituloRenderizado = `<h3 class="popup-title" style="text-shadow: 0 0 5px ${c1};">${sanitizarTexto(p.nombre || 'Negocio')}</h3>`;
+            tituloRenderizado = `<h3 class="popup-title" style="text-shadow: 0 0 5px c1;">{sanitizarTexto(p.nombre || 'Negocio')}</h3>`;
         }
+
 
         const usaPublicidadPropia = p.publicidad_propia === true;
         let bloquePublicidad = '';
@@ -1015,8 +1085,9 @@ window.barridoRadar = function(filtroTexto = "") {
         }
 
         const linkDestino = p.es_inmueble_real
-        ? `inmueble.html?id=${encodeURIComponent(p.id_negocio_padre || p.codigo)}&item=${encodeURIComponent(p.codigo)}`
-        : (p.username ? `/${p.username.toLowerCase()}` : `negocio.html?id=${encodeURIComponent(p.codigo)}`);
+        ? `inmueble?id=encodeURIComponent(p.idnegociopadre||p.codigo)&item={encodeURIComponent(p.codigo)}`
+        : (p.username ? `/p.username.toLowerCase()`:`negocio?id={encodeURIComponent(p.codigo)}`);
+
 
         const usernameParaCompartir = p.username ? `'${p.username.toLowerCase()}'` : `null`;
        // 🚦 LÓGICA DE SEMÁFORO DE CONFIANZA
@@ -1197,9 +1268,12 @@ window.barridoRadar = function(filtroTexto = "") {
             <button class="btn-cerrar-card" onclick="window.cerrarTarjetaInmueble(event, this)" style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.6); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; z-index: 10; cursor: pointer; font-size: 12px; font-weight: bold;">✖</button>
             <img src="${portadaUsada}" class="tarjeta-hibrida-img" onerror="this.src='${dbSimbologia['wallpaper_generico']}'">
             <div class="tarjeta-hibrida-info">
-            <h4 class="tarjeta-hibrida-titulo">${sanitizarTexto(p.nombre || 'Inmueble')}</h4>
-            <p class="tarjeta-hibrida-nicho" style="color: ${c1};">${textoNicho}</p>
+            ${urlSeguraPng && urlSeguraPng.trim() !== ''
+                ? `<img src="urlSeguraPng"alt="{nombreLimpio}" style="max-height: 22px; max-width: 140px; object-fit: contain; margin-bottom: 2px; display: block;">`
+                : `<h4 class="tarjeta-hibrida-titulo">${sanitizarTexto(p.nombre || 'Inmueble')}</h4>`}
+            <p class="tarjeta-hibrida-nicho" style="color: c1;">{textoNicho}</p>
             </div>
+
             </div>`;
         }
     });
@@ -1625,5 +1699,7 @@ window.addEventListener('ejecutar-filtro-mapa-producto', (e) => {
 
     if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
 });
+
+
 
 

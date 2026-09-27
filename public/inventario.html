@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Visor de Piso y Radar de Stock | Geokatu SIG</title>
+    <meta name="theme-color" content="#ff6b00">
+    <link rel="stylesheet" href="mapatienda.css">
+    <link rel="stylesheet" href="inventario.css">
+    <script src="html5-qrcode.min.js" type="text/javascript"></script>
+</head>
+<body class="boveda-ui">
+
+    <!-- 1. VIEWPORT DE SOLO LECTURA (CANVAS/PAN/PINCH-TO-ZOOM) -->
+  <div id="viewport-infinito" style="touch-action: none;"> 
+        <div id="capa-transform"> 
+            <canvas id="rejilla-canvas"></canvas>
+            <div id="contenedor-muebles"></div>
+        </div>
+    </div>
+
+    <!-- 2. HUD SUPERIOR COMPACTO ANTIDESBORDE -->
+    <header class="hud-barra-superior visor-hud">
+        <div class="hud-fila-superior">
+            <select id="selector-sede-activa" class="select-sede-visor" title="Cambiar Sede o Almacén">
+                <option value="" disabled selected>Cargando sede...</option>
+            </select>
+            <div class="hud-acciones-botones">
+                <button id="btn-abrir-camara" class="btn-radar-icono" title="Escanear con Cámara">📷</button>
+                <button id="btn-toggle-filtros" class="btn-radar-icono" title="Filtros avanzados">⚙️</button>
+                <button id="btn-zoom-fit" class="btn-radar-icono" title="Ver plano completo">🎯</button>
+            </div>
+        </div>
+        <div class="hud-fila-buscador">
+            <div class="buscador-radar-caja">
+                <span class="icono-lupa">🔍</span>
+                <input type="text" id="visor-busqueda" class="input-busqueda-radar" placeholder="Buscar SKU, Nombre, QR, EAN...">
+                <button id="btn-limpiar-filtros" class="btn-limpiar-radar" title="Limpiar búsqueda">✕</button>
+            </div>
+        </div>
+    </header>
+
+
+    <!-- 3. BANDEJA DESPLEGABLE DE FILTROS AVANZADOS -->
+    <div id="panel-filtros-avanzados" class="panel-filtros-drawer oculto">
+        <div class="filtro-campo">
+            <label class="section-title">Categoría:</label>
+            <select id="filtro-categoria" class="input-form input-compacto">
+                <option value="">Todas las categorías</option>
+            </select>
+        </div>
+        <div class="filtro-campo">
+            <label class="section-title">Precio Máximo: <span id="label-precio-max" class="valor-resaltado">$ -</span></label>
+            <input type="range" id="filtro-precio" class="input-range-aureo" min="0" max="500000" step="1000" value="500000">
+        </div>
+        <div class="filtro-campo">
+            <label class="section-title">Vencimiento:</label>
+            <select id="filtro-dias-vencimiento" class="input-form input-compacto">
+                <option value="TODOS">Cualquier fecha</option>
+                <option value="5">Crítico (≤ 5 días)</option>
+                <option value="15">Próximo (≤ 15 días)</option>
+                <option value="30">En el mes (≤ 30 días)</option>
+                <option value="VENCIDOS">Ya vencidos</option>
+            </select>
+        </div>
+    </div>
+
+<!-- 3.6 MINI-RADAR DIRECCIONAL OFF-SCREEN (PUNTERO BRÚJULA) -->
+    <div id="hud-brujula-radar" class="hud-brujula-wrap oculto" title="Toca para centrar objetivo">
+        <div id="brujula-flecha-nodo" class="brujula-flecha">➤</div>
+        <span id="brujula-distancia-txt" class="brujula-distancia">0.0m</span>
+    </div>
+
+    <!-- 3.5 WIDGET FLOTANTE PIP: ELEVACIÓN PSEUDO-3D DE MUEBLE -->
+
+    <div id="visor-alzado-pip" class="alzado-pip-card oculto">
+        <div class="alzado-pip-header">
+            <div class="alzado-pip-titulos">
+                <span id="alzado-id-tag" class="alzado-badge-id">MUEBLE</span>
+                <span id="alzado-nombre-tag" class="alzado-nombre-txt">Vista Frontal</span>
+            </div>
+            <div class="alzado-pip-controles">
+                <div id="alzado-tabs-caras" class="alzado-tabs-caras"></div>
+                <button id="btn-cerrar-alzado" class="btn-cerrar-alzado-x" title="Cerrar vista vertical">✕</button>
+            </div>
+        </div>
+        <div class="alzado-canvas-wrap">
+            <svg id="svg-alzado-mueble" class="svg-alzado-lienzo" viewBox="0 0 280 180"></svg>
+        </div>
+        <div class="alzado-pip-footer">
+            <span id="alzado-target-txt" class="alzado-target-detalle">Selecciona un compartimiento</span>
+        </div>
+    </div>
+
+    <!-- 4. BURBUJA FLOTANTE INFERIOR (SPEED-DIAL FAB PARA CAPAS) -->
+
+    <div id="fab-capas-contenedor" class="fab-speeddial-wrap">
+        <div id="fab-menu-emergente" class="fab-menu-emergente oculto">
+            <span class="fab-menu-titulo">Capas y Radar Espacial</span>
+            <button class="badge-filtro activo" data-capa="TODO">🌐 Todos los muebles</button>
+            <button class="badge-filtro" data-capa="HEATMAP_STOCK">📦 Heatmap de Stock</button>
+            <button class="badge-filtro" data-capa="HEATMAP_PRECIO">💲 Rango de Precios</button>
+            <button class="badge-filtro" data-capa="VENCIMIENTOS">⏳ Alertas Vencimiento</button>
+            <button class="badge-filtro" data-capa="STOCK_CERO">⚠️ Muebles Sin Stock (0)</button>
+            <button id="btn-ir-editor" class="badge-filtro btn-acceso-editor" onclick="window.open('mapatienda.html', '_blank')">✏️ Editar Plano SIG</button>
+        </div>
+        <button id="btn-fab-trigger" class="fab-burbuja-principal" title="Capas de Visualización">
+            <span class="fab-icono">🗺️</span>
+            <span id="lbl-capa-actual" class="fab-texto-badge">Todos</span>
+        </button>
+    </div>
+
+    <!-- 5. MODAL DE CÁMARA PARA ESCANEO RÁPIDO -->
+    <div id="modal-camara" class="modal-flotante-wrap" style="display: none;">
+        <div class="modal-tarjeta-boveda card-camara-boveda">
+            <div class="camara-modal-header">
+                <div class="camara-header-fila">
+                    <h3 class="modal-titulo-naranja">Radar Óptico de Piso</h3>
+                    <button id="btn-toggle-linterna" class="btn-linterna-camara" title="Alternar linterna">🔦 OFF</button>
+                </div>
+                <div class="camara-modos-selector">
+                    <button id="btn-modo-buscar" class="btn-modo-pill activa">🎯 Búsqueda</button>
+                    <button id="btn-modo-rafaga" class="btn-modo-pill">⚡ Ráfaga Continua</button>
+                </div>
+                <span id="subtexto-camara-guia" class="subtexto-guia">Apunta al código QR o de barras</span>
+            </div>
+            <div id="lector-camara-visor" class="scanner-viewport"></div>
+            <div id="banner-rafaga-feedback" class="banner-rafaga-hud oculto">
+                <span id="txt-rafaga-producto" class="txt-rafaga-prod">Esperando lectura...</span>
+                <span id="badge-rafaga-conteo" class="badge-rafaga-cant">0 escaneos</span>
+            </div>
+            <button id="btn-cerrar-camara" class="btn-submit btn-secundario">Cerrar Cámara</button>
+        </div>
+    </div>
+
+
+   <!-- 6. DRAWER LATERAL: INSPECCIÓN DE MUEBLE, CARAS Y BINS -->
+    <aside id="panel-detalle-mueble" class="drawer-mueble-inspeccion" style="box-shadow: none;">
+
+        <div class="drawer-header-inspeccion">
+            <div>
+                <span id="txt-mueble-id-fisico" class="badge-id-canonico">GEO-M-000</span>
+                <span id="txt-mueble-zona-badge" class="badge-zona-tag">PISO VENTA</span>
+                <h2 id="txt-mueble-nombre" class="titulo-mueble-drawer">Góndola Central</h2>
+            </div>
+            <button id="btn-cerrar-drawer" class="btn-cerrar-drawer-x">✕</button>
+        </div>
+
+        <div class="drawer-stats-barra">
+            <div class="stat-caja">
+                <span class="stat-rotulo">Existencias físicas:</span>
+                <span id="stat-total-unidades" class="stat-numero">0</span>
+            </div>
+            <div class="stat-caja">
+                <span class="stat-rotulo">Bins ocupados:</span>
+                <span id="stat-total-bins-ocupados" class="stat-numero">0</span>
+            </div>
+        </div>
+
+        <div class="drawer-seccion-rotulo">
+            <span>Contenido físico por nivel y cara:</span>
+        </div>
+
+        <div id="lista-productos-estante" class="drawer-scroll-productos">
+            <p class="estado-espera-texto">Selecciona un estante para inspeccionar...</p>
+        </div>
+    </aside>
+
+    <!-- 7. MÓDULO JS -->
+    <script type="module" src="inventario.js"></script>
+</body>
+</html>
+
+

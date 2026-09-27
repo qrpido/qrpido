@@ -1,6 +1,6 @@
 /* ==========================================================================
    GEOKATU - SISTEMA VISUAL DE CATÁLOGO PÚBLICO (NEGOCIO.CSS)
-   ADN: admin-boveda.css (Proporción Áurea, Glassmorphism & Feed Editorial)
+   ADN: Proporción Áurea, Glassmorphism & Feed Editorial
    ========================================================================== */
 
 /* === 1. VARIABLES BASE Y SISTEMA ÁUREO === */
@@ -52,6 +52,7 @@ html, body {
     opacity: 0.18;
     filter: blur(25px);
     pointer-events: none;
+    display: none; /* Evita mostrar caja de imagen rota si está vacío */
 }
 
 .contenedor-catalogo {
@@ -129,7 +130,7 @@ html, body {
     margin-bottom: 12px;
 }
 
-/* Acciones Principales (Biseladas y Áureas) */
+/* Acciones Principales */
 .acciones-cabecera {
     display: flex;
     justify-content: center;
@@ -141,6 +142,11 @@ html, body {
 .btn-contactar {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    font-family: inherit;
     gap: 8px;
     background: linear-gradient(135deg, #ff8c00 0%, var(--color-marca) 100%);
     color: #ffffff;
@@ -153,6 +159,7 @@ html, body {
     letter-spacing: 1px;
     box-shadow: 0 8px 21px rgba(255, 107, 0, 0.35);
     transition: transform 0.15s ease;
+    box-sizing: border-box;
 }
 .btn-contactar:active { transform: scale(0.96); }
 
@@ -176,7 +183,7 @@ html, body {
 }
 .btn-compartir-flotante:active { transform: scale(0.9); }
 
-/* === 4. BARRA DE CATEGORÍAS (STICKY FIBONACCI) === */
+/* === 4. BARRA DE CATEGORÍAS (STICKY) === */
 .categorias-wrapper {
     position: sticky;
     top: 0;
@@ -215,7 +222,7 @@ html, body {
     box-shadow: 0 4px 12px rgba(255, 107, 0, 0.4);
 }
 
-/* === 5. MATRIZ DE LAYOUTS EDITORIALES (TÉTRADA OFICIAL) === */
+/* === 5. MATRIZ DE LAYOUTS EDITORIALES === */
 .grilla-productos-publica {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -259,12 +266,42 @@ html, body {
     text-shadow: 0 0 10px rgba(255, 107, 0, 0.25);
 }
 
+/* Badges de Disponibilidad y Stock */
+.badge-stock {
+    font-size: 9.5px;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: inline-flex;
+    align-items: center;
+    width: max-content;
+    margin: 3px 0;
+}
+.badge-stock.en-piso {
+    background: rgba(0, 245, 212, 0.12);
+    color: #00f5d4;
+    border: 1px solid rgba(0, 245, 212, 0.3);
+}
+.badge-stock.en-bodega {
+    background: rgba(255, 170, 0, 0.12);
+    color: #ffaa00;
+    border: 1px solid rgba(255, 170, 0, 0.3);
+}
+.badge-stock.sin-stock {
+    background: rgba(255, 68, 68, 0.12);
+    color: #ff4444;
+    border: 1px solid rgba(255, 68, 68, 0.3);
+}
+
 /* ----------------------------------------------------
-   VARIANTE 1: VISTA TRADICIONAL (GRID 1x1)
+   VARIANTE 1: VISTA TRADICIONAL (GRID 1x1) - ARREGLADA
    ---------------------------------------------------- */
 .producto-card.layout-grid {
     grid-column: span 1;
-    aspect-ratio: 1 / 1.5;
+    min-height: 255px; /* Permite que el botón siempre sea visible */
+    height: auto;
     text-align: center;
 }
 .producto-card.layout-grid .img-box-tradicional {
@@ -273,6 +310,7 @@ html, body {
     border-radius: 11px;
     overflow: hidden;
     background: #000;
+    flex-shrink: 0;
 }
 .producto-card.layout-grid .img-box-tradicional img {
     width: 100%;
@@ -281,7 +319,7 @@ html, body {
 }
 
 /* ----------------------------------------------------
-   VARIANTE 2: VISTA HERO / COMPLETA (SPAN 2 / 2 FILAS)
+   VARIANTE 2: VISTA HERO / COMPLETA
    ---------------------------------------------------- */
 .producto-card.layout-hero {
     grid-column: span 2;
@@ -323,7 +361,7 @@ html, body {
 }
 
 /* ----------------------------------------------------
-   VARIANTE 3: VISTA GALERÍA SPLIT (FOTO + 4 MINIATURAS)
+   VARIANTE 3: VISTA GALERÍA SPLIT
    ---------------------------------------------------- */
 .producto-card.layout-galeria-split {
     grid-column: span 2;
@@ -425,7 +463,7 @@ html, body {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 6px;
+    margin-top: 8px;
 }
 
 .btn-agregar-carrito {
@@ -444,12 +482,19 @@ html, body {
     background: var(--color-marca);
     color: #ffffff;
 }
+.btn-agregar-carrito:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    border-color: #555;
+    color: #777;
+    background: transparent;
+    pointer-events: none;
+}
 
 /* Estado Agotado */
 .producto-card.agotado {
-    opacity: 0.45;
-    filter: grayscale(1);
-    pointer-events: none;
+    opacity: 0.55;
+    filter: grayscale(0.85);
 }
 .producto-card.agotado::after {
     content: 'AGOTADO';
@@ -457,7 +502,7 @@ html, body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%) rotate(-12deg);
-    background: rgba(0, 0, 0, 0.85);
+    background: rgba(0, 0, 0, 0.88);
     color: #ffffff;
     border: 1px solid var(--color-marca);
     padding: 6px 14px;
@@ -465,6 +510,7 @@ html, body {
     font-weight: 900;
     border-radius: 6px;
     letter-spacing: 1px;
+    pointer-events: none;
 }
 
 /* === 7. CARRITO FLOTANTE Y CHECKOUT MODAL === */
@@ -523,4 +569,159 @@ html, body {
     max-height: 80vh;
     overflow-y: auto;
 }
+
+/* Inputs del checkout */
+.input-form {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    color: #fff;
+    padding: 10px 12px;
+    font-size: 13px;
+    box-sizing: border-box;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.2s;
+}
+.input-form:focus {
+    border-color: var(--color-marca);
+}
+
+/* === 8. MODAL EDITOR IN SITU DE NEGOCIO === */
+.modal-edicion-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 10, 12, 0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 5000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    box-sizing: border-box;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+.modal-edicion-overlay.activo {
+    display: flex;
+    opacity: 1;
+}
+
+.modal-edicion-card {
+    background: linear-gradient(135deg, rgba(28, 28, 35, 0.95) 0%, rgba(14, 14, 18, 0.98) 100%);
+    border: 1px solid var(--glass-border);
+    border-top: 2px solid var(--naranja);
+    border-radius: 20px;
+    width: 100%;
+    max-width: 480px;
+    padding: 22px;
+    box-sizing: border-box;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85);
+    transform: scale(0.95);
+    transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    max-height: 90vh;
+    overflow-y: auto;
+}
+.modal-edicion-overlay.activo .modal-edicion-card {
+    transform: scale(1);
+}
+
+.modal-edicion-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--glass-border);
+    padding-bottom: 10px;
+}
+.modal-edicion-header h2 {
+    font-size: 16px;
+    font-weight: 900;
+    color: var(--naranja);
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.btn-cerrar-modal {
+    background: transparent;
+    border: none;
+    color: #888;
+    font-size: 18px;
+    cursor: pointer;
+    line-height: 1;
+    transition: color 0.2s;
+}
+.btn-cerrar-modal:hover { color: #fff; }
+
+.form-grupo-edicion {
+    margin-bottom: 14px;
+    text-align: left;
+}
+.form-grupo-edicion label {
+    display: block;
+    font-size: 11px;
+    font-weight: 800;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+
+.input-edicion-perfil {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    color: #fff;
+    padding: 10px 12px;
+    font-size: 13px;
+    box-sizing: border-box;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.2s;
+}
+.input-edicion-perfil:focus {
+    border-color: var(--naranja);
+}
+
+.preview-portada-box {
+    width: 100%;
+    height: 110px;
+    border-radius: 12px;
+    border: 1px dashed var(--glass-border);
+    overflow: hidden;
+    position: relative;
+    background: #000;
+    margin-bottom: 8px;
+}
+.preview-portada-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.btn-subir-archivo-modal {
+    background: rgba(255, 107, 0, 0.15);
+    border: 1px solid var(--naranja);
+    color: var(--naranja);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+    text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.modal-edicion-acciones {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+}
+
 

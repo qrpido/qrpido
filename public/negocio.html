@@ -11,8 +11,7 @@
     <!-- Hoja de Estilos Propia y Aislada -->
     <link rel="stylesheet" href="negocio.css">
     <link rel="stylesheet" href="./maplibre-gl.css" />
-<script src="./maplibre-gl.js"></script>
-
+    <script src="./maplibre-gl.js"></script>
 
     <!-- Estilos Contextuales para el Modo Edición en Vivo del Dueño -->
     <style id="estilos-edicion-vivo">
@@ -59,7 +58,9 @@
 </head>
 <body>
     <div id="offline-banner" class="offline-banner">⚠️ Sin conexión: Mostrando datos en caché local</div>
-    <img id="fondo-pantalla" src="" alt="Fondo">
+    
+    <!-- Fondo condicional: no mostrará imagen rota si no tiene portada -->
+    <img id="fondo-pantalla" alt="Fondo">
     
     <!-- Inputs ocultos para subida de imagen directa del dueño -->
     <input type="file" id="upload-portada-vivo" style="display:none;" accept="image/*" onchange="window.subirFotoDirecta(this, 'portada')">
@@ -81,13 +82,13 @@
 
             <!-- Portada -->
             <div style="position: relative;">
-                <img id="portada-tienda" class="portada-tienda" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+                <img id="portada-tienda" class="portada-tienda" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Portada">
                 <button id="lapiz-portada" class="lapiz-editar-header" style="top: 12px; left: 12px;" onclick="document.getElementById('upload-portada-vivo').click()">📷</button>
             </div>
             
             <!-- Avatar / Logo -->
             <div style="position: relative; display: inline-block;">
-                <img id="avatar-tienda" class="avatar-negocio" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onclick="window.viajarAlMapa();">
+                <img id="avatar-tienda" class="avatar-negocio" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onclick="window.viajarAlMapa();" alt="Logo">
                 <button id="lapiz-avatar" class="lapiz-editar-header" style="bottom: 5px; right: 5px;" onclick="document.getElementById('upload-logo-vivo').click()">📷</button>
             </div>
 
@@ -96,7 +97,6 @@
                 <div id="contenedor-nombre" style="position: relative;">
                     <h1 id="texto-nombre" class="nombre-negocio">...</h1>
                     <button id="lapiz-nombre" class="lapiz-editar-texto" onclick="window.abrirModalEdicionPerfil()">✏️ Editar Información</button>
-
                 </div>
                 
                 <p id="texto-nicho" class="niche-negocio"></p>
@@ -161,7 +161,7 @@
                 <button class="categoria-pill" id="btn-abrir-mapa" onclick="window.abrirMiniMapa()" style="flex: 1;">🗺️ En el mapa</button>
             </div>
             
-            <!-- Contenedor Lazy-Load para Minimapa MapLibre -->
+            <!-- Contenedor para Minimapa MapLibre -->
             <div id="contenedor-mapa-ubicacion" style="position: relative; display: none; height: 240px; border-radius: 14px; overflow: hidden; margin-bottom: 12px; border: 1px solid var(--color-marca);">
                 <div id="mapa-ubicacion" style="width: 100%; height: 100%;"></div>
             </div>
@@ -179,7 +179,7 @@
         </div>
     </div>
 
-    <!-- MODAL COMPARTIR TIENDA (ENLACE + NATIVO) -->
+    <!-- MODAL COMPARTIR TIENDA -->
     <div class="modal-checkout-overlay" id="overlay-compartir" onclick="window.cerrarModal(event, 'overlay-compartir')">
         <div class="modal-checkout-contenido" id="sheet-compartir" style="text-align: center;">
             <h2 style="margin-top: 0; color: var(--color-marca); font-size: 18px;">Compartir Comercio</h2>
@@ -191,7 +191,8 @@
             </div>
         </div>
     </div>
-<!-- MODAL EDITAR PERFIL NEGOCIO (IN SITU - REQUERIMIENTO 12) -->
+
+    <!-- MODAL EDITAR PERFIL NEGOCIO -->
     <div class="modal-edicion-overlay" id="modal-editar-perfil-negocio" onclick="window.cerrarModal(event, 'modal-editar-perfil-negocio')">
         <div class="modal-edicion-card">
             <div class="modal-edicion-header">
@@ -247,7 +248,7 @@
         };
 
         window.formatearMoneda = function(valorInt64, moneda = 'COP') {
-            if (!valorInt64 || isNaN(valorInt64)) return moneda === 'USD' ? '$0.00' : '$0';
+            if (!valorInt64 || isNaN(valorInt64)) return moneda === 'USD' ? '0.00':'0';
             const val = parseInt(valorInt64, 10);
             return '$' + val.toLocaleString('es-CO');
         };
@@ -302,9 +303,18 @@
                 document.documentElement.style.setProperty('--color-terciario', c3);
                 document.title = `${datosNegocio.nombre || 'Comercio'} | Geokatu`;
 
-                // Hidratación Visual del Header
-                document.getElementById('portada-tienda').src = datosNegocio.portada || './assets/portada-default.webp';
-document.getElementById('avatar-tienda').src = datosNegocio.logo || './assets/logo-default.webp';
+                // Hidratación Visual del Header y Fondo sin cuadros rotos
+                const portadaUrl = datosNegocio.portada || './assets/portada-default.webp';
+                document.getElementById('portada-tienda').src = portadaUrl;
+                document.getElementById('avatar-tienda').src = datosNegocio.logo || './assets/logo-default.webp';
+
+                const fondoEl = document.getElementById('fondo-pantalla');
+                if (datosNegocio.portada) {
+                    fondoEl.src = datosNegocio.portada;
+                    fondoEl.style.display = 'block';
+                } else {
+                    fondoEl.style.display = 'none';
+                }
 
                 document.getElementById('texto-nombre').innerText = datosNegocio.nombre || 'Comercio';
                 document.getElementById('texto-nicho').innerText = (datosNegocio.niche || 'Catálogo Oficial').toUpperCase();
@@ -318,7 +328,7 @@ document.getElementById('avatar-tienda').src = datosNegocio.logo || './assets/lo
                     document.getElementById('contenido-modal-extra').innerHTML = window.sanitizarTexto(datosNegocio.historia);
                 }
 
-                // Consulta de Productos Ordenados por el Feed de Bóveda
+                // Consulta de Productos
                 await cargarCatalogoProductos();
 
             } catch (err) {
@@ -327,16 +337,11 @@ document.getElementById('avatar-tienda').src = datosNegocio.logo || './assets/lo
         }
 
         async function cargarCatalogoProductos() {
-            const { success, data } = await GeokatuDB.RadarService.obtenerProductosPublicos(idNegocio, { limite: 50 });
+            const { success, data } = await GeokatuDB.RadarService.obtenerProductosPublicos(idNegocio, { limite: 100 });
             
             if (success && data) {
-                // REQUERIMIENTO 11: Traer todos los artículos activos donde eliminado !== true
-                // y que cumplan: en_piso_venta === true O stock_actual > 0
-                productosMemoria = data.filter(p => {
-                    if (p.eliminado === true) return false;
-                    const stock = Number(p.stock_actual) || 0;
-                    return p.en_piso_venta === true || stock > 0;
-                });
+                // Almacenar todos los productos no eliminados
+                productosMemoria = data.filter(p => p.eliminado !== true);
                 
                 // Ordenamiento estricto por el índice del drag & drop
                 productosMemoria.sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0));
@@ -372,7 +377,7 @@ document.getElementById('avatar-tienda').src = datosNegocio.logo || './assets/lo
             renderizarCatalogo(filtroActual);
         };
 
-        // 3. RENDERIZADO DE LAS 4 VARIANTES EDITORIALES
+        // 3. RENDERIZADO CON VÍNCULO A STOCK (BODEGA / MOSTRADOR / AGOTADO)
         function renderizarCatalogo(filtro) {
             const contenedor = document.querySelector('#catalogo-contenedor .grilla-productos-publica');
             contenedor.innerHTML = '';
@@ -394,51 +399,72 @@ document.getElementById('avatar-tienda').src = datosNegocio.logo || './assets/lo
             productosAMostrar.forEach(p => {
                 const card = document.createElement('div');
                 const lClass = p.layout || 'layout-grid';
-                card.className = `producto-card ${lClass} ${p.agotado ? 'agotado' : ''}`;
                 
-                // REQUERIMIENTO 11: Placeholder oficial obligatorio
+                // Alineación con el Kardex y Stock
+                const stockNum = Number(p.stock_actual) || 0;
+                const estaAgotado = (p.agotado === true) || (stockNum <= 0);
+                const estaEnPiso = Boolean(p.en_piso_venta);
+
+                // Badge de ubicación y stock
+                let badgeStockHTML = '';
+                if (estaAgotado) {
+                    badgeStockHTML = `<span class="badge-stock sin-stock">Agotado</span>`;
+                } else if (estaEnPiso) {
+                    badgeStockHTML = `<span class="badge-stock en-piso">● ${stockNum} en mostrador</span>`;
+                } else {
+                    badgeStockHTML = `<span class="badge-stock en-bodega">📦 ${stockNum} en bodega</span>`;
+                }
+
+                card.className = `producto-card ${lClass} ${estaAgotado ? 'agotado' : ''}`;
+                
                 const imgPrincipal = (p.imagen && p.imagen.length > 10) 
                     ? p.imagen 
                     : 'https://via.placeholder.com/150/0a0a0c/ff6b00?text=PRODUCTO';
 
-                // Formato de precio y unidad de medida
                 const unidadTexto = p.unidad_medida ? `<span style="font-size:10px; color:#aaa; font-weight:normal;"> / ${window.sanitizarTexto(p.unidad_medida)}</span>` : '';
-                const precioCompleto = `${window.formatearMoneda(p.precio)}${unidadTexto}`;
+                const precioCompleto = `window.formatearMoneda(p.precio){unidadTexto}`;
 
                 let cuerpoHTML = '';
 
                 if (lClass === 'layout-hero') {
-                    // 1. VISTA HERO (ANCHO COMPLETO)
+                    // 1. VISTA HERO
                     cuerpoHTML = `
-                        <div class="card-hero-header"><h3 class="prod-nombre">${window.sanitizarTexto(p.nombre)}</h3></div>
-                        <div class="card-hero-img-box"><img src="${imgPrincipal}" alt="${window.sanitizarTexto(p.nombre)}"></div>
+                        <div class="card-hero-header">
+                            <h3 class="prod-nombre">${window.sanitizarTexto(p.nombre)}</h3>
+                            ${badgeStockHTML}
+                        </div>
+                        <div class="card-hero-img-box"><img src="imgPrincipal"alt="{window.sanitizarTexto(p.nombre)}"></div>
                         <div class="card-hero-footer">
                             <p class="prod-desc">${window.sanitizarTexto(p.cuerpo_texto || '')}</p>
                             <b class="prod-precio">${precioCompleto}</b>
                         </div>
                     `;
                 } else if (lClass === 'layout-galeria-split') {
-                    // 2. VISTA GALERÍA SPLIT (FOTO + 4 MINIATURAS)
+                    // 2. VISTA GALERÍA SPLIT
                     const gal = p.galeria && p.galeria.length > 0 ? p.galeria : [imgPrincipal, imgPrincipal, imgPrincipal, imgPrincipal];
                     const miniaturas = gal.slice(0, 4).map(m => `<img src="${m && m.length > 10 ? m : imgPrincipal}">`).join('');
                     cuerpoHTML = `
                         <div class="split-top-row">
-                            <div class="split-main-photo"><img src="${imgPrincipal}" alt="${window.sanitizarTexto(p.nombre)}"></div>
+                            <div class="split-main-photo"><img src="imgPrincipal"alt="{window.sanitizarTexto(p.nombre)}"></div>
                             <div class="split-thumbnails-grid">${miniaturas}</div>
                         </div>
                         <div class="split-bottom-row">
-                            <h4 class="prod-nombre">${window.sanitizarTexto(p.nombre)}</h4>
+                            <div>
+                                <h4 class="prod-nombre">${window.sanitizarTexto(p.nombre)}</h4>
+                                ${badgeStockHTML}
+                            </div>
                             <b class="prod-precio">${precioCompleto}</b>
                         </div>
                     `;
                 } else if (lClass === 'layout-articulo') {
-                    // 3. VISTA ARTÍCULO / EDITORIAL
+                    // 3. VISTA ARTÍCULO
                     const floatDir = p.posicion_imagen === 'derecha' ? 'float-derecha' : 'float-izquierda';
                     cuerpoHTML = `
                         <div class="articulo-wrapper">
                             <h3 class="articulo-titulo">${window.sanitizarTexto(p.nombre)}</h3>
+                            ${badgeStockHTML}
                             <div class="articulo-cuerpo">
-                                <div class="articulo-img-box ${floatDir}"><img src="${imgPrincipal}" alt="${window.sanitizarTexto(p.nombre)}"></div>
+                                <div class="articulo-img-box floatDir"><imgsrc="{imgPrincipal}" alt="${window.sanitizarTexto(p.nombre)}"></div>
                                 <p class="articulo-texto">${window.sanitizarTexto(p.cuerpo_texto || '')}</p>
                             </div>
                             <div class="articulo-footer">
@@ -449,8 +475,9 @@ document.getElementById('avatar-tienda').src = datosNegocio.logo || './assets/lo
                 } else {
                     // 4. VISTA TRADICIONAL (GRID 1x1)
                     cuerpoHTML = `
-                        <div class="img-box-tradicional"><img src="${imgPrincipal}" alt="${window.sanitizarTexto(p.nombre)}"></div>
+                        <div class="img-box-tradicional"><img src="imgPrincipal"alt="{window.sanitizarTexto(p.nombre)}"></div>
                         <h4 class="prod-nombre">${window.sanitizarTexto(p.nombre)}</h4>
+                        ${badgeStockHTML}
                         <b class="prod-precio">${precioCompleto}</b>
                     `;
                 }
@@ -460,12 +487,14 @@ document.getElementById('avatar-tienda').src = datosNegocio.logo || './assets/lo
                 card.innerHTML = `
                     ${cuerpoHTML}
                     <div class="controles-compra" style="justify-content: space-between; margin-top: 8px;">
-                        <button class="btn-agregar-carrito" onclick="window.actualizarCarrito('${p.id_prod}', 1)">+ Agregar</button>
-                        <span id="cant-${p.id_prod}" style="font-weight: 900; font-size: 12px; color: #fff;">${cantActual > 0 ? cantActual : ''}</span>
+                        <button class="btn-agregar-carrito" estaAgotado?'disabled':''onclick="window.actualizarCarrito('{p.id_prod}', 1)">
+                            ${estaAgotado ? 'Agotado' : '+ Agregar'}
+                        </button>
+                        <span id="cant-p.idprod"style="font-weight:900;font-size:12px;color:#fff;">{cantActual > 0 ? cantActual : ''}</span>
                     </div>
                 `;
 
-                // Inyección del lápiz si el dueño está navegando
+                // Botón lápiz para el dueño
                 if (window.usuarioEsDueno) {
                     const btnLapiz = document.createElement('div');
                     btnLapiz.className = 'lapiz-editar-prod';
@@ -481,11 +510,30 @@ document.getElementById('avatar-tienda').src = datosNegocio.logo || './assets/lo
             });
         }
 
-        // 4. CONTROL DEL CARRITO
+        // 4. CONTROL DEL CARRITO CON VALIDACIÓN DE STOCK REAL
         window.actualizarCarrito = function(id, cambio) {
-            if (navigator.vibrate) navigator.vibrate(30);
+            const prod = productosMemoria.find(p => p.id_prod === id);
+            if (!prod) return;
+
+            const stockDisponible = Number(prod.stock_actual) || 0;
+            const estaAgotado = prod.agotado === true || stockDisponible <= 0;
+
+            if (estaAgotado && cambio > 0) {
+                if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+                alert("Este producto se encuentra agotado.");
+                return;
+            }
 
             if (!carrito[id]) carrito[id] = { cant: 0 };
+
+            // Evitar agregar más del stock existente
+            if (cambio > 0 && (carrito[id].cant + cambio) > stockDisponible) {
+                if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+                alert(`Solo hay ${stockDisponible} unidades disponibles de este producto.`);
+                return;
+            }
+
+            if (navigator.vibrate) navigator.vibrate(30);
             carrito[id].cant += cambio;
 
             if (carrito[id].cant <= 0) delete carrito[id];
@@ -549,7 +597,7 @@ document.getElementById('avatar-tienda').src = datosNegocio.logo || './assets/lo
             window.cerrarModalManual('overlay-checkout');
         };
 
-        // 5. ENVÍO DEL PEDIDO A WHATSAPP
+        // 5. ENVÍO DEL PEDIDO A WHATSAPP (SEGURO Y SANITIZADO)
         window.enviarPedido = function() {
             const nombre = document.getElementById('input-nombre-cliente').value.trim();
             const notas = document.getElementById('input-comentario-pedido').value.trim();
@@ -559,7 +607,7 @@ document.getElementById('avatar-tienda').src = datosNegocio.logo || './assets/lo
             const numTel = (datosNegocio.whatsapp || datosNegocio.whatsApp || '').replace(/\D/g, '');
             if (!numTel) return alert("Este comercio no tiene número de WhatsApp configurado.");
 
-            let msg = `Hola *${datosNegocio.nombre}*! 👋 Quiero hacer este pedido desde Geokatu:%0A%0A`;
+            let msg = `Hola *${datosNegocio.nombre}*! 👋 Quiero hacer este pedido desde Geokatu:\n\n`;
             let total = 0;
 
             for (let id in carrito) {
@@ -567,19 +615,19 @@ document.getElementById('avatar-tienda').src = datosNegocio.logo || './assets/lo
                 if (prod) {
                     const sub = carrito[id].cant * prod.precio;
                     total += sub;
-                    msg += `▪ ${carrito[id].cant}x ${prod.nombre} (${window.formatearMoneda(sub)})%0A`;
+                    msg += `▪ ${carrito[id].cant}x prod.nombre({window.formatearMoneda(sub)})\n`;
                 }
             }
 
-            msg += `%0A💰 *TOTAL: ${window.formatearMoneda(total)}*%0A`;
-            msg += `👤 Cliente: ${nombre}%0A`;
-            if (notas) msg += `📝 Nota: ${notas}%0A`;
-            if (userLat && userLng) msg += `📍 Ubicación: https://www.google.com/maps?q=${userLat},${userLng}%0A`;
+            msg += `\n💰 *TOTAL: ${window.formatearMoneda(total)}*\n`;
+            msg += `👤 Cliente: ${nombre}\n`;
+            if (notas) msg += `📝 Nota: ${notas}\n`;
+            if (userLat && userLng) msg += `📍 Ubicación: https://www.google.com/maps?q=userLat,{userLng}\n`;
 
-            window.open(`https://wa.me/${numTel}?text=${msg}`, '_blank');
+            window.open(`https://wa.me/numTel?text={encodeURIComponent(msg)}`, '_blank');
         };
 
-        // 6. MINIMAPA LAZY-LOAD (MAPLIBRE NATIVO)
+        // 6. MINIMAPA MAPLIBRE CON RESIZE SEGURO
         window.abrirMiniMapa = function() {
             const cont = document.getElementById('contenedor-mapa-ubicacion');
             cont.style.display = 'block';
@@ -587,28 +635,30 @@ document.getElementById('avatar-tienda').src = datosNegocio.logo || './assets/lo
             const defaultLat = userLat || datosNegocio.Coordenadas?.latitude || 4.8133;
             const defaultLng = userLng || datosNegocio.Coordenadas?.longitude || -75.6961;
 
-            if (!miniMapa) {
-                miniMapa = new maplibregl.Map({
-                    container: 'mapa-ubicacion',
-                    style: './estilo-fresco.json',
-                    center: [defaultLng, defaultLat],
-                    zoom: 16,
-                    attributionControl: false
-                });
+            setTimeout(() => {
+                if (!miniMapa) {
+                    miniMapa = new maplibregl.Map({
+                        container: 'mapa-ubicacion',
+                        style: './estilo-fresco.json',
+                        center: [defaultLng, defaultLat],
+                        zoom: 16,
+                        attributionControl: false
+                    });
 
-                markerCliente = new maplibregl.Marker({ draggable: true })
-                    .setLngLat([defaultLng, defaultLat])
-                    .addTo(miniMapa);
+                    markerCliente = new maplibregl.Marker({ draggable: true })
+                        .setLngLat([defaultLng, defaultLat])
+                        .addTo(miniMapa);
 
-                markerCliente.on('dragend', () => {
-                    const p = markerCliente.getLngLat();
-                    userLat = p.lat; userLng = p.lng;
-                });
-            } else {
-                miniMapa.setCenter([defaultLng, defaultLat]);
-                markerCliente.setLngLat([defaultLng, defaultLat]);
-                miniMapa.resize();
-            }
+                    markerCliente.on('dragend', () => {
+                        const p = markerCliente.getLngLat();
+                        userLat = p.lat; userLng = p.lng;
+                    });
+                } else {
+                    miniMapa.setCenter([defaultLng, defaultLat]);
+                    markerCliente.setLngLat([defaultLng, defaultLat]);
+                    miniMapa.resize();
+                }
+            }, 150);
         };
 
         window.obtenerGPS = function() {
@@ -646,21 +696,18 @@ document.getElementById('avatar-tienda').src = datosNegocio.logo || './assets/lo
             const lat = datosNegocio.Coordenadas?.latitude;
             const lng = datosNegocio.Coordenadas?.longitude;
             if (lat && lng) {
-                window.location.href = `index.html?lat=${lat}&lng=${lng}&enfocar=${idNegocio}`;
+                window.location.href = `index.html?lat=lat&lng={lng}&enfocar=${idNegocio}`;
             } else {
                 window.location.href = 'index.html';
             }
         };
 
-        // 8. MODO EDICIÓN EN VIVO (HERRAMIENTAS DUEÑO)
+        // 8. MODO EDICIÓN EN VIVO
         window.toggleModoEdicion = function() {
             window.modoEdicionActivo = !window.modoEdicionActivo;
             document.body.classList.toggle('modo-edicion', window.modoEdicionActivo);
         };
 
-        // ==========================================================================
-        // LÓGICA DEL MODAL EDITOR IN SITU (REQUERIMIENTO 12 - CERO PROMPTS)
-        // ==========================================================================
         window.abrirModalEdicionPerfil = function() {
             document.getElementById('input-edit-nombre').value = datosNegocio.nombre || '';
             document.getElementById('input-edit-cuerpo').value = datosNegocio.cuerpo_articulo || datosNegocio.historia || '';
@@ -683,19 +730,16 @@ document.getElementById('avatar-tienda').src = datosNegocio.logo || './assets/lo
             btnSubir.disabled = true;
 
             try {
-                // Pipeline WebP: maxDim 1200px, calidad 0.82 (alta fidelidad visual), forzarCuadrado = false (mantiene formato panorámico)
                 const blobComprimido = await GeokatuDB.AdminService.comprimirAWebP(file, 1200, 0.82, false);
-                
                 btnSubir.innerText = 'Subiendo a la nube... ☁️';
                 
                 const rutaDestino = `negocios/${idNegocio}/portada_${Date.now()}.webp`;
                 const resUp = await GeokatuDB.AdminService.subirArchivo(rutaDestino, blobComprimido, 'image/webp');
-if (!resUp.success) throw new Error(resUp.error || "Fallo en la subida a Storage");
-const urlDescarga = resUp.data;
+                if (!resUp.success) throw new Error(resUp.error || "Fallo en la subida a Storage");
+                const urlDescarga = resUp.data;
 
-document.getElementById('input-edit-portada-url').value = urlDescarga;
-document.getElementById('img-preview-portada-modal').src = urlDescarga;
-
+                document.getElementById('input-edit-portada-url').value = urlDescarga;
+                document.getElementById('img-preview-portada-modal').src = urlDescarga;
             } catch (err) {
                 console.error("Error al comprimir o subir la portada:", err);
                 alert("No se pudo procesar la imagen. Intenta con otro archivo.");
@@ -704,7 +748,6 @@ document.getElementById('img-preview-portada-modal').src = urlDescarga;
                 btnSubir.disabled = false;
             }
         };
-
 
         window.guardarCambiosPerfilNegocio = async function(event) {
             event.preventDefault();
@@ -722,13 +765,11 @@ document.getElementById('img-preview-portada-modal').src = urlDescarga;
             try {
                 await GeokatuDB.AdminService.actualizarNegocio(idNegocio, payload);
 
-                // Mutación directa del DOM (Sin usar location.reload())
                 datosNegocio.nombre = payload.nombre;
                 datosNegocio.cuerpo_articulo = payload.cuerpo_articulo;
                 datosNegocio.whatsapp = payload.whatsapp;
                 if (payload.portada) datosNegocio.portada = payload.portada;
 
-                // Actualizar nodos en vivo
                 document.getElementById('texto-nombre').innerText = payload.nombre;
                 document.title = `${payload.nombre} | Geokatu`;
 
@@ -739,6 +780,9 @@ document.getElementById('img-preview-portada-modal').src = urlDescarga;
 
                 if (payload.portada) {
                     document.getElementById('portada-tienda').src = payload.portada;
+                    const fondoEl = document.getElementById('fondo-pantalla');
+                    fondoEl.src = payload.portada;
+                    fondoEl.style.display = 'block';
                 }
 
                 if (payload.cuerpo_articulo) {
@@ -755,40 +799,44 @@ document.getElementById('img-preview-portada-modal').src = urlDescarga;
                 btnGuardar.innerText = 'Guardar Cambios';
             }
         };
-window.subirFotoDirecta = async function(input, tipo) {
-    const file = input.files?.[0];
-    if (!file || !idNegocio) return;
 
-    try {
-        const esLogo = tipo === 'logo';
-        const blob = await GeokatuDB.AdminService.comprimirAWebP(file, esLogo ? 400 : 1200, 0.8, esLogo);
-        const ruta = `negocios/${idNegocio}/${tipo}_${Date.now()}.webp`;
-        const res = await GeokatuDB.AdminService.subirArchivo(ruta, blob, 'image/webp');
-        
-        if (!res.success) throw new Error(res.error);
+        window.subirFotoDirecta = async function(input, tipo) {
+            const file = input.files?.[0];
+            if (!file || !idNegocio) return;
 
-        const payload = {};
-        payload[tipo] = res.data;
-        await GeokatuDB.AdminService.actualizarNegocio(idNegocio, payload);
+            try {
+                const esLogo = tipo === 'logo';
+                const blob = await GeokatuDB.AdminService.comprimirAWebP(file, esLogo ? 400 : 1200, 0.8, esLogo);
+                const ruta = `negocios/idNegocio/{tipo}_${Date.now()}.webp`;
+                const res = await GeokatuDB.AdminService.subirArchivo(ruta, blob, 'image/webp');
+                
+                if (!res.success) throw new Error(res.error);
 
-        datosNegocio[tipo] = res.data;
-        const targetId = tipo === 'portada' ? 'portada-tienda' : 'avatar-tienda';
-        document.getElementById(targetId).src = res.data;
-    } catch (e) {
-        console.error(`Error actualizando ${tipo}:`, e);
-        alert(`No se pudo actualizar la imagen de ${tipo}.`);
-    }
-};
+                const payload = {};
+                payload[tipo] = res.data;
+                await GeokatuDB.AdminService.actualizarNegocio(idNegocio, payload);
 
-        // Alternancia de visibilidad / estado directo sin usar window.prompt
+                datosNegocio[tipo] = res.data;
+                const targetId = tipo === 'portada' ? 'portada-tienda' : 'avatar-tienda';
+                document.getElementById(targetId).src = res.data;
+
+                if (tipo === 'portada') {
+                    const fondoEl = document.getElementById('fondo-pantalla');
+                    fondoEl.src = res.data;
+                    fondoEl.style.display = 'block';
+                }
+            } catch (e) {
+                console.error(`Error actualizando ${tipo}:`, e);
+                alert(`No se pudo actualizar la imagen de ${tipo}.`);
+            }
+        };
+
         window.abrirEdicionRapidaProducto = async function(p) {
-            // Se conmuta el estado de agotado directamente de forma reactiva
             const nuevoAgotado = !p.agotado;
             await GeokatuDB.AdminService.actualizarProducto(idNegocio, p.id_prod, { agotado: nuevoAgotado });
             p.agotado = nuevoAgotado;
             renderizarCatalogo(filtroActual);
         };
-
 
         window.onload = construirTienda;
     </script>

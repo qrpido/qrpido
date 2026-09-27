@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Plano Catastral Topográfico | Geokatu CAD</title>
     <meta name="theme-color" content="#ff6b00">
-    <link rel="stylesheet" href="topografia.css">
+    <link rel="stylesheet" href="./ui-estilos.css">
+    <link rel="stylesheet" href="./topografia.css">
     <link rel="stylesheet" href="./maplibre-gl.css" />
     <script src="./maplibre-gl.js"></script>
     <script src="./pmtiles.js"></script>
@@ -13,55 +14,76 @@
 
 <body>
 
-    <!-- MAPA BASE VECTORIAL EN SEGUNDO PLANO (OFFLINE PMTILES) -->
+    <!-- CAPA 0: MAPA BASE VECTORIAL INTERACTIVO -->
     <div id="mapa-fondo-pmtiles"></div>
 
-    <!-- 1. VIEWPORT DE DIBUJO TOPOGRÁFICO -->
+    <!-- CAPA 1: VELO CON RETÍCULA CAD -->
     <div id="viewport-topografia">
+        <!-- CAPA 2: LIENZO VECTORIAL -->
+        <canvas id="canvas-plano"></canvas>
+
+        <!-- CAPA 3: TEXTOS LIBRES SIN BORDES -->
         <div id="capa-transform">
-            <canvas id="canvas-plano"></canvas>
-            <!-- Contenedor dinámico de rótulos, cotas métricas y linderos -->
             <div id="contenedor-textos-libres"></div>
         </div>
     </div>
 
-    <!-- 2. HUD SUPERIOR: MÉTRICAS Y HERRAMIENTAS -->
-    <header class="hud-barra-superior">
-        <div class="satelite-radar-box">
-            <span id="icono-sat" class="icono-satelite-anim">🛰️</span>
-            <span id="badge-pct-gps" class="badge-precision-gps precision-baja">0% (±--m)</span>
-        </div>
-        
-        <button id="btn-modo-texto" class="btn-hud-cad" title="Insertar Cuadro de Texto Libre">📝 + Texto</button>
-        <button id="btn-tabla-coords" class="btn-hud-cad" title="Ver Cuadro de Construcción">📊 Cuadro</button>
-        <button id="btn-exportar-pdf" class="btn-hud-cad verde" title="Generar Plano Catastral Oficial">🖨️ PDF</button>
+    <!-- ESQUINA SUPERIOR IZQUIERDA: RADAR SATELITAL -->
+    <div class="satelite-radar-box" id="hud-satelite-box">
+        <span id="icono-sat" class="icono-satelite-anim">🛰️</span>
+        <span id="badge-pct-gps" class="badge-precision-gps precision-baja">0% (±--m)</span>
+    </div>
 
-        <!-- Menú Desplegable Estilo Bóveda -->
-        <div class="menu-boveda-container">
-            <button type="button" id="btn-toggle-menu-opciones" class="btn-hud-cad btn-tres-puntos" title="Más opciones">⋮</button>
-            <div id="menu-opciones-topografia" class="menu-cabecera-dropdown">
-                <button type="button" onclick="window.guardarBorradorManual()">💾 Guardar Borrador (Caché)</button>
-                <button type="button" onclick="window.limpiarYNuevoPlano()" class="btn-peligro">🗑️ Limpiar y Nuevo Plano</button>
-                <button type="button" onclick="window.location.href='index.html'">🗺️ Ir al Mapa Principal</button>
-                <button type="button" onclick="window.GeokatuDB.SecurityService.cerrarSesion().then(()=>window.location.reload())" class="btn-peligro btn-separador">Cerrar Sesión</button>
+    <!-- ESQUINA SUPERIOR DERECHA: LLAVE MAESTRA -->
+    <div class="contenedor-llave" id="btn-portal-mando-contenedor">
+        <button class="btn-login" id="btn-portal-mando" type="button" onclick="window.toggleSubmenuLlaveTopografia()">🔑</button>
+        <div id="submenu-llave" class="submenu-llave" style="width: 145px;">
+            <button id="btn-login-submenu" class="btn-submenu" onclick="window.abrirModalTopografia('modal-login'); window.toggleSubmenuLlaveTopografia()">Iniciar Sesión</button>
+            <button id="btn-mis-planos" class="btn-submenu" onclick="window.abrirModalMisPlanos(); window.toggleSubmenuLlaveTopografia()" style="display:none;">📂 Mis Planos</button>
+            <button id="btn-faq-topo" class="btn-submenu" onclick="window.abrirModalTopografia('modal-soporte'); window.toggleSubmenuLlaveTopografia()">FAQ Ayuda</button>
+            <button id="btn-tutorial-tour" class="btn-submenu" onclick="window.iniciarTourTopografia(); window.toggleSubmenuLlaveTopografia()">🎓 Tutorial</button>
+            <button id="btn-ir-mapa" class="btn-submenu" onclick="window.location.href='index.html'">🗺️ Radar Ciudad</button>
+            <button id="btn-limpiar-plano" class="btn-submenu" onclick="window.limpiarYNuevoPlano(); window.toggleSubmenuLlaveTopografia()" style="color: #ffaa00;">🧹 Reiniciar</button>
+            <button id="btn-salir-topo" class="btn-submenu" onclick="window.cerrarSesionTopografia(); window.toggleSubmenuLlaveTopografia()" style="display:none; color: #ff4444; border-top: 1px solid rgba(255,255,255,0.08);">Cerrar Sesión</button>
+        </div>
+    </div>
+
+    <!-- PANEL INFERIOR UNIFICADO: HERRAMIENTAS Y ACCIONES -->
+    <div class="panel-inferior-topografia">
+        <!-- Fila 1: Herramientas CAD y Contraste de Fondo -->
+        <div id="grupo-botones-cad" class="barra-herramientas-inferior">
+            <button id="btn-modo-texto" class="btn-tool-cad" title="Escribir texto CAD directamente en pantalla">📝 Texto</button>
+            <button id="btn-modo-lotes" class="btn-tool-cad" title="Subdividir lotes internos" disabled style="opacity: 0.5;">📐 Lotes</button>
+            <button id="btn-tabla-coords" class="btn-tool-cad" title="Ver Cuadro">📊 Cuadro</button>
+            <button id="btn-exportar-pdf" class="btn-tool-cad verde" title="Generar PDF Oficial">
+                🖨️ PDF <span id="badge-cupo-pdf" style="font-size: 8.5px; opacity: 0.9;">(0/10)</span>
+            </button>
+           <div class="contenedor-slider-contraste">
+                <input type="range" id="slider-contraste-mapa" min="0" max="100" value="50" class="slider-contraste-cad" title="Visibilidad del mapa">
             </div>
+
         </div>
-    </header>
 
-    <!-- 3. DOCK INFERIOR: CAPTURA DE MOJONES EN CAMPO -->
-    <nav class="hud-dock-inferior">
-        <button id="btn-capturar-mojon" class="burbuja-cad destacada">📍 Fijar Mojón (P1)</button>
-        <button id="btn-cerrar-poligono" class="burbuja-cad" style="display: none; background: #00ff64; color: black;">🔒 Cerrar en P1</button>
-    </nav>
+        <!-- Fila 2: Botones de Captura y Trazo -->
+        <nav class="hud-dock-inferior">
+            <button id="btn-deshacer-mojon" class="burbuja-cad" style="display: none; background: rgba(30,30,40,0.95); border-color: #ff4444; color: #ff4444;">
+                ↩️ Deshacer
+            </button>
+            <button id="btn-capturar-mojon" class="burbuja-cad destacada">📍 Fijar Mojón (P1)</button>
+            <button id="btn-cerrar-poligono" class="burbuja-cad" style="display: none; background: #00ff64; color: black;">🔒 Cerrar en P1</button>
+            <button id="btn-terminar-lote" class="burbuja-cad" style="display: none; background: #00f0ff; color: black;">✨ Cerrar Lote</button>
+        </nav>
+    </div>
 
-    <!-- 4. MODAL: ASENTAMIENTO DE TRAMO Y DISTANCIA POR CINTA -->
+
+    <!-- MODAL: ASENTAMIENTO DE TRAMO CON DATALIST INTELIGENTE -->
     <div id="modal-cinta" class="modal-overlay-cad">
         <div class="modal-tarjeta-cad">
             <h3 id="txt-titulo-tramo" style="margin: 0 0 8px 0; font-size: 15px; color: var(--naranja); text-transform: uppercase;">
                 Medición de Tramo
             </h3>
             <p style="font-size: 11.5px; color: #aaa; margin: 0 0 14px 0;">
-                Digita la distancia real rectificada con cinta métrica y el colindante del lindero:
+                Digita la distancia en cinta métrica y el colindante del lindero:
             </p>
 
             <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold;">Distancia en Cinta (Metros):</label>
@@ -74,8 +96,9 @@
                 <option value="GIRO_90_IZQ">📐 Giro a 90° Izquierda (Escuadra)</option>
             </select>
 
-            <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold;">Colindante / Lindero del Costado:</label>
-            <input type="text" id="input-colindante" class="input-cad" placeholder="Ej: HERMINIA SONIA GUTIERREZ JIMENEZ">
+            <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold;">Colindante / Lindero (Sugeridos y Memoria):</label>
+            <input type="text" id="input-colindante" list="lista-colindantes-sugeridos" class="input-cad" placeholder="Escribe o selecciona colindante...">
+            <datalist id="lista-colindantes-sugeridos"></datalist>
 
             <div style="display: flex; gap: 10px; margin-top: 10px;">
                 <button type="button" id="btn-cancelar-cinta" class="btn-hud-cad" style="flex: 1; padding: 12px;">Cancelar</button>
@@ -84,12 +107,104 @@
         </div>
     </div>
 
-    <!-- 5. MODAL: CUADRO TÉCNICO DE CONSTRUCCIÓN -->
-    <div id="modal-cuadro-construccion" class="modal-overlay-cad">
-        <div class="modal-tarjeta-cad" style="max-width: 620px; max-height: 85vh; display: flex; flex-direction: column;">
+
+    <!-- MODAL: CIERRE DE POLIGONAL Y CRS -->
+    <div id="modal-cierre-predio" class="modal-overlay-cad">
+        <div class="modal-tarjeta-cad">
+            <h3 style="margin: 0 0 8px 0; font-size: 15px; color: #00ff64; text-transform: uppercase;">
+                🔒 Cierre de Poligonal
+            </h3>
+            <p style="font-size: 11.5px; color: #aaa; margin: 0 0 14px 0;">
+                Digita la distancia de retorno a P1, el sistema de proyección y los datos del predio:
+            </p>
+
+            <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold;">Distancia de Retorno a P1 (Metros):</label>
+            <input type="number" id="input-dist-cierre" step="0.01" min="0.1" class="input-cad" placeholder="Ej: 18.30" style="font-size: 20px; font-weight: 900; color: #00ff64; text-align: center;">
+
+            <label style="font-size: 10px; color: #ffaa00; text-transform: uppercase; font-weight: bold;">Sistema de Coordenadas Oficial (CRS):</label>
+            <select id="select-crs-oficial" class="input-cad" style="border-color: #ffaa00; margin-bottom: 12px;">
+                <option value="CTM12" selected>🇨🇴 Colombia: Origen Nacional CTM12 (EPSG: 9377)</option>
+                <option value="REGVEN">🇻🇪 Venezuela: REGVEN / UTM (Huso 18, 19, 20)</option>
+                <option value="LOCAL">📐 Plano Topográfico Local (E: 500.000 / N: 1.000.000)</option>
+                <option value="ITRF2008" disabled>🇲🇽 México: ITRF2008 / UTM (Próximamente)</option>
+                <option value="ETRS89" disabled>🇪🇸 España: ETRS89 / UTM (Próximamente)</option>
+                <option value="SPCS" disabled>🇺🇸 USA: State Plane NAD83 (Próximamente)</option>
+                <option value="WGS84_UTM" disabled>🇵🇪 Perú: WGS84 / UTM Huso 18S (Próximamente)</option>
+            </select>
+
+            <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold;">Nombre del Lote / Predio:</label>
+            <input type="text" id="input-nombre-predio" class="input-cad" placeholder="Ej: Lote 3 - Villa Esperanza">
+
+            <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold;">Propietario o Solicitante:</label>
+            <input type="text" id="input-propietario-predio" class="input-cad" placeholder="Ej: Carlos Mario Restrepo">
+
+            <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold;">Municipio / Departamento:</label>
+            <input type="text" id="input-municipio-predio" class="input-cad" value="Pereira, Risaralda">
+
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button type="button" id="btn-cancelar-cierre" class="btn-hud-cad" style="flex: 1; padding: 12px;">Cancelar</button>
+                <button type="button" id="btn-confirmar-cierre" class="btn-hud-cad verde" style="flex: 1.5; padding: 12px;">Calcular y Sellar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL MONETIZACIÓN: RECARGA DE PLANOS -->
+    <div id="modal-comprar-planos" class="modal-overlay-cad">
+        <div class="modal-tarjeta-cad" style="text-align: center; max-width: 400px; border-top-color: #00ff64;">
+            <div style="font-size: 36px; margin-bottom: 5px;">📜</div>
+            <h3 style="margin: 0 0 6px 0; color: #00ff64; text-transform: uppercase; font-size: 16px;">
+                Límite de Planos Alcanzado
+            </h3>
+            <p style="font-size: 12px; color: #ccc; margin: 0 0 16px 0; line-height: 1.4;">
+                Has utilizado tus <b style="color:white;">10 planos gratuitos</b>. Adquiere paquetes de planos bajo demanda:
+            </p>
+
+            <div style="background: rgba(0,255,100,0.06); border: 1.5px solid #00ff64; border-radius: 14px; padding: 16px; margin-bottom: 16px; text-align: left;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-size: 14px; font-weight: 900; color: white; text-transform: uppercase;">Paquete 10 Planos</span>
+                    <span style="background: #00ff64; color: black; font-size: 10px; font-weight: 900; padding: 2px 6px; border-radius: 6px;">$1.00 USD / Plano</span>
+                </div>
+                <div style="font-size: 24px; font-weight: 900; color: #00ff64; margin-bottom: 4px;">
+                    $9.99 USD <span style="font-size: 13px; color: #888; font-weight: normal;">(~40.000 COP)</span>
+                </div>
+                <ul style="margin: 8px 0 0 0; padding-left: 18px; font-size: 11px; color: #bbb; line-height: 1.5;">
+                    <li>10 descargas oficiales en PDF de alta resolución.</li>
+                    <li>Cálculo de linderos, rumbos catastrales y cuadros CTM12 / REGVEN.</li>
+                    <li>Sin vencimiento. Úsalos a tu propio ritmo.</li>
+                </ul>
+            </div>
+
+            <button id="btn-pagar-planos-wompi" class="btn-hud-cad verde" style="width: 100%; padding: 14px; font-size: 13px; border-radius: 12px; margin-bottom: 8px; font-weight: 900;" onclick="window.iniciarPagoWompiPlanos()">
+                💳 Comprar Paquete ($9.99 USD)
+            </button>
+            <button type="button" class="btn-hud-cad" style="width: 100%; background: transparent; border: none; color: #777; font-size: 11px;" onclick="document.getElementById('modal-comprar-planos').style.display='none'">
+                Volver al Lienzo
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL: BÓVEDA DE PLANOS -->
+    <div id="modal-mis-planos" class="modal-overlay-cad">
+        <div class="modal-tarjeta-cad" style="max-width: 500px; max-height: 80vh; display: flex; flex-direction: column;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 8px;">
-                <h3 style="margin: 0; font-size: 14px; text-transform: uppercase; color: var(--naranja);">Cuadro Técnico de Coordenadas</h3>
-                <button type="button" onclick="document.getElementById('modal-cuadro-construccion').style.display='none'" style="background: none; border: none; color: white; font-size: 18px; cursor: pointer;">✕</button>
+                <h3 style="margin: 0; font-size: 14px; text-transform: uppercase; color: var(--naranja);">📂 Mis Planos Topográficos</h3>
+                <button type="button" onclick="document.getElementById('modal-mis-planos').style.display='none'" style="background: none; border: none; color: white; font-size: 18px; cursor: pointer;">✕</button>
+            </div>
+            <div id="lista-planos-guardados" style="flex: 1; overflow-y: auto; margin: 12px 0; display: flex; flex-direction: column; gap: 8px;">
+                <p style="color: #888; font-size: 12px; text-align: center;">Consultando bóveda...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: CUADRO TÉCNICO DE COORDENADAS -->
+    <div id="modal-cuadro-construccion" class="modal-overlay-cad">
+        <div class="modal-tarjeta-cad" style="max-width: 650px; max-height: 85vh; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 8px;">
+                <div>
+                    <h3 style="margin: 0; font-size: 14px; text-transform: uppercase; color: var(--naranja);">Cuadro Técnico de Coordenadas</h3>
+                    <small id="modal-subtitulo-crs" style="color: #ffaa00; font-family: monospace; font-size: 10px;">PROYECCIÓN: CTM12</small>
+                </div>
+                <button type="button" id="btn-cerrar-modal-coords" style="background: none; border: none; color: white; font-size: 18px; cursor: pointer;">✕</button>
             </div>
             
             <div style="flex: 1; overflow-y: auto; margin: 12px 0;">
@@ -108,14 +223,153 @@
                 </table>
             </div>
 
-            <div style="display: flex; justify-content: space-between; font-size: 11px; font-family: monospace; border-top: 1px dashed var(--glass-border); padding-top: 10px;">
-                <span>PERÍMETRO: <strong id="lbl-perimetro-total" style="color: #00ff64;">0.00 m</strong></span>
-                <span>SUPERFICIE: <strong id="lbl-area-total" style="color: var(--naranja);">0.00 m²</strong></span>
+            <!-- FORMATOS DE INTERCAMBIO VECTORIAL PROFESIONAL -->
+            <div style="display: flex; gap: 8px; margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;">
+                <button type="button" class="btn-hud-cad" style="flex:1;" onclick="window.exportarDXF()">📐 Exportar DXF (AutoCAD)</button>
+                <button type="button" class="btn-hud-cad" style="flex:1;" onclick="window.exportarGeoJSON()">🌍 GeoJSON (GIS)</button>
+                <button type="button" class="btn-hud-cad" style="flex:1;" onclick="window.exportarKML()">🗺️ KML (Google Earth)</button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- MODAL: LOGIN Y REGISTRO -->
+    <div class="bottom-sheet-overlay" id="modal-login" onclick="window.cerrarModalFueraTopografia(event, 'modal-login')">
+        <div class="bottom-sheet-contenido" id="sheet-login">
+            <div class="drag-handle"></div>
+            <h2 style="margin-top: 0; text-transform: uppercase; letter-spacing: 2px; text-align: center; font-size: 24px; font-weight: 900;">
+                Ingresa a <br>
+                <span style="color: #ff6b00; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">GEO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);">KATU</span>
+            </h2>
+
+            <div id="form-login-activo">
+                <button id="btn-google-auth" class="btn-auth" style="background: white; color: #222; display: flex; align-items: center; justify-content: center; gap: 10px; border: 1px solid #ddd; box-shadow: 0 4px 10px rgba(0,0,0,0.15); transition: 0.3s; width: 100%; padding: 14px; font-size: 15px; border-radius: 12px; margin-bottom: 20px;" 
+                onclick="this.disabled=true; this.style.opacity='0.7'; this.innerHTML='⏳ Conectando con Google...'; window.iniciarConGoogle().finally(() => { this.disabled=false; this.style.opacity='1'; this.innerHTML='<img src=&quot;https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg&quot; width=&quot;20&quot; height=&quot;20&quot;> Continuar con Google'; });">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" height="20"> Continuar con Google
+                </button>
+
+                <div style="display: flex; align-items: center; text-align: center; color: #888; font-size: 12px; margin-bottom: 20px;">
+                    <div style="flex: 1; border-bottom: 1px solid #444;"></div>
+                    <span style="padding: 0 10px;">o ingresa con tu correo</span>
+                    <div style="flex: 1; border-bottom: 1px solid #444;"></div>
+                </div>
+
+                <form id="form-login-portal" onsubmit="event.preventDefault(); window.iniciarSesion();">
+                    <input type="text" id="miel-mando" name="miel_bot" style="position:absolute; left:-9999px; opacity:0;" tabindex="-1" autocomplete="off">
+                    <input type="email" id="login-email" name="email" class="input-login" placeholder="Correo electrónico" autocomplete="username" required style="width: 100%; margin-bottom: 10px; border-radius: 8px;">
+                    <div style="position: relative; width: 100%; margin-bottom: 5px;">
+                        <input type="password" id="login-pass" name="password" class="input-login" placeholder="Contraseña" autocomplete="current-password" required style="width: 100%; padding-right: 45px; border-radius: 8px;">
+                        <button type="button" onclick="if(window.toggleVerPassword) window.toggleVerPassword('login-pass', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: #888; font-size: 18px; cursor: pointer; padding: 5px; z-index: 10;">👁️</button>
+                    </div>
+
+                    <button type="submit" class="btn-auth btn-ingresar" id="btn-login-accion" style="width: 100%; padding: 12px; border-radius: 8px; font-size: 14px; margin-top: 10px;">
+                        Iniciar Sesión
+                    </button>
+                </form>
+
+                <div style="background: rgba(255, 107, 0, 0.05); border: 1px solid rgba(255, 107, 0, 0.2); border-radius: 12px; padding: 15px; text-align: center; margin-top: 15px;">
+                    <p style="margin: 0 0 10px 0; color: #ddd; font-size: 13px;">¿No tienes una cuenta aún?</p>
+                    <button onclick="window.abrirRegistroDesdeLogin()" style="width: 100%; background: transparent; border: 1px solid #ff6b00; color: #ff6b00; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; text-transform: uppercase;">Crear Cuenta Nueva</button>
+                </div>
+            </div>
+
+            <div id="panel-registro-directo" style="display: none; padding-top: 5px;">
+                <form id="form-registro-topografia" onsubmit="event.preventDefault(); window.ejecutarRegistroTopografia();">
+                    <input type="text" id="miel_bot" style="position:absolute; left:-9999px; opacity:0;" tabindex="-1">
+                    <input type="email" id="reg-email" class="input-login" placeholder="Tu correo electrónico" required>
+                    <div style="position: relative; width: 100%; margin-bottom: 10px;">
+                        <input type="password" id="reg-pass" class="input-login" placeholder="Crea una contraseña segura" required style="padding-right: 45px;">
+                        <button type="button" onclick="if(window.toggleVerPassword) window.toggleVerPassword('reg-pass', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: #888; font-size: 18px; cursor: pointer; padding: 5px;">👁️</button>
+                    </div>
+
+                    <label style="color: #ccc; font-size: 12px; display: flex; gap: 8px; align-items: center; margin-bottom: 14px; cursor: pointer;">
+                        <input type="checkbox" id="acepto-mandato" checked style="accent-color: #ff6b00;">
+                        <span>Acepto los Términos y Contrato de Mandato</span>
+                    </label>
+
+                    <button type="submit" id="btn-registrar" class="btn-auth btn-ingresar" style="width: 100%; padding: 12px; border-radius: 8px;">
+                        Registrarme e Iniciar
+                    </button>
+                    <button type="button" onclick="document.getElementById('panel-registro-directo').style.display='none'; document.getElementById('form-login-activo').style.display='block';" style="width: 100%; background: transparent; border: none; color: #aaa; padding: 10px; font-size: 12px; cursor: pointer;">
+                        Ya tengo cuenta, volver
+                    </button>
+                </form>
+            </div>
+
+            <div id="panel-usuario-activo" style="display: none; text-align: center; padding-top: 15px;">
+                <h3 id="nombre-usuario-activo" style="margin: 0 0 20px 0; color: var(--naranja); font-size: 16px; word-break: break-all;">-</h3>
+                <button class="btn-auth btn-ingresar" onclick="window.abrirModalMisPlanos(); document.getElementById('modal-login').classList.remove('activo');">📂 Ver Mis Planos Guardados</button>
+                <button class="btn-auth btn-registrar" onclick="window.cerrarSesionTopografia()" style="border-color: #ff4444; color: #ff4444; margin-top: 10px;">Cerrar Sesión</button>
             </div>
         </div>
     </div>
 
-    <!-- 6. LÁMINA VECTORIAL DE SALIDA PARA IMPRESIÓN -->
+    <!-- MODAL: FAQ TÉCNICO -->
+    <div class="bottom-sheet-overlay" id="modal-soporte" onclick="window.cerrarModalFueraTopografia(event, 'modal-soporte')">
+        <div class="bottom-sheet-contenido" id="sheet-soporte">
+            <div class="drag-handle"></div>
+            <h2 style="color: var(--naranja); margin-top: 0; text-transform: uppercase; letter-spacing: 2px; text-align: center; font-size: 18px;">
+                Centro de Ayuda Topográfica
+            </h2>
+            
+            <details>
+                <summary>¿Qué hago si coloco un mojón por error? ↩️</summary>
+                <p>Usa el botón <b>"↩️ Deshacer"</b> situado en la parte inferior izquierda. Cada toque devuelve exactamente un punto de medición hacia atrás. Si la figura estaba cerrada, la reabrirá para seguir ajustándola.</p>
+            </details>
+
+            <details>
+                <summary>¿Cómo subdivido lotes internos con el lápiz? 📐</summary>
+                <p>Una vez que hayas cerrado la poligonal exterior en P1, el botón <b>"📐 Lotes"</b> se iluminará. Al tocarlo, podrás hacer clic de punto a punto dentro del terreno. El lápiz cuenta con <b>magnetismo automático (Snap)</b> que se pega a las esquinas existentes. Al pulsar 'Cerrar Lote', calculará el área interna exacta en m².</p>
+            </details>
+
+            <details>
+                <summary>¿Cómo agrego y edito textos estilo CAD? 📝</summary>
+                <p>Pulsa <b>"+ Texto"</b>, toca en el mapa el primer punto y arrastra o toca el segundo punto para definir la caja. Podrás escribir anotaciones limpias sin bordes. Para editar cualquier texto, solo debes tocarlo de nuevo.</p>
+            </details>
+
+            <details>
+                <summary>¿Qué sistema de coordenadas utiliza el plano? 🌐</summary>
+                <p>Para Colombia implementa la proyección oficial única <b>Origen Nacional CTM12 (EPSG: 9377)</b> conforme a la Resolución IGAC 471 de 2020. Para Venezuela integra el marco geocéntrico <b>SIRGAS-REGVEN UTM</b> (Husos 18N, 19N y 20N).</p>
+            </details>
+
+            <hr style="border: 1px solid rgba(255,255,255,0.05); margin: 15px 0;">
+            <button class="btn-contacto" style="background: var(--naranja); box-shadow: 0 4px 10px rgba(255, 107, 0, 0.4);" onclick="window.iniciarTourTopografia(); document.getElementById('modal-soporte').classList.remove('activo');">🎓 Ver Tutorial Interactivo en Pantalla</button>
+        </div>
+    </div>
+
+    <!-- PASO A PASO / TOUR GUIADO -->
+    <div id="tour-overlay"></div>
+    <div id="tour-topo-step-1" class="tour-tooltip">
+        <h3 style="color: var(--naranja); font-weight: 900; font-size: 14px; text-transform: uppercase; margin: 0;">Paso 1: Radar GPS</h3>
+        <p style="font-size: 12px; color: #ddd; margin: 0;">Muestra la precisión del satélite en vivo. Para fijar mojones de calidad, procura que el indicador esté en verde (±4m o menos).</p>
+        <button class="btn-tour" onclick="window.avanzarTourTopografia(2)">Siguiente</button>
+    </div>
+
+    <div id="tour-topo-step-2" class="tour-tooltip">
+        <h3 style="color: var(--naranja); font-weight: 900; font-size: 14px; text-transform: uppercase; margin: 0;">Paso 2: Punto de Ancla (P1)</h3>
+        <p style="font-size: 12px; color: #ddd; margin: 0;">Párate físicamente en la primera esquina de tu lote y presiona este botón para anclar tu punto de partida georreferenciado.</p>
+        <button class="btn-tour" onclick="window.avanzarTourTopografia(3)">Siguiente</button>
+    </div>
+
+    <div id="tour-topo-step-3" class="tour-tooltip">
+        <h3 style="color: var(--naranja); font-weight: 900; font-size: 14px; text-transform: uppercase; margin: 0;">Paso 3: Navegación Elástica</h3>
+        <p style="font-size: 12px; color: #ddd; margin: 0;">Camina hacia el siguiente vértice; una línea verde te seguirá a 60 FPS. Mide con cinta métrica y pulsa 'Marcar Mojón' para asentar la distancia física.</p>
+        <button class="btn-tour" onclick="window.avanzarTourTopografia(4)">Siguiente</button>
+    </div>
+
+    <div id="tour-topo-step-4" class="tour-tooltip">
+        <h3 style="color: var(--naranja); font-weight: 900; font-size: 14px; text-transform: uppercase; margin: 0;">Paso 4: Herramientas CAD y PDF</h3>
+        <p style="font-size: 12px; color: #ddd; margin: 0;">Inserta notas flotantes con '+ Texto', subdivide lotes internos con '📐 Lotes', y al cerrar en P1 pulsa 'PDF' para exportar tu lámina catastral oficial.</p>
+        <button class="btn-tour" onclick="window.avanzarTourTopografia(5)">Siguiente</button>
+    </div>
+
+    <div id="tour-topo-step-5" class="tour-tooltip">
+        <h3 style="color: var(--naranja); font-weight: 900; font-size: 14px; text-transform: uppercase; margin: 0;">Paso 5: Llave Maestra 🔑</h3>
+        <p style="font-size: 12px; color: #ddd; margin: 0;">Toca la llave para iniciar sesión, respaldar tus planos en la nube, consultar el FAQ o repetir este tutorial cuando quieras.</p>
+        <button class="btn-tour" onclick="window.finalizarTourTopografia()">¡Empezar a Medir!</button>
+    </div>
+
+    <!-- LÁMINA VECTORIAL DE SALIDA PARA IMPRESIÓN Y RADICACIÓN OFICIAL -->
     <section id="lamina-catastral-print">
         <div class="marco-plano-exterior">
             <svg class="norte-simbolo-print" viewBox="0 0 100 100">
@@ -129,6 +383,10 @@
             </div>
 
             <div style="margin-bottom: 4mm;">
+                <div style="display: flex; justify-content: space-between; font-family: monospace; font-size: 8pt; margin-bottom: 1.5mm;">
+                    <span><b>CUADRO TÉCNICO DE CONSTRUCCIÓN</b></span>
+                    <span>SISTEMA DE COORDENADAS: <b id="rot-tabla-crs">ORIGEN NACIONAL CTM12 (EPSG: 9377)</b></span>
+                </div>
                 <table class="tabla-coordenadas-print" id="tabla-print-inyeccion">
                     <thead>
                         <tr style="background: #eee;">
@@ -147,13 +405,18 @@
             <div class="rotulo-linderos-texto">
                 <strong style="display: block; font-size: 8pt; text-transform: uppercase; margin-bottom: 1mm;">Descripción Técnica de Linderos y Colindancias:</strong>
                 <span id="rot-memoria-linderos">Esperando cierre de poligonal...</span>
+                <p style="margin: 2mm 0 0 0; font-size: 6.5pt; color: #444; border-top: 0.5px dashed #888; padding-top: 1.5mm; font-style: italic;">
+                    <b>AVISO LEGAL:</b> Plano topográfico de referencia física levantado mediante estación móvil Geokatu CAD. No reemplaza un dictamen pericial judicial ni la delimitación de resguardos o predios litigiosos si la normativa local exige visado colegiado obligatorio.
+                </p>
             </div>
+
 
             <footer class="rotulo-catastral">
                 <div class="rotulo-celda">
-                    <strong style="display: block; font-size: 9pt;">PLANO TOPOGRÁFICO DE LINDEROS</strong>
+                    <strong style="display: block; font-size: 9pt;" id="rot-nombre-plano">PLANO TOPOGRÁFICO DE LINDEROS</strong>
                     <span>PROPIETARIO / SOLICITANTE: <b id="rot-propietario">PARTICULAR</b></span><br>
-                    <span>MUNICIPIO / DEPARTAMENTO: <b id="rot-municipio">PEREIRA, RISARALDA</b></span>
+                    <span>MUNICIPIO / DEPARTAMENTO: <b id="rot-municipio">PEREIRA, RISARALDA</b></span><br>
+                    <span>DATUM / PROYECCIÓN: <b id="rot-crs">ORIGEN NACIONAL CTM12 (EPSG: 9377)</b></span>
                 </div>
                 <div class="rotulo-celda">
                     <span>ÁREA TOTAL: <b id="rot-area">0.00 m²</b></span><br>
@@ -168,26 +431,10 @@
         </div>
     </section>
 
-    <!-- CONTROLADOR DEL MENÚ DESPLEGABLE -->
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const btnMenu = document.getElementById('btn-toggle-menu-opciones');
-            const menuDrop = document.getElementById('menu-opciones-topografia');
-
-            if (btnMenu && menuDrop) {
-                btnMenu.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    menuDrop.classList.toggle('activo');
-                });
-
-                document.addEventListener('click', (e) => {
-                    if (!menuDrop.contains(e.target) && e.target !== btnMenu) {
-                        menuDrop.classList.remove('activo');
-                    }
-                });
-            }
-        });
-    </script>
-    <script type="module" src="topografia.js"></script>
+    <!-- SCRIPTS MODULARES -->
+    <script type="module" src="./auth-mando.js"></script>
+    <script type="module" src="./topografia.js"></script>
 </body>
 </html>
+
+

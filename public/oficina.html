@@ -1,603 +1,1365 @@
 <!DOCTYPE html>
+
 <html lang="es">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Oficina de Control y Operaciones | GEOKATU</title>
-    
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<title>Consola de Control y Bóveda Comercial | GEOKATU</title>
+
+
+<!-- Hojas de Estilo Base -->
     <link rel="stylesheet" href="admin-boveda.css">
-    <style>
-        .oficina-kpi-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-            gap: var(--sp-sm);
-            margin-bottom: var(--sp-md);
-        }
-        .kpi-card {
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid var(--glass-border);
-            border-radius: 13px;
-            padding: var(--sp-sm);
-            text-align: center;
-        }
-        .kpi-card .valor {
-            font-size: 20px;
-            font-weight: 900;
-            font-family: monospace;
-            margin-top: 4px;
-            display: block;
-        }
-        .badge-alerta-urgente {
-            background: rgba(255, 68, 68, 0.2);
-            color: #ff4444;
-            border: 1px solid rgba(255, 68, 68, 0.4);
-            padding: 2px 6px;
-            border-radius: 6px;
-            font-size: 10px;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-        .incidente-item {
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid var(--glass-border);
-            border-left: 3px solid #ff4444;
-            border-radius: 10px;
-            padding: 12px;
-            margin-bottom: 8px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        .tarea-item {
-            background: rgba(0, 0, 0, 0.3);
-            border: 1px solid var(--glass-border);
-            border-left: 3px solid var(--naranja);
-            border-radius: 10px;
-            padding: 10px 14px;
-            margin-bottom: 8px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-    </style>
+    <link rel="stylesheet" href="pines.css">
+    <link rel="stylesheet" href="./maplibre-gl.css">
+
+
+
+<!-- Librerías Externas del Ecosistema -->
+
+<script src="./maplibre-gl.js"></script>
+
+<script src="./pmtiles.js"></script>
+
+<script src="./html5-qrcode.min.js"></script>
+
+<script type="text/javascript" src="https://checkout.wompi.co/widget.js"></script>
+
+
+
+<style>
+
+.oficina-kpi-grid {
+
+display: grid;
+
+grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+
+gap: var(--sp-sm, 10px);
+
+margin-bottom: var(--sp-md, 15px);
+
+}
+
+.kpi-card {
+
+background: rgba(0, 0, 0, 0.4);
+
+border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+
+border-radius: 13px;
+
+padding: 12px;
+
+text-align: center;
+
+}
+
+.kpi-card .valor {
+
+font-size: 19px;
+
+font-weight: 900;
+
+font-family: monospace;
+
+margin-top: 4px;
+
+display: block;
+
+}
+
+.badge-alerta-urgente {
+
+background: rgba(255, 68, 68, 0.2);
+
+color: #ff4444;
+
+border: 1px solid rgba(255, 68, 68, 0.4);
+
+padding: 2px 6px;
+
+border-radius: 6px;
+
+font-size: 10px;
+
+font-weight: bold;
+
+text-transform: uppercase;
+
+}
+
+.incidente-item {
+
+background: rgba(0, 0, 0, 0.4);
+
+border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+
+border-left: 3px solid #ff4444;
+
+border-radius: 10px;
+
+padding: 12px;
+
+margin-bottom: 8px;
+
+display: flex;
+
+flex-direction: column;
+
+gap: 6px;
+
+}
+
+.tarea-item {
+
+background: rgba(0, 0, 0, 0.3);
+
+border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+
+border-left: 3px solid var(--naranja, #ff6b00);
+
+border-radius: 10px;
+
+padding: 10px 14px;
+
+margin-bottom: 8px;
+
+display: flex;
+
+justify-content: space-between;
+
+align-items: center;
+
+}
+
+</style>
+
 </head>
+
+
+
 <body class="boveda-ui">
 
-    <!-- PANTALLA DE ACCESO -->
-    <div id="login-screen" style="display: none;">
-        <div class="panel-login">
-            <div class="logo-login">GEO<span>KATU</span></div>
-            <div class="sub-logo">Consola de Mando y Oficina</div>
-            <button class="btn-google" onclick="window.iniciarSesionGoogle()">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" width="18" height="18" alt="G">
-                Acceder como Administrador
-            </button>
-            <p style="text-align: center; font-size: 11px; color: #666; margin: 0;">Exclusivo para dueños y supervisores asignados.</p>
+
+
+<!-- FASE 1: ADN Y BRANDING DEL PIN -->
+    <div id="fase-1-pin" style="display: none; position: fixed; inset: 0; z-index: 100000; background: var(--bg-oscuro); overflow-y: auto;">
+        <div style="padding: 15px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.05); background: var(--bg-oscuro); position: sticky; top: 0; z-index: 10;">
+            <h3 style="color: white; margin: 0; font-size: 14px;">PASO 1: ADN Y BRANDING</h3>
+            <div style="display: flex; gap: 5px; margin-top: 10px; justify-content: center;">
+                <div style="width: 20px; height: 5px; background: var(--naranja); border-radius: 5px;"></div>
+                <div style="width: 20px; height: 5px; background: rgba(255,255,255,0.2); border-radius: 5px;"></div>
+            </div>
+        </div>
+
+        <div class="foco-onboarding" data-titulo-ob="CREA EL ADN DE TU PIN" style="width: 90% !important; max-width: 400px !important; margin: 4vh auto !important;">
+            <p style="font-size: 11px; color: #888; text-align: center; margin-top: 0; margin-bottom: 20px;">Diseña la forma, animación y colores institucionales.</p>
+            
+            <div style="background: #000; border-radius: 16px; padding: 25px; text-align: center; margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.05); position: relative;">
+                <input type="file" id="file-pin" accept="image/*" style="display:none;" onchange="window.cargarPreviewPin(this)">
+                <div id="pin-live-preview" class="pin-wrapper anim-salto" data-forma="forma-gota" style="--color-main: #ff6b00; cursor: pointer;" onclick="document.getElementById('file-pin').click()">
+                    <svg class="svg-pin-fondo" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M 30,57 C 30,57 10,38 10,20 C 10,9 19,3 30,3 C 41,3 50,9 50,20 C 50,38 30,57 30,57 Z" />
+                    </svg>
+                    <span class="texto-centro-masa" style="display: flex;">FOTO<br>PIN</span>
+                    <img id="img-live-preview" class="img-pin-interior" src="" style="display: none;">
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 15px;">
+                <select id="select-forma" class="input-form" onchange="window.actualizarPinLive()" style="margin-bottom:0; font-size: 12px; padding: 10px !important;">
+                    <option value="forma-gota" selected>Gota Clásica</option>
+                    <option value="forma-esfera">Esfera Perfecta</option>
+                    <option value="forma-triangulo">Triángulo</option>
+                    <option value="forma-estrella">Estrella ⭐</option>
+                    <option value="forma-hexagono">Hexágono ⬡</option>
+                    <option value="forma-corazon">Corazón ❤️</option>
+                    <option value="forma-arbol">Pino 🌲</option>
+                    <option value="forma-hongo">Hongo 🍄</option>
+                    <option value="forma-paleta">Paleta 🍭</option>
+                </select>
+                <select id="select-animacion" class="input-form" onchange="window.actualizarPinLive()" style="margin-bottom:0; font-size: 12px; padding: 10px !important;">
+                    <option value="anim-salto" selected>Salto</option>
+                    <option value="anim-pulso">Pulso</option>
+                    <option value="anim-giro">Giro</option>
+                    <option value="sin-animacion">Fijo</option>
+                </select>
+                <select id="select-efecto" class="input-form" onchange="window.actualizarPinLive()" style="margin-bottom:0; font-size: 12px; padding: 10px !important;"></select>
+            </div>
+
+            <button id="btn-siguiente-fase" class="btn-submit" style="margin-top:0;" onclick="window.guardarPaso1ADN()">Siguiente Paso ➡️</button>
         </div>
     </div>
 
-    <!-- PANTALLA PRINCIPAL DE OFICINA -->
-    <main id="dashboard-screen" style="display: none; height: 100vh; flex-direction: column; overflow-y: auto; max-width: 550px; margin: 0 auto;">
+    <!-- FASE 2: SANDBOX GEOESPACIAL Y SELLADO -->
+    <div id="fase-mapa-sandbox" style="display: none; position: fixed; inset: 0; z-index: 50; background: var(--bg-oscuro); flex-direction: column;">
+        <div style="padding: 15px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.05); background: var(--bg-oscuro); position: sticky; top: 0; z-index: 10;">
+            <h3 style="color: white; margin: 0; font-size: 14px;">PASO 2: IDENTIDAD Y UBICACIÓN</h3>
+        </div>
+
+        <div style="flex: 1; padding: 0 15px 20px 15px; width: 100%; box-sizing: border-box; display: flex; flex-direction: column;">
+            <div class="contenedor-mapa-curvo" style="flex: 1; position: relative;">
+                <div class="buscador-inmersivo-wrapper" style="top: 15px; width: 90%; max-width: 400px; left: 50%; transform: translateX(-50%); position: absolute; z-index: 100; display: flex; gap: 8px;">
+                    <div style="position: relative; flex: 1; display: flex;">
+                        <input type="text" id="wiz-direccion-inteligente" class="buscador-inmersivo" style="padding-right: 40px; margin: 0; width: 100%;" placeholder="Busca tu dirección..." onkeypress="if(event.key==='Enter') window.buscarDireccionWizard()">
+                        <button type="button" onclick="window.buscarDireccionWizard()" class="btn-lupa-inmersiva" style="right: 5px; position: absolute; background: transparent; border: none; font-size: 18px; top: 50%; transform: translateY(-50%);">🔍</button>
+                    </div>
+                    <button type="button" id="btn-geo-wiz" onclick="window.obtenerUbicacionActualWizard()" style="background-color: rgba(10,10,15,0.85); border: 1px solid rgba(255,255,255,0.2); border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0;">
+                        📍
+                    </button>
+                </div>
+                <div id="mapa-onboarding" style="width: 100%; height: 100%;"></div>
+            </div>
+
+            <!-- SELECTOR DE PAÍS / SISTEMA POS -->
+            <div style="margin-top: 10px; display: flex; gap: 8px; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.5); padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(255,107,0,0.3);">
+                <span style="font-size: 11px; color: #fff; text-transform: uppercase; font-weight: bold;">País y Régimen POS:</span>
+                <select id="wiz-pais-comercio" class="input-form" style="margin: 0; width: auto; font-size: 11px; padding: 6px 10px !important;">
+                    <option value="COL" selected>🇨🇴 Colombia (Pesos / DIAN)</option>
+                    <option value="VEN">🇻🇪 Venezuela (Dólar / Multidivisa)</option>
+                </select>
+            </div>
+
+            <button id="btn-guardar-paso-2" class="btn-submit" style="margin-top: 10px !important;" onclick="window.guardarPaso2Ubicacion()">Sellar Bóveda y Finalizar ➡️</button>
+
+        </div>
+    </div>
+
+
+
+
+
+
+<!-- PANTALLA DE ACCESO Y AUTENTICACIÓN -->
+
+<div id="login-screen" style="display: none;">
+
+<div class="panel-login">
+
+<div class="logo-login">GEO<span>KATU</span></div>
+
+<div class="sub-logo">Consola de Mando y Oficina</div>
+
+<button class="btn-google" onclick="window.iniciarSesionGoogle()">
+
+<img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" width="18" height="18" alt="G">
+
+Acceder como Administrador
+
+</button>
+
+<p style="text-align: center; font-size: 11px; color: #666; margin: 0;">Exclusivo para dueños y supervisores asignados.</p>
+
+</div>
+
+</div>
+
+
+
+<!-- INPUTS OCULTOS DE CARGA DIRECTA -->
+
+<input type="file" id="file-portada" accept="image/*" style="display:none;" onchange="window.subirImagenDirecta('portada', this)">
+
+<input type="file" id="file-logo" accept="image/*" style="display:none;" onchange="window.subirImagenDirecta('logo', this)">
+
+<input type="file" id="file-nombre-png" accept="image/*" style="display:none;" onchange="window.subirImagenDirecta('nombre_png', this)">
+
+
+
+
+
+<!-- PANTALLA PRINCIPAL: DASHBOARD -->
+
+<main id="dashboard-screen" style="display: none; height: 100vh; flex-direction: column; overflow-y: auto; max-width: 550px; margin: 0 auto; position: relative;">
+
+
+<!-- CABECERA FLOTANTE DE IDENTIDAD -->
+
+<header class="panel-admin" style="position: relative; z-index: 100; flex-shrink: 0; border-radius: 0 0 21px 21px; margin-bottom: 10px;">
+
+<button class="btn-opciones-cabecera" onclick="document.getElementById('menu-cabecera-principal').classList.toggle('activo')" title="Módulos del Sistema">⋮</button>
+
+<div id="menu-cabecera-principal" class="menu-cabecera-dropdown">
+
+<button onclick="window.abrirTerminalPOS()">Punto de Venta (POS)</button>
+
+<button onclick="window.open('stock', '_blank')">Bodega y Recepción</button>
+
+<button onclick="window.open('inventario', '_blank')">Inventario y Mapa de Piso</button>
+
+<button onclick="window.open('mapatienda', '_blank')">Editor de Góndolas SIG</button>
+
+<button onclick="window.open('admin-gerencial', '_blank')">Control de Cajas</button>
+
+<button onclick="window.open('negocio?id=' + window.idNegocioLogueado, '_blank')">Catálogo Público</button>
+
+<button onclick="window.location.href='/'">Radar Ciudad</button>
+
+<button onclick="window.cerrarSesionOficina()" style="color: #ff4444; border-top: 1px solid rgba(255,255,255,0.08);">Cerrar Sesión</button>
+
+</div>
+
+
+
+
+
+<div class="oficina-header" style="border: none; margin: 0; padding: 0; display: flex; align-items: center; gap: 12px;">
+
+<img id="ui-logo" src="" class="oficina-logo" style="display: none; background: var(--bg-oscuro);">
+
+<div class="oficina-info" style="flex: 1;">
+
+<div style="display: flex; align-items: center; gap: 8px;">
+
+<img id="ui-nombre-png" src="" alt="Logotipo Tipográfico" style="display: none; max-height: 28px; max-width: 170px; object-fit: contain;">
+
+<h3 id="ui-nombre" style="margin: 0; font-size: 18px; color: white;">CARGANDO COMERCIO...</h3>
+
+<button type="button" onclick="document.getElementById('file-nombre-png').click()" title="Cargar tipografía PNG" style="background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border); color: #aaa; border-radius: 6px; padding: 2px 6px; font-size: 11px; cursor: pointer;">🏷️</button>
+
+</div>
+
+<div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
+
+
+
+<span id="ofi-estado-cuenta" class="badge-plan">ESTADO: ACTIVO</span>
+
+<span id="ofi-uid-badge" style="font-size: 10px; color: #888; font-family: monospace;">---</span>
+
+</div>
+
+<div id="billing-alert-container" style="margin-top: 6px;"></div>
+
+</div>
+
+</div>
+
+</header>
+
+
+
+
+
+<!-- BARRA DE PESTAÑAS (TABS) -->
+
+<nav class="tabs" style="flex-shrink: 0; margin: 0 15px 15px 15px;">
+
+<button class="tab-btn activo" onclick="window.cambiarTab('kpis')">📊 Métricas</button>
+
+<button class="tab-btn" onclick="window.cambiarTab('inventario')"> Catálogo</button>
+
+<button class="tab-btn" onclick="window.cambiarTab('ajustes')">⚙️ Perfil & PIN</button>
+
+<button class="tab-btn" onclick="window.cambiarTab('operaciones')"> Operaciones</button>
+
+<button class="tab-btn" onclick="window.cambiarTab('equipo')" id="tab-btn-equipo">👥 Personal</button>
+
+</nav>
+
+
+
+<!-- PESTAÑA 1: RESUMEN OPERATIVO & KPIS -->
+
+<section id="content-kpis" class="tab-content activo" style="padding: 15px; margin: 0 15px;">
+
+<label class="section-title">Resumen Operativo en Tiempo Real</label>
+
+<div class="oficina-kpi-grid">
+
+<div class="kpi-card">
+
+<span style="font-size: 11px; color: #888; text-transform: uppercase;">Ventas del Día</span>
+
+<strong class="valor" id="kpi-ventas-dia" style="color: #00ff64;">$0</strong>
+
+</div>
+
+<div class="kpi-card">
+
+<span style="font-size: 11px; color: #888; text-transform: uppercase;">Tickets Emitidos</span>
+
+<strong class="valor" id="kpi-tickets-cant" style="color: #60a5fa;">0</strong>
+
+</div>
+
+<div class="kpi-card">
+
+<span style="font-size: 11px; color: #888; text-transform: uppercase;">Artículos Activos</span>
+
+<strong class="valor" id="kpi-articulos-total">0</strong>
+
+</div>
+
+<div class="kpi-card">
+
+<span style="font-size: 11px; color: #888; text-transform: uppercase;">Incidencias</span>
+
+<strong class="valor" id="kpi-alertas-activas" style="color: #ffaa00;">0</strong>
+
+</div>
+
+</div>
+
+
+
+<div class="panel-operaciones-bloque" style="margin-top: 10px;">
+
+<h4 style="margin: 0 0 8px 0; font-size: 12px; color: #bbb; text-transform: uppercase;">Estado de Sincronización Fiscal</h4>
+
+<p id="txt-estado-fiscal-siigo" style="font-size: 12px; color: #aaa; margin: 0;">
+
+Consultando enlace con DIAN / Siigo...
+
+</p>
+
+</div>
+
+</section>
+
+
+
+<!-- PESTAÑA 2: CATÁLOGO ACTIVO Y ARTÍCULOS -->
+
+<section id="content-inventario" class="tab-content" style="display: none; padding: 15px; margin: 0 15px; position: relative;">
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+
+<label class="section-title" style="margin: 0;">Catálogo de Productos</label>
+
+<button type="button" class="btn-submit" style="margin: 0; padding: 8px 14px !important; font-size: 11px; width: auto; background: var(--naranja);" onclick="window.abrirBottomSheet()">
+
++ Nuevo Artículo
+
+</button>
+
+</div>
+
+
+
+<div style="display: flex; gap: 8px; margin-bottom: 12px;">
+
+<input type="text" id="filtro-busqueda" class="input-form" placeholder="Buscar artículo..." style="margin-bottom: 0; flex: 2;" onkeyup="window.manejarBusquedaTeclado(event)">
+
+<select id="filtro-categoria" class="input-form" style="margin-bottom: 0; flex: 1;" onchange="window.filtrarCatalogo()">
+
+<option value="">Todas las Categorías</option>
+
+</select>
+
+</div>
+
+
+
+<div id="lista-productos-container" class="grilla-productos"></div>
+
+
+<button id="btn-cargar-mas" class="btn-submit" style="display: none; background: transparent; border: 1px dashed var(--naranja); color: var(--naranja); box-shadow: none; margin-top: 15px;" onclick="window.cargarMasProductos()">
+
+⬇️ Cargar más
+
+</button>
+
+</section>
+
+
+
+<!-- PESTAÑA 3: PERFIL GEOSPACIAL, GPS Y PIN -->
+
+<section id="content-ajustes" class="tab-content" style="display: none; flex-direction: column; flex-grow: 1; padding: 0; margin: 0 15px 15px 15px; min-height: 400px; position: relative;">
+
+<div class="contenedor-mapa-curvo" style="flex: 1; display: flex; flex-direction: column; position: relative; min-height: 380px;">
+
+<div class="buscador-inmersivo-wrapper" style="display: flex; gap: 8px; align-items: center;">
+
+<div style="position: relative; flex: 1; display: flex;">
+
+<input type="text" id="perfilDireccion" class="buscador-inmersivo" style="padding-right: 40px; margin: 0; width: 100%; box-sizing: border-box;" placeholder="Buscar dirección o punto..." onkeypress="if(event.key==='Enter') window.buscarDireccionSandbox('perfilDireccion', window.miniMapaPerfil, window.pinMiniMapaPerfil)">
+
+<button type="button" onclick="window.buscarDireccionSandbox('perfilDireccion', window.miniMapaPerfil, window.pinMiniMapaPerfil)" class="btn-lupa-inmersiva" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; justify-content: center; background: none; border: none; color: #aaa; cursor: pointer;">
+
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+
+</button>
+
+</div>
+
+<!-- Botón GPS Crosshair Vectorial -->
+
+<button type="button" id="btn-geo-perfil" onclick="window.obtenerUbicacionActualPerfil()" title="Obtener mi ubicación GPS" style="background-color: rgba(10,10,15,0.92); border: 1px solid rgba(255,107,0,0.4); border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.6); flex-shrink: 0; transition: transform 0.15s ease;">
+
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--naranja)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="12" cy="12" r="7"></circle>
+<line x1="12" y1="1" x2="12" y2="4"></line>
+<line x1="12" y1="20" x2="12" y2="23"></line>
+<line x1="1" y1="12" x2="4" y2="12"></line>
+<line x1="20" y1="12" x2="23" y2="12"></line>
+<circle cx="12" cy="12" r="2" fill="var(--naranja)"></circle>
+</svg>
+
+</button>
+
+</div>
+
+
+
+
+
+<div id="mini-mapa-perfil" style="width: 100%; height: 100%; min-height: 380px; background: #111;"></div>
+
+
+
+<button type="button" id="btn-master-lapiz-dashboard" onclick="window.toggleModoEdicionMinimalista()" title="Modo Edición" style="position: absolute; bottom: 20px; right: 15px; background: rgba(15, 15, 20, 0.9); color: var(--naranja); border: 1px solid var(--naranja); border-radius: 50%; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 6px 20px rgba(0,0,0,0.6); z-index: 50; transition: all 0.2s ease;">
+
+<svg id="svg-lapiz-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+
+</button>
+
+
+
+</div>
+
+
+<input type="hidden" id="perfilLat">
+
+<input type="hidden" id="perfilLng">
+
+</section>
+
+
+
+<!-- PESTAÑA 4: OPERACIONES & CONFIG. FISCAL -->
+
+<!-- PESTAÑA 4: OPERACIONES, TERMINALES & CONFIG. FISCAL -->
+        <section id="content-operaciones" class="tab-content" style="display: none; padding: 15px; margin: 0 15px; flex-direction: column; gap: 12px;">
+            <!-- Ecosistema Operativo Tripartito: POS, WMS Bodega, Visor y Plano SIG -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px;">
+                <div class="panel-operaciones-bloque" style="text-align: center; padding: 14px 10px; background: rgba(255,107,0,0.08); border-color: rgba(255,107,0,0.3);">
+                    <span style="font-size: 22px;">💳</span>
+                    <h4 style="margin: 4px 0; color: white; font-size: 11px; text-transform: uppercase;">Punto de Venta</h4>
+                    <button type="button" onclick="window.abrirTerminalPOS()" class="btn-submit" style="margin: 6px auto 0 auto; width: 100%; padding: 7px !important; font-size: 11px;">
+    Abrir POS
+</button>
+
+                </div>
+                <div class="panel-operaciones-bloque" style="text-align: center; padding: 14px 10px; border-color: rgba(255,107,0,0.4); background: rgba(255,107,0,0.05);">
+                    <span style="font-size: 22px;">👁️</span>
+                    <h4 style="margin: 4px 0; color: var(--naranja); font-size: 11px; text-transform: uppercase;">Visor de Piso</h4>
+                    <button type="button" onclick="window.open('visor-tienda', '_blank')" class="btn-submit" style="margin: 6px auto 0 auto; width: 100%; padding: 7px !important; font-size: 11px;">
+                        Abrir Radar
+                    </button>
+                </div>
+                <div class="panel-operaciones-bloque" style="text-align: center; padding: 14px 10px; border-color: rgba(0,255,100,0.3); background: rgba(0,255,100,0.05);">
+                    <span style="font-size: 22px;">📦</span>
+                    <h4 style="margin: 4px 0; color: #00ff64; font-size: 11px; text-transform: uppercase;">Terminal Stock</h4>
+                    <button type="button" onclick="window.open('stock', '_blank')" class="btn-submit" style="margin: 6px auto 0 auto; width: 100%; padding: 7px !important; font-size: 11px; background: #00ff64; color: black;">
+                        Abrir WMS
+                    </button>
+                </div>
+                <div class="panel-operaciones-bloque" style="text-align: center; padding: 14px 10px; border-color: rgba(96,165,250,0.3); background: rgba(96,165,250,0.05);">
+                    <span style="font-size: 22px;">🗺️</span>
+                    <h4 style="margin: 4px 0; color: #60a5fa; font-size: 11px; text-transform: uppercase;">Mapa Tienda</h4>
+                    <button type="button" onclick="window.open('mapatienda', '_blank')" class="btn-submit" style="margin: 6px auto 0 auto; width: 100%; padding: 7px !important; font-size: 11px; background: #2563eb;">
+                        Ver Plano SIG
+                    </button>
+                </div>
+            </div>
+
+            <!-- ENLACE A CONSOLA GERENCIAL DE CAJAS -->
+            <div class="panel-operaciones-bloque" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; border-color: rgba(96,165,250,0.3); background: rgba(96,165,250,0.06);">
+                <div>
+                    <h4 style="margin: 0 0 2px 0; color: #60a5fa; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Consola Gerencial y Cajas</h4>
+                    <p style="margin: 0; font-size: 10.5px; color: #aaa;">Arqueos X/Z, numeración de cajas físicas y auditoría avanzada.</p>
+                </div>
+                <button type="button" onclick="window.open('admin-gerencial', '_blank')" style="background: #2563eb; color: white; border: none; border-radius: 8px; padding: 8px 14px; font-size: 11px; font-weight: 800; cursor: pointer; white-space: nowrap;">
+                    Gestionar
+                </button>
+            </div>
+
+            <!-- AUDITORÍA DE STOCK EN CAJA -->
+            <div class="panel-operaciones-bloque">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <div>
+                        <h4 style="margin: 0; font-size: 12px; text-transform: uppercase; color: #ff4444;">Auditoría de Stock en Caja</h4>
+                        <span style="font-size: 10.5px; color: #888;">Desfases y ventas bajo cero reportadas</span>
+                    </div>
+                    <button type="button" onclick="window.cargarAlertasSeguridad()" style="background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border); color: #fff; padding: 5px 10px; border-radius: 6px; font-size: 10px; cursor: pointer;">
+                        Refrescar
+                    </button>
+                </div>
+                <div id="contenedor-alertas-lista">
+                    <p style="text-align: center; color: #666; padding: 10px 0; font-size: 11px;">Cargando incidentes...</p>
+                </div>
+            </div>
+
+            <!-- DATOS FISCALES & DIAN -->
+            <div class="panel-operaciones-bloque">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <div>
+                        <h4 style="margin: 0; color: white; font-size: 12px; text-transform: uppercase;">Datos Fiscales y DIAN</h4>
+                        <span style="font-size: 10.5px; color: #777;">Tirillas POS y enlace API Siigo Nube</span>
+                    </div>
+                    <button type="button" onclick="const f = document.getElementById('form-config-fiscal'); f.style.display = f.style.display === 'none' ? 'block' : 'none';" style="background: rgba(255,107,0,0.15); border: 1px solid var(--naranja); color: var(--naranja); border-radius: 6px; padding: 5px 10px; font-size: 10px; font-weight: bold; cursor: pointer;">
+                        Configurar
+                    </button>
+                </div>
+
+                <div id="form-config-fiscal" style="display: none; background: rgba(0,0,0,0.5); border: 1px dashed rgba(255,255,255,0.18); border-radius: 12px; padding: 12px; margin-bottom: 10px;">
+                    <div style="display: grid; grid-template-columns: 1fr 110px; gap: 8px;">
+                        <div>
+                            <label class="section-title" style="margin-bottom: 3px;">Razón Social</label>
+                            <input type="text" id="fisc-razon-social" class="input-form" placeholder="Ej: Inversiones S.A.S.">
+                        </div>
+                        <div>
+                            <label class="section-title" style="margin-bottom: 3px;">Tienda</label>
+                            <input type="text" id="fisc-codigo-tienda" class="input-form" placeholder="T-01" style="font-family: monospace; font-weight: bold; text-align: center; text-transform: uppercase;">
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 50px 110px; gap: 8px;">
+                        <div>
+                            <label class="section-title" style="margin-bottom: 3px;">NIT</label>
+                            <input type="text" id="fisc-nit" class="input-form" placeholder="901234567" oninput="this.value = this.value.replace(/\D/g, '')">
+                        </div>
+                        <div>
+                            <label class="section-title" style="margin-bottom: 3px;">DV</label>
+                            <input type="text" id="fisc-dv" maxlength="1" class="input-form" placeholder="0" style="text-align: center; font-family: monospace; font-weight: bold;">
+                        </div>
+                        <div>
+                            <label class="section-title" style="margin-bottom: 3px;">Régimen</label>
+                            <select id="fisc-regimen" class="input-form">
+                                <option value="RESPONSABLE_IVA">Resp. IVA</option>
+                                <option value="NO_RESPONSABLE_IVA">No Resp.</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <label class="section-title" style="margin-bottom: 3px;">Dirección Ticket</label>
+                    <input type="text" id="fisc-direccion" class="input-form" placeholder="Ej: Cra 7 # 19-28, Pereira">
+
+                    <hr style="border-color: rgba(255,255,255,0.06); margin: 8px 0;">
+
+                    <strong style="font-size: 10.5px; color: #60a5fa; text-transform: uppercase;">Credenciales Siigo (Opcional)</strong>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px;">
+                        <input type="email" id="fisc-siigo-user" class="input-form" placeholder="Usuario API">
+                        <input type="password" id="fisc-siigo-key" class="input-form" placeholder="API Key">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+                        <input type="number" id="fisc-siigo-doc-id" class="input-form" placeholder="ID Comprobante">
+                        <input type="number" id="fisc-siigo-iva-id" class="input-form" placeholder="ID IVA">
+                    </div>
+
+                    <!-- SELECTOR DE PAÍS / SISTEMA POS -->
+                    <div style="margin-bottom: 12px; background: rgba(0,0,0,0.3); padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,107,0,0.25);">
+                        <label class="section-title" style="margin-bottom: 4px; color: var(--naranja);">País y Régimen POS</label>
+                        <select id="fisc-pais-comercio" class="input-form" style="margin-bottom: 0;">
+                            <option value="COL">🇨🇴 Colombia (Pesos COP / DIAN)</option>
+                            <option value="VEN">🇻🇪 Venezuela (Dólar USD / Multidivisa)</option>
+                        </select>
+                    </div>
+
+                    <button type="button" id="btn-guardar-fiscal" class="btn-submit" style="margin: 0; background: #2563eb; padding: 10px !important;" onclick="window.guardarConfiguracionFiscal()">
+                        Guardar Perfil Fiscal
+                    </button>
+
+                </div>
+
+                <div id="resumen-fiscal-render" style="font-size: 11px; color: #aaa; background: rgba(0,0,0,0.25); padding: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.04);">
+                    Cargando perfil fiscal...
+                </div>
+            </div>
+        </section>
+
+
+
+
+<!-- PESTAÑA 5: PERSONAL Y TAREAS INTERNAS -->
+
+<section id="content-equipo" class="tab-content" style="display: none; padding: 15px; margin: 0 15px; flex-direction: column; gap: 15px;">
+
+<div class="panel-operaciones-bloque">
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+
+<div>
+
+<h4 style="margin: 0; font-size: 13px; text-transform: uppercase; color: white;">Operarios Registrados</h4>
+
+<span style="font-size: 11px; color: #888;">Cajeros y personal con PIN asignado</span>
+
+</div>
+
+<button type="button" onclick="const f = document.getElementById('form-nuevo-colaborador'); f.style.display = f.style.display === 'none' ? 'block' : 'none';" style="background: var(--naranja); color: white; border: none; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: bold; cursor: pointer;">
+
++ Nuevo Operario
+
+</button>
+
+</div>
+
+
+
+<div id="form-nuevo-colaborador" style="display: none; background: rgba(0,0,0,0.5); border: 1px dashed rgba(255,107,0,0.4); border-radius: 13px; padding: 14px; margin-bottom: 14px;">
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+
+<input type="text" id="emp-nuevo-nombre" class="input-form" placeholder="Nombre completo">
+
+<input type="tel" id="emp-nuevo-tel" class="input-form" placeholder="Teléfono" oninput="this.value = this.value.replace(/\D/g, '')">
+
+</div>
+
+<input type="email" id="emp-nuevo-email" class="input-form" placeholder="correo@comercio.com">
+
+
+<div style="display: grid; grid-template-columns: 1fr 110px; gap: 8px;">
+
+<div style="position: relative;">
+
+<input type="text" id="emp-nuevo-pass" class="input-form" placeholder="Clave inicial" style="font-family: monospace;">
+
+<button type="button" onclick="window.generarPasswordSugerida()" style="position: absolute; right: 8px; top: 10px; background: none; border: none; color: #00ff64; font-size: 10px; font-weight: bold; cursor: pointer;">Sugerir</button>
+
+</div>
+
+<div style="position: relative;">
+
+<input type="text" id="emp-nuevo-codigo" maxlength="4" class="input-form" placeholder="PIN (4D)" style="font-family: monospace; text-align: center; font-weight: 900; color: var(--naranja);" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+
+<button type="button" onclick="window.generarPinEmpleado()" style="position: absolute; right: 6px; top: 10px; background: none; border: none; color: var(--naranja); font-size: 10px; font-weight: bold; cursor: pointer;">Auto</button>
+
+</div>
+
+</div>
+
+
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
+
+<select id="emp-nuevo-rol" class="input-form" style="margin-bottom: 0;">
+
+<option value="cajero" selected>Cajero POS</option>
+
+<option value="asesor">Asesor de Ventas</option>
+
+<option value="operador_bodega">Operario de Bodega</option>
+
+<option value="visual_merchandising">Visual Merchandising</option>
+
+<option value="supervisor_pos">Supervisor</option>
+
+<option value="administrador_delegado">Administrador Delegado</option>
+
+</select>
+
+
+
+<select id="emp-nuevo-almacen" class="input-form" style="margin-bottom: 0;">
+
+<option value="SALA_VENTAS" selected>Sede Principal</option>
+
+<option value="BODEGA_CENTRAL">Bodega Central</option>
+
+</select>
+
+</div>
+
+
+
+<button type="button" id="btn-crear-empleado" class="btn-submit" style="margin: 0;" onclick="window.registrarEmpleado()">
+
+Registrar Operario
+
+</button>
+
+</div>
+
+
+
+<div id="cajeros-render">
+
+<p style="text-align: center; color: #666; font-size: 11px;">Cargando personal...</p>
+
+</div>
+
+</div>
+
+
+
+<div class="panel-operaciones-bloque">
+
+<label class="section-title" style="margin-bottom: 6px;">Asignar Tarea o Comunicado</label>
+
+<input type="text" id="tarea-titulo" class="input-form" placeholder="Ej: Conciliar anaquel de bebidas">
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+
+<select id="tarea-destinatario" class="input-form">
+
+<option value="TODOS">📢 Para todo el personal</option>
+
+</select>
+
+<select id="tarea-prioridad" class="input-form">
+
+<option value="NORMAL">Normal</option>
+
+<option value="URGENTE">⚠️ Urgente</option>
+
+</select>
+
+</div>
+
+<button type="button" class="btn-submit" onclick="window.crearTareaInterna()" style="margin: 0 0 15px 0;">
+
+Publicar Tarea
+
+</button>
+
+
+
+<label class="section-title">Tareas en Curso</label>
+
+<div id="contenedor-tareas-lista">
+
+<p style="text-align: center; color: #666; font-size: 11px;">Cargando tareas...</p>
+
+</div>
+
+</div>
+
+</section>
+
+</main>
+
+
+
+<!-- MODAL 1: CONCILIACIÓN FÍSICA EN ANAQUEL -->
+
+<div id="modal-conciliacion" class="bottom-sheet-overlay" style="display: none;">
+
+<div class="bottom-sheet activo" style="max-width: 420px; margin: 0 auto; border-radius: 20px 20px 0 0;">
+
+<div class="bottom-sheet-header">
+
+<div class="bottom-sheet-drag"></div>
+
+<h3 class="bottom-sheet-titulo">Conciliar Stock Físico</h3>
+
+<button type="button" class="bottom-sheet-cerrar" onclick="window.cerrarModalConciliacion()">✖</button>
+
+</div>
+
+<div class="bottom-sheet-content">
+
+<p style="font-size: 11.5px; color: #aaa; margin: 0 0 10px 0;">
+
+Ingresa las unidades reales contadas en anaquel para ajustar Kardex.
+
+</p>
+
+<input type="hidden" id="concilia-alerta-id">
+
+<input type="hidden" id="concilia-prod-id">
+
+
+
+<div style="background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); padding: 10px; border-radius: 10px; font-size: 12px; margin-bottom: 12px;">
+
+<strong id="concilia-prod-nombre" style="color: white; display: block;">---</strong>
+
+<span id="concilia-prod-desfase" style="color: #ff4444; font-family: monospace;">---</span>
+
+</div>
+
+
+
+<label class="section-title" style="margin-bottom: 4px;">Conteo Real Contado:</label>
+
+<input type="number" id="concilia-stock-real" step="any" min="0" class="input-form" placeholder="Cantidad física real" style="font-size: 18px; font-family: monospace; font-weight: bold; color: #00ff64; text-align: center;">
+
+
+
+<label class="section-title" style="margin-bottom: 4px;">Motivo del Reajuste:</label>
+
+<input type="text" id="concilia-motivo" class="input-form" placeholder="Ej: Conteo físico tras auditoría">
+
+
+
+<div style="display: flex; gap: 8px; margin-top: 10px;">
+
+<button type="button" class="btn-submit" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); color: #ccc;" onclick="window.cerrarModalConciliacion()">Cancelar</button>
+
+<button type="button" class="btn-submit" style="background: #00ff64; color: #000;" onclick="window.ejecutarConciliacionAlerta()">Confirmar Ajuste</button>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+
+<!-- MODAL 3: BRANDING Y PALETA DE COLOR -->
+
+<div id="modal-diseno-pin-branding" class="velo-inmersivo" style="display: none; align-items: center; justify-content: center;" onclick="if(event.target === this) window.cerrarModalEdicionPinBranding()">
+
+<div class="foco-onboarding" data-titulo-ob="ADN Y BRANDING" style="position: relative; width: 90% !important; max-width: 380px !important;">
+
+<button type="button" id="btn-guardar-edicion-branding" class="btn-diskette-biselado" onclick="window.procesarGuardadoPinBrandingModal()" title="Guardar Cambios de Branding" style="position: absolute; top: 14px; right: 14px; z-index: 20;">
+
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--naranja)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+    <polyline points="7 3 7 8 15 8"></polyline>
+</svg>
+
+</button>
+
+
+<p style="font-size: 11px; color: #888; text-align: center; margin: 0 0 15px 0;">Forma, animación y paleta áurea de tu marca.</p>
+
+
+
+<div style="background: #000; border-radius: 12px; padding: 15px; text-align: center; margin-bottom: 12px; border: 1px solid var(--glass-border); position: relative;">
+
+<input type="file" id="edit-file-pin" accept="image/*" style="display:none;" onchange="window.cargarPreviewPinModal(this)">
+
+<div id="edit-pin-live-preview" class="pin-wrapper anim-salto" data-forma="forma-gota" style="--color-main: #ff6b00; cursor: pointer;" onclick="document.getElementById('edit-file-pin').click()"></div>
+
+</div>
+
+
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
+                <select id="edit-select-forma" class="input-form" onchange="window.actualizarPinLiveModal()" style="font-size: 11px; padding: 8px !important; margin: 0;">
+                    <option value="forma-gota" selected>Gota Clásica</option>
+                    <option value="forma-esfera">Esfera Perfecta</option>
+                    <option value="forma-triangulo">Triángulo</option>
+                    <option value="forma-estrella">Estrella ⭐</option>
+                    <option value="forma-hexagono">Hexágono ⬡</option>
+                    <option value="forma-corazon">Corazón ❤️</option>
+                    <option value="forma-arbol">Pino 🌲</option>
+                    <option value="forma-hongo">Hongo 🍄</option>
+                    <option value="forma-paleta">Paleta 🍭</option>
+                </select>
+                <select id="edit-select-animacion" class="input-form" onchange="window.actualizarPinLiveModal()" style="font-size: 11px; padding: 8px !important; margin: 0;">
+                    <option value="anim-salto" selected>Salto Orgánico</option>
+                    <option value="anim-pulso">Pulso Neón</option>
+                    <option value="anim-giro">Giro 3D Axial</option>
+                    <option value="sin-animacion">Fijo / Estático</option>
+                </select>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px;">
+                <select id="edit-select-efecto" class="input-form" onchange="window.actualizarPinLiveModal()" style="font-size: 11px; padding: 8px !important; margin: 0;"></select>
+                <select id="edit-select-aura" class="input-form" onchange="window.actualizarPinLiveModal()" style="font-size: 11px; padding: 8px !important; margin: 0;">
+                    <option value="" selected>Aura: Estándar</option>
+                    <option value="pin-moneda-magica">Aura: Moneda Mágica 🪙</option>
+                    <option value="pin-en-fuego">Aura: En Fuego 🔥</option>
+                </select>
+            </div>
+
+
+
+
+<div id="tour-target-branding-modal" style="display: flex; gap: 8px; justify-content: center; align-items: center; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+
+<div id="color-slot-1-modal" style="display:flex; flex-direction:column; align-items:center;">
+
+<div data-slot="1" onclick="window.abrirSelectorColor(1)" style="width: 32px; height: 32px; border-radius: 50%; background: #ff6b00; cursor: pointer; border: 2px solid rgba(255,255,255,0.2);"></div>
+
+<span style="font-size: 8.5px; color:#888; margin-top:3px; font-weight:bold;">1° 50%</span>
+
+</div>
+
+
+
+<div id="color-slot-2-modal" style="display:flex; flex-direction:column; align-items:center; position: relative;">
+
+<button onclick="window.eliminarColor(2)" style="position: absolute; top: -5px; right: -5px; background: rgba(255,0,0,0.8); color: white; border: none; border-radius: 50%; width: 14px; height: 14px; font-size: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;">✖</button>
+
+<div data-slot="2" onclick="window.abrirSelectorColor(2)" style="width: 32px; height: 32px; border-radius: 50%; background: #ffffff; cursor: pointer; border: 2px solid rgba(255,255,255,0.2);"></div>
+
+<span style="font-size: 8.5px; color:#888; margin-top:3px; font-weight:bold;">2° 25%</span>
+
+</div>
+
+<div id="add-slot-2-modal" style="display:none; flex-direction:column; align-items:center; cursor: pointer;" onclick="window.agregarColor(2)">
+
+<div style="width: 32px; height: 32px; border-radius: 50%; border: 1px dashed rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.5);">+</div>
+
+</div>
+
+
+
+<div id="color-slot-3-modal" style="display:flex; flex-direction:column; align-items:center; position: relative;">
+
+<button onclick="window.eliminarColor(3)" style="position: absolute; top: -5px; right: -5px; background: rgba(255,0,0,0.8); color: white; border: none; border-radius: 50%; width: 14px; height: 14px; font-size: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;">✖</button>
+
+<div data-slot="3" onclick="window.abrirSelectorColor(3)" style="width: 32px; height: 32px; border-radius: 50%; background: #0a0a0c; cursor: pointer; border: 2px solid rgba(255,255,255,0.2);"></div>
+
+<span style="font-size: 8.5px; color:#888; margin-top:3px; font-weight:bold;">3° 12.5%</span>
+
+</div>
+
+<div id="add-slot-3-modal" style="display:none; flex-direction:column; align-items:center; cursor: pointer;" onclick="window.agregarColor(3)">
+
+<div style="width: 32px; height: 32px; border-radius: 50%; border: 1px dashed rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.5);">+</div>
+
+</div>
+
+
+
+<div id="color-slot-4-modal" style="display:none; flex-direction:column; align-items:center; position: relative;">
+
+<button onclick="window.eliminarColor(4)" style="position: absolute; top: -5px; right: -5px; background: rgba(255,0,0,0.8); color: white; border: none; border-radius: 50%; width: 14px; height: 14px; font-size: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;">✖</button>
+
+<div data-slot="4" onclick="window.abrirSelectorColor(4)" style="width: 32px; height: 32px; border-radius: 50%; background: #00f5d4; cursor: pointer; border: 2px solid rgba(255,255,255,0.2);"></div>
+
+<span style="font-size: 8.5px; color:#888; margin-top:3px; font-weight:bold;">4° 7.5%</span>
+
+</div>
+
+<div id="add-slot-4-modal" style="display:flex; flex-direction:column; align-items:center; cursor: pointer;" onclick="window.agregarColor(4)">
+
+<div style="width: 32px; height: 32px; border-radius: 50%; border: 1px dashed rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.5);">+</div>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+
+<!-- MODAL 4: RUEDA CROMÁTICA ESPECTRAL -->
+
+<div id="modal-color-espectro" class="velo-inmersivo" style="display: none; align-items: center; justify-content: center; z-index: 100010;">
+
+<div style="background: rgba(15,15,18,0.98); backdrop-filter: blur(20px); border: 1px solid rgba(255, 107, 0, 0.3); border-radius: 25px; padding: 25px 20px; width: 85%; max-width: 300px; text-align: center;">
+
+<h4 style="color: var(--naranja); margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase;">Selector de Color</h4>
+
+<div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 15px;">
+
+<div id="rueda-colores" style="position: relative; width: 170px; height: 170px; border-radius: 50%; cursor: crosshair; touch-action: none; background: radial-gradient(circle closest-side, #fff 0%, transparent 100%), conic-gradient(from 90deg, red, yellow, lime, aqua, blue, fuchsia, red);">
+
+<div id="puntero-color" style="position: absolute; width: 16px; height: 16px; border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; top: 50%; left: 50%;"></div>
+
+</div>
+
+<input type="range" id="slider-brillo" min="0" max="100" value="100" style="width: 170px; margin-top: 15px;">
+
+</div>
+
+<input type="text" id="input-hex-manual" maxlength="6" style="width: 140px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 8px; border-radius: 20px; font-size: 14px; font-family: monospace; text-align: center; text-transform: uppercase; margin-bottom: 12px;" oninput="window.sincronizarColorDesdeHex(this.value)">
+
+<div style="display: flex; gap: 8px;">
+
+<button class="btn-submit" style="margin: 0; background: var(--naranja);" onclick="window.confirmarColorSeleccionado()">Listo</button>
+
+<button class="btn-submit" style="margin: 0; background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #aaa;" onclick="window.cerrarModalColorManual()">Cerrar</button>
+
+</div>
+
+</div>
+
+</div>
+
+
+
+<!-- MODAL 5: FUNDAR NUEVA SUCURSAL -->
+
+<div id="modal-crear-sede" class="velo-inmersivo" style="display: none; align-items: center; justify-content: center; z-index: 100015;">
+
+<div class="foco-onboarding" data-titulo-ob="NUEVA SUCURSAL" style="position: relative; width: 90% !important; max-width: 380px !important;">
+
+<button type="button" onclick="document.getElementById('modal-crear-sede').style.display='none'" style="position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.1); border: none; color: white; width: 30px; height: 30px; border-radius: 50%; cursor: pointer;">✕</button>
+
+<p style="font-size: 11px; color: #888; text-align: center; margin: 0 0 15px 0;">Crea una sucursal geolocalizada.</p>
+
+
+<label class="section-title" style="margin-bottom: 4px;">Código de Sede</label>
+
+<input type="text" id="sede-nuevo-id" class="input-form" placeholder="Ej: SUCURSAL_02" style="text-transform: uppercase; font-family: monospace;">
+
+
+
+<label class="section-title" style="margin-bottom: 4px;">Nombre Comercial</label>
+
+<input type="text" id="sede-nuevo-nombre" class="input-form" placeholder="Ej: Mi Tienda - Sede Centro">
+
+
+
+<label class="section-title" style="margin-bottom: 4px;">Dirección Física</label>
+
+<input type="text" id="sede-nuevo-direccion" class="input-form" placeholder="Ej: Cra 25 # 68-12">
+
+
+
+<button type="button" id="btn-confirmar-crear-sede" class="btn-submit" onclick="window.confirmarCreacionSede()">Fundar Sucursal</button>
+
+</div>
+
+</div>
+
+
+
+<!-- 🔥 BOTTOM SHEET ÁUREO: AÑADIR Y EDITAR PRODUCTO -->
+    <div id="overlay-catalogo" class="bottom-sheet-overlay" style="display: none;" onclick="if(event.target === this) window.cerrarBottomSheet()"></div>
+    <div id="bottom-sheet-catalogo" class="bottom-sheet" style="max-width: 480px; margin: 0 auto;">
+        <div class="bottom-sheet-header">
+            <div class="bottom-sheet-drag"></div>
+            <h3 class="bottom-sheet-titulo" id="bs-titulo">Añadir al Catálogo</h3>
+            <button type="button" class="bottom-sheet-cerrar" onclick="window.cerrarBottomSheet()">✖</button>
+        </div>
         
-        <!-- CABECERA -->
-        <header class="panel-admin" style="margin-bottom: 10px; border-radius: 0 0 21px 21px;">
-            <div class="oficina-header" style="border: none; margin: 0; padding: 0;">
-                <img id="ofi-logo" src="" class="oficina-logo" style="display: none;">
-                <div class="oficina-info" style="flex: 1;">
-                    <h3 id="ofi-nombre" style="margin: 0; font-size: 18px;">CARGANDO COMERCIO...</h3>
-                    <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
-                        <span id="ofi-estado-cuenta" class="badge-plan">ESTADO: ACTIVO</span>
-                        <span id="ofi-uid-badge" style="font-size: 10px; color: #888; font-family: monospace;">---</span>
+        <div class="bottom-sheet-content">
+            <input type="hidden" id="prodEditId">
+            <input type="hidden" id="prodImagenActual">
+
+            <!-- CARGA MASIVA DE CATÁLOGO DESDE ARCHIVO CSV -->
+            <div id="tour-target-excel" class="glass-dashed-panel">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 11px; color: #fff; font-weight: 800; letter-spacing: 0.5px;">📁 Cargar Catálogo CSV</span>
+                    <button type="button" onclick="document.getElementById('csv-file-input').click()" style="background: var(--naranja); color: #000; border: none; padding: 6px 12px; border-radius: 6px; font-size: 10px; font-weight: 900; cursor: pointer;">Seleccionar Archivo</button>
+                </div>
+                <input type="file" id="csv-file-input" accept=".csv" style="display: none;" onchange="window.procesarArchivoCSV(this)">
+                <span style="font-size: 9.5px; color: #aaa; display: block; margin-top: 4px;">Req: nombre, precio, codigo_barras, categoria, stock_actual</span>
+            </div>
+
+            <!-- ESCANEO RÁPIDO -->
+            <button type="button" id="tour-target-scanner" class="btn-dashed-action" onclick="window.escanearParaCatalogo()">
+                <span>🏷️</span> Escanear Código de Barras
+            </button>
+
+            <!-- Visor de cámara nativo con barra de luz y control -->
+            <div id="lector-camara-wrapper" style="display: none; position: relative; width: 100%; border-radius: 13px; overflow: hidden; border: 2px solid var(--naranja); margin-bottom: 10px; background: #000;">
+                <div id="lector-camara-catalogo" style="width: 100%; min-height: 220px;"></div>
+                <div style="position: absolute; top: 10px; right: 10px; z-index: 50; display: flex; gap: 8px;">
+                    <button type="button" id="btn-torch-escaner" onclick="window.toggleTorchScanner()" style="background: rgba(0,0,0,0.7); border: 1px solid var(--naranja); color: white; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                        🔦 <span>Flash</span>
+                    </button>
+                </div>
+            </div>
+
+
+            <!-- FILA ÁUREA: FOTO IZQUIERDA (SENSOR TRASERO) + ENTRADAS DERECHA -->
+            <div id="tour-target-formulario" class="aurea-master-container">
+                <!-- Izquierda: Foto cuadrada con disparo directo a cámara posterior -->
+                <div class="aurea-photo-box file-upload-wrapper" onclick="document.getElementById('prodImagenFile').click()" title="Tomar foto con sensor trasero">
+                    <input type="file" id="prodImagenFile" class="file-upload-input" accept="image/*" capture="environment" style="position:absolute; inset:0; width:100%; height:100%; opacity:0; z-index:2; cursor:pointer;" onchange="window.actualizarNombreImagenUI(this, 'file-upload-text')" onclick="event.stopPropagation()">
+                    <div class="file-upload-ui" id="file-upload-text">
+                        <span style="font-size:18px;">📸</span>
+                        <span>Foto</span>
                     </div>
                 </div>
-                <button type="button" onclick="window.cerrarSesionOficina()" style="background: transparent; border: 1px solid rgba(255,255,255,0.15); color: #ff5555; border-radius: 8px; padding: 6px 10px; font-size: 11px; font-weight: bold; cursor: pointer;">
-                    Salir
-                </button>
-            </div>
-        </header>
 
-        <!-- ACCESOS RÁPIDOS AL ECOSISTEMA -->
-        <section style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 0 15px 12px 15px;">
-            <button type="button" onclick="window.open('pos.html', '_blank')" class="btn-submit" style="margin: 0; padding: 10px 4px !important; font-size: 10px; background: #ff6b00;">
-                💳 POS
-            </button>
-            <button type="button" onclick="window.open('mapatienda.html', '_blank')" class="btn-submit" style="margin: 0; padding: 10px 4px !important; font-size: 10px; background: #2563eb;">
-                🗺️ Plano
-            </button>
-            <button type="button" onclick="window.open('stock.html', '_blank')" class="btn-submit" style="margin: 0; padding: 10px 4px !important; font-size: 10px; background: #00ff64; color: black;">
-                📦 Stock
-            </button>
-            <button type="button" onclick="window.open('boveda-comercio.html', '_blank')" class="btn-submit" style="margin: 0; padding: 10px 4px !important; font-size: 10px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">
-                ⚙️ Bóveda
-            </button>
-        </section>
+                <!-- Derecha: 4 filas armonizadas -->
+                <div class="aurea-inputs-stack">
+                    <!-- Fila 1: Código de barras -->
+                    <input type="text" id="prodBarcode" class="input-form" placeholder="Código de barras (EAN)" style="font-family: monospace;">
+                    <!-- Fila 2: Nombre del artículo -->
+                    <input type="text" id="prodNombre" class="input-form" placeholder="Nombre del artículo">
+                    
+                    <!-- Fila 3: Tríada Áurea (Precio | Stock | Categoría) -->
+                    <div class="aurea-split-row">
+                        <input type="number" step="any" id="prodPrecio" class="input-form" placeholder="Precio ($)">
+                        <input type="number" step="any" id="prodStockInicial" class="input-form" placeholder="Stock Cant." min="0">
+                        <input type="text" id="prodCategoria" class="input-form" placeholder="Categoría">
+                    </div>
 
-        <!-- TABS DE GESTIÓN -->
-        <nav class="tabs" style="margin: 0 15px 15px 15px;">
-            <button class="tab-btn activo" onclick="window.cambiarTabOficina('kpis')">📊 Métricas</button>
-            <button class="tab-btn" onclick="window.cambiarTabOficina('alertas')" id="tab-btn-alertas">
-                🚨 Auditoría <span id="badge-contador-alertas" style="display: none; background: #ff4444; color: white; border-radius: 10px; padding: 1px 5px; font-size: 9px; margin-left: 2px;">0</span>
-            </button>
-            <button class="tab-btn" onclick="window.cambiarTabOficina('equipo')">👥 Personal</button>
-            <button class="tab-btn" onclick="window.cambiarTabOficina('tareas')">📋 Tareas</button>
-        </nav>
+                    <!-- Fila 4: Módulos en Cascada (Métrica y Clasificación Retail) -->
+                    <div class="aurea-modulos-row">
+                        <!-- MÓDULO IZQUIERDO: MÉTRICA Y MAGNITUD -->
+                        <div class="modulo-input-combo" id="modulo-metrica-combo">
+                            <button type="button" class="btn-selector-cascada" id="btn-unidad-trigger" onclick="window.toggleMenuMetrica(event)">
+                                <span id="label-unidad-activa">g</span> ▾
+                            </button>
+                            <input type="number" step="any" id="prodMedidaValor" class="input-combo-valor" placeholder="Cant. (800)">
+                            <input type="hidden" id="prodMedidaMagnitud" value="peso">
+                            <input type="hidden" id="prodMedidaUnidad" value="g">
 
-        <!-- PESTAÑA 1: MÉTRICAS E INDICADORES -->
-        <section id="tab-kpis" class="tab-content activo" style="padding: 15px; margin: 0 15px;">
-            <label class="section-title">Resumen Operativo en Tiempo Real</label>
-            <div class="oficina-kpi-grid">
-                <div class="kpi-card">
-                    <span style="font-size: 11px; color: #888; text-transform: uppercase;">Ventas del Día</span>
-                    <strong class="valor" id="kpi-ventas-dia" style="color: #00ff64;">$0</strong>
+                            <!-- Cascada Nivel 1: Magnitudes -->
+                            <div id="cascada-magnitudes" class="menu-cascada-flotante">
+                                <button type="button" class="btn-cascada-item" onclick="window.abrirSubmenuMetrica('peso', event)">Peso / Masa ▸</button>
+                                <button type="button" class="btn-cascada-item" onclick="window.abrirSubmenuMetrica('volumen', event)">Volumen ▸</button>
+                                <button type="button" class="btn-cascada-item" onclick="window.abrirSubmenuMetrica('distancia', event)">Distancia ▸</button>
+                                <button type="button" class="btn-cascada-item" onclick="window.abrirSubmenuMetrica('unidades', event)">Piezas ▸</button>
+                                <!-- Cascada Nivel 2: Unidades -->
+                                <div id="cascada-unidades" class="sub-cascada-flotante"></div>
+                            </div>
+                        </div>
+
+                        <!-- MÓDULO DERECHO: CLASIFICACIÓN RETAIL -->
+                        <div class="modulo-input-combo" id="modulo-retail-combo">
+                            <button type="button" class="btn-selector-cascada" id="btn-retail-trigger" onclick="window.toggleMenuRetail(event)">
+                                <span id="label-retail-activo">STD</span> ▾
+                            </button>
+                            <input type="text" id="prodRetailDetalle" maxlength="140" class="input-combo-valor" placeholder="Nota (ej: 50%)">
+                            <input type="hidden" id="prodRetailTipo" value="estandar">
+                            <input type="hidden" id="prodRetailCodigo" value="STD">
+
+                            <!-- Cascada Nivel 1: Tipos Retail -->
+                            <div id="cascada-retail-tipos" class="menu-cascada-flotante" style="right: 0; left: auto;">
+                                <button type="button" class="btn-cascada-item" onclick="window.abrirSubmenuRetail('estandar', event)">Estándar / Normal</button>
+                                <button type="button" class="btn-cascada-item" onclick="window.abrirSubmenuRetail('promociones', event)">Ofertas / Promo ◂</button>
+                                <button type="button" class="btn-cascada-item" onclick="window.abrirSubmenuRetail('merma', event)">Merma / Avería ◂</button>
+                                <button type="button" class="btn-cascada-item" onclick="window.abrirSubmenuRetail('devoluciones', event)">Devoluciones ◂</button>
+                                <!-- Cascada Nivel 2: Subtipos -->
+                                <div id="cascada-retail-subtipos" class="sub-cascada-flotante" style="left: auto; right: 104%;"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="kpi-card">
-                    <span style="font-size: 11px; color: #888; text-transform: uppercase;">Tickets Emitidos</span>
-                    <strong class="valor" id="kpi-tickets-cant" style="color: #60a5fa;">0</strong>
-                </div>
-                <div class="kpi-card">
-                    <span style="font-size: 11px; color: #888; text-transform: uppercase;">Artículos Activos</span>
-                    <strong class="valor" id="kpi-articulos-total">0</strong>
-                </div>
-                <div class="kpi-card">
-                    <span style="font-size: 11px; color: #888; text-transform: uppercase;">Incidencias</span>
-                    <strong class="valor" id="kpi-alertas-activas" style="color: #ffaa00;">0</strong>
-                </div>
             </div>
 
-            <div class="panel-operaciones-bloque" style="margin-top: 10px;">
-                <h4 style="margin: 0 0 8px 0; font-size: 12px; color: #bbb; text-transform: uppercase;">Estado de Sincronización Fiscal</h4>
-                <p id="txt-estado-fiscal-siigo" style="font-size: 12px; color: #aaa; margin: 0;">
-                    Consultando enlace con DIAN / Siigo...
-                </p>
-            </div>
-        </section>
-
-        <!-- PESTAÑA 2: BANDEJA DE AUDITORÍA Y QUIEBRES DE STOCK -->
-        <section id="tab-alertas" class="tab-content" style="padding: 15px; margin: 0 15px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <div>
-                    <h4 style="margin: 0; font-size: 13px; text-transform: uppercase; color: #ff4444;">Incidentes de Stock Negativo</h4>
-                    <span style="font-size: 11px; color: #888;">Ventas concretadas en mostrador con stock teórico en cero o menor</span>
-                </div>
-                <button type="button" onclick="window.cargarAlertasSeguridad()" style="background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border); color: #fff; padding: 6px 10px; border-radius: 8px; font-size: 11px; cursor: pointer;">
-                    🔄 Refrescar
-                </button>
-            </div>
-
-            <div id="contenedor-alertas-lista">
-                <p style="text-align: center; color: #666; padding: 30px 0; font-size: 12px;">Cargando incidentes...</p>
-            </div>
-        </section>
-
-        <!-- PESTAÑA 3: PERSONAL Y ACCESOS -->
-        <section id="tab-equipo" class="tab-content" style="padding: 15px; margin: 0 15px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <div>
-                    <h4 style="margin: 0; font-size: 13px; text-transform: uppercase; color: white;">Equipo Autorizado</h4>
-                    <span style="font-size: 11px; color: #888;">Operarios de caja y bodega registrados</span>
-                </div>
-                <button type="button" onclick="window.open('boveda-comercio.html', '_blank')" style="background: var(--naranja); color: white; border: none; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: bold; cursor: pointer;">
-                    + Crear Operario
-                </button>
-            </div>
-
-            <div id="contenedor-equipo-lista">
-                <p style="text-align: center; color: #666; padding: 30px 0; font-size: 12px;">Cargando personal...</p>
-            </div>
-        </section>
-
-        <!-- PESTAÑA 4: TAREAS Y COMUNICACIÓN INTERNA -->
-        <section id="tab-tareas" class="tab-content" style="padding: 15px; margin: 0 15px;">
-            <div class="panel-operaciones-bloque" style="margin-bottom: 15px;">
-                <label class="section-title" style="margin-bottom: 6px;">Asignar Nueva Tarea o Comunicado</label>
-                <input type="text" id="tarea-titulo" class="input-form" placeholder="Ej: Realizar inventario de lácteos en Góndola 3">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                    <select id="tarea-destinatario" class="input-form">
-                        <option value="TODOS">📢 Para todo el personal</option>
-                    </select>
-                    <select id="tarea-prioridad" class="input-form">
-                        <option value="NORMAL">Prioridad Normal</option>
-                        <option value="URGENTE">⚠️ Prioridad Urgente</option>
-                    </select>
-                </div>
-                <button type="button" class="btn-submit" onclick="window.crearTareaInterna()" style="margin: 0;">
-                    Publicar Tarea
-                </button>
-            </div>
-
-            <label class="section-title">Bitácora de Tareas en Curso</label>
-            <div id="contenedor-tareas-lista">
-                <p style="text-align: center; color: #666; padding: 20px 0; font-size: 12px;">Cargando tareas...</p>
-            </div>
-        </section>
-
-    </main>
-
-    <!-- MODAL DE CONCILIACIÓN FÍSICA EN ANAQUEL -->
-    <div id="modal-conciliacion" class="bottom-sheet-overlay">
-        <div class="bottom-sheet activo" style="max-width: 420px; margin: 0 auto; border-radius: 20px 20px 0 0;">
-            <div class="bottom-sheet-header">
-                <div class="bottom-sheet-drag"></div>
-                <h3 class="bottom-sheet-titulo">Conciliar Stock Físico</h3>
-                <button type="button" class="bottom-sheet-cerrar" onclick="window.cerrarModalConciliacion()">✖</button>
-            </div>
-            <div class="bottom-sheet-content">
-                <p style="font-size: 11.5px; color: #aaa; margin: 0 0 10px 0;">
-                    Ingresa las unidades reales contadas en el anaquel o estante. El sistema reajustará el catálogo y asentará el movimiento en Kardex.
-                </p>
-                <input type="hidden" id="concilia-alerta-id">
-                <input type="hidden" id="concilia-prod-id">
-
-                <div style="background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); padding: 10px; border-radius: 10px; font-size: 12px; margin-bottom: 12px;">
-                    <strong id="concilia-prod-nombre" style="color: white; display: block;">---</strong>
-                    <span id="concilia-prod-desfase" style="color: #ff4444; font-family: monospace;">---</span>
-                </div>
-
-                <label class="section-title" style="margin-bottom: 4px;">Conteo Físico Real en Estante:</label>
-                <input type="number" id="concilia-stock-real" step="any" min="0" class="input-form" placeholder="Cantidad física real contada" style="font-size: 18px; font-family: monospace; font-weight: bold; color: #00ff64; text-align: center;">
-
-                <label class="section-title" style="margin-bottom: 4px;">Motivo / Explicación del Ajuste:</label>
-                <input type="text" id="concilia-motivo" class="input-form" placeholder="Ej: Factura de proveedor no registrada previamente">
-
-                <div style="display: flex; gap: 8px; margin-top: 10px;">
-                    <button type="button" class="btn-submit" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); color: #ccc;" onclick="window.cerrarModalConciliacion()">
-                        Cancelar
+                        <!-- SELECTOR INTEGRADO DE FORMATO DE EXHIBICIÓN -->
+            <div style="margin-top: 8px; margin-bottom: 4px;">
+                <label class="section-title" style="margin-bottom: 6px; font-size: 10px;">DISEÑO DE EXHIBICIÓN EN CATÁLOGO</label>
+                <input type="hidden" id="prodLayoutSeleccionado" value="layout-grid">
+                
+                <div class="grilla-layouts-selector">
+                    <button type="button" class="btn-layout-chip activo" data-layout="layout-grid" onclick="window.seleccionarLayoutCatalogo('layout-grid')">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7" rx="2"></rect>
+                            <rect x="14" y="3" width="7" height="7" rx="2"></rect>
+                            <rect x="14" y="14" width="7" height="7" rx="2"></rect>
+                            <rect x="3" y="14" width="7" height="7" rx="2"></rect>
+                        </svg>
+                        <span>Grid 1x1</span>
                     </button>
-                    <button type="button" class="btn-submit" style="background: #00ff64; color: #000;" onclick="window.ejecutarConciliacionAlerta()">
-                        Confirmar y Cuadrar
+
+                    <button type="button" class="btn-layout-chip" data-layout="layout-hero" onclick="window.seleccionarLayoutCatalogo('layout-hero')">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="4" width="18" height="16" rx="3"></rect>
+                            <line x1="3" y1="13" x2="21" y2="13"></line>
+                        </svg>
+                        <span>Hero 2x1</span>
+                    </button>
+
+                    <button type="button" class="btn-layout-chip" data-layout="layout-galeria-split" onclick="window.seleccionarLayoutCatalogo('layout-galeria-split')">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="10" height="18" rx="2"></rect>
+                            <rect x="15" y="3" width="6" height="5" rx="1.5"></rect>
+                            <rect x="15" y="9.5" width="6" height="5" rx="1.5"></rect>
+                            <rect x="15" y="16" width="6" height="5" rx="1.5"></rect>
+                        </svg>
+                        <span>Split 4+1</span>
+                    </button>
+
+                    <button type="button" class="btn-layout-chip" data-layout="layout-articulo" onclick="window.seleccionarLayoutCatalogo('layout-articulo')">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7" rx="2"></rect>
+                            <line x1="13" y1="5" x2="21" y2="5"></line>
+                            <line x1="13" y1="9" x2="21" y2="9"></line>
+                            <line x1="3" y1="15" x2="21" y2="15"></line>
+                            <line x1="3" y1="19" x2="16" y2="19"></line>
+                        </svg>
+                        <span>Editorial</span>
                     </button>
                 </div>
             </div>
+
+            <!-- PANEL REACTIVO 1: FOTOS SECUNDARIAS (GALERÍA SPLIT) -->
+            <div id="seccion-galeria-split" class="seccion-desplegable-layout" style="display: none;">
+                <label class="section-title" style="margin-bottom: 4px; font-size: 10px; color: var(--naranja);">MINIATURAS SECUNDARIAS (MÁXIMO 4)</label>
+                <input type="hidden" id="prodGaleriaActual" value="[]">
+                <div class="contenedor-galeria-input">
+                    <label for="prodGaleriaFiles" class="btn-cargar-secundarias">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="3"></rect>
+                            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                            <polyline points="21 15 16 10 5 21"></polyline>
+                        </svg>
+                        <span>Cargar Miniaturas</span>
+                    </label>
+                    <input type="file" id="prodGaleriaFiles" accept="image/*" multiple style="display: none;" onchange="var c = document.getElementById('txt-conteo-galeria'); if(c) c.innerText = this.files.length + ' fotos listas';">
+                    <span id="txt-conteo-galeria" class="subtexto-galeria">Sin fotos adicionales</span>
+                </div>
+            </div>
+
+            <!-- PANEL REACTIVO 2: RESEÑA & ALINEACIÓN (POST EDITORIAL) -->
+            <div id="seccion-articulo-editorial" class="seccion-desplegable-layout" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <label class="section-title" style="margin: 0; font-size: 10px; color: var(--naranja);">RESEÑA EDITORIAL DEL PRODUCTO</label>
+                    <select id="prodPosicionImagen" class="select-inline-minimal">
+                        <option value="izquierda" selected>Foto Izquierda</option>
+                        <option value="derecha">Foto Derecha</option>
+                    </select>
+                </div>
+                <textarea id="prodCuerpoTexto" class="input-form" placeholder="Escribe aquí la historia, notas de cata o detalles de este artículo..." style="min-height: 70px; font-size: 12px; margin-bottom: 0; resize: none;"></textarea>
+            </div>
+
+            <!-- BOTÓN GUARDAR PRINCIPAL -->
+            <button type="button" class="btn-submit" id="btn-submit-producto" style="margin-top: 6px !important;" onclick="window.guardarProducto()">
+                GUARDAR EN CATÁLOGO
+            </button>
         </div>
     </div>
 
-    <!-- SCRIPT DEL MOTOR DE OFICINA -->
-    <script type="module">
-        import GeokatuDB from './core-db.js';
-        import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, orderBy, limit, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-        import { getAuth } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
-        const db = getFirestore();
-        const auth = getAuth();
 
-        let idNegocio = localStorage.getItem('geokatu_active_uid') || null;
-        let datosComercio = {};
-        let desuscripcionAlertas = null;
+<!-- CONTENEDOR FLOTANTE PARA PRODUCTOS MINIMIZADOS -->
 
-        // --- 1. SESIÓN Y CONTROL DE ACCESO ---
-        GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
-            if (user) {
-                idNegocio = user.uid;
-                await GeokatuDB.SecurityService.sellarSesionTerminalLocal(user.uid);
-                
-                document.getElementById('login-screen').style.display = 'none';
-                document.getElementById('dashboard-screen').style.display = 'flex';
-                document.getElementById('ofi-uid-badge').innerText = `ID: ${user.uid.slice(0, 8)}...`;
+<div id="contenedor-modales-productos"></div>
 
-                await inicializarOficina();
-            } else {
-                document.getElementById('login-screen').style.display = 'block';
-                document.getElementById('dashboard-screen').style.display = 'none';
-                if (typeof desuscripcionAlertas === 'function') desuscripcionAlertas();
-            }
-        });
 
-        window.iniciarSesionGoogle = async function() {
-            const res = await GeokatuDB.SecurityService.iniciarConGoogle();
-            if (!res.success) alert("Error de acceso: " + res.error);
-        };
 
-        window.cerrarSesionOficina = async function() {
-            if (confirm("¿Cerrar sesión de la consola de administración?")) {
-                await GeokatuDB.SecurityService.cerrarSesion();
-                GeokatuDB.SecurityService.destruirSesionTerminalLocal();
-                window.location.reload();
-            }
-        };
 
-        // --- 2. INICIALIZACIÓN DE LA OFICINA ---
-        async function inicializarOficina() {
-            // Cargar datos maestros del negocio
-            const resNeg = await GeokatuDB.AdminService.obtenerNegocioPorUsuario(idNegocio, auth.currentUser?.email, "admin");
-            if (resNeg.success && resNeg.data) {
-                datosComercio = resNeg.data;
-                document.getElementById('ofi-nombre').innerText = datosComercio.nombre || "COMERCIO GEOKATU";
-                if (datosComercio.logo) {
-                    const imgLogo = document.getElementById('ofi-logo');
-                    imgLogo.src = datosComercio.logo;
-                    imgLogo.style.display = 'block';
-                }
-                const badgePlan = document.getElementById('ofi-estado-cuenta');
-                badgePlan.innerText = `PLAN: ${datosComercio.premium ? 'PREMIUM VIP' : 'ESTÁNDAR'}`;
-                if (datosComercio.premium) badgePlan.classList.add('premium');
 
-                // Diagnóstico Siigo
-                const fis = datosComercio.perfil_fiscal;
-                const txtSiigo = document.getElementById('txt-estado-fiscal-siigo');
-                if (fis && fis.siigo_user) {
-                    txtSiigo.innerHTML = `Conexión API Siigo configurada para <strong>${fis.razon_social || datosComercio.nombre}</strong> (NIT: ${fis.nit || 'Sin registrar'}).`;
-                } else {
-                    txtSiigo.innerText = "Operando en modo comprobante equivalente POS local (sin llaves Siigo configuradas).";
-                }
-            }
+<!-- SLOTS DE COLORES OCULTOS -->
 
-            // Cargar datos de pestañas
-            await Promise.all([
-                cargarKpisDashboard(),
-                cargarAlertasSeguridad(),
-                cargarEquipoOficina(),
-                cargarTareasOficina()
-            ]);
-        }
+<input type="hidden" id="wizColorHex1" value="#ff6b00">
 
-        // --- 3. GESTIÓN DE TABS ---
-        window.cambiarTabOficina = function(tabId) {
-            document.querySelectorAll('.tab-content').forEach(el => {
-                el.classList.remove('activo');
-                el.style.display = 'none';
-            });
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('activo'));
+<input type="hidden" id="wizColorHex2" value="#ffffff">
 
-            const content = document.getElementById(`tab-${tabId}`);
-            if (content) {
-                content.style.display = 'block';
-                content.classList.add('activo');
-            }
+<input type="hidden" id="wizColorHex3" value="#0a0a0c">
 
-            const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick')?.includes(tabId));
-            if (targetBtn) targetBtn.classList.add('activo');
-        };
+<input type="hidden" id="wizColorHex4" value="#00f5d4">
 
-        // --- 4. KPIs EN TIEMPO REAL ---
-        async function cargarKpisDashboard() {
-            try {
-                // Ventas acumuladas de la caja guardadas en LocalStorage / Firestore
-                const acum = JSON.parse(localStorage.getItem(`geokatu_acumulado_${idNegocio}`) || "{}");
-                const totalVendido = (acum.efectivo || 0) + (acum.tarjeta || 0) + (acum.nequi || 0);
-                document.getElementById('kpi-ventas-dia').innerText = `$${totalVendido.toLocaleString('es-CO')}`;
 
-                // Contador de productos
-                const prodsSnap = await getDocs(collection(db, `Directorio/${idNegocio}/productos`));
-                let cantProds = 0;
-                prodsSnap.forEach(d => { if (!d.data().eliminado) cantProds++; });
-                document.getElementById('kpi-articulos-total').innerText = cantProds;
 
-                // Conteo de tickets emitidos
-                const ventasSnap = await getDocs(query(collection(db, `Directorio/${idNegocio}/Ventas_POS`), limit(100)));
-                document.getElementById('kpi-tickets-cant').innerText = ventasSnap.size;
-            } catch (err) {
-                console.warn("[Oficina] Error cargando métricas:", err.message);
-            }
-        }
+<!-- MODAL DE RETRACTO NATIVO DE SALIDA -->
 
-        // --- 5. BANDEJA DE AUDITORÍA Y CONCILIACIÓN DE INCIDENTES ---
-        window.cargarAlertasSeguridad = function() {
-            if (typeof desuscripcionAlertas === 'function') desuscripcionAlertas();
+<div id="modal-confirmar-salida" class="modal-confirmar-salida" style="display: none;">
 
-            const contenedor = document.getElementById('contenedor-alertas-lista');
-            const qAlertas = query(
-                collection(db, "Alertas_Seguridad"),
-                where("id_negocio", "==", idNegocio),
-                where("estado", "==", "requiere_auditoria_urgente"),
-                orderBy("timestamp_alerta", "desc"),
-                limit(50)
-            );
+<div class="caja-confirmar-salida">
 
-            desuscripcionAlertas = onSnapshot(qAlertas, (snap) => {
-                const total = snap.size;
-                document.getElementById('kpi-alertas-activas').innerText = total;
-                const badgeBtn = document.getElementById('badge-contador-alertas');
-                if (badgeBtn) {
-                    badgeBtn.innerText = total;
-                    badgeBtn.style.display = total > 0 ? 'inline-block' : 'none';
-                }
+<h4 style="margin: 0 0 10px 0; color: white; font-size: 16px;">¿Quieres salir de la consola?</h4>
 
-                if (snap.empty) {
-                    contenedor.innerHTML = `
-                        <div style="text-align: center; padding: 40px 10px; color: #888;">
-                            <span style="font-size: 30px;">✅</span>
-                            <h4 style="color: white; margin: 8px 0 4px 0;">Inventario en Orden</h4>
-                            <p style="font-size: 11.5px; margin: 0;">No se han detectado ventas con stock desfasado ni quiebres de anaquel.</p>
-                        </div>
-                    `;
-                    return;
-                }
+<p style="color: #aaa; font-size: 12px; margin: 0 0 20px 0;">Saldrás de la oficina de administración al radar comercial general.</p>
 
-                let html = '';
-                snap.forEach(docSnap => {
-                    const a = docSnap.data();
-                    const fecha = new Date(a.timestamp_alerta).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+<div style="display: flex; gap: 10px;">
 
-                    html += `
-                        <div class="incidente-item">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span class="badge-alerta-urgente">Quiebre en Caja</span>
-                                <span style="font-size: 10px; color: #888; font-family: monospace;">${fecha}</span>
-                            </div>
-                            <div>
-                                <strong style="font-size: 13px; color: white;">${a.nombre_producto || 'Producto sin nombre'}</strong>
-                                <p style="font-size: 11px; color: #aaa; margin: 2px 0 0 0;">
-                                    Saldo resultante en sistema: <strong style="color: #ff4444; font-family: monospace;">${a.stock_negativo_registrado} und</strong> (Venta: ${a.cantidad_despachada} und)
-                                </p>
-                                <span style="font-size: 10px; color: #666;">Cajero: ${a.cajero} · Ticket: ${a.ticket_origen || 'POS'}</span>
-                            </div>
-                            <button type="button" class="btn-submit" style="margin-top: 4px !important; padding: 8px !important; font-size: 11px; background: rgba(0, 255, 100, 0.15); border: 1px solid rgba(0, 255, 100, 0.4); color: #00ff64;" onclick="window.abrirModalConciliacion('${docSnap.id}', '${a.id_producto}', '${(a.nombre_producto || '').replace(/'/g, "\\'")}', '${a.stock_negativo_registrado}')">
-                                ⚖️ Conciliar Conteo en Anaquel
-                            </button>
-                        </div>
-                    `;
-                });
-                contenedor.innerHTML = html;
-            }, (err) => {
-                console.error("Error en listener de alertas:", err);
-                contenedor.innerHTML = `<p style="color: #ff4444; text-align: center; font-size: 12px;">Error al cargar auditorías: ${err.message}</p>`;
-            });
-        };
+<button type="button" onclick="window.cerrarModalSalida(false)" style="flex: 1; padding: 12px; border-radius: 10px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; font-weight: bold; cursor: pointer;">NO</button>
 
-        // Modal de Conciliación
-        window.abrirModalConciliacion = function(idAlerta, idProd, nombreProd, stockActualNegativo) {
-            document.getElementById('concilia-alerta-id').value = idAlerta;
-            document.getElementById('concilia-prod-id').value = idProd;
-            document.getElementById('concilia-prod-nombre').innerText = nombreProd;
-            document.getElementById('concilia-prod-desfase').innerText = `Saldo registrado: ${stockActualNegativo} und`;
-            document.getElementById('concilia-stock-real').value = '';
-            document.getElementById('concilia-motivo').value = '';
+<button type="button" onclick="window.cerrarModalSalida(true)" style="flex: 1; padding: 12px; border-radius: 10px; background: var(--naranja); border: none; color: white; font-weight: bold; cursor: pointer;">SÍ, SALIR</button>
 
-            const modal = document.getElementById('modal-conciliacion');
-            modal.style.display = 'flex';
-            modal.classList.add('activo');
-            setTimeout(() => document.getElementById('concilia-stock-real').focus(), 100);
-        };
+</div>
 
-        window.cerrarModalConciliacion = function() {
-            const modal = document.getElementById('modal-conciliacion');
-            modal.style.display = 'none';
-            modal.classList.remove('activo');
-        };
+</div>
 
-        window.ejecutarConciliacionAlerta = async function() {
-            const idAlerta = document.getElementById('concilia-alerta-id').value;
-            const idProd = document.getElementById('concilia-prod-id').value;
-            const stockReal = document.getElementById('concilia-stock-real').value;
-            const motivo = document.getElementById('concilia-motivo').value.trim();
+</div>
 
-            if (stockReal === "" || isNaN(stockReal) || Number(stockReal) < 0) {
-                alert("Por favor digita la cantidad física contada (0 o mayor).");
-                return;
-            }
 
-            const res = await GeokatuDB.InventarioService.resolverAlertaStock(
-                idNegocio,
-                idAlerta,
-                idProd,
-                stockReal,
-                motivo || "Ajuste físico en góndola/anaquel"
-            );
 
-            if (res.success) {
-                alert("✅ Inventario conciliado y Kardex actualizado exitosamente.");
-                window.cerrarModalConciliacion();
-            } else {
-                alert("Error al resolver la alerta: " + res.error);
-            }
-        };
+<!-- CEREBRO LÓGICO DE LA OFICINA -->
 
-        // --- 6. EQUIPO DE COLABORADORES ---
-        async function cargarEquipoOficina() {
-            const contenedor = document.getElementById('contenedor-equipo-lista');
-            const selectDest = document.getElementById('tarea-destinatario');
-            try {
-                const snap = await getDocs(collection(db, `Directorio/${idNegocio}/Equipo`));
-                if (snap.empty) {
-                    contenedor.innerHTML = `<p style="text-align: center; color: #666; padding: 20px;">No hay personal registrado.</p>`;
-                    return;
-                }
+<script type="module" src="./oficina.js"></script>
 
-                let html = '';
-                selectDest.innerHTML = '<option value="TODOS">📢 Para todo el personal</option>';
 
-                snap.forEach(d => {
-                    const emp = d.data();
-                    selectDest.innerHTML += `<option value="${d.id}">${emp.nombre || emp.email} (${emp.rol || 'Cajero'})</option>`;
 
-                    html += `
-                        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <strong style="color: white; font-size: 13px;">${emp.nombre || emp.email}</strong>
-                                <span style="display: block; font-size: 11px; color: #888;">${emp.email} · Rol: <strong style="color: var(--naranja);">${emp.rol || 'Cajero'}</strong></span>
-                            </div>
-                            <span style="background: rgba(255,107,0,0.2); color: var(--naranja); padding: 3px 8px; border-radius: 6px; font-family: monospace; font-size: 11px; font-weight: 900;">
-                                PIN: ${emp.codigo_cajero || '----'}
-                            </span>
-                        </div>
-                    `;
-                });
-                contenedor.innerHTML = html;
-            } catch (e) {
-                console.warn("[Oficina] Error cargando equipo:", e);
-                contenedor.innerHTML = `<p style="color: #ff4444; font-size: 11px;">Error al cargar personal.</p>`;
-            }
-        }
-
-        // --- 7. TAREAS Y COMUNICACIÓN INTERNA ---
-        window.crearTareaInterna = async function() {
-            const titulo = document.getElementById('tarea-titulo').value.trim();
-            const destinatario = document.getElementById('tarea-destinatario').value;
-            const prioridad = document.getElementById('tarea-prioridad').value;
-
-            if (!titulo) return alert("Escribe la descripción de la tarea.");
-
-            try {
-                const docTarea = doc(collection(db, `Directorio/${idNegocio}/Tareas_Internas`));
-                await setDoc(docTarea, {
-                    titulo: titulo,
-                    destinatario_uid: destinatario,
-                    prioridad: prioridad,
-                    completada: false,
-                    creador: auth.currentUser?.email || "ADMIN",
-                    fecha_creacion: new Date().toISOString()
-                });
-
-                document.getElementById('tarea-titulo').value = '';
-                alert("Tarea registrada y notificada.");
-                cargarTareasOficina();
-            } catch (err) {
-                alert("Error al guardar tarea: " + err.message);
-            }
-        };
-
-        async function cargarTareasOficina() {
-            const contenedor = document.getElementById('contenedor-tareas-lista');
-            try {
-                const snap = await getDocs(query(
-                    collection(db, `Directorio/${idNegocio}/Tareas_Internas`),
-                    where("completada", "==", false),
-                    orderBy("fecha_creacion", "desc"),
-                    limit(20)
-                ));
-
-                if (snap.empty) {
-                    contenedor.innerHTML = `<p style="text-align: center; color: #666; padding: 20px;">No hay tareas pendientes en la bitácora.</p>`;
-                    return;
-                }
-
-                let html = '';
-                snap.forEach(docSnap => {
-                    const t = docSnap.data();
-                    const colorPrioridad = t.prioridad === 'URGENTE' ? '#ff4444' : 'var(--naranja)';
-
-                    html += `
-                        <div class="tarea-item" style="border-left-color: ${colorPrioridad};">
-                            <div>
-                                <span style="font-size: 10px; font-weight: bold; color: ${colorPrioridad}; text-transform: uppercase;">${t.prioridad}</span>
-                                <strong style="display: block; font-size: 13px; color: white; margin: 2px 0;">${t.titulo}</strong>
-                                <span style="font-size: 10px; color: #888;">Asignado a: ${t.destinatario_uid === 'TODOS' ? 'Todo el equipo' : 'Personal específico'}</span>
-                            </div>
-                            <button type="button" onclick="window.marcarTareaCompletada('${docSnap.id}')" style="background: rgba(0,255,100,0.15); border: 1px solid rgba(0,255,100,0.4); color: #00ff64; border-radius: 6px; padding: 6px 10px; font-size: 11px; cursor: pointer;">
-                                ✔️ Listo
-                            </button>
-                        </div>
-                    `;
-                });
-                contenedor.innerHTML = html;
-            } catch (e) {
-                console.warn("[Oficina] Error cargando tareas:", e);
-                contenedor.innerHTML = `<p style="color: #888; font-size: 11px; text-align: center;">Sin registros previos.</p>`;
-            }
-        }
-
-        window.marcarTareaCompletada = async function(idTarea) {
-            try {
-                await updateDoc(doc(db, `Directorio/${idNegocio}/Tareas_Internas`, idTarea), {
-                    completada: true,
-                    fecha_completada: new Date().toISOString()
-                });
-                cargarTareasOficina();
-            } catch (e) {
-                alert("Error al actualizar tarea: " + e.message);
-            }
-        };
-    </script>
 </body>
+
 </html>
+
 

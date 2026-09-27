@@ -1,50 +1,19 @@
 /* =======================================================
-   GEOKATU TOPOGRAFÍA & CATASTRO - ADN ÁUREO (topografia.css)
-   Model Space CAD, Precisión Milimétrica, Salida Vectorial
+   CAPA 0: MAPA BASE VECTORIAL INTERACTIVO
    ======================================================= */
-
-:root {
-    --naranja: #ff6b00;
-    --bg-cad: #1a1a22;
-    --bg-plano-suelo: #21212b;
-    --verde-cierre: #00ff64;
-    --azul-grid: #60a5fa;
-    --glass-bg: rgba(20, 20, 26, 0.92);
-    --glass-border: rgba(255, 255, 255, 0.12);
-
-    /* Escala Fibonacci Espaciados */
-    --sp-micro: 8px;
-    --sp-sm: 13px;
-    --sp-md: 21px;
-    --sp-lg: 34px;
-    --sp-xl: 55px;
-
-    /* Tipografía */
-    --texto-sm: 10px;
-    --texto-base: 13px;
-    --texto-h3: 18px;
-    --texto-h2: 24px;
-}
-
-* {
-    box-sizing: border-box;
-    user-select: none;
-    -webkit-user-select: none;
-}
-
-body, html {
-    margin: 0;
-    padding: 0;
+#mapa-fondo-pmtiles {
+    position: absolute;
+    inset: 0;
     width: 100vw;
     height: 100vh;
-    overflow: hidden;
-    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
-    background: var(--bg-cad);
-    color: white;
+    z-index: 0;
+    opacity: 0.50;
+    filter: grayscale(35%) brightness(0.88);
+    pointer-events: auto;
 }
 
 /* =======================================================
-   1. VIEWPORT INFINITO MODEL SPACE
+   CAPA 1: VELO CON RETÍCULA CAD
    ======================================================= */
 #viewport-topografia {
     position: absolute;
@@ -52,190 +21,213 @@ body, html {
     width: 100vw;
     height: 100vh;
     overflow: hidden;
-    cursor: grab;
-    background-color: var(--bg-cad);
+    z-index: 1;
+    pointer-events: none;
+    background-color: rgba(15, 18, 25, 0.45);
     background-image: 
         linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
         linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
     background-size: 60px 60px;
-    touch-action: none;
 }
 
-#viewport-topografia:active {
-    cursor: grabbing;
-}
-
-#capa-transform {
-    position: absolute;
-    top: 0;
-    left: 0;
-    transform-origin: 0 0;
-    will-change: transform;
-}
-
+/* =======================================================
+   CAPA 2: LIENZO VECTORIAL CAD
+   ======================================================= */
 #canvas-plano {
     position: absolute;
     top: 0;
     left: 0;
+    width: 100vw;
+    height: 100vh;
     pointer-events: none;
+    z-index: 2;
 }
 
 /* =======================================================
-   2. ELEMENTOS FLOTANTES SOBRE EL PLANO (CAD LABELS)
+   CAPA 3: TEXTOS LIBRES CAD (SIN BORDES RECTANGULARES)
    ======================================================= */
-.contra-rotacion {
-    transform-origin: center center;
-    will-change: transform;
-    backface-visibility: hidden;
+#capa-transform {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 3;
 }
 
+/* Texto renderizado final en el mapa */
 .cuadro-texto-cad {
     position: absolute;
-    background: rgba(15, 15, 20, 0.85);
-    border: 1px dashed var(--naranja);
-    border-radius: 6px;
-    padding: 6px 10px;
-    color: #fff;
-    font-size: 11px;
-    font-family: monospace;
-    cursor: move;
-    z-index: 50;
-    min-width: 80px;
-    backdrop-filter: blur(4px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    color: #ffffff;
+    font-size: 12px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-weight: 900;
+    cursor: pointer;
+    pointer-events: auto;
+    white-space: pre-wrap;
+    text-shadow: 1px 1px 2px #000, -1px -1px 2px #000, 1px -1px 2px #000, -1px 1px 2px #000;
+    transform: translate(0, 0);
+    user-select: none;
 }
 
-.cuadro-texto-cad:hover {
-    border-color: #00ff64;
-}
-
-.cuadro-texto-cad.seleccionado {
-    border: 1.5px solid #00ff64;
-    box-shadow: 0 0 15px rgba(0,255,100,0.4);
-}
-
-.etiqueta-lindero {
+/* Editor interactivo en vivo estilo AutoCAD (MTEXT) */
+.editor-cad-en-vivo {
     position: absolute;
-    font-family: monospace;
-    font-size: 10px;
-    color: #ffaa00;
-    text-shadow: 0 1px 3px rgba(0,0,0,0.9);
-    pointer-events: none;
-    text-align: center;
-    white-space: nowrap;
-    z-index: 40;
+    background: rgba(10, 10, 15, 0.70);
+    border: 1.5px dashed #00f0ff;
+    color: #ffffff;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12px;
+    font-weight: 900;
+    outline: none;
+    padding: 3px 6px;
+    border-radius: 4px;
+    z-index: 50;
+    min-width: 110px;
+    box-shadow: 0 0 15px rgba(0,240,255,0.4);
+    box-sizing: border-box;
+    pointer-events: auto;
+    resize: none;
+    overflow: hidden;
+}
+
+
+/* =======================================================
+   ESQUINAS SUPERIORES FIJAS (SATÉLITE IZQ / LLAVE DER)
+   ======================================================= */
+#hud-satelite-box {
+    position: fixed !important;
+    top: 14px !important;
+    left: 14px !important;
+    z-index: 1000 !important;
+}
+
+#btn-portal-mando-contenedor {
+    position: fixed !important;
+    top: 14px !important;
+    right: 14px !important;
+    z-index: 1000 !important;
 }
 
 /* =======================================================
-   3. HUD SUPERIOR Y DOCKS FLOTANTES (CORREGIDOS)
+   PANEL INFERIOR INTEGRADO: HERRAMIENTAS Y DOCK
    ======================================================= */
-.hud-barra-superior {
+.panel-inferior-topografia {
     position: fixed;
-    top: 14px;
+    bottom: 16px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 1000;
     display: flex;
+    flex-direction: column;
     align-items: center;
     gap: 8px;
+    width: auto;
+    max-width: 96vw;
+    pointer-events: none;
+}
+
+.barra-herramientas-inferior {
+    display: flex;
+    align-items: center;
+    gap: 5px;
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    padding: 6px 12px;
-    border-radius: 30px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-    max-width: 95vw;
-    box-sizing: border-box;
-    overflow-x: auto;
-    scrollbar-width: none; /* Oculta scrollbar en Firefox */
+    padding: 4px 8px;
+    border-radius: 20px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.7);
+    pointer-events: auto;
+}
+/* =======================================================
+   SLIDER MINIMALISTA DE CONTRASTE DEL MAPA
+   ======================================================= */
+.contenedor-slider-contraste {
+    display: flex;
+    align-items: center;
+    padding: 0 4px;
 }
 
-.hud-barra-superior::-webkit-scrollbar {
-    display: none; /* Oculta scrollbar en Chrome/Safari */
+.slider-contraste-cad {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 65px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.2);
+    outline: none;
+    cursor: pointer;
+    margin: 0;
+    transition: background 0.2s;
 }
 
-.btn-hud-cad {
+.slider-contraste-cad:hover {
+    background: rgba(255, 255, 255, 0.35);
+}
+
+/* Selector circular minimalista (Webkit / Chrome / Android / Safari) */
+.slider-contraste-cad::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--naranja);
+    border: 1.5px solid #ffffff;
+    box-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
+    cursor: pointer;
+    transition: transform 0.15s ease;
+}
+
+.slider-contraste-cad::-webkit-slider-thumb:active {
+    transform: scale(1.2);
+}
+
+/* Selector circular minimalista (Firefox) */
+.slider-contraste-cad::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--naranja);
+    border: 1.5px solid #ffffff;
+    box-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
+    cursor: pointer;
+}
+
+.btn-tool-cad {
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid var(--glass-border);
     color: white;
-    padding: 6px 12px;
-    border-radius: 14px;
-    font-size: 11px;
+    padding: 6px 10px;
+    border-radius: 12px;
+    font-size: 10.5px;
     font-weight: 800;
     cursor: pointer;
     transition: 0.2s;
     text-transform: uppercase;
-    white-space: nowrap;
-    flex-shrink: 0;
-}
-
-.btn-hud-cad:active { transform: scale(0.95); }
-.btn-hud-cad.activo { background: var(--naranja); border-color: var(--naranja); }
-.btn-hud-cad.verde { background: var(--verde-cierre); color: #000; border-color: var(--verde-cierre); }
-.btn-tres-puntos { padding: 6px 10px; font-size: 14px; }
-
-/* Menú Desplegable Bóveda */
-.menu-boveda-container {
-    position: relative;
-    flex-shrink: 0;
-}
-
-.menu-cabecera-dropdown {
-    display: none;
-    position: absolute;
-    right: 0;
-    top: 42px;
-    background: rgba(20, 20, 26, 0.96);
-    border: 1px solid var(--glass-border);
-    border-radius: 14px;
-    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.8);
-    flex-direction: column;
-    min-width: 210px;
-    z-index: 1100;
-    overflow: hidden;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-}
-
-.menu-cabecera-dropdown.activo {
     display: flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
 }
 
-.menu-cabecera-dropdown button {
-    background: transparent;
-    border: none;
-    color: #e0e0e0;
-    text-align: left;
-    padding: 12px 16px;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    width: 100%;
-    transition: background 0.15s ease;
-}
-
-.menu-cabecera-dropdown button:active,
-.menu-cabecera-dropdown button:hover {
-    background: rgba(255, 255, 255, 0.08);
-}
-
-.menu-cabecera-dropdown .btn-peligro {
-    color: #ff4444;
-}
-
-.menu-cabecera-dropdown .btn-separador {
-    border-top: 1px solid var(--glass-border);
-}
+.btn-tool-cad:active { transform: scale(0.95); }
+.btn-tool-cad.activo { background: var(--naranja); border-color: var(--naranja); }
+.btn-tool-cad.verde { background: var(--verde-cierre); color: #000; border-color: var(--verde-cierre); }
+.btn-tool-cad.lotes-activo { background: #00f0ff; color: #000; border-color: #00f0ff; box-shadow: 0 0 10px rgba(0,240,255,0.4); }
 
 .hud-dock-inferior {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 1000;
     display: flex;
-    gap: 12px;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
 }
 
 .burbuja-cad {
@@ -245,15 +237,15 @@ body, html {
     -webkit-backdrop-filter: blur(16px);
     color: white;
     border-radius: 30px;
-    padding: 12px 18px;
+    padding: 13px 20px;
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 11.5px;
+    gap: 6px;
+    font-size: 12px;
     font-weight: 800;
     cursor: pointer;
     box-shadow: 0 8px 25px rgba(0,0,0,0.7);
-    transition: transform 0.2s;
+    transition: transform 0.2s, background 0.2s;
 }
 
 .burbuja-cad:active { transform: scale(0.94); }
@@ -264,7 +256,47 @@ body, html {
 }
 
 /* =======================================================
-   4. MODALES EXPANDIBLES (WIZARDS DE PROPIEDADES)
+   TELEMETRÍA SATELITAL
+   ======================================================= */
+.satelite-radar-box {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--glass-border);
+    padding: 3px 8px;
+    border-radius: 12px;
+}
+
+.icono-satelite-anim {
+    font-size: 14px;
+    display: inline-block;
+    transition: transform 0.3s ease;
+}
+
+.icono-satelite-anim.fijando {
+    animation: pulsoSatelite 1.5s infinite alternate ease-in-out;
+}
+
+@keyframes pulsoSatelite {
+    0% { transform: scale(0.9); opacity: 0.6; }
+    100% { transform: scale(1.15); opacity: 1; filter: drop-shadow(0 0 6px var(--verde-cierre)); }
+}
+
+.badge-precision-gps {
+    font-size: 10px;
+    font-family: monospace;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 6px;
+}
+
+.precision-optima { background: rgba(0, 255, 100, 0.15); color: #00ff64; border: 1px solid rgba(0, 255, 100, 0.4); }
+.precision-media  { background: rgba(255, 170, 0, 0.15); color: #ffaa00; border: 1px solid rgba(255, 170, 0, 0.4); }
+.precision-baja   { background: rgba(255, 68, 68, 0.15);  color: #ff4444; border: 1px solid rgba(255, 68, 68, 0.4); }
+
+/* =======================================================
+   MODALES DE DIÁLOGO CAD
    ======================================================= */
 .modal-overlay-cad {
     position: fixed;
@@ -300,12 +332,13 @@ body, html {
     outline: none;
     margin-top: 4px;
     margin-bottom: 12px;
+    box-sizing: border-box;
 }
 
 .input-cad:focus { border-color: var(--naranja); }
 
 /* =======================================================
-   5. LÁMINA CATASTRAL LEGAL (EXPORTACIÓN / PRINT PDF)
+   LÁMINA CATASTRAL LEGAL (@MEDIA PRINT)
    ======================================================= */
 #lamina-catastral-print {
     display: none;
@@ -320,10 +353,14 @@ body, html {
         overflow: visible !important;
     }
 
+    #mapa-fondo-pmtiles,
     #viewport-topografia,
     .hud-barra-superior,
     .hud-dock-inferior,
-    .modal-overlay-cad {
+    .modal-overlay-cad,
+    .bottom-sheet-overlay,
+    #tour-overlay,
+    .tour-tooltip {
         display: none !important;
     }
 
@@ -338,7 +375,7 @@ body, html {
 
     .marco-plano-exterior {
         border: 2px solid #000;
-        padding: 10mm;
+        padding: 8mm;
         height: 96vh;
         display: flex;
         flex-direction: column;
@@ -351,8 +388,9 @@ body, html {
         flex: 1;
         width: 100%;
         border: 1px solid #777;
-        margin-bottom: 5mm;
+        margin-bottom: 4mm;
         position: relative;
+        background: #fff;
     }
 
     .rotulo-catastral {
@@ -382,94 +420,25 @@ body, html {
         padding: 1.5mm;
     }
 
+    .rotulo-linderos-texto {
+        border: 1px solid #000;
+        border-top: none;
+        padding: 2.5mm 3mm;
+        font-family: monospace;
+        font-size: 7.5pt;
+        line-height: 1.35;
+        text-align: justify;
+        box-sizing: border-box;
+    }
+
     .norte-simbolo-print {
         position: absolute;
-        top: 15mm;
-        right: 15mm;
-        width: 25mm;
-        height: 25mm;
+        top: 12mm;
+        right: 12mm;
+        width: 22mm;
+        height: 22mm;
         z-index: 50;
     }
 }
 
-/* =======================================================
-   6. RADAR SATELITAL DE PRECISIÓN Y MEMORIA DE LINDEROS
-   ======================================================= */
-.satelite-radar-box {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid var(--glass-border);
-    padding: 3px 8px;
-    border-radius: 12px;
-    flex-shrink: 0;
-}
 
-.icono-satelite-anim {
-    font-size: 14px;
-    display: inline-block;
-    transition: transform 0.3s ease;
-}
-
-.icono-satelite-anim.fijando {
-    animation: pulsoSatelite 1.5s infinite alternate ease-in-out;
-}
-
-@keyframes pulsoSatelite {
-    0% { transform: scale(0.9); opacity: 0.6; }
-    100% { transform: scale(1.15); opacity: 1; filter: drop-shadow(0 0 6px var(--verde-cierre)); }
-}
-
-.badge-precision-gps {
-    font-size: 10px;
-    font-family: monospace;
-    font-weight: 800;
-    padding: 2px 6px;
-    border-radius: 6px;
-    white-space: nowrap;
-}
-
-.precision-optima { background: rgba(0, 255, 100, 0.15); color: #00ff64; border: 1px solid rgba(0, 255, 100, 0.4); }
-.precision-media  { background: rgba(255, 170, 0, 0.15); color: #ffaa00; border: 1px solid rgba(255, 170, 0, 0.4); }
-.precision-baja   { background: rgba(255, 68, 68, 0.15);  color: #ff4444; border: 1px solid rgba(255, 68, 68, 0.4); }
-
-.rotulo-linderos-texto {
-    border: 1px solid #000;
-    border-top: none;
-    padding: 2.5mm 3mm;
-    font-family: monospace;
-    font-size: 7.5pt;
-    line-height: 1.35;
-    text-align: justify;
-    box-sizing: border-box;
-}
-
-/* =======================================================
-   7. MAPA BASE VECTORIAL DESVANECIDO Y AVATAR GPS EN VIVO
-   ======================================================= */
-#mapa-fondo-pmtiles {
-    position: absolute;
-    inset: 0;
-    width: 100vw;
-    height: 100vh;
-    z-index: 0;
-    opacity: 0.38;
-    filter: grayscale(80%) brightness(0.7);
-    pointer-events: none;
-}
-
-.avatar-gps-campo {
-    width: 16px;
-    height: 16px;
-    background: #00ff64;
-    border: 2px solid white;
-    border-radius: 50%;
-    box-shadow: 0 0 15px #00ff64;
-    animation: pulsoUbicacion 1.2s infinite alternate ease-in-out;
-}
-
-@keyframes pulsoUbicacion {
-    0% { transform: scale(0.85); box-shadow: 0 0 6px #00ff64; }
-    100% { transform: scale(1.25); box-shadow: 0 0 20px #00ff64; }
-}

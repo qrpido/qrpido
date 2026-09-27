@@ -10,10 +10,12 @@
 <body>
 
     <!-- 1. VIEWPORT DEL LIENZO INFINITO -->
-    <div id="viewport-infinito">
+    <div id="viewport-infinito" style="touch-action: none;">
         <div id="capa-transform">
             <canvas id="rejilla-canvas"></canvas>
+            <div id="contenedor-items"></div>
             <div id="contenedor-muebles"></div>
+
 
             <!-- Líneas Guía Magnéticas Dinámicas -->
             <div id="guia-h" class="linea-guia horizontal"></div>
@@ -21,31 +23,83 @@
         </div>
     </div>
 
-    <!-- 2. HUD FLOTANTE SUPERIOR (RADAR DE LOCALIZACIÓN Y MUROS) --> 
+    <!-- 2. HUD FLOTANTE SUPERIOR (RADAR DE LOCALIZACIÓN, MULTI-SEDE Y MUROS) --> 
+    <!-- 2. HUD FLOTANTE SUPERIOR ZERO-OVERFLOW (MULTI-SEDE, RADAR Y CONTROLES) -->
     <header class="hud-barra-superior">
-    <select id="selector-sede-activa" class="hud-radar-input" style="width: auto; background: rgba(0,0,0,0.5); border-radius: 12px; padding: 4px 8px; font-weight: bold; border: 1px solid var(--naranja);">
-        <option value="SALA_VENTAS" selected>🏢 Sede Principal</option>
-        <option value="BODEGA_CENTRAL">📦 Bodega Central</option>
-        <option value="SUCURSAL_02">🏬 Sucursal 2</option>
-    </select>
-    <input type="text" id="input-radar-sku" class="hud-radar-input" placeholder="Localizar SKU en mapa...">
-    <button id="btn-ejecutar-radar" class="btn-radar-buscar">Buscar</button>
-    <button id="btn-modo-muros" class="btn-radar-buscar" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">🧱 Muros</button>
-    <button id="btn-guardar-nube" class="btn-radar-buscar" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">💾 Guardar</button>
-</header>
+        <select id="selector-sede-activa" class="hud-radar-select" title="Cambiar sede">
+            <option value="SALA_VENTAS" selected>🏢 Principal</option>
+        </select>
+        <button id="btn-abrir-modal-sede" class="btn-radar-buscar btn-verde-accent" title="Crear espacio" style="display: none;">+ Sede</button>
+        <div class="grupo-busqueda-sku">
+            <input type="text" id="input-radar-sku" class="hud-radar-input" placeholder="Buscar SKU...">
+            <button id="btn-ejecutar-radar" class="btn-radar-buscar" title="Buscar SKU en mapa">🔍</button>
+        </div>
+        <button id="btn-toggle-modo-edicion" class="btn-radar-buscar" title="Bloqueo/Desbloqueo de edición">🔒 Lectura</button>
+        <button id="btn-modo-muros" class="btn-radar-buscar btn-secundario" title="Modo Muros">🧱 Muros</button>
+        <button id="btn-guardar-nube" class="btn-radar-buscar btn-secundario" title="Guardar cambios">💾 Guardar</button>
+    </header>
 
 
-    <!-- 3. BURBUJAS MAGNÉTICAS INFERIORES (DOCK FLOTANTE) -->
-    <nav class="hud-burbujas-dock">
-        <button id="btn-burbuja-area" class="burbuja-fab">📐 Área Local</button>
-        <button id="btn-burbuja-mueble" class="burbuja-fab destacada">📦 + Mueble</button>
-        <button id="btn-burbuja-qrs" class="burbuja-fab">🖨️ Imprimir QRs</button>
+    <!-- MODAL CREACIÓN DE NUEVA TIENDA O BODEGA -->
+    <div id="modal-nueva-sede" class="modal-flotante-wrap">
+        <div class="modal-tarjeta-boveda">
+            <h3 style="margin: 0 0 15px 0; font-size: 15px; text-transform: uppercase; color: var(--naranja);">Crear Espacio / Tienda / Bodega</h3>
+            
+            <label style="font-size: 11px; color: #aaa;">IDENTIFICADOR CORTO (ID):</label>
+            <input type="text" id="nueva-sede-id" class="input-modal" placeholder="Ej: BODEGA_NORTE" style="font-family: monospace; text-transform: uppercase;">
+
+            <label style="font-size: 11px; color: #aaa;">NOMBRE DESCRIPTIVO:</label>
+            <input type="text" id="nueva-sede-nombre" class="input-modal" placeholder="Ej: Bodega Anexa Zona Franca">
+
+            <label style="font-size: 11px; color: #aaa;">TIPO DE ESPACIO:</label>
+            <select id="nueva-sede-tipo" class="input-modal">
+                <option value="TIENDA" selected>🛒 Piso de Ventas / Tienda</option>
+                <option value="BODEGA">📦 Almacén / Bodega de Stock</option>
+                <option value="MIXTO">🏬 Espacio Mixto (Piso de Venta + Bodega)</option>
+            </select>
+
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button id="btn-cancelar-nueva-sede" class="btn-modal-accion" style="background: rgba(255,255,255,0.1);">Cerrar</button>
+                <button id="btn-guardar-nueva-sede" class="btn-modal-accion">Crear Espacio</button>
+            </div>
+        </div>
+    </div>
+<!-- 3. DOCK SEGMENTADO INFERIOR UNIFICADO -->
+    <nav class="hud-dock-unificado" role="toolbar">
+        <button id="btn-burbuja-area" class="dock-segment-btn" title="Definir perímetro de tienda">
+            <span class="dock-icono">📐</span>
+            <span class="dock-txt">Área</span>
+        </button>
+        <button id="btn-burbuja-mueble" class="dock-segment-btn destacado" title="Diseñar nuevo mueble">
+            <span class="dock-icono">📦</span>
+            <span class="dock-txt">+ Mueble</span>
+        </button>
+        <button id="btn-burbuja-item" class="dock-segment-btn" title="Agregar puerta, acceso o zona">
+            <span class="dock-icono">🚪</span>
+            <span class="dock-txt">+ Ítem</span>
+        </button>
+
+        <button id="btn-pestana-lista-muebles" class="dock-segment-btn" title="Lista de muebles">
+            <span class="dock-icono">📋</span>
+            <span class="dock-txt">Lista</span>
+            <span id="badge-contador-muebles" class="badge-conteo-muebles">0</span>
+        </button>
+        <button id="btn-burbuja-qrs" class="dock-segment-btn" title="Generar e imprimir señalética">
+            <span class="dock-icono">🖨️</span>
+            <span class="dock-txt">QRs</span>
+        </button>
     </nav>
 
-    <!-- MINIMAPA RADAR FLOTANTE INDEPENDIENTE -->
-    <div id="contenedor-minimapa" title="Minimapa de Navegación">
+    <!-- MINIMAPA MAGNÉTICO EN BURBUJA FLOTANTE COLAPSABLE -->
+    <div id="contenedor-minimapa" class="minimapa-burbuja-wrap colapsado" title="Minimapa 2D">
+        <div class="minimapa-header-bar">
+            <span class="minimapa-titulo">RADAR 2D</span>
+            <button id="btn-cerrar-minimapa" class="btn-cerrar-mini" title="Colapsar minimapa">✕</button>
+        </div>
         <canvas id="canvas-minimapa"></canvas>
+        <div class="icono-minimapa-radar">🧭</div>
     </div>
+
 
 
     <!-- 4. MODAL PARAMÉTRICO: DELIMITAR ÁREA -->
@@ -119,6 +173,7 @@
                 Cara Frontal: 16 Bins | Total Góndola: 16 Bins
             </p>
 
+
             <div style="display: flex; gap: 10px;">
                 <button id="btn-cancelar-mueble" class="btn-modal-accion" style="background: rgba(255,255,255,0.1);">Cerrar</button>
                 <button id="btn-crear-mueble" class="btn-modal-accion">Guardar Mueble</button>
@@ -137,6 +192,65 @@
             <button onclick="window.print()" class="btn-modal-accion">🖨️ Mandar a Imprimir</button>
         </div>
     </div>
+<!-- MODAL PARAMÉTRICO: ÍTEMS ARQUITECTÓNICOS, PUERTAS Y ANOTACIONES -->
+    <div id="modal-item" class="modal-flotante-wrap">
+        <div class="modal-tarjeta-boveda">
+            <h3 id="modal-item-titulo" style="margin: 0 0 12px 0; font-size: 15px; text-transform: uppercase; color: var(--naranja);">Agregar Elemento / Acceso</h3>
+            
+            <label style="font-size: 10px; color: #aaa;">TIPO DE ELEMENTO:</label>
+            <select id="item-tipo-preset" class="input-modal">
+                <option value="PUERTA_PPAL">🚪 Puerta Principal (Entrada)</option>
+                <option value="PUERTA_SEC">🚪 Puerta Secundaria (Acceso)</option>
+                <option value="PUERTA_BOD_INT">📦 Puerta Bodega Interna</option>
+                <option value="PUERTA_BOD_EXT">🚚 Portón Bodega / Carga Externa</option>
+                <option value="ZONA_TEXTO">🏷️ Rótulo / Cuadro de Texto</option>
+                <option value="SIMBOLO_FORMA">🔷 Símbolo / Figura Geométrica</option>
+            </select>
+
+            <label style="font-size: 10px; color: #aaa;">TEXTO / IDENTIFICADOR:</label>
+            <input type="text" id="item-etiqueta" class="input-modal" value="Entrada Principal">
+
+            <div style="display: flex; gap: 8px;">
+                <div style="flex: 1;">
+                    <label style="font-size: 10px; color: #aaa;">FORMA:</label>
+                    <select id="item-forma" class="input-modal">
+                        <option value="rectangulo" selected>Rectángulo</option>
+                        <option value="circulo">Círculo</option>
+                        <option value="elipse">Elipse</option>
+                        <option value="nube">Nube de Revisión</option>
+                    </select>
+                </div>
+                <div style="flex: 1;">
+                    <label style="font-size: 10px; color: #aaa;">COLOR / FONDO:</label>
+                    <select id="item-color" class="input-modal">
+                        <option value="rgba(0, 255, 100, 0.25)" selected>Verde Acceso</option>
+                        <option value="rgba(255, 107, 0, 0.25)">Naranja Geokatu</option>
+                        <option value="rgba(0, 136, 255, 0.25)">Azul Operativo</option>
+                        <option value="rgba(255, 68, 68, 0.25)">Rojo Restricción</option>
+                        <option value="rgba(184, 68, 255, 0.25)">Púrpura Especial</option>
+                        <option value="rgba(255, 255, 255, 0.08)">Neutro Translúcido</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+                <div style="flex: 1;">
+                    <label style="font-size: 10px; color: #aaa;">ANCHO (Metros):</label>
+                    <input type="number" id="item-ancho" class="input-modal" value="1.2" step="0.1" min="0.4" max="20">
+                </div>
+                <div style="flex: 1;">
+                    <label style="font-size: 10px; color: #aaa;">LARGO (Metros):</label>
+                    <input type="number" id="item-largo" class="input-modal" value="0.4" step="0.1" min="0.2" max="20">
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button id="btn-cancelar-item" class="btn-modal-accion" style="background: rgba(255,255,255,0.1);">Cerrar</button>
+                <button id="btn-guardar-item" class="btn-modal-accion">Fijar en Plano</button>
+            </div>
+        </div>
+    </div>
+
 
     <!-- 7. SCRIPT DEL MOTOR MATEMÁTICO CANVAS & SMART GUIDES -->
     <script type="module">
@@ -145,10 +259,30 @@
 
         let idNegocio = localStorage.getItem('geokatu_active_uid') || null;
         let idSedeActiva = localStorage.getItem('geokatu_sede_activa') || 'SALA_VENTAS';
+        let permisosUsuario = { autorizado: false, rol: null, puedeCrearSedes: false, puedeMoverMuebles: false };
 
         const selectSede = document.getElementById('selector-sede-activa');
+        const btnAbrirModalSede = document.getElementById('btn-abrir-modal-sede');
+
+                // Cargar lista dinámica de sedes desde Firestore con fallback resiliente
+        async function cargarListaSedes() {
+            if (!idNegocio || !selectSede) return;
+            if (typeof GeokatuDB.RadarService.obtenerSedesComercio !== 'function') return;
+            const res = await GeokatuDB.RadarService.obtenerSedesComercio(idNegocio);
+             if (res && res.success && Array.isArray(res.data)) {
+                selectSede.innerHTML = '';
+                res.data.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.id_sede;
+                    const icono = s.tipo === 'BODEGA' ? '📦' : (s.tipo === 'MIXTO' ? '🏬' : '🛒');
+                    opt.innerText = `${icono} ${s.nombre} [${s.tipo || 'TIENDA'}]`;
+                    if (s.id_sede === idSedeActiva) opt.selected = true;
+                    selectSede.appendChild(opt);
+                });
+            }
+        }
+
         if (selectSede) {
-            selectSede.value = idSedeActiva;
             selectSede.addEventListener('change', async (e) => {
                 idSedeActiva = e.target.value;
                 localStorage.setItem('geokatu_sede_activa', idSedeActiva);
@@ -156,32 +290,144 @@
             });
         }
 
-        // Garantizar enlace de sesión viva con Firebase Auth y Enclave Local
-        GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
-            if (user) {
-                idNegocio = user.uid;
-                await GeokatuDB.SecurityService.sellarSesionTerminalLocal(user.uid);
-                hidratarPlanoNube();
+        // Modal para nueva Sede/Bodega
+        if (btnAbrirModalSede) {
+            btnAbrirModalSede.addEventListener('click', () => {
+                if (!permisosUsuario.puedeCrearSedes) {
+                    alert("Solo el Dueño o un Administrador pueden crear nuevas sedes o bodegas.");
+                    return;
+                }
+                document.getElementById('modal-nueva-sede').style.display = 'flex';
+            });
+        }
+        document.getElementById('btn-cancelar-nueva-sede').addEventListener('click', () => {
+            document.getElementById('modal-nueva-sede').style.display = 'none';
+        });
+        document.getElementById('btn-guardar-nueva-sede').addEventListener('click', async () => {
+            const rawId = document.getElementById('nueva-sede-id').value.trim();
+            const nom = document.getElementById('nueva-sede-nombre').value.trim();
+            const tipo = document.getElementById('nueva-sede-tipo').value;
+
+            if (!rawId || !nom) return alert("Completa el ID y Nombre de la nueva sede.");
+            const cleanId = rawId.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+
+            const res = await GeokatuDB.RadarService.crearSedeBodega(idNegocio, cleanId, { 
+                nombre: nom, 
+                tipo: tipo,
+                fecha_creacion: new Date().toISOString()
+            });
+            if (res.success) {
+                // Inicializar plano SIG limpio para el nuevo espacio
+                await GeokatuDB.RadarService.guardarMapaBodega(idNegocio, cleanId, {
+                    perimetro: { anchoM: 12, largoM: 18 },
+                    elementos: [],
+                    muros: [],
+                    sede: cleanId,
+                    tipo_espacio: tipo
+                });
+
+                alert(`✅ Espacio [${nom}] (${tipo}) creado con éxito.`);
+                document.getElementById('modal-nueva-sede').style.display = 'none';
+                idSedeActiva = cleanId;
+                localStorage.setItem('geokatu_sede_activa', idSedeActiva);
+                await cargarListaSedes();
+                await hidratarPlanoNube();
+            } else {
+                alert("Error creando espacio: " + res.error);
             }
         });
+
+        // Control de acceso RBAC por Roles
+        GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
+            if (user) {
+                idNegocio = localStorage.getItem('geokatu_active_uid') || user.uid;
+                await GeokatuDB.SecurityService.sellarSesionTerminalLocal(idNegocio);
+
+                                // Verificación de credenciales y roles con fallback automático
+                if (typeof GeokatuDB.RadarService.validarPermisosOperador === 'function') {
+                    permisosUsuario = await GeokatuDB.RadarService.validarPermisosOperador(idNegocio, user.email);
+                } else {
+                    permisosUsuario = { autorizado: true, rol: "dueno", puedeCrearSedes: true, puedeMoverMuebles: true };
+                }
+
+                if (!permisosUsuario.autorizado) {
+                    alert(`⛔ Acceso Denegado: ${permisosUsuario.motivo || 'No tienes permisos para editar el plano de la tienda.'}`);
+                    window.location.href = 'oficina';
+                    return;
+                }
+
+
+                // Ajustar UI según el rol
+                if (permisosUsuario.puedeCrearSedes && btnAbrirModalSede) {
+                    btnAbrirModalSede.style.display = 'inline-block';
+                } else if (btnAbrirModalSede) {
+                    btnAbrirModalSede.style.display = 'none';
+                }
+
+                await cargarListaSedes();
+                await hidratarPlanoNube();
+            } else {
+                alert("Debes iniciar sesión para acceder al plano.");
+                window.location.href = 'oficina';
+            }
+        });
+
+
+
 
         // Escala métrica: 1 metro = 60 píxeles
         const METRO_PX = 60;
         let perimetro = { anchoM: 12, largoM: 18 };
-        let muebles = [];
+        llet muebles = [];
         let muebleSeleccionado = null;
-        let modoPincelMuros = false;
-        let celdasMurosBloqueadas = new Set(); // Coordenadas "x,y" bloqueadas por muros/columnas
+        let muebleRadarActivoId = null; // Rastreo para halo en minimapa
+        let animacionRadarMiniTimer = null;
+        // Estado e Ítems Espaciales (Puertas, Zonas, Rótulos) 
+        let itemsEspaciales = [];
+        let itemSeleccionado = null;
+        let itemEnEdicion = null;
+        const contenedorItems = document.getElementById('contenedor-items');
 
-        // Estado y Restricciones de Viewport Estilo CAD (Rango Libre 0.15x a 5.0x)
+        let modoPincelMuros = false;
+        let celdasMurosBloqueadas = new Set();
+        let modoEdicionActivo = false; // Modo Lectura/Inspección activo por defecto
+
+        function alternarModoEdicion(forzarEstado = null) {
+            modoEdicionActivo = (forzarEstado !== null) ? forzarEstado : !modoEdicionActivo;
+            const btnModo = document.getElementById('btn-toggle-modo-edicion');
+            const vp = document.getElementById('viewport-infinito');
+
+            if (modoEdicionActivo) {
+                vp.classList.add('modo-edicion');
+                vp.classList.remove('modo-lectura');
+                if (btnModo) {
+                    btnModo.innerHTML = '🔓 Edición';
+                    btnModo.style.background = 'var(--naranja)';
+                    btnModo.style.borderColor = '#ffffff';
+                }
+            } else {
+                vp.classList.remove('modo-edicion');
+                vp.classList.add('modo-lectura');
+                deseleccionarMuebles();
+                if (btnModo) {
+                    btnModo.innerHTML = '🔒 Lectura';
+                    btnModo.style.background = 'rgba(255,255,255,0.08)';
+                    btnModo.style.borderColor = 'rgba(255,255,255,0.2)';
+                }
+            }
+        }
+
+
+       // Estado y Restricciones de Viewport Estilo CAD (Rango Libre 0.15x a 5.0x)
         let viewport = { x: 40, y: 100, escala: 1 };
-        const SCALE_MIN = 0.15;
-        const SCALE_MAX = 5.0;
+        const SCALE_MIN = 0.15; // Permite alejarte para ver la nave industrial completa desde arriba
+        const SCALE_MAX = 5.0;  // Permite acercarte a nivel de milímetros a un bin o producto
 
         function obtenerScaleMin() {
             return SCALE_MIN;
         }
 
+        // Función estilo AutoCAD: Zoom Extents (Centra y ajusta todo el plano en pantalla)
         window.zoomExtents = function() {
             const planoW = perimetro.anchoM * METRO_PX;
             const planoH = perimetro.largoM * METRO_PX;
@@ -192,6 +438,7 @@
             actualizarTransform();
         };
 
+
         const capaTransform = document.getElementById('capa-transform');
         const canvasRejilla = document.getElementById('rejilla-canvas');
         const ctxRejilla = canvasRejilla.getContext('2d');
@@ -199,18 +446,21 @@
         const guiaH = document.getElementById('guia-h');
         const guiaV = document.getElementById('guia-v');
 
+        // Referencias del minimapa independiente
         const canvasMinimapa = document.getElementById('canvas-minimapa');
         const ctxMinimapa = canvasMinimapa ? canvasMinimapa.getContext('2d') : null;
 
         function actualizarTransform() {
             capaTransform.style.transform = `translate3d(${viewport.x}px, ${viewport.y}px, 0) scale(${viewport.escala})`;
             
+            // Sincroniza la cuadrícula infinita exterior con la escala y desplazamiento del plano
             const tamRejilla = METRO_PX * viewport.escala;
             vpEl.style.backgroundSize = `${tamRejilla}px ${tamRejilla}px`;
             vpEl.style.backgroundPosition = `${viewport.x}px ${viewport.y}px`;
 
             renderizarMinimapa();
         }
+
 
         function renderizarMinimapa() {
             if (!ctxMinimapa || !canvasMinimapa) return;
@@ -229,16 +479,19 @@
             const planoW = perimetro.anchoM * METRO_PX;
             const planoH = perimetro.largoM * METRO_PX;
 
+            // Escala de ajuste para encajar la tienda dentro del minimapa
             const escalaMini = Math.min((rectMini.width - 20) / planoW, (rectMini.height - 20) / planoH);
             const offsetX = (rectMini.width - planoW * escalaMini) / 2;
             const offsetY = (rectMini.height - planoH * escalaMini) / 2;
 
+            // 1. Dibujar contorno del perímetro
             ctxMinimapa.fillStyle = 'rgba(25, 25, 32, 0.9)';
             ctxMinimapa.fillRect(offsetX, offsetY, planoW * escalaMini, planoH * escalaMini);
             ctxMinimapa.strokeStyle = '#ff6b00';
             ctxMinimapa.lineWidth = 1.5;
             ctxMinimapa.strokeRect(offsetX, offsetY, planoW * escalaMini, planoH * escalaMini);
 
+            // 2. Muros
             ctxMinimapa.fillStyle = 'rgba(255, 68, 68, 0.6)';
             celdasMurosBloqueadas.forEach(coord => {
                 const [cx, cy] = coord.split(',').map(Number);
@@ -249,22 +502,79 @@
                     METRO_PX * escalaMini
                 );
             });
+// 2.5. Ítems arquitectónicos, accesos y zonas
+            itemsEspaciales.forEach(it => {
+                const iW = (it.anchoM * METRO_PX) * escalaMini;
+                const iH = (it.largoM * METRO_PX) * escalaMini;
+                const cX = offsetX + (it.x * escalaMini) + (iW / 2);
+                const cY = offsetY + (it.y * escalaMini) + (iH / 2);
 
-            ctxMinimapa.fillStyle = '#ff6b00';
-            muebles.forEach(m => {
-                ctxMinimapa.fillRect(
-                    offsetX + m.x * escalaMini,
-                    offsetY + m.y * escalaMini,
-                    (m.anchoM * METRO_PX) * escalaMini,
-                    (m.largoM * METRO_PX) * escalaMini
-                );
+                ctxMinimapa.save();
+                ctxMinimapa.translate(cX, cY);
+                ctxMinimapa.rotate(((it.rotacion || 0) * Math.PI) / 180);
+
+                ctxMinimapa.fillStyle = it.colorFondo || 'rgba(0,255,100,0.3)';
+                ctxMinimapa.strokeStyle = '#00ff64';
+                ctxMinimapa.lineWidth = 1;
+
+                if (it.forma === 'circulo' || it.forma === 'elipse') {
+                    ctxMinimapa.beginPath();
+                    ctxMinimapa.ellipse(0, 0, iW / 2, iH / 2, 0, 0, Math.PI * 2);
+                    ctxMinimapa.fill();
+                    ctxMinimapa.stroke();
+                } else if (it.forma === 'nube') {
+                    ctxMinimapa.setLineDash([2, 2]);
+                    ctxMinimapa.strokeRect(-iW / 2, -iH / 2, iW, iH);
+                    ctxMinimapa.fillRect(-iW / 2, -iH / 2, iW, iH);
+                } else {
+                    ctxMinimapa.fillRect(-iW / 2, -iH / 2, iW, iH);
+                    ctxMinimapa.strokeRect(-iW / 2, -iH / 2, iW, iH);
+                }
+
+                ctxMinimapa.restore();
             });
 
+            // 3. Muebles emplazados con transformación isométrica y rotación exacta
+            muebles.forEach(m => {
+                const mW = (m.anchoM * METRO_PX) * escalaMini;
+                const mH = (m.largoM * METRO_PX) * escalaMini;
+                // Centroide geométrico del mueble en coordenadas del minimapa
+                const centroX = offsetX + (m.x * escalaMini) + (mW / 2);
+                const centroY = offsetY + (m.y * escalaMini) + (mH / 2);
+
+                ctxMinimapa.save();
+                ctxMinimapa.translate(centroX, centroY);
+                ctxMinimapa.rotate(((m.rotacion || 0) * Math.PI) / 180);
+
+                const esSeleccionado = (muebleSeleccionado && muebleSeleccionado.id_mueble === m.id_mueble);
+                const enRadar = (muebleRadarActivoId === m.id_mueble);
+
+                // Halo expansivo de radar en minimapa
+                if (enRadar) {
+                    ctxMinimapa.strokeStyle = '#00ff64';
+                    ctxMinimapa.lineWidth = 2.5;
+                    ctxMinimapa.strokeRect((-mW / 2) - 3, (-mH / 2) - 3, mW + 6, mH + 6);
+                }
+
+                ctxMinimapa.fillStyle = enRadar ? '#00ff64' : (esSeleccionado ? '#ff8c00' : '#ff6b00');
+                ctxMinimapa.fillRect(-mW / 2, -mH / 2, mW, mH);
+
+                ctxMinimapa.strokeStyle = enRadar ? '#ffffff' : (esSeleccionado ? '#00ff64' : 'rgba(255, 255, 255, 0.4)');
+                ctxMinimapa.lineWidth = enRadar ? 2 : 1;
+                ctxMinimapa.strokeRect(-mW / 2, -mH / 2, mW, mH);
+
+                ctxMinimapa.restore();
+
+            });
+
+
+            // 4. Marco de Visión CAD (Frustum de Cámara + Sombreado de Extensión)
             const camMundoX = -viewport.x / viewport.escala;
             const camMundoY = -viewport.y / viewport.escala;
             const camMundoW = window.innerWidth / viewport.escala;
             const camMundoH = window.innerHeight / viewport.escala;
 
+            // Relleno semitransparente del visor activo
             ctxMinimapa.fillStyle = 'rgba(0, 255, 100, 0.12)';
             ctxMinimapa.fillRect(
                 offsetX + camMundoX * escalaMini,
@@ -273,6 +583,7 @@
                 camMundoH * escalaMini
             );
 
+            // Borde flúor característico de AutoCAD
             ctxMinimapa.strokeStyle = '#00ff64';
             ctxMinimapa.lineWidth = 1.8;
             ctxMinimapa.strokeRect(
@@ -282,6 +593,7 @@
                 camMundoH * escalaMini
             );
 
+            // Mira en cruz en el centro del visor
             const centroVisorX = offsetX + (camMundoX + camMundoW / 2) * escalaMini;
             const centroVisorY = offsetY + (camMundoY + camMundoH / 2) * escalaMini;
             ctxMinimapa.strokeStyle = 'rgba(0, 255, 100, 0.5)';
@@ -293,13 +605,37 @@
             ctxMinimapa.lineTo(centroVisorX, centroVisorY + 4);
             ctxMinimapa.stroke();
 
+
             ctxMinimapa.restore();
         }
 
-        if (canvasMinimapa) {
+
+
+       // Navegación Dinámica sobre el Minimapa (Arrastre de Viewport CAD en Vivo)
+      const contenedorMini = document.getElementById('contenedor-minimapa');
+        const btnCerrarMini = document.getElementById('btn-cerrar-minimapa');
+
+        if (contenedorMini && canvasMinimapa) {
             let arrastrandoMinimapa = false;
 
+            // Apertura/Colapso por interacción
+            contenedorMini.addEventListener('click', (e) => {
+                if (contenedorMini.classList.contains('colapsado')) {
+                    e.stopPropagation();
+                    contenedorMini.classList.remove('colapsado');
+                    renderizarMinimapa();
+                }
+            });
+
+            if (btnCerrarMini) {
+                btnCerrarMini.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    contenedorMini.classList.add('colapsado');
+                });
+            }
+
             const moverCamaraDesdeMinimapa = (e) => {
+                if (contenedorMini.classList.contains('colapsado')) return;
                 const rect = canvasMinimapa.getBoundingClientRect();
                 const clickX = e.clientX - rect.left;
                 const clickY = e.clientY - rect.top;
@@ -319,6 +655,7 @@
             };
 
             canvasMinimapa.addEventListener('pointerdown', (e) => {
+                if (contenedorMini.classList.contains('colapsado')) return;
                 e.stopPropagation();
                 arrastrandoMinimapa = true;
                 canvasMinimapa.setPointerCapture(e.pointerId);
@@ -326,7 +663,7 @@
             });
 
             canvasMinimapa.addEventListener('pointermove', (e) => {
-                if (!arrastrandoMinimapa) return;
+                if (!arrastrandoMinimapa || contenedorMini.classList.contains('colapsado')) return;
                 e.stopPropagation();
                 moverCamaraDesdeMinimapa(e);
             });
@@ -340,6 +677,9 @@
             canvasMinimapa.addEventListener('pointercancel', finDragMini);
         }
 
+
+
+        // --- 1. DIBUJO DE LA REJILLA, ÁREA Y MUROS IRREGULARES ---
         function redibujarArea() {
             const w = perimetro.anchoM * METRO_PX;
             const h = perimetro.largoM * METRO_PX;
@@ -351,11 +691,14 @@
 
             ctxRejilla.clearRect(0, 0, w, h);
 
+            // Suelo del área comercial delimitada (Mesa de trabajo activa)
             ctxRejilla.fillStyle = '#21212b';
             ctxRejilla.fillRect(0, 0, w, h);
 
+            // Líneas métricas de cuadrícula interna (cada 1 metro dentro de la tienda)
             ctxRejilla.strokeStyle = 'rgba(255, 255, 255, 0.09)';
             ctxRejilla.lineWidth = 1;
+
 
             for (let x = 0; x <= w; x += METRO_PX) {
                 ctxRejilla.beginPath();
@@ -370,10 +713,12 @@
                 ctxRejilla.stroke();
             }
 
+            // Perímetro exterior de pared
             ctxRejilla.strokeStyle = '#ff6b00';
             ctxRejilla.lineWidth = 3;
             ctxRejilla.strokeRect(0, 0, w, h);
 
+            // Pintar celdas de muros irregulares guardadas
             celdasMurosBloqueadas.forEach(coord => {
                 const [cx, cy] = coord.split(',').map(Number);
                 ctxRejilla.fillStyle = 'rgba(255, 68, 68, 0.45)';
@@ -384,11 +729,13 @@
             });
         }
 
+       // --- 2. VIEWPORT: PANEO Y PINCH-TO-ZOOM MULTITÁCTIL ESTABILIZADO (CERO DERIVA) ---
         const vpEl = document.getElementById('viewport-infinito');
         const punterosActivos = new Map();
         let distanciaInicialPinch = 0;
         let escalaInicialPinch = 1;
         let centroInicialPinch = { x: 0, y: 0 };
+        let viewportInicialPinch = { x: 0, y: 0 };
         let inicioArrastreUnico = { x: 0, y: 0 };
 
         vpEl.addEventListener('pointerdown', (e) => {
@@ -405,6 +752,7 @@
                 const pts = Array.from(punterosActivos.values());
                 distanciaInicialPinch = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
                 escalaInicialPinch = viewport.escala;
+                viewportInicialPinch = { x: viewport.x, y: viewport.y };
                 centroInicialPinch = {
                     x: (pts[0].x + pts[1].x) / 2,
                     y: (pts[0].y + pts[1].y) / 2
@@ -417,10 +765,12 @@
             punterosActivos.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
             if (punterosActivos.size === 1) {
+                // Paneo 1 a 1 suave sin multiplicación errática
                 viewport.x = e.clientX - inicioArrastreUnico.x;
                 viewport.y = e.clientY - inicioArrastreUnico.y;
                 actualizarTransform();
             } else if (punterosActivos.size === 2) {
+                // Zoom con ancla invariante en espacio modelo (Previene el salto exponencial)
                 const pts = Array.from(punterosActivos.values());
                 const distActual = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
                 if (distanciaInicialPinch === 0) return;
@@ -434,12 +784,17 @@
                     y: (pts[0].y + pts[1].y) / 2
                 };
 
-                viewport.x = centroActual.x - ((centroInicialPinch.x - viewport.x) / viewport.escala) * nuevaEscala;
-                viewport.y = centroActual.y - ((centroInicialPinch.y - viewport.y) / viewport.escala) * nuevaEscala;
+                // Punto mundial estático anclado al inicio del gesto
+                const mundoPivotX = (centroInicialPinch.x - viewportInicialPinch.x) / escalaInicialPinch;
+                const mundoPivotY = (centroInicialPinch.y - viewportInicialPinch.y) / escalaInicialPinch;
+
+                viewport.x = centroActual.x - (mundoPivotX * nuevaEscala);
+                viewport.y = centroActual.y - (mundoPivotY * nuevaEscala);
                 viewport.escala = nuevaEscala;
                 actualizarTransform();
             }
         });
+
 
         const limpiarPuntero = (e) => {
             punterosActivos.delete(e.pointerId);
@@ -452,6 +807,7 @@
         vpEl.addEventListener('pointerup', limpiarPuntero);
         vpEl.addEventListener('pointercancel', limpiarPuntero);
 
+        // Zoom pivote con rueda de ratón para escritorio
         vpEl.addEventListener('wheel', (e) => {
             e.preventDefault();
             const escalaMin = obtenerScaleMin();
@@ -468,6 +824,8 @@
             }
         }, { passive: false });
 
+
+        // --- 3. PINCEL DE MUROS E IRREGULARIDADES ---
         document.getElementById('btn-modo-muros').addEventListener('click', () => {
             modoPincelMuros = !modoPincelMuros;
             const btn = document.getElementById('btn-modo-muros');
@@ -481,7 +839,7 @@
             }
         });
 
-        canvasRejilla.style.pointerEvents = 'auto';
+        canvasRejilla.style.pointerEvents = 'auto'; // Permitir clics sobre el canvas para pintar muros
         canvasRejilla.addEventListener('pointerdown', (e) => {
             if (!modoPincelMuros) return;
             const rect = canvasRejilla.getBoundingClientRect();
@@ -500,6 +858,7 @@
             redibujarArea();
         });
 
+        // Validación matemática de colisión con muros
         function verificarColisionMuros(x, y, anchoM, largoM) {
             const minX = Math.floor(x / METRO_PX);
             const minY = Math.floor(y / METRO_PX);
@@ -516,18 +875,21 @@
             return false;
         }
 
+        // --- 4. CREACIÓN Y CONTRA-ROTACIÓN REACTIVA DE UI (REQ 14) ---
         let muebleEnEdicion = null;
 
         function aplicarContraRotacion(el, angulo) {
-            const elementosUI = el.querySelectorAll('.contra-rotacion');
-            elementosUI.forEach(elem => {
-                if (elem.classList.contains('menu-contextual-mueble') || elem.classList.contains('pivote-giro')) {
-                    elem.style.transform = `translateX(-50%) rotate(${-angulo}deg)`;
-                } else {
-                    elem.style.transform = `rotate(${-angulo}deg)`;
-                }
-            });
+    const elementosUI = el.querySelectorAll('.contra-rotacion');
+    elementosUI.forEach(elem => {
+        if (elem.classList.contains('menu-contextual-mueble') || elem.classList.contains('pivote-giro')) {
+            // Preserva el centrado horizontal del pivote y del menú contextual
+            elem.style.transform = `translateX(-50%) rotate(${-angulo}deg)`;
+        } else {
+            elem.style.transform = `rotate(${-angulo}deg)`;
         }
+    });
+}
+
 
         function renderizarMuebles() {
             contenedorMuebles.innerHTML = '';
@@ -545,6 +907,7 @@
                 const rot = m.rotacion || 0;
                 el.style.transform = `rotate(${rot}deg)`;
 
+                // 1. Menú contextual con contra-rotación
                 const menuContextual = document.createElement('div');
                 menuContextual.classList.add('menu-contextual-mueble', 'contra-rotacion');
                 menuContextual.innerHTML = `
@@ -567,6 +930,7 @@
                 });
                 el.appendChild(menuContextual);
 
+                // 2. Indicador visual esquemático de compartimientos (Cara A predeterminada)
                 const subGrid = document.createElement('div');
                 subGrid.classList.add('mueble-subdivisiones');
                 const binsFrontal = (m.caras && m.caras.A) ? (m.caras.A.bins || 4) : 4;
@@ -579,12 +943,14 @@
                 }
                 el.appendChild(subGrid);
 
+                // 3. Etiqueta de texto con contra-rotación horizontal permanente
                 const tag = document.createElement('div');
                 tag.classList.add('mueble-etiqueta', 'contra-rotacion');
                 const totalBins = m.compartimientos ? m.compartimientos.length : 0;
                 tag.innerText = `${m.nombre}\n[${m.zona === 'BODEGA' ? 'Bodega' : 'Piso Venta'}]\n${totalBins} Bins`;
                 el.appendChild(tag);
 
+                // 4. Pivote de giro con contra-rotación
                 const pivote = document.createElement('div');
                 pivote.classList.add('pivote-giro', 'contra-rotacion');
                 pivote.innerHTML = '🔄';
@@ -599,17 +965,21 @@
                 iniciarDragMueble(el, m);
                 contenedorMuebles.appendChild(el);
                 
+                // Ejecutar contra-rotación inicial
                 aplicarContraRotacion(el, rot);
             });
         }
+
 
         function iniciarDragMueble(el, mueble) {
             let offsetArrastre = { x: 0, y: 0 };
             let arrastrando = false;
 
             el.addEventListener('pointerdown', (e) => {
+                if (!modoEdicionActivo) return; // Bloqueo antitouch estricto: permite pan táctil continuo
                 e.stopPropagation();
                 arrastrando = true;
+
                 seleccionarMueble(mueble, el);
 
                 const rectM = { x: mueble.x, y: mueble.y };
@@ -627,6 +997,7 @@
 
                 const snap = calcularSmartGuides(mueble, nuevoX, nuevoY);
                 
+               // Restricción de colisión con muros
                 if (!verificarColisionMuros(snap.x, snap.y, mueble.anchoM, mueble.largoM)) {
                     mueble.x = snap.x;
                     mueble.y = snap.y;
@@ -708,6 +1079,7 @@
             document.querySelectorAll('.mueble-bloque').forEach(m => m.classList.remove('seleccionado'));
         }
 
+        // --- 5. CONTROL DE MODALES FLOTANTES ---
         document.getElementById('btn-burbuja-area').addEventListener('click', () => {
             document.getElementById('modal-area').style.display = 'flex';
         });
@@ -721,6 +1093,7 @@
             redibujarArea();
         });
 
+        // --- 5. ARQUITECTURA FÍSICA MULTI-CARA Y BINS CANÓNICOS (REQ 15) ---
         let caraActivaModal = 'A';
         let configCarasEnMemoria = {
             A: { niveles: 4, bins: 4, activa: true },
@@ -737,6 +1110,7 @@
             const niv = Number(inputNiveles.value) || 0;
             const bins = Number(inputSubdivs.value) || 0;
             
+            // Sincronizar cara en memoria
             configCarasEnMemoria[caraActivaModal].niveles = niv;
             configCarasEnMemoria[caraActivaModal].bins = bins;
             configCarasEnMemoria[caraActivaModal].activa = (niv > 0 && bins > 0);
@@ -753,19 +1127,21 @@
         inputNiveles.addEventListener('input', actualizarPreviewBins);
         inputSubdivs.addEventListener('input', actualizarPreviewBins);
 
+        // Control de Tabs selectoras de Cara
         document.querySelectorAll('#dock-selector-caras .tab-cara-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 document.querySelectorAll('#dock-selector-caras .tab-cara-btn').forEach(b => b.classList.remove('activa'));
                 btn.classList.add('activa');
                 caraActivaModal = btn.dataset.cara;
 
+                // Cargar datos de la cara activa
                 inputNiveles.value = configCarasEnMemoria[caraActivaModal].niveles || 0;
                 inputSubdivs.value = configCarasEnMemoria[caraActivaModal].bins || 0;
                 actualizarPreviewBins();
             });
         });
 
-        function generarMatrizCanonicaBins(idMueble, carasConfig) {
+       function generarMatrizCanonicaBins(idMueble, carasConfig) {
             const compartimientos = [];
             const codigosCaras = ['A', 'B', 'C', 'D'];
 
@@ -776,13 +1152,18 @@
                         const strNivel = `N${niv}`;
                         for (let b = 1; b <= cfg.bins; b++) {
                             const strBin = `B${String(b).padStart(2, '0')}`;
+                            // Prefijo GEO-P- garantizado para compatibilidad estricta con stock.html
+                            const idCanonicoComp = `GEO-P-${idNegocio}-${idSedeActiva}-${idMueble}-${cara}-${strNivel}-${strBin}`;
+                            const idEstantePadre = `GEO-M-${idNegocio}-${idSedeActiva}-${idMueble}`;
+
                             compartimientos.push({
-                                id_comp: `GEO-${idNegocio}-${idSedeActiva}-${idMueble}-${cara}-${strNivel}-${strBin}`,
-                                id_estante: `GEO-${idNegocio}-${idSedeActiva}-${idMueble}`,
+                                id_comp: idCanonicoComp,
+                                id_estante: idEstantePadre,
                                 id_sede: idSedeActiva,
                                 cara: cara,
                                 nivel: strNivel,
-                                bin: strBin
+                                bin: strBin,
+                                codigo_trazabilidad: `${idMueble}_${cara}_${strNivel}_${strBin}`
                             });
                         }
                     }
@@ -799,6 +1180,7 @@
             document.getElementById('mueble-ancho').value = m.anchoM;
             document.getElementById('mueble-largo').value = m.largoM;
 
+            // Clonar configuración de caras guardadas
             configCarasEnMemoria = JSON.parse(JSON.stringify(m.caras || {
                 A: { niveles: m.niveles || 4, bins: m.subdivisionesXNivel || 4, activa: true },
                 B: { niveles: 0, bins: 0, activa: false },
@@ -806,6 +1188,7 @@
                 D: { niveles: 0, bins: 0, activa: false }
             }));
 
+            // Reset tab a Frontal (A)
             caraActivaModal = 'A';
             document.querySelectorAll('#dock-selector-caras .tab-cara-btn').forEach(b => {
                 b.classList.toggle('activa', b.dataset.cara === 'A');
@@ -827,7 +1210,7 @@
 
             configCarasEnMemoria = {
                 A: { niveles: 4, bins: 4, activa: true },
-                B: { niveles: 4, bins: 4, activa: true },
+                B: { niveles: 4, bins: 4, activa: true }, // Doble faz por defecto en retail
                 C: { niveles: 0, bins: 0, activa: false },
                 D: { niveles: 0, bins: 0, activa: false }
             };
@@ -847,12 +1230,13 @@
             document.getElementById('modal-mueble').style.display = 'none';
         });
 
-        document.getElementById('btn-crear-mueble').addEventListener('click', () => {
+       document.getElementById('btn-crear-mueble').addEventListener('click', () => {
             const nombre = document.getElementById('mueble-nombre').value.trim() || "Góndola";
             const zona = document.getElementById('mueble-zona').value;
             const anchoM = Number(document.getElementById('mueble-ancho').value) || 2;
             const largoM = Number(document.getElementById('mueble-largo').value) || 4;
 
+            // Sincronización forzada síncrona de la cara abierta en pantalla
             const nivActual = Number(document.getElementById('mueble-niveles').value) || 0;
             const binsActual = Number(document.getElementById('mueble-subdivs').value) || 0;
             configCarasEnMemoria[caraActivaModal].niveles = nivActual;
@@ -860,6 +1244,13 @@
             configCarasEnMemoria[caraActivaModal].activa = (nivActual > 0 && binsActual > 0);
 
             actualizarPreviewBins();
+
+            let maxNiveles = 1;
+            for (const c in configCarasEnMemoria) {
+                if (configCarasEnMemoria[c].activa && configCarasEnMemoria[c].niveles > maxNiveles) {
+                    maxNiveles = configCarasEnMemoria[c].niveles;
+                }
+            }
 
             if (muebleEnEdicion) {
                 muebleEnEdicion.nombre = nombre;
@@ -870,13 +1261,18 @@
                 muebleEnEdicion.compartimientos = generarMatrizCanonicaBins(muebleEnEdicion.id_mueble, muebleEnEdicion.caras);
                 muebleEnEdicion = null;
             } else {
-                const idGenerado = "M" + Date.now().toString(16).toUpperCase().slice(-5);
+                // Codificación Canónica: Ubicación_Número_Tamaño_Altura
+                const sigNumero = muebles.length + 1;
+                const strNum = String(sigNumero).padStart(2, '0');
+                const prefZona = (zona === 'BODEGA') ? 'BOD' : 'PV';
+                const idCanonicoMueble = `${prefZona}_M${strNum}_${anchoM}x${largoM}_H${maxNiveles}`;
+
                 const carasCopia = JSON.parse(JSON.stringify(configCarasEnMemoria));
-                const compartimientos = generarMatrizCanonicaBins(idGenerado, carasCopia);
+                const compartimientos = generarMatrizCanonicaBins(idCanonicoMueble, carasCopia);
 
                 const nuevoMueble = {
-                    id_mueble: idGenerado,
-                    qr: `GEO-M-${idGenerado}`,
+                    id_mueble: idCanonicoMueble,
+                    qr: `GEO-M-${idNegocio}-${idSedeActiva}-${idCanonicoMueble}`,
                     nombre: nombre,
                     zona: zona,
                     anchoM: anchoM,
@@ -890,10 +1286,14 @@
                 muebles.push(nuevoMueble);
             }
 
-            document.getElementById('modal-mueble').style.display = 'none';
+                        document.getElementById('modal-mueble').style.display = 'none';
             renderizarMuebles();
+            actualizarContadorDrawer();
         });
 
+
+
+        // --- 6. PERSISTENCIA EN FIRESTORE (INCLUYENDO MUROS) ---
         document.getElementById('btn-guardar-nube').addEventListener('click', async () => {
             if (!idNegocio) {
                 alert("Inicia sesión para respaldar el plano en la nube.");
@@ -902,9 +1302,11 @@
             const gridData = {
                 perimetro: perimetro,
                 elementos: muebles,
+                items: itemsEspaciales,
                 muros: Array.from(celdasMurosBloqueadas),
                 sede: idSedeActiva
             };
+
             const res = await GeokatuDB.RadarService.guardarMapaBodega(idNegocio, idSedeActiva, gridData);
             if (res.success) {
                 alert(`✅ Plano espacial de [${idSedeActiva}] sincronizado con éxito.`);
@@ -913,6 +1315,8 @@
             }
         });
 
+
+       // --- 7. RADAR ESPACIAL: LOCALIZAR SKU Y CARA ACTIVA (REQ 15) ---
         document.getElementById('btn-ejecutar-radar').addEventListener('click', async () => {
             const sku = document.getElementById('input-radar-sku').value.trim();
             if (!sku || !idNegocio) {
@@ -927,6 +1331,7 @@
                 const ubi = res.data[0];
                 const idComp = ubi.id_compartimiento || ubi.id || "";
                 
+                // Búsqueda por ID directo, QR o coincidencia dentro del arreglo de compartimientos canónicos
                 const mueble = muebles.find(m => {
                     if (m.id_mueble === ubi.id_estante || m.qr === ubi.id_estante) return true;
                     return (m.compartimientos || []).some(c => c.id_comp === idComp);
@@ -937,14 +1342,20 @@
                     if (el) {
                         el.classList.add('radar-activo');
                         
+                        // Centrado del viewport en el objetivo espacial
                         viewport.x = (window.innerWidth / 2) - ((mueble.x + (mueble.anchoM * METRO_PX) / 2) * viewport.escala);
                         viewport.y = (window.innerHeight / 2) - ((mueble.y + (mueble.largoM * METRO_PX) / 2) * viewport.escala);
                         actualizarTransform();
 
+                        // Desglose canónico robusto desde la cola: ...-{cara}-{nivel}-{bin}
                         const partes = idComp.split('-');
                         let detalleUbicacion = idComp;
-                        if (partes.length >= 6) {
-                            detalleUbicacion = `Góndola: ${mueble.nombre} | Cara: ${partes[3]} | Nivel: ${partes[4]} | Bin: ${partes[5]}`;
+                        const len = partes.length;
+                        if (len >= 6) {
+                            const bin = partes[len - 1];
+                            const nivel = partes[len - 2];
+                            const cara = partes[len - 3];
+                            detalleUbicacion = `Góndola: ${mueble.nombre} | Cara: ${cara} | Nivel: ${nivel} | Bin: ${bin}`;
                         }
                         
                         const tagEl = el.querySelector('.mueble-etiqueta');
@@ -960,6 +1371,8 @@
             }
         });
 
+
+        // --- 8. GENERACIÓN DE SEÑALÉTICA QR ---
         document.getElementById('btn-burbuja-qrs').addEventListener('click', () => {
             const contenedor = document.getElementById('contenedor-qrs-render');
             contenedor.innerHTML = '';
@@ -982,6 +1395,7 @@
                     cardC.innerHTML += `<p style="margin: 4px 0 0 0; font-size: 10px;">${m.nombre} [Cara ${comp.cara || 'A'}]<br>${comp.nivel || ''}-${comp.bin || ''}<br><span style="color:#0088ff; font-weight: bold;">${comp.id_comp}</span></p>`;
                     contenedor.appendChild(cardC);
                 });
+
             });
 
             document.getElementById('modal-impresion').style.display = 'flex';
@@ -991,6 +1405,7 @@
             document.getElementById('modal-impresion').style.display = 'none';
         });
 
+        // --- 9. AUTO-CARGA DEL PLANO PERSISTIDO ---
         async function hidratarPlanoNube() {
             if (!idNegocio) return;
             try {
@@ -1020,31 +1435,351 @@
                         muebles = [];
                     }
 
+                    if (Array.isArray(res.data.items)) {
+                        itemsEspaciales = res.data.items;
+                    } else {
+                        itemsEspaciales = [];
+                    }
+
                     if (Array.isArray(res.data.muros)) {
                         celdasMurosBloqueadas = new Set(res.data.muros);
                     } else {
                         celdasMurosBloqueadas = new Set();
                     }
                 } else {
+                    itemsEspaciales = [];
+
+                    // Si la sede no tiene plano guardado previamente, reinicia a valores limpios
                     perimetro = { anchoM: 12, largoM: 18 };
                     document.getElementById('area-ancho').value = 12;
                     document.getElementById('area-largo').value = 18;
                     muebles = [];
                     celdasMurosBloqueadas = new Set();
                 }
+            alternarModoEdicion(false);
+           document.getElementById('btn-toggle-modo-edicion')?.addEventListener('click', () => alternarModoEdicion());
+
                 redibujarArea();
-                renderizarMuebles();
-                actualizarTransform();
-                renderizarMinimapa();
-                console.log(`[GEOKATU SIG] Plano de sede [${idSedeActiva}] cargado correctamente.`);
+            renderizarMuebles();
+            actualizarTransform();
+            renderizarMinimapa();
+            console.log(`[GEOKATU SIG] Plano de sede [${idSedeActiva}] cargado correctamente.`);
+
             } catch (err) {
                 console.warn("[GEOKATU SIG] No se pudo cargar plano previo:", err);
             }
         }
 
+
+    // --- CONTROLADOR DEL DRAWER LATERAL DE MUEBLES Y NAVEGACIÓN DIRECTA ---
+        const drawerEl = document.getElementById('drawer-muebles');
+        const contenedorDrawer = document.getElementById('drawer-lista-contenedor');
+        const badgeContador = document.getElementById('badge-contador-muebles');
+        const drawerTotalTxt = document.getElementById('drawer-resumen-total');
+
+        function actualizarContadorDrawer() {
+            if (badgeContador) badgeContador.innerText = muebles.length;
+            if (drawerTotalTxt) drawerTotalTxt.innerText = `${muebles.length} muebles en plano`;
+        }
+
+        function renderizarDrawerMuebles() {
+            if (!contenedorDrawer) return;
+            contenedorDrawer.innerHTML = '';
+
+            if (muebles.length === 0) {
+                contenedorDrawer.innerHTML = `
+                    <div style="text-align: center; color: #777; padding: 30px 10px; font-size: 12px;">
+                        No has agregado muebles al plano.<br>Usa el botón <strong>+ Mueble</strong> para diseñar estanterías.
+                    </div>
+                `;
+                return;
+            }
+
+            muebles.forEach((m) => {
+                const totalBins = m.compartimientos ? m.compartimientos.length : 0;
+                const card = document.createElement('div');
+                card.classList.add('tarjeta-mueble-index');
+                card.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <strong style="color: white; font-size: 13px;">${m.nombre}</strong>
+                        <span style="font-size: 9px; padding: 2px 6px; border-radius: 6px; background: ${m.zona === 'BODEGA' ? 'rgba(255,170,0,0.2)' : 'rgba(0,255,100,0.2)'}; color: ${m.zona === 'BODEGA' ? '#ffaa00' : '#00ff64'}; font-weight: bold;">
+                            ${m.zona === 'BODEGA' ? 'BODEGA' : 'PISO VENTA'}
+                        </span>
+                    </div>
+                    <div style="font-family: monospace; font-size: 11px; color: var(--naranja); margin-top: 4px;">
+                        ${m.id_mueble}
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px; color: #888;">
+                        <span>Dim: ${m.anchoM}m × ${m.largoM}m</span>
+                        <span style="color: #00ff64; font-weight: bold;">${totalBins} Bins</span>
+                    </div>
+                `;
+
+                card.addEventListener('click', () => {
+                    navegarYResaltarMueble(m);
+                    drawerEl.classList.remove('abierto');
+                });
+
+                contenedorDrawer.appendChild(card);
+            });
+        }
+
+        function navegarYResaltarMueble(m) {
+            document.querySelectorAll('.mueble-bloque').forEach(b => {
+                b.classList.remove('radar-activo', 'seleccionado');
+            });
+
+            // 1. Despliega el minimapa si está colapsado para visualización simultánea
+            const miniWrap = document.getElementById('contenedor-minimapa');
+            if (miniWrap && miniWrap.classList.contains('colapsado')) {
+                miniWrap.classList.remove('colapsado');
+            }
+
+            // 2. Activa el pulso en el minimapa
+            muebleRadarActivoId = m.id_mueble;
+            renderizarMinimapa();
+
+            if (animacionRadarMiniTimer) clearTimeout(animacionRadarMiniTimer);
+            animacionRadarMiniTimer = setTimeout(() => {
+                muebleRadarActivoId = null;
+                renderizarMinimapa();
+            }, 3200);
+
+            // 3. Paneo centrado suave en el lienzo
+            capaTransform.style.transition = 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)';
+            viewport.x = (window.innerWidth / 2) - ((m.x + (m.anchoM * METRO_PX) / 2) * viewport.escala);
+            viewport.y = (window.innerHeight / 2) - ((m.y + (m.largoM * METRO_PX) / 2) * viewport.escala);
+            actualizarTransform();
+
+            setTimeout(() => {
+                capaTransform.style.transition = '';
+            }, 450);
+
+            // 4. Halo en el lienzo principal
+            const elMueble = document.getElementById(`mueble-${m.id_mueble}`);
+            if (elMueble) {
+                seleccionarMueble(m, elMueble);
+                elMueble.classList.add('radar-activo');
+                setTimeout(() => {
+                    elMueble.classList.remove('radar-activo');
+                }, 3000);
+            }
+        }
+
+
+        document.getElementById('btn-pestana-lista-muebles').addEventListener('click', () => {
+            renderizarDrawerMuebles();
+            drawerEl.classList.add('abierto');
+        });
+
+        document.getElementById('btn-cerrar-drawer').addEventListener('click', () => {
+            drawerEl.classList.remove('abierto');
+        });
+
+        // =======================================================
+        // GESTIÓN DE ÍTEMS ESPACIALES, PUERTAS Y ANOTACIONES
+        // =======================================================
+        function renderizarItemsEspaciales() {
+            if (!contenedorItems) return;
+            contenedorItems.innerHTML = '';
+
+            itemsEspaciales.forEach((it) => {
+                const el = document.createElement('div');
+                el.classList.add('item-espacial-bloque', `forma-${it.forma}`);
+                if (itemSeleccionado && itemSeleccionado.id_item === it.id_item) {
+                    el.classList.add('seleccionado');
+                }
+                el.id = `item-${it.id_item}`;
+                el.style.width = `${it.anchoM * METRO_PX}px`;
+                el.style.height = `${it.largoM * METRO_PX}px`;
+                el.style.left = `${it.x}px`;
+                el.style.top = `${it.y}px`;
+                el.style.background = it.colorFondo;
+                el.style.transform = `rotate(${it.rotacion || 0}deg)`;
+
+                // Etiqueta del ítem con contra-rotación
+                const tag = document.createElement('div');
+                tag.classList.add('item-etiqueta', 'contra-rotacion');
+                tag.innerText = it.etiqueta || '';
+                el.appendChild(tag);
+
+                // Pivote de giro
+                const pivote = document.createElement('div');
+                pivote.classList.add('pivote-giro', 'contra-rotacion');
+                pivote.innerHTML = '🔄';
+                pivote.addEventListener('pointerdown', (e) => {
+                    e.stopPropagation();
+                    it.rotacion = ((it.rotacion || 0) + 45) % 360;
+                    el.style.transform = `rotate(${it.rotacion}deg)`;
+                    aplicarContraRotacion(el, it.rotacion);
+                    renderizarMinimapa();
+                });
+                el.appendChild(pivote);
+
+                // Menú contextual
+                const menu = document.createElement('div');
+                menu.classList.add('menu-contextual-mueble', 'contra-rotacion');
+                menu.innerHTML = `
+                    <button class="btn-mini-contextual btn-editar-it">✏️ Editar</button>
+                    <button class="btn-mini-contextual peligro btn-borrar-it">🗑️ Borrar</button>
+                `;
+                menu.querySelector('.btn-editar-it').addEventListener('pointerdown', (e) => {
+                    e.stopPropagation();
+                    abrirModalEditarItem(it);
+                });
+                menu.querySelector('.btn-borrar-it').addEventListener('pointerdown', (e) => {
+                    e.stopPropagation();
+                    if (confirm(`¿Eliminar "${it.etiqueta}"?`)) {
+                        itemsEspaciales = itemsEspaciales.filter(x => x.id_item !== it.id_item);
+                        deseleccionarItems();
+                        renderizarItemsEspaciales();
+                        renderizarMinimapa();
+                    }
+                });
+                el.appendChild(menu);
+
+                iniciarDragItem(el, it);
+                contenedorItems.appendChild(el);
+                aplicarContraRotacion(el, it.rotacion || 0);
+            });
+        }
+
+        function iniciarDragItem(el, item) {
+            let offset = { x: 0, y: 0 };
+            let arrastrando = false;
+
+            el.addEventListener('pointerdown', (e) => {
+                if (!modoEdicionActivo) return;
+                e.stopPropagation();
+                arrastrando = true;
+                deseleccionarMuebles();
+                seleccionarItem(item, el);
+
+                offset = {
+                    x: (e.clientX / viewport.escala) - item.x,
+                    y: (e.clientY / viewport.escala) - item.y
+                };
+                el.setPointerCapture(e.pointerId);
+            });
+
+            el.addEventListener('pointermove', (e) => {
+                if (!arrastrando) return;
+                item.x = (e.clientX / viewport.escala) - offset.x;
+                item.y = (e.clientY / viewport.escala) - offset.y;
+                el.style.left = `${item.x}px`;
+                el.style.top = `${item.y}px`;
+                renderizarMinimapa();
+            });
+
+            const fin = () => { arrastrando = false; };
+            el.addEventListener('pointerup', fin);
+            el.addEventListener('pointercancel', fin);
+        }
+
+        function seleccionarItem(it, el) {
+            deseleccionarItems();
+            itemSeleccionado = it;
+            el.classList.add('seleccionado');
+        }
+
+        function deseleccionarItems() {
+            itemSeleccionado = null;
+            document.querySelectorAll('.item-espacial-bloque').forEach(b => b.classList.remove('seleccionado'));
+        }
+
+        function abrirModalEditarItem(it) {
+            itemEnEdicion = it;
+            document.getElementById('modal-item-titulo').innerText = "Editar Ítem Espacial";
+            document.getElementById('item-etiqueta').value = it.etiqueta;
+            document.getElementById('item-forma').value = it.forma;
+            document.getElementById('item-color').value = it.colorFondo;
+            document.getElementById('item-ancho').value = it.anchoM;
+            document.getElementById('item-largo').value = it.largoM;
+            document.getElementById('modal-item').style.display = 'flex';
+        }
+
+        // Control de modales y presets de ítems
+        document.getElementById('btn-burbuja-item')?.addEventListener('click', () => {
+            itemEnEdicion = null;
+            document.getElementById('modal-item-titulo').innerText = "Agregar Elemento / Acceso";
+            document.getElementById('item-etiqueta').value = "Puerta Principal";
+            document.getElementById('item-forma').value = "rectangulo";
+            document.getElementById('item-ancho').value = 1.2;
+            document.getElementById('item-largo').value = 0.4;
+            document.getElementById('modal-item').style.display = 'flex';
+        });
+
+        document.getElementById('item-tipo-preset')?.addEventListener('change', (e) => {
+            const val = e.target.value;
+            const inputEtiq = document.getElementById('item-etiqueta');
+            const inputForma = document.getElementById('item-forma');
+            const inputColor = document.getElementById('item-color');
+            const inputW = document.getElementById('item-ancho');
+            const inputH = document.getElementById('item-largo');
+
+            if (val.startsWith('PUERTA')) {
+                inputForma.value = 'rectangulo';
+                inputColor.value = 'rgba(0, 255, 100, 0.25)';
+                inputW.value = (val === 'PUERTA_BOD_EXT') ? 3.0 : 1.2;
+                inputH.value = 0.4;
+                inputEtiq.value = e.target.options[e.target.selectedIndex].text.replace(/^[^\s]+\s/, '');
+            } else if (val === 'ZONA_TEXTO') {
+                inputForma.value = 'nube';
+                inputColor.value = 'rgba(255, 255, 255, 0.08)';
+                inputW.value = 3.5;
+                inputH.value = 2.0;
+                inputEtiq.value = 'Zona Cajas / Checkout';
+            }
+        });
+
+        document.getElementById('btn-cancelar-item')?.addEventListener('click', () => {
+            document.getElementById('modal-item').style.display = 'none';
+        });
+
+        document.getElementById('btn-guardar-item')?.addEventListener('click', () => {
+            const etiq = document.getElementById('item-etiqueta').value.trim() || 'Ítem';
+            const forma = document.getElementById('item-forma').value;
+            const color = document.getElementById('item-color').value;
+            const w = Number(document.getElementById('item-ancho').value) || 1.2;
+            const h = Number(document.getElementById('item-largo').value) || 0.4;
+
+            if (itemEnEdicion) {
+                itemEnEdicion.etiqueta = etiq;
+                itemEnEdicion.forma = forma;
+                itemEnEdicion.colorFondo = color;
+                itemEnEdicion.anchoM = w;
+                itemEnEdicion.largoM = h;
+                itemEnEdicion = null;
+            } else {
+                itemsEspaciales.push({
+                    id_item: `IT_${Date.now()}`,
+                    etiqueta: etiq,
+                    forma: forma,
+                    colorFondo: color,
+                    anchoM: w,
+                    largoM: h,
+                    x: 60,
+                    y: 60,
+                    rotacion: 0
+                });
+            }
+            document.getElementById('modal-item').style.display = 'none';
+            renderizarItemsEspaciales();
+            renderizarMinimapa();
+        });
+
+        // Inicialización del Modelo CAD
         redibujarArea();
         actualizarTransform();
+        actualizarContadorDrawer();
+        renderizarItemsEspaciales();
         hidratarPlanoNube();
+
     </script>
+
 </body>
 </html>
+
+
+
+
