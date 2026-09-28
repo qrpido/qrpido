@@ -458,17 +458,21 @@ const GeokatuDB = {
 
                         if (mov.id_compartimiento_destino) {
                             const ubiDestRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}/${mov.codigo_producto}/${_SCHEMA.SubColeccionUbicacionesStock}`, mov.id_compartimiento_destino);
+                            const esConteoCiclico = mov.tipo === 'AJUSTE_CONTEO_CICLICO';
+                            
                             const payloadSyncUbi = {
                                 id_estante: mov.id_estante_destino || "GENERAL",
                                 id_compartimiento: mov.id_compartimiento_destino,
-                                cantidad: increment(mov.cantidad),
+                                cantidad: esConteoCiclico ? Number(mov.stock_fisico_contado) : increment(mov.cantidad),
                                 ultima_modificacion: new Date().toISOString()
                             };
+                            if (esConteoCiclico) payloadSyncUbi.ultimo_conteo_ciclico = new Date().toISOString();
                             if (mov.lote) payloadSyncUbi.lote = mov.lote;
                             if (mov.fecha_vencimiento) payloadSyncUbi.fecha_vencimiento = mov.fecha_vencimiento;
 
                             batch.set(ubiDestRef, payloadSyncUbi, { merge: true });
                         }
+
 
                         if (mov.id_compartimiento_origen && mov.tipo === 'TRASLADO_INTERNO') {
                             const ubiOrigRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}/${mov.codigo_producto}/${_SCHEMA.SubColeccionUbicacionesStock}`, mov.id_compartimiento_origen);
@@ -750,6 +754,276 @@ const GeokatuDB = {
             } catch (e) {
                 return { success: false, error: e.message };
             }
+        },
+
+        /**
+         * Obtiene el stock teórico de los artículos asignados a un compartimiento específico (Bin).
+         * Resuelve en 0ms desde caché local con fallback a Firestore en línea.
+         */
+        obtenerStockTeoricoBin: async (idNegocio, idCompartimiento) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+            if (!idCompartimiento) return { success: false, error: "Identificador de compartimiento requerido." };
+
+            const tenantReal = idNegocio || localStorage.getItem('geokatu_active_uid');
+            const claveCacheUbis = `geokatu_stock_ubis_${tenantReal}`;
+            const claveCacheCat = `geokatu_catalogo_${tenantReal}`;
+
+            const ubisLocales = JSON.parse(localStorage.getItem(claveCacheUbis) || "[]");
+            const catLocal = JSON.parse(localStorage.getItem(claveCacheCat) || "[]");
+
+            const itemsEncontrados = ubisLocales.filter(u => u.id_compartimiento === idCompartimiento);
+
+            if (itemsEncontrados.length > 0 || !navigator.onLine) {
+                const resultado = itemsEncontrados.map(u => {
+                    const prod = catLocal.find(p => p.id_prod === u.id_prod || p.codigo_barras === u.id_prod) || {};
+                    return {
+                        id_prod: u.id_prod,
+                        codigo_barras: prod.codigo_barras || u.id_prod,
+                        nombre: prod.nombre || "Artículo sin descripción",
+                        stock_teorico: Number(u.cantidad) || 0,
+                        lote: u.lote || "S/L",
+                        fecha_vencimiento: u.fecha_vencimiento || null,
+                        zona: u.zona || "PISO_VENTA",
+                        id_estante: u.id_estante || "GENERAL",
+                        id_compartimiento: idCompartimiento
+                    };
+                });
+                return { success: true, data: resultado, origen: "local" };
+            }
+
+            try {
+                const qUbis = query(
+                    collectionGroup(db, _SCHEMA.SubColeccionUbicacionesStock),
+                    where("id_compartimiento", "==", idCompartimiento)
+                );
+                const snap = await getDocs(qUbis);
+                const itemsNube = [];
+
+                snap.forEach(d => {
+                    if (d.ref.path.includes(`${_SCHEMA.ColeccionDirectorio}/${tenantReal}`)) {
+                        const data = d.data();
+                        const prodId = d.ref.parent.parent ? d.ref.parent.parent.id : null;
+                        const prod = catLocal.find(p => p.id_prod === prodId) || {};
+                        itemsNube.push({
+                            id_prod: prodId,
+                            codigo_barras: prod.codigo_barras || prodId,
+                            nombre: prod.nombre || "Artículo sin descripción",
+                            stock_teorico: Number(data.cantidad) || 0,
+                            lote: data.lote || "S/L",
+                            fecha_vencimiento: data.fecha_vencimiento || null,
+                            zona: data.zona || "PISO_VENTA",
+                            id_estante: data.id_estante || "GENERAL",
+                            id_compartimiento: idCompartimiento
+                        });
+                    }
+                });
+
+                return { success: true, data: itemsNube, origen: "nube" };
+            } catch (err) {
+                console.warn("[InventarioService] Error consultando bin en Firestore, fallback local:", err.message);
+                return { success: true, data: itemsEncontrados, origen: "local_fallback" };
+            }
+        },
+
+        /**
+         * Asienta atómicamente el ajuste de Conteo Cíclico en anaquel físico.
+         * Genera asiento en Kardex, actualiza el bin, sincroniza el maestro de productos,
+         * resuelve alertas de merma/quiebre y persiste con soporte 100% offline.
+         */
+        asentarAjusteConteoCiclico: async (idNegocio, idCompartimiento, discrepanciasArray, metadata = {}) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+            if (!idCompartimiento || !Array.isArray(discrepanciasArray) || discrepanciasArray.length === 0) {
+                return { success: false, error: "Datos de auditoría o compartimiento incompletos." };
+            }
+
+            const tenantReal = idNegocio || metadata.idNegocio || localStorage.getItem('geokatu_active_uid') || (auth.currentUser ? auth.currentUser.uid : "ADMIN_LOCAL");
+            const timestampActual = new Date().toISOString();
+            const operadorEmail = auth.currentUser ? auth.currentUser.email : (metadata.operador || "OPERADOR_AUDITORIA");
+            const operadorUid = auth.currentUser ? auth.currentUser.uid : (metadata.operador_uid || "TERMINAL_LOCAL");
+            const idMueble = metadata.idEstante || (idCompartimiento.startsWith('GEO-P-') ? (idCompartimiento.split('-')[idCompartimiento.split('-').length - 4] || "GENERAL") : "GENERAL");
+            const zonaOperacion = metadata.zona || "PISO_VENTA";
+
+            const asientosKardex = [];
+            const actualizacionesProductos = [];
+            const actualizacionesUbicaciones = [];
+            const alertasAResolver = [];
+
+            const claveCacheCat = `geokatu_catalogo_${tenantReal}`;
+            const claveCacheUbis = `geokatu_stock_ubis_${tenantReal}`;
+            let catalogoLocal = JSON.parse(localStorage.getItem(claveCacheCat) || "[]");
+            let ubisLocales = JSON.parse(localStorage.getItem(claveCacheUbis) || "[]");
+
+            for (const item of discrepanciasArray) {
+                const prodId = item.id_prod || item.codigo_producto;
+                if (!prodId) continue;
+
+                const stockPrevio = Math.max(0, Number(item.stock_previo) || 0);
+                const stockFisico = Math.max(0, Number(item.stock_fisico_contado !== undefined ? item.stock_fisico_contado : item.stock_fisico) || 0);
+                const deltaCalculado = Number((stockFisico - stockPrevio).toFixed(3));
+                const movIdLocal = "MOV-AUDIT-" + Date.now().toString(16).toUpperCase() + "-" + Math.random().toString(36).substring(2, 6).toUpperCase();
+
+                const payloadMovimiento = {
+                    mov_id_local: movIdLocal,
+                    codigo_producto: prodId,
+                    origen: deltaCalculado < 0 ? idCompartimiento : "AJUSTE_AUDITORIA",
+                    destino: deltaCalculado > 0 ? idCompartimiento : "MERMA_AUDITORIA",
+                    tipo: "AJUSTE_CONTEO_CICLICO",
+                    cantidad: Math.abs(deltaCalculado),
+                    delta_global: deltaCalculado,
+                    stock_previo_bin: stockPrevio,
+                    stock_fisico_contado: stockFisico,
+                    id_estante_destino: idMueble,
+                    id_compartimiento_destino: idCompartimiento,
+                    zona: zonaOperacion,
+                    usuario: operadorEmail,
+                    operador_uid: operadorUid,
+                    motivo_ajuste: item.motivo || metadata.motivo || "Auditoría física de góndola",
+                    lote: item.lote || null,
+                    fecha_vencimiento: item.fecha_vencimiento || null,
+                    timestamp: timestampActual,
+                    estado_sincronizacion: "sincronizado"
+                };
+
+                asientosKardex.push(payloadMovimiento);
+
+                actualizacionesProductos.push({
+                    id_prod: prodId,
+                    delta: deltaCalculado,
+                    en_piso_venta: zonaOperacion === "PISO_VENTA"
+                });
+
+                actualizacionesUbicaciones.push({
+                    id_prod: prodId,
+                    id_estante: idMueble,
+                    id_compartimiento: idCompartimiento,
+                    cantidad_real: stockFisico,
+                    zona: zonaOperacion,
+                    lote: item.lote || null,
+                    fecha_vencimiento: item.fecha_vencimiento || null,
+                    ultima_modificacion: timestampActual
+                });
+
+                alertasAResolver.push({
+                    id_prod: prodId,
+                    id_compartimiento: idCompartimiento,
+                    stock_conciliado: stockFisico
+                });
+
+                // Mutación local en RAM para respuesta instantánea (0ms)
+                const prodRAM = catalogoLocal.find(p => p.id_prod === prodId || p.codigo_barras === prodId);
+                if (prodRAM && deltaCalculado !== 0) {
+                    prodRAM.stock_actual = Math.max(0, Number(((prodRAM.stock_actual || 0) + deltaCalculado).toFixed(3)));
+                }
+
+                const ubiRAM = ubisLocales.find(u => (u.id_prod === prodId || u.codigo_barras === prodId) && u.id_compartimiento === idCompartimiento);
+                if (ubiRAM) {
+                    ubiRAM.cantidad = stockFisico;
+                    ubiRAM.ultima_modificacion = timestampActual;
+                } else {
+                    ubisLocales.push({
+                        id_prod: prodId,
+                        id_estante: idMueble,
+                        id_compartimiento: idCompartimiento,
+                        cantidad: stockFisico,
+                        zona: zonaOperacion,
+                        lote: item.lote || "S/L",
+                        fecha_vencimiento: item.fecha_vencimiento || null,
+                        ultima_modificacion: timestampActual
+                    });
+                }
+            }
+
+            localStorage.setItem(claveCacheCat, JSON.stringify(catalogoLocal));
+            localStorage.setItem(claveCacheUbis, JSON.stringify(ubisLocales));
+
+            // Intentar asentamiento atómico en Firestore
+            try {
+                if (!navigator.onLine) {
+                    throw new Error("Terminal operando fuera de línea.");
+                }
+
+                const batch = writeBatch(db);
+
+                // 1. Asientos Kardex
+                asientosKardex.forEach(mov => {
+                    const movRef = doc(collection(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/Movimientos_Kardex`));
+                    batch.set(movRef, mov);
+                });
+
+                // 2. Actualización de Producto Maestro
+                actualizacionesProductos.forEach(prodUpdate => {
+                    if (prodUpdate.delta !== 0) {
+                        const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/${_SCHEMA.SubColeccionProductos}`, prodUpdate.id_prod);
+                        const dataUpdate = {
+                            stock_actual: increment(prodUpdate.delta),
+                            ultima_actualizacion_kardex: timestampActual,
+                            ultima_auditoria_fisica: timestampActual
+                        };
+                        if (prodUpdate.en_piso_venta) {
+                            dataUpdate.en_piso_venta = true;
+                        }
+                        batch.update(prodRef, dataUpdate);
+                    }
+                });
+
+                // 3. Sobrescritura de cantidad real en stock_ubicaciones
+                actualizacionesUbicaciones.forEach(ubiUpdate => {
+                    const ubiRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/${_SCHEMA.SubColeccionProductos}/${ubiUpdate.id_prod}/${_SCHEMA.SubColeccionUbicacionesStock}`, ubiUpdate.id_compartimiento);
+                    const payloadUbi = {
+                        id_estante: ubiUpdate.id_estante,
+                        id_compartimiento: ubiUpdate.id_compartimiento,
+                        zona: ubiUpdate.zona,
+                        cantidad: ubiUpdate.cantidad_real,
+                        ultima_modificacion: ubiUpdate.ultima_modificacion,
+                        ultimo_conteo_ciclico: timestampActual
+                    };
+                    if (ubiUpdate.lote) payloadUbi.lote = ubiUpdate.lote;
+                    if (ubiUpdate.fecha_vencimiento) payloadUbi.fecha_vencimiento = ubiUpdate.fecha_vencimiento;
+                    batch.set(ubiRef, payloadUbi, { merge: true });
+                });
+
+                // 4. Marcado automático de Alertas_Seguridad resueltas
+                for (const al of alertasAResolver) {
+                    try {
+                        const qAlertas = query(
+                            collection(db, "Alertas_Seguridad"),
+                            where("id_negocio", "==", tenantReal),
+                            where("id_producto", "==", al.id_prod),
+                            where("estado", "==", "requiere_auditoria_urgente")
+                        );
+                        const snapAlertas = await getDocs(qAlertas);
+                        snapAlertas.forEach(docAlerta => {
+                            batch.update(docAlerta.ref, {
+                                estado: "resuelta",
+                                resuelto: true,
+                                stock_conciliado: al.stock_conciliado,
+                                motivo_resolucion: "Auditoría y conteo cíclico en anaquel",
+                                timestamp_resolucion: timestampActual,
+                                usuario_resolucion: operadorEmail
+                            });
+                        });
+                    } catch (eAlerta) {
+                        console.warn("[InventarioService] Aviso mitigado en resolución de alerta:", eAlerta.message);
+                    }
+                }
+
+                await batch.commit();
+                return { success: true, totalAjustes: asientosKardex.length, offline: false };
+
+            } catch (errNube) {
+                console.warn("[InventarioService] Red no disponible. Asentamiento encolado localmente:", errNube.message);
+                const claveCola = `geokatu_movimientos_cola_${tenantReal}`;
+                const colaActual = JSON.parse(localStorage.getItem(claveCola) || "[]");
+
+                asientosKardex.forEach(m => {
+                    m.estado_sincronizacion = "pendiente_offline";
+                    m.es_conteo_ciclico = true;
+                    colaActual.push(m);
+                });
+
+                localStorage.setItem(claveCola, JSON.stringify(colaActual));
+                return { success: true, totalAjustes: asientosKardex.length, offline: true };
+            }
         }
 
     }, 
@@ -757,6 +1031,7 @@ const GeokatuDB = {
     /**
      * @namespace LocalService
      */
+
     LocalService: {
 
         getDetails: async (idNegocio) => {
@@ -2461,9 +2736,16 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
             }
             localStorage.setItem(claveCache, JSON.stringify(catalogoLocal));
 
-            // Preparar payload normalizado
-            const ticketIdLocal = "TK-" + Date.now().toString(16).toUpperCase();
-            const payloadCanonico = GeokatuDB.PosService._construirPayloadFiscalCanonico(ticketData);
+                        // Generación de Ticket ID Compuesto Forense: TK-[CAJA]-[CAJERO]-[HEX_TIEMPO]
+            const cajaCod = String(ticketData.caja_numero || "C01").replace(/[^a-zA-Z0-9]/g, '').slice(-3).toUpperCase();
+            const cajeroCod = String(ticketData.codigo_cajero || "0000").replace(/[^a-zA-Z0-9]/g, '').slice(-4).toUpperCase();
+            const tiempoHex = Date.now().toString(16).toUpperCase().slice(-6);
+            const ticketIdLocal = `TK-${cajaCod}-${cajeroCod}-${tiempoHex}`;
+
+            const payloadCanonico = GeokatuDB.PosService._construirPayloadFiscalCanonico({
+                ...ticketData,
+                ticketIdLocal: ticketIdLocal
+            });
 
             const payloadFinal = {
                 ...ticketData,
@@ -2500,23 +2782,25 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                     tickets_emitidos: increment(1)
                 }, { merge: true });
 
-                 ticketData.productos.forEach(item => {
-                    // Omitir descuento de stock para ítems libres no catalogados
+                                 ticketData.productos.forEach(item => {
                     if (item.id_prod && !item.id_prod.startsWith("GENERICO")) {
                         const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/${_SCHEMA.SubColeccionProductos}`, item.id_prod);
                         batch.update(prodRef, {
                             stock_actual: increment(-item.cantidad)
                         });
 
-                        // Descuento automático del compartimiento físico
-                        const ubiPisoRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/${_SCHEMA.SubColeccionProductos}/${item.id_prod}/${_SCHEMA.SubColeccionUbicacionesStock}`, item.id_compartimiento || "BIN_INICIAL");
-                        batch.set(ubiPisoRef, {
-                            cantidad: increment(-item.cantidad),
-                            zona: "PISO_VENTA",
-                            ultima_modificacion: new Date().toISOString()
-                        }, { merge: true });
+                        // Actualización de ubicación en subcolección
+                        if (item.id_compartimiento && item.id_compartimiento !== "BIN_INICIAL") {
+                            const ubiPisoRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/${_SCHEMA.SubColeccionProductos}/${item.id_prod}/${_SCHEMA.SubColeccionUbicacionesStock}`, item.id_compartimiento);
+                            batch.set(ubiPisoRef, {
+                                cantidad: increment(-item.cantidad),
+                                zona: "PISO_VENTA",
+                                ultima_modificacion: new Date().toISOString()
+                            }, { merge: true });
+                        }
                     }
-                });;
+                });
+
 
                 // Si la venta dejó saldos bajo cero, levantar incidentes en Alertas_Seguridad
                 if (quiebresDetectados.length > 0) {
@@ -2553,6 +2837,60 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                 return { success: true, ticketId: ticketIdLocal, offline: true, errorFirestore: e.message };
             }
 
+        },
+
+                analizarYSincronizarRespaldo: async (idNegocio, ticketsArray) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+            const tenantReal = idNegocio || localStorage.getItem('geokatu_active_uid');
+            const colRef = collection(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/Ventas_POS`);
+
+            let duplicados = 0;
+            let sincronizados = 0;
+
+            for (const ticket of ticketsArray) {
+                const idBuscar = ticket.ticketIdLocal || ticket.ticketId || ticket.id;
+                if (!idBuscar) continue;
+
+                // Verificar si el ticket ya existe en Firestore para evitar doble facturación
+                const q = query(colRef, where("ticketIdLocal", "==", idBuscar), limit(1));
+                const snap = await getDocs(q);
+
+                if (!snap.empty) {
+                    duplicados++;
+                } else {
+                    const batch = writeBatch(db);
+                    const ticketRef = doc(colRef);
+                    batch.set(ticketRef, {
+                        ...ticket,
+                        id_firestore: ticketRef.id,
+                        estado_sincronizacion: "sincronizado_respaldo_archivo",
+                        timestamp_sincronizacion_nube: new Date().toISOString()
+                    });
+
+                    // Incrementar factura en el control mensual del negocio
+                    const negocioRef = doc(db, _SCHEMA.ColeccionDirectorio, tenantReal);
+                    batch.set(negocioRef, {
+                        facturacion_control: {
+                            facturas_emitidas_mes: increment(1)
+                        }
+                    }, { merge: true });
+
+                    // Descuento de stock si aplica
+                    (ticket.productos || []).forEach(item => {
+                        if (item.id_prod && !item.id_prod.startsWith("GENERICO")) {
+                            const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/${_SCHEMA.SubColeccionProductos}`, item.id_prod);
+                            batch.update(prodRef, {
+                                stock_actual: increment(-item.cantidad)
+                            });
+                        }
+                    });
+
+                    await batch.commit();
+                    sincronizados++;
+                }
+            }
+
+            return { total: ticketsArray.length, duplicados, sincronizados };
         },
 
         sincronizarVentasPendientes: async (idNegocio) => {
@@ -3282,3 +3620,5 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
 // EXPORTACIÓN ESTRICTA (Singleton)
 // ==========================================
 export default GeokatuDB;
+
+

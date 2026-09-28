@@ -125,8 +125,160 @@ window.slotColorActual = 1;
 window.estadoColorCustom = { h: 0, s: 100, l: 50, l_base: 50 };
 window.desuscripcionAlertas = null;
 window.imagenCargadaTemporalModal = null;
+window.nombrePngTemporalPaso1 = null;
+window.nombrePngTemporalModal = null;
+window.timeoutTooltipNombre = null;
 window.trackCamaraActiva = null;
 window.torchEncendido = false;
+
+window.mostrarTooltipNombrePng = function(origen, btnElement) {
+    if (navigator.vibrate) navigator.vibrate(25);
+    var tooltipId = (origen === 'fase-1') ? 'tooltip-fase-1-nombre' : 'tooltip-modal-nombre';
+    var el = document.getElementById(tooltipId);
+    if (!el) return;
+
+    if (window.timeoutTooltipNombre) clearTimeout(window.timeoutTooltipNombre);
+
+    el.innerHTML = 
+        '<div style="display: flex; gap: 8px; align-items: flex-start;">' +
+            '<span style="color: var(--naranja); font-size: 15px; line-height: 1;">ℹ️</span>' +
+            '<div style="flex: 1;">' +
+                '<strong style="color: #ffffff; display: block; margin-bottom: 2px;">Logotipo con Fondo Transparente</strong>' +
+                '<p style="margin: 0; color: #b5b5be; line-height: 1.35;">Sube tu marca recortada (PNG/WebP sin fondo). Se exhibir\u00E1 en la cabecera, minimapa y tarjetas de la plataforma en lugar de texto b\u00E1sico.</p>' +
+            '</div>' +
+        '</div>';
+
+    el.style.display = 'block';
+    el.classList.remove('fade-out');
+    el.classList.add('activo');
+
+    window.timeoutTooltipNombre = setTimeout(function() {
+        el.classList.add('fade-out');
+        setTimeout(function() {
+            el.style.display = 'none';
+            el.classList.remove('activo');
+            el.classList.remove('fade-out');
+        }, 350);
+    }, 4500);
+};
+
+window.comprimirImagenTransparenteWebP = function(file, maxAncho, maxAlto) {
+    return new Promise(function(resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            var img = new Image();
+            img.onload = function() {
+                var w = img.width;
+                var h = img.height;
+                if (w > maxAncho || h > maxAlto) {
+                    var ratio = Math.min(maxAncho / w, maxAlto / h);
+                    w = Math.round(w * ratio);
+                    h = Math.round(h * ratio);
+                }
+                var canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                var ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, w, h);
+                ctx.drawImage(img, 0, 0, w, h);
+                canvas.toBlob(function(blob) {
+                    if (blob) {
+                        resolve(blob);
+                    } else {
+                        reject(new Error("Fallo al exportar WebP con transparencia."));
+                    }
+                }, 'image/webp', 0.88);
+            };
+            img.onerror = reject;
+            img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+};
+
+window.mostrarTooltipEtiquetasRadar = function(btnElement) {
+    if (navigator.vibrate) navigator.vibrate(25);
+    var el = document.getElementById('tooltip-etiquetas-radar');
+    if (!el) return;
+
+    if (window.timeoutTooltipNombre) clearTimeout(window.timeoutTooltipNombre);
+
+    el.innerHTML = 
+        '<div style="display: flex; gap: 8px; align-items: flex-start;">' +
+            '<span style="color: var(--naranja); font-size: 15px; line-height: 1;">🏷️</span>' +
+            '<div style="flex: 1;">' +
+                '<strong style="color: #ffffff; display: block; margin-bottom: 2px;">Etiquetas de Búsqueda</strong>' +
+                '<p style="margin: 0; color: #b5b5be; line-height: 1.35;">Escribe tus productos estrella, platos o servicios separados por guion o coma. Los ciudadanos te encontrarán en el radar aunque no conozcan el nombre de tu comercio.</p>' +
+            '</div>' +
+        '</div>';
+
+    el.style.display = 'block';
+    el.classList.remove('fade-out');
+    el.classList.add('activo');
+
+    window.timeoutTooltipNombre = setTimeout(function() {
+        el.classList.add('fade-out');
+        setTimeout(function() {
+            el.style.display = 'none';
+            el.classList.remove('activo');
+            el.classList.remove('fade-out');
+        }, 350);
+    }, 4500);
+};
+
+window.cargarPreviewNombrePng = function(input, contexto) {
+    if (input.files && input.files[0]) {
+        var f = input.files[0];
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            var dataUrl = e.target.result;
+            if (contexto === 'fase1') {
+                window.nombrePngTemporalPaso1 = dataUrl;
+                var img1 = document.getElementById('fase1-img-nombre-preview');
+                var ph1 = document.getElementById('fase1-placeholder-nombre');
+                if (img1) { img1.src = dataUrl; img1.style.display = 'block'; }
+                if (ph1) ph1.style.display = 'none';
+            } else {
+                window.nombrePngTemporalModal = dataUrl;
+                var imgM = document.getElementById('modal-img-nombre-preview');
+                var phM = document.getElementById('modal-placeholder-nombre');
+                if (imgM) { imgM.src = dataUrl; imgM.style.display = 'block'; }
+                if (phM) phM.style.display = 'none';
+            }
+        };
+        reader.readAsDataURL(f);
+    }
+};
+
+window.subirImagenDirecta = async function(tipo, input) {
+    if (!input.files || !input.files[0] || !window.idNegocioLogueado) return;
+    var file = input.files[0];
+    try {
+        var path = 'tiendas/' + window.idNegocioLogueado + '/' + tipo + (tipo === 'nombre_png' ? '.png' : '.webp');
+        var res = await GeokatuDB.AdminService.subirArchivo(path, file);
+        var url = (typeof res === 'string') ? res : (res && res.data ? res.data : '');
+        if (url) {
+            var payload = {};
+            payload[tipo] = url;
+            await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, payload);
+            window.datosTienda[tipo] = url;
+            if (tipo === 'nombre_png') {
+                var elPng = document.getElementById('ui-nombre-png');
+                var elNom = document.getElementById('ui-nombre');
+                if (elPng) { elPng.src = url; elPng.style.display = 'block'; }
+                if (elNom) elNom.style.display = 'none';
+            } else if (tipo === 'logo') {
+                var elLogo = document.getElementById('ui-logo');
+                if (elLogo) { elLogo.src = url; elLogo.style.display = 'block'; }
+            }
+            if (window.miniMapaPerfil) window.abrirGemeloDigital();
+        }
+    } catch (err) {
+        console.error("Error subida directa " + tipo + ":", err);
+    }
+};
+
 
 // ============================================================================
 
@@ -1555,26 +1707,64 @@ window.toggleTorchScanner = function() {
 // BLOQUE 6: FÁBRICA VECTORIAL DE PINES SVG & BRANDING (CONFORME A PINES.CSS)
 // ============================================================================
 window.obtenerContenidoSVG = function(forma, fotoSrc, imgId) {
-    var svg = '';
-    if (forma === 'forma-esfera') svg = '<circle cx="30" cy="30" r="26" />';
-    else if (forma === 'forma-triangulo') svg = '<polygon points="6,8 54,8 30,54" stroke-linejoin="round" />';
-    else if (forma === 'forma-estrella') svg = '<polygon points="30,4 38,23 57,23 42,34 48,53 30,42 12,53 18,34 3,23 22,23" stroke-linejoin="round" />';
-    else if (forma === 'forma-hexagono') svg = '<polygon points="30,4 53,17 53,43 30,56 7,43 7,17" stroke-linejoin="round" />';
-    else if (forma === 'forma-corazon') svg = '<path d="M 30 16 C 22 2 10 6 10 20 C 10 35 25 45 30 57 C 35 45 50 35 50 20 C 50 6 38 2 30 16 Z" stroke-linejoin="round" />';
-    else if (forma === 'forma-arbol') svg = '<polygon points="26,56 34,56 34,42 50,42 30,6 10,42 26,42" stroke-linejoin="round" />';
-    else if (forma === 'forma-hongo') svg = '<path d="M 24 56 L 36 56 L 36 36 L 52 36 C 52 15 44 8 30 8 C 16 8 8 15 8 36 L 24 36 Z" stroke-linejoin="round" />';
-    else if (forma === 'forma-paleta') svg = '<path d="M 28 56 L 32 56 L 32 37 A 16 16 0 1 0 28 37 Z" stroke-linejoin="round" />';
-    else svg = '<path d="M 30,57 C 30,57 10,38 10,20 C 10,9 19,3 30,3 C 41,3 50,9 50,20 C 50,38 30,57 30,57 Z" />';
+    var geo = '';
+    if (forma === 'forma-esfera') {
+        geo = '<circle cx="30" cy="30" r="26" />';
+    } else if (forma === 'forma-triangulo') {
+        geo = '<polygon points="6,8 54,8 30,54" stroke-linejoin="round" />';
+    } else if (forma === 'forma-estrella') {
+        geo = '<polygon points="30,4 38,23 57,23 42,34 48,53 30,42 12,53 18,34 3,23 22,23" stroke-linejoin="round" />';
+    } else if (forma === 'forma-hexagono') {
+        geo = '<polygon points="30,4 53,17 53,43 30,56 7,43 7,17" stroke-linejoin="round" />';
+    } else if (forma === 'forma-corazon') {
+        geo = '<path d="M 30 16 C 22 2 10 6 10 20 C 10 35 25 45 30 57 C 35 45 50 35 50 20 C 50 6 38 2 30 16 Z" stroke-linejoin="round" />';
+    } else if (forma === 'forma-arbol') {
+        geo = '<polygon points="26,56 34,56 34,42 50,42 30,6 10,42 26,42" stroke-linejoin="round" />';
+    } else if (forma === 'forma-hongo') {
+        geo = '<path d="M 24 56 L 36 56 L 36 36 L 52 36 C 52 15 44 8 30 8 C 16 8 8 15 8 36 L 24 36 Z" stroke-linejoin="round" />';
+    } else if (forma === 'forma-paleta') {
+        geo = '<path d="M 28 56 L 32 56 L 32 37 A 16 16 0 1 0 28 37 Z" stroke-linejoin="round" />';
+    } else {
+        geo = '<path d="M 30,57 C 30,57 10,38 10,20 C 10,9 19,3 30,3 C 41,3 50,9 50,20 C 50,38 30,57 30,57 Z" />';
+    }
 
-    var imgDisplay = fotoSrc ? 'block' : 'none';
+    var idUnico = imgId || ('pin-' + Math.floor(Math.random() * 100000));
+    var clipId = 'clip-' + idUnico;
     var txtDisplay = fotoSrc ? 'none' : 'flex';
+    var imgNode = fotoSrc 
+        ? '<image id="' + idUnico + '" href="' + fotoSrc + '" x="0" y="0" width="60" height="60" preserveAspectRatio="xMidYMid slice" clip-path="url(#' + clipId + ')" />'
+        : '';
 
-    return '<svg class="svg-pin-fondo" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">' + svg + '</svg>' +
-           '<span class="texto-centro-masa" style="display: ' + txtDisplay + ';">FOTO<br>PIN</span>' +
-           '<img id="' + imgId + '" class="img-pin-interior" src="' + (fotoSrc || '') + '" style="display: ' + imgDisplay + ';">';
+    return '<svg class="svg-pin-fondo" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">' +
+               '<defs><clipPath id="' + clipId + '">' + geo + '</clipPath></defs>' +
+               geo +
+               imgNode +
+           '</svg>' +
+           '<span class="texto-centro-masa" style="display: ' + txtDisplay + ';">FOTO<br>PIN</span>';
 };
 
-window.actualizarContenedorPin = function(idContenedor, idImagen, forma, color1, color2, color3, efectoRaw, fotoSrc, animacion, auraClase) {
+
+window.calcularPaletaAureaSilenciosa = function(c1, c2, c3, c4) {
+    var primario = c1 || '#ff6b00';
+    var grisGeokatu = '#8a909d';
+    var blanco = '#ffffff';
+    var oscuro = '#0a0a0c';
+
+    var final1 = primario;
+    var final2 = c2 ? c2 : grisGeokatu;
+    // Si solo hay 1 color: c3 toma c1. Si hay 2 colores: c3 toma c2. Si hay 3 o más: c3 toma c3.
+    var final3 = c3 ? c3 : (c2 ? c2 : primario);
+    var final4 = c4 ? c4 : (c3 ? grisGeokatu : (c2 ? grisGeokatu : blanco));
+
+    return {
+        c1: final1,
+        c2: final2,
+        c3: final3,
+        c4: final4
+    };
+};
+
+window.actualizarContenedorPin = function(idContenedor, idImagen, forma, color1, color2, color3, color4, efectoRaw, fotoSrc, animacion, auraClase) {
     var contenedor = document.getElementById(idContenedor);
     if (!contenedor) return;
 
@@ -1584,11 +1774,15 @@ window.actualizarContenedorPin = function(idContenedor, idImagen, forma, color1,
     var anim = animacion || 'anim-salto';
     var aura = auraClase || '';
 
+    var paleta = window.calcularPaletaAureaSilenciosa(color1, color2, color3, color4);
+
     contenedor.className = 'pin-wrapper ' + anim + ' ' + aura;
     contenedor.setAttribute('data-forma', forma || 'forma-gota');
-    contenedor.style.setProperty('--color-main', color1 || '#ff6b00');
-    contenedor.style.setProperty('--color-sec', color2 || '#ffffff');
-    contenedor.style.setProperty('--color-ter', color3 || '#0a0a0c');
+    contenedor.style.setProperty('--color-main', paleta.c1);
+    contenedor.style.setProperty('--color-sec', paleta.c2);
+    contenedor.style.setProperty('--color-ter', paleta.c3);
+    contenedor.style.setProperty('--color-cuat', paleta.c4);
+
 
     if (emoji && emoji !== '|') {
         contenedor.setAttribute('data-emoji', emoji);
@@ -1603,7 +1797,7 @@ window.actualizarContenedorPin = function(idContenedor, idImagen, forma, color1,
 
 window.cargarDiccionarioEmojis = function() {
     var diccionario = [
-        { grupo: "🎩 Coronas y Sombreros", anclaje: "anclaje-arriba", iconos: "👑,🎓,🤠,🧢,🌸" },
+        { grupo: "🎩 Coronas y Sombreros", anclaje: "anclaje-arriba", iconos: "👑,🎓,🎩,🧢,🌸" },
         { grupo: "🎀 Esquinas y Tiaras", anclaje: "anclaje-esquina", iconos: "🎀,🏵️,✨,⭐" },
         { grupo: "🍔 Comida (Flotante)", anclaje: "anclaje-arriba", iconos: "🍔,🍕,☕,🍻" }
     ];
@@ -1643,10 +1837,11 @@ window.actualizarPinLiveModal = function() {
     var aura = document.getElementById('edit-select-aura') ? document.getElementById('edit-select-aura').value : '';
     
     var c1 = document.getElementById('wizColorHex1') ? document.getElementById('wizColorHex1').value : '#ff6b00';
-    var c2 = document.getElementById('wizColorHex2') ? document.getElementById('wizColorHex2').value : '#ffffff';
-    var c3 = document.getElementById('wizColorHex3') ? document.getElementById('wizColorHex3').value : '#0a0a0c';
+    var c2 = document.getElementById('wizColorHex2') ? document.getElementById('wizColorHex2').value : '';
+    var c3 = document.getElementById('wizColorHex3') ? document.getElementById('wizColorHex3').value : '';
+    var c4 = document.getElementById('wizColorHex4') ? document.getElementById('wizColorHex4').value : '';
 
-    window.actualizarContenedorPin('edit-pin-live-preview', 'edit-img-live-preview', forma, c1, c2, c3, efectoRaw, window.imagenCargadaTemporalModal || window.datosTienda.link_pin, anim, aura);
+    window.actualizarContenedorPin('edit-pin-live-preview', 'edit-img-live-preview', forma, c1, c2, c3, c4, efectoRaw, window.imagenCargadaTemporalModal || window.datosTienda.link_pin, anim, aura);
 };
 
 window.cerrarModalEdicionPinBranding = function() {
@@ -1658,12 +1853,47 @@ window.cerrarModalEdicionPinBranding = function() {
     }, 250);
 };
 
+window.seleccionarTemaPopupModal = function(tema) {
+    var t = tema === 'clasico' ? 'clasico' : 'carbon';
+    var input = document.getElementById('edit-select-tema');
+    if (input) input.value = t;
+
+    var btnCar = document.getElementById('btn-tema-carbon');
+    var btnCla = document.getElementById('btn-tema-clasico');
+    if (btnCar && btnCla) {
+        if (t === 'clasico') {
+            btnCla.classList.add('activo');
+            btnCar.classList.remove('activo');
+        } else {
+            btnCar.classList.add('activo');
+            btnCla.classList.remove('activo');
+        }
+    }
+};
+
+window.seleccionarTemaPopupOnboarding = function(tema) {
+    var t = tema === 'clasico' ? 'clasico' : 'carbon';
+    var input = document.getElementById('select-tema-onboarding');
+    if (input) input.value = t;
+
+    var btnCar = document.getElementById('btn-tema-ob-carbon');
+    var btnCla = document.getElementById('btn-tema-ob-clasico');
+    if (btnCar && btnCla) {
+        if (t === 'clasico') {
+            btnCla.classList.add('activo');
+            btnCar.classList.remove('activo');
+        } else {
+            btnCar.classList.add('activo');
+            btnCla.classList.remove('activo');
+        }
+    }
+};
+
 window.abrirModalEdicionPinBranding = function() {
     var modal = document.getElementById('modal-diseno-pin-branding');
     if (!modal) return;
 
     if (window.datosTienda.pin_pack) {
-
         var p = window.datosTienda.pin_pack.split('|');
         if (document.getElementById('edit-select-forma')) document.getElementById('edit-select-forma').value = p[0] || 'forma-gota';
         if (document.getElementById('edit-select-animacion')) document.getElementById('edit-select-animacion').value = p[1] || 'anim-salto';
@@ -1674,29 +1904,59 @@ window.abrirModalEdicionPinBranding = function() {
     if (window.datosTienda.color_acento) window.setSlotColor(2, window.datosTienda.color_acento);
     if (window.datosTienda.color_terciario) window.setSlotColor(3, window.datosTienda.color_terciario);
 
+    var actualNombrePng = window.datosTienda.nombre_png;
+    var imgM = document.getElementById('modal-img-nombre-preview');
+    var phM = document.getElementById('modal-placeholder-nombre');
+    if (actualNombrePng) {
+        if (imgM) { imgM.src = actualNombrePng; imgM.style.display = 'block'; }
+        if (phM) phM.style.display = 'none';
+    } else {
+        if (imgM) { imgM.src = ''; imgM.style.display = 'none'; }
+        if (phM) phM.style.display = 'flex';
+    }
+
+    var inTags = document.getElementById('edit-palabras-clave-branding');
+    if (inTags) {
+        inTags.value = window.datosTienda.palabras_clave || '';
+    }
+
     window.actualizarPinLiveModal();
+
+
     modal.style.display = 'flex';
     setTimeout(function() { modal.classList.add('activo'); }, 10);
 };
+
 
 window.procesarGuardadoPinBrandingModal = async function() {
     var forma = document.getElementById('edit-select-forma').value;
     var anim = document.getElementById('edit-select-animacion') ? document.getElementById('edit-select-animacion').value : 'anim-salto';
     var efecto = document.getElementById('edit-select-efecto') ? document.getElementById('edit-select-efecto').value : '';
     var aura = document.getElementById('edit-select-aura') ? document.getElementById('edit-select-aura').value : '';
+    var tema = document.getElementById('edit-select-tema') ? document.getElementById('edit-select-tema').value : 'carbon';
 
     var c1 = document.getElementById('wizColorHex1').value;
     var c2 = document.getElementById('wizColorHex2').value;
     var c3 = document.getElementById('wizColorHex3').value;
     var c4 = document.getElementById('wizColorHex4') ? document.getElementById('wizColorHex4').value : '';
 
+    var paleta = window.calcularPaletaAureaSilenciosa(c1, c2, c3, c4);
+        var inTags = document.getElementById('edit-palabras-clave-branding');
+    var tagsVal = inTags ? inTags.value.trim().toLowerCase() : '';
+
     var pinPack = forma + '|' + anim + '|' + efecto + '|' + aura;
     var payload = { 
         pin_pack: pinPack, 
-        color_principal: c1, 
-        color_acento: c2, 
-        color_terciario: c3
+        color_principal: paleta.c1, 
+        color_acento: paleta.c2, 
+        color_terciario: paleta.c3,
+        color_cuaternario: paleta.c4,
+        paleta_aurea: paleta,
+        palabras_clave: tagsVal
     };
+
+
+
 
     var pinF = document.getElementById('edit-file-pin') ? document.getElementById('edit-file-pin').files[0] : null;
     if (pinF) {
@@ -1706,8 +1966,23 @@ window.procesarGuardadoPinBrandingModal = async function() {
         if (urlPin) payload.link_pin = urlPin;
     }
 
+    var nombreFModal = document.getElementById('modal-file-nombre-png') ? document.getElementById('modal-file-nombre-png').files[0] : null;
+    if (nombreFModal) {
+        var blobWebpModal = await window.comprimirImagenTransparenteWebP(nombreFModal, 460, 110);
+        var resNomModal = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/nombre_png.webp', blobWebpModal);
+        var urlNomModal = (typeof resNomModal === 'string') ? resNomModal : (resNomModal && resNomModal.data ? resNomModal.data : '');
+        if (urlNomModal) {
+            payload.nombre_png = urlNomModal;
+            var uiPng = document.getElementById('ui-nombre-png');
+            var uiTxt = document.getElementById('ui-nombre');
+            if (uiPng) { uiPng.src = urlNomModal; uiPng.style.display = 'block'; }
+            if (uiTxt) uiTxt.style.display = 'none';
+        }
+    }
+
+
     await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, payload);
-    Object.assign(window.datosTienda, payload);
+
 
     var modal = document.getElementById('modal-diseno-pin-branding');
     modal.classList.remove('activo');
@@ -2133,14 +2408,11 @@ window.inicializarMiniMapaPerfil = function(latInicial, lngInicial) {
         });
     });
 
-    elPunto.addEventListener('click', function(e) {
+        elPunto.addEventListener('click', function(e) {
         e.stopPropagation();
-        if (window.modoEdicionActivo) {
-            window.abrirModalEdicionPinBranding();
-        } else {
-            window.abrirGemeloDigital();
-        }
+        window.abrirGemeloDigital();
     });
+
 
     var inLat = document.getElementById('perfilLat');
     var inLng = document.getElementById('perfilLng');
@@ -2159,9 +2431,12 @@ window.abrirGemeloDigital = function() {
     var p = window.datosTienda.portada || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=600&q=80';
     var l = window.datosTienda.logo || 'https://via.placeholder.com/150/0a0a0c/ff6b00?text=LOGO';
     var n = window.datosTienda.nombre || '';
+    var s = window.datosTienda.slogan || '';
     var w = window.datosTienda.whatsApp || window.datosTienda.whatsapp || '';
+    var pbx = window.datosTienda.pbx || '';
     var c = (window.datosTienda.niche || 'otro').toUpperCase();
     var colorP = window.datosTienda.color_principal || '#ff6b00';
+
 
     var renderImage = function(src, isLogo) {
         var accion = isLogo ? "document.getElementById('file-logo').click()" : "document.getElementById('file-portada').click()";
@@ -2178,11 +2453,27 @@ window.abrirGemeloDigital = function() {
         return '<img src="' + src + '" class="' + baseClass + '">';
     };
 
-    var cuerpoDatos = '';
+        var cuerpoDatos = '';
     if (window.modoEdicionActivo) {
+        var tieneSlogan = Boolean(s && String(s).trim().length > 0);
+        var bloqueInputSlogan = 
+            '<div id="caja-input-slogan" style="display: ' + (tieneSlogan ? 'block' : 'none') + '; margin-bottom: 3px;">' +
+                '<input type="text" id="edit-master-slogan" class="input-inline-minimal" value="' + s + '" placeholder="Slogan o lema comercial">' +
+            '</div>' +
+            (!tieneSlogan 
+                ? '<button type="button" class="btn-chip-expandir" id="btn-add-slogan" onclick="document.getElementById(\'caja-input-slogan\').style.display=\'block\'; this.style.display=\'none\'; document.getElementById(\'edit-master-slogan\').focus();">+ Slogan</button>' 
+                : '');
+
+        var tienePbx = Boolean(pbx && String(pbx).trim().length > 0);
+        var bloquePbx = 
+            '<div id="caja-input-pbx" style="display: ' + (tienePbx ? 'block' : 'none') + '; margin-top: 3px;">' +
+                '<input type="tel" id="edit-master-pbx" class="input-inline-minimal" value="' + pbx + '" placeholder="PBX / Fijo comercial">' +
+            '</div>';
+
         cuerpoDatos = 
-            '<div style="display: flex; flex-direction: column; gap: 4px; margin-top: 6px;">' +
+            '<div style="display: flex; flex-direction: column; gap: 3px; margin-top: 6px;">' +
                 '<input type="text" id="edit-master-nombre" class="input-inline-minimal" value="' + (n === 'Mi Nueva Tienda' ? '' : n) + '" placeholder="Nombre de comercio">' +
+                bloqueInputSlogan +
                 '<select id="edit-master-niche" class="input-inline-minimal" style="text-transform: uppercase;">' +
                     '<option value="restaurante"' + (c === 'RESTAURANTE' ? ' selected' : '') + '>RESTAURANTE</option>' +
                     '<option value="supermercado"' + (c === 'SUPERMERCADO' ? ' selected' : '') + '>SUPERMERCADO</option>' +
@@ -2190,58 +2481,85 @@ window.abrirGemeloDigital = function() {
                     '<option value="ropa"' + (c === 'ROPA' ? ' selected' : '') + '>ROPA / BOUTIQUE</option>' +
                     '<option value="otro"' + (c === 'OTRO' ? ' selected' : '') + '>OTRO</option>' +
                 '</select>' +
-                '<input type="number" id="edit-master-whatsapp" class="input-inline-minimal" value="' + w + '" placeholder="WhatsApp comercial">' +
+                '<div style="display: flex; gap: 4px; align-items: center;">' +
+                    '<input type="number" id="edit-master-whatsapp" class="input-inline-minimal" style="flex: 1; margin-bottom: 0;" value="' + w + '" placeholder="WhatsApp">' +
+                    (!tienePbx 
+                        ? '<button type="button" class="btn-chip-expandir" id="btn-add-pbx" style="margin-bottom: 0;" onclick="document.getElementById(\'caja-input-pbx\').style.display=\'block\'; this.style.display=\'none\'; document.getElementById(\'edit-master-pbx\').focus();">+ PBX</button>' 
+                        : '') +
+                '</div>' +
+                bloquePbx +
             '</div>';
     } else {
+
         var bloqueNombre = window.datosTienda.nombre_png
             ? '<img src="' + window.datosTienda.nombre_png + '" style="max-height:22px;max-width:140px;object-fit:contain;margin:0 auto 2px auto;display:block;" alt="' + n + '">'
             : '<h4 style="margin: 0; color: white; font-size: 13px; font-weight: 900; text-transform: uppercase;">' + (n || 'TU COMERCIO') + '</h4>';
 
+        var bloqueSlogan = s
+            ? '<span class="popup-slogan">' + s + '</span>'
+            : '';
+
+        var botonWhatsApp = w
+            ? '<a href="https://wa.me/' + w + '" target="_blank" class="badge-comunicacion badge-whatsapp">💬 ' + w + '</a>'
+            : '';
+
+        var botonPbx = pbx
+            ? '<a href="tel:' + pbx.replace(/\D/g, '') + '" class="badge-comunicacion badge-pbx">📞 PBX: ' + pbx + '</a>'
+            : '';
+
         cuerpoDatos = 
             '<div style="margin-top: 6px;">' + bloqueNombre + '</div>' +
+            bloqueSlogan +
             '<div style="margin-top: 2px;">' +
                 '<span style="font-size: 9px; color: var(--naranja); text-transform: uppercase; font-weight: bold;">' + c + '</span>' +
             '</div>' +
-            '<div style="color: #00ff64; font-size: 10px; font-weight: bold; margin-top: 4px;">' +
-                (w ? '📞 ' + w : 'Sin WhatsApp') +
+            '<div style="display: flex; flex-direction: column; gap: 3px; margin-top: 6px;">' +
+                botonWhatsApp +
+                botonPbx +
             '</div>';
     }
 
+
+        var botonCerrar = '<button type="button" onclick="if(window.popupOnboarding) window.popupOnboarding.remove();" style="position: absolute; top: 6px; left: 6px; z-index: 50; width: 26px; height: 26px; background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.25); color: #ffffff; border-radius: 50%; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; outline: none;">✕</button>';
+
     var botonGuardar = window.modoEdicionActivo
         ? '<button id="lapiz-tarjeta-popup" class="btn-diskette-biselado" style="position: absolute; top: 6px; right: 6px; z-index: 50; width: 30px; height: 30px; background: ' + colorP + '26 !important; border-color: ' + colorP + '66 !important;" onclick="window.toggleGuardarTarjetaPopup(this)" title="Guardar Cambios">' +
-            '<span class="icono-diskette-relieve" style="font-size: 14px;">💾</span>' +
+            '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--naranja)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>' +
           '</button>'
         : '';
 
     var htmlGemelo = 
         '<div style="position: relative;">' +
+            botonCerrar +
             botonGuardar +
             renderImage(p, false) +
         '</div>' +
         '<div class="popup-info">' +
             renderImage(l, true) +
             cuerpoDatos +
-            '<button type="button" class="btn-submit" style="margin-top: 8px !important; padding: 6px !important; font-size: 10px; background: var(--naranja);" onclick="window.cambiarTab(\'inventario\')">' +
-                'Ver Catálogo' +
-            '</button>' +
+            (window.modoEdicionActivo ? '' : '<button type="button" class="btn-submit" style="margin-top: 8px !important; padding: 6px !important; font-size: 10px; background: var(--naranja);" onclick="window.cambiarTab(\'inventario\')">Ver Catálogo</button>') +
         '</div>';
 
-    if (window.popupOnboarding && window.popupOnboarding.isOpen()) {
-        window.popupOnboarding.setHTML(htmlGemelo);
-    } else if (window.miniMapaPerfil && window.pinMiniMapaPerfil) {
+    if (window.popupOnboarding) {
+        window.popupOnboarding.remove();
+    }
+
+    if (window.miniMapaPerfil && window.pinMiniMapaPerfil) {
         window.popupOnboarding = new maplibregl.Popup({ 
-            offset: [0, 10], 
+            offset: [0, 8], 
             anchor: 'top', 
-            closeOnClick: true, 
-            maxWidth: '170px', 
+            closeOnClick: false, 
+            closeButton: false, 
+            maxWidth: '200px', 
             className: 'popup-boveda-estricto'
         })
         .setHTML(htmlGemelo)
         .setLngLat(window.pinMiniMapaPerfil.getLngLat())
         .addTo(window.miniMapaPerfil);
 
-        window.miniMapaPerfil.panTo(window.pinMiniMapaPerfil.getLngLat(), { duration: 400 });
+        window.miniMapaPerfil.panTo(window.pinMiniMapaPerfil.getLngLat(), { duration: 350 });
     }
+
 };
 
 window.toggleModoEdicionMinimalista = function() {
@@ -2289,17 +2607,24 @@ window.toggleModoEdicionMinimalista = function() {
 
 window.toggleGuardarTarjetaPopup = async function() {
     var inputNom = document.getElementById('edit-master-nombre');
+    var inputSlogan = document.getElementById('edit-master-slogan');
     var selectSec = document.getElementById('edit-master-niche');
     var inputTel = document.getElementById('edit-master-whatsapp');
+    var inputPbx = document.getElementById('edit-master-pbx');
 
     var payload = {};
     if (inputNom && inputNom.value.trim()) payload.nombre = inputNom.value.trim();
+    if (inputSlogan) payload.slogan = inputSlogan.value.trim();
     if (selectSec) payload.niche = selectSec.value;
     if (inputTel && inputTel.value.trim()) {
         var telLimpio = inputTel.value.trim().replace(/\D/g, '');
         payload.whatsapp = telLimpio;
         payload.whatsApp = telLimpio;
     }
+    if (inputPbx) {
+        payload.pbx = inputPbx.value.trim().replace(/[^\d\s\-\+\(\)]/g, '');
+    }
+
 
     Object.assign(window.datosTienda, payload);
 
@@ -2793,15 +3118,18 @@ window.guardarPaso1ADN = async function() {
     var forma = document.getElementById('select-forma').value;
     var anim = document.getElementById('select-animacion') ? document.getElementById('select-animacion').value : 'anim-salto';
     var efecto = document.getElementById('select-efecto') ? document.getElementById('select-efecto').value : '';
+    var tema = document.getElementById('select-tema-onboarding') ? document.getElementById('select-tema-onboarding').value : 'carbon';
     var pinPack = forma + '|' + anim + '|' + efecto;
 
     var payload = {
         pin_pack: pinPack,
+        tema_popup: tema,
         color_principal: document.getElementById('wizColorHex1').value,
         color_acento: document.getElementById('wizColorHex2').value,
         color_terciario: document.getElementById('wizColorHex3').value,
         progreso_boveda: 50
     };
+
 
     var pinF = document.getElementById('file-pin').files[0];
     if (pinF) {
@@ -2811,8 +3139,17 @@ window.guardarPaso1ADN = async function() {
         if (urlPin) payload.link_pin = urlPin;
     }
 
+    var nombreF = document.getElementById('fase1-file-nombre-png') ? document.getElementById('fase1-file-nombre-png').files[0] : null;
+    if (nombreF) {
+        var blobWebp = await window.comprimirImagenTransparenteWebP(nombreF, 460, 110);
+        var resNom = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/nombre_png.webp', blobWebp);
+        var urlNom = (typeof resNom === 'string') ? resNom : (resNom && resNom.data ? resNom.data : '');
+        if (urlNom) payload.nombre_png = urlNom;
+    }
+
+
     await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, payload);
-    Object.assign(window.datosTienda, payload);
+
 
     document.getElementById('fase-1-pin').style.display = 'none';
     window.iniciarSandboxGeoespacial(false);
@@ -2947,6 +3284,8 @@ window.guardarPaso2Ubicacion = async function() {
         btn.disabled = false;
     }
 };
+
+
 
 
 

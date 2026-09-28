@@ -92,44 +92,6 @@
 <script type="text/javascript" src="https://checkout.wompi.co/widget.js"></script>
 <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 <link rel="stylesheet" href="ui-estilos.css" />
-<style>
-/* Control de visibilidad para la (X) de inmuebles guiado por CSS puro */
-#lista-inmuebles-sheet.activo ~ #btn-cerrar-inmuebles { display: flex !important; }
-
-/* Posicionamiento y estilo del botón GPS nativo (Estilo Google Maps) */
-.maplibregl-ctrl-bottom-right { bottom: 80px; right: 15px; }
-.maplibregl-ctrl-group {
-    background-color: #1e1e1e !important; border: 1px solid #444 !important;
-    border-radius: 50% !important; box-shadow: 0 4px 15px rgba(0,0,0,0.8) !important;
-}
-.maplibregl-ctrl-zoom-in, .maplibregl-ctrl-zoom-out, .maplibregl-ctrl-compass { display: none !important; }
-
-/* REDISEÑO NATIVO MAPLIBRE */
-.maplibregl-user-location-dot, .maplibregl-user-location-dot::before {
-    background-color: rgba(120, 120, 125, 0.6) !important; width: 22px !important; height: 22px !important;
-}
-.maplibregl-user-location-dot::after {
-    border: 2px solid rgba(255, 255, 255, 0.3) !important; width: 28px !important; height: 28px !important;
-    left: -3px !important; top: -3px !important; box-shadow: 0 0 10px rgba(0,0,0,0.5) !important;
-}
-
-.maplibregl-popup-content {
-    background: rgba(20, 20, 25, 0.85) !important; backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important; border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    border-radius: 16px !important; color: #e0e0e0 !important; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8) !important;
-    padding: 12px 14px !important;
-}
-
-.maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: rgba(20, 20, 25, 0.85) !important; }
-.maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: rgba(20, 20, 25, 0.85) !important; }
-.maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: rgba(20, 20, 25, 0.85) !important; }
-.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: rgba(20, 20, 25, 0.85) !important; }
-
-.maplibregl-popup-close-button {
-    color: #aaaaaa !important; font-size: 18px !important; padding: 4px 8px !important; border-radius: 0 16px 0 0 !important;
-}
-.maplibregl-popup-close-button:hover { background-color: rgba(255, 107, 0, 0.2) !important; color: #ff6b00 !important; }
-</style>
 
 <script>
 // 1. ESCUDO XSS ESTRICTO
@@ -151,56 +113,57 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
 </script>
 </head>
 <body class="ui-light">
-
 <!-- =========================================================================
-     BOTÓN SATÉLITE MAGNÉTICO CLONADO: ESCÁNER DE CÓDIGO DE BARRAS / QR (📷)
+     BOTÓN HERRAMIENTAS (⚙️) CLON IDÉNTICO A LA BRÚJULA
      ========================================================================= -->
-<div id="btn-escaner-magnetico" class="btn-flotante-gps" style="bottom: auto; right: auto; top: 140px; left: 15px; width: 45px; height: 45px; border-radius: 50%; background-color: #1e1e1e !important; border: 1.5px solid var(--naranja) !important; box-shadow: 0 4px 15px rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column; cursor: pointer;">
-    <span style="font-size: 16px; line-height: 1; margin-bottom: 2px;">📷</span>
-    <span style="font-size: 7px; color: var(--naranja) !important; font-weight: bold; text-transform: uppercase; line-height: 1; text-align: center;">Escanear</span>
+<div class="contenedor-herramientas-flotante" id="btn-herramientas-contenedor">
+    <button class="btn-login" id="btn-herramientas" onclick="window.toggleMenuHerramientas()" title="Herramientas">⚙️</button>
+    <div id="columna-herramientas-hijas" class="columna-herramientas-flotante">
+        <!-- Esfera 1: Rutas -->
+        <button class="btn-login btn-esfera-herramienta" onclick="window.ejecutarAccionHerramienta('rutas')" title="Rutas">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="14" rx="3"></rect>
+                <line x1="3" y1="9" x2="21" y2="9"></line>
+                <circle cx="7.5" cy="14" r="1.5" fill="currentColor"></circle>
+                <circle cx="16.5" cy="14" r="1.5" fill="currentColor"></circle>
+                <line x1="6" y1="17" x2="6" y2="19"></line>
+                <line x1="18" y1="17" x2="18" y2="19"></line>
+            </svg>
+            <span class="label-esfera-micro">Rutas</span>
+        </button>
+        <!-- Esfera 2: Escanear -->
+        <button class="btn-login btn-esfera-herramienta" onclick="window.ejecutarAccionHerramienta('escanear')" title="Escanear">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+                <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+                <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+                <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+                <line x1="7" y1="12" x2="17" y2="12"></line>
+            </svg>
+            <span class="label-esfera-micro">Escanear</span>
+        </button>
+        <!-- Esfera 3: Firmas P2P -->
+        <button class="btn-login btn-esfera-herramienta" onclick="window.ejecutarAccionHerramienta('firmas')" title="Firmas P2P">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <path d="M12 18v-4"></path>
+                <path d="M9 15l3-3 3 3"></path>
+            </svg>
+            <span class="label-esfera-micro">Firmas</span>
+        </button>
+        <!-- Esfera 4: Planos -->
+        <button class="btn-login btn-esfera-herramienta" onclick="window.ejecutarAccionHerramienta('planos')" title="Planos">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                <polyline points="2 17 12 22 22 17"></polyline>
+                <polyline points="2 12 12 17 22 12"></polyline>
+            </svg>
+            <span class="label-esfera-micro">Planos</span>
+        </button>
+    </div>
 </div>
 
-<script>
-    // 🧲 MOTOR FÍSICO: Arrastre elástico y anclaje magnético a bordes
-    (function() {
-        const btnScan = document.getElementById('btn-escaner-magnetico');
-        if(!btnScan) return;
-        let isDragging = false, startY, startX, initialTop, initialLeft;
-        const MARGEN_X = 15;
-
-        btnScan.addEventListener('touchstart', (e) => {
-            isDragging = false; window.isDraggingScan = false;
-            startY = e.touches[0].clientY; startX = e.touches[0].clientX;
-            initialTop = btnScan.getBoundingClientRect().top; initialLeft = btnScan.getBoundingClientRect().left;
-            btnScan.style.transition = 'none'; 
-        }, {passive: true});
-
-        btnScan.addEventListener('touchmove', (e) => {
-            const deltaY = e.touches[0].clientY - startY; const deltaX = e.touches[0].clientX - startX;
-            if (Math.abs(deltaY) > 5 || Math.abs(deltaX) > 5) {
-                isDragging = true; window.isDraggingScan = true;
-                btnScan.style.top = (initialTop + deltaY) + 'px'; btnScan.style.left = (initialLeft + deltaX) + 'px'; btnScan.style.right = 'auto'; 
-            }
-        }, {passive: true});
-
-        btnScan.addEventListener('touchend', () => {
-            btnScan.style.transition = 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
-            if (!isDragging) return;
-            const rect = btnScan.getBoundingClientRect(); const midScreen = window.innerWidth / 2;
-            if (rect.left + (rect.width/2) < midScreen) { btnScan.style.left = MARGEN_X + 'px'; btnScan.style.right = 'auto'; } 
-            else { btnScan.style.left = 'auto'; btnScan.style.right = MARGEN_X + 'px'; }
-            if (rect.top < 80) btnScan.style.top = '80px';
-            if (rect.bottom > window.innerHeight - 100) btnScan.style.top = (window.innerHeight - 100 - rect.height) + 'px';
-            setTimeout(() => window.isDraggingScan = false, 50);
-        });
-
-        btnScan.addEventListener('click', () => {
-            if (!window.isDraggingScan && typeof window.abrirEscanerCamara === 'function') {
-                window.abrirEscanerCamara();
-            }
-        });
-    })();
-</script>
 
 <div id="pantalla-carga">
 <img id="logo-carga" class="logo-palpitante" src="" style="max-width: 220px; display: none; margin-bottom: 10px; filter: drop-shadow(0 0 15px var(--naranja));">
@@ -211,33 +174,64 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
 </div>
 
 <div id="tour-overlay"></div>
-<div id="tour-step-1" class="tour-tooltip"><h3 style="color: var(--naranja); font-weight: 900; font-size: 14px; text-transform: uppercase; margin: 0;">Paso 1</h3><p style="font-size: 12px; color: #ddd; margin: 0;">Escribe el nombre del negocio, comida o producto que se te antoje aquí.</p><button class="btn-tour" onclick="siguienteTour1()">Siguiente</button></div>
-<div id="tour-step-2" class="tour-tooltip"><h3 style="color: var(--naranja); font-weight: 900; font-size: 14px; text-transform: uppercase; margin: 0;">Paso 2</h3><p style="font-size: 12px; color: #ddd; margin: 0;">Presiona aquí para encontrar tu ubicación actual y ver los negocios a tu alrededor.</p><button class="btn-tour" onclick="siguienteTour2()">Siguiente</button></div>
-<div id="tour-step-3" class="tour-tooltip"><h3 style="color: var(--naranja); font-weight: 900; font-size: 14px; text-transform: uppercase; margin: 0;">Paso 3</h3><p style="font-size: 12px; color: #ddd; margin: 0;">Si tienes un negocio, administra tu bóveda tocando esta llave maestra.</p><button class="btn-tour" onclick="siguienteTour3()">Siguiente</button></div>
-<div id="tour-step-4" class="tour-tooltip"><h3 style="color: var(--naranja); font-weight: 900; font-size: 14px; text-transform: uppercase; margin: 0;">Paso 4</h3><p style="font-size: 12px; color: #ddd; margin: 0;">Por ejemplo, presionando inmuebles puedes ver los arriendos disponibles en tu zona.</p><button class="btn-tour" onclick="finalizarTour()">¡Entendido!</button></div>
+
+<!-- PASO 1: BUSCADOR -->
+<div id="tour-step-1" class="tour-tooltip" style="top: 85px; left: 20px; right: 20px; margin: 0 auto;">
+    <h3 style="color: var(--naranja); font-weight: 900; font-size: 13px; text-transform: uppercase; margin: 0;">Buscador Radar</h3>
+    <p style="font-size: 12px; color: #eee; margin: 0; line-height: 1.4;">Escribe aquí el nombre del comercio, producto o dirección que deseas localizar.</p>
+    <button class="btn-tour" onclick="window.siguienteTour1()">Siguiente</button>
+</div>
+
+<!-- PASO 2: HERRAMIENTAS (⚙️) -->
+<div id="tour-step-escaner" class="tour-tooltip" style="top: 140px; left: 75px;">
+    <h3 style="color: var(--naranja); font-weight: 900; font-size: 13px; text-transform: uppercase; margin: 0;">Herramientas</h3>
+    <p style="font-size: 12px; color: #eee; margin: 0; line-height: 1.4;">Despliega utilidades tácticas: activa rutas de transporte, escanea códigos de barras, tramita firmas digitales P2P y consulta planos topográficos.</p>
+    <button class="btn-tour" onclick="window.siguienteTourEscaner()">SIGUIENTE</button>
+</div>
+
+
+<!-- PASO 3: GPS MI UBICACIÓN -->
+<div id="tour-step-2" class="tour-tooltip" style="bottom: 140px; right: 15px;">
+    <h3 style="color: var(--naranja); font-weight: 900; font-size: 13px; text-transform: uppercase; margin: 0;">Tu Ubicación GPS</h3>
+    <p style="font-size: 12px; color: #eee; margin: 0; line-height: 1.4;">Toca este botón para centrar el mapa en tu posición exacta y rastrear lo que te rodea.</p>
+    <button class="btn-tour" onclick="window.siguienteTour2()">Siguiente</button>
+</div>
+
+<!-- PASO 4: LLAVE MAESTRA -->
+<div id="tour-step-3" class="tour-tooltip" style="top: 85px; right: 15px;">
+    <h3 style="color: var(--naranja); font-weight: 900; font-size: 13px; text-transform: uppercase; margin: 0;">Llave Maestra</h3>
+    <p style="font-size: 12px; color: #eee; margin: 0; line-height: 1.4;">Si tienes un negocio o cuenta de explorador, ingresa a tu bóveda comercial desde aquí.</p>
+    <button class="btn-tour" onclick="window.siguienteTour3()">Siguiente</button>
+</div>
+
+<!-- PASO 5: BRÚJULA DE EXPLORACIÓN (🧭) -->
+<div id="tour-step-4" class="tour-tooltip" style="top: 85px; left: 75px;">
+    <h3 style="color: var(--naranja); font-weight: 900; font-size: 13px; text-transform: uppercase; margin: 0;">Explorar Radar</h3>
+    <p style="font-size: 12px; color: #eee; margin: 0; line-height: 1.4;">Despliega pastillas horizontales para explorar la ciudad al instante entre comercios, inmuebles y servicios profesionales con filtros en tiempo real.</p>
+    <button class="btn-tour" onclick="window.finalizarTour()">¡EMPEZAR!</button>
+</div>
 
 <div id="toast-fantasma" class="toast-fantasma">No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.</div>
 <div id="offline-banner" class="toast-fantasma" style="background: rgba(255, 68, 68, 0.9); border-color: #ff4444; top: 10%; box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 15px rgba(255,68,68,0.4);">⚠️ Sin conexión. Mostrando mapa guardado.</div>
 
 <!-- =========================================================================
-     BOTÓN BRÚJULA (🧭) CON MENÚ CLONADO EXACTO AL DE LA LLAVE (🔑)
+     BOTÓN BRÚJULA Y PASTILLAS FLOTANTES
      ========================================================================= -->
 <div class="contenedor-brujula-flotante" id="btn-brujula-contenedor">
-    <button class="btn-login" id="btn-brujula" onclick="toggleSubmenuBrujula()">🧭</button>
-    <div id="submenu-brujula" class="submenu-brujula">
-        <button class="btn-submenu" onclick="window.seleccionarFiltroBrujula('comercio')">Comercios</button>
-        <button class="btn-submenu" onclick="window.seleccionarFiltroBrujula('inmueble')">Inmuebles</button>
-        <button class="btn-submenu" onclick="window.seleccionarFiltroBrujula('servicio')">Servicios</button>
-        <button class="btn-submenu" onclick="window.seleccionarFiltroBrujula('logistica')">Flota Activa</button>
-        <button class="btn-submenu" onclick="window.location.href='tramites'">Firmas P2P</button>
-        <button class="btn-submenu" onclick="window.conmutarVistaEcosistema('transporte'); toggleSubmenuBrujula()">Rutas Transporte</button>
-        <button class="btn-submenu" onclick="window.abrirMenuPerformance()">Performance</button>
-        <button class="btn-submenu" onclick="window.descargarReporteTecnico()" style="color: var(--naranja); border-color: rgba(255,107,0,0.4);">Reporte Técnico</button>
+    <button class="btn-login" id="btn-brujula" onclick="window.toggleMenuBrujula()" title="Explorar">🧭</button>
+
+    <!-- LAS 3 PASTILLAS MADRE AUTÓNOMAS (NACEN HORIZONTALES) -->
+    <div id="pastillas-madre-fila" class="fila-pastillas-madre">
+        <button type="button" class="pastilla-madre-btn" onclick="window.seleccionarPastillaCiudad('comercio')">Comercios</button>
+        <button type="button" class="pastilla-madre-btn" onclick="window.seleccionarPastillaCiudad('inmueble')">Inmuebles</button>
+        <button type="button" class="pastilla-madre-btn" onclick="window.seleccionarPastillaCiudad('servicio')">Servicios</button>
     </div>
 
-    <!-- Panel de Subfiltros tipo MercadoLibre -->
-    <div class="panel-vertical-mercadolibre" id="panel-mercadolibre-subfiltros" style="position: absolute; top: 60px; left: 170px;"></div>
+    <!-- BANDEJA DE SUBFILTROS COMPACTOS MULTI-CATEGORÍA -->
+    <div id="subfiltros-inmuebles-panel" class="panel-subfiltros-compacto"></div>
+
 </div>
+
 
 <!-- =========================================================================
      BLOQUE SUPERIOR: BUSCADOR [ TEXTO ] [ ⋮ ] [ 🔍 ] Y LLAVE (🔑)
@@ -281,9 +275,12 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
                     <button id="btn-catalogo" class="btn-submenu" onclick="window.location.href='negocio'; toggleSubmenu()" style="display:none; text-align: left; font-size: 11px;">Catalogo</button>
                     <button id="btn-inventario" class="btn-submenu" onclick="window.location.href='inventario'; toggleSubmenu()" style="display:none; text-align: left; font-size: 11px;">Inventario</button>
                     <button id="btn-faq" class="btn-submenu" onclick="abrirModal('modal-soporte'); toggleSubmenu()" style="text-align: left; font-size: 11px;">FAQ</button>
+                    <button id="btn-audit-perf" class="btn-submenu" onclick="window.abrirMenuPerformance(); toggleSubmenu()" style="text-align: left; font-size: 11px; color: #888;">Performance</button>
+                    <button id="btn-audit-rep" class="btn-submenu" onclick="window.descargarReporteTecnico(); toggleSubmenu()" style="text-align: left; font-size: 11px; color: #888;">Reporte Técnico</button>
                     <button id="btn-salir" class="btn-submenu" onclick="if(window.cerrarSesion) window.cerrarSesion(); toggleSubmenu()" style="display:none; text-align: left; font-size: 11px; color: #ff4444; border-color: rgba(255,68,68,0.3);">Salir</button>
                 </div>
             </div>
+
     </div> 
 </div>
 
@@ -309,11 +306,6 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
 </div>
 
 <div id="mapa-qrpido"></div>
-
-<div style="position: fixed; bottom: 50px; left: 0; width: 100%; z-index: 1000; pointer-events: none;">
-    <div id="lista-inmuebles-sheet" class="bottom-sheet-hibrido" style="display:none; position: relative; bottom: 0;"></div>
-    <button id="btn-cerrar-inmuebles" onclick="if(window.cerrarSheetInmuebles) window.cerrarSheetInmuebles()" style="display: none; pointer-events: all; position: absolute; top: -45px; right: 15px; background: rgba(10,10,12,0.95); color: white; border: 1px solid var(--naranja); border-radius: 50%; width: 32px; height: 32px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1001; cursor: pointer; transition: transform 0.2s;">✖</button>
-</div>
 
 <div class="map-options">
     <div class="map-tag active" onclick="if(window.cambiarMapa) window.cambiarMapa('satelite', this)">Satelital</div>
@@ -778,7 +770,7 @@ window.buscarCiudadGlobal = async function() {
             if (window.mapa) window.mapa.flyTo({ center: [decoded.longitudeCenter, decoded.latitudeCenter], zoom: 17 });
             btn.innerText = originalIcon; return;
         }
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}`);
+        const response = await fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(input));
         const data = await response.json();
         if (data && data.length > 0) {
             const lat = parseFloat(data[0].lat); const lng = parseFloat(data[0].lon);
@@ -789,175 +781,348 @@ window.buscarCiudadGlobal = async function() {
 </script>
 
 <!-- =========================================================================
-     CONTROLADOR DE FILTROS E INMUEBLES DESDE LA BRÚJULA (🧭)
+     CONTROLADOR DE PASTILLAS FLOTANTES, HERRAMIENTAS Y TEMPORIZADORES (2 MIN)
      ========================================================================= -->
 <script>
-window.categoriaFiltroActiva = null;
-window.inmueblesCache = [];
-window.filtrosInmueblesEstado = {
-    operacion: 'todos',
-    tipo: 'todos',
-    habitaciones: 'todos'
+window.timerBrujula = null;
+window.timerHerramientas = null;
+const TIEMPO_LIMITE_MS = 120000;
+
+window.filtrosInmueblesEstado = { operacion: 'todos', tipo: 'todos', atributo: 'todos' };
+window.filtrosComerciosEstado = { categoria: 'todos', subtipo: 'todos', domicilio: 'todos' };
+window.filtrosServiciosEstado = { categoria: 'todos', subtipo: 'todos', modalidad: 'todos' };
+
+// Generador dinámico del mensaje sin resultados adaptado gramaticalmente
+window.obtenerMensajeSinResultados = function() {
+    if (window.categoriaActivaGlobal === 'inmuebles') {
+        const fi = window.filtrosInmueblesEstado;
+        const mapaNombres = {
+            'apartamento': 'ningún apartamento',
+            'casa': 'ninguna casa',
+            'apartaestudio': 'ningún apartaestudio',
+            'habitacion': 'ninguna habitación',
+            'local': 'ningún local',
+            'oficina': 'ninguna oficina',
+            'bodega': 'ninguna bodega',
+            'lote': 'ningún lote',
+            'finca': 'ninguna finca'
+        };
+        const entidad = mapaNombres[fi.tipo] || 'ningún inmueble';
+        let sufijoOp = '';
+        if (fi.operacion === 'arriendo') sufijoOp = ' en arriendo';
+        else if (fi.operacion === 'venta') sufijoOp = ' en venta';
+        else if (fi.operacion === 'dias') sufijoOp = ' por días';
+        return `No encontramos ${entidad}${sufijoOp} aquí`;
+    }
+
+    if (window.categoriaActivaGlobal === 'comercios' || window.categoriaActivaGlobal === 'negocios') {
+        const cat = window.filtrosComerciosEstado.categoria;
+        if (cat && cat !== 'todos') {
+            return `No encontramos locales de ${cat.toLowerCase()} aquí`;
+        }
+        return 'No encontramos comercios aquí';
+    }
+
+    if (window.categoriaActivaGlobal === 'servicios') {
+        const serv = window.filtrosServiciosEstado.categoria;
+        if (serv && serv !== 'todos') {
+            return `No encontramos servicios de ${serv.toLowerCase()} aquí`;
+        }
+        return 'No encontramos servicios aquí';
+    }
+
+    return 'No encontramos resultados en esta zona';
 };
 
-window.toggleSubmenuBrujula = () => {
-    const sub = document.getElementById('submenu-brujula');
-    if (sub) sub.classList.toggle('activo');
+window.toggleMenuBrujula = function() {
+    if (navigator.vibrate) navigator.vibrate(20);
+    const pastillas = document.getElementById('pastillas-madre-fila');
+    const panelSub = document.getElementById('subfiltros-inmuebles-panel');
+
+    if (panelSub && panelSub.classList.contains('activo')) {
+        panelSub.classList.remove('activo');
+        clearTimeout(window.timerBrujula);
+        return;
+    }
+
+    if (pastillas) {
+        const activo = pastillas.classList.toggle('activo');
+        clearTimeout(window.timerBrujula);
+        if (activo) {
+            window.timerBrujula = setTimeout(() => { pastillas.classList.remove('activo'); }, TIEMPO_LIMITE_MS);
+        }
+    }
 };
 
-window.seleccionarFiltroBrujula = async function(tipo) {
+window.seleccionarPastillaCiudad = function(categoria) {
     if (navigator.vibrate) navigator.vibrate(25);
-    window.toggleSubmenuBrujula();
+    clearTimeout(window.timerBrujula);
 
-    const panel = document.getElementById('panel-mercadolibre-subfiltros');
-    window.categoriaFiltroActiva = tipo;
+    const pastillas = document.getElementById('pastillas-madre-fila');
+    const panelSub = document.getElementById('subfiltros-inmuebles-panel');
+    if (pastillas) pastillas.classList.remove('activo');
 
-    if (tipo === 'inmueble') {
-        if (!panel) return;
-        panel.innerHTML = `
-            <div class="filtro-ml-seccion-titulo">Operación</div>
-            <div class="filtro-ml-opcion activa" onclick="window.aplicarSubfiltroML('operacion', 'todos', this)">Todas</div>
-            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('operacion', 'arriendo', this)">Arriendo</div>
-            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('operacion', 'venta', this)">Venta</div>
-            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('operacion', 'dias', this)">Alquiler por Días</div>
+    if (categoria === 'inmueble') {
+        window.categoriaActivaGlobal = 'inmuebles';
+        window.renderizarBandejaInmuebles();
+        if (panelSub) panelSub.classList.add('activo');
+        if (typeof window.descargarNegociosDeFirebase === 'function') {
+            window.descargarNegociosDeFirebase();
+        }
+    } else if (categoria === 'comercio') {
+        window.categoriaActivaGlobal = 'comercios';
+        window.renderizarBandejaComercios();
+        if (panelSub) panelSub.classList.add('activo');
+        if (typeof window.barridoRadar === 'function') window.barridoRadar();
+    } else if (categoria === 'servicio') {
+        window.categoriaActivaGlobal = 'servicios';
+        window.renderizarBandejaServicios();
+        if (panelSub) panelSub.classList.add('activo');
+        if (typeof window.barridoRadar === 'function') window.barridoRadar();
+    }
+};
 
-            <div class="filtro-ml-seccion-titulo">Tipo de Inmueble</div>
-            <div class="filtro-ml-opcion activa" onclick="window.aplicarSubfiltroML('tipo', 'todos', this)">Todos</div>
-            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('tipo', 'apartamento', this)">Apartamentos</div>
-            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('tipo', 'casa', this)">Casas</div>
-            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('tipo', 'local', this)">Locales</div>
-            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('tipo', 'finca', this)">Fincas / Lotes</div>
+// Renderizado de las 3 filas de Inmuebles con catálogo colombiano completo
+window.renderizarBandejaInmuebles = function() {
+    const panel = document.getElementById('subfiltros-inmuebles-panel');
+    if (!panel) return;
 
-            <div class="filtro-ml-seccion-titulo">Habitaciones</div>
-            <div class="filtro-ml-opcion activa" onclick="window.aplicarSubfiltroML('habitaciones', 'todos', this)">Cualquiera</div>
-            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('habitaciones', '1', this)">1 Habitación</div>
-            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('habitaciones', '2', this)">2 Habitaciones</div>
-            <div class="filtro-ml-opcion" onclick="window.aplicarSubfiltroML('habitaciones', '3+', this)">3 o más</div>
+    const fi = window.filtrosInmueblesEstado;
+    const esResidencial = ['apartamento', 'casa', 'apartaestudio', 'habitacion', 'todos'].includes(fi.tipo);
+    const esComercial = ['local', 'oficina', 'bodega'].includes(fi.tipo);
+    const esTierras = ['lote', 'finca'].includes(fi.tipo);
+
+    let rotuloAtributo = 'Cuartos:';
+    let chipsAtributoHTML = `
+        <button class="chip-tactual ${fi.atributo === 'todos' ? 'activo' : ''}" onclick="window.cambiarAtributoInmueble('todos', this)">Cualquiera</button>
+        <button class="chip-tactual ${fi.atributo === '1' ? 'activo' : ''}" onclick="window.cambiarAtributoInmueble('1', this)">1 Hab</button>
+        <button class="chip-tactual ${fi.atributo === '2' ? 'activo' : ''}" onclick="window.cambiarAtributoInmueble('2', this)">2 Hab</button>
+        <button class="chip-tactual ${fi.atributo === '3+' ? 'activo' : ''}" onclick="window.cambiarAtributoInmueble('3+', this)">3+ Hab</button>
+    `;
+
+    if (esComercial) {
+        rotuloAtributo = 'Área:';
+        chipsAtributoHTML = `
+            <button class="chip-tactual ${fi.atributo === 'todos' ? 'activo' : ''}" onclick="window.cambiarAtributoInmueble('todos', this)">Cualquiera</button>
+            <button class="chip-tactual ${fi.atributo === '<50' ? 'activo' : ''}" onclick="window.cambiarAtributoInmueble('<50', this)">&lt; 50 m²</button>
+            <button class="chip-tactual ${fi.atributo === '50-150' ? 'activo' : ''}" onclick="window.cambiarAtributoInmueble('50-150', this)">50-150 m²</button>
+            <button class="chip-tactual ${fi.atributo === '>150' ? 'activo' : ''}" onclick="window.cambiarAtributoInmueble('>150', this)">&gt; 150 m²</button>
         `;
-        panel.style.display = 'block';
-        await window.consultarInmueblesRadar();
-
-    } else if (tipo === 'comercio') {
-        if (panel) panel.style.display = 'none';
-        window.cerrarSheetInmuebles();
-        if (typeof window.filtrarPinesPorModelo === 'function') window.filtrarPinesPorModelo('comercio');
-
-    } else if (tipo === 'servicio') {
-        if (panel) panel.style.display = 'none';
-        window.cerrarSheetInmuebles();
-        if (typeof window.filtrarPinesPorModelo === 'function') window.filtrarPinesPorModelo('servicio');
-
-    } else if (tipo === 'logistica') {
-        if (panel) panel.style.display = 'none';
-        window.cerrarSheetInmuebles();
-        if (typeof window.conmutarVistaEcosistema === 'function') window.conmutarVistaEcosistema('transporte');
+    } else if (esTierras) {
+        rotuloAtributo = 'Terreno:';
+        chipsAtributoHTML = `
+            <button class="chip-tactual ${fi.atributo === 'todos' ? 'activo' : ''}" onclick="window.cambiarAtributoInmueble('todos', this)">Cualquiera</button>
+            <button class="chip-tactual ${fi.atributo === 'plano' ? 'activo' : ''}" onclick="window.cambiarAtributoInmueble('plano', this)">Plano</button>
+            <button class="chip-tactual ${fi.atributo === 'ondulado' ? 'activo' : ''}" onclick="window.cambiarAtributoInmueble('ondulado', this)">Ondulado</button>
+            <button class="chip-tactual ${fi.atributo === 'servicios' ? 'activo' : ''}" onclick="window.cambiarAtributoInmueble('servicios', this)">Con Servicios</button>
+            <button class="chip-tactual ${fi.atributo === 'limpio' ? 'activo' : ''}" onclick="window.cambiarAtributoInmueble('limpio', this)">Limpio</button>
+        `;
     }
+
+    panel.innerHTML = `
+        <div class="chips-fila-scroll">
+            <span class="chip-rotulo">Operación:</span>
+            <button class="chip-tactual ${fi.operacion === 'todos' ? 'activo' : ''}" onclick="window.cambiarOperacionInmueble('todos', this)">Todas</button>
+            <button class="chip-tactual ${fi.operacion === 'arriendo' ? 'activo' : ''}" onclick="window.cambiarOperacionInmueble('arriendo', this)">Arriendo</button>
+            <button class="chip-tactual ${fi.operacion === 'venta' ? 'activo' : ''}" onclick="window.cambiarOperacionInmueble('venta', this)">Venta</button>
+            <button class="chip-tactual ${fi.operacion === 'dias' ? 'activo' : ''}" onclick="window.cambiarOperacionInmueble('dias', this)">Por Días</button>
+        </div>
+
+        <div class="chips-fila-scroll">
+            <span class="chip-rotulo">Tipo:</span>
+            <button class="chip-tactual ${fi.tipo === 'todos' ? 'activo' : ''}" onclick="window.cambiarTipoInmueble('todos', this)">Todos</button>
+            <button class="chip-tactual ${fi.tipo === 'apartamento' ? 'activo' : ''}" onclick="window.cambiarTipoInmueble('apartamento', this)">Apartamentos</button>
+            <button class="chip-tactual ${fi.tipo === 'casa' ? 'activo' : ''}" onclick="window.cambiarTipoInmueble('casa', this)">Casas</button>
+            <button class="chip-tactual ${fi.tipo === 'apartaestudio' ? 'activo' : ''}" onclick="window.cambiarTipoInmueble('apartaestudio', this)">Apartaestudios</button>
+            <button class="chip-tactual ${fi.tipo === 'habitacion' ? 'activo' : ''}" onclick="window.cambiarTipoInmueble('habitacion', this)">Habitaciones</button>
+            <button class="chip-tactual ${fi.tipo === 'local' ? 'activo' : ''}" onclick="window.cambiarTipoInmueble('local', this)">Locales</button>
+            <button class="chip-tactual ${fi.tipo === 'oficina' ? 'activo' : ''}" onclick="window.cambiarTipoInmueble('oficina', this)">Oficinas</button>
+            <button class="chip-tactual ${fi.tipo === 'bodega' ? 'activo' : ''}" onclick="window.cambiarTipoInmueble('bodega', this)">Bodegas</button>
+            <button class="chip-tactual ${fi.tipo === 'lote' ? 'activo' : ''}" onclick="window.cambiarTipoInmueble('lote', this)">Lotes</button>
+            <button class="chip-tactual ${fi.tipo === 'finca' ? 'activo' : ''}" onclick="window.cambiarTipoInmueble('finca', this)">Fincas</button>
+        </div>
+
+        <div class="chips-fila-scroll">
+            <span class="chip-rotulo">${rotuloAtributo}</span>
+            ${chipsAtributoHTML}
+        </div>
+    `;
 };
 
-window.aplicarSubfiltroML = function(criterio, valor, elemento) {
+window.cambiarOperacionInmueble = function(val, el) {
     if (navigator.vibrate) navigator.vibrate(15);
+    window.filtrosInmueblesEstado.operacion = val;
+    window.renderizarBandejaInmuebles();
+    if (typeof window.barridoRadar === 'function') window.barridoRadar();
+};
 
-    let hermano = elemento.previousElementSibling;
-    while (hermano && !hermano.classList.contains('filtro-ml-seccion-titulo')) {
-        hermano.classList.remove('activa');
-        hermano = hermano.previousElementSibling;
-    }
-    hermano = elemento.nextElementSibling;
-    while (hermano && !hermano.classList.contains('filtro-ml-seccion-titulo')) {
-        hermano.classList.remove('activa');
-        hermano = hermano.nextElementSibling;
-    }
-    elemento.classList.add('activa');
+window.cambiarTipoInmueble = function(val, el) {
+    if (navigator.vibrate) navigator.vibrate(15);
+    window.filtrosInmueblesEstado.tipo = val;
+    window.filtrosInmueblesEstado.atributo = 'todos';
+    window.renderizarBandejaInmuebles();
+    if (typeof window.barridoRadar === 'function') window.barridoRadar();
+};
 
-    if (window.categoriaFiltroActiva === 'inmueble') {
-        window.filtrosInmueblesEstado[criterio] = valor;
-        window.renderizarInmueblesFiltrados();
+window.cambiarAtributoInmueble = function(val, el) {
+    if (navigator.vibrate) navigator.vibrate(15);
+    window.filtrosInmueblesEstado.atributo = val;
+    window.renderizarBandejaInmuebles();
+    if (typeof window.barridoRadar === 'function') window.barridoRadar();
+};
+
+// Renderizado de las 3 filas de Comercios
+window.renderizarBandejaComercios = function() {
+    const panel = document.getElementById('subfiltros-inmuebles-panel');
+    if (!panel) return;
+
+    // Extracción dinámica de categorías activas en base de datos
+    const categoriasDetectadas = new Set(['Comida Rápida', 'Droguería', 'Supermercado', 'Restaurante', 'Panadería', 'Tecnología', 'Moda']);
+    if (window.dbDirectorio && Array.isArray(window.dbDirectorio)) {
+        window.dbDirectorio.forEach(p => {
+            if (p.niche) categoriasDetectadas.add(p.niche);
+            if (p.categoria && p.categoria !== 'General') categoriasDetectadas.add(p.categoria);
+        });
+    }
+
+    const fc = window.filtrosComerciosEstado;
+    const chipsCatHTML = Array.from(categoriasDetectadas).map(c => `
+        <button class="chip-tactual ${fc.categoria === c ? 'activo' : ''}" onclick="window.cambiarCatComercio('${c}', this)">${c}</button>
+    `).join('');
+
+    panel.innerHTML = `
+        <div class="chips-fila-scroll">
+            <span class="chip-rotulo">Categoría:</span>
+            <button class="chip-tactual ${fc.categoria === 'todos' ? 'activo' : ''}" onclick="window.cambiarCatComercio('todos', this)">Todas</button>
+            ${chipsCatHTML}
+        </div>
+
+        <div class="chips-fila-scroll">
+            <span class="chip-rotulo">Tipo:</span>
+            <button class="chip-tactual ${fc.subtipo === 'todos' ? 'activo' : ''}" onclick="window.cambiarSubComercio('todos', this)">Todos</button>
+            <button class="chip-tactual ${fc.subtipo === 'artesanal' ? 'activo' : ''}" onclick="window.cambiarSubComercio('artesanal', this)">Artesanal</button>
+            <button class="chip-tactual ${fc.subtipo === 'mayorista' ? 'activo' : ''}" onclick="window.cambiarSubComercio('mayorista', this)">Mayorista</button>
+            <button class="chip-tactual ${fc.subtipo === '24horas' ? 'activo' : ''}" onclick="window.cambiarSubComercio('24horas', this)">24 Horas</button>
+        </div>
+
+        <div class="chips-fila-scroll">
+            <span class="chip-rotulo">Entrega:</span>
+            <button class="chip-tactual ${fc.domicilio === 'todos' ? 'activo' : ''}" onclick="window.cambiarDomComercio('todos', this)">Todos</button>
+            <button class="chip-tactual ${fc.domicilio === 'si' ? 'activo' : ''}" onclick="window.cambiarDomComercio('si', this)">Con Domicilio</button>
+            <button class="chip-tactual ${fc.domicilio === 'local' ? 'activo' : ''}" onclick="window.cambiarDomComercio('local', this)">En Local</button>
+        </div>
+    `;
+};
+
+window.cambiarCatComercio = function(val, el) {
+    if (navigator.vibrate) navigator.vibrate(15);
+    window.filtrosComerciosEstado.categoria = val;
+    window.renderizarBandejaComercios();
+    if (typeof window.barridoRadar === 'function') window.barridoRadar();
+};
+window.cambiarSubComercio = function(val, el) {
+    if (navigator.vibrate) navigator.vibrate(15);
+    window.filtrosComerciosEstado.subtipo = val;
+    window.renderizarBandejaComercios();
+    if (typeof window.barridoRadar === 'function') window.barridoRadar();
+};
+window.cambiarDomComercio = function(val, el) {
+    if (navigator.vibrate) navigator.vibrate(15);
+    window.filtrosComerciosEstado.domicilio = val;
+    window.renderizarBandejaComercios();
+    if (typeof window.barridoRadar === 'function') window.barridoRadar();
+};
+
+// Renderizado de las 3 filas de Servicios
+window.renderizarBandejaServicios = function() {
+    const panel = document.getElementById('subfiltros-inmuebles-panel');
+    if (!panel) return;
+
+    const fs = window.filtrosServiciosEstado;
+    panel.innerHTML = `
+        <div class="chips-fila-scroll">
+            <span class="chip-rotulo">Rama:</span>
+            <button class="chip-tactual ${fs.categoria === 'todos' ? 'activo' : ''}" onclick="window.cambiarCatServicio('todos', this)">Todos</button>
+            <button class="chip-tactual ${fs.categoria === 'salud' ? 'activo' : ''}" onclick="window.cambiarCatServicio('salud', this)">Salud</button>
+            <button class="chip-tactual ${fs.categoria === 'belleza' ? 'activo' : ''}" onclick="window.cambiarCatServicio('belleza', this)">Belleza</button>
+            <button class="chip-tactual ${fs.categoria === 'tecnico' ? 'activo' : ''}" onclick="window.cambiarCatServicio('tecnico', this)">Técnicos</button>
+            <button class="chip-tactual ${fs.categoria === 'asesoria' ? 'activo' : ''}" onclick="window.cambiarCatServicio('asesoria', this)">Asesoría</button>
+        </div>
+
+        <div class="chips-fila-scroll">
+            <span class="chip-rotulo">Especialidad:</span>
+            <button class="chip-tactual ${fs.subtipo === 'todos' ? 'activo' : ''}" onclick="window.cambiarSubServicio('todos', this)">Todas</button>
+            <button class="chip-tactual ${fs.subtipo === 'urgente' ? 'activo' : ''}" onclick="window.cambiarSubServicio('urgente', this)">Urgencias</button>
+            <button class="chip-tactual ${fs.subtipo === 'cita' ? 'activo' : ''}" onclick="window.cambiarSubServicio('cita', this)">Con Cita</button>
+        </div>
+
+        <div class="chips-fila-scroll">
+            <span class="chip-rotulo">Atención:</span>
+            <button class="chip-tactual ${fs.modalidad === 'todos' ? 'activo' : ''}" onclick="window.cambiarModServicio('todos', this)">Todas</button>
+            <button class="chip-tactual ${fs.modalidad === 'domicilio' ? 'activo' : ''}" onclick="window.cambiarModServicio('domicilio', this)">A Domicilio</button>
+            <button class="chip-tactual ${fs.modalidad === 'sede' ? 'activo' : ''}" onclick="window.cambiarModServicio('sede', this)">En Sede</button>
+        </div>
+    `;
+};
+
+window.cambiarCatServicio = function(val, el) {
+    if (navigator.vibrate) navigator.vibrate(15);
+    window.filtrosServiciosEstado.categoria = val;
+    window.renderizarBandejaServicios();
+    if (typeof window.barridoRadar === 'function') window.barridoRadar();
+};
+window.cambiarSubServicio = function(val, el) {
+    if (navigator.vibrate) navigator.vibrate(15);
+    window.filtrosServiciosEstado.subtipo = val;
+    window.renderizarBandejaServicios();
+    if (typeof window.barridoRadar === 'function') window.barridoRadar();
+};
+window.cambiarModServicio = function(val, el) {
+    if (navigator.vibrate) navigator.vibrate(15);
+    window.filtrosServiciosEstado.modalidad = val;
+    window.renderizarBandejaServicios();
+    if (typeof window.barridoRadar === 'function') window.barridoRadar();
+};
+
+// --- CONTROLADOR HERRAMIENTAS (⚙️) ---
+window.toggleMenuHerramientas = function() {
+    if (navigator.vibrate) navigator.vibrate(20);
+    const columna = document.getElementById('columna-herramientas-hijas');
+    if (!columna) return;
+
+    const estaActivo = columna.classList.toggle('activo');
+    clearTimeout(window.timerHerramientas);
+
+    if (estaActivo) {
+        window.timerHerramientas = setTimeout(() => {
+            columna.classList.remove('activo');
+        }, TIEMPO_LIMITE_MS);
     }
 };
 
-window.consultarInmueblesRadar = async function() {
-    if (!window.GeokatuDB_Global || !window.mapa) return;
-    const centro = window.mapa.getCenter();
-    const radio = 8000;
-    try {
-        const res = await window.GeokatuDB_Global.RadarService.buscarInmueblesEnRadar(centro.lat, centro.lng, radio);
-        if (res.success) {
-            window.inmueblesCache = res.data || [];
-            window.renderizarInmueblesFiltrados();
+window.ejecutarAccionHerramienta = function(herramienta) {
+    if (navigator.vibrate) navigator.vibrate(30);
+    const columna = document.getElementById('columna-herramientas-hijas');
+    if (columna) columna.classList.remove('activo');
+    clearTimeout(window.timerHerramientas);
+
+    if (herramienta === 'rutas') {
+        if (typeof window.conmutarVistaEcosistema === 'function') {
+            window.conmutarVistaEcosistema('transporte');
         }
-    } catch (e) {
-        console.error("Error consultando inmuebles en el radar:", e);
-    }
-};
-
-window.renderizarInmueblesFiltrados = function() {
-    const sheet = document.getElementById('lista-inmuebles-sheet');
-    const btnCerrar = document.getElementById('btn-cerrar-inmuebles');
-    if (!sheet) return;
-
-    let filtrados = window.inmueblesCache.filter(item => {
-        const f = window.filtrosInmueblesEstado;
-        if (f.operacion !== 'todos' && item.tipo_operacion !== f.operacion) return false;
-        if (f.tipo !== 'todos' && item.subtipo_inmueble !== f.tipo) return false;
-        if (f.habitaciones !== 'todos') {
-            const habs = Number(item.habitaciones) || 0;
-            if (f.habitaciones === '1' && habs !== 1) return false;
-            if (f.habitaciones === '2' && habs !== 2) return false;
-            if (f.habitaciones === '3+' && habs < 3) return false;
+    } else if (herramienta === 'escanear') {
+        if (typeof window.abrirEscanerCamara === 'function') {
+            window.abrirEscanerCamara();
         }
-        return true;
-    });
-
-    if (filtrados.length === 0) {
-        sheet.innerHTML = `
-            <div style="background: rgba(10,10,12,0.85); backdrop-filter: blur(10px); padding: 15px 25px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); color: #ccc; font-size: 12px; pointer-events: all;">
-                No hay inmuebles disponibles con estos filtros en la zona.
-            </div>`;
-    } else {
-        sheet.innerHTML = filtrados.map(inm => `
-            <div class="tarjeta-hibrida" style="border-color: var(--naranja);" onclick="window.centrarInmueble(${inm.lat}, ${inm.lng}, '${inm.id}')">
-                <img class="tarjeta-hibrida-img" src="${inm.foto_portada || inm.imagen || 'https://via.placeholder.com/300x150/0a0a0c/ff6b00?text=Inmueble'}" onerror="window.imagenRotaToGlass(this, '${inm.nombre}')">
-                <div class="tarjeta-hibrida-info">
-                    <span class="tarjeta-hibrida-nicho" style="color: var(--naranja);">${inm.tipo_operacion ? inm.tipo_operacion.toUpperCase() : 'INMUEBLE'}</span>
-                    ${inm.nombre_png
-                        ? `<img src="window.sanitizarURL(inm.nombrepng)"alt="{window.sanitizarTexto(inm.nombre || '')}" style="max-height: 22px; max-width: 140px; object-fit: contain; margin-bottom: 3px; display: block;">`
-                        : `<h4 class="tarjeta-hibrida-titulo">${window.sanitizarTexto(inm.nombre || 'Propiedad')}</h4>`}
-                    <span style="font-weight: 900; font-size: 13px; color: #00ff64;">$${Number(inm.precio || 0).toLocaleString()} COP</span>
-                    <span style="font-size: 10px; color: #888;">inm.habitaciones?inm.habitaciones+'hab•':''{inm.area ? inm.area + ' m²' : ''}</span>
-                </div>
-
-            </div>
-        `).join('');
-    }
-
-    sheet.style.display = 'flex';
-    sheet.classList.add('activo');
-    if (btnCerrar) btnCerrar.style.display = 'flex';
-};
-
-window.centrarInmueble = function(lat, lng, id) {
-    if (window.mapa && lat && lng) {
-        window.mapa.flyTo({ center: [lng, lat], zoom: 17 });
+    } else if (herramienta === 'firmas') {
+        window.location.href = 'tramites';
+    } else if (herramienta === 'planos') {
+        window.location.href = 'topografia';
     }
 };
-
-window.cerrarSheetInmuebles = function() {
-    const sheet = document.getElementById('lista-inmuebles-sheet');
-    const btnCerrar = document.getElementById('btn-cerrar-inmuebles');
-    if (sheet) {
-        sheet.classList.remove('activo');
-        sheet.style.display = 'none';
-    }
-    if (btnCerrar) btnCerrar.style.display = 'none';
-};
-
-document.addEventListener('click', (e) => {
-    const contenedorBrujula = document.getElementById('btn-brujula-contenedor');
-    if (contenedorBrujula && !contenedorBrujula.contains(e.target)) {
-        document.getElementById('submenu-brujula')?.classList.remove('activo');
-    }
-});
 </script>
+
+
 
 <script>
 // Espía de sesión para Bóveda
@@ -1348,5 +1513,7 @@ aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
 
 </body>
 </html>
+
+
 
 

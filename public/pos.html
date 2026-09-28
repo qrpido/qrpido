@@ -13,31 +13,65 @@
 </head>
 <body>
     <main id="pos-app">
-        <!-- BARRA DE ESTADO REUBICADA AL TOPE SUPERIOR -->
+        <!-- BARRA DE ESTADO DESPEJADA (CERO DESBORDES) -->
         <header id="status-bar">
             <div class="status-item connection">
                 <span class="indicator" id="led-conexion"></span>
-                <p>Caja <span id="txt-conexion">CONECTANDO...</span></p>
+                <span id="txt-conexion" style="font-weight: bold; color: #aaa;">CONECTANDO...</span>
             </div>
-            <div class="status-item sync">
-                <p>Estado Red: <span id="txt-cola-sync" style="font-weight: bold;">0 Pendientes</span></p>
-            </div>
-            <div class="status-item admin-metrics" style="display: flex; align-items: center; gap: 12px;">
-                <button id="btn-abrir-anulacion" class="btn-anular-pos" title="Anular Ticket o Devolución [Ctrl+Z]">
-                    <span class="material-symbols-outlined" style="font-size: 15px;">assignment_return</span>
-                    Anular Ticket
-                </button>
-                <div class="metric-card" style="display: flex; gap: 8px; align-items: center;">
-                    <span style="font-size: 10px; color: #888;">VENTAS HOY:</span>
-                    <strong class="value" id="kpi-ventas" style="color: var(--accent-green); font-family: monospace;">$0</strong>
+            <div class="status-item admin-metrics" style="display: flex; align-items: center; gap: 8px;">
+                <!-- ALERTA DE FACTURAS LIBRES COMPACTA -->
+                <div id="pos-alerta-facturas" style="font-size: 10.5px; font-weight: bold; font-family: monospace; white-space: nowrap;"></div>
+                <div class="metric-card" style="display: flex; gap: 4px; align-items: center; white-space: nowrap;">
+                    <span style="font-size: 9.5px; color: #888;">VENTAS:</span>
+                    <strong class="value" id="kpi-ventas" style="color: var(--accent-green); font-family: monospace; font-size: 11px;">$0</strong>
+                </div>
+
+
+                <!-- BOTÓN DE 3 PUNTOS Y MENÚ DE ACCIONES -->
+                <div style="position: relative;">
+                    <button id="btn-menu-tres-puntos" type="button" onclick="window.alternarMenuOpcionesPOS(event)" class="btn-opciones-cabecera" title="Opciones de Terminal">
+                        <span class="material-symbols-outlined" style="font-size: 18px;">more_vert</span>
+                    </button>
+                    <div id="dropdown-menu-pos" class="dropdown-pos-flotante">
+                        <button type="button" onclick="window.descargarRespaldoOfflineTxt()" class="item-dropdown-pos">
+                            <span class="material-symbols-outlined">download</span>
+                            Descargar Respaldo (.txt)
+                        </button>
+                        <button type="button" onclick="document.getElementById('input-archivo-respaldo').click(); window.cerrarMenuOpcionesPOS();" class="item-dropdown-pos">
+                            <span class="material-symbols-outlined">upload_file</span>
+                            Cargar Respaldo (.txt)
+                        </button>
+                        <div class="divisor-dropdown-pos"></div>
+                        <button type="button" onclick="window.cerrarSesionCajeroPOS()" class="item-dropdown-pos item-cerrar-sesion">
+                            <span class="material-symbols-outlined">logout</span>
+                            Cerrar Sesión
+                        </button>
+                    </div>
                 </div>
             </div>
         </header>
 
-        <!-- ==========================================
-             PANEL IZQUIERDO: CATÁLOGO Y ENTRADA
+        <!-- INPUT OCULTO PARA CARGA DE ARCHIVO DE RESPALDO -->
+        <input type="file" id="input-archivo-respaldo" accept=".txt,.json" style="display: none;" onchange="window.procesarArchivoRespaldoSeleccionado(event)">
+
+        <!-- ALERTA FLOTANTE: 80% DE MEMORIA OFFLINE LLENA (15 SEGUNDOS) -->
+        <div id="alerta-memoria-cola" class="alerta-cuota-offline">
+            <span class="material-symbols-outlined" style="font-size: 20px; color: #f59e0b;">warning</span>
+            <div style="flex: 1;">
+                <strong style="display: block; font-size: 11.5px; color: #f59e0b;">Memoria Offline al 80%</strong>
+                <span style="font-size: 10.5px; color: #ddd; display: block; line-height: 1.3;">Por favor descarga el respaldo de tickets para evitar pérdida de información.</span>
+            </div>
+            <button type="button" onclick="window.descargarRespaldoOfflineTxt(); document.getElementById('alerta-memoria-cola').style.display='none';" class="btn-descarga-urgente">
+                Descargar
+            </button>
+        </div>
+
+
+          <!-- ==========================================
+             BLOQUE OPERATIVO: BUSCADOR Y ACCIONES FIJAS
              ========================================== -->
-        <section id="left-panel">
+        <section id="top-operations-bar">
             <header class="top-bar-catalog">
                 <div class="search-container">
                     <span class="material-symbols-outlined barcode-icon">barcode_scanner</span>
@@ -59,66 +93,55 @@
                 <button id="btn-manual-ayuda" class="btn-secundario-pos" title="Manual de Operación y Atajos [F1]" style="padding: 10px 12px; border-radius: 50%; min-width: 40px; justify-content: center;">
                     <span style="font-weight: 900; font-size: 15px; color: var(--color-marca);">?</span>
                 </button>
+            </header>
 
-                <!-- BOTÓN DE CONTROL DE CAJA Y ARQUEO -->
-                <button id="btn-control-caja" class="btn-secundario-pos" title="Control de Caja, Egresos y Cierre Z" style="display: flex; align-items: center; gap: 6px;">
-                    <span class="material-symbols-outlined" style="color: #60a5fa;">point_of_sale</span>
-                    <span id="txt-estado-caja-btn" style="font-size: 12px; font-weight: bold;">Caja</span>
+            <!-- BARRA DE ACCIÓN EN 4 SECCIONES PROPORCIONALES (CERO ESPACIO MUERTO) -->
+            <div class="action-grid-pos">
+                <!-- COLUMNA 1: CAJA ABIERTA -->
+                <button id="btn-control-caja" class="btn-accion-pos btn-caja-col" title="Control de Caja, Egresos y Cierre Z">
+                    <span class="material-symbols-outlined" style="color: #60a5fa; font-size: 20px;">point_of_sale</span>
+                    <span id="txt-estado-caja-btn" style="font-size: 11px; font-weight: bold; text-align: center; line-height: 1.1;">Caja</span>
                 </button>
 
-                <!-- 🚦 CONTENEDOR VISUAL DE ALERTAS DE FACTURAS -->
-                <div id="pos-alerta-facturas" style="margin-left: 6px; display: none;"></div>
-
-                <!-- BOTÓN DE VENTA LIBRE / ÍTEM ABIERTO -->
-
-    <button id="btn-abrir-item-libre" type="button" class="btn-item-abierto" title="Cobrar concepto manual o imprevisto">
-        <span class="material-symbols-outlined" style="font-size: 16px;">add_circle</span>
-        Ítem Libre
-    </button>
-
-    <button id="btn-toggle-camara" class="btn-camara-pos">
-        <span class="material-symbols-outlined">qr_code_scanner</span>
-        Cámara
-    </button>
-</header>
-
-
-                                    <!-- Visor Modal Aislado para Escáner de Mostrador -->
-            <div id="contenedor-camara-pos" onclick="window.cerrarCamaraExterior(event)">
-                <div class="caja-visor-camara-pos">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <span style="font-size: 12px; font-weight: 800; color: var(--color-marca); text-transform: uppercase;">Escáner de Mostrador</span>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="display: flex; align-items: center; gap: 4px; font-size: 10px; color: #aaa; cursor: pointer;">
-                                <input type="checkbox" id="chk-rafaga-pos" checked style="accent-color: var(--color-marca);"> Ráfaga
-                            </label>
-                            <button type="button" onclick="window.cerrarCamaraPOS()" style="background: transparent; border: none; color: #888; font-size: 18px; cursor: pointer;">✕</button>
-                        </div>
-                    </div>
-                    <div id="lector-camara"></div>
-                    <p style="font-size: 10px; color: #777; text-align: center; margin: 8px 0 0 0;">Apunta al código de barras o QR</p>
+                <!-- COLUMNA 2: DIVIDIDA HORIZONTALMENTE (ANULAR ARRIBA / ÍTEM LIBRE ABAJO) -->
+                <div class="col-split-vertical">
+                    <button id="btn-abrir-anulacion" class="btn-sub-pos btn-anular-mini" title="Anular Ticket o Devolución [Ctrl+Z]">
+                        <span class="material-symbols-outlined" style="font-size: 13px; color: var(--accent-red);">assignment_return</span>
+                        <span>Anular Ticket</span>
+                    </button>
+                    <button id="btn-abrir-item-libre" type="button" class="btn-sub-pos btn-item-mini" title="Cobrar concepto manual o imprevisto">
+                        <span class="material-symbols-outlined" style="font-size: 13px; color: var(--accent-green);">add_circle</span>
+                        <span>Ítem Libre</span>
+                    </button>
                 </div>
-            </div>
 
+                <!-- COLUMNA 3: CATÁLOGO MODAL -->
+                <button id="btn-abrir-catalogo-modal" type="button" class="btn-accion-pos btn-catalogo-col" title="Explorar Catálogo de Productos">
+                    <span class="material-symbols-outlined" style="color: #a78bfa; font-size: 20px;">inventory_2</span>
+                    <span style="font-size: 11px; font-weight: bold;">Catálogo</span>
+                </button>
 
-            <div class="catalog-scroll-area">
-                <div class="product-grid" id="grid-rapida">
-                    <p style="grid-column: 1 / -1; text-align: center; color: #666; padding: 40px 0;">Cargando catálogo...</p>
-                </div>
+                <!-- COLUMNA 4: CÁMARA ESCÁNER -->
+                <button id="btn-toggle-camara" class="btn-accion-pos btn-camara-col" title="Escanear con Cámara">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">qr_code_scanner</span>
+                    <span style="font-size: 11px; font-weight: 900;">Cámara</span>
+                </button>
             </div>
         </section>
 
         <!-- ==========================================
-             PANEL DERECHO: TICKET Y CHECKOUT
+             PANEL DE TICKET Y CHECKOUT (ALTURA EXACTA)
              ========================================== -->
         <section id="right-panel">
-            <!-- DOCK VISOR INTEGRADO: FIJO SOBRE EL TICKET SIN TAPAR EL CARRITO -->
+
+        <!-- DOCK VISOR INTEGRADO CON BOTÓN DE FLASH / LINTERNA -->
             <div id="scanner-dock" style="display: none; width: 100%; height: 160px; background: #000; position: relative; border-bottom: 2px solid var(--color-marca); overflow: hidden; flex-shrink: 0;">
                 <div id="lector-camara" style="width: 100%; height: 100%;"></div>
-                <button type="button" onclick="window.cerrarCamaraPOS()" style="position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.8); color: #fff; border: 1px solid #444; border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer; z-index: 10;">
-                    Cerrar ✕
+                <button type="button" id="btn-flash-pos" onclick="window.alternarFlashCamaraPOS()" style="position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.65); color: #fff; border: 1px solid rgba(255,255,255,0.25); border-radius: 8px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10;" title="Encender / Apagar Linterna">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">flash_on</span>
                 </button>
             </div>
+
             <div class="ticket-header">
 
 
@@ -148,83 +171,70 @@
                     <div><span>Base:</span> <strong id="txt-base">$0</strong></div>
                     <div><span>IVA:</span> <strong id="txt-iva19">$0</strong></div>
                     <div><span>Exento:</span> <strong id="txt-exento">$0</strong></div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0;">
-                        <span style="font-size: 12px; font-weight: bold; color: var(--text-main);">Factura Electrónica (DIAN):</span>
+                                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0;">
+                        <span style="font-size: 11px; font-weight: bold; color: var(--text-main);">Factura Electrónica (DIAN):</span>
                         <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                            <input type="checkbox" id="switch-dian" style="accent-color: var(--color-marca); width: 16px; height: 16px;">
-                            <span id="txt-estado-dian" style="font-size: 11px; color: var(--text-muted);">Consumidor Final</span>
+                            <input type="checkbox" id="switch-dian" style="accent-color: var(--color-marca); width: 15px; height: 15px; cursor: pointer;">
+                            <span id="txt-estado-dian" style="font-size: 10.5px; color: var(--text-muted);">Consumidor Final</span>
                         </label>
-                    </div>
-
-                    <!-- Formulario condicional DIAN -->
-                    <div id="formulario-dian" style="display: none; background: rgba(0,0,0,0.45); border: 1px solid var(--color-marca); border-radius: 10px; padding: 10px; margin-top: 6px; gap: 8px; flex-direction: column;">
-                        <div style="display: grid; grid-template-columns: 100px 1fr 45px; gap: 6px;">
-                            <select id="dian-tipo-doc" style="background: #16161c; border: 1px solid var(--border-soft); border-radius: 6px; padding: 8px 4px; color: white; font-size: 11px; outline: none;">
-                                <option value="13">CC (Cédula)</option>
-                                <option value="31">NIT</option>
-                                <option value="22">C. Extranjería</option>
-                                <option value="41">Pasaporte</option>
-                            </select>
-                            <input type="text" id="dian-nit" placeholder="Número Documento" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-soft); border-radius: 6px; padding: 8px; color: white; font-size: 12px; font-family: monospace; outline: none;">
-                            <input type="text" id="dian-dv" placeholder="DV" maxlength="1" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-soft); border-radius: 6px; padding: 8px; color: white; font-size: 12px; text-align: center; font-family: monospace; outline: none;" title="Dígito de Verificación (solo NIT)">
-                        </div>
-                        <input type="text" id="dian-nombre" placeholder="Nombre Completo o Razón Social" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-soft); border-radius: 6px; padding: 8px; color: white; font-size: 12px; outline: none;">
-                        <input type="email" id="dian-email" placeholder="Correo electrónico (envío de XML/PDF)" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-soft); border-radius: 6px; padding: 8px; color: white; font-size: 12px; outline: none;">
                     </div>
                 </div>
 
-                <div class="grand-total-box">
+
+                                <div class="grand-total-box">
                     <div>
-                        <span style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); display: block;">Total Ticket</span>
+                        <span style="font-size: 10px; text-transform: uppercase; color: var(--text-muted); display: block;">Total Ticket</span>
                         <span class="total-amount" id="txt-total">$0</span>
                     </div>
                     <div style="text-align: right;">
-                        <span style="font-size: 11px; text-transform: uppercase; color: #ffaa00; display: block;" id="lbl-estado-saldo">Por Cobrar</span>
-                        <span id="txt-remanente" style="font-size: 22px; font-weight: 900; color: #ffaa00; font-family: monospace;">$0</span>
+                        <span style="font-size: 10px; text-transform: uppercase; color: #ffaa00; display: block;" id="lbl-estado-saldo">Por Cobrar</span>
+                        <span id="txt-remanente" style="font-size: 20px; font-weight: 900; color: #ffaa00; font-family: monospace;">$0</span>
                     </div>
                 </div>
 
-                <!-- Input interactivo de abono, cálculo de vueltas y billetes rápidos -->
-                <div style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-soft); border-radius: 10px; padding: 8px 12px; display: flex; flex-direction: column; gap: 4px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <label style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Monto a Recibir / Abonar ($)</label>
-                        <span id="txt-cambio-vueltas" style="font-size: 12px; font-weight: 900; color: var(--accent-green); font-family: monospace; display: none;">Vueltas: $0</span>
+               <!-- Input interactivo ampliado con indicador de red integrado -->
+                <div class="box-abono-compacto">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                        <input type="number" id="input-monto-abono" step="any" min="0" placeholder="Digita abono o billetes..." 
+                               onkeydown="if(['e','E','+','-'].includes(event.key)) event.preventDefault();"
+                               style="flex: 1; min-width: 0; background: transparent; border: none; font-size: 16px; font-weight: 900; color: #fff; font-family: monospace; outline: none;">
+                        
+                        <!-- INDICADOR DE RED REUBICADO: ONLINE / OFFLINE -->
+                        <div id="badge-estado-red" style="display: flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 6px; background: rgba(0,255,100,0.1); border: 1px solid rgba(0,255,100,0.25); font-size: 10px; font-weight: bold; white-space: nowrap;">
+                            <span class="indicator" id="led-red-abono" style="width: 6px; height: 6px;"></span>
+                            <span id="txt-red-abono" style="color: var(--accent-green);">Online</span>
+                        </div>
+
+                        <span id="txt-cambio-vueltas" style="font-size: 11px; font-weight: 900; color: var(--accent-green); font-family: monospace; display: none; white-space: nowrap;">Vueltas: $0</span>
                     </div>
-                    <input type="number" id="input-monto-abono" step="any" min="0" placeholder="Digita abono o selecciona billete" 
-                           onkeydown="if(['e','E','+','-'].includes(event.key)) event.preventDefault();"
-                           style="width: 100%; background: transparent; border: none; font-size: 20px; font-weight: 900; color: #fff; font-family: monospace; outline: none;">
+
 
                     <!-- Barra Dinámica de Billetes Kiosk -->
                     <div id="contenedor-billetes-rapidos" class="quick-cash-bar"></div>
-
-                    <!-- Historial de abonos en este ticket -->
-                    <div id="lista-abonos-ticket" style="font-size: 10px; color: #aaa; font-family: monospace; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;"></div>
+                    <div id="lista-abonos-ticket" style="font-size: 9.5px; color: #aaa; font-family: monospace; display: flex; flex-wrap: wrap; gap: 4px;"></div>
                 </div>
 
-                                <!-- OPCIONES DIGITALES: FACTURA ECOLÓGICA Y COPIA COMPROBANTE -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
-                    <button id="btn-toggle-eco" type="button" onclick="window.alternarFacturaEcologica(this)" style="padding: 9px 6px; border-radius: 8px; border: 1px dashed var(--border-soft); background: rgba(255,255,255,0.03); color: #fff; font-size: 10.5px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; transition: 0.2s;">
+                <!-- OPCIONES DIGITALES COMPACTAS -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 4px;">
+                    <button id="btn-toggle-eco" type="button" onclick="window.alternarFacturaEcologica(this)" style="padding: 6px 4px; border-radius: 8px; border: 1px dashed var(--border-soft); background: rgba(255,255,255,0.03); color: #fff; font-size: 10px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;">
                         Factura Ecológica
                     </button>
-                    <button id="btn-copia-comprobante" type="button" onclick="window.abrirModalCopiaComprobante()" style="padding: 9px 6px; border-radius: 8px; border: 1px dashed #60a5fa; background: rgba(96,165,250,0.08); color: #60a5fa; font-size: 10.5px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; transition: 0.2s;">
+                    <button id="btn-copia-comprobante" type="button" onclick="window.abrirModalCopiaComprobante()" style="padding: 6px 4px; border-radius: 8px; border: 1px dashed #60a5fa; background: rgba(96,165,250,0.08); color: #60a5fa; font-size: 10px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;">
                         Copia Comprobante
                     </button>
                 </div>
 
-
-                <div class="payment-grid">
-                    <button class="btn-pay cash" data-pago="EFECTIVO">💵 Efectivo</button>
-                    <button class="btn-pay card" data-pago="TARJETA">💳 Tarjeta</button>
-                    <button class="btn-pay nequi" data-pago="NEQUI">📲 Nequi</button>
+                <!-- GRILLA DE PAGO CON BOTÓN DE CAJÓN INTEGRADO -->
+                <div class="payment-grid-compact">
+                    <button class="btn-pay cash" data-pago="EFECTIVO">Efectivo</button>
+                    <button class="btn-pay card" data-pago="TARJETA">Tarjeta</button>
+                    <button class="btn-pay nequi" data-pago="NEQUI">Nequi</button>
+                    <button id="btn-abrir-cajon" type="button" class="btn-pay cajon" title="Abrir Cajón Monedero [F7]">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">lock_open</span>
+                    </button>
                 </div>
-
-
-                <!-- BOTÓN DE APERTURA MANUAL DEL CAJÓN MONEDERO -->
-                <button id="btn-abrir-cajon" type="button" class="btn-cajon-manual" title="Abrir Cajón Monedero [F7]">
-                    <span class="material-symbols-outlined" style="font-size: 16px;">lock_open</span>
-                    Abrir Cajón Monedero [F7]
-                </button>
             </div>
+
         </section>
 
             </main>
@@ -840,6 +850,38 @@
     </div>
 </div>
 
+<!-- MODAL OVERLAY FACTURA ELECTRÓNICA DIAN (FLOTANTE ENCIMA DE TODO) -->
+<div id="modal-formulario-dian" class="modal-datafono-overlay" onclick="if(event.target.id==='modal-formulario-dian') window.cerrarModalDian(false);">
+    <div class="modal-datafono-card" style="max-width: 380px; text-align: left;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--glass-border); padding-bottom: 8px;">
+            <h3 style="margin: 0; font-size: 15px; color: var(--color-marca); text-transform: uppercase; display: flex; align-items: center; gap: 6px;">
+                <span class="material-symbols-outlined" style="font-size: 18px;">description</span>
+                Factura Electrónica DIAN
+            </h3>
+            <button type="button" onclick="window.cerrarModalDian(false)" style="background: transparent; border: none; color: #888; font-size: 18px; cursor: pointer;">✕</button>
+        </div>
+        <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">Ingresa los datos fiscales del cliente para la factura electrónica.</p>
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+            <div style="display: grid; grid-template-columns: 105px 1fr 45px; gap: 6px;">
+                <select id="dian-tipo-doc" style="background: #16161c; border: 1px solid var(--border-soft); border-radius: 8px; padding: 9px 4px; color: white; font-size: 11.5px; outline: none;">
+                    <option value="13">CC (Cédula)</option>
+                    <option value="31">NIT</option>
+                    <option value="22">C. Extranjería</option>
+                    <option value="41">Pasaporte</option>
+                </select>
+                <input type="text" id="dian-nit" placeholder="N° Documento" style="background: rgba(255,255,255,0.06); border: 1px solid var(--border-soft); border-radius: 8px; padding: 9px; color: white; font-size: 13px; font-family: monospace; outline: none;">
+                <input type="text" id="dian-dv" placeholder="DV" maxlength="1" style="background: rgba(255,255,255,0.06); border: 1px solid var(--border-soft); border-radius: 8px; padding: 9px; color: white; font-size: 13px; text-align: center; font-family: monospace; outline: none;" title="Dígito de Verificación">
+            </div>
+            <input type="text" id="dian-nombre" placeholder="Nombre Completo o Razón Social" style="background: rgba(255,255,255,0.06); border: 1px solid var(--border-soft); border-radius: 8px; padding: 9px; color: white; font-size: 12.5px; outline: none;">
+            <input type="email" id="dian-email" placeholder="Correo electrónico (envío de factura)" style="background: rgba(255,255,255,0.06); border: 1px solid var(--border-soft); border-radius: 8px; padding: 9px; color: white; font-size: 12.5px; outline: none;">
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button type="button" onclick="window.cerrarModalDian(false)" style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #aaa; font-weight: bold; cursor: pointer; font-size: 12px;">Cancelar</button>
+            <button type="button" onclick="window.confirmarDatosDian()" style="flex: 1.5; padding: 10px; border-radius: 8px; border: none; background: var(--color-marca); color: #000; font-weight: 900; font-size: 12px; cursor: pointer;">Guardar Datos</button>
+        </div>
+    </div>
+</div>
+
 <!-- MODAL DE COMPROBANTE DIGITAL (QR + WHATSAPP 24 HORAS) -->
 <div id="modal-factura-qr" class="modal-datafono-overlay" onclick="if(event.target.id==='modal-factura-qr') this.style.display='none';">
     <div class="modal-datafono-card" style="max-width: 340px; text-align: center;">
@@ -874,6 +916,24 @@
     </div>
 </div>
 
+<!-- MODAL DE CATÁLOGO RÁPIDO CON CIERRE EXTERIOR Y SCROLL VERTICAL -->
+<div id="modal-catalogo-popup" class="modal-datafono-overlay" onclick="if(event.target.id==='modal-catalogo-popup') this.style.display='none';">
+    <div class="caja-visor-camara-pos" style="max-height: 80vh; display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid var(--glass-border); padding-bottom: 8px;">
+            <span style="font-size: 12px; font-weight: 800; color: #a78bfa; text-transform: uppercase; display: flex; align-items: center; gap: 6px;">
+                <span class="material-symbols-outlined" style="font-size: 16px;">inventory_2</span>
+                Catálogo de Productos
+            </span>
+            <button type="button" onclick="document.getElementById('modal-catalogo-popup').style.display='none';" style="background: transparent; border: none; color: #888; font-size: 18px; cursor: pointer;">✕</button>
+        </div>
+        <div style="flex: 1; overflow-y: auto; padding-right: 4px;">
+            <div class="product-grid-vertical" id="grid-rapida">
+                <p style="text-align: center; color: #666; padding: 20px 0; font-size: 12px;">Cargando catálogo...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div id="toast-pos-notif" style="position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-20px); background: #16161a; border: 1px solid rgba(255, 107, 0, 0.4); color: #fff; padding: 12px 20px; border-radius: 12px; font-size: 13px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,0.8); z-index: 100000; opacity: 0; pointer-events: none; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);"></div>
 
 <script>
@@ -892,6 +952,8 @@ window.mostrarAvisoPos = function(mensaje) {
 
 </body>
 </html>
+
+
 
 
 

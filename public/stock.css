@@ -14,6 +14,8 @@
     --accent-green: #00ff64;
     --accent-red: #ff4444;
     --accent-blue: #60a5fa;
+    --accent-cyan: #00e5ff;
+    --accent-amber: #ffaa00;
     --text-principal: #f3f4f6;
     --text-secundario: #9ca3af;
     --text-apagado: #6b7280;
@@ -50,11 +52,13 @@ body, html {
     box-sizing: border-box;
 }
 
-.panel-boveda {
+.panel-boveda,
+.panel-login {
     width: 100%;
     max-width: 360px;
     background: rgba(18, 18, 23, 0.95);
     backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border: 1px solid var(--borde-resaltado);
     border-radius: 20px;
     padding: 30px 24px;
@@ -208,9 +212,20 @@ body, html {
     height: 16px;
 }
 
+.consola-controles {
+    background: rgba(15, 15, 18, 0.95);
+    padding: 14px;
+    border-bottom: 1px solid var(--borde-suave);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
 .consola-scrollable {
     flex: 1;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     padding: 14px 16px;
     display: flex;
     flex-direction: column;
@@ -219,7 +234,49 @@ body, html {
 }
 
 /* =======================================================
-   3. BUSCADOR MANUAL & BARRA DE UBICACIÓN
+   3. SELECTOR DE OPERACIONES & RIBBON WMS
+   ======================================================= */
+.ribbon-categorias {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+.ribbon-categorias::-webkit-scrollbar {
+    display: none;
+}
+
+.ribbon-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--borde-suave);
+    color: var(--text-secundario);
+    border-radius: 12px;
+    padding: 9px 12px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    cursor: pointer;
+    flex: 1;
+    text-align: center;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+
+.ribbon-btn.activo {
+    background: var(--naranja);
+    color: #ffffff;
+    border-color: var(--naranja);
+    box-shadow: 0 4px 14px var(--naranja-glow);
+}
+
+.ribbon-btn:active {
+    transform: scale(0.96);
+}
+
+/* =======================================================
+   4. BUSCADOR MANUAL & BARRA DE UBICACIÓN
    ======================================================= */
 .caja-busqueda-manual {
     position: relative;
@@ -281,6 +338,7 @@ body, html {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    box-sizing: border-box;
 }
 
 .tags-ubicacion {
@@ -311,7 +369,8 @@ body, html {
     gap: 6px;
 }
 
-.btn-accion-mini {
+.btn-accion-mini,
+.btn-cascada-manual {
     background: rgba(255, 107, 0, 0.2);
     border: 1px solid var(--naranja);
     color: #ffffff;
@@ -321,6 +380,12 @@ body, html {
     border-radius: 6px;
     cursor: pointer;
     text-transform: uppercase;
+    transition: all 0.2s ease;
+}
+
+.btn-accion-mini:hover,
+.btn-cascada-manual:hover {
+    background: var(--naranja);
 }
 
 .btn-accion-mini.peligro {
@@ -331,8 +396,22 @@ body, html {
 }
 
 /* =======================================================
-   4. VISOR DE CÁMARA & HERRAMIENTAS HUD
+   5. VISOR DE CÁMARA & HERRAMIENTAS HUD
    ======================================================= */
+.zona-escaneo-superior {
+    flex-shrink: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: rgba(14, 14, 18, 0.98);
+    border-bottom: 1px solid var(--borde-suave);
+    padding: 10px 14px;
+    box-sizing: border-box;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.8);
+    z-index: 100;
+}
+
 .panel-camara-hud {
     background: var(--bg-tarjeta);
     border: 1px solid var(--borde-suave);
@@ -343,19 +422,24 @@ body, html {
     gap: 10px;
 }
 
-.visor-camara-marco {
+.visor-camara-marco,
+#lector-camara {
     position: relative;
     width: 100%;
+    max-width: 480px;
     height: 190px;
-    border-radius: 12px;
+    border-radius: 14px;
     overflow: hidden;
     background: #000;
     border: 2px solid var(--naranja);
     box-shadow: 0 0 20px rgba(255, 107, 0, 0.25);
     cursor: crosshair;
+    margin-bottom: 8px;
+    box-sizing: border-box;
 }
 
-.visor-camara-marco video {
+.visor-camara-marco video,
+#lector-camara video {
     width: 100% !important;
     height: 100% !important;
     object-fit: cover !important;
@@ -381,7 +465,6 @@ body, html {
     100% { top: 5%; opacity: 0.3; }
 }
 
-/* Onda visual al tocar para enfocar */
 .indicador-tap-foco {
     position: absolute;
     width: 40px;
@@ -457,28 +540,34 @@ body, html {
     height: 18px;
 }
 
-.toggle-pill {
+.toggle-pill,
+.toggle-rafaga-pill {
     display: flex;
     align-items: center;
     gap: 6px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--borde-suave);
-    padding: 8px 12px;
-    border-radius: 12px;
+    padding: 6px 14px;
+    border-radius: 20px;
     font-size: 11px;
     font-weight: 800;
     text-transform: uppercase;
     cursor: pointer;
     color: var(--text-secundario);
+    transition: all 0.25s ease;
+    user-select: none;
 }
 
-.toggle-pill.activo {
-    background: rgba(255, 107, 0, 0.18);
-    border-color: var(--naranja);
-    color: #ffffff;
+.toggle-pill.activo,
+.toggle-rafaga-pill.activo {
+    background: rgba(255, 107, 0, 0.18) !important;
+    border-color: var(--naranja) !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 12px rgba(255, 107, 0, 0.4);
 }
 
-.toggle-pill input {
+.toggle-pill input,
+.toggle-rafaga-pill input {
     display: none;
 }
 
@@ -493,6 +582,7 @@ body, html {
     height: 8px;
     border-radius: 50%;
     background: var(--text-apagado);
+    transition: 0.2s;
 }
 
 .luz-pestillo.bloqueado {
@@ -507,33 +597,199 @@ body, html {
     text-transform: uppercase;
 }
 
-.pantalla-placeholder {
+/* =======================================================
+   6. MÓDULO DE AUDITORÍA FÍSICA Y CONTEO CÍCLICO
+   ======================================================= */
+#panel-auditoria-ciclica {
+    background: var(--bg-tarjeta);
+    border: 1px solid var(--borde-resaltado);
+    border-radius: 18px;
+    padding: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 107, 0, 0.1);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.audit-cabecera-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--borde-suave);
+    padding-bottom: 10px;
+}
+
+.audit-tag-bin {
+    background: rgba(255, 107, 0, 0.15);
+    border: 1px solid var(--naranja);
+    color: var(--naranja);
+    font-family: var(--fuente-mono);
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+}
+
+.audit-tag-mueble {
+    font-size: 11px;
+    color: var(--text-principal);
+    font-weight: 700;
+}
+
+.audit-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid var(--borde-suave);
+    padding: 10px 8px;
+    border-radius: 12px;
     text-align: center;
-    padding: 30px 20px;
-    color: var(--text-apagado);
 }
 
-.pantalla-placeholder svg {
-    width: 48px;
-    height: 48px;
-    margin-bottom: 8px;
-    opacity: 0.4;
+.audit-kpi-caja {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
 
-.pantalla-placeholder h3 {
-    margin: 0 0 4px 0;
-    font-size: 15px;
+.audit-kpi-lbl {
+    font-size: 9px;
     color: var(--text-secundario);
+    text-transform: uppercase;
+    font-weight: 800;
+    letter-spacing: 0.5px;
 }
 
-.pantalla-placeholder p {
-    margin: 0;
-    font-size: 11.5px;
-    line-height: 1.4;
+.audit-kpi-num {
+    font-size: 17px;
+    font-weight: 900;
+    font-family: var(--fuente-mono);
+    color: var(--text-principal);
+}
+
+.audit-kpi-num.cuadrado { color: var(--accent-green); }
+.audit-kpi-num.sobrante { color: var(--accent-cyan); }
+.audit-kpi-num.faltante { color: var(--accent-red); }
+
+/* Matriz Dinámica de Discrepancias */
+.audit-lista-discrepancias {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 280px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.audit-fila-item {
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 12px;
+    padding: 10px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid var(--borde-suave);
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.audit-fila-item.cuadrado {
+    border-color: rgba(0, 255, 100, 0.25);
+}
+
+.audit-fila-item.sobrante {
+    border-color: rgba(0, 229, 255, 0.4);
+    background: rgba(0, 229, 255, 0.04);
+}
+
+.audit-fila-item.faltante {
+    border-color: rgba(255, 68, 68, 0.4);
+    background: rgba(255, 68, 68, 0.05);
+}
+
+.audit-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.audit-item-nombre {
+    color: #ffffff;
+    font-size: 12.5px;
+    font-weight: 800;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+}
+
+.audit-item-ean {
+    font-family: var(--fuente-mono);
+    font-size: 10px;
+    color: var(--text-apagado);
+    display: block;
+    margin-top: 2px;
+}
+
+.audit-badge-inesperado {
+    background: var(--accent-amber);
+    color: #000000;
+    font-size: 8.5px;
+    font-weight: 900;
+    padding: 1px 5px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.audit-delta-rotulo {
+    font-size: 10px;
+    font-weight: 800;
+    margin-top: 2px;
+    display: block;
+    font-family: var(--fuente-mono);
+}
+
+.audit-delta-rotulo.cuadrado { color: var(--accent-green); }
+.audit-delta-rotulo.sobrante { color: var(--accent-cyan); }
+.audit-delta-rotulo.faltante { color: var(--accent-red); }
+
+.audit-input-conteo {
+    width: 60px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--borde-suave);
+    color: #ffffff;
+    text-align: center;
+    border-radius: 8px;
+    padding: 8px 4px;
+    font-size: 14px;
+    font-weight: 900;
+    font-family: var(--fuente-mono);
+    outline: none;
+    box-sizing: border-box;
+}
+
+.audit-input-conteo:focus {
+    border-color: var(--naranja);
 }
 
 /* =======================================================
-   5. MODAL UNIFICADO DE PRODUCTO (FICHA TÉCNICA)
+   7. TARJETA FLUIDA DE PRODUCTO (ÚLTIMO ESCANEO)
+   ======================================================= */
+.ultimo-escaneo {
+    background: var(--bg-tarjeta);
+    border: 1px solid var(--borde-suave);
+    border-top: 2px solid var(--naranja);
+    border-radius: 16px;
+    padding: 14px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.7);
+    box-sizing: border-box;
+}
+
+/* =======================================================
+   8. MODAL UNIFICADO DE PRODUCTO (FICHA TÉCNICA)
    ======================================================= */
 .modal-overlay {
     position: fixed;
@@ -657,6 +913,7 @@ body, html {
     overflow: hidden;
     flex-shrink: 0;
     position: relative;
+    cursor: pointer;
 }
 
 .foto-slot-contenedor img {
@@ -893,8 +1150,87 @@ body, html {
     color: var(--naranja);
 }
 
+.btn-operacion.accion-auditar {
+    background: rgba(0, 229, 255, 0.12);
+    border-color: rgba(0, 229, 255, 0.35);
+    color: var(--accent-cyan);
+}
+
 /* =======================================================
-   6. MODALES AUXILIARES & COMPONENTES GENÉRICOS
+   9. MODAL SELECTOR DE UBICACIÓN & COMPARTIMIENTO
+   ======================================================= */
+.modal-selector-wrap {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    z-index: 10500;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+.card-selector-ubicacion {
+    background: var(--bg-tarjeta);
+    border: 1px solid var(--borde-resaltado);
+    border-radius: 20px;
+    width: 100%;
+    max-width: 440px;
+    padding: 20px;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.95);
+    box-sizing: border-box;
+}
+
+/* =======================================================
+   10. MODAL UNIVERSAL IN-APP (DARK GLASSMORPHISM ANTI-ALERT)
+   ======================================================= */
+#modal-inapp-dialogo {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.88);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    z-index: 20000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.card-inapp-dialogo {
+    background: var(--bg-tarjeta);
+    border: 1px solid var(--naranja);
+    border-radius: 20px;
+    width: 100%;
+    max-width: 400px;
+    padding: 24px;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.95), 0 0 30px rgba(255, 107, 0, 0.15);
+    box-sizing: border-box;
+    text-align: center;
+}
+
+.titulo-inapp-dialogo {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    color: var(--naranja);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 900;
+}
+
+.mensaje-inapp-dialogo {
+    font-size: 12.5px;
+    color: var(--text-principal);
+    margin: 0 0 20px 0;
+    line-height: 1.5;
+}
+
+/* =======================================================
+   11. COMPONENTES AUXILIARES, BOTONES Y TOAST
    ======================================================= */
 .select-wms {
     width: 100%;
@@ -917,22 +1253,35 @@ body, html {
     gap: 8px;
 }
 
+.btn-accion-boveda,
 .btn-primario-wms {
+    width: 100%;
     flex: 1;
     background: linear-gradient(135deg, #ff8c00, var(--naranja));
     color: #ffffff;
     border: none;
-    padding: 12px;
+    padding: 12px 14px;
     border-radius: 12px;
     font-size: 12px;
     font-weight: 800;
     text-transform: uppercase;
     cursor: pointer;
+    box-shadow: 0 4px 15px rgba(255, 107, 0, 0.3);
+    box-sizing: border-box;
+    transition: transform 0.15s, box-shadow 0.2s;
+    letter-spacing: 0.5px;
 }
 
+.btn-accion-boveda:active,
+.btn-primario-wms:active {
+    transform: scale(0.96);
+}
+
+.btn-accion-boveda:disabled,
 .btn-primario-wms:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+    transform: none;
 }
 
 .btn-primario-wms.peligro {
@@ -949,32 +1298,14 @@ body, html {
     font-size: 12px;
     font-weight: 800;
     cursor: pointer;
+    text-transform: uppercase;
+    transition: transform 0.15s;
 }
 
-/* Diálogo de Confirmación de Salida */
-.icono-aviso-centro {
-    margin-bottom: 8px;
+.btn-secundario-wms:active {
+    transform: scale(0.96);
 }
 
-.icono-aviso-centro svg {
-    width: 44px;
-    height: 44px;
-}
-
-.titulo-dialogo {
-    margin: 0 0 6px 0;
-    font-size: 16px;
-    color: #ffffff;
-}
-
-.txt-dialogo {
-    margin: 0;
-    font-size: 11.5px;
-    color: var(--text-secundario);
-    line-height: 1.4;
-}
-
-/* Toast flotante */
 .toast-flotante {
     position: fixed;
     top: 20px;
@@ -982,6 +1313,7 @@ body, html {
     transform: translateX(-50%) translateY(-30px);
     background: rgba(22, 22, 28, 0.95);
     backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     border: 1px solid var(--borde-resaltado);
     color: #ffffff;
     padding: 10px 18px;

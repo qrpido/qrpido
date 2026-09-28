@@ -61,103 +61,107 @@ service cloud.firestore {
     match /Directorio/{userId} {
       allow read: if true;
       
-      // CREACIÓN
-      allow create: if isOwner(userId)
-                    && request.resource.data.keys().hasAll(['nombre', 'email', 'tipo_modelo'])
-                    && request.resource.data.premium == false
-                    && request.resource.data.estado_moderacion == 'pendiente';
+      // CREACIÓN (Permite a SuperAdmin dar de alta comercios en Onboarding OneShot)
+      allow create: if isSuperAdmin()
+                    || (
+                      isOwner(userId)
+                      && request.resource.data.keys().hasAll(['nombre', 'email', 'tipo_modelo'])
+                      && request.resource.data.premium == false
+                      && request.resource.data.estado_moderacion == 'pendiente'
+                    );
       
       // ACTUALIZACIÓN
-      allow update: if (
-                        (isOwner(userId)
-                          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny([
-                              'premium', 
-                              'red_afiliados', 
-                              'fecha_registro', 
-                              'kyc_verificado', 
-                              'firma_digital', 
-                              'saldo_logistica', 
-                              'saldo_comisiones', 
-                              'ordenes_validadas', 
-                              'intentos_whatsapp', 
-                              'total_referidos_entregados', 
-                              'estado_aliado', 
-                              'requiere_auditoria'
-                          ]))
-                                                    // Protege que el dueño no modifique sus saldos prepago/gratis sin pagar (validando existencia del mapa)
-                          && (
-                              !request.resource.data.diff(resource.data).affectedKeys().hasAny(['facturacion_control'])
-                              || (
-                                  (!('facturacion_control' in resource.data) || !('facturas_prepago_saldo' in resource.data.facturacion_control) || request.resource.data.facturacion_control.facturas_prepago_saldo == resource.data.facturacion_control.facturas_prepago_saldo)
-                                  && (!('facturacion_control' in resource.data) || !('facturas_cupo_gratis' in resource.data.facturacion_control) || request.resource.data.facturacion_control.facturas_cupo_gratis == resource.data.facturacion_control.facturas_cupo_gratis)
-                              )
-                          )
-                          && (!request.resource.data.keys().hasAny(['mapa_precios']) || request.resource.data.mapa_precios.size() <= 1000)
-                          && (
-                               !request.resource.data.diff(resource.data).affectedKeys().hasAny(['estado_moderacion']) || 
-                               request.resource.data.estado_moderacion == 'en_revision_kyc'
-                             )
+      allow update: if isSuperAdmin()
+                    || isModeradorOrAdmin()
+                    || (
+                        isOwner(userId)
+                        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                            'premium', 
+                            'red_afiliados', 
+                            'fecha_registro', 
+                            'kyc_verificado', 
+                            'firma_digital', 
+                            'saldo_logistica', 
+                            'saldo_comisiones', 
+                            'ordenes_validadas', 
+                            'intentos_whatsapp', 
+                            'total_referidos_entregados', 
+                            'estado_aliado', 
+                            'requiere_auditoria'
+                        ]))
+                        && (
+                            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['facturacion_control'])
+                            || (
+                                (!('facturacion_control' in resource.data) || !('facturas_prepago_saldo' in resource.data.facturacion_control) || request.resource.data.facturacion_control.facturas_prepago_saldo == resource.data.facturacion_control.facturas_prepago_saldo)
+                                && (!('facturacion_control' in resource.data) || !('facturas_cupo_gratis' in resource.data.facturacion_control) || request.resource.data.facturacion_control.facturas_cupo_gratis == resource.data.facturacion_control.facturas_cupo_gratis)
+                            )
                         )
-                        // Permite al cajero incrementar facturas sin colapso de affectedKeys
-                        || (
-                            isEmployeeOf(userId)
-                            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['facturacion_control'])
-                            && request.resource.data.facturacion_control.facturas_emitidas_mes is number
-                            && (!('facturacion_control' in resource.data) || !('facturas_cupo_gratis' in resource.data.facturacion_control) || request.resource.data.facturacion_control.facturas_cupo_gratis == resource.data.facturacion_control.facturas_cupo_gratis)
-                            && (!('facturacion_control' in resource.data) || !('facturas_prepago_saldo' in resource.data.facturacion_control) || request.resource.data.facturacion_control.facturas_prepago_saldo == resource.data.facturacion_control.facturas_prepago_saldo)
-                        )
-
-                      ) 
-                      || isModeradorOrAdmin();
+                        && (!request.resource.data.keys().hasAny(['mapa_precios']) || request.resource.data.mapa_precios.size() <= 1000)
+                        && (
+                             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['estado_moderacion']) || 
+                             request.resource.data.estado_moderacion == 'en_revision_kyc'
+                           )
+                      )
+                      || (
+                          isEmployeeOf(userId)
+                          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['facturacion_control'])
+                          && request.resource.data.facturacion_control.facturas_emitidas_mes is number
+                          && (!('facturacion_control' in resource.data) || !('facturas_cupo_gratis' in resource.data.facturacion_control) || request.resource.data.facturacion_control.facturas_cupo_gratis == resource.data.facturacion_control.facturas_cupo_gratis)
+                          && (!('facturacion_control' in resource.data) || !('facturas_prepago_saldo' in resource.data.facturacion_control) || request.resource.data.facturacion_control.facturas_prepago_saldo == resource.data.facturacion_control.facturas_prepago_saldo)
+                      );
                     
       // BORRADO
-      allow delete: if isOwner(userId) || isModeradorOrAdmin();
+      allow delete: if isOwner(userId) || isModeradorOrAdmin() || isSuperAdmin();
 
       // --------------------------------------------------------
       // 📦 SUBCOLECCIONES DE CATÁLOGO, LOGÍSTICA Y PEDIDOS
       // --------------------------------------------------------
       match /productos/{productoId} {
-          allow create, update: if (isOwner(userId) || isEmployeeOf(userId))
-                      && request.resource.data.keys().hasAll(['nombre', 'precio'])
-                      && isValidString(request.resource.data.nombre, 1, 150)
-                      && request.resource.data.precio is number
-                      && request.resource.data.precio >= 0
-                      && (!request.resource.data.keys().hasAny(['stock_actual']) || request.resource.data.stock_actual is number)
-                      && (!request.resource.data.keys().hasAny(['cuerpo_articulo']) || isValidString(request.resource.data.cuerpo_articulo, 0, 500))
-                      && (!request.resource.data.keys().hasAny(['cuerpo_texto']) || isValidString(request.resource.data.cuerpo_texto, 0, 2000))
-                      && (!request.resource.data.keys().hasAny(['imagen']) || isValidString(request.resource.data.imagen, 0, 2048));
+          allow create, update: if isSuperAdmin()
+                      || (
+                        (isOwner(userId) || isEmployeeOf(userId))
+                        && request.resource.data.keys().hasAll(['nombre', 'precio'])
+                        && isValidString(request.resource.data.nombre, 1, 150)
+                        && request.resource.data.precio is number
+                        && request.resource.data.precio >= 0
+                        && (!request.resource.data.keys().hasAny(['stock_actual']) || request.resource.data.stock_actual is number)
+                        && (!request.resource.data.keys().hasAny(['cuerpo_articulo']) || isValidString(request.resource.data.cuerpo_articulo, 0, 500))
+                        && (!request.resource.data.keys().hasAny(['cuerpo_texto']) || isValidString(request.resource.data.cuerpo_texto, 0, 2000))
+                        && (!request.resource.data.keys().hasAny(['imagen']) || isValidString(request.resource.data.imagen, 0, 2048))
+                      );
                       
-          allow delete: if isOwner(userId);
+          allow delete: if isOwner(userId) || isSuperAdmin();
 
           // 📍 SUBCOLECCIÓN DE BINS Y ESTANTES FÍSICOS
           match /stock_ubicaciones/{ubicacionId} {
               allow read: if true;
-              allow write: if isOwner(userId) || isEmployeeOf(userId);
+              allow write: if isOwner(userId) || isEmployeeOf(userId) || isSuperAdmin();
           }
       }
 
       // 📊 HISTORIAL DE KARDEX Y MOVIMIENTOS FÍSICOS
       match /Movimientos_Kardex/{movId} {
           allow read: if isOwner(userId) || isEmployeeOf(userId) || isModeradorOrAdmin();
-          allow create: if isOwner(userId) || isEmployeeOf(userId);
+          allow create: if isOwner(userId) || isEmployeeOf(userId) || isSuperAdmin();
           allow update, delete: if false;
       }
 
       // 🏬 SEDES Y ALMACENES SECUNDARIOS
       match /Sedes_Almacenes/{sedeId} {
           allow read: if isOwner(userId) || isEmployeeOf(userId) || isModeradorOrAdmin();
-          allow write: if isOwner(userId) || isModeradorOrAdmin();
+          allow write: if isOwner(userId) || isModeradorOrAdmin() || isSuperAdmin();
       }
 
       match /Tareas_Internas/{tareaId} {
           allow read, write: if isOwner(userId) 
                              || isEmployeeOf(userId)
-                             || isModeradorOrAdmin();
+                             || isModeradorOrAdmin()
+                             || isSuperAdmin();
       }
 
       match /comisiones_referidos/{txId} {
-          allow read: if isOwner(userId);
-          allow create: if isOwner(userId)
+          allow read: if isOwner(userId) || isSuperAdmin();
+          allow create: if (isOwner(userId) || isSuperAdmin())
                         && request.resource.data.keys().hasAll(['codigo_tx', 'monto_venta', 'comision_ganada', 'estado', 'fecha', 'moneda'])
                         && request.resource.data.monto_venta is number
                         && request.resource.data.monto_venta >= (request.resource.data.moneda == 'USD' ? 7 : 30000)
@@ -170,43 +174,41 @@ service cloud.firestore {
 
       match /pedidos_entrantes/{ticketId} {
           allow create: if true;
-          allow read, update, delete: if isOwner(userId) || isEmployeeOf(userId);
+          allow read, update, delete: if isOwner(userId) || isEmployeeOf(userId) || isSuperAdmin();
       }
 
       // 🗺️ PLANOS MULTI-SEDE
       match /Planos_Almacenes/{almacenId} {
-          allow read: if isOwner(userId) || isEmployeeOf(userId);
-          allow write: if isOwner(userId) || isEmployeeOf(userId);
+          allow read: if isOwner(userId) || isEmployeeOf(userId) || isSuperAdmin();
+          allow write: if isOwner(userId) || isEmployeeOf(userId) || isSuperAdmin();
       }
 
       // 📐 PLANOS TOPOGRÁFICOS Y CATASTRO
       match /Planos_Topograficos/{planoId} {
           allow read: if isOwner(userId) || isEmployeeOf(userId) || isModeradorOrAdmin();
-          allow create, update: if isOwner(userId) || isEmployeeOf(userId) || isModeradorOrAdmin();
-          allow delete: if isOwner(userId) || isModeradorOrAdmin();
+          allow create, update: if isOwner(userId) || isEmployeeOf(userId) || isModeradorOrAdmin() || isSuperAdmin();
+          allow delete: if isOwner(userId) || isModeradorOrAdmin() || isSuperAdmin();
       }
 
       match /Historial_Descargas_PDF/{descargaId} {
-          allow read, create: if isOwner(userId) || isEmployeeOf(userId);
+          allow read, create: if isOwner(userId) || isEmployeeOf(userId) || isSuperAdmin();
           allow update, delete: if false;
       }
 
       // --------------------------------------------------------
       // 🛡️ REGLAS DE FACTURACIÓN POS, CAJA Y CIERRES Z
       // --------------------------------------------------------
-           match /Ventas_POS/{ticketId} {
-        // Permite la consulta del ticket individual para factura.html y reserva el listado al comercio
+      match /Ventas_POS/{ticketId} {
         allow get: if true;
-        allow list: if isOwner(userId) || isEmployeeOf(userId) || isModeradorOrAdmin();
+        allow list: if isOwner(userId) || isEmployeeOf(userId) || isModeradorOrAdmin() || isSuperAdmin();
 
-        
-        allow create: if (isOwner(userId) || isEmployeeOf(userId))
+        allow create: if (isOwner(userId) || isEmployeeOf(userId) || isSuperAdmin())
                       && request.resource.data.keys().hasAll(['total', 'productos', 'metodo_pago', 'timestamp_caja'])
                       && request.resource.data.total is number
                       && request.resource.data.total >= 0
                       && request.resource.data.productos.size() > 0;
         
-        allow update: if (isOwner(userId) || isEmployeeOf(userId))
+        allow update: if (isOwner(userId) || isEmployeeOf(userId) || isSuperAdmin())
                       && resource.data.anulado != true
                       && request.resource.data.anulado == true
                       && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -220,42 +222,42 @@ service cloud.firestore {
       }
 
       match /Sesiones_Caja/{sesionId} {
-        allow read: if isOwner(userId) || isEmployeeOf(userId) || isModeradorOrAdmin();
-        allow create, update: if isOwner(userId) || isEmployeeOf(userId);
+        allow read: if isOwner(userId) || isEmployeeOf(userId) || isModeradorOrAdmin() || isSuperAdmin();
+        allow create, update: if isOwner(userId) || isEmployeeOf(userId) || isSuperAdmin();
         allow delete: if false;
       }
 
       match /Informes_X/{informeId} {
-        allow read: if isOwner(userId) || isEmployeeOf(userId) || isModeradorOrAdmin();
-        allow create: if isOwner(userId) || isEmployeeOf(userId);
+        allow read: if isOwner(userId) || isEmployeeOf(userId) || isModeradorOrAdmin() || isSuperAdmin();
+        allow create: if isOwner(userId) || isEmployeeOf(userId) || isSuperAdmin();
         allow update, delete: if false;
       }
 
       match /Cierres_Z/{cierreId} {
-        allow read: if isOwner(userId) || isEmployeeOf(userId) || isModeradorOrAdmin();
-        allow create: if (isOwner(userId) || isEmployeeOf(userId))
+        allow read: if isOwner(userId) || isEmployeeOf(userId) || isModeradorOrAdmin() || isSuperAdmin();
+        allow create: if (isOwner(userId) || isEmployeeOf(userId) || isSuperAdmin())
                       && request.resource.data.keys().hasAll(['id_sesion', 'esperado_efectivo', 'contado_efectivo'])
                       && request.resource.data.contado_efectivo is number;
         allow update, delete: if false;
       }
 
       match /Notas_Credito_POS/{notaId} {
-        allow read: if isOwner(userId) || isEmployeeOf(userId) || isModeradorOrAdmin();
-        allow create: if (isOwner(userId) || isEmployeeOf(userId))
+        allow read: if isOwner(userId) || isEmployeeOf(userId) || isModeradorOrAdmin() || isSuperAdmin();
+        allow create: if (isOwner(userId) || isEmployeeOf(userId) || isSuperAdmin())
                       && request.resource.data.keys().hasAll(['ticket_origen_id', 'motivo'])
                       && (request.resource.data.keys().hasAny(['total_revertido', 'total_reembolsado']));
         allow update, delete: if false;
       }
 
-      // 👥 PERSONAL (Soporte simultáneo para Equipo y Colaboradores)
+      // 👥 PERSONAL
       match /Equipo/{empleadoId} {
-        allow read: if isOwner(userId) || isEmployeeOf(userId);
-        allow write: if isOwner(userId) || isModeradorOrAdmin();
+        allow read: if isOwner(userId) || isEmployeeOf(userId) || isSuperAdmin();
+        allow write: if isOwner(userId) || isModeradorOrAdmin() || isSuperAdmin();
       }
 
       match /Colaboradores/{colabId} {
-        allow read: if isOwner(userId) || isEmployeeOf(userId);
-        allow write: if isOwner(userId) || isModeradorOrAdmin();
+        allow read: if isOwner(userId) || isEmployeeOf(userId) || isSuperAdmin();
+        allow write: if isOwner(userId) || isModeradorOrAdmin() || isSuperAdmin();
       }
     }
 
@@ -265,13 +267,13 @@ service cloud.firestore {
     match /Usuarios_Operadores/{operadorUid} {
       allow read: if isAuthenticated();
       allow update: if isAuthenticated() 
-                    && (request.auth.uid == operadorUid || isModeradorOrAdmin())
+                    && (request.auth.uid == operadorUid || isModeradorOrAdmin() || isSuperAdmin())
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
                         'requiere_cambio_password',
                         'expiracion_clave_temporal',
                         'fecha_ultimo_cambio_password'
                     ]);
-      allow create, delete: if isModeradorOrAdmin();
+      allow create, delete: if isModeradorOrAdmin() || isSuperAdmin();
     }
 
     // ==========================================================
@@ -279,13 +281,13 @@ service cloud.firestore {
     // ==========================================================
     match /Almacenes/{almacenId} {
         allow read: if true;
-        allow create: if isAuthenticated() && request.resource.data.id_negocio_padre == request.auth.uid;
-        allow update, delete: if isAuthenticated() && resource.data.id_negocio_padre == request.auth.uid;
+        allow create: if isAuthenticated() && (request.resource.data.id_negocio_padre == request.auth.uid || isSuperAdmin());
+        allow update, delete: if isAuthenticated() && (resource.data.id_negocio_padre == request.auth.uid || isSuperAdmin());
     }
 
     match /Historial_Jornadas/{jornadaId} {
-        allow create: if isAuthenticated() && request.resource.data.uid_conductor == request.auth.uid;
-        allow read: if isAuthenticated() && resource.data.uid_conductor == request.auth.uid;
+        allow create: if isAuthenticated() && (request.resource.data.uid_conductor == request.auth.uid || isSuperAdmin());
+        allow read: if isAuthenticated() && (resource.data.uid_conductor == request.auth.uid || isSuperAdmin());
         allow update, delete: if false;
     }
 
@@ -293,11 +295,11 @@ service cloud.firestore {
     // ⚖️ 3. COLECCIONES DE CONTROL, SEGURIDAD Y RRHH
     // ==========================================================
     match /Boveda_Rechazos/{docId} {
-      allow read, write: if isModeradorOrAdmin();
+      allow read, write: if isModeradorOrAdmin() || isSuperAdmin();
     }
 
     match /Lista_Negra/{docId} {
-      allow read, write: if isModeradorOrAdmin();
+      allow read, write: if isModeradorOrAdmin() || isSuperAdmin();
     }
 
     match /Usuarios_Admin/{uid} {
@@ -310,17 +312,17 @@ service cloud.firestore {
     // ==========================================================
     match /Pulso_Urbano/{noticiaId} {
       allow read: if true;
-      allow write: if isModeradorOrAdmin(); 
+      allow write: if isModeradorOrAdmin() || isSuperAdmin(); 
     }
 
     match /Caballo_Troya/{bannerId} {
       allow read: if true;
-      allow write: if false; 
+      allow write: if isSuperAdmin(); 
     }
 
     match /informacion_general/{configId} {
       allow read: if true;
-      allow write: if false;
+      allow write: if isSuperAdmin();
     }
 
     // ==========================================================
@@ -337,39 +339,40 @@ service cloud.firestore {
     }
 
     match /Sistema/{document=**} {
-      allow read, write: if false; 
+      allow read: if isSuperAdmin();
+      allow write: if isSuperAdmin(); 
     }
 
     // ==========================================================
     // ⚖️ 6. ADUANA JURÍDICA Y BÓVEDA DE TRÁMITES (P2P)
     // ==========================================================
     match /Boveda_Tramites/{tramiteId} {
-      allow read: if isAuthenticated() && request.auth.uid in resource.data.participantes;
-      allow write: if false; 
+      allow read: if (isAuthenticated() && request.auth.uid in resource.data.participantes) || isSuperAdmin();
+      allow write: if isSuperAdmin(); 
     }
 
     match /Llaves_Maestras/{llaveId} {
-      allow read, write: if false;
+      allow read, write: if isSuperAdmin();
     }
     
     // ==========================================================
     // 🔐 7. INFRAESTRUCTURA DE SEGURIDAD OTP
     // ==========================================================
     match /Sistema_OTP/{userId} {
-      allow read, write: if false; 
+      allow read, write: if isSuperAdmin(); 
     }
 
     match /Salas_Legales_P2P/{salaId} {
       allow read: if true; 
-      allow write: if false;
+      allow write: if isSuperAdmin();
     }
 
     // ==========================================================
     // 🚚 8. NÚCLEO LOGÍSTICO (RADAR Y ESCROW)
     // ==========================================================
     match /Logistica_Ordenes/{ordenId} {
-      allow read: if isVerified();
-      allow write: if false; 
+      allow read: if isVerified() || isSuperAdmin();
+      allow write: if isSuperAdmin(); 
     }
 
     // ==========================================================
@@ -377,25 +380,24 @@ service cloud.firestore {
     // ==========================================================
     match /Estadisticas_Empresa/{docId} {
         allow read: if isAuthenticated();
-        allow write: if isModeradorOrAdmin();
+        allow write: if isModeradorOrAdmin() || isSuperAdmin();
     }
 
     match /Alertas_Seguridad/{alertaId} {
-        // CORREGIDO: Admite al dueño, colaboradores autorizados y administradores
         allow read: if isAuthenticated() && (
             resource.data.id_negocio == request.auth.uid 
             || isEmployeeOf(resource.data.id_negocio) 
             || isModeradorOrAdmin()
+            || isSuperAdmin()
         );
         allow create: if isAuthenticated();
         allow update: if isAuthenticated() && (
             resource.data.id_negocio == request.auth.uid 
             || isEmployeeOf(resource.data.id_negocio) 
             || isModeradorOrAdmin()
+            || isSuperAdmin()
         );
-        allow delete: if isModeradorOrAdmin();
+        allow delete: if isModeradorOrAdmin() || isSuperAdmin();
     }
   }
 }
-
-

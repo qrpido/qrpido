@@ -95,19 +95,24 @@
             <!-- Datos Identitarios -->
             <div class="header-info-wrapper">
                 <div id="contenedor-nombre" style="position: relative;">
+                    <img id="img-nombre-png" class="nombre-negocio-png" style="display: none;" alt="Logotipo Tipográfico">
                     <h1 id="texto-nombre" class="nombre-negocio">...</h1>
                     <button id="lapiz-nombre" class="lapiz-editar-texto" onclick="window.abrirModalEdicionPerfil()">✏️ Editar Información</button>
                 </div>
                 
+                <p id="texto-slogan" class="slogan-negocio" style="display: none;"></p>
                 <p id="texto-nicho" class="niche-negocio"></p>
                 <div id="badge-cobertura-container"></div>
                 <div id="badge-aliado-container"></div>
 
                 <div class="acciones-cabecera">
-                    <a id="btn-whatsapp-header" href="#" target="_blank" class="btn-contactar">💬 Contactar Local</a>
+                    <a id="btn-whatsapp-header" href="#" target="_blank" class="btn-contactar">💬 WhatsApp</a>
+                    <a id="btn-pbx-header" href="#" class="btn-pbx" style="display: none;">📞 PBX</a>
                     <button id="btn-historia" class="categoria-pill" style="display:none;" onclick="window.abrirModal('overlay-historia')">📖 Historia</button>
                 </div>
             </div>
+
+
         </header>
 
         <!-- Banner Promocional -->
@@ -207,14 +212,25 @@
                 </div>
 
                 <div class="form-grupo-edicion">
-                    <label for="input-edit-cuerpo">Descripción o Eslogan</label>
+                    <label for="input-edit-slogan">Eslogan o Lema Comercial</label>
+                    <input type="text" id="input-edit-slogan" class="input-edicion-perfil" placeholder="Ej: Calidad y servicio insuperable">
+                </div>
+
+                <div class="form-grupo-edicion">
+                    <label for="input-edit-cuerpo">Historia o Descripción Editorial</label>
                     <textarea id="input-edit-cuerpo" class="input-edicion-perfil" rows="3"></textarea>
                 </div>
 
                 <div class="form-grupo-edicion">
-                    <label for="input-edit-whatsapp">Teléfono / WhatsApp</label>
+                    <label for="input-edit-whatsapp">WhatsApp (Móvil)</label>
                     <input type="tel" id="input-edit-whatsapp" class="input-edicion-perfil" placeholder="Ej: 573001234567">
                 </div>
+
+                <div class="form-grupo-edicion">
+                    <label for="input-edit-pbx">Teléfono Fijo / Conmutador PBX</label>
+                    <input type="tel" id="input-edit-pbx" class="input-edicion-perfil" placeholder="Ej: 6063334455">
+                </div>
+
 
                 <div class="form-grupo-edicion">
                     <label>Foto de Portada</label>
@@ -293,22 +309,42 @@
 
                 datosNegocio = data;
 
-                // Inyección de la Paleta Áurea de Marca
-                const c1 = datosNegocio.color_principal || '#ff6b00';
-                const c2 = datosNegocio.color_acento || c1;
-                const c3 = datosNegocio.color_terciario || '#ffffff';
+                datosNegocio = data;
+
+                                                // Regla Áurea Cromática Silenciosa Normalizada (1, 2, 3 o 4 colores)
+                var raw1 = datosNegocio.color_principal || '#ff6b00';
+                var raw2 = datosNegocio.color_acento || '';
+                var raw3 = datosNegocio.color_terciario || '';
+                var raw4 = datosNegocio.color_cuaternario || '';
+
+                if (datosNegocio.paleta_aurea && typeof datosNegocio.paleta_aurea === 'object') {
+                    raw1 = datosNegocio.paleta_aurea.c1 || raw1;
+                    raw2 = datosNegocio.paleta_aurea.c2 || raw2;
+                    raw3 = datosNegocio.paleta_aurea.c3 || raw3;
+                    raw4 = datosNegocio.paleta_aurea.c4 || raw4;
+                }
+
+                var grisGeokatu = '#8a909d';
+                var blanco = '#ffffff';
+
+                var c1 = raw1;
+                var c2 = raw2 ? raw2 : grisGeokatu;
+                // Si solo eligió 1 color -> c3 es c1. Si eligió 2 colores -> c3 es c2.
+                var c3 = raw3 ? raw3 : (raw2 ? raw2 : raw1);
+                var c4 = raw4 ? raw4 : (raw3 ? grisGeokatu : (raw2 ? grisGeokatu : blanco));
+
 
                 document.documentElement.style.setProperty('--color-marca', c1);
                 document.documentElement.style.setProperty('--color-secundario', c2);
                 document.documentElement.style.setProperty('--color-terciario', c3);
-                document.title = `${datosNegocio.nombre || 'Comercio'} | Geokatu`;
+                document.documentElement.style.setProperty('--color-cuaternario', c4);
 
                 // Hidratación Visual del Header y Fondo sin cuadros rotos
-                const portadaUrl = datosNegocio.portada || './assets/portada-default.webp';
+                var portadaUrl = datosNegocio.portada || './assets/portada-default.webp';
                 document.getElementById('portada-tienda').src = portadaUrl;
                 document.getElementById('avatar-tienda').src = datosNegocio.logo || './assets/logo-default.webp';
 
-                const fondoEl = document.getElementById('fondo-pantalla');
+                var fondoEl = document.getElementById('fondo-pantalla');
                 if (datosNegocio.portada) {
                     fondoEl.src = datosNegocio.portada;
                     fondoEl.style.display = 'block';
@@ -316,17 +352,63 @@
                     fondoEl.style.display = 'none';
                 }
 
-                document.getElementById('texto-nombre').innerText = datosNegocio.nombre || 'Comercio';
+                // Logotipo Tipográfico Transparente o Texto Plano
+                var elNombrePng = document.getElementById('img-nombre-png');
+                var elNombreTxt = document.getElementById('texto-nombre');
+                if (datosNegocio.nombre_png) {
+                    if (elNombrePng) {
+                        elNombrePng.src = datosNegocio.nombre_png;
+                        elNombrePng.style.display = 'block';
+                    }
+                    if (elNombreTxt) elNombreTxt.style.display = 'none';
+                } else {
+                    if (elNombrePng) elNombrePng.style.display = 'none';
+                    if (elNombreTxt) {
+                        elNombreTxt.innerText = datosNegocio.nombre || 'Comercio';
+                        elNombreTxt.style.display = 'block';
+                    }
+                }
+
+                // Slogan o Lema Comercial
+                var elSlogan = document.getElementById('texto-slogan');
+                if (elSlogan) {
+                    if (datosNegocio.slogan) {
+                        elSlogan.innerText = datosNegocio.slogan;
+                        elSlogan.style.display = 'block';
+                    } else {
+                        elSlogan.style.display = 'none';
+                    }
+                }
+
                 document.getElementById('texto-nicho').innerText = (datosNegocio.niche || 'Catálogo Oficial').toUpperCase();
 
-                const numTel = (datosNegocio.whatsapp || datosNegocio.whatsApp || '').replace(/\D/g, '');
-                document.getElementById('btn-whatsapp-header').href = numTel ? `https://wa.me/${numTel}?text=Hola!%20Vengo%20de%20ver%20tu%20cat%C3%A1logo%20en%20Geokatu.` : '#';
-
-                if (datosNegocio.historia) {
-                    const btnH = document.getElementById('btn-historia');
-                    btnH.style.display = 'inline-block';
-                    document.getElementById('contenido-modal-extra').innerHTML = window.sanitizarTexto(datosNegocio.historia);
+                // Telefonía Desacoplada: WhatsApp y PBX Directo
+                var numTel = (datosNegocio.whatsapp || datosNegocio.whatsApp || '').replace(/\D/g, '');
+                var btnWa = document.getElementById('btn-whatsapp-header');
+                if (btnWa) {
+                    btnWa.href = numTel ? ('https://wa.me/' + numTel + '?text=' + encodeURIComponent('Hola! Vengo de ver tu catálogo en Geokatu.')) : '#';
                 }
+
+                var elPbx = document.getElementById('btn-pbx-header');
+                var pbxNum = (datosNegocio.pbx || '').trim();
+                if (elPbx) {
+                    if (pbxNum) {
+                        elPbx.href = 'tel:' + pbxNum.replace(/\D/g, '');
+                        elPbx.innerText = '📞 PBX: ' + pbxNum;
+                        elPbx.style.display = 'inline-flex';
+                    } else {
+                        elPbx.style.display = 'none';
+                    }
+                }
+
+                var textoHistoria = datosNegocio.historia || datosNegocio.cuerpo_articulo;
+                if (textoHistoria) {
+                    var btnH = document.getElementById('btn-historia');
+                    if (btnH) btnH.style.display = 'inline-block';
+                    var modalCont = document.getElementById('contenido-modal-extra');
+                    if (modalCont) modalCont.innerHTML = window.sanitizarTexto(textoHistoria);
+                }
+
 
                 // Consulta de Productos
                 await cargarCatalogoProductos();
@@ -597,35 +679,36 @@
             window.cerrarModalManual('overlay-checkout');
         };
 
-        // 5. ENVÍO DEL PEDIDO A WHATSAPP (SEGURO Y SANITIZADO)
+       // 5. ENVÍO DEL PEDIDO A WHATSAPP (SEGURO Y SANITIZADO - CERO TEMPLATE LITERALS)
         window.enviarPedido = function() {
-            const nombre = document.getElementById('input-nombre-cliente').value.trim();
-            const notas = document.getElementById('input-comentario-pedido').value.trim();
+            var nombre = document.getElementById('input-nombre-cliente').value.trim();
+            var notas = document.getElementById('input-comentario-pedido').value.trim();
 
             if (!nombre) return alert("Por favor ingresa tu nombre o mesa para identificarte.");
 
-            const numTel = (datosNegocio.whatsapp || datosNegocio.whatsApp || '').replace(/\D/g, '');
+            var numTel = (datosNegocio.whatsapp || datosNegocio.whatsApp || '').replace(/\D/g, '');
             if (!numTel) return alert("Este comercio no tiene número de WhatsApp configurado.");
 
-            let msg = `Hola *${datosNegocio.nombre}*! 👋 Quiero hacer este pedido desde Geokatu:\n\n`;
-            let total = 0;
+            var msg = "Hola *" + (datosNegocio.nombre || 'Comercio') + "*! 👋 Quiero hacer este pedido desde Geokatu:\n\n";
+            var total = 0;
 
-            for (let id in carrito) {
-                const prod = productosMemoria.find(p => p.id_prod === id);
+            for (var id in carrito) {
+                var prod = productosMemoria.find(function(p) { return p.id_prod === id; });
                 if (prod) {
-                    const sub = carrito[id].cant * prod.precio;
+                    var sub = carrito[id].cant * (Number(prod.precio) || 0);
                     total += sub;
-                    msg += `▪ ${carrito[id].cant}x prod.nombre({window.formatearMoneda(sub)})\n`;
+                    msg += "▪ " + carrito[id].cant + "x " + (prod.nombre || "Producto") + " (" + window.formatearMoneda(sub) + ")\n";
                 }
             }
 
-            msg += `\n💰 *TOTAL: ${window.formatearMoneda(total)}*\n`;
-            msg += `👤 Cliente: ${nombre}\n`;
-            if (notas) msg += `📝 Nota: ${notas}\n`;
-            if (userLat && userLng) msg += `📍 Ubicación: https://www.google.com/maps?q=userLat,{userLng}\n`;
+            msg += "\n💰 *TOTAL: " + window.formatearMoneda(total) + "*\n";
+            msg += "👤 Cliente: " + nombre + "\n";
+            if (notas) msg += "📝 Nota: " + notas + "\n";
+            if (userLat && userLng) msg += "📍 Ubicación: https://www.google.com/maps?q=" + userLat + "," + userLng + "\n";
 
-            window.open(`https://wa.me/numTel?text={encodeURIComponent(msg)}`, '_blank');
+            window.open("https://wa.me/" + numTel + "?text=" + encodeURIComponent(msg), '_blank');
         };
+
 
         // 6. MINIMAPA MAPLIBRE CON RESIZE SEGURO
         window.abrirMiniMapa = function() {
@@ -693,14 +776,16 @@
         };
 
         window.viajarAlMapa = function() {
-            const lat = datosNegocio.Coordenadas?.latitude;
-            const lng = datosNegocio.Coordenadas?.longitude;
+            var coords = datosNegocio.Coordenadas || {};
+            var lat = coords.latitude || coords._lat;
+            var lng = coords.longitude || coords._long;
             if (lat && lng) {
-                window.location.href = `index.html?lat=lat&lng={lng}&enfocar=${idNegocio}`;
+                window.location.href = 'index.html?lat=' + lat + '&lng=' + lng + '&enfocar=' + encodeURIComponent(idNegocio);
             } else {
                 window.location.href = 'index.html';
             }
         };
+
 
         // 8. MODO EDICIÓN EN VIVO
         window.toggleModoEdicion = function() {
@@ -710,10 +795,12 @@
 
         window.abrirModalEdicionPerfil = function() {
             document.getElementById('input-edit-nombre').value = datosNegocio.nombre || '';
+            document.getElementById('input-edit-slogan').value = datosNegocio.slogan || '';
             document.getElementById('input-edit-cuerpo').value = datosNegocio.cuerpo_articulo || datosNegocio.historia || '';
             document.getElementById('input-edit-whatsapp').value = datosNegocio.whatsapp || datosNegocio.whatsApp || '';
+            document.getElementById('input-edit-pbx').value = datosNegocio.pbx || '';
             
-            const urlPortadaActual = datosNegocio.portada || '';
+            var urlPortadaActual = datosNegocio.portada || '';
             document.getElementById('input-edit-portada-url').value = urlPortadaActual;
             document.getElementById('img-preview-portada-modal').src = urlPortadaActual || './assets/portada-default.webp';
 
@@ -721,6 +808,7 @@
         };
 
         window.gestionarSubidaPortadaModal = async function(input) {
+
             const file = input.files?.[0];
             if (!file) return;
 
@@ -751,14 +839,16 @@
 
         window.guardarCambiosPerfilNegocio = async function(event) {
             event.preventDefault();
-            const btnGuardar = document.getElementById('btn-guardar-perfil');
+            var btnGuardar = document.getElementById('btn-guardar-perfil');
             btnGuardar.disabled = true;
             btnGuardar.innerText = 'Guardando...';
 
-            const payload = {
+            var payload = {
                 nombre: document.getElementById('input-edit-nombre').value.trim(),
+                slogan: document.getElementById('input-edit-slogan').value.trim(),
                 cuerpo_articulo: document.getElementById('input-edit-cuerpo').value.trim(),
                 whatsapp: document.getElementById('input-edit-whatsapp').value.trim(),
+                pbx: document.getElementById('input-edit-pbx').value.trim(),
                 portada: document.getElementById('input-edit-portada-url').value.trim()
             };
 
@@ -766,29 +856,56 @@
                 await GeokatuDB.AdminService.actualizarNegocio(idNegocio, payload);
 
                 datosNegocio.nombre = payload.nombre;
+                datosNegocio.slogan = payload.slogan;
                 datosNegocio.cuerpo_articulo = payload.cuerpo_articulo;
                 datosNegocio.whatsapp = payload.whatsapp;
+                datosNegocio.pbx = payload.pbx;
                 if (payload.portada) datosNegocio.portada = payload.portada;
 
                 document.getElementById('texto-nombre').innerText = payload.nombre;
-                document.title = `${payload.nombre} | Geokatu`;
+                document.title = payload.nombre + ' | Geokatu';
 
-                const numTel = payload.whatsapp.replace(/\D/g, '');
-                document.getElementById('btn-whatsapp-header').href = numTel 
-                    ? `https://wa.me/${numTel}?text=Hola!%20Vengo%20de%20ver%20tu%20cat%C3%A1logo%20en%20Geokatu.` 
-                    : '#';
+                var elSlogan = document.getElementById('texto-slogan');
+                if (elSlogan) {
+                    if (payload.slogan) {
+                        elSlogan.innerText = payload.slogan;
+                        elSlogan.style.display = 'block';
+                    } else {
+                        elSlogan.style.display = 'none';
+                    }
+                }
+
+                var numTel = payload.whatsapp.replace(/\D/g, '');
+                var btnWa = document.getElementById('btn-whatsapp-header');
+                if (btnWa) {
+                    btnWa.href = numTel 
+                        ? ('https://wa.me/' + numTel + '?text=' + encodeURIComponent('Hola! Vengo de ver tu catálogo en Geokatu.'))
+                        : '#';
+                }
+
+                var elPbx = document.getElementById('btn-pbx-header');
+                if (elPbx) {
+                    if (payload.pbx) {
+                        elPbx.href = 'tel:' + payload.pbx.replace(/\D/g, '');
+                        elPbx.innerText = '📞 PBX: ' + payload.pbx;
+                        elPbx.style.display = 'inline-flex';
+                    } else {
+                        elPbx.style.display = 'none';
+                    }
+                }
 
                 if (payload.portada) {
                     document.getElementById('portada-tienda').src = payload.portada;
-                    const fondoEl = document.getElementById('fondo-pantalla');
+                    var fondoEl = document.getElementById('fondo-pantalla');
                     fondoEl.src = payload.portada;
                     fondoEl.style.display = 'block';
                 }
 
                 if (payload.cuerpo_articulo) {
-                    const btnH = document.getElementById('btn-historia');
-                    btnH.style.display = 'inline-block';
-                    document.getElementById('contenido-modal-extra').innerHTML = window.sanitizarTexto(payload.cuerpo_articulo);
+                    var btnH = document.getElementById('btn-historia');
+                    if (btnH) btnH.style.display = 'inline-block';
+                    var modalCont = document.getElementById('contenido-modal-extra');
+                    if (modalCont) modalCont.innerHTML = window.sanitizarTexto(payload.cuerpo_articulo);
                 }
 
                 window.cerrarModalManual('modal-editar-perfil-negocio');
@@ -799,6 +916,7 @@
                 btnGuardar.innerText = 'Guardar Cambios';
             }
         };
+
 
         window.subirFotoDirecta = async function(input, tipo) {
             const file = input.files?.[0];

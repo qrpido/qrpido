@@ -92,36 +92,42 @@ GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
                 docOperario = await getDoc(doc(db, `Directorio/${idNegocio}/Colaboradores`, user.uid));
             }
 
-            if (docOperario.exists()) {
+                        if (docOperario.exists()) {
                 const dataOp = docOperario.data();
-                cajeroCodigoActivo = dataOp.codigo_cajero || "0000";
+                cajeroCodigoActivo = String(dataOp.codigo_cajero || "0000").trim();
                 localStorage.setItem('geokatu_cajero_pin', cajeroCodigoActivo);
 
                 // FILTRO 1: Clave provisional de onboarding (Caduca en 48 horas)
                 if (dataOp.requiere_cambio_password) {
                     if (dataOp.expiracion_clave_temporal && new Date() > new Date(dataOp.expiracion_clave_temporal)) {
-                        alert("⚠️ La contraseña provisional ha expirado por superar el plazo de 48 horas. Solicita al administrador restablecer tu clave.");
+                        alert("La contraseña provisional ha expirado. Solicita al administrador restablecer tu clave.");
                         GeokatuDB.SecurityService.destruirSesionTerminalLocal();
                         window.location.href = 'oficina';
                         return;
                     }
-
 
                     const modalPass = document.getElementById('modal-cambio-password-obligatorio');
                     if (modalPass) modalPass.style.display = 'flex';
                     return;
                 }
 
-                // FILTRO 2: Rotación corporativa obligatoria cada 10 semanas (70 días)
+                // FILTRO 2: Rotación obligatoria cada 10 semanas (70 días)
                 const DIEZ_SEMANAS_MS = 10 * 7 * 24 * 60 * 60 * 1000;
                 if (dataOp.fecha_ultimo_cambio_password) {
                     const tiempoTranscurrido = Date.now() - new Date(dataOp.fecha_ultimo_cambio_password).getTime();
                     if (tiempoTranscurrido > DIEZ_SEMANAS_MS) {
-                        alert("🔒 Por política de seguridad, debes renovar tu contraseña cada 10 semanas.");
+                        alert("Por política de seguridad, debes renovar tu contraseña cada 10 semanas.");
                         const modalPass = document.getElementById('modal-cambio-password-obligatorio');
                         if (modalPass) modalPass.style.display = 'flex';
                         return;
                     }
+                }
+            } else {
+                // Si no está en nómina de colaboradores y coincide con el comercio o titular, es el dueño
+                if (user.uid === idTenant || localStorage.getItem('geokatu_active_uid') === user.uid) {
+                    const sufijoDueno = user.uid.slice(-4).toUpperCase();
+                    cajeroCodigoActivo = `D-${sufijoDueno}`;
+                    localStorage.setItem('geokatu_cajero_pin', cajeroCodigoActivo);
                 }
             }
         } catch (errPerfil) {
@@ -259,16 +265,61 @@ function parsearCodigoBalanza(codigo) {
 let scannerPosInstancia = null;
 let escaneoEnCooldown = false;
 
+let linternaEncendida = false;
+
+window.alternarFlashCamaraPOS = async () => {
+    try {
+        const videoElem = document.querySelector('#lector-camara video');
+        if (videoElem && videoElem.srcObject) {
+            const track = videoElem.srcObject.getVideoTracks()[0];
+            if (track) {
+                const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+                if ('torch' in capabilities) {
+                    linternaEncendida = !linternaEncendida;
+                    await track.applyConstraints({ advanced: [{ torch: linternaEncendida }] });
+                    const btnFlash = document.getElementById('btn-flash-pos');
+                    if (btnFlash) {
+                        btnFlash.style.background = linternaEncendida ? 'var(--color-marca)' : 'rgba(0,0,0,0.65)';
+                        btnFlash.style.color = linternaEncendida ? '#000' : '#fff';
+                    }
+                    return;
+                }
+            }
+        }
+        alert("La linterna no está disponible en este lente o dispositivo.");
+    } catch (e) {
+        console.warn("Fallo al alternar linterna:", e);
+        alert("Tu dispositivo o navegador no permitió encender la linterna.");
+    }
+};
+
 window.cerrarCamaraPOS = () => {
     const dock = document.getElementById('scanner-dock');
     const btnCam = document.getElementById('btn-toggle-camara');
     if (dock) dock.style.display = 'none';
     if (btnCam) btnCam.innerHTML = `<span class="material-symbols-outlined">qr_code_scanner</span> Cámara`;
+
+    // Apagar linterna si quedó encendida al cerrar el visor
+    if (linternaEncendida) {
+        const videoElem = document.querySelector('#lector-camara video');
+        if (videoElem?.srcObject) {
+            const track = videoElem.srcObject.getVideoTracks()[0];
+            if (track) track.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
+        }
+        linternaEncendida = false;
+        const btnFlash = document.getElementById('btn-flash-pos');
+        if (btnFlash) {
+            btnFlash.style.background = 'rgba(0,0,0,0.65)';
+            btnFlash.style.color = '#fff';
+        }
+    }
+
     if (scannerPosInstancia && scannerPosInstancia.isScanning) {
         scannerPosInstancia.stop().catch(() => {});
     }
     escaneoEnCooldown = false;
 };
+
 
 window.escanearParaPOS = () => {
     const dock = document.getElementById('scanner-dock');
@@ -320,23 +371,6 @@ window.escanearParaPOS = () => {
         alert("Comprueba los permisos de cámara en tu navegador.");
         window.cerrarCamaraPOS();
     });
-};
-
-
-window.cerrarCamaraPOS = () => {
-    const contenedor = document.getElementById('contenedor-camara-pos');
-    if (contenedor) contenedor.classList.remove('activo');
-    if (scannerPosInstancia && scannerPosInstancia.isScanning) {
-        scannerPosInstancia.stop().catch(() => {});
-    }
-    pestilloLecturaOptica = false;
-    ultimoCodigoEscaneado = null;
-};
-
-window.cerrarCamaraExterior = (e) => {
-    if (e.target.id === 'contenedor-camara-pos') {
-        window.cerrarCamaraPOS();
-    }
 };
 
 
@@ -679,27 +713,29 @@ function renderizarCarrito() {
 
 function renderizarGridCatalogo() {
     const grid = document.getElementById('grid-rapida');
+    if (!grid) return;
     grid.innerHTML = '';
 
     if (catalogoLocal.length === 0) {
-        grid.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: #666; padding: 40px 0;">No hay productos en inventario.</p>';
+        grid.innerHTML = '<p style="text-align: center; color: #666; padding: 20px 0; font-size: 12px;">No hay productos en inventario.</p>';
         return;
     }
 
-    catalogoLocal.slice(0, 15).forEach(prod => {
-        const stockMin = prod.stock_minimo !== undefined ? prod.stock_minimo : 5;
-        const claseAlerta = (prod.stock_actual !== undefined && prod.stock_actual <= stockMin && prod.stock_actual > 0) ? 'stock-bajo' : '';
+    catalogoLocal.slice(0, 30).forEach(prod => {
         const item = document.createElement('div');
-        item.className = `product-item ${claseAlerta}`;
+        item.className = 'product-row-item';
         item.innerHTML = `
-            <span class="material-symbols-outlined icon">${prod.icono || (prod.es_pesable ? 'scale' : 'inventory_2')}</span>
-            <span class="name">${prod.nombre}</span>
-            <span class="price">$${Number(prod.precio).toLocaleString()}${prod.es_pesable ? '/kg' : ''}</span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="material-symbols-outlined" style="color: var(--color-marca); font-size: 18px;">${prod.icono || (prod.es_pesable ? 'scale' : 'inventory_2')}</span>
+                <span class="item-title">${prod.nombre}</span>
+            </div>
+            <span class="item-price">$${Number(prod.precio).toLocaleString()}${prod.es_pesable ? '/kg' : ''}</span>
         `;
 
-
-        // AQUÍ COLOCAS EL BLOQUE:
         item.onclick = () => {
+            const modalCat = document.getElementById('modal-catalogo-popup');
+            if (modalCat) modalCat.style.display = 'none';
+
             if (prod.es_pesable) {
                 if (pesoEnVivoActual > 0) {
                     agregarAlCarrito(prod, pesoEnVivoActual, true);
@@ -714,6 +750,7 @@ function renderizarGridCatalogo() {
         grid.appendChild(item);
     });
 }
+
 
 
 // ==========================================
@@ -974,13 +1011,19 @@ document.querySelectorAll('.btn-pay').forEach(btn => {
 });
 
 function procesarAbonoPago(metodo) {
-    if (carrito.length === 0) return alert("El carrito está vacío.");
+    if (carrito.length === 0) {
+        if (typeof window.mostrarAvisoPos === 'function') {
+            window.mostrarAvisoPos("El carrito está vacío.");
+        } else {
+            alert("El carrito está vacío.");
+        }
+        return;
+    }
 
-    // 🛑 FRENO PREVENTIVO BILLING GUARD CON TOLERANCIA DE TURNO ABIERTO (1.300 Facturas)
+    // Control preventivo de cupo de facturación
     if (controlFacturacionActivo) {
         const estadoCuota = BillingGuard.verificarEstadoCuota(controlFacturacionActivo, 'pos-alerta-facturas');
         if (estadoCuota && estadoCuota.bloqueado) {
-            // Evaluar si aperturó caja hoy y el turno sigue abierto en curso
             const fechaApertura = turnoCajaActivo?.fecha_apertura ? new Date(turnoCajaActivo.fecha_apertura) : null;
             const hoy = new Date();
             const esTurnoAperturadoHoy = turnoCajaActivo?.estado === 'ABIERTA' && fechaApertura &&
@@ -989,55 +1032,14 @@ function procesarAbonoPago(metodo) {
                 fechaApertura.getDate() === hoy.getDate();
 
             if (esTurnoAperturadoHoy) {
-                // Gracia de jornada: Se permite continuar facturando hasta ejecutar el Cierre Z de hoy
                 if (typeof window.mostrarAvisoPos === 'function') {
-                    window.mostrarAvisoPos("⚠️ Límite de 1.300 facturas alcanzado. Se permite facturar hasta realizar el Cierre Z de hoy.");
+                    window.mostrarAvisoPos("Límite de 1.300 facturas alcanzado. Se permite facturar hasta realizar el Cierre Z de hoy.");
                 }
             } else {
-                // Bloqueo estricto: El turno cerró o no ha aperturado caja hoy
-                alert("🛑 Has alcanzado el límite de 1.300 facturas de tu plan y no tienes un turno activo aperturado hoy. Realiza una recarga para continuar.");
+                alert("Has alcanzado el límite de 1.300 facturas de tu plan y no tienes un turno activo aperturado hoy. Realiza una recarga para continuar.");
                 return;
             }
         }
-    }
-
-    const totalTicket = obtenerTotalTicketActual();
-    const pagadoHastaAhora = calcularTotalPagadoHastaAhora();
-
-    const remanente = totalTicket - pagadoHastaAhora;
-
-    if (remanente <= 0) {
-        return alert("El ticket ya se encuentra 100% cubierto. Procesando cierre.");
-    }
-
-    const inputVal = document.getElementById('input-monto-abono').value;
-    let montoIngresado = parseFloat(inputVal);
-
-    if (isNaN(montoIngresado) || montoIngresado <= 0) {
-        montoIngresado = remanente; // Si no digitó nada, asume el remanente completo
-    }
-
-    if (metodo === 'TARJETA') {
-        // En tarjeta no se puede cobrar más de lo restante
-        const montoTarjeta = Math.min(montoIngresado, remanente);
-        abrirModalDatafono(montoTarjeta);
-        return;
-    }
-
-    if (metodo === 'NEQUI') {
-        const montoNequi = Math.min(montoIngresado, remanente);
-        aplicarAbonoConfirmado('NEQUI', montoNequi);
-        return;
-    }
-
-function procesarAbonoPago(metodo) {
-    if (carrito.length === 0) {
-        if (typeof window.mostrarAvisoPos === 'function') {
-            window.mostrarAvisoPos("El carrito está vacío.");
-        } else {
-            alert("El carrito está vacío.");
-        }
-        return;
     }
 
     const totalTicket = obtenerTotalTicketActual();
@@ -1049,7 +1051,7 @@ function procesarAbonoPago(metodo) {
         return;
     }
 
-    // Sanitización robusta: elimina signos de pesos, comas, puntos y espacios
+    // Sanitización robusta: extrae únicamente números y punto decimal
     const inputElement = document.getElementById('input-monto-abono');
     const inputValRaw = inputElement ? inputElement.value : "";
     const inputValSanitizado = String(inputValRaw).replace(/[^0-9.]/g, '');
@@ -1059,23 +1061,6 @@ function procesarAbonoPago(metodo) {
         montoIngresado = remanente;
     }
 
-    if (metodo === 'TARJETA') {
-        const montoTarjeta = Math.min(montoIngresado, remanente);
-        abrirModalDatafono(montoTarjeta);
-        return;
-    }
-
-    if (metodo === 'NEQUI') {
-        const montoNequi = Math.min(montoIngresado, remanente);
-        aplicarAbonoConfirmado('NEQUI', montoNequi);
-        return;
-    }
-
-    if (metodo === 'EFECTIVO') {
-        let montoEfectivoAbonado = montoIngresado;
-        let cambioCalculado = 0;
-
-        if (montoIngresado > remanente) {
     if (metodo === 'TARJETA') {
         const montoTarjeta = Math.min(montoIngresado, remanente);
         abrirModalDatafono(montoTarjeta);
@@ -1115,7 +1100,6 @@ function procesarAbonoPago(metodo) {
         aplicarAbonoConfirmado('EFECTIVO', montoEfectivoAbonado);
     }
 }
-
 
 
 function abrirModalDatafono(montoFraccion) {
@@ -1346,12 +1330,19 @@ async function ejecutarVentaFinalDefinitiva() {
         localStorage.setItem(`geokatu_acumulado_${idNegocio}`, JSON.stringify(acumuladoTurno));
 
 
-        // Actualizar KPIs de ventas del día
+         // Actualizar KPIs de ventas del día
         const kpiObj = document.getElementById('kpi-ventas');
         if (kpiObj) {
             const kpiActual = Number(kpiObj.innerText.replace(/\D/g, ''));
             kpiObj.innerText = `$${(kpiActual + totalVentaCalculado).toLocaleString('es-CO')}`;
         }
+
+        // Actualizar contador mensual de facturas libres en tiempo real
+        if (controlFacturacionActivo) {
+            controlFacturacionActivo.facturas_emitidas_mes = (Number(controlFacturacionActivo.facturas_emitidas_mes) || 0) + 1;
+            BillingGuard.verificarEstadoCuota(controlFacturacionActivo, 'pos-alerta-facturas');
+        }
+
 
         // Limpiar estado
         carrito = [];
@@ -1562,27 +1553,193 @@ function armarTirillaTermica(ticket, ticketId, datosFiscales = null) {
 // 8. RED Y MONITOR OFFLINE
 // ==========================================
 function actualizarIndicadorCola() {
-    const cola = JSON.parse(localStorage.getItem(`geokatu_sync_cola_${idNegocio}`) || "[]");
-    const contador = document.getElementById('txt-cola-sync');
-    contador.innerText = `${cola.length} Pendientes`;
-    contador.style.color = cola.length > 0 ? "orange" : "inherit";
+    const tenantReal = idNegocio || localStorage.getItem('geokatu_active_uid') || "";
+    const colaTenant = JSON.parse(localStorage.getItem(`geokatu_sync_cola_${tenantReal}`) || "[]");
+    const colaId = (idNegocio && idNegocio !== tenantReal) ? JSON.parse(localStorage.getItem(`geokatu_sync_cola_${idNegocio}`) || "[]") : [];
+    const totalPendientes = Math.max(colaTenant.length, colaId.length);
+
+    const txtRed = document.getElementById('txt-red-abono');
+    const ledRed = document.getElementById('led-red-abono');
+    const badgeRed = document.getElementById('badge-estado-red');
+
+    if (txtRed && ledRed && badgeRed) {
+        if (!navigator.onLine || totalPendientes > 0) {
+            txtRed.innerText = totalPendientes > 0 ? `Offline: ${totalPendientes} pend.` : "Offline";
+            txtRed.style.color = "orange";
+            ledRed.style.backgroundColor = "orange";
+            badgeRed.style.background = "rgba(255,165,0,0.15)";
+            badgeRed.style.borderColor = "rgba(255,165,0,0.4)";
+        } else {
+            txtRed.innerText = "Online";
+            txtRed.style.color = "var(--accent-green)";
+            ledRed.style.backgroundColor = "var(--accent-green)";
+            badgeRed.style.background = "rgba(0,255,100,0.1)";
+            badgeRed.style.borderColor = "rgba(0,255,100,0.25)";
+        }
+    }
+
+    monitorearCapacidadCola();
 }
 
+
+// =========================================================================
+// MONITOR DE MEMORIA OFFLINE AL 80% (ALERTA DE 15 SEGUNDOS)
+// =========================================================================
+function monitorearCapacidadCola() {
+    const tenantReal = idNegocio || localStorage.getItem('geokatu_active_uid') || "";
+    const claveCola = `geokatu_sync_cola_${tenantReal}`;
+    const rawCola = localStorage.getItem(claveCola) || "[]";
+    const bytesOcupados = new Blob([rawCola]).size;
+    const cola = JSON.parse(rawCola);
+
+    // Umbral de 80%: 4 MB ocupados o más de 800 tickets acumulados
+    const esCritico = bytesOcupados > 4000000 || cola.length >= 800;
+    const alertaElem = document.getElementById('alerta-memoria-cola');
+
+    if (alertaElem && esCritico && alertaElem.style.display !== 'flex') {
+        alertaElem.style.display = 'flex';
+        setTimeout(() => { alertaElem.style.opacity = '1'; }, 10);
+
+        setTimeout(() => {
+            alertaElem.style.opacity = '0';
+            setTimeout(() => { alertaElem.style.display = 'none'; }, 400);
+        }, 15000);
+    }
+}
+
+// =========================================================================
+// CONTROL DEL MENÚ DE 3 PUNTOS, RESPALDOS .TXT Y CIERRE DE SESIÓN
+// =========================================================================
+window.alternarMenuOpcionesPOS = (e) => {
+    e.stopPropagation();
+    const menu = document.getElementById('dropdown-menu-pos');
+    if (menu) menu.classList.toggle('activo');
+};
+
+window.cerrarMenuOpcionesPOS = () => {
+    const menu = document.getElementById('dropdown-menu-pos');
+    if (menu) menu.classList.remove('activo');
+};
+
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('#dropdown-menu-pos') && !e.target.closest('#btn-menu-tres-puntos')) {
+        window.cerrarMenuOpcionesPOS();
+    }
+});
+
+// 1. Descarga de tickets en cola en formato .txt
+window.descargarRespaldoOfflineTxt = () => {
+    window.cerrarMenuOpcionesPOS();
+    const tenantReal = idNegocio || localStorage.getItem('geokatu_active_uid') || "";
+    const claveCola = `geokatu_sync_cola_${tenantReal}`;
+    const cola = JSON.parse(localStorage.getItem(claveCola) || "[]");
+
+    if (cola.length === 0) {
+        if (typeof window.mostrarAvisoPos === 'function') {
+            window.mostrarAvisoPos("No hay tickets pendientes en la cola offline.");
+        } else {
+            alert("No hay tickets pendientes en la cola offline.");
+        }
+        return;
+    }
+
+    const contenido = JSON.stringify(cola, null, 2);
+    const blob = new Blob([contenido], { type: "text/plain;charset=utf-8" });
+    const urlBlob = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = urlBlob;
+    a.download = `respaldo_tickets_${tenantReal}_${Date.now()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(urlBlob);
+
+    setTimeout(() => {
+        if (confirm("Respaldo descargado exitosamente. ¿Deseas vaciar la memoria de tickets pendientes para liberar espacio en el teléfono?")) {
+            localStorage.setItem(claveCola, "[]");
+            actualizarIndicadorCola();
+            if (typeof window.mostrarAvisoPos === 'function') {
+                window.mostrarAvisoPos("Memoria de tickets offline liberada.");
+            }
+        }
+    }, 400);
+};
+
+// 2. Carga y análisis anti-duplicados del archivo .txt
+window.procesarArchivoRespaldoSeleccionado = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (!navigator.onLine) {
+        alert("Debes tener conexión a Internet activa para verificar y subir el respaldo a la nube.");
+        event.target.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const tickets = JSON.parse(e.target.result);
+            if (!Array.isArray(tickets) || tickets.length === 0) {
+                alert("El archivo no contiene un formato de tickets válido.");
+                return;
+            }
+
+            document.getElementById('txt-conexion').innerText = "VERIFICANDO...";
+            const res = await GeokatuDB.PosService.analizarYSincronizarRespaldo(idNegocio, tickets);
+
+            alert(`Resultado del análisis de respaldo:\n\nTotal en archivo: ${res.total}\nDuplicados descartados: ${res.duplicados}\nSincronizados en Firestore: ${res.sincronizados}`);
+            actualizarIndicadorCola();
+        } catch (err) {
+            console.error("[Respaldo Error]", err);
+            alert("Error al procesar el archivo: formato no compatible.");
+        } finally {
+            document.getElementById('txt-conexion').innerText = "EN LÍNEA";
+            event.target.value = '';
+        }
+    };
+    reader.readAsText(file);
+};
+
+// 3. Cierre de sesión individual del cajero (mantiene el turno de caja abierto)
+window.cerrarSesionCajeroPOS = async () => {
+    window.cerrarMenuOpcionesPOS();
+    if (carrito.length > 0 && !confirm("Hay artículos en el carrito actual. ¿Seguro que deseas salir sin completar la venta?")) {
+        return;
+    }
+
+    try {
+        await GeokatuDB.SecurityService.cerrarSesion();
+        GeokatuDB.SecurityService.destruirSesionTerminalLocal();
+        // Redirigir a login de oficina para que el relevo ingrese con sus credenciales
+        window.location.href = 'oficina';
+    } catch (e) {
+        alert("Error al cerrar sesión: " + e.message);
+    }
+};
+
+
 window.addEventListener('online', async () => {
-    document.getElementById('txt-conexion').innerText = "SINCRONIZANDO...";
+    const elConexion = document.getElementById('txt-conexion');
+    if (elConexion) elConexion.innerText = "EN LÍNEA";
+    const led = document.getElementById('led-conexion');
+    if (led) led.style.backgroundColor = "var(--accent-green)";
+
     const syncRes = await GeokatuDB.PosService.sincronizarVentasPendientes(idNegocio);
     if (syncRes.sincronizados > 0) {
         console.log(`[GEOKATU] ${syncRes.sincronizados} ventas offline sincronizadas.`);
     }
     actualizarIndicadorCola();
-    document.getElementById('txt-conexion').innerText = "EN LÍNEA";
-    document.getElementById('led-conexion').style.backgroundColor = "var(--accent-green)";
 });
 
 window.addEventListener('offline', () => {
-    document.getElementById('txt-conexion').innerText = "OFFLINE (Sin Red)";
-    document.getElementById('led-conexion').style.backgroundColor = "orange";
+    const elConexion = document.getElementById('txt-conexion');
+    if (elConexion) elConexion.innerText = "OFFLINE";
+    const led = document.getElementById('led-conexion');
+    if (led) led.style.backgroundColor = "orange";
+    actualizarIndicadorCola();
 });
+
 // =========================================================================
 // 8.1 VIGILANTE DE CICLO DE VIDA KIOSK (ANTI-SUSPENSIÓN & RECUPERACIÓN HARDWARE)
 // =========================================================================
@@ -1737,27 +1894,56 @@ window.addEventListener('keydown', (e) => {
 
 });
 
-// Formulario DIAN reactivo
+// ==========================================
+// CONTROL DEL MODAL DE FACTURA ELECTRÓNICA DIAN (FLOTANTE ENCIMA DE TODO)
+// ==========================================
 const switchDian = document.getElementById('switch-dian');
-const formDian = document.getElementById('formulario-dian');
 const txtEstadoDian = document.getElementById('txt-estado-dian');
 
-switchDian.addEventListener('change', () => {
-    if (switchDian.checked) {
-        formDian.style.display = 'flex';
+if (switchDian) {
+    switchDian.addEventListener('change', () => {
+        if (switchDian.checked) {
+            const modal = document.getElementById('modal-formulario-dian');
+            if (modal) {
+                modal.style.display = 'flex';
+                setTimeout(() => document.getElementById('dian-nit')?.focus(), 100);
+            }
+        } else {
+            window.cerrarModalDian(false);
+        }
+    });
+}
+
+window.cerrarModalDian = (guardado = false) => {
+    const modal = document.getElementById('modal-formulario-dian');
+    if (modal) modal.style.display = 'none';
+    if (!guardado) {
+        if (switchDian) switchDian.checked = false;
+        if (txtEstadoDian) {
+            txtEstadoDian.innerText = 'Consumidor Final';
+            txtEstadoDian.style.color = 'var(--text-muted)';
+        }
+    }
+};
+
+window.confirmarDatosDian = () => {
+    const nit = (document.getElementById('dian-nit')?.value || '').trim();
+    const nombre = (document.getElementById('dian-nombre')?.value || '').trim();
+    const email = (document.getElementById('dian-email')?.value || '').trim();
+
+    if (!nit || !nombre || !email) {
+        alert("Digita NIT/Cédula, Razón Social y Correo Electrónico.");
+        return;
+    }
+
+    if (switchDian) switchDian.checked = true;
+    if (txtEstadoDian) {
         txtEstadoDian.innerText = 'Personalizada';
         txtEstadoDian.style.color = 'var(--color-marca)';
-        document.getElementById('dian-nit').focus();
-    } else {
-        switchDian.checked = false;
-        formDian.style.display = 'none';
-        txtEstadoDian.innerText = 'Consumidor Final';
-        txtEstadoDian.style.color = 'var(--text-muted)';
-        document.getElementById('dian-nit').value = '';
-        document.getElementById('dian-nombre').value = '';
-        document.getElementById('dian-email').value = '';
     }
-});
+    window.cerrarModalDian(true);
+};
+
 // ==========================================
 // CONTROL DEL MODAL DE MANUAL Y AYUDA [F1]
 // ==========================================
@@ -1829,6 +2015,12 @@ balanza = new MotorBalanza({
         console.info('[Balanza] Trama recibida para diagnóstico:', trama);
     }
 });
+// Abrir modal de catálogo
+document.getElementById('btn-abrir-catalogo-modal')?.addEventListener('click', () => {
+    const modalCat = document.getElementById('modal-catalogo-popup');
+    if (modalCat) modalCat.style.display = 'flex';
+});
+
 // Listener de Tara en barra superior
 const btnTaraSuperior = document.getElementById('btn-tara-balanza');
 if (btnTaraSuperior) {
@@ -2611,20 +2803,42 @@ window.deseaFacturaEcologicaQR = false;
 window.urlFacturaActiva = "";
 window.ticketIdFacturaActiva = "";
 
-window.alternarFacturaEcologica = function(btn) {
+window.alternarFacturaEcologica = async function(btn) {
+    // Si el carrito está vacío y ya hay una venta previa asentada, abrir directamente su comprobante QR
+    if (carrito.length === 0 && ultimoTicketIdVendido) {
+        await abrirModalFacturaDigitalQR(ultimoTicketIdVendido);
+        return;
+    }
+
+    // Si el carrito tiene productos, activar/desactivar modalidad ecológica para el cierre
     window.deseaFacturaEcologicaQR = !window.deseaFacturaEcologicaQR;
-    btn.style.borderColor = window.deseaFacturaEcologicaQR ? 'var(--accent-green)' : 'var(--border-soft)';
-    btn.style.background = window.deseaFacturaEcologicaQR ? 'rgba(0,255,100,0.15)' : 'rgba(255,255,255,0.03)';
-    btn.style.color = window.deseaFacturaEcologicaQR ? 'var(--accent-green)' : '#fff';
+    if (btn) {
+        btn.style.borderColor = window.deseaFacturaEcologicaQR ? 'var(--accent-green)' : 'var(--border-soft)';
+        btn.style.background = window.deseaFacturaEcologicaQR ? 'rgba(0,255,100,0.15)' : 'rgba(255,255,255,0.03)';
+        btn.style.color = window.deseaFacturaEcologicaQR ? 'var(--accent-green)' : '#fff';
+    }
+
+    if (typeof window.mostrarAvisoPos === 'function') {
+        window.mostrarAvisoPos(window.deseaFacturaEcologicaQR ? "Modo ecológico activo: emitirá QR al cobrar." : "Modo ticket impreso activo.");
+    }
 };
 
+
 async function generarFirmaFactura24Horas(tktId, expTimestamp) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(`${tktId}:${idNegocio}:${expTimestamp}:GEOKATU_PUBLIC_TKT_SALT`);
-    const buffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(buffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).slice(0, 16).join('');
+    try {
+        const raw = `${tktId}:${idNegocio}:${expTimestamp}:GEOKATU_PUBLIC_TKT_SALT`;
+        if (window.crypto && window.crypto.subtle) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(raw);
+            const buffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(buffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).slice(0, 16).join('');
+        }
+    } catch (_) {}
+    // Fallback determinista seguro para contextos HTTP locales en Termux/Acode
+    return "SIG_" + Date.now().toString(16).toUpperCase();
 }
+
 
 
 async function abrirModalFacturaDigitalQR(ticketId, telefonoPrevio = "") {

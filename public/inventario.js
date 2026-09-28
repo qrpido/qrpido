@@ -34,12 +34,65 @@ const filtroVenc = document.getElementById('filtro-dias-vencimiento');
 const labelPrecioMax = document.getElementById('label-precio-max');
 const selectSede = document.getElementById('selector-sede-activa');
 
+// --- MOTOR DE DIÁLOGOS IN-APP ESTILIZADOS (ANTI-ALERT) ---
+const modalInApp = document.getElementById('modal-inapp-dialogo');
+const txtInAppTitulo = document.getElementById('txt-inapp-titulo');
+const txtInAppMensaje = document.getElementById('txt-inapp-mensaje');
+const btnInAppAceptar = document.getElementById('btn-inapp-aceptar');
+const btnInAppCancelar = document.getElementById('btn-inapp-cancelar');
+
+window.mostrarAlertaInApp = function(mensaje, titulo = "Aviso del Sistema") {
+    return new Promise((resolve) => {
+        if (!modalInApp) return resolve(true);
+        txtInAppTitulo.innerText = titulo;
+        txtInAppMensaje.innerText = mensaje;
+        btnInAppCancelar.style.display = 'none';
+        modalInApp.style.display = 'flex';
+
+        const handler = () => {
+            btnInAppAceptar.removeEventListener('click', handler);
+            modalInApp.style.display = 'none';
+            resolve(true);
+        };
+        btnInAppAceptar.addEventListener('click', handler);
+    });
+};
+
+window.mostrarConfirmacionInApp = function(mensaje, titulo = "Confirmación") {
+    return new Promise((resolve) => {
+        if (!modalInApp) return resolve(false);
+        txtInAppTitulo.innerText = titulo;
+        txtInAppMensaje.innerText = mensaje;
+        btnInAppCancelar.style.display = 'block';
+        modalInApp.style.display = 'flex';
+
+        const handlerAceptar = () => {
+            limpiarListeners();
+            modalInApp.style.display = 'none';
+            resolve(true);
+        };
+        const handlerCancelar = () => {
+            limpiarListeners();
+            modalInApp.style.display = 'none';
+            resolve(false);
+        };
+        const limpiarListeners = () => {
+            btnInAppAceptar.removeEventListener('click', handlerAceptar);
+            btnInAppCancelar.removeEventListener('click', handlerCancelar);
+        };
+
+        btnInAppAceptar.addEventListener('click', handlerAceptar);
+        btnInAppCancelar.addEventListener('click', handlerCancelar);
+    });
+};
+
 function actualizarTransform() {
     capaTransform.style.transform = 'translate3d(' + viewport.x + 'px, ' + viewport.y + 'px, 0) scale(' + viewport.escala + ')';
     if (typeof actualizarBrujulaDireccional === 'function') {
         actualizarBrujulaDireccional();
     }
 }
+
 
 
 // ==========================================
@@ -303,7 +356,36 @@ function renderizarMueblesVisor() {
             else if (proximo) el.classList.add('mueble-alerta-amarillo');
         } else if (capaActiva === "STOCK_CERO") {
             if (stockTotalMueble === 0) el.classList.add('mueble-alerta-rojo');
+        } else if (capaActiva === "ESTADO_AUDITORIA") {
+            // Clasificación por frescura de auditoría física:
+            // Verde: Auditado en las últimas 48 horas.
+            // Cyan: Auditado en los últimos 7 días.
+            // Naranja/Amarillo: Auditoría pendiente (> 7 días o nunca auditado).
+            let fechaMasReciente = 0;
+            itemsEnMueble.forEach(it => {
+                const ts = it.ultimo_conteo_ciclico || it.ultima_modificacion;
+                if (ts) {
+                    const t = new Date(ts).getTime();
+                    if (t > fechaMasReciente) fechaMasReciente = t;
+                }
+            });
+
+            const horasDesdeAuditoria = fechaMasReciente > 0 
+                ? ((Date.now() - fechaMasReciente) / (1000 * 60 * 60)) 
+                : 99999;
+
+            if (horasDesdeAuditoria <= 48) {
+                el.style.backgroundColor = 'rgba(0, 255, 100, 0.35)';
+                el.style.borderColor = '#00ff64';
+            } else if (horasDesdeAuditoria <= 168) {
+                el.style.backgroundColor = 'rgba(0, 229, 255, 0.3)';
+                el.style.borderColor = '#00e5ff';
+            } else {
+                el.style.backgroundColor = 'rgba(255, 170, 0, 0.3)';
+                el.style.borderColor = '#ffaa00';
+            }
         }
+
 
         // Subcuadrícula visual interior
         const subGrid = document.createElement('div');
@@ -359,17 +441,27 @@ function abrirFichaMueble(mueble, items) {
     document.getElementById('stat-total-unidades').innerText = totalFisico;
     document.getElementById('stat-total-bins-ocupados').innerText = binsOcupados;
 
+   // Conectar disparador directo a la terminal stock en modo AUDITAR
+    const btnAuditarMueble = document.getElementById('btn-drawer-auditar-mueble');
+    if (btnAuditarMueble) {
+        btnAuditarMueble.onclick = function() {
+            window.location.href = 'stock?op=AUDITAR&mueble=' + encodeURIComponent(mueble.id_mueble);
+        };
+    }
+
+
     const listaEl = document.getElementById('lista-productos-estante');
     listaEl.innerHTML = '';
 
     if (!items || items.length === 0) {
         listaEl.innerHTML = `
             <div style="text-align: center; color: #777; padding: 40px 10px;">
-                <span style="font-size: 32px; opacity: 0.5;">📭</span>
-                <p style="margin-top: 8px; font-size: 12px;">No hay existencias registradas en este mueble.</p>
+                <div style="font-size: 11px; text-transform: uppercase; color: #666; letter-spacing: 1px; font-weight: 800;">Sin existencias registradas</div>
+                <p style="margin-top: 6px; font-size: 12px; color: #555;">No hay artículos ubicados en este mueble.</p>
             </div>
         `;
     } else {
+
         const hoy = new Date();
         const nombresCaras = { A: 'Frontal', B: 'Posterior', C: 'Cabecera Izq', D: 'Cabecera Der' };
 
@@ -675,13 +767,20 @@ function desplegarMicroKardexFooter(binData) {
         '</span>' +
         '<div class="alzado-acciones-bin">' +
         '<button id="btn-alzado-reponer" class="btn-micro-kardex btn-kardex-reponer">+1 Reponer</button>' +
-        '<button id="btn-alzado-merma" class="btn-micro-kardex btn-kardex-merma">⚠️ Merma</button>' +
+        '<button id="btn-alzado-auditar-bin" class="btn-micro-kardex btn-kardex-auditar">Auditar</button>' +
+        '<button id="btn-alzado-merma" class="btn-micro-kardex btn-kardex-merma">Merma</button>' +
         '</div>';
 
     document.getElementById('btn-alzado-reponer').addEventListener('click', async (e) => {
         e.stopPropagation();
         await ejecutarReposicionBin(binData, prod || itemEnBin);
     });
+
+    document.getElementById('btn-alzado-auditar-bin').addEventListener('click', function(e) {
+        e.stopPropagation();
+        window.location.href = 'stock?op=AUDITAR&mueble=' + encodeURIComponent(binData.mueble.id_mueble) + '&bin=' + encodeURIComponent(binData.idComp);
+    });
+
 
     document.getElementById('btn-alzado-merma').addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -690,9 +789,11 @@ function desplegarMicroKardexFooter(binData) {
 }
 
 async function ejecutarReposicionBin(binData, itemOProd) {
-    const idProd = itemOProd ? (itemOProd.id_prod || itemOProd.codigo_barras) : (catalogoTotal[0]?.id_prod || 'GENERICO');
+    const primerProd = (catalogoTotal && catalogoTotal.length > 0 && catalogoTotal[0]) ? catalogoTotal[0].id_prod : 'GENERICO';
+    const idProd = itemOProd ? (itemOProd.id_prod || itemOProd.codigo_barras) : primerProd;
     dispararFeedbackHaptico('exito');
     reproducirTonoPiso('exito');
+
 
     // 1. Asiento en Kardex Atómico mediante GeokatuDB
     await GeokatuDB.InventarioService.registrarMovimientoFisico(
@@ -739,7 +840,10 @@ async function ejecutarReposicionBin(binData, itemOProd) {
 }
 
 async function ejecutarReporteMermaBin(binData, itemOProd) {
-    const confirmacion = confirm('¿Reportar merma/avería en Cara ' + binData.cara + ' · N' + binData.nivel + ' · B' + binData.col + '?');
+    const confirmacion = await window.mostrarConfirmacionInApp(
+        '¿Reportar merma o avería física en Cara ' + binData.cara + ' · Nivel ' + binData.nivel + ' · Bin ' + binData.col + '?',
+        'Confirmar Merma en Anaquel'
+    );
     if (!confirmacion) return;
 
     dispararFeedbackHaptico('critico');
@@ -762,8 +866,12 @@ async function ejecutarReporteMermaBin(binData, itemOProd) {
         elMueble.classList.add('mueble-alerta-rojo');
     }
 
-    alert('Alerta de merma asentada para ' + binData.mueble.nombre + ' [' + binData.idComp + '].');
+    await window.mostrarAlertaInApp(
+        'Alerta de merma asentada correctamente para ' + binData.mueble.nombre + ' [' + binData.idComp + '].',
+        'Merma Registrada'
+    );
 }
+
 
 
 
@@ -1212,10 +1320,12 @@ document.querySelectorAll('.badge-filtro').forEach(btn => {
             const rotulos = {
                 'TODO': 'Todos',
                 'HEATMAP_STOCK': 'Stock',
+                'ESTADO_AUDITORIA': 'Auditoría',
                 'HEATMAP_PRECIO': 'Precios',
                 'VENCIMIENTOS': 'Venc.',
                 'STOCK_CERO': 'Sin Stock'
             };
+
             lblCapaActual.innerText = rotulos[capaActiva] || 'Capas';
         }
 
@@ -1308,10 +1418,11 @@ if (btnLinterna) {
         const track = obtenerTrackCamaraActiva();
         if (!track) return;
         const caps = track.getCapabilities ? track.getCapabilities() : {};
-        if (!caps.torch) {
-            alert('Este dispositivo no soporta control de linterna en cámara web.');
+     if (!caps.torch) {
+            window.mostrarAlertaInApp('Este dispositivo no soporta control de linterna en la cámara.', 'Hardware No Disponible');
             return;
         }
+
         try {
             antorchaEncendida = !antorchaEncendida;
             await track.applyConstraints({ advanced: [{ torch: antorchaEncendida }] });
@@ -1452,9 +1563,10 @@ async function cargarSedesDinamicas() {
             resSedes.data.forEach(s => {
                 const opt = document.createElement('option');
                 opt.value = s.id_sede;
-                opt.innerText = (s.tipo === 'BODEGA' ? '📦 ' : '🏢 ') + (s.nombre || s.id_sede);
+                opt.innerText = (s.tipo === 'BODEGA' ? '[BODEGA] ' : '[SALA] ') + (s.nombre || s.id_sede);
                 selectSede.appendChild(opt);
             });
+
 
 
             // Conservar la sede activa si existe en la lista, sino adoptar la primera
@@ -1592,10 +1704,11 @@ GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
         const { autorizado, rol, error } = await GeokatuDB.RadarService.validarPermisosOperador(idNegocio, user.email);
 
         if (!autorizado) {
-            alert('Acceso denegado: ' + (error || 'No tienes permisos en esta sucursal.'));
+            await window.mostrarAlertaInApp('Acceso denegado: ' + (error || 'No tienes permisos en esta sucursal.'), 'Control de Seguridad');
             window.location.href = "oficina";
             return;
         }
+
 
         rolUsuarioActivo = rol;
 

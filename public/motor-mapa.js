@@ -16,7 +16,6 @@ let zonaNecesitaDescarga = false;
 let miUbicacionMarker = null;
 window.marcadoresRadar = {};
 
-// === ESPÍA DE SESIÓN PARA REGLA DEL DUEÑO ===
 // === ESPIA DE SESION PARA REGLA DEL DUENO ===
 window.idUsuarioActual = null;
 GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
@@ -82,13 +81,35 @@ window.decodificarGenoma = function(uiPack) {
 };
 
 window.formatearMoneda = function(valorInt64, moneda = 'COP') {
-    if (!valorInt64 || isNaN(valorInt64)) return moneda === 'USD' ? '$0.00' : '$0';
+    if (!valorInt64 || isNaN(valorInt64)) return moneda === 'USD' ? '0.00':'0';
     const valor = parseInt(valorInt64, 10);
     if (moneda === 'USD') {
         return (valor / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
     }
     return '$' + valor.toLocaleString('es-CO');
 };
+
+window.calcularPaletaAureaSilenciosa = function(c1, c2, c3, c4) {
+    var primario = c1 || '#ff6b00';
+    var grisGeokatu = '#8a909d';
+    var blanco = '#ffffff';
+    var oscuro = '#0a0a0c';
+
+    var final1 = primario;
+    var final2 = c2 ? c2 : grisGeokatu;
+    // Botón CATÁLOGO asume c2 si solo hay 2 colores, o c1 si solo hay 1 color
+    var final3 = c3 ? c3 : (c2 ? c2 : primario);
+    var final4 = c4 ? c4 : (c3 ? grisGeokatu : (c2 ? grisGeokatu : blanco));
+
+    return {
+        c1: final1,
+        c2: final2,
+        c3: final3,
+        c4: final4
+    };
+};
+
+
 
 window.registrarClicVerDetalles = function(codigo, nicho) {
     GeokatuDB.LocalService.registrarEventoAnalytics('clic_ver_negocio', { id_negocio: codigo, nicho: nicho });
@@ -293,14 +314,18 @@ window.arrancarMotor = async function() {
             window.maplibregl.addProtocol("pmtiles", protocol.tile);
         }
 
-                construirMapa();
-        
-      
+                        construirMapa();
+
+        // 🚀 DESCARGA INICIAL INCONDICIONAL: Ni el tour ni el incógnito bloquean los pines
+        mapa.once('load', () => {
+            if (typeof window.descargarNegociosDeFirebase === 'function') {
+                window.descargarNegociosDeFirebase();
+            }
+        });
 
         if (typeof window.construirCarrusel === 'function') {
             window.construirCarrusel();
         }
-
 
         setTimeout(() => {
             const pantallaCarga = document.getElementById('pantalla-carga');
@@ -310,9 +335,7 @@ window.arrancarMotor = async function() {
                 if (pantallaCarga) pantallaCarga.style.display = 'none';
                 
                 const buscador = document.getElementById('wrapper-buscador');
-                const etiquetas = document.getElementById('contenedor-etiquetas');
                 if (buscador) buscador.classList.remove('shimmer-box');
-                if (etiquetas) etiquetas.classList.remove('shimmer-box');
                 
                 const params = new URLSearchParams(window.location.search);
                 const idDron = params.get('enfocar');
@@ -321,34 +344,28 @@ window.arrancarMotor = async function() {
 
                 if (idDron && !isNaN(latDron) && !isNaN(lngDron)) {
                     categoriaActivaGlobal = 'inmuebles';
-                    document.querySelectorAll('#contenedor-etiquetas .tag-pill').forEach(p => {
-                        p.classList.remove('activa');
-                        if(p.innerText.toUpperCase().includes('INMUEBLES')) p.classList.add('activa');
-                    });
-                    
                     mapa.flyTo({ center: [lngDron, latDron], zoom: 18, duration: 2500 });
-                    
                     zonaNecesitaDescarga = true;
                     if (typeof window.descargarNegociosDeFirebase === 'function') {
                         window.descargarNegociosDeFirebase();
                     }
-
                     setTimeout(() => {
                         if (window.marcadoresRadar && window.marcadoresRadar[idDron]) {
                             window.marcadoresRadar[idDron].togglePopup();
                         }
                     }, 2600);
-
                     window.history.replaceState(null, '', window.location.pathname);
                 } else {
-                    if (typeof window.iniciarTour === 'function') {
-                        window.iniciarTour(); 
+                    // Lanzar tour si no existe registro previo, pero solicitar GPS de fondo
+                    if (!localStorage.getItem('geokatu_tour_v1') && typeof window.iniciarTour === 'function') {
+                        window.iniciarTour();
                     } else {
                         window.solicitarGPSInicial();
                     }
                 }
             }, 500);
         }, 800);
+
 
         try {
             const { success, data } = await GeokatuDB.LocalService.obtenerCaballoTroya();
@@ -396,62 +413,104 @@ window.solicitarGPSInicial = function() {
 };
 
 window.iniciarTour = function() {
-    solicitarGPSInicial();
-    if(localStorage.getItem('geokatu_tour_v1')) return;
     document.body.classList.add('tour-active');
-    document.getElementById('wrapper-buscador').classList.add('tour-highlight-z');
-    const tooltip1 = document.getElementById('tour-step-1');
-    if(tooltip1) tooltip1.classList.add('activo');
-};
 
+    // Paso 1: Elevar buscador y su contenedor padre para romper el stacking context
+    const cajaTop = document.getElementById('caja-buscador');
+    const wrapper = document.getElementById('wrapper-buscador');
+    if (cajaTop) cajaTop.classList.add('tour-parent-lift');
+    if (wrapper) wrapper.classList.add('tour-highlight-z');
+
+    const tooltip1 = document.getElementById('tour-step-1');
+    if (tooltip1) tooltip1.classList.add('activo');
+};
 
 window.siguienteTour1 = function() {
-    document.getElementById('wrapper-buscador').classList.remove('tour-highlight-z');
-    document.getElementById('tour-step-1').classList.remove('activo');
-    
-    const btnGps = document.getElementById('btn-flotante-gps') || document.querySelector('.maplibregl-ctrl-geolocate');
-    if (btnGps) btnGps.classList.add('tour-highlight-z');
-    
-    const tooltip2 = document.getElementById('tour-step-2');
-    if(tooltip2) tooltip2.classList.add('activo');
+    const cajaTop = document.getElementById('caja-buscador');
+    const wrapper = document.getElementById('wrapper-buscador');
+    if (cajaTop) cajaTop.classList.remove('tour-parent-lift');
+    if (wrapper) wrapper.classList.remove('tour-highlight-z');
+    document.getElementById('tour-step-1')?.classList.remove('activo');
+
+    // Paso 2: Botón Tuerca de Herramientas
+    const btnHerramientas = document.getElementById('btn-herramientas-contenedor');
+    if (btnHerramientas) btnHerramientas.classList.add('tour-highlight-z');
+
+    const tooltipScan = document.getElementById('tour-step-escaner');
+    if (tooltipScan) tooltipScan.classList.add('activo');
 };
+
+window.siguienteTourEscaner = function() {
+    const btnHerramientas = document.getElementById('btn-herramientas-contenedor');
+    if (btnHerramientas) btnHerramientas.classList.remove('tour-highlight-z');
+    document.getElementById('tour-step-escaner')?.classList.remove('activo');
+
+    // Paso 3: Boton GPS liberado y resaltado en dorado
+    const parentCtrl = document.querySelector('.maplibregl-ctrl-bottom-right');
+    if (parentCtrl && parentCtrl.parentElement !== document.body) {
+        document.body.appendChild(parentCtrl);
+    }
+    const btnGps = document.querySelector('.maplibregl-ctrl-group') || document.querySelector('.maplibregl-ctrl-geolocate');
+    if (parentCtrl) parentCtrl.classList.add('tour-parent-lift');
+    if (btnGps) btnGps.classList.add('tour-highlight-z');
+
+    const tooltip2 = document.getElementById('tour-step-2');
+    if (tooltip2) tooltip2.classList.add('activo');
+};
+
 
 window.siguienteTour2 = function() {
-    const btnGps = document.getElementById('btn-flotante-gps') || document.querySelector('.maplibregl-ctrl-geolocate');
+    const parentCtrl = document.querySelector('.maplibregl-ctrl-bottom-right');
+    const btnGps = document.querySelector('.maplibregl-ctrl-geolocate') || document.querySelector('.maplibregl-ctrl-group');
+    if (parentCtrl) parentCtrl.classList.remove('tour-parent-lift');
     if (btnGps) btnGps.classList.remove('tour-highlight-z');
-    
-    document.getElementById('tour-step-2').classList.remove('activo');
-    document.getElementById('btn-portal-mando-contenedor').classList.add('tour-highlight-z');
-    
+    document.getElementById('tour-step-2')?.classList.remove('activo');
+
+    // Paso 4: Llave Maestra (Portal de Mando)
+    const cajaTop = document.getElementById('caja-buscador');
+    const btnLlave = document.getElementById('btn-portal-mando-contenedor');
+    if (cajaTop) cajaTop.classList.add('tour-parent-lift');
+    if (btnLlave) btnLlave.classList.add('tour-highlight-z');
+
     const tooltip3 = document.getElementById('tour-step-3');
-    if(tooltip3) tooltip3.classList.add('activo');
+    if (tooltip3) tooltip3.classList.add('activo');
 };
 
-// 💉 CIRUGÍA: Iluminamos la nueva burbuja en lugar del menú viejo
 window.siguienteTour3 = function() {
-    document.getElementById('btn-portal-mando-contenedor').classList.remove('tour-highlight-z');
-    document.getElementById('tour-step-3').classList.remove('activo');
-    
-    const fam = document.getElementById('fam-burbuja');
-    if (fam) fam.classList.add('tour-highlight-z');
-    
+    const cajaTop = document.getElementById('caja-buscador');
+    const btnLlave = document.getElementById('btn-portal-mando-contenedor');
+    if (cajaTop) cajaTop.classList.remove('tour-parent-lift');
+    if (btnLlave) btnLlave.classList.remove('tour-highlight-z');
+    document.getElementById('tour-step-3')?.classList.remove('activo');
+
+    // Paso 5: Brújula flotante
+    const brujula = document.getElementById('btn-brujula-contenedor');
+    if (brujula) {
+        brujula.classList.add('tour-parent-lift');
+        const btnB = document.getElementById('btn-brujula');
+        if (btnB) btnB.classList.add('tour-highlight-z');
+    }
+
     const tooltip4 = document.getElementById('tour-step-4');
-    if(tooltip4) tooltip4.classList.add('activo');
+    if (tooltip4) tooltip4.classList.add('activo');
 };
 
-// 💉 CIRUGÍA: Apagamos la nueva burbuja al final
 window.finalizarTour = function() {
+    // Apagar todos los posibles destacados y elevaciones
+    document.querySelectorAll('.tour-parent-lift').forEach(el => el.classList.remove('tour-parent-lift'));
+    document.querySelectorAll('.tour-highlight-z').forEach(el => el.classList.remove('tour-highlight-z'));
+    document.querySelectorAll('.tour-tooltip').forEach(el => el.classList.remove('activo'));
+
     document.body.classList.remove('tour-active');
-    
-    const fam = document.getElementById('fam-burbuja');
-    if (fam) fam.classList.remove('tour-highlight-z');
-    
-    const tooltip4 = document.getElementById('tour-step-4');
-    if(tooltip4) tooltip4.classList.remove('activo');
-    
     localStorage.setItem('geokatu_tour_v1', 'true');
+
+    // Centrar mapa por GPS y forzar actualización del radar de comercios
     window.solicitarGPSInicial();
+    if (typeof window.descargarNegociosDeFirebase === 'function') {
+        window.descargarNegociosDeFirebase();
+    }
 };
+
 
 window.cerrarPanelCristal = function(event) {
     if (event) {
@@ -679,10 +738,16 @@ window.construirMapa = function() {
     });
 
 
-    mapa.addControl(geolocateControl, 'bottom-right');
+        mapa.addControl(geolocateControl, 'bottom-right');
 
+    // Extraer el contenedor del GPS fuera del mapa para que quede en el nivel raiz
+    const ctrlGps = document.querySelector('.maplibregl-ctrl-bottom-right');
+    if (ctrlGps && ctrlGps.parentElement !== document.body) {
+        document.body.appendChild(ctrlGps);
+    }
 
     window.mapa.on('load', () => {
+
         console.log("🟢 [WebGL Engine] Mapa base cargado. Aplicando filtro inicial...");
         const canvasInicial = document.querySelector('.maplibregl-canvas');
     });
@@ -857,22 +922,53 @@ window.barridoRadar = function(filtroTexto = "") {
     const favsIds = favsStorage.map(f => f.id);
     
     filtrados = filtrados.filter(p => {
-        if(catActualObj && catActualObj.id !== 'todos') {
-            if (catActualObj.id === 'aliados') {
-                if (p.red_afiliados !== true && p.red_afiliados !== 'SI') return false;
-           } else if (catActualObj.id === 'negocios') { const esComercioValido = ['negocio', 'comercio', 'tienda'].includes(p.tipo_modelo) || p.categoria_maestra === 'comercio' || Boolean(p.nombre && !p.es_inmueble_real && p.tipo_modelo !== 'conductor'); if (!esComercioValido) return false; }  else if (p.tipo_modelo !== catActualObj.tipo) {
-                return false;
+                if (categoriaActivaGlobal === 'inmuebles') {
+            const esInm = p.tipo_modelo === 'inmueble' || p.es_inmueble_real === true;
+            if (!esInm) return false;
+
+            const fi = window.filtrosInmueblesEstado || {};
+            const strDatos = `${p.nombre || ''} ${p.niche || ''} ${p.categoria || ''} ${p.subtipo_inmueble || ''} ${p.palabras_clave || ''}`.toLowerCase();
+
+            if (fi.operacion && fi.operacion !== 'todos') {
+                if ((p.tipo_operacion || '').toLowerCase() !== fi.operacion && !strDatos.includes(fi.operacion)) return false;
             }
+            if (fi.tipo && fi.tipo !== 'todos') {
+                if ((p.subtipo_inmueble || '').toLowerCase() !== fi.tipo && !strDatos.includes(fi.tipo)) return false;
+            }
+            if (fi.atributo && fi.atributo !== 'todos') {
+                if (['1', '2', '3+'].includes(fi.atributo)) {
+                    const habs = Number(p.habitaciones) || 0;
+                    if (fi.atributo === '1' && habs !== 1) return false;
+                    if (fi.atributo === '2' && habs !== 2) return false;
+                    if (fi.atributo === '3+' && habs < 3) return false;
+                } else if (!strDatos.includes(fi.atributo.toLowerCase())) {
+                    return false;
+                }
+            }
+        } else if (categoriaActivaGlobal === 'comercios' || categoriaActivaGlobal === 'negocios') {
+            const esCom = ['negocio', 'comercio', 'tienda'].includes(p.tipo_modelo) || p.categoria_maestra === 'comercio' || Boolean(p.nombre && !p.es_inmueble_real && p.tipo_modelo !== 'conductor');
+            if (!esCom) return false;
+
+            const fc = window.filtrosComerciosEstado || {};
+            const strCom = `${p.nombre || ''} ${p.niche || ''} ${p.categoria || ''} ${p.palabras_clave || ''}`.toLowerCase();
+
+            if (fc.categoria && fc.categoria !== 'todos' && !strCom.includes(fc.categoria.toLowerCase())) return false;
+            if (fc.subtipo && fc.subtipo !== 'todos' && !strCom.includes(fc.subtipo.toLowerCase())) return false;
+            if (fc.domicilio === 'si' && p.domicilio_activo === false) return false;
+            if (fc.domicilio === 'local' && p.solo_recogida !== true) return false;
+        } else if (categoriaActivaGlobal === 'servicios') {
+            const esServ = p.tipo_modelo === 'servicio' || p.categoria_maestra === 'servicio';
+            if (!esServ) return false;
+
+            const fs = window.filtrosServiciosEstado || {};
+            const strServ = `${p.nombre || ''} ${p.niche || ''} ${p.categoria || ''} ${p.palabras_clave || ''}`.toLowerCase();
+
+            if (fs.categoria && fs.categoria !== 'todos' && !strServ.includes(fs.categoria.toLowerCase())) return false;
+            if (fs.subtipo && fs.subtipo !== 'todos' && !strServ.includes(fs.subtipo.toLowerCase())) return false;
+            if (fs.modalidad === 'domicilio' && !strServ.includes('domicilio')) return false;
+            if (fs.modalidad === 'sede' && !strServ.includes('local') && !strServ.includes('sede')) return false;
         }
-        if (catActualObj && catActualObj.id === 'inmuebles') {
-            const vPresup = document.getElementById('f-presupuesto')?.value;
-            const vCuartos = document.getElementById('f-cuartos')?.value;
-            const vEstrato = document.getElementById('f-estrato')?.value;
-            const strData = `${p.nombre || ''} ${p.niche || ''} ${p.palabras_clave || ''}`.toLowerCase();
-            if (vPresup === 'bajo' && !strData.includes('barato')) return false;
-            if (vCuartos === '1hab' && !strData.includes('1 hab')) return false;
-            if (vEstrato === 'e34' && (!strData.includes('estrato 3') && !strData.includes('estrato 4'))) return false;
-        }
+
         if (filtroTexto && typeof filtroTexto === 'string') {
             const txt = filtroTexto.toLowerCase().trim();
             const strCompleto = `${p.nombre || ''} ${p.niche || ''} ${p.palabras_clave || ''} ${p.categoria || ''}`.toLowerCase();
@@ -954,14 +1050,22 @@ window.barridoRadar = function(filtroTexto = "") {
         }
     }
     
-    if (pinesEnPantalla.length === 0) {
+        if (pinesEnPantalla.length === 0) {
         const toast = document.getElementById('toast-fantasma');
-        let nombreCat = categoriaActivaGlobal === 'inmuebles' ? 'inmuebles' : (categoriaActivaGlobal === 'servicios' ? 'servicios' : 'negocios');
-        toast.innerText = filtrandoFavoritos ? "No tienes guardados en esta zona ❤️" : `No encontramos ${nombreCat} aquí 📍`;
-        toast.style.opacity = '1';
-        setTimeout(() => { toast.style.opacity = '0'; }, 3000);
+        if (toast) {
+            let mensajeToast = "No encontramos resultados en esta zona";
+            if (filtrandoFavoritos) {
+                mensajeToast = "No tienes guardados en esta zona";
+            } else if (typeof window.obtenerMensajeSinResultados === 'function') {
+                mensajeToast = window.obtenerMensajeSinResultados();
+            }
+            toast.innerText = mensajeToast;
+            toast.style.opacity = '1';
+            setTimeout(() => { toast.style.opacity = '0'; }, 3200);
+        }
         return;
     }
+
     
     pinesEnPantalla.forEach(p => {
         const pos = { lat: p.Coordenadas.latitude, lng: p.Coordenadas.longitude };
@@ -1005,20 +1109,33 @@ window.barridoRadar = function(filtroTexto = "") {
             }
         }
 
-        if (p.color_principal) {
-            c1 = p.color_principal;
-            c2 = p.color_acento || c1;
+       var paleta = null;
+        if (p.paleta_aurea && typeof p.paleta_aurea === 'object') {
+            paleta = window.calcularPaletaAureaSilenciosa(p.paleta_aurea.c1, p.paleta_aurea.c2, p.paleta_aurea.c3, p.paleta_aurea.c4);
+        } else if (p.color_principal) {
+            paleta = window.calcularPaletaAureaSilenciosa(p.color_principal, p.color_acento, p.color_terciario, p.color_cuaternario);
         } else if (p.color_hex) {
-            const arrColores = p.color_hex.split(',').map(c => c.trim());
-            c1 = arrColores[0];
-            c2 = arrColores.length > 1 ? arrColores[1] : c1;
+            var arrColores = p.color_hex.split(',').map(function(c) { return c.trim(); });
+            paleta = window.calcularPaletaAureaSilenciosa(arrColores[0], arrColores[1], arrColores[2], arrColores[3]);
+        } else if (p.ui_pack && p.ui_pack.length >= 16) {
+            var genoma = window.decodificarGenoma(p.ui_pack);
+            paleta = genoma ? window.calcularPaletaAureaSilenciosa(genoma.c1, genoma.c2, genoma.c3) : window.calcularPaletaAureaSilenciosa('#ff6b00');
+        } else {
+            paleta = window.calcularPaletaAureaSilenciosa('#ff6b00');
         }
-        
+
+        c1 = paleta.c1;
+        c2 = paleta.c2;
+
         if (categoriaActivaGlobal === 'inmuebles') {
-            const datosSemaforo = obtenerDatosSemaforo(p.fecha_registro);
-            c1 = datosSemaforo.color; c2 = datosSemaforo.color; textoNicho = datosSemaforo.texto;
+            var datosSemaforo = obtenerDatosSemaforo(p.fecha_registro);
+            paleta = window.calcularPaletaAureaSilenciosa(datosSemaforo.color, datosSemaforo.color);
+            c1 = paleta.c1;
+            c2 = paleta.c2;
+            textoNicho = datosSemaforo.texto;
             claseForma = 'forma-esfera'; 
         }
+
         
         let badgeCobertura = '';
         const radKm = parseFloat(p.cobertura_km) || 0;
@@ -1058,91 +1175,112 @@ window.barridoRadar = function(filtroTexto = "") {
         }
 
       
-        let tituloRenderizado = '';
-        const urlSeguraPng = p.nombre_png ? escapeQuotes(p.nombre_png) : '';
+        var c3 = paleta.c3;
+        var c4 = paleta.c4;
+
+        var colorBotonAccion = (paleta && paleta.c3) ? paleta.c3 : (c2 || '#ff6b00');
+        var colorSlogan = (paleta && paleta.c2) ? paleta.c2 : '#8a909d';
+
+        var tituloRenderizado = '';
+        var urlSeguraPng = (p.nombre_png || p.logo_nombre) ? escapeQuotes(p.nombre_png || p.logo_nombre) : '';
 
         if (urlSeguraPng && urlSeguraPng.trim() !== '') {
-            tituloRenderizado = `<img src="urlSeguraPng"alt="{nombreLimpio}" style="max-height: 35px; max-width: 90%; object-fit: contain; margin: 0 auto; display: block; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"><h3 class="popup-title" style="display:none; text-shadow: 0 0 5px c1;">{sanitizarTexto(p.nombre || 'Negocio')}</h3>`;
+            tituloRenderizado = 
+                '<div class="popup-nombre-png-box">' +
+                    '<img src="' + urlSeguraPng + '" alt="' + nombreLimpio + '" class="popup-nombre-png" onerror="this.parentElement.style.display=\'none\'; this.parentElement.nextElementSibling.style.display=\'block\';">' +
+                '</div>' +
+                '<h3 class="popup-title" style="display:none; color: #ffffff !important; font-size: 13px; font-weight: 900; margin: 4px 0 2px 0; text-transform: uppercase; letter-spacing: 0.5px;">' + sanitizarTexto(p.nombre || 'Negocio') + '</h3>';
         } else {
-            tituloRenderizado = `<h3 class="popup-title" style="text-shadow: 0 0 5px c1;">{sanitizarTexto(p.nombre || 'Negocio')}</h3>`;
+            tituloRenderizado = '<h3 class="popup-title" style="color: #ffffff !important; font-size: 13px; font-weight: 900; margin: 4px 0 2px 0; text-transform: uppercase; letter-spacing: 0.5px;">' + sanitizarTexto(p.nombre || 'Negocio') + '</h3>';
         }
 
+        var bloqueSlogan = '';
+        if (p.slogan && String(p.slogan).trim() !== '') {
+            bloqueSlogan = '<p class="popup-slogan" style="color: ' + colorSlogan + ' !important;">' + sanitizarTexto(String(p.slogan).trim()) + '</p>';
+        }
 
-        const usaPublicidadPropia = p.publicidad_propia === true;
-        let bloquePublicidad = '';
+        var telWhatsapp = (p.whatsapp || p.whatsApp || '').toString().replace(/\D/g, '');
+        var pbxNum = (p.pbx || '').toString().trim();
+
+        var svgWaBlanco = '<svg width="17" height="17" viewBox="0 0 24 24" fill="#ffffff"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>';
+
+        var botonWaIcon = telWhatsapp 
+            ? '<a href="https://wa.me/' + telWhatsapp + '" target="_blank" class="btn-popup-wa-icon" title="Chat WhatsApp">' + svgWaBlanco + '</a>' 
+            : '';
+
+        var botonPbxIcon = pbxNum 
+            ? '<a href="tel:' + pbxNum.replace(/\D/g, '') + '" class="btn-popup-pbx-icon" title="Llamar PBX">' +
+                '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>' +
+                '<span class="popup-pbx-texto">PBX</span>' +
+              '</a>' 
+            : '';
+
+        var usaPublicidadPropia = p.publicidad_propia === true;
+        var bloquePublicidad = '';
 
         if (usaPublicidadPropia) {
-            const troyasActivos = dbTroya.filter(t => t.activo === true || t.activo === "SI");
-            const anuncio = troyasActivos.length > 0 ? troyasActivos[Math.floor(Math.random() * troyasActivos.length)] : null;
+            var troyasActivos = dbTroya.filter(function(t) { return t.activo === true || t.activo === "SI"; });
+            var anuncio = troyasActivos.length > 0 ? troyasActivos[Math.floor(Math.random() * troyasActivos.length)] : null;
             if (anuncio) {
-                bloquePublicidad = `<a href="${anuncio.link_accion}" target="_blank"><img src="${anuncio.imagen_16_9}" style="width:100%; border-radius:10px; margin-top:10px; border: 1px solid var(--naranja);"></a>`;
+                bloquePublicidad = '<a href="' + anuncio.link_accion + '" target="_blank"><img src="' + anuncio.imagen_16_9 + '" style="width:100%; border-radius:10px; margin-top:8px; border: 1px solid var(--naranja);"></a>';
             }
-        } else {
-            bloquePublicidad = `
-            <div class="adsense-popup" style="margin-top:10px; min-height:50px; background: rgba(0,0,0,0.2); border-radius: 8px;">
-            <ins class="adsbygoogle" style="display:inline-block;width:100%;height:50px" data-ad-client="ca-pub-XXXXX" data-ad-slot="YYYYY"></ins>
-            </div>`;
         }
 
-        const linkDestino = p.es_inmueble_real
-        ? `inmueble?id=encodeURIComponent(p.idnegociopadre||p.codigo)&item={encodeURIComponent(p.codigo)}`
-        : (p.username ? `/p.username.toLowerCase()`:`negocio?id={encodeURIComponent(p.codigo)}`);
+        var linkDestino = p.es_inmueble_real
+            ? ('inmueble?id=' + encodeURIComponent(p.id_negocio_padre || p.codigo) + '&item=' + encodeURIComponent(p.codigo))
+            : (p.username ? ('/' + p.username.toLowerCase()) : ('negocio?id=' + encodeURIComponent(p.codigo)));
 
+        var usernameParaCompartir = p.username ? ("'" + p.username.toLowerCase() + "'") : "null";
 
-        const usernameParaCompartir = p.username ? `'${p.username.toLowerCase()}'` : `null`;
-       // 🚦 LÓGICA DE SEMÁFORO DE CONFIANZA
-        const mod = p.estado_moderacion || 'pendiente';
-        let semaforoColor = '#ff4444'; // Rojo por defecto (sin verificación)
-        let semaforoTexto = 'Sin verificación oficial';
+        var mod = p.estado_moderacion || 'pendiente';
+        var semaforoColor = '#ff4444';
+        var semaforoTexto = 'comercio clausurado';
 
         if (mod === 'aprobado' || mod === 'aprobado_activo' || p.verificado_geokatu === true) {
-            semaforoColor = '#00ff64'; // Verde
-            semaforoTexto = 'Comercio 100% verificado';
+            semaforoColor = '#00ff64';
+            semaforoTexto = 'comercio verificado';
         } else if (mod === 'en_revision' || mod === 'pendiente') {
-            semaforoColor = '#ffcc00'; // Amarillo
-            semaforoTexto = 'En proceso de verificación';
+            semaforoColor = '#ffcc00';
+            semaforoTexto = 'en proceso de verificación';
         }
 
-        const semaforoId = `sem-${p.codigo}`;
+        var semaforoOverlayId = 'sem-modal-' + p.codigo;
 
-        const htmlPopup = `
-        <div style="position: relative;">
-            <!-- Botón Favorito (Esquina Superior Izquierda) -->
-            <button class="btn-fav-popup js-action-favorito" style="${favStyleBtn}" data-codigo="${window.sanitizarAtributo(encodeURIComponent(p.codigo))}" data-nombre="${window.sanitizarAtributo(nombreLimpio)}" data-precio="${window.sanitizarAtributo(p.precio || 0)}" data-portada="${window.sanitizarAtributo(portadaSegura)}" data-whatsapp="${window.sanitizarAtributo((p.whatsapp || p.whatsApp || '').toString().replace(/\D/g, ''))}">${corazon}</button>
+        var htmlPopup = 
+            '<div style="position: relative; width: 100%; border-radius: 16px; overflow: hidden;">' +
+                '<div style="position: relative;">' +
+                    '<button class="btn-fav-popup js-action-favorito" style="' + favStyleBtn + '" data-codigo="' + window.sanitizarAtributo(encodeURIComponent(p.codigo)) + '" data-nombre="' + window.sanitizarAtributo(nombreLimpio) + '" data-precio="' + window.sanitizarAtributo(p.precio || 0) + '" data-portada="' + window.sanitizarAtributo(portadaSegura) + '" data-whatsapp="' + window.sanitizarAtributo(telWhatsapp) + '">' + corazon + '</button>' +
+                    '<button class="btn-compartir js-action-compartir" data-codigo="' + window.sanitizarAtributo(encodeURIComponent(p.codigo)) + '" data-nombre="' + window.sanitizarAtributo(nombreLimpio) + '" data-username="' + window.sanitizarAtributo(usernameParaCompartir) + '"><svg style="pointer-events: none;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg></button>' +
+                    '<img src="' + portadaUsada + '" class="popup-portada" style="border-color: ' + c1 + '" onerror="window.imagenRotaToGlass(this, \'' + nombreLimpio + '\')">' +
+                '</div>' +
+                '<div class="popup-info" style="padding: 0 10px 10px 10px; position: relative;">' +
+                    '<img src="' + logoSeguro + '" class="popup-logo" style="border-color: ' + c1 + ';" onerror="window.imagenRotaToGlass(this, \'' + nombreLimpio + '\')">' +
+                    '<div class="popup-title-wrapper" style="margin-bottom: 3px; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;">' +
+                        badgeRemate + ' ' + badgeCobertura +
+                    '</div>' +
+                    tituloRenderizado +
+                    bloqueSlogan +
+                    '<div class="estrellas" style="margin-top: 2px;">' + estrellasHtml + '</div>' +
+                    '<p class="texto-piedra" style="margin: 2px 0 8px 0; color: ' + colorSlogan + ' !important;">' + textoNicho + '</p>' +
+                    '<div class="popup-acciones-fila">' +
+                        '<a href="' + window.sanitizarURL(linkDestino) + '" class="btn-popup-catalogo js-action-ver-detalles" data-codigo="' + window.sanitizarAtributo(encodeURIComponent(p.codigo)) + '" data-nicho="' + window.sanitizarAtributo(sanitizarTexto(p.niche)) + '" style="background: ' + colorBotonAccion + ' !important; color: #ffffff !important; pointer-events: ' + (estaAbierto ? 'all' : 'none') + ';">' + (estaAbierto ? 'CATÁLOGO' : 'CERRADO') + '</a>' +
+                        botonWaIcon +
+                        botonPbxIcon +
+                    '</div>' +
+                    '<div style="display: flex; justify-content: center; align-items: center; margin-top: 8px; margin-bottom: 2px;">' +
+                        '<button type="button" onclick="window.mostrarAvisoVerificacionModal(\'' + semaforoOverlayId + '\')" style="background: transparent; border: none; padding: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; outline: none;" title="' + semaforoTexto + '">' +
+                            '<span style="width: 7px; height: 7px; border-radius: 50%; background: ' + semaforoColor + '; box-shadow: 0 0 6px ' + semaforoColor + '; display: block;"></span>' +
+                        '</button>' +
+                    '</div>' +
+                    '<div id="' + semaforoOverlayId + '" class="popup-aviso-verificacion" style="display: none; position: absolute; bottom: 8px; left: 8px; right: 8px; border: 1px solid ${semaforoColor}; border-radius: 8px; padding: 7px 6px; z-index: 20; align-items: center; justify-content: center; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.7); pointer-events: none;">' +
+                        '<span style="color: ' + semaforoColor + '; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.2;">' + semaforoTexto + '</span>' +
+                    '</div>' +
+                    bloquePublicidad +
+                '</div>' +
+            '</div>';
 
-            <!-- Botón Compartir (Esquina Superior Derecha) -->
-            <button class="btn-compartir js-action-compartir" data-codigo="${window.sanitizarAtributo(encodeURIComponent(p.codigo))}" data-nombre="${window.sanitizarAtributo(nombreLimpio)}" data-username="${window.sanitizarAtributo(usernameParaCompartir)}"><svg style="pointer-events: none;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg></button>
 
-            <!-- Imagen Portada de Fondo -->
-            <img src="${portadaUsada}" class="popup-portada" style="border-color: ${c1}" onerror="window.imagenRotaToGlass(this, '${nombreLimpio}')">
-        </div>
 
-        <div class="popup-info">
-            <img src="${logoSeguro}" class="popup-logo" style="border-color: ${c1};" onerror="window.imagenRotaToGlass(this, '${nombreLimpio}')">
-            
-            <div class="popup-title-wrapper" style="margin-bottom: 8px; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;">
-                ${badgeRemate} ${badgeCobertura}
-            </div>
-
-            ${tituloRenderizado}
-
-            <div class="estrellas" style="margin-top: 5px;">${estrellasHtml}</div>
-            <p class="texto-piedra">${textoNicho}</p>
-            
-            <!-- 🚦 REQ 9: SEMÁFORO REUBICADO AL CENTRO INFERIOR (Antes del botón de acción) -->
-            <div class="contenedor-semaforo-inferior" style="display: flex; justify-content: center; align-items: center; width: 100%; margin-top: 8px; margin-bottom: 8px;">
-                <button type="button" class="semaforo-badge-btn" onclick="window.mostrarMensajeSemaforo('${semaforoId}', '${semaforoColor}', '${semaforoTexto}')" title="${semaforoTexto}" style="display: inline-flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.5); border: 1px solid ${semaforoColor}; border-radius: 14px; padding: 4px 12px; cursor: pointer;">
-                    <svg class="semaforo-luz-svg" viewBox="0 0 24 24" fill="${semaforoColor}" style="width: 10px; height: 10px; flex-shrink: 0;">
-                        <circle cx="12" cy="12" r="8" />
-                    </svg>
-                    <span style="color: ${semaforoColor}; font-size: 10px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;">${semaforoTexto}</span>
-                </button>
-            </div>
-            <div id="${semaforoId}" class="semaforo-tooltip" style="display: none; border-left: 3px solid ${semaforoColor}; color: ${semaforoColor}; margin-bottom: 8px; font-size: 11px; text-align: center;"></div>
-
-            <!-- Botón de Acción Principal -->
-            <a href="${window.sanitizarURL(linkDestino)}" class="btn-catalogo js-action-ver-detalles" data-codigo="${window.sanitizarAtributo(encodeURIComponent(p.codigo))}" data-nicho="${window.sanitizarAtributo(sanitizarTexto(p.niche))}" style="background: ${c2}; color: ${estaAbierto ? '#ffffff' : '#aaaaaa'} !important; text-shadow: 0 1px 2px rgba(0,0,0,0.5); pointer-events: ${estaAbierto ? 'all' : 'none'};">${estaAbierto ? 'VER DETALLES' : 'CERRADO AHORA'}</a>
-        </div>`;
 
         if (!window.marcadoresRadar[p.codigo]) {
             const elDOM = document.createElement('div');
@@ -1174,24 +1312,29 @@ window.barridoRadar = function(filtroTexto = "") {
 
             const urlFondoFinal = tieneFotoValida ? urlCandidata : fallbackSVGAureo;
 
-            // Soporte intacto para aliados (moneda dorada) y formas estándar
-            const claseVisualPin = esAliado ? `pin-moneda-magica ${claseFuego}` : `${claseForma} ${claseAnimacion} ${claseFuego}`;
-            const colorPinMain = esAliado ? '#FFD700' : c1;
-            const colorPinSec = esAliado ? '#1a1600' : c2;
+            var claseVisualPin = esAliado ? ('pin-moneda-magica ' + claseFuego) : (claseForma + ' ' + claseAnimacion + ' ' + claseFuego);
+            var colorPinMain = esAliado ? '#FFD700' : c1;
+            var colorPinSec = esAliado ? '#1a1600' : c2;
 
-            elDOM.innerHTML = `
-                <div class="pin-wrapper ${claseVisualPin}" 
-                     data-forma="${claseForma}"
-                     style="--color-main: ${colorPinMain}; --color-sec: ${colorPinSec};"
-                     ${emojiGorra ? `data-emoji="${emojiGorra}" data-anclaje="${claseAnclaje}"` : ''}>
-                    <svg class="svg-pin-fondo" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">${svgSilueta}</svg>
-                    <div class="img-pin-interior" 
-                         style="background-image: url('${urlFondoFinal}'); background-size: cover; background-position: center; background-repeat: no-repeat; background-color: #111111; width: 100%; height: 100%; border-radius: 50%;"
-                         role="img"
-                         aria-label="${nombreLimpio}">
-                    </div>
-                </div>
-            `;
+            var idPinSanitizado = 'pin-radar-' + String(p.codigo).replace(/[^a-zA-Z0-9_-]/g, '');
+            var clipId = 'clip-' + idPinSanitizado;
+
+            var imgClipNode = '<image href="' + urlFondoFinal + '" x="0" y="0" width="60" height="60" preserveAspectRatio="xMidYMid slice" clip-path="url(#' + clipId + ')" />';
+
+            var svgSiluetaCompleta = 
+                '<svg class="svg-pin-fondo" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">' +
+                    '<defs><clipPath id="' + clipId + '">' + svgSilueta + '</clipPath></defs>' +
+                    svgSilueta +
+                    imgClipNode +
+                '</svg>';
+
+            var cssVarsPin = '--color-main: ' + colorPinMain + '; --color-sec: ' + colorPinSec + '; --color-ter: ' + paleta.c3 + '; --color-cuat: ' + paleta.c4 + ';';
+
+            elDOM.innerHTML = 
+                '<div class="pin-wrapper ' + claseVisualPin + '" data-forma="' + claseForma + '" style="' + cssVarsPin + '" ' + htmlAtributosGorras + '>' +
+                    svgSiluetaCompleta +
+                '</div>';
+
 
             // Respaldo asíncrono si el servidor arroja error 404 o falla de red
             if (tieneFotoValida) {
@@ -1205,21 +1348,40 @@ window.barridoRadar = function(filtroTexto = "") {
                 imgPreload.src = urlCandidata;
             }
 
-            // 📏 REQ 10: Anclaje bottom + elevación de 82px (60px pin + 22px de falange)
+                                   // Anclaje dinamico estrictamente vertical (arriba / abajo) alineado con el eje del pin
+            const temaElegido = p.tema_popup === 'clasico' ? 'popup-tema-clasico' : 'popup-tema-carbon';
+
             const popup = new maplibregl.Popup({ 
-    anchor: 'bottom',
-    offset: [0, -75], // Altura del pin (60px) + margen de falange (15px)
-    closeButton: false, 
-    closeOnClick: true, 
-    maxWidth: 'none' 
-}).setHTML(htmlPopup);
+                anchor: 'bottom',
+                offset: [0, -75],
+                closeButton: false, 
+                closeOnClick: true, 
+                maxWidth: '164px',
+                className: 'popup-boveda-estricto ' + temaElegido
+            }).setHTML(htmlPopup);
 
+            // Ajuste de orientacion vertical previo a la apertura (solo top o bottom, centrado en X)
+            const calibrarOrientacionVertical = () => {
+                if (!mapa) return;
+                const posPixel = mapa.project([pos.lng, pos.lat]);
+                // Si el pin esta en los primeros 330px de la pantalla, nace hacia abajo desde la punta
+                if (posPixel.y < 330) {
+                    popup.options.anchor = 'top';
+                    popup.setOffset([0, 8]);
+                } else {
+                    popup.options.anchor = 'bottom';
+                    popup.setOffset([0, -75]);
+                }
+            };
 
+            elDOM.addEventListener('click', calibrarOrientacionVertical, true);
+            popup.on('open', calibrarOrientacionVertical);
 
             const marker = new maplibregl.Marker({ element: elDOM, anchor: 'bottom' })
                 .setLngLat([pos.lng, pos.lat])
                 .setPopup(popup)
                 .addTo(mapa);
+
 
             if (esAliado) {
                 elDOM.addEventListener('click', function(e) {
@@ -1237,23 +1399,18 @@ window.barridoRadar = function(filtroTexto = "") {
         }
 
         
-// 🚦 NOTIFICACIÓN TEMPORAL DE SEMÁFORO EN POPUP
-        window.mostrarMensajeSemaforo = function(idContenedor, color, texto) {
-            const el = document.getElementById(idContenedor);
+        // 🚦 VENTANA MODAL SUPERPUESTA DE VERIFICACIÓN (3 SEGUNDOS)
+        window.mostrarAvisoVerificacionModal = function(idModalOverlay) {
+            const el = document.getElementById(idModalOverlay);
             if (!el) return;
-            
-            el.innerText = `🚦 ${texto}`;
-            el.style.display = 'block';
-            
-            // Reinicia la animación de desvanecimiento
-            el.style.animation = 'none';
-            el.offsetHeight; // Forzar reflow en el navegador
-            el.style.animation = 'desvanecerSemaforo 6s forwards cubic-bezier(0.4, 0, 0.2, 1)';
-            
-            setTimeout(() => {
+            if (navigator.vibrate) navigator.vibrate(25);
+            el.style.display = 'flex';
+            clearTimeout(el._timerDesvanecer);
+            el._timerDesvanecer = setTimeout(() => {
                 if (el) el.style.display = 'none';
-            }, 6000);
+            }, 3000);
         };
+
 
         window.cerrarTarjetaInmueble = function(event, elemento) {
             event.stopPropagation(); 
@@ -1261,32 +1418,37 @@ window.barridoRadar = function(filtroTexto = "") {
         };
 
 
-        if (categoriaActivaGlobal === 'inmuebles') {
-            tarjetasHibridasHtml += `
-            <div class="tarjeta-hibrida" style="border-color: ${c1}; position: relative;" onclick="enfocarInmueble('${sanitizarTexto(p.codigo)}', ${pos.lat}, ${pos.lng})">
-            <button class="btn-fav-card" style="${favStyleBtn}" onclick="window.toggleFavorito('${encodeURIComponent(p.codigo)}', '${nombreLimpio}', '${p.precio || 0}', '${portadaSegura}', '${sanitizarTexto(p.whatsapp || '')}', event)">${corazon}</button>
-            <button class="btn-cerrar-card" onclick="window.cerrarTarjetaInmueble(event, this)" style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.6); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; z-index: 10; cursor: pointer; font-size: 12px; font-weight: bold;">✖</button>
-            <img src="${portadaUsada}" class="tarjeta-hibrida-img" onerror="this.src='${dbSimbologia['wallpaper_generico']}'">
-            <div class="tarjeta-hibrida-info">
-            ${urlSeguraPng && urlSeguraPng.trim() !== ''
-                ? `<img src="urlSeguraPng"alt="{nombreLimpio}" style="max-height: 22px; max-width: 140px; object-fit: contain; margin-bottom: 2px; display: block;">`
-                : `<h4 class="tarjeta-hibrida-titulo">${sanitizarTexto(p.nombre || 'Inmueble')}</h4>`}
-            <p class="tarjeta-hibrida-nicho" style="color: c1;">{textoNicho}</p>
-            </div>
+       if (categoriaActivaGlobal === 'inmuebles') {
+            var titularInmueble = (urlSeguraPng && urlSeguraPng.trim() !== '')
+                ? ('<img src="' + urlSeguraPng + '" alt="' + nombreLimpio + '" style="max-height: 22px; max-width: 140px; object-fit: contain; margin-bottom: 2px; display: block;">')
+                : ('<h4 class="tarjeta-hibrida-titulo">' + sanitizarTexto(p.nombre || 'Inmueble') + '</h4>');
 
-            </div>`;
+            tarjetasHibridasHtml += 
+                '<div class="tarjeta-hibrida" style="border-color: ' + c1 + '; position: relative;" onclick="enfocarInmueble(\'' + sanitizarTexto(p.codigo) + '\', ' + pos.lat + ', ' + pos.lng + ')">' +
+                    '<button class="btn-fav-card" style="' + favStyleBtn + '" onclick="window.toggleFavorito(\'' + encodeURIComponent(p.codigo) + '\', \'' + nombreLimpio + '\', \'' + (p.precio || 0) + '\', \'' + portadaSegura + '\', \'' + sanitizarTexto(p.whatsapp || '') + '\', event)">' + corazon + '</button>' +
+                    '<button class="btn-cerrar-card" onclick="window.cerrarTarjetaInmueble(event, this)" style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.6); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; z-index: 10; cursor: pointer; font-size: 12px; font-weight: bold;">✖</button>' +
+                    '<img src="' + portadaUsada + '" class="tarjeta-hibrida-img" onerror="this.src=\'' + dbSimbologia['wallpaper_generico'] + '\'">' +
+                    '<div class="tarjeta-hibrida-info">' +
+                        titularInmueble +
+                        '<p class="tarjeta-hibrida-nicho" style="color: ' + c1 + ';">' + textoNicho + '</p>' +
+                    '</div>' +
+                '</div>';
         }
+
     });
     
-    const sheetHibrido = document.getElementById('lista-inmuebles-sheet');
-    if (categoriaActivaGlobal === 'inmuebles' && tarjetasHibridasHtml !== '') {
-        sheetHibrido.innerHTML = tarjetasHibridasHtml;
-        sheetHibrido.classList.add('activo');
-    } else {
-        sheetHibrido.classList.remove('activo');
-        sheetHibrido.innerHTML = '';
+        const sheetHibrido = document.getElementById('lista-inmuebles-sheet');
+    if (sheetHibrido) {
+        if (categoriaActivaGlobal === 'inmuebles' && tarjetasHibridasHtml !== '') {
+            sheetHibrido.innerHTML = tarjetasHibridasHtml;
+            sheetHibrido.classList.add('activo');
+        } else {
+            sheetHibrido.classList.remove('activo');
+            sheetHibrido.innerHTML = '';
+        }
     }
 };
+
 
 
 window.cargarCaballoTroya = function() {
@@ -1699,6 +1861,8 @@ window.addEventListener('ejecutar-filtro-mapa-producto', (e) => {
 
     if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
 });
+
+
 
 
 
