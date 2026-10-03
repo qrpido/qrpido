@@ -1533,8 +1533,8 @@ const GeokatuDB = {
             } catch (e) { return { success: false, error: e.message }; }
         },
 
-        // =========================================================================
-        // 🚀 SUBIDA MASIVA ONESHOT CON ESQUEMA COMPLETO Y GEOHASH
+        // // =========================================================================
+        // 🚀 SUBIDA MASIVA ONESHOT CON ESQUEMA CANÓNICO COMPLETO (21 CAMPOS + BRANDING + GEOHASH)
         // =========================================================================
         subirLoteComerciosDirectorio: async (loteComercios) => {
             if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
@@ -1550,8 +1550,34 @@ const GeokatuDB = {
                     const batch = writeBatch(db);
 
                     tanda.forEach(item => {
-                        const lat = Number(item.lat) || (item.Coordenadas ? Number(item.Coordenadas.latitude) : 4.81333);
-                        const lng = Number(item.lng) || (item.Coordenadas ? Number(item.Coordenadas.longitude) : -75.69611);
+                        // Extracción quirúrgica de coordenadas (soporta Number, Object y String "lat, lng")
+                        let lat = null;
+                        let lng = null;
+
+                        if (item.Coordenadas && typeof item.Coordenadas.latitude === 'number') {
+                            lat = item.Coordenadas.latitude;
+                            lng = item.Coordenadas.longitude;
+                        } else if (typeof item.lat === 'number' && !isNaN(item.lat)) {
+                            lat = item.lat;
+                            lng = item.lng;
+                        } else {
+                            const rawCoords = String(item.coordenada_validada || item.coordenadas_crudo || item.lat || '');
+                            const match = rawCoords.match(/[-+]?\d{1,3}(?:\.\d+)?/g);
+                            if (match && match.length >= 2) {
+                                lat = parseFloat(match[0]);
+                                lng = parseFloat(match[1]);
+                            }
+                        }
+
+                        // Inversión automática si longitud y latitud vienen invertidas
+                        if (lat !== null && lng !== null && lat < -50 && lng > -10 && lng < 20) {
+                            const temp = lat; lat = lng; lng = temp;
+                        }
+
+                        // Respaldo de seguridad en centroide de Pereira si no hay coordenadas válidas
+                        lat = (typeof lat === 'number' && !isNaN(lat)) ? Number(lat.toFixed(6)) : 4.81333;
+                        lng = (typeof lng === 'number' && !isNaN(lng)) ? Number(lng.toFixed(6)) : -75.69611;
+
 
                         // Cálculo nativo del Geohash espacial mediante geofire
                         let geohashStr = "";
@@ -1562,24 +1588,41 @@ const GeokatuDB = {
                         } catch (eG) {}
 
                         const docRef = item.id ? doc(db, _SCHEMA.ColeccionDirectorio, item.id) : doc(collection(db, _SCHEMA.ColeccionDirectorio));
+                        
                         const arrFonos = Array.isArray(item.telefonos) 
                             ? item.telefonos 
                             : String(item.whatsapp || '').split('|').map(f => f.trim().replace(/\D/g, '')).filter(Boolean);
 
+                        // Garantizar array estricto en tags_busqueda
+                        let tagsArray = [];
+                        if (Array.isArray(item.tags_busqueda)) {
+                            tagsArray = item.tags_busqueda;
+                        } else if (typeof item.tags_busqueda === 'string' && item.tags_busqueda.trim()) {
+                            tagsArray = item.tags_busqueda.split(/[,|;]/).map(t => t.replace(/^#/, '').trim()).filter(Boolean);
+                        }
+
                         const payload = {
+                            // Identidad y Textos Comerciales
                             nombre: item.nombre || "Comercio Aliado",
                             slogan: item.slogan || item.cuerpo_articulo || "",
                             cuerpo_articulo: item.slogan || item.cuerpo_articulo || "",
                             nicho: item.nicho || item.categoria || "General",
                             categoria: item.nicho || item.categoria || "General",
                             categoria_maestra: item.nicho || item.categoria || "General",
+                            tags_busqueda: tagsArray,
+                            informacion_adicional: item.informacion_adicional || "",
+
+                            // Cartografía y Ubicación Geoespacial
                             direccion: item.direccion || "",
+                            plus_code: item.plus_code || "",
                             Coordenadas: { latitude: lat, longitude: lng },
                             lat: lat,
                             lng: lng,
                             ubicacion: { lat: lat, lng: lng },
                             geohash: geohashStr,
-                            plus_code: item.plus_code || "",
+                            pais: item.pais || "COL",
+
+                            // Canales de Comunicación y Redes
                             whatsapp: arrFonos[0] || "",
                             whatsApp: arrFonos[0] || "",
                             telefonos: arrFonos,
@@ -1589,18 +1632,36 @@ const GeokatuDB = {
                             instagram: String(item.instagram_handle || item.instagram || '').replace(/^@/, '').trim(),
                             facebook: item.facebook || "",
                             web: item.sitio_web || item.web || "",
+                            sitio_web: item.sitio_web || item.web || "",
+
+                            // Operación y Horarios
                             horario: item.horario || "",
                             es_24_horas: Boolean(item.es_24_horas),
+
+                            // Auditoría Maps y Calificaciones
                             verificado_maps: item.verificado_maps || "NO",
                             cant_resenas: Number(item.cant_resenas) || 0,
                             resena_picante: item.resena_picante || "",
                             destacado_estrella: Boolean(item.destacado_estrella),
-                            tags_busqueda: item.tags_busqueda || [],
-                            informacion_adicional: item.informacion_adicional || "",
+
+                            // ADN del Pin Vectorial 3D y Rueda Cromática Áurea
+                            pin_pack: item.pin_pack || "forma-gota|anim-salto||",
+                            color_principal: item.color_principal || "#ff6b00",
+                            color_acento: item.color_acento || "#8a909d",
+                            color_terciario: item.color_terciario || "#ffffff",
+                            paleta_distribucion: item.paleta_distribucion || [
+                                { color: item.color_principal || "#ff6b00", porcentaje: 50 },
+                                { color: item.color_acento || "#8a909d", porcentaje: 25 },
+                                { color: item.color_terciario || "#ffffff", porcentaje: 12.5 }
+                            ],
+
+                            // Recursos Gráficos
                             logo: (item.logo && item.logo.startsWith('http')) ? item.logo : "",
                             portada: (item.portada && item.portada.startsWith('http')) ? item.portada : "",
                             link_pin: (item.link_pin && item.link_pin.startsWith('http')) ? item.link_pin : "",
                             logo_nombre: (item.logo_nombre && item.logo_nombre.startsWith('http')) ? item.logo_nombre : "",
+
+                            // Bóveda de Custodia y Moderación
                             reclamado: Boolean(item.reclamado),
                             dueno_registrado: Boolean(item.dueno_registrado),
                             owner_email: item.owner_email || item.dueno_email || "",
@@ -1608,8 +1669,9 @@ const GeokatuDB = {
                             premium: false,
                             progreso_boveda: 100,
                             tipo_modelo: "negocio",
-                            fecha_registro: new Date(),
-                            fecha_ingreso: new Date().toISOString(),
+                            fecha_registro: item.fecha_registro || new Date(),
+                            fecha_ingreso: item.fecha_ingreso || new Date().toISOString(),
+                            fecha_actualizacion: new Date().toISOString(),
                             origen_cuenta: "Onboarding_OneShot_Radar"
                         };
 
@@ -1626,6 +1688,7 @@ const GeokatuDB = {
                 return { success: false, error: err.message };
             }
         },
+
 
         // =========================================================================
         // 🔑 ASIGNAR COMERCIO A SU DUEÑO (CLAIM DE NEGOCIO)
@@ -1916,9 +1979,10 @@ const GeokatuDB = {
                 return { success: true, data: matchingDocs };
             } catch (e) { return { success: false, error: e.message }; }
         },
-        buscarInmueblesEnRadar: async (lat, lng, radiusInM) => {
+      buscarInmueblesEnRadar: async (lat, lng, radiusInM) => {
             if (!db || typeof geofire === 'undefined') return { success: false, error: 'Firebase o GeofireX no listos' };
             try {
+                // geofire-common requiere el radio expresado en METROS
                 const radioEnMetros = Math.max(5000, Number(radiusInM) || 5000);
                 const bounds = geofire.geohashQueryBounds([lat, lng], radioEnMetros);
                 const promises = [];
@@ -1934,42 +1998,25 @@ const GeokatuDB = {
 
                 const snapshots = await Promise.all(promises);
                 const matchingDocs = [];
-                for (const snap of snapshots) {
-                    for (const doc of snap.docs) {
-                        matchingDocs.push({ id: doc.id, ...doc.data() });
-                    }
-                }
-                return { success: true, data: matchingDocs };
-            } catch (e) { return { success: false, error: e.message }; }
-        },
-        buscarInmueblesEnRadar: async (lat, lng, radiusInM) => {
-            if (!db || typeof geofire === 'undefined') return { success: false, error: 'Firebase o GeofireX no listos' };
-            try {
-                const radiusInKm = radiusInM / 1000;
-                const bounds = geofire.geohashQueryBounds([lat, lng], radiusInKm);
-                const promises = [];
-                for (const b of bounds) {
-                    const q = query(
-                        collectionGroup(db, _SCHEMA.SubColeccionProductos),
-                        orderBy('geohash'),
-                        startAt(b[0]),
-                        endAt(b[1])
-                    );
-                    promises.push(getDocs(q));
-                }
-                const snapshots = await Promise.all(promises);
-                const matchingDocs = [];
                 snapshots.forEach((snap) => {
                     snap.docs.forEach((doc) => {
                         const data = doc.data();
-                        if(data.geohash) {
+                        if (data.geohash) {
                             const idPadre = doc.ref.parent.parent ? doc.ref.parent.parent.id : doc.id;
-                            matchingDocs.push({ ...data, id: doc.id, id_negocio_padre: idPadre, es_inmueble_real: true, tipo_modelo: 'inmueble' });
+                            matchingDocs.push({ 
+                                ...data, 
+                                id: doc.id, 
+                                id_negocio_padre: idPadre, 
+                                es_inmueble_real: true, 
+                                tipo_modelo: 'inmueble' 
+                            });
                         }
                     });
                 });
                 return { success: true, data: matchingDocs };
-            } catch (error) { return { success: false, error: error.message }; }
+            } catch (error) { 
+                return { success: false, error: error.message }; 
+            }
         },
         search: async (lat, lng, queryConstraints, signal) => {
             try {
@@ -2736,11 +2783,18 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
             }
             localStorage.setItem(claveCache, JSON.stringify(catalogoLocal));
 
-                        // Generación de Ticket ID Compuesto Forense: TK-[CAJA]-[CAJERO]-[HEX_TIEMPO]
-            const cajaCod = String(ticketData.caja_numero || "C01").replace(/[^a-zA-Z0-9]/g, '').slice(-3).toUpperCase();
+                                    // Generación de Ticket ID Compuesto Forense: TK-[CAJA]-[CAJERO]-[SECUENCIA]
+            const cajaCod = String(ticketData.caja_numero || "01").replace(/\D/g, '').padStart(2, '0').slice(-2);
             const cajeroCod = String(ticketData.codigo_cajero || "0000").replace(/[^a-zA-Z0-9]/g, '').slice(-4).toUpperCase();
-            const tiempoHex = Date.now().toString(16).toUpperCase().slice(-6);
-            const ticketIdLocal = `TK-${cajaCod}-${cajeroCod}-${tiempoHex}`;
+            
+            // Consecutivo numérico del turno guardado en memoria local
+            const claveSeq = `geokatu_secuencia_caja_${tenantReal}_${cajaCod}`;
+            let secuencia = parseInt(localStorage.getItem(claveSeq) || "0", 10) + 1;
+            localStorage.setItem(claveSeq, String(secuencia));
+            const seqStr = String(secuencia).padStart(4, '0');
+
+            // Formato estándar limpio: TK-01-D9A4-0001
+            const ticketIdLocal = `TK-${cajaCod}-${cajeroCod}-${seqStr}`;
 
             const payloadCanonico = GeokatuDB.PosService._construirPayloadFiscalCanonico({
                 ...ticketData,
@@ -2761,11 +2815,12 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                 }
             };
 
-            // Registro atómico en Firestore
+            // Registro atómico en Firestore usando el ticketIdLocal como ID del documento
             try {
                 const batch = writeBatch(db);
-                const ticketRef = doc(collection(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/Ventas_POS`));
+                const ticketRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/Ventas_POS`, ticketIdLocal);
                 batch.set(ticketRef, payloadFinal);
+
 
                                 // Incremento seguro con merge para garantizar creación si no existe el objeto
                 const negocioRef = doc(db, _SCHEMA.ColeccionDirectorio, tenantReal);
@@ -2824,18 +2879,19 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                     });
                 }
 
-                await batch.commit();
-                return { success: true, ticketId: ticketRef.id, localId: ticketIdLocal };
+            await batch.commit();
+                return { success: true, ticketId: ticketIdLocal, localId: ticketIdLocal };
 
-                        } catch (e) {
+            } catch (e) {
                 console.error("[GEOKATU POS] Error al asentar en Firestore (desviado a cola):", e);
                 const claveCola = `geokatu_sync_cola_${tenantReal}`;
                 const colaActual = JSON.parse(localStorage.getItem(claveCola) || "[]");
                 colaActual.push(payloadFinal);
                 localStorage.setItem(claveCola, JSON.stringify(colaActual));
 
-                return { success: true, ticketId: ticketIdLocal, offline: true, errorFirestore: e.message };
+                return { success: true, ticketId: ticketIdLocal, localId: ticketIdLocal, offline: true, errorFirestore: e.message };
             }
+
 
         },
 
@@ -2919,13 +2975,14 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                 for (const ticket of colaActual) {
                     if (ticket.estado_sincronizacion === "sincronizado_diferido") continue;
 
-                    try {
+                                        try {
                         const batch = writeBatch(db);
-                        const ticketRef = doc(collection(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/Ventas_POS`));
+                        const idDoc = ticket.ticketIdLocal || ticket.ticketId || `TK-OFF-${Date.now()}`;
+                        const ticketRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/Ventas_POS`, idDoc);
 
                         batch.set(ticketRef, {
                             ...ticket,
-                            id_firestore: ticketRef.id,
+                            id_firestore: idDoc,
                             estado_sincronizacion: "sincronizado_diferido",
                             timestamp_sincronizacion_nube: new Date().toISOString()
                         });
@@ -3620,5 +3677,7 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
 // EXPORTACIÓN ESTRICTA (Singleton)
 // ==========================================
 export default GeokatuDB;
+
+
 
 

@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#ff6b00">
     <link rel="apple-touch-icon" href="https://via.placeholder.com/192/0a0a0c/ff6b00?text=GK">
     
-    <!-- Hoja de Estilos Propia y Aislada -->
+    <!-- Hojas de Estilos Base -->
     <link rel="stylesheet" href="negocio.css">
     <link rel="stylesheet" href="./maplibre-gl.css" />
     <script src="./maplibre-gl.js"></script>
@@ -20,6 +20,7 @@
         body.modo-edicion .lapiz-editar-prod { display: flex !important; }
         body.modo-edicion .avatar-negocio { border-style: dashed !important; border-color: #00f5d4 !important; }
         body.modo-edicion .portada-tienda { filter: brightness(0.6); border: 2px dashed #00f5d4; }
+        body.modo-edicion .barra-dueno-catalogo { display: flex !important; }
         
         .lapiz-editar-header {
             position: absolute; background: rgba(0,0,0,0.85); border: 2px solid #00f5d4;
@@ -40,7 +41,7 @@
         .lapiz-editar-texto:active { transform: scale(0.92); background: #00f5d4; color: black; }
         
         .lapiz-editar-prod {
-            position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.85);
+            position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.9);
             border: 2px solid #00f5d4; border-radius: 50%; width: 32px; height: 32px;
             display: none !important; align-items: center; justify-content: center; font-size: 14px;
             cursor: pointer; z-index: 30; box-shadow: 0 4px 10px rgba(0,0,0,0.8);
@@ -59,10 +60,10 @@
 <body>
     <div id="offline-banner" class="offline-banner">⚠️ Sin conexión: Mostrando datos en caché local</div>
     
-    <!-- Fondo condicional: no mostrará imagen rota si no tiene portada -->
+    <!-- Fondo decorativo desenfocado -->
     <img id="fondo-pantalla" alt="Fondo">
     
-    <!-- Inputs ocultos para subida de imagen directa del dueño -->
+    <!-- Inputs ocultos para subida de fotos por el dueño -->
     <input type="file" id="upload-portada-vivo" style="display:none;" accept="image/*" onchange="window.subirFotoDirecta(this, 'portada')">
     <input type="file" id="upload-logo-vivo" style="display:none;" accept="image/*" onchange="window.subirFotoDirecta(this, 'logo')">
 
@@ -76,7 +77,7 @@
                     <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
                 </svg>
             </button>
-            <button id="btn-modo-edicion" class="btn-compartir-flotante" style="display:none; right: 58px; background: #00f5d4; border-color: #00f5d4; color: black;" onclick="window.toggleModoEdicion()" title="Activar Edición del Catálogo">
+            <button id="btn-modo-edicion" class="btn-compartir-flotante" style="display:none; right: 58px; background: #00f5d4; border-color: #00f5d4; color: black;" onclick="window.toggleModoEdicion()" title="Activar Edición en Vivo">
                 ✏️
             </button>
 
@@ -97,27 +98,34 @@
                 <div id="contenedor-nombre" style="position: relative;">
                     <img id="img-nombre-png" class="nombre-negocio-png" style="display: none;" alt="Logotipo Tipográfico">
                     <h1 id="texto-nombre" class="nombre-negocio">...</h1>
-                    <button id="lapiz-nombre" class="lapiz-editar-texto" onclick="window.abrirModalEdicionPerfil()">✏️ Editar Información</button>
+                    <button id="lapiz-nombre" class="lapiz-editar-texto" onclick="window.abrirModalEdicionPerfil()">✏️ Editar Datos del Comercio</button>
                 </div>
                 
                 <p id="texto-slogan" class="slogan-negocio" style="display: none;"></p>
                 <p id="texto-nicho" class="niche-negocio"></p>
-                <div id="badge-cobertura-container"></div>
-                <div id="badge-aliado-container"></div>
+                <div id="badge-horario-header" style="margin-bottom: 6px;"></div>
 
                 <div class="acciones-cabecera">
-                    <a id="btn-whatsapp-header" href="#" target="_blank" class="btn-contactar">💬 WhatsApp</a>
-                    <a id="btn-pbx-header" href="#" class="btn-pbx" style="display: none;">📞 PBX</a>
+                    <a id="btn-whatsapp-header" href="#" target="_blank" class="btn-contactar" style="display: none;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="#ffffff" style="flex-shrink: 0;"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                        <span>WhatsApp</span>
+                    </a>
+                    <a id="btn-pbx-header" href="#" class="btn-pbx" style="display: none;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                        <span id="txt-pbx-header">PBX</span>
+                    </a>
                     <button id="btn-historia" class="categoria-pill" style="display:none;" onclick="window.abrirModal('overlay-historia')">📖 Historia</button>
                 </div>
             </div>
-
-
         </header>
 
-        <!-- Banner Promocional -->
-        <div id="banner-contenedor" style="padding: 0 15px; margin-bottom: 15px; display: none;"></div>
-        
+        <!-- Barra del Dueño: Añadir Producto (Visible solo en Modo Edición) -->
+        <div class="barra-dueno-catalogo" style="display: none; padding: 0 15px; margin-bottom: 12px; justify-content: flex-end;">
+            <button type="button" class="btn-contactar" style="padding: 8px 16px; font-size: 11px; background: #00f5d4; color: black; border: none;" onclick="window.abrirModalProductoNuevo()">
+                ➕ Agregar Nuevo Artículo
+            </button>
+        </div>
+
         <!-- Buscador Local en Catálogo -->
         <div style="padding: 0 15px; margin-bottom: 12px;">
             <div style="background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); border-radius: 20px; display: flex; align-items: center; padding: 2px 14px;">
@@ -131,15 +139,91 @@
             <div id="carrusel-categorias" style="display: flex; gap: 8px;"></div>
         </div>
 
-        <!-- GRILLA DE PRODUCTOS (4 VARIANTES EDITORIALES) -->
+        <!-- GRILLA DE PRODUCTOS (4 VARIANTES EDITORIALES - 10 FILAS MÁXIMO POR BLOQUE) -->
         <main id="catalogo-contenedor">
             <div class="grilla-productos-publica"></div>
         </main>
         
-        <div id="paginacion-wrapper" style="margin: 20px 15px 80px 15px; display: none; text-align: center;">
-            <button id="btn-cargar-mas" class="btn-contactar" style="width: 100%;" onclick="window.cargarMasProductos()">Cargar Más Artículos</button>
+        <!-- Paginador de 10 Filas Equivalentes -->
+        <div id="paginacion-wrapper" style="margin: 15px 15px 25px 15px; display: none; text-align: center;">
+            <button id="btn-cargar-mas" class="btn-contactar" style="width: 100%;" onclick="window.cargarMasFilasCatalogo()">
+                ⬇️ Cargar Más Artículos
+            </button>
         </div>
-        
+
+        <!-- =========================================================================
+             DIVISOR EDITORIAL & SECCIÓN CORPORATIVA (SITIO WEB, REDES Y CONTACTO)
+             ========================================================================= -->
+        <div class="divisor-catalogo-footer">
+            <div class="linea-divisor"></div>
+            <span class="badge-divisor-texto">INFORMACIÓN & CANALES</span>
+            <div class="linea-divisor"></div>
+        </div>
+
+        <footer class="footer-negocio">
+            <!-- 1. Botón Protagónico de Sitio Web Oficial -->
+            <div id="box-sitio-web-footer" style="display: none; margin-bottom: 14px;">
+                <a id="btn-web-oficial" href="#" target="_blank" class="btn-sitio-web-oficial">
+                    🌐 Visitar Sitio Web Oficial
+                </a>
+            </div>
+
+            <!-- 2. Tarjeta Glassmorphic de Canales y Operaciones -->
+            <div class="tarjeta-canales-footer">
+                <div class="fila-contacto-item" id="item-horario-footer" style="display: none;">
+                    <span class="icono-contacto">🕒</span>
+                    <div style="flex: 1; text-align: left;">
+                        <strong style="color: #fff; font-size: 11.5px; display: block;">Horario de Operación</strong>
+                        <span id="txt-horario-footer" style="font-size: 11px; color: #aaa;">---</span>
+                    </div>
+                </div>
+
+                <div class="fila-contacto-item" id="item-instagram-footer" style="display: none;">
+                    <span class="icono-contacto">📸</span>
+                    <div style="flex: 1; text-align: left;">
+                        <strong style="color: #fff; font-size: 11.5px; display: block;">Instagram Oficial</strong>
+                        <a id="link-instagram-footer" href="#" target="_blank" style="color: var(--color-marca); font-size: 11px; text-decoration: none; font-weight: bold;">@---</a>
+                    </div>
+                </div>
+
+                <div class="fila-contacto-item" id="item-correo-footer" style="display: none;">
+                    <span class="icono-contacto">✉️</span>
+                    <div style="flex: 1; text-align: left;">
+                        <strong style="color: #fff; font-size: 11.5px; display: block;">Correo de Contacto</strong>
+                        <a id="link-correo-footer" href="#" style="color: #60a5fa; font-size: 11px; text-decoration: none;">---</a>
+                    </div>
+                </div>
+
+                <div class="fila-contacto-item" id="item-direccion-footer" style="display: none;">
+                    <span class="icono-contacto">📍</span>
+                    <div style="flex: 1; text-align: left;">
+                        <strong style="color: #fff; font-size: 11.5px; display: block;">Ubicación Física</strong>
+                        <span id="txt-direccion-footer" style="font-size: 11px; color: #bbb;">---</span>
+                    </div>
+                    <button type="button" class="btn-mapa-micro" onclick="window.viajarAlMapa()" title="Ver en el Radar Geokatu">🗺️ Radar</button>
+                </div>
+            </div>
+
+            <!-- 3. Banco de Etiquetas / Tags de Búsqueda del Radar -->
+            <div id="contenedor-tags-footer" style="display: none; margin-top: 14px;">
+                <span style="font-size: 10px; color: #888; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 6px;">
+                    Palabras Clave en Radar
+                </span>
+                <div id="grilla-tags-footer" class="grilla-tags-footer"></div>
+            </div>
+
+            <div style="margin-top: 20px; font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 1px;">
+                GEOKATU PLATFORM • COMERCIO VERIFICADO
+            </div>
+        </footer>
+        <!-- Botón Sutil Volver Arriba (Aparece tras scroll profundo) -->
+        <button id="btn-volver-arriba" type="button" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" title="Volver al inicio">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="19" x2="12" y2="5"></line>
+                <polyline points="5 12 12 5 19 12"></polyline>
+            </svg>
+        </button>
+
         <!-- Carrito Flotante de Compra -->
         <div id="carrito-flotante" onclick="window.abrirCheckout()">
             <span>🛒 <span id="cant-total-carrito">0</span> items</span>
@@ -166,7 +250,6 @@
                 <button class="categoria-pill" id="btn-abrir-mapa" onclick="window.abrirMiniMapa()" style="flex: 1;">🗺️ En el mapa</button>
             </div>
             
-            <!-- Contenedor para Minimapa MapLibre -->
             <div id="contenedor-mapa-ubicacion" style="position: relative; display: none; height: 240px; border-radius: 14px; overflow: hidden; margin-bottom: 12px; border: 1px solid var(--color-marca);">
                 <div id="mapa-ubicacion" style="width: 100%; height: 100%;"></div>
             </div>
@@ -197,7 +280,7 @@
         </div>
     </div>
 
-    <!-- MODAL EDITAR PERFIL NEGOCIO -->
+    <!-- MODAL EDITAR PERFIL NEGOCIO (COMPLETO CON HORARIO, REDES Y WEB) -->
     <div class="modal-edicion-overlay" id="modal-editar-perfil-negocio" onclick="window.cerrarModal(event, 'modal-editar-perfil-negocio')">
         <div class="modal-edicion-card">
             <div class="modal-edicion-header">
@@ -207,30 +290,68 @@
             
             <form id="form-editar-perfil-negocio" onsubmit="window.guardarCambiosPerfilNegocio(event)">
                 <div class="form-grupo-edicion">
-                    <label for="input-edit-nombre">Nombre del Comercio</label>
+                    <label for="input-edit-nombre">Nombre Comercial</label>
                     <input type="text" id="input-edit-nombre" class="input-edicion-perfil" required>
                 </div>
 
                 <div class="form-grupo-edicion">
-                    <label for="input-edit-slogan">Eslogan o Lema Comercial</label>
+                    <label for="input-edit-slogan">Eslogan o Lema</label>
                     <input type="text" id="input-edit-slogan" class="input-edicion-perfil" placeholder="Ej: Calidad y servicio insuperable">
+                </div>
+
+                <div class="form-grupo-edicion">
+                    <label for="input-edit-nicho">Nicho / Sector Comercial</label>
+                    <input type="text" id="input-edit-nicho" class="input-edicion-perfil" placeholder="Ej: Restaurantes y Cafés">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <div class="form-grupo-edicion">
+                        <label for="input-edit-whatsapp">WhatsApp</label>
+                        <input type="tel" id="input-edit-whatsapp" class="input-edicion-perfil" placeholder="573001234567">
+                    </div>
+                    <div class="form-grupo-edicion">
+                        <label for="input-edit-pbx">PBX / Teléfono Fijo</label>
+                        <input type="tel" id="input-edit-pbx" class="input-edicion-perfil" placeholder="6063334455">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <div class="form-grupo-edicion">
+                        <label for="input-edit-instagram">Instagram (@usuario)</label>
+                        <input type="text" id="input-edit-instagram" class="input-edicion-perfil" placeholder="usuario">
+                    </div>
+                    <div class="form-grupo-edicion">
+                        <label for="input-edit-web">Sitio Web</label>
+                        <input type="url" id="input-edit-web" class="input-edicion-perfil" placeholder="https://minegocio.com">
+                    </div>
+                </div>
+
+                <div class="form-grupo-edicion">
+                    <label for="input-edit-correo">Correo Público de Contacto</label>
+                    <input type="email" id="input-edit-correo" class="input-edicion-perfil" placeholder="contacto@minegocio.com">
+                </div>
+
+                <!-- Control de Horarios y 24H -->
+                <div class="form-grupo-edicion" style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 10px; border: 1px solid var(--glass-border);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <label style="margin: 0;">Horario de Atención</label>
+                        <label style="display: flex; align-items: center; gap: 5px; font-size: 10.5px; color: #00ff64; font-weight: bold; cursor: pointer;">
+                            <input type="checkbox" id="check-edit-24h" onchange="window.toggleHorario24HEdicion(this.checked)">
+                            24 Horas
+                        </label>
+                    </div>
+                    <input type="text" id="input-edit-horario" class="input-edicion-perfil" placeholder="Ej: 08:00 - 20:00">
+                </div>
+
+                <div class="form-grupo-edicion">
+                    <label for="input-edit-tags">Etiquetas de Búsqueda (separadas por coma)</label>
+                    <input type="text" id="input-edit-tags" class="input-edicion-perfil" placeholder="pizza, hamburguesas, domicilio">
                 </div>
 
                 <div class="form-grupo-edicion">
                     <label for="input-edit-cuerpo">Historia o Descripción Editorial</label>
                     <textarea id="input-edit-cuerpo" class="input-edicion-perfil" rows="3"></textarea>
                 </div>
-
-                <div class="form-grupo-edicion">
-                    <label for="input-edit-whatsapp">WhatsApp (Móvil)</label>
-                    <input type="tel" id="input-edit-whatsapp" class="input-edicion-perfil" placeholder="Ej: 573001234567">
-                </div>
-
-                <div class="form-grupo-edicion">
-                    <label for="input-edit-pbx">Teléfono Fijo / Conmutador PBX</label>
-                    <input type="tel" id="input-edit-pbx" class="input-edicion-perfil" placeholder="Ej: 6063334455">
-                </div>
-
 
                 <div class="form-grupo-edicion">
                     <label>Foto de Portada</label>
@@ -250,9 +371,77 @@
         </div>
     </div>
 
-    <!-- =======================================================
-         LOGICA MODULAR (JS PURO + GeokatuDB)
-         ======================================================= -->
+    <!-- MODAL / BOTTOM SHEET DE EDICIÓN Y CREACIÓN DE PRODUCTO (TRASLADADO DE OFICINA) -->
+    <div class="modal-edicion-overlay" id="modal-edicion-producto" onclick="window.cerrarModal(event, 'modal-edicion-producto')">
+        <div class="modal-edicion-card" style="max-width: 440px;">
+            <div class="modal-edicion-header">
+                <h2 id="titulo-modal-producto">Editar Artículo</h2>
+                <button class="btn-cerrar-modal" onclick="window.cerrarModalManual('modal-edicion-producto')">✕</button>
+            </div>
+
+            <form id="form-edicion-producto-in-situ" onsubmit="window.guardarProductoInSitu(event)">
+                <input type="hidden" id="prod-edit-id">
+                <input type="hidden" id="prod-edit-imagen-actual">
+                <input type="hidden" id="prod-edit-layout" value="layout-grid">
+
+                <div class="form-grupo-edicion">
+                    <label for="prod-edit-nombre">Nombre del Producto *</label>
+                    <input type="text" id="prod-edit-nombre" class="input-edicion-perfil" required>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <div class="form-grupo-edicion">
+                        <label for="prod-edit-precio">Precio ($) *</label>
+                        <input type="number" step="any" id="prod-edit-precio" class="input-edicion-perfil" required>
+                    </div>
+                    <div class="form-grupo-edicion">
+                        <label for="prod-edit-stock">Stock Actual</label>
+                        <input type="number" step="any" id="prod-edit-stock" class="input-edicion-perfil" min="0">
+                    </div>
+                </div>
+
+                <div class="form-grupo-edicion">
+                    <label for="prod-edit-categoria">Categoría</label>
+                    <input type="text" id="prod-edit-categoria" class="input-edicion-perfil" placeholder="General">
+                </div>
+
+                <!-- Selector de Layouts Editoriales trasladado de Oficina -->
+                <div class="form-grupo-edicion">
+                    <label style="margin-bottom: 6px;">Formato de Exhibición en Feed</label>
+                    <div class="grilla-layouts-selector" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
+                        <button type="button" class="btn-layout-chip activo" data-layout="layout-grid" onclick="window.seleccionarLayoutInSitu('layout-grid')">Grid 1x1</button>
+                        <button type="button" class="btn-layout-chip" data-layout="layout-hero" onclick="window.seleccionarLayoutInSitu('layout-hero')">Hero 2x1</button>
+                        <button type="button" class="btn-layout-chip" data-layout="layout-galeria-split" onclick="window.seleccionarLayoutInSitu('layout-galeria-split')">Split 4+1</button>
+                        <button type="button" class="btn-layout-chip" data-layout="layout-articulo" onclick="window.seleccionarLayoutInSitu('layout-articulo')">Editorial</button>
+                    </div>
+                </div>
+
+                <div class="form-grupo-edicion">
+                    <label for="prod-edit-cuerpo">Descripción Editorial / Ingredientes</label>
+                    <textarea id="prod-edit-cuerpo" class="input-edicion-perfil" rows="2" placeholder="Detalles de este artículo..."></textarea>
+                </div>
+
+                <div class="form-grupo-edicion">
+                    <label>Fotografía del Artículo</label>
+                    <input type="file" id="prod-edit-file" accept="image/*" style="display:none;" onchange="window.previsualizarFotoProdInSitu(this)">
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <img id="prod-edit-preview-img" src="" style="width: 50px; height: 50px; border-radius: 8px; object-fit: cover; background: #000; border: 1px solid var(--glass-border);">
+                        <button type="button" class="btn-subir-archivo-modal" onclick="document.getElementById('prod-edit-file').click()">📷 Cargar Foto</button>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 8px; margin-top: 15px;">
+                    <button type="button" id="btn-eliminar-prod-insitu" class="categoria-pill" style="color: #ff4444; border-color: #ff4444; display: none;" onclick="window.eliminarProductoInSitu()">🗑️ Eliminar</button>
+                    <button type="button" id="btn-toggle-agotado-insitu" class="categoria-pill" style="display: none;" onclick="window.toggleAgotadoInSitu()">Agotar / Activar</button>
+                    <button type="submit" id="btn-guardar-prod-insitu" class="btn-contactar" style="flex: 2; justify-content: center;">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- =========================================================================
+         LÓGICA MODULAR (JS PURO + GeokatuDB)
+         ========================================================================= -->
     <script type="module">
         import GeokatuDB from './core-db.js';
 
@@ -265,8 +454,8 @@
 
         window.formatearMoneda = function(valorInt64, moneda = 'COP') {
             if (!valorInt64 || isNaN(valorInt64)) return moneda === 'USD' ? '0.00':'0';
-            const val = parseInt(valorInt64, 10);
-            return '$' + val.toLocaleString('es-CO');
+            const val = parseFloat(valorInt64);
+            return '$' + Math.round(val).toLocaleString('es-CO');
         };
 
         let datosNegocio = {};
@@ -277,11 +466,13 @@
         let busquedaActualLocal = "";
         let userLat = null, userLng = null;
         let miniMapa = null, markerCliente = null;
+        let limiteFilasActual = 10; // Paginación por bloques de 10 filas equivalentes
+        let productoEnEdicionInSitu = null;
 
         const urlParams = new URLSearchParams(window.location.search);
         let idNegocio = urlParams.get('id') || 'acefama-pereira';
 
-        // 1. ESPÍA DE SESIÓN: Comprobar si el visitante es el dueño
+        // 1. COMPROBAR SI EL VISITANTE ES EL DUEÑO
         window.usuarioEsDueno = false;
         window.modoEdicionActivo = false;
 
@@ -309,9 +500,7 @@
 
                 datosNegocio = data;
 
-                datosNegocio = data;
-
-                                                // Regla Áurea Cromática Silenciosa Normalizada (1, 2, 3 o 4 colores)
+                // Paleta Áurea Dinámica
                 var raw1 = datosNegocio.color_principal || '#ff6b00';
                 var raw2 = datosNegocio.color_acento || '';
                 var raw3 = datosNegocio.color_terciario || '';
@@ -329,17 +518,15 @@
 
                 var c1 = raw1;
                 var c2 = raw2 ? raw2 : grisGeokatu;
-                // Si solo eligió 1 color -> c3 es c1. Si eligió 2 colores -> c3 es c2.
                 var c3 = raw3 ? raw3 : (raw2 ? raw2 : raw1);
                 var c4 = raw4 ? raw4 : (raw3 ? grisGeokatu : (raw2 ? grisGeokatu : blanco));
-
 
                 document.documentElement.style.setProperty('--color-marca', c1);
                 document.documentElement.style.setProperty('--color-secundario', c2);
                 document.documentElement.style.setProperty('--color-terciario', c3);
                 document.documentElement.style.setProperty('--color-cuaternario', c4);
 
-                // Hidratación Visual del Header y Fondo sin cuadros rotos
+                // Portada, Logo y Fondo desenfocado
                 var portadaUrl = datosNegocio.portada || './assets/portada-default.webp';
                 document.getElementById('portada-tienda').src = portadaUrl;
                 document.getElementById('avatar-tienda').src = datosNegocio.logo || './assets/logo-default.webp';
@@ -352,24 +539,20 @@
                     fondoEl.style.display = 'none';
                 }
 
-                // Logotipo Tipográfico Transparente o Texto Plano
+                // Logotipo Tipográfico o Texto
                 var elNombrePng = document.getElementById('img-nombre-png');
                 var elNombreTxt = document.getElementById('texto-nombre');
                 if (datosNegocio.nombre_png) {
-                    if (elNombrePng) {
-                        elNombrePng.src = datosNegocio.nombre_png;
-                        elNombrePng.style.display = 'block';
-                    }
+                    if (elNombrePng) { elNombrePng.src = datosNegocio.nombre_png; elNombrePng.style.display = 'block'; }
                     if (elNombreTxt) elNombreTxt.style.display = 'none';
                 } else {
                     if (elNombrePng) elNombrePng.style.display = 'none';
-                    if (elNombreTxt) {
-                        elNombreTxt.innerText = datosNegocio.nombre || 'Comercio';
-                        elNombreTxt.style.display = 'block';
-                    }
+                    if (elNombreTxt) { elNombreTxt.innerText = datosNegocio.nombre || 'Comercio'; elNombreTxt.style.display = 'block'; }
                 }
 
-                // Slogan o Lema Comercial
+                document.title = (datosNegocio.nombre || 'Comercio') + ' | Geokatu';
+
+                // Slogan y Nicho
                 var elSlogan = document.getElementById('texto-slogan');
                 if (elSlogan) {
                     if (datosNegocio.slogan) {
@@ -379,23 +562,43 @@
                         elSlogan.style.display = 'none';
                     }
                 }
+                document.getElementById('texto-nicho').innerText = (datosNegocio.nicho || datosNegocio.categoria || 'Catálogo Oficial').toUpperCase();
 
-                document.getElementById('texto-nicho').innerText = (datosNegocio.niche || 'Catálogo Oficial').toUpperCase();
-
-                // Telefonía Desacoplada: WhatsApp y PBX Directo
-                var numTel = (datosNegocio.whatsapp || datosNegocio.whatsApp || '').replace(/\D/g, '');
-                var btnWa = document.getElementById('btn-whatsapp-header');
-                if (btnWa) {
-                    btnWa.href = numTel ? ('https://wa.me/' + numTel + '?text=' + encodeURIComponent('Hola! Vengo de ver tu catálogo en Geokatu.')) : '#';
+                // Insignia Horario en Header
+                var badgeHdr = document.getElementById('badge-horario-header');
+                if (badgeHdr) {
+                    if (datosNegocio.es_24_horas) {
+                        badgeHdr.innerHTML = '<span class="badge-stock en-piso" style="font-weight:900;">⚡ SERVICIO 24 HORAS</span>';
+                    } else if (datosNegocio.horario) {
+                        badgeHdr.innerHTML = `<span style="font-size:10px; color:#aaa; font-weight:bold;">🕒 ${datosNegocio.horario}</span>`;
+                    } else {
+                        badgeHdr.innerHTML = '';
+                    }
                 }
 
+                // Canales Telefónicos
+                var numTel = (datosNegocio.whatsapp || datosNegocio.whatsApp || '').toString().replace(/\D/g, '');
+                var tieneWa = Boolean(numTel && numTel.length >= 7);
+                var btnWa = document.getElementById('btn-whatsapp-header');
+                if (btnWa) {
+                    if (tieneWa) {
+                        btnWa.href = 'https://wa.me/' + numTel + '?text=' + encodeURIComponent('Hola! Vengo de ver tu catálogo en Geokatu.');
+                        btnWa.style.display = 'inline-flex';
+                    } else {
+                        btnWa.style.display = 'none';
+                    }
+                }
+
+                var pbxNum = (datosNegocio.pbx || '').toString().trim();
+                var tienePbx = Boolean(pbxNum && pbxNum.length >= 5);
                 var elPbx = document.getElementById('btn-pbx-header');
-                var pbxNum = (datosNegocio.pbx || '').trim();
+                var txtPbx = document.getElementById('txt-pbx-header');
                 if (elPbx) {
-                    if (pbxNum) {
+                    if (tienePbx) {
                         elPbx.href = 'tel:' + pbxNum.replace(/\D/g, '');
-                        elPbx.innerText = '📞 PBX: ' + pbxNum;
+                        if (txtPbx) txtPbx.innerText = 'PBX: ' + pbxNum;
                         elPbx.style.display = 'inline-flex';
+                        if (!tieneWa) elPbx.classList.add('btn-pbx-destacado');
                     } else {
                         elPbx.style.display = 'none';
                     }
@@ -409,6 +612,8 @@
                     if (modalCont) modalCont.innerHTML = window.sanitizarTexto(textoHistoria);
                 }
 
+                // Hidratación del Footer Corporativo Integral
+                renderizarFooterCorporativo();
 
                 // Consulta de Productos
                 await cargarCatalogoProductos();
@@ -418,19 +623,93 @@
             }
         }
 
+        // =========================================================================
+        // RENDERIZADO DEL FOOTER INTEGRAL (WEB, REDES, CORREO, HORARIO, TAGS)
+        // =========================================================================
+        function renderizarFooterCorporativo() {
+            // 1. Sitio Web Oficial
+            var urlWeb = datosNegocio.sitio_web || datosNegocio.web || '';
+            var boxWeb = document.getElementById('box-sitio-web-footer');
+            var btnWeb = document.getElementById('btn-web-oficial');
+            if (urlWeb && urlWeb.startsWith('http')) {
+                btnWeb.href = urlWeb;
+                boxWeb.style.display = 'block';
+            } else {
+                boxWeb.style.display = 'none';
+            }
+
+            // 2. Horario
+            var itemH = document.getElementById('item-horario-footer');
+            var txtH = document.getElementById('txt-horario-footer');
+            if (datosNegocio.es_24_horas) {
+                txtH.innerHTML = '<b style="color:var(--verde-neon, #00ff64);">Abierto las 24 Horas</b>';
+                itemH.style.display = 'flex';
+            } else if (datosNegocio.horario) {
+                txtH.innerText = datosNegocio.horario;
+                itemH.style.display = 'flex';
+            } else {
+                itemH.style.display = 'none';
+            }
+
+            // 3. Instagram
+            var igUser = String(datosNegocio.instagram || '').replace(/^@/, '').trim();
+            var itemIg = document.getElementById('item-instagram-footer');
+            var linkIg = document.getElementById('link-instagram-footer');
+            if (igUser) {
+                linkIg.href = 'https://instagram.com/' + igUser;
+                linkIg.innerText = '@' + igUser;
+                itemIg.style.display = 'flex';
+            } else {
+                itemIg.style.display = 'none';
+            }
+
+            // 4. Correo
+            var emailPub = datosNegocio.correo || datosNegocio.email || '';
+            var itemCor = document.getElementById('item-correo-footer');
+            var linkCor = document.getElementById('link-correo-footer');
+            if (emailPub && emailPub.includes('@')) {
+                linkCor.href = 'mailto:' + emailPub;
+                linkCor.innerText = emailPub;
+                itemCor.style.display = 'flex';
+            } else {
+                itemCor.style.display = 'none';
+            }
+
+            // 5. Dirección
+            var dir = datosNegocio.direccion || '';
+            var itemDir = document.getElementById('item-direccion-footer');
+            var txtDir = document.getElementById('txt-direccion-footer');
+            if (dir) {
+                txtDir.innerText = dir;
+                itemDir.style.display = 'flex';
+            } else {
+                itemDir.style.display = 'none';
+            }
+
+            // 6. Tags de Búsqueda
+            var tagsCont = document.getElementById('contenedor-tags-footer');
+            var grillaTags = document.getElementById('grilla-tags-footer');
+            var rawTags = datosNegocio.tags_busqueda || datosNegocio.palabras_clave || [];
+            var tagsArray = Array.isArray(rawTags) ? rawTags : String(rawTags).split(/[,|;]/).map(t => t.trim()).filter(Boolean);
+
+            if (tagsArray.length > 0) {
+                grillaTags.innerHTML = tagsArray.map(t => `<span class="tag-pill-footer">#${t.replace(/^#/, '')}</span>`).join('');
+                tagsCont.style.display = 'block';
+            } else {
+                tagsCont.style.display = 'none';
+            }
+        }
+
         async function cargarCatalogoProductos() {
-            const { success, data } = await GeokatuDB.RadarService.obtenerProductosPublicos(idNegocio, { limite: 100 });
-            
+            const { success, data } = await GeokatuDB.RadarService.obtenerProductosPublicos(idNegocio, { limite: 150 });
             if (success && data) {
-                // Almacenar todos los productos no eliminados
                 productosMemoria = data.filter(p => p.eliminado !== true);
-                
-                // Ordenamiento estricto por el índice del drag & drop
                 productosMemoria.sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0));
 
                 categoriasGlobales = [...new Set(productosMemoria.map(p => p.categoria || "Destacados"))];
                 construirCarruselCategorias();
-                renderizarCatalogo('Todas');
+                limiteFilasActual = 10;
+                renderizarCatalogo(filtroActual);
                 calcularTotales();
             }
         }
@@ -451,20 +730,42 @@
             filtroActual = cat;
             document.querySelectorAll('#carrusel-categorias .categoria-pill').forEach(p => p.classList.remove('activa'));
             el.classList.add('activa');
+            limiteFilasActual = 10;
             renderizarCatalogo(cat);
         };
 
         window.buscarEnCatalogoLocal = function(txt) {
             busquedaActualLocal = txt.toLowerCase().trim();
+            limiteFilasActual = 10;
             renderizarCatalogo(filtroActual);
         };
 
-        // 3. RENDERIZADO CON VÍNCULO A STOCK (BODEGA / MOSTRADOR / AGOTADO)
+        window.cargarMasFilasCatalogo = function() {
+            limiteFilasActual += 10; // Acumula 10 filas equivalentes más hacia abajo
+            renderizarCatalogo(filtroActual);
+        };
+
+        // Detector de scroll: activa el botón al sobrepasar la altura de ~15 filas (~900px de scroll)
+        window.addEventListener('scroll', function() {
+            var btnTop = document.getElementById('btn-volver-arriba');
+            if (!btnTop) return;
+            if (window.scrollY > 850) {
+                btnTop.classList.add('visible');
+            } else {
+                btnTop.classList.remove('visible');
+            }
+        }, { passive: true });
+
+
+        // =========================================================================
+        // 3. RENDERIZADO CON CONTROL DE FILAS (MÁXIMO 10 FILAS POR PÁGINA)
+        // =========================================================================
         function renderizarCatalogo(filtro) {
             const contenedor = document.querySelector('#catalogo-contenedor .grilla-productos-publica');
+            const paginadorWrapper = document.getElementById('paginacion-wrapper');
             contenedor.innerHTML = '';
 
-            let productosAMostrar = productosMemoria.filter(p => {
+            let productosFiltrados = productosMemoria.filter(p => {
                 if (filtro !== 'Todas' && (p.categoria || 'Destacados') !== filtro) return false;
                 if (busquedaActualLocal !== "") {
                     const str = `${p.nombre || ''} ${p.categoria || ''} ${p.cuerpo_texto || ''}`.toLowerCase();
@@ -473,21 +774,44 @@
                 return true;
             });
 
-            if (productosAMostrar.length === 0) {
+            if (productosFiltrados.length === 0) {
                 contenedor.innerHTML = `<div style="grid-column: span 2; text-align: center; color: #888; padding: 40px 0;">No encontramos artículos con esa búsqueda. 🔍</div>`;
+                if (paginadorWrapper) paginadorWrapper.style.display = 'none';
                 return;
             }
 
-            productosAMostrar.forEach(p => {
+            // Cálculo matemático de filas horizontales equivalentes
+            let filasAcumuladas = 0;
+            let productosVisibles = [];
+            let hayMasArticulos = false;
+
+            for (let i = 0; i < productosFiltrados.length; i++) {
+                const p = productosFiltrados[i];
+                const lClass = p.layout || 'layout-grid';
+                // Grid 1x1 equivale a 0.5 filas (caben 2 por fila). Hero, Split y Editorial equivalen a 1 fila completa.
+                const pesoFila = (lClass === 'layout-grid') ? 0.5 : 1.0;
+
+                if (filasAcumuladas + pesoFila <= limiteFilasActual) {
+                    filasAcumuladas += pesoFila;
+                    productosVisibles.push(p);
+                } else {
+                    hayMasArticulos = true;
+                    break;
+                }
+            }
+
+            if (paginadorWrapper) {
+                paginadorWrapper.style.display = hayMasArticulos ? 'block' : 'none';
+            }
+
+            productosVisibles.forEach(p => {
                 const card = document.createElement('div');
                 const lClass = p.layout || 'layout-grid';
                 
-                // Alineación con el Kardex y Stock
                 const stockNum = Number(p.stock_actual) || 0;
                 const estaAgotado = (p.agotado === true) || (stockNum <= 0);
                 const estaEnPiso = Boolean(p.en_piso_venta);
 
-                // Badge de ubicación y stock
                 let badgeStockHTML = '';
                 if (estaAgotado) {
                     badgeStockHTML = `<span class="badge-stock sin-stock">Agotado</span>`;
@@ -509,7 +833,6 @@
                 let cuerpoHTML = '';
 
                 if (lClass === 'layout-hero') {
-                    // 1. VISTA HERO
                     cuerpoHTML = `
                         <div class="card-hero-header">
                             <h3 class="prod-nombre">${window.sanitizarTexto(p.nombre)}</h3>
@@ -522,7 +845,6 @@
                         </div>
                     `;
                 } else if (lClass === 'layout-galeria-split') {
-                    // 2. VISTA GALERÍA SPLIT
                     const gal = p.galeria && p.galeria.length > 0 ? p.galeria : [imgPrincipal, imgPrincipal, imgPrincipal, imgPrincipal];
                     const miniaturas = gal.slice(0, 4).map(m => `<img src="${m && m.length > 10 ? m : imgPrincipal}">`).join('');
                     cuerpoHTML = `
@@ -539,7 +861,6 @@
                         </div>
                     `;
                 } else if (lClass === 'layout-articulo') {
-                    // 3. VISTA ARTÍCULO
                     const floatDir = p.posicion_imagen === 'derecha' ? 'float-derecha' : 'float-izquierda';
                     cuerpoHTML = `
                         <div class="articulo-wrapper">
@@ -555,7 +876,6 @@
                         </div>
                     `;
                 } else {
-                    // 4. VISTA TRADICIONAL (GRID 1x1)
                     cuerpoHTML = `
                         <div class="img-box-tradicional"><img src="imgPrincipal"alt="{window.sanitizarTexto(p.nombre)}"></div>
                         <h4 class="prod-nombre">${window.sanitizarTexto(p.nombre)}</h4>
@@ -564,7 +884,6 @@
                     `;
                 }
 
-                // Control de Cantidades y Compra
                 const cantActual = carrito[p.id_prod] ? carrito[p.id_prod].cant : 0;
                 card.innerHTML = `
                     ${cuerpoHTML}
@@ -576,14 +895,15 @@
                     </div>
                 `;
 
-                // Botón lápiz para el dueño
+                // Botón Lápiz de Edición In Situ para el Dueño
                 if (window.usuarioEsDueno) {
                     const btnLapiz = document.createElement('div');
                     btnLapiz.className = 'lapiz-editar-prod';
                     btnLapiz.innerHTML = '✏️';
+                    btnLapiz.title = "Editar este producto in situ";
                     btnLapiz.onclick = (e) => {
                         e.stopPropagation();
-                        window.abrirEdicionRapidaProducto(p);
+                        window.abrirModalProductoEditar(p);
                     };
                     card.appendChild(btnLapiz);
                 }
@@ -592,7 +912,9 @@
             });
         }
 
-        // 4. CONTROL DEL CARRITO CON VALIDACIÓN DE STOCK REAL
+        // =========================================================================
+        // 4. CONTROL DEL CARRITO
+        // =========================================================================
         window.actualizarCarrito = function(id, cambio) {
             const prod = productosMemoria.find(p => p.id_prod === id);
             if (!prod) return;
@@ -608,20 +930,17 @@
 
             if (!carrito[id]) carrito[id] = { cant: 0 };
 
-            // Evitar agregar más del stock existente
             if (cambio > 0 && (carrito[id].cant + cambio) > stockDisponible) {
                 if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
-                alert(`Solo hay ${stockDisponible} unidades disponibles de este producto.`);
+                alert(`Solo hay ${stockDisponible} unidades disponibles.`);
                 return;
             }
 
             if (navigator.vibrate) navigator.vibrate(30);
             carrito[id].cant += cambio;
-
             if (carrito[id].cant <= 0) delete carrito[id];
 
             localStorage.setItem(`geokatu_cart_${idNegocio}`, JSON.stringify(carrito));
-
             const span = document.getElementById(`cant-${id}`);
             if (span) span.innerText = (carrito[id] && carrito[id].cant > 0) ? carrito[id].cant : '';
 
@@ -679,15 +998,22 @@
             window.cerrarModalManual('overlay-checkout');
         };
 
-       // 5. ENVÍO DEL PEDIDO A WHATSAPP (SEGURO Y SANITIZADO - CERO TEMPLATE LITERALS)
+        // 5. ENVÍO DE PEDIDO POR WHATSAPP
         window.enviarPedido = function() {
             var nombre = document.getElementById('input-nombre-cliente').value.trim();
             var notas = document.getElementById('input-comentario-pedido').value.trim();
-
             if (!nombre) return alert("Por favor ingresa tu nombre o mesa para identificarte.");
 
-            var numTel = (datosNegocio.whatsapp || datosNegocio.whatsApp || '').replace(/\D/g, '');
-            if (!numTel) return alert("Este comercio no tiene número de WhatsApp configurado.");
+            var numTel = (datosNegocio.whatsapp || datosNegocio.whatsApp || '').toString().replace(/\D/g, '');
+            if (!numTel || numTel.length < 7) {
+                var telPbx = (datosNegocio.pbx || '').toString().trim();
+                if (telPbx) {
+                    alert("Este comercio no atiende pedidos por WhatsApp.\nPuedes llamar a su PBX: " + telPbx);
+                    window.location.href = 'tel:' + telPbx.replace(/\D/g, '');
+                    return;
+                }
+                return alert("Este comercio no tiene canales telefónicos registrados.");
+            }
 
             var msg = "Hola *" + (datosNegocio.nombre || 'Comercio') + "*! 👋 Quiero hacer este pedido desde Geokatu:\n\n";
             var total = 0;
@@ -709,8 +1035,7 @@
             window.open("https://wa.me/" + numTel + "?text=" + encodeURIComponent(msg), '_blank');
         };
 
-
-        // 6. MINIMAPA MAPLIBRE CON RESIZE SEGURO
+        // 6. MINIMAPA
         window.abrirMiniMapa = function() {
             const cont = document.getElementById('contenedor-mapa-ubicacion');
             cont.style.display = 'block';
@@ -757,7 +1082,7 @@
             }, () => alert("No pudimos obtener tu ubicación GPS."));
         };
 
-        // 7. MODALES Y UTILIDADES
+        // 7. UTILIDADES
         window.abrirModal = (id) => document.getElementById(id).classList.add('activo');
         window.cerrarModal = (e, id) => { if (e.target.id === id) document.getElementById(id).classList.remove('activo'); };
         window.cerrarModalManual = (id) => document.getElementById(id).classList.remove('activo');
@@ -777,8 +1102,8 @@
 
         window.viajarAlMapa = function() {
             var coords = datosNegocio.Coordenadas || {};
-            var lat = coords.latitude || coords._lat;
-            var lng = coords.longitude || coords._long;
+            var lat = coords.latitude || coords._lat || datosNegocio.lat;
+            var lng = coords.longitude || coords._long || datosNegocio.lng;
             if (lat && lng) {
                 window.location.href = 'index.html?lat=' + lat + '&lng=' + lng + '&enfocar=' + encodeURIComponent(idNegocio);
             } else {
@@ -786,20 +1111,53 @@
             }
         };
 
-
         // 8. MODO EDICIÓN EN VIVO
         window.toggleModoEdicion = function() {
             window.modoEdicionActivo = !window.modoEdicionActivo;
             document.body.classList.toggle('modo-edicion', window.modoEdicionActivo);
+            renderizarCatalogo(filtroActual);
+        };
+
+        // =========================================================================
+        // 9. EDICIÓN DEL PERFIL EN VIVO (HORARIO, 24H, REDES, WEB, NICHOS)
+        // =========================================================================
+        window.toggleHorario24HEdicion = function(es24) {
+            var inputH = document.getElementById('input-edit-horario');
+            if (inputH) {
+                if (es24) {
+                    inputH.value = "24 Horas";
+                    inputH.disabled = true;
+                    inputH.style.opacity = "0.5";
+                } else {
+                    inputH.disabled = false;
+                    inputH.style.opacity = "1";
+                    if (inputH.value === "24 Horas") inputH.value = "08:00 - 20:00";
+                }
+            }
         };
 
         window.abrirModalEdicionPerfil = function() {
             document.getElementById('input-edit-nombre').value = datosNegocio.nombre || '';
             document.getElementById('input-edit-slogan').value = datosNegocio.slogan || '';
+            document.getElementById('input-edit-nicho').value = datosNegocio.nicho || datosNegocio.categoria || '';
             document.getElementById('input-edit-cuerpo').value = datosNegocio.cuerpo_articulo || datosNegocio.historia || '';
             document.getElementById('input-edit-whatsapp').value = datosNegocio.whatsapp || datosNegocio.whatsApp || '';
             document.getElementById('input-edit-pbx').value = datosNegocio.pbx || '';
-            
+            document.getElementById('input-edit-instagram').value = String(datosNegocio.instagram || '').replace(/^@/, '');
+            document.getElementById('input-edit-web').value = datosNegocio.sitio_web || datosNegocio.web || '';
+            document.getElementById('input-edit-correo').value = datosNegocio.correo || datosNegocio.email || '';
+
+            var es24 = Boolean(datosNegocio.es_24_horas);
+            var chk24 = document.getElementById('check-edit-24h');
+            if (chk24) chk24.checked = es24;
+            window.toggleHorario24HEdicion(es24);
+
+            var inHorario = document.getElementById('input-edit-horario');
+            if (inHorario && !es24) inHorario.value = datosNegocio.horario || '';
+
+            var tagsRaw = datosNegocio.tags_busqueda || datosNegocio.palabras_clave || [];
+            document.getElementById('input-edit-tags').value = Array.isArray(tagsRaw) ? tagsRaw.join(', ') : tagsRaw;
+
             var urlPortadaActual = datosNegocio.portada || '';
             document.getElementById('input-edit-portada-url').value = urlPortadaActual;
             document.getElementById('img-preview-portada-modal').src = urlPortadaActual || './assets/portada-default.webp';
@@ -808,7 +1166,6 @@
         };
 
         window.gestionarSubidaPortadaModal = async function(input) {
-
             const file = input.files?.[0];
             if (!file) return;
 
@@ -823,14 +1180,13 @@
                 
                 const rutaDestino = `negocios/${idNegocio}/portada_${Date.now()}.webp`;
                 const resUp = await GeokatuDB.AdminService.subirArchivo(rutaDestino, blobComprimido, 'image/webp');
-                if (!resUp.success) throw new Error(resUp.error || "Fallo en la subida a Storage");
-                const urlDescarga = resUp.data;
+                const urlDescarga = (typeof resUp === 'string') ? resUp : (resUp && resUp.data ? resUp.data : '');
 
                 document.getElementById('input-edit-portada-url').value = urlDescarga;
                 document.getElementById('img-preview-portada-modal').src = urlDescarga;
             } catch (err) {
-                console.error("Error al comprimir o subir la portada:", err);
-                alert("No se pudo procesar la imagen. Intenta con otro archivo.");
+                console.error("Error al subir portada:", err);
+                alert("No se pudo procesar la imagen.");
             } finally {
                 btnSubir.innerText = textoOriginal;
                 btnSubir.disabled = false;
@@ -843,25 +1199,35 @@
             btnGuardar.disabled = true;
             btnGuardar.innerText = 'Guardando...';
 
+            var tagsTexto = document.getElementById('input-edit-tags').value.trim();
+            var tagsArray = tagsTexto.split(/[,|;]/).map(t => t.trim().replace(/^#/, '')).filter(Boolean);
+            var es24H = document.getElementById('check-edit-24h').checked;
+
             var payload = {
                 nombre: document.getElementById('input-edit-nombre').value.trim(),
                 slogan: document.getElementById('input-edit-slogan').value.trim(),
+                nicho: document.getElementById('input-edit-nicho').value.trim(),
+                categoria: document.getElementById('input-edit-nicho').value.trim(),
                 cuerpo_articulo: document.getElementById('input-edit-cuerpo').value.trim(),
-                whatsapp: document.getElementById('input-edit-whatsapp').value.trim(),
+                whatsapp: document.getElementById('input-edit-whatsapp').value.trim().replace(/\D/g, ''),
+                whatsApp: document.getElementById('input-edit-whatsapp').value.trim().replace(/\D/g, ''),
                 pbx: document.getElementById('input-edit-pbx').value.trim(),
+                instagram: document.getElementById('input-edit-instagram').value.trim().replace(/^@/, ''),
+                web: document.getElementById('input-edit-web').value.trim(),
+                sitio_web: document.getElementById('input-edit-web').value.trim(),
+                correo: document.getElementById('input-edit-correo').value.trim(),
+                email: document.getElementById('input-edit-correo').value.trim(),
+                es_24_horas: es24H,
+                horario: es24H ? "24 Horas" : document.getElementById('input-edit-horario').value.trim(),
+                tags_busqueda: tagsArray,
                 portada: document.getElementById('input-edit-portada-url').value.trim()
             };
 
             try {
                 await GeokatuDB.AdminService.actualizarNegocio(idNegocio, payload);
+                Object.assign(datosNegocio, payload);
 
-                datosNegocio.nombre = payload.nombre;
-                datosNegocio.slogan = payload.slogan;
-                datosNegocio.cuerpo_articulo = payload.cuerpo_articulo;
-                datosNegocio.whatsapp = payload.whatsapp;
-                datosNegocio.pbx = payload.pbx;
-                if (payload.portada) datosNegocio.portada = payload.portada;
-
+                // Actualizar interfaz
                 document.getElementById('texto-nombre').innerText = payload.nombre;
                 document.title = payload.nombre + ' | Geokatu';
 
@@ -874,25 +1240,7 @@
                         elSlogan.style.display = 'none';
                     }
                 }
-
-                var numTel = payload.whatsapp.replace(/\D/g, '');
-                var btnWa = document.getElementById('btn-whatsapp-header');
-                if (btnWa) {
-                    btnWa.href = numTel 
-                        ? ('https://wa.me/' + numTel + '?text=' + encodeURIComponent('Hola! Vengo de ver tu catálogo en Geokatu.'))
-                        : '#';
-                }
-
-                var elPbx = document.getElementById('btn-pbx-header');
-                if (elPbx) {
-                    if (payload.pbx) {
-                        elPbx.href = 'tel:' + payload.pbx.replace(/\D/g, '');
-                        elPbx.innerText = '📞 PBX: ' + payload.pbx;
-                        elPbx.style.display = 'inline-flex';
-                    } else {
-                        elPbx.style.display = 'none';
-                    }
-                }
+                document.getElementById('texto-nicho').innerText = (payload.nicho || 'General').toUpperCase();
 
                 if (payload.portada) {
                     document.getElementById('portada-tienda').src = payload.portada;
@@ -901,13 +1249,7 @@
                     fondoEl.style.display = 'block';
                 }
 
-                if (payload.cuerpo_articulo) {
-                    var btnH = document.getElementById('btn-historia');
-                    if (btnH) btnH.style.display = 'inline-block';
-                    var modalCont = document.getElementById('contenido-modal-extra');
-                    if (modalCont) modalCont.innerHTML = window.sanitizarTexto(payload.cuerpo_articulo);
-                }
-
+                renderizarFooterCorporativo();
                 window.cerrarModalManual('modal-editar-perfil-negocio');
             } catch (err) {
                 console.error("Error al persistir cambios del negocio:", err);
@@ -916,7 +1258,6 @@
                 btnGuardar.innerText = 'Guardar Cambios';
             }
         };
-
 
         window.subirFotoDirecta = async function(input, tipo) {
             const file = input.files?.[0];
@@ -927,20 +1268,19 @@
                 const blob = await GeokatuDB.AdminService.comprimirAWebP(file, esLogo ? 400 : 1200, 0.8, esLogo);
                 const ruta = `negocios/idNegocio/{tipo}_${Date.now()}.webp`;
                 const res = await GeokatuDB.AdminService.subirArchivo(ruta, blob, 'image/webp');
-                
-                if (!res.success) throw new Error(res.error);
+                const url = (typeof res === 'string') ? res : (res && res.data ? res.data : '');
 
                 const payload = {};
-                payload[tipo] = res.data;
+                payload[tipo] = url;
                 await GeokatuDB.AdminService.actualizarNegocio(idNegocio, payload);
 
-                datosNegocio[tipo] = res.data;
+                datosNegocio[tipo] = url;
                 const targetId = tipo === 'portada' ? 'portada-tienda' : 'avatar-tienda';
-                document.getElementById(targetId).src = res.data;
+                document.getElementById(targetId).src = url;
 
                 if (tipo === 'portada') {
                     const fondoEl = document.getElementById('fondo-pantalla');
-                    fondoEl.src = res.data;
+                    fondoEl.src = url;
                     fondoEl.style.display = 'block';
                 }
             } catch (e) {
@@ -949,11 +1289,137 @@
             }
         };
 
-        window.abrirEdicionRapidaProducto = async function(p) {
-            const nuevoAgotado = !p.agotado;
-            await GeokatuDB.AdminService.actualizarProducto(idNegocio, p.id_prod, { agotado: nuevoAgotado });
-            p.agotado = nuevoAgotado;
-            renderizarCatalogo(filtroActual);
+        // =========================================================================
+        // 10. GESTIÓN DE PRODUCTOS IN SITU (CREACIÓN, EDICIÓN, FORMATO Y FOTO)
+        // =========================================================================
+        window.seleccionarLayoutInSitu = function(layout) {
+            document.getElementById('prod-edit-layout').value = layout;
+            document.querySelectorAll('.modal-edicion-card .btn-layout-chip').forEach(btn => {
+                btn.classList.toggle('activo', btn.getAttribute('data-layout') === layout);
+            });
+        };
+
+        window.previsualizarFotoProdInSitu = function(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    document.getElementById('prod-edit-preview-img').src = e.target.result;
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        };
+
+        window.abrirModalProductoNuevo = function() {
+            productoEnEdicionInSitu = null;
+            document.getElementById('titulo-modal-producto').innerText = "➕ Nuevo Artículo";
+            document.getElementById('prod-edit-id').value = "";
+            document.getElementById('prod-edit-nombre').value = "";
+            document.getElementById('prod-edit-precio').value = "";
+            document.getElementById('prod-edit-stock').value = "10";
+            document.getElementById('prod-edit-categoria').value = (filtroActual !== 'Todas' ? filtroActual : (datosNegocio.nicho || "General"));
+            document.getElementById('prod-edit-cuerpo').value = "";
+            document.getElementById('prod-edit-imagen-actual').value = "";
+            document.getElementById('prod-edit-preview-img').src = "https://via.placeholder.com/150/0a0a0c/ff6b00?text=FOTO";
+            document.getElementById('btn-eliminar-prod-insitu').style.display = "none";
+            document.getElementById('btn-toggle-agotado-insitu').style.display = "none";
+
+            window.seleccionarLayoutInSitu('layout-grid');
+            window.abrirModal('modal-edicion-producto');
+        };
+
+        window.abrirModalProductoEditar = function(p) {
+            productoEnEdicionInSitu = p;
+            document.getElementById('titulo-modal-producto').innerText = "✏️ Editar Artículo";
+            document.getElementById('prod-edit-id').value = p.id_prod;
+            document.getElementById('prod-edit-nombre').value = p.nombre || "";
+            document.getElementById('prod-edit-precio').value = p.precio || "";
+            document.getElementById('prod-edit-stock').value = p.stock_actual !== undefined ? p.stock_actual : 0;
+            document.getElementById('prod-edit-categoria').value = p.categoria || "General";
+            document.getElementById('prod-edit-cuerpo').value = p.cuerpo_texto || "";
+            document.getElementById('prod-edit-imagen-actual').value = p.imagen || "";
+            document.getElementById('prod-edit-preview-img').src = p.imagen || "https://via.placeholder.com/150/0a0a0c/ff6b00?text=FOTO";
+
+            const btnEliminar = document.getElementById('btn-eliminar-prod-insitu');
+            const btnAgotar = document.getElementById('btn-toggle-agotado-insitu');
+            btnEliminar.style.display = "inline-flex";
+            btnAgotar.style.display = "inline-flex";
+            btnAgotar.innerText = p.agotado ? "✔️ Activar" : "⛔ Agotar";
+
+            window.seleccionarLayoutInSitu(p.layout || 'layout-grid');
+            window.abrirModal('modal-edicion-producto');
+        };
+
+        window.guardarProductoInSitu = async function(event) {
+            event.preventDefault();
+            const btn = document.getElementById('btn-guardar-prod-insitu');
+            btn.disabled = true;
+            btn.innerText = "Guardando...";
+
+            const idProd = document.getElementById('prod-edit-id').value.trim();
+            const nombre = document.getElementById('prod-edit-nombre').value.trim();
+            const precio = parseFloat(document.getElementById('prod-edit-precio').value) || 0;
+            const stock = parseFloat(document.getElementById('prod-edit-stock').value) || 0;
+            const categoria = document.getElementById('prod-edit-categoria').value.trim() || "General";
+            const cuerpo = document.getElementById('prod-edit-cuerpo').value.trim();
+            const layout = document.getElementById('prod-edit-layout').value || "layout-grid";
+            let urlImg = document.getElementById('prod-edit-imagen-actual').value;
+
+            try {
+                const fileInput = document.getElementById('prod-edit-file');
+                if (fileInput.files && fileInput.files[0]) {
+                    const blob = await GeokatuDB.AdminService.comprimirAWebP(fileInput.files[0], 800, 0.75, true);
+                    const ruta = `productos/${idNegocio}/p_${Date.now()}.webp`;
+                    const resUp = await GeokatuDB.AdminService.subirArchivo(ruta, blob, 'image/webp');
+                    urlImg = (typeof resUp === 'string') ? resUp : (resUp && resUp.data ? resUp.data : '');
+                }
+
+                const payload = {
+                    nombre,
+                    precio,
+                    stock_actual: stock,
+                    categoria,
+                    cuerpo_texto: cuerpo,
+                    layout,
+                    en_piso_venta: true,
+                    eliminado: false,
+                    fecha_actualizacion: new Date().toISOString()
+                };
+
+                if (urlImg) payload.imagen = urlImg;
+                if (!idProd) {
+                    payload.codigo_barras = `IN_${Date.now().toString().slice(-6)}`;
+                    payload.fecha_creacion = new Date().toISOString();
+                    payload.agotado = (stock <= 0);
+                }
+
+                const resGuardar = await GeokatuDB.AdminService.guardarProducto(idNegocio, idProd || null, payload);
+                if (!resGuardar.success) throw new Error(resGuardar.error);
+
+                window.cerrarModalManual('modal-edicion-producto');
+                await cargarCatalogoProductos();
+            } catch (err) {
+                alert("Error al guardar producto: " + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Guardar";
+            }
+        };
+
+        window.toggleAgotadoInSitu = async function() {
+            if (!productoEnEdicionInSitu) return;
+            const nuevoEstado = !productoEnEdicionInSitu.agotado;
+            await GeokatuDB.AdminService.actualizarProducto(idNegocio, productoEnEdicionInSitu.id_prod, { agotado: nuevoEstado });
+            productoEnEdicionInSitu.agotado = nuevoEstado;
+            window.cerrarModalManual('modal-edicion-producto');
+            await cargarCatalogoProductos();
+        };
+
+        window.eliminarProductoInSitu = async function() {
+            if (!productoEnEdicionInSitu) return;
+            if (!confirm(`¿Eliminar definitivamente "${productoEnEdicionInSitu.nombre}"?`)) return;
+            await GeokatuDB.AdminService.eliminarProducto(idNegocio, productoEnEdicionInSitu.id_prod);
+            window.cerrarModalManual('modal-edicion-producto');
+            await cargarCatalogoProductos();
         };
 
         window.onload = construirTienda;

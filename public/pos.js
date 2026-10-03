@@ -3,7 +3,6 @@ import { BillingGuard } from './billing-guard.js';
 import { MotorLector } from './lector-motor.js';
 import { MotorBalanza } from './balanza-motor.js';
 import { MotorCajonMonedero } from './cajon-motor.js';
-import { QRLocal } from './qrcode-local.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
 const auth = getAuth();
@@ -1259,11 +1258,12 @@ async function ejecutarVentaFinalDefinitiva() {
     const res = await GeokatuDB.PosService.procesarVentaLote(idNegocio, ticketPayload);
 
         if (res.success) {
-        ultimoTicketIdVendido = res.ticketId || res.localId;
+        ultimoTicketIdVendido = res.localId || res.ticketId;
         
         if (typeof window.mostrarAvisoPos === 'function') {
             window.mostrarAvisoPos(`Venta asentada con éxito. Ticket: ${ultimoTicketIdVendido}`);
         }
+
 
         let datosFiscalesResueltos = null;
 
@@ -2852,30 +2852,30 @@ async function abrirModalFacturaDigitalQR(ticketId, telefonoPrevio = "") {
 
     window.urlFacturaActiva = `${window.location.origin}/factura?com=${idNegocio}&tkt=${ticketId}&exp=${exp}&sig=${sig}`;
 
-    contenedor.innerHTML = '';
-    const canvas = document.createElement('canvas');
-    canvas.style.display = 'block';
-    canvas.style.margin = '0 auto';
-    contenedor.appendChild(canvas);
+        contenedor.innerHTML = '';
 
-    let renderExitoso = false;
-    if (typeof QRLocal !== 'undefined' && QRLocal.dibujarEnCanvas) {
-        try {
-            // quietZone: 4 módulos blancos mandatorios para lectura óptica en pantallas
-            QRLocal.dibujarEnCanvas(canvas, window.urlFacturaActiva, { width: 240, margin: 4 });
-            renderExitoso = true;
-        } catch (_) {}
-    }
-
-    if (!renderExitoso) {
-        // Fallback en alta resolución con margin 15px de zona muda
-        contenedor.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=15&data=${encodeURIComponent(window.urlFacturaActiva)}" style="display:block; width:220px; height:220px; margin:0 auto;" alt="QR Factura">`;
+    // Renderizado estándar offline mediante qrcode.min.js
+    if (typeof QRCode !== 'undefined') {
+        new QRCode(contenedor, {
+            text: window.urlFacturaActiva,
+            width: 210,
+            height: 210,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.M
+        });
+    } else {
+        console.error("[QR Error] La librería qrcode.min.js no está cargada en pos.html");
     }
 
     const inputWp = document.getElementById('input-whatsapp-cliente');
     if (inputWp) inputWp.value = telefonoPrevio || '';
 
+    const txtTicketId = document.getElementById('txt-qr-ticket-id');
+    if (txtTicketId) txtTicketId.innerText = ticketId;
+
     modalQR.style.display = 'flex';
+
 }
 
 
