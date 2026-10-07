@@ -3,170 +3,179 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Terminal Logística | Geokatu</title>
-    <meta name="theme-color" content="#ff6b00">
+    <title>Terminal Logística WMS | Geokatu</title>
+    <meta name="theme-color" content="#0a0a0c">
     <link rel="stylesheet" href="stock.css"> 
     <script src="html5-qrcode.min.js" type="text/javascript"></script>
-
-   
 </head>
+  <script>
+    // Atrapador de Errores Globales para Móvil
+    window.onerror = function(msg, url, lineNo, columnNo, error) {
+        var errDiv = document.createElement('div');
+        errDiv.style.cssText = 'position:fixed; top:0; left:0; width:100%; background:#ff4444; color:white; z-index:999999; padding:20px; font-size:13px; font-family:monospace; word-wrap:break-word; box-shadow: 0 5px 15px rgba(0,0,0,0.5);';
+        errDiv.innerHTML = '<b>🚨 ERROR CRÍTICO:</b><br>' + msg + '<br><br><b>Línea:</b> ' + lineNo + ' | <b>Columna:</b> ' + columnNo + '<br><br><b>Archivo:</b> ' + url;
+        document.body.appendChild(errDiv);
+        return false;
+    };
+    window.addEventListener('unhandledrejection', function(event) {
+        var errDiv = document.createElement('div');
+        errDiv.style.cssText = 'position:fixed; bottom:0; left:0; width:100%; background:#ffaa00; color:black; z-index:999999; padding:20px; font-size:13px; font-family:monospace; word-wrap:break-word; box-shadow: 0 -5px 15px rgba(0,0,0,0.5);';
+        errDiv.innerHTML = '<b>⚠️ PROMESA RECHAZADA (Firebase/Red):</b><br>' + (event.reason ? event.reason.message || event.reason : 'Rechazo desconocido');
+        document.body.appendChild(errDiv);
+    });
+</script>
+
 <body>
 
-    <!-- PANTALLA LOGIN -->
-    <div id="pantalla-login" style="display: flex; position: fixed; inset: 0; background: var(--bg-oscuro); z-index: 10000; align-items: center; justify-content: center;">
+    <!-- 1. PANTALLA LOGIN -->
+    <div id="pantalla-login" class="pantalla-completa-centro" style="display: flex;">
         <div class="panel-login">
-            <div style="text-align: center; margin-bottom: 20px;">
-                <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 900; letter-spacing: 2px;">LOGI<span style="color: var(--naranja);">CORE</span></h1>
-                <p style="color: #888; font-size: 11px; text-transform: uppercase;">Control de Stock Físico</p>
+            <div class="brand-encabezado">
+                <h1 class="logo-titulo">LOGI<span>CORE</span></h1>
+                <span class="subtexto-brand">Control de Stock Físico</span>
             </div>
             <input type="email" id="login-email" class="input-boveda" placeholder="Correo de bodega / operador">
             <input type="password" id="login-pass" class="input-boveda" placeholder="Contraseña">
-            <button class="btn-accion-boveda" id="btn-login">INICIAR TURNO</button>
+            <button class="btn-accion-boveda" id="btn-login" style="margin-top: 10px;">INICIAR TURNO</button>
         </div>
     </div>
 
-    <!-- TERMINAL ACTIVA -->
+    <!-- 2. TERMINAL ACTIVA -->
     <div id="app-terminal" style="display: none;">
         
         <!-- CABECERA PRINCIPAL -->
-<div class="header-terminal" style="padding: 10px 15px; flex-shrink: 0;">
-    <div>
-        <span style="color: var(--naranja); font-weight: 900; font-size: 17px; letter-spacing: 1px;">GEOKATU LOGÍSTICA</span>
-        <span id="txt-operador" style="display: block; font-size: 10px; color: #888; text-transform: uppercase;">Operador: Conectando...</span>
-    </div>
-    <div style="display: flex; gap: 8px; align-items: center;">
-        <button onclick="window.open('inventario', '_blank')" title="Ver Mapa de Piso y Caducidades" style="background: rgba(96,165,250,0.15); border: 1px solid #60a5fa; color: #60a5fa; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">
-            Plano SIG
-        </button>
-        <button id="btn-logout" title="Cerrar sesión" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.2); color: #ccc; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: bold; cursor: pointer; text-transform: uppercase;">
-            Salir
-        </button>
-    </div>
-</div>
+        <div class="header-terminal">
+            <div class="brand-terminal">
+                <div>
+                    <span class="titulo-terminal">GEOKATU WMS</span>
+                    <span id="txt-operador" class="operador-chip">OPERADOR: CONECTANDO...</span>
+                </div>
+            </div>
+            <div class="acciones-cabecera">
+                <button onclick="window.open('inventario', '_blank')" class="btn-icono-texto" title="Ver Mapa de Piso">
+                    SIG
+                </button>
+                <button id="btn-logout" class="btn-icono-texto" style="background: transparent; border-color: rgba(255,255,255,0.2); color: #ccc;" title="Cerrar sesión">
+                    SALIR
+                </button>
+            </div>
+        </div>
 
-
-
-        <!-- 📸 MITAD SUPERIOR FIJA: VISOR DE CÁMARA Y TOGGLE DE RÁFAGA -->
+        <!-- MITAD SUPERIOR FIJA: VISOR DE CÁMARA Y TOGGLE DE RÁFAGA -->
         <div class="zona-escaneo-superior">
             <div id="lector-camara" style="display: none;"></div>
 
             <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 480px; gap: 10px;">
-                <button class="btn-accion-boveda" id="btn-toggle-camara" style="width: auto; padding: 9px 16px; font-size: 11px; margin: 0; letter-spacing: 0.5px;">
+                <button class="btn-accion-boveda" id="btn-toggle-camara" style="width: auto; padding: 10px 16px; font-size: 11px; margin: 0;">
                     <span id="txt-btn-camara">ACTIVAR CÁMARA</span>
                 </button>
 
-
                 <!-- SWITCH MODO RÁFAGA (CINTA TRANSPORTADORA) -->
                 <label id="toggle-rafaga-wrapper" class="toggle-rafaga-pill" title="Escaneo continuo sin cerrar la cámara">
-                    <input type="checkbox" id="chk-modo-rafaga" style="accent-color: var(--naranja); cursor: pointer;">
-                    <span id="txt-modo-rafaga" style="font-size: 10.5px; font-weight: bold; color: #aaa; text-transform: uppercase;">Ráfaga</span>
+                    <input type="checkbox" id="chk-modo-rafaga">
+                    <span id="txt-modo-rafaga">RÁFAGA</span>
                 </label>
 
                 <!-- ESTADO DEL PESTILLO ÓPTICO -->
-                <div style="display: flex; align-items: center; gap: 6px;">
+                <div class="indicador-latch">
                     <span id="luz-estado" class="luz-pestillo"></span>
-                    <span id="txt-estado-latch" style="font-size: 10px; color: #777; font-family: monospace;">LISTO</span>
+                    <span id="txt-estado-latch" class="txt-latch">LISTO</span>
                 </div>
             </div>
         </div>
 
-        <!-- 📜 MITAD INFERIOR SCROLLABLE: CONTROLES, KARDEX Y TARJETA -->
+        <!-- MITAD INFERIOR SCROLLABLE: CONTROLES Y KARDEX -->
         <div class="consola-scrollable">
-            <div class="consola-controles" style="margin: 0;">
-                <label style="font-size: 10px; color: #aaa; text-transform: uppercase; font-weight: bold;">Operación de Stock</label>
+            <div class="consola-controles">
+                <label style="font-size: 10px; color: var(--text-secundario); text-transform: uppercase; font-weight: 800;">Operación de Stock</label>
                 <div class="ribbon-categorias" id="selector-operacion">
-                    <button class="ribbon-btn activo" data-op="ENTRADA">Entrada (+)</button>
-                    <button class="ribbon-btn" data-op="SALIDA">Salida (-)</button>
-                    <button class="ribbon-btn" data-op="REUBICAR">Reubicar</button>
-                    <button class="ribbon-btn" data-op="AUDITAR">Auditar</button>
-                    <button class="ribbon-btn" data-op="AUDITORIA">Consulta</button>
+                    <button class="ribbon-btn activo" data-op="ENTRADA">ENTRADA (+)</button>
+                    <button class="ribbon-btn" data-op="SALIDA">SALIDA (-)</button>
+                    <button class="ribbon-btn" data-op="REUBICAR">REUBICAR</button>
+                    <button class="ribbon-btn" data-op="AUDITAR">AUDITAR</button>
                 </div>
 
-
                 <div id="banner-cascada" class="banner-cascada-wms" style="display: none;">
-                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                        <span style="color: #aaa; font-size: 11px;">Ubicación:</span>
+                    <div class="tags-ubicacion">
                         <span id="txt-mueble-activo" class="tag-coord">MUEBLE: ---</span>
                         <span id="txt-comp-activo" class="tag-coord">BIN: ---</span>
                     </div>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <button id="btn-abrir-selector-ubicacion" class="btn-cascada-manual">📋 Lista</button>
-                        <button id="btn-reset-cascada" style="background: transparent; border: none; color: #ff4444; font-weight: bold; cursor: pointer;">✕</button>
+                    <div class="acciones-cascada">
+                        <button id="btn-abrir-selector-ubicacion" class="btn-cascada-manual">LISTA</button>
+                        <button id="btn-reset-cascada" class="btn-accion-mini peligro">✕</button>
                     </div>
                 </div>
 
-
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px;">
-                    <span style="font-size: 12px; color: #aaa;">Cantidad a aplicar por escaneo:</span>
-                    <input type="number" id="input-unidades-lote" value="1" min="1" style="width: 75px; background: rgba(0,0,0,0.5); border: 1px solid var(--naranja); color: white; text-align: center; border-radius: 8px; padding: 6px; font-weight: bold;">
+                <div class="seccion-operacion-cuadro">
+                    <div class="cabecera-cantidad">
+                        <label>Multiplicador de Lote</label>
+                    </div>
+                    <input type="number" id="input-unidades-lote" class="input-cantidad-principal" value="1" min="1">
                 </div>
             </div>
 
             <!-- CONSOLA DE AUDITORÍA Y CONTEO CÍCLICO -->
-            <div id="panel-auditoria-ciclica" style="display: none; background: rgba(18, 18, 24, 0.95); border: 1px solid var(--naranja); border-radius: 16px; padding: 14px; box-sizing: border-box; flex-direction: column; gap: 10px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px;">
+            <div id="panel-auditoria-ciclica" style="display: none; background: var(--bg-tarjeta); border: 1px solid var(--borde-resaltado); border-radius: 16px; padding: 14px; flex-direction: column; gap: 10px;">
+                <div class="audit-cabecera-status">
                     <div>
-                        <span style="font-size: 9px; color: #888; text-transform: uppercase; font-weight: 800; letter-spacing: 0.5px;">Auditoría de Anaquel</span>
-                        <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
-                            <span id="audit-bin-tag" style="background: rgba(255,107,0,0.18); border: 1px solid var(--naranja); color: var(--naranja); font-family: monospace; font-size: 11px; padding: 2px 6px; border-radius: 6px; font-weight: bold;">SIN BIN FIJADO</span>
-                            <span id="audit-mueble-tag" style="font-size: 11px; color: #fff; font-weight: 700;"></span>
+                        <span style="font-size: 10px; color: var(--text-secundario); text-transform: uppercase; font-weight: 800;">Auditoría de Anaquel</span>
+                        <div style="display: flex; align-items: center; gap: 6px; margin-top: 4px;">
+                            <span id="audit-bin-tag" class="audit-tag-bin">SIN BIN FIJADO</span>
+                            <span id="audit-mueble-tag" class="audit-tag-mueble"></span>
                         </div>
                     </div>
-                    <button id="btn-cancelar-auditoria" style="background: transparent; border: 1px solid rgba(255,255,255,0.2); color: #888; border-radius: 8px; font-size: 10px; padding: 4px 8px; cursor: pointer; text-transform: uppercase;">Reiniciar</button>
+                    <button id="btn-cancelar-auditoria" class="btn-secundario-wms" style="width: auto; padding: 6px 10px;">REINICIAR</button>
                 </div>
 
-                <div id="audit-instruccion-espera" style="text-align: center; padding: 18px 10px; color: #888; font-size: 11px; line-height: 1.4;">
-                    Escanea el código QR del compartimiento <strong style="color: var(--naranja);">(GEO-P-...)</strong> o selecciona la ubicación desde la lista para iniciar el conteo físico.
+                <div id="audit-instruccion-espera" style="text-align: center; padding: 20px 10px; color: var(--text-secundario); font-size: 11px;">
+                    Escanea el código del compartimiento <strong style="color: var(--naranja);">(GEO-P-...)</strong> o selecciona la ubicación desde la lista para iniciar el conteo físico.
                 </div>
 
                 <div id="audit-cuerpo-conteo" style="display: none; flex-direction: column; gap: 10px;">
-                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; background: rgba(0,0,0,0.4); padding: 8px; border-radius: 10px; text-align: center;">
-                        <div>
-                            <span style="font-size: 9px; color: #888; text-transform: uppercase; display: block;">Teórico</span>
-                            <span id="kpi-audit-teorico" style="font-size: 15px; font-weight: 900; color: #aaa; font-family: monospace;">0</span>
+                    <div class="audit-kpi-grid">
+                        <div class="audit-kpi-caja">
+                            <span class="audit-kpi-lbl">Teórico</span>
+                            <span id="kpi-audit-teorico" class="audit-kpi-num">0</span>
                         </div>
-                        <div>
-                            <span style="font-size: 9px; color: #888; text-transform: uppercase; display: block;">Contado</span>
-                            <span id="kpi-audit-contado" style="font-size: 15px; font-weight: 900; color: #fff; font-family: monospace;">0</span>
+                        <div class="audit-kpi-caja">
+                            <span class="audit-kpi-lbl">Contado</span>
+                            <span id="kpi-audit-contado" class="audit-kpi-num" style="color: #fff;">0</span>
                         </div>
-                        <div>
-                            <span style="font-size: 9px; color: #888; text-transform: uppercase; display: block;">Delta Neto</span>
-                            <span id="kpi-audit-delta" style="font-size: 15px; font-weight: 900; color: #00ff64; font-family: monospace;">0</span>
+                        <div class="audit-kpi-caja">
+                            <span class="audit-kpi-lbl">Delta Neto</span>
+                            <span id="kpi-audit-delta" class="audit-kpi-num cuadrado">0</span>
                         </div>
                     </div>
 
-                    <!-- MATRIZ DINÁMICA DE DISCREPANCIAS -->
-                    <div id="tabla-discrepancias-auditoria" style="display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto;"></div>
+                    <div id="tabla-discrepancias-auditoria" class="audit-lista-discrepancias"></div>
 
-                    <button id="btn-confirmar-auditoria" class="btn-accion-boveda" style="margin-top: 4px; padding: 12px; font-size: 12px; letter-spacing: 0.5px;">
+                    <button id="btn-confirmar-auditoria" class="btn-primario-wms" style="margin-top: 4px;">
                         CONFIRMAR AJUSTE DE AUDITORÍA
                     </button>
                 </div>
             </div>
 
             <!-- TARJETA INFORMATIVA FLUIDA DEL ÚLTIMO ARTÍCULO -->
-            <div id="tarjeta-producto" class="ultimo-escaneo" style="position: static; transform: none; width: 100%; box-sizing: border-box; display: none; border-radius: 16px;">
-
-
+            <div id="tarjeta-producto" class="ultimo-escaneo" style="display: none;">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                     <div>
-                        <span id="badge-estado" style="background: #00ff64; color: black; font-size: 10px; padding: 3px 8px; border-radius: 8px; font-weight: bold; text-transform: uppercase;">ACTUALIZADO</span>
-                        <h2 id="prod-nombre" style="margin: 8px 0 0 0; font-size: 16px; color: white;">Producto</h2>
+                        <span class="badge-status existente">ACTUALIZADO</span>
+                        <h2 id="prod-nombre" style="margin: 8px 0 0 0; font-size: 15px; color: white;">Producto</h2>
                     </div>
                     <div style="text-align: right;">
-                        <p style="margin: 0; font-size: 10px; color: #aaa;">CÓDIGO:</p>
-                        <p id="prod-codigo" style="margin: 0; font-family: monospace; font-size: 13px; color: var(--naranja); font-weight: bold;">---</p>
+                        <span class="txt-mono-sub">CÓDIGO</span>
+                        <p id="prod-codigo" style="margin: 2px 0 0 0; font-family: var(--fuente-mono); font-size: 13px; color: var(--naranja); font-weight: bold;">---</p>
                     </div>
                 </div>
                 
-                <div style="background: rgba(0,0,0,0.3); border-radius: 12px; padding: 12px; margin-top: 10px; border: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between;">
-                    <div>
-                        <p style="margin: 0; font-size: 11px; color: #888;">Operación: <strong id="res-operacion" style="color: white;">ENTRADA</strong></p>
-                        <p style="margin: 4px 0 0 0; font-size: 11px; color: #888;">Hardware: <span id="res-hardware" style="color: #aaa;">USB</span></p>
+                <div class="panel-coordenadas-analisis" style="margin-top: 12px;">
+                    <div class="coord-col">
+                        <span class="lbl-dim">OPERACIÓN</span>
+                        <strong id="res-operacion" style="color: white; font-size: 12px;">ENTRADA</strong>
                     </div>
-                    <div style="text-align: right;">
-                        <p style="margin: 0; font-size: 11px; color: #888;">Stock Resultante:</p>
-                        <p id="res-stock" style="margin: 2px 0 0 0; font-size: 20px; color: #00ff64; font-weight: 900;">0</p>
+                    <div class="coord-col" style="text-align: right;">
+                        <span class="lbl-dim">STOCK RESULTANTE</span>
+                        <strong id="res-stock" style="color: var(--accent-green); font-size: 18px; font-family: var(--fuente-mono);">0</strong>
                     </div>
                 </div>
             </div>
@@ -174,104 +183,103 @@
     </div>
 
     <!-- MODAL IN SITU: ALTA RÁPIDA -->
-    <div id="modal-alta-rapida" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); z-index: 10000; align-items: center; justify-content: center; padding: 15px; box-sizing: border-box;">
-        <div style="background: rgba(20,20,25,0.98); border: 1px solid var(--naranja); border-radius: 20px; width: 100%; max-width: 400px; padding: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.9); box-sizing: border-box;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h3 style="margin: 0; font-size: 15px; color: var(--naranja); text-transform: uppercase;">✨ Producto Nuevo Detectado</h3>
-                <button id="btn-cerrar-alta" style="background: none; border: none; color: #888; font-size: 18px; cursor: pointer;">✕</button>
+    <div id="modal-alta-rapida" class="modal-overlay" style="display: none;">
+        <div class="modal-card-wms">
+            <div class="modal-header-barra">
+                <h3 id="titulo-alta-rapida" style="margin: 0; font-size: 14px; color: var(--naranja); text-transform: uppercase;">PRODUCTO NUEVO DETECTADO</h3>
+                <button id="btn-cerrar-alta" class="btn-cerrar-x">✕</button>
             </div>
 
-            <p style="font-size: 11px; color: #aaa; margin: 0 0 12px 0;">El código escaneado no existe en catálogo. Complétalo para ingresarlo al stock físico.</p>
+            <div class="modal-scroll-interior">
+                <p style="font-size: 11px; color: var(--text-secundario); margin: 0;">El código escaneado no existe en catálogo. Complétalo para ingresarlo al stock físico.</p>
 
-            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                <div style="width: 90px; height: 90px; border: 1px dashed var(--naranja); border-radius: 12px; background: rgba(255,107,0,0.05); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; flex-shrink: 0;" onclick="document.getElementById('alta-foto-input').click()">
-                    <input type="file" id="alta-foto-input" accept="image/*" capture="environment" style="display: none;">
-                    <img id="alta-foto-preview" src="" style="display: none; width: 100%; height: 100%; object-fit: cover;">
-                    <span id="alta-foto-icono" style="font-size: 10px; color: var(--naranja); font-weight: 800; text-transform: uppercase;">Adjuntar</span>
-                    <span id="alta-foto-txt" style="font-size: 9px; color: #aaa; font-weight: bold; margin-top: 2px;">Foto</span>
+                <div class="grid-producto-identidad">
+                    <div class="foto-slot-contenedor" onclick="document.getElementById('alta-foto-input').click()">
+                        <input type="file" id="alta-foto-input" accept="image/*" capture="environment" style="display: none;">
+                        <img id="alta-foto-preview" src="" style="display: none;">
+                        <div class="foto-placeholder-iconos" id="alta-foto-icono">
+                            <span style="font-size: 24px; display: block; margin-bottom: 4px;">📷</span>
+                            FOTO
+                        </div>
+                    </div>
+                    <div class="campos-identidad">
+                        <input type="text" id="alta-codigo" class="input-wms-dato mono" readonly>
+                        <input type="text" id="alta-nombre" class="input-wms-dato" placeholder="Nombre del producto">
+                        <input type="number" id="alta-precio" class="input-wms-dato" placeholder="Precio de venta ($)">
+                    </div>
                 </div>
 
-
-                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                    <input type="text" id="alta-codigo" class="input-boveda" readonly style="margin: 0; padding: 8px; font-size: 12px; font-family: monospace; color: var(--naranja); font-weight: bold;">
-                    <input type="text" id="alta-nombre" class="input-boveda" placeholder="Nombre del producto" style="margin: 0; padding: 8px; font-size: 12px;">
-                    <input type="number" id="alta-precio" class="input-boveda" placeholder="Precio ($)" style="margin: 0; padding: 8px; font-size: 12px;">
+                <div class="grid-metricas-2col">
+                    <div class="campo-bloque">
+                        <label>Cantidad a Ingresar</label>
+                        <input type="number" id="alta-cantidad" class="input-wms-dato resaltado" value="1" min="1" style="text-align: center;">
+                    </div>
+                    <div class="campo-bloque">
+                        <label>Categoría</label>
+                        <input type="text" id="alta-categoria" class="input-wms-dato" value="General">
+                    </div>
                 </div>
+
+                <button id="btn-guardar-alta-rapida" class="btn-primario-wms" style="margin-top: 6px;">
+                    INCORPORAR AL STOCK
+                </button>
             </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-                <div>
-                    <label style="font-size: 10px; color: #888; text-transform: uppercase;">Cantidad:</label>
-                    <input type="number" id="alta-cantidad" class="input-boveda" value="1" min="1" style="margin: 4px 0 0 0; padding: 8px; font-size: 13px; font-weight: bold; text-align: center; color: #00ff64;">
-                </div>
-                <div>
-                    <label style="font-size: 10px; color: #888; text-transform: uppercase;">Categoría:</label>
-                    <input type="text" id="alta-categoria" class="input-boveda" value="General" style="margin: 4px 0 0 0; padding: 8px; font-size: 12px;">
-                </div>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
-                <div>
-                    <label style="font-size: 10px; color: #888; text-transform: uppercase;">N° de Lote:</label>
-                    <input type="text" id="alta-lote" class="input-boveda" placeholder="Ej: L-2026-A" style="margin: 4px 0 0 0; padding: 8px; font-size: 12px; font-family: monospace;">
-                </div>
-                <div>
-                    <label style="font-size: 10px; color: #888; text-transform: uppercase; color: #ffaa00;">Fecha Vencimiento:</label>
-                    <input type="date" id="alta-vencimiento" class="input-boveda" style="margin: 4px 0 0 0; padding: 8px; font-size: 11px; color: white;">
-                </div>
-            </div>
-
-            <button id="btn-guardar-alta-rapida" class="btn-accion-boveda" style="margin: 0; padding: 12px; font-size: 13px;">
-                INCORPORAR AL STOCK
-            </button>
         </div>
     </div>
 
-    <!-- MODAL SELECTOR JERÁRQUICO DE UBICACIÓN (ENLACE MAPATIENDA -> STOCK) -->
+    <!-- MODAL SELECTOR JERÁRQUICO DE UBICACIÓN -->
     <div id="modal-selector-ubicacion" class="modal-selector-wrap">
         <div class="card-selector-ubicacion">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h3 style="margin: 0; font-size: 14px; text-transform: uppercase; color: var(--naranja);">Asignar Espacio Físico</h3>
-                <button id="btn-cerrar-modal-ubi" style="background: none; border: none; color: #888; font-size: 18px; cursor: pointer;">✕</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0; font-size: 14px; text-transform: uppercase; color: var(--naranja);">ASIGNAR ESPACIO FÍSICO</h3>
+                <button id="btn-cerrar-modal-ubi" class="btn-cerrar-x" style="width: 24px; height: 24px;">✕</button>
             </div>
 
-            <label style="font-size: 10.5px; color: #aaa; text-transform: uppercase;">1. Seleccionar Mueble / Estantería:</label>
-            <select id="select-mueble-wms" class="select-wms">
-                <option value="">-- Selecciona un mueble --</option>
-            </select>
-
-            <label style="font-size: 10.5px; color: #aaa; text-transform: uppercase;">2. Seleccionar Compartimiento (Bin):</label>
-            <select id="select-bin-wms" class="select-wms" disabled>
-                <option value="">-- Primero selecciona el mueble --</option>
-            </select>
-
-            <div style="display: flex; gap: 8px; margin-top: 10px;">
-                <button id="btn-cancelar-select-ubi" class="btn-accion-boveda" style="background: rgba(255,255,255,0.1); font-size: 12px; padding: 10px;">Cancelar</button>
-                <button id="btn-confirmar-select-ubi" class="btn-accion-boveda" style="font-size: 12px; padding: 10px;" disabled>Fijar Ubicación</button>
+            <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
+                <div>
+                    <label style="font-size: 10px; color: var(--text-secundario); text-transform: uppercase; font-weight: bold; margin-bottom: 4px; display: block;">1. Seleccionar Mueble / Estantería</label>
+                    <select id="select-mueble-wms" class="select-wms">
+                        <option value="">-- Selecciona un mueble --</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size: 10px; color: var(--text-secundario); text-transform: uppercase; font-weight: bold; margin-bottom: 4px; display: block;">2. Seleccionar Compartimiento (Bin)</label>
+                    <select id="select-bin-wms" class="select-wms" disabled>
+                        <option value="">-- Primero selecciona el mueble --</option>
+                    </select>
+                </div>
             </div>
-        </div>
-    </div>
 
-    <!-- MODAL UNIVERSAL IN-APP (DARK GLASSMORPHISM ANTI-ALERT) -->
-    <div id="modal-inapp-dialogo" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 20000; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;">
-        <div style="background: rgba(18,18,24,0.98); border: 1px solid var(--naranja); border-radius: 18px; width: 100%; max-width: 400px; padding: 22px; box-shadow: 0 20px 60px rgba(0,0,0,0.9); box-sizing: border-box; text-align: center;">
-            <h3 id="txt-inapp-titulo" style="margin: 0 0 10px 0; font-size: 14px; color: var(--naranja); text-transform: uppercase; letter-spacing: 1px;">Aviso del Sistema</h3>
-            <p id="txt-inapp-mensaje" style="font-size: 12px; color: #ddd; margin: 0 0 18px 0; line-height: 1.5;"></p>
-            <div id="contenedor-botones-inapp" style="display: flex; gap: 10px; justify-content: center;">
-                <button id="btn-inapp-cancelar" class="btn-accion-boveda" style="display: none; background: rgba(255,255,255,0.1); font-size: 12px; padding: 10px 18px;">Cancelar</button>
-                <button id="btn-inapp-aceptar" class="btn-accion-boveda" style="font-size: 12px; padding: 10px 18px;">Aceptar</button>
+            <div class="fila-botones-doble">
+                <button id="btn-cancelar-select-ubi" class="btn-secundario-wms">CANCELAR</button>
+                <button id="btn-confirmar-select-ubi" class="btn-primario-wms" disabled>FIJAR UBICACIÓN</button>
             </div>
         </div>
     </div>
 
-    <!-- CONTROLADOR REACTIVO Y MOTOR DE ESCANEO -->
+    <!-- MODAL UNIVERSAL IN-APP -->
+    <div id="modal-inapp-dialogo">
+        <div class="card-inapp-dialogo">
+            <h3 id="txt-inapp-titulo" class="titulo-inapp-dialogo">Aviso del Sistema</h3>
+            <p id="txt-inapp-mensaje" class="mensaje-inapp-dialogo"></p>
+            <div id="contenedor-botones-inapp" class="fila-botones-doble" style="justify-content: center;">
+                <button id="btn-inapp-cancelar" class="btn-secundario-wms" style="display: none;">CANCELAR</button>
+                <button id="btn-inapp-aceptar" class="btn-primario-wms">ACEPTAR</button>
+            </div>
+        </div>
+    </div>
 
-
+    <!-- 3. SCRIPT MÓDULO PRINCIPAL -->
     <script type="module">
         import GeokatuDB from './core-db.js';
-        // Compresor y rasterizador blindado a WebP plano
-        window.comprimirImagen = function(file, maxWidth = 800, quality = 0.7, forceSquare = false) {
-            return new Promise((resolve, reject) => {
+
+        // Compresor blindado a WebP plano
+        window.comprimirImagen = function(file, maxWidth, quality, forceSquare) {
+            maxWidth = maxWidth || 800;
+            quality = quality || 0.7;
+            forceSquare = forceSquare || false;
+            
+            return new Promise(function(resolve, reject) {
                 if (!file) return resolve(null);
                 const reader = new FileReader();
                 reader.onload = function(event) {
@@ -298,14 +306,14 @@
                         ctx.clearRect(0, 0, width, height);
                         ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, width, height);
 
-                        canvas.toBlob(blob => {
+                        canvas.toBlob(function(blob) {
                             resolve(blob || file);
                         }, 'image/webp', quality);
                     };
-                    img.onerror = () => reject(new Error("Archivo de imagen no válido"));
+                    img.onerror = function() { reject(new Error("Archivo no válido")); };
                     img.src = event.target.result;
                 };
-                reader.onerror = () => reject(new Error("Error leyendo el archivo"));
+                reader.onerror = function() { reject(new Error("Error leyendo archivo")); };
                 reader.readAsDataURL(file);
             });
         };
@@ -316,21 +324,22 @@
         let catalogoLocal = [];
         let mueblesPlanoTienda = [];
 
-        // --- MOTOR DE DIÁLOGOS IN-APP ESTILIZADOS (ANTI-ALERT) ---
+        // UI Dialogs
         const modalInApp = document.getElementById('modal-inapp-dialogo');
         const txtInAppTitulo = document.getElementById('txt-inapp-titulo');
         const txtInAppMensaje = document.getElementById('txt-inapp-mensaje');
         const btnInAppAceptar = document.getElementById('btn-inapp-aceptar');
         const btnInAppCancelar = document.getElementById('btn-inapp-cancelar');
 
-        window.mostrarAlertaInApp = function(mensaje, titulo = "Aviso del Sistema") {
-            return new Promise((resolve) => {
+        window.mostrarAlertaInApp = function(mensaje, titulo) {
+            titulo = titulo || "Aviso del Sistema";
+            return new Promise(function(resolve) {
                 txtInAppTitulo.innerText = titulo;
                 txtInAppMensaje.innerText = mensaje;
                 btnInAppCancelar.style.display = 'none';
                 modalInApp.style.display = 'flex';
 
-                const handler = () => {
+                const handler = function() {
                     btnInAppAceptar.removeEventListener('click', handler);
                     modalInApp.style.display = 'none';
                     resolve(true);
@@ -339,24 +348,25 @@
             });
         };
 
-        window.mostrarConfirmacionInApp = function(mensaje, titulo = "Confirmación") {
-            return new Promise((resolve) => {
+        window.mostrarConfirmacionInApp = function(mensaje, titulo) {
+            titulo = titulo || "Confirmación";
+            return new Promise(function(resolve) {
                 txtInAppTitulo.innerText = titulo;
                 txtInAppMensaje.innerText = mensaje;
                 btnInAppCancelar.style.display = 'block';
                 modalInApp.style.display = 'flex';
 
-                const handlerAceptar = () => {
+                const handlerAceptar = function() {
                     limpiarListeners();
                     modalInApp.style.display = 'none';
                     resolve(true);
                 };
-                const handlerCancelar = () => {
+                const handlerCancelar = function() {
                     limpiarListeners();
                     modalInApp.style.display = 'none';
                     resolve(false);
                 };
-                const limpiarListeners = () => {
+                const limpiarListeners = function() {
                     btnInAppAceptar.removeEventListener('click', handlerAceptar);
                     btnInAppCancelar.removeEventListener('click', handlerCancelar);
                 };
@@ -366,22 +376,11 @@
             });
         };
 
-        // --- ESTADO DE LA MÁQUINA DE RELOCALIZACIÓN ESPACIAL Y AUDITORÍA ---
-        let ubicacionCascada = {
-            idEstante: null,
-            idCompartimiento: null,
-            zona: 'BODEGA'
-        };
+        // Estado Máquina WMS
+        let ubicacionCascada = { idEstante: null, idCompartimiento: null, zona: 'BODEGA' };
+        let sesionAuditoria = { activa: false, idCompartimiento: null, idEstante: null, items: [] };
 
-        let sesionAuditoria = {
-            activa: false,
-            idCompartimiento: null,
-            idEstante: null,
-            items: [] // { id_prod, codigo_barras, nombre, stock_teorico, stock_fisico, delta, inesperado, lote, fecha_vencimiento }
-        };
-
-
-        const resetCascada = () => {
+        const resetCascada = function() {
             ubicacionCascada.idEstante = null;
             ubicacionCascada.idCompartimiento = null;
             document.getElementById('txt-mueble-activo').innerText = "MUEBLE: ---";
@@ -390,7 +389,7 @@
         };
         document.getElementById('btn-reset-cascada').addEventListener('click', resetCascada);
 
-        // Hidratación del plano espacial diseñado en mapatienda.html
+        // Hidratación del plano espacial
         async function hidratarMueblesDesdePlano() {
             if (!idNegocio) return;
             try {
@@ -400,11 +399,10 @@
                     poblarSelectorMueblesModal();
                 }
             } catch (err) {
-                console.warn("[STOCK WMS] No se pudo cargar el plano de la tienda:", err);
+                console.warn("[STOCK WMS] Fallo al cargar plano: " + err.message);
             }
         }
 
-        // Llenado dinámico del selector jerárquico
         const modalUbi = document.getElementById('modal-selector-ubicacion');
         const selectMueble = document.getElementById('select-mueble-wms');
         const selectBin = document.getElementById('select-bin-wms');
@@ -415,15 +413,15 @@
             selectMueble.innerHTML = '<option value="">-- Selecciona un mueble --</option>';
 
             const optPiso = document.createElement('optgroup');
-            optPiso.label = "🛒 Piso de Venta";
+            optPiso.label = "Piso de Venta";
             const optBodega = document.createElement('optgroup');
-            optBodega.label = "📦 Trastienda / Bodega";
+            optBodega.label = "Trastienda / Bodega";
 
-            mueblesPlanoTienda.forEach(m => {
+            mueblesPlanoTienda.forEach(function(m) {
                 const opt = document.createElement('option');
                 opt.value = m.id_mueble;
                 const totalBins = m.compartimientos ? m.compartimientos.length : 0;
-                opt.innerText = `${m.nombre} [${m.id_mueble}] (${totalBins} Bins)`;
+                opt.innerText = m.nombre + " [" + m.id_mueble + "] (" + totalBins + " Bins)";
                 if (m.zona === 'BODEGA') optBodega.appendChild(opt);
                 else optPiso.appendChild(opt);
             });
@@ -432,7 +430,7 @@
             if (optBodega.children.length > 0) selectMueble.appendChild(optBodega);
         }
 
-        selectMueble.addEventListener('change', () => {
+        selectMueble.addEventListener('change', function() {
             const idM = selectMueble.value;
             selectBin.innerHTML = '<option value="">-- Selecciona el compartimiento --</option>';
             btnConfirmarUbi.disabled = true;
@@ -442,35 +440,37 @@
                 return;
             }
 
-            const muebleSel = mueblesPlanoTienda.find(m => m.id_mueble === idM);
+            const muebleSel = mueblesPlanoTienda.find(function(m) { return m.id_mueble === idM; });
             if (muebleSel && Array.isArray(muebleSel.compartimientos)) {
                 selectBin.disabled = false;
-                muebleSel.compartimientos.forEach(comp => {
+                muebleSel.compartimientos.forEach(function(comp) {
                     const opt = document.createElement('option');
                     opt.value = comp.id_comp;
                     opt.dataset.zona = muebleSel.zona || 'PISO_VENTA';
                     opt.dataset.estante = muebleSel.id_mueble;
                     opt.dataset.nombreMueble = muebleSel.nombre;
-                    opt.innerText = `Cara ${comp.cara} > ${comp.nivel}-${comp.bin} (${comp.id_comp.split('-').slice(-3).join('-')})`;
+                    const partesComp = comp.id_comp.split('-');
+                    const extracto = partesComp.slice(-3).join('-');
+                    opt.innerText = "Cara " + comp.cara + " > " + comp.nivel + "-" + comp.bin + " (" + extracto + ")";
                     selectBin.appendChild(opt);
                 });
             }
         });
 
-        selectBin.addEventListener('change', () => {
+        selectBin.addEventListener('change', function() {
             btnConfirmarUbi.disabled = !selectBin.value;
         });
 
-        document.getElementById('btn-abrir-selector-ubicacion').addEventListener('click', () => {
+        document.getElementById('btn-abrir-selector-ubicacion').addEventListener('click', function() {
             poblarSelectorMueblesModal();
             modalUbi.style.display = 'flex';
         });
 
-        const cerrarModalUbi = () => { modalUbi.style.display = 'none'; };
+        const cerrarModalUbi = function() { modalUbi.style.display = 'none'; };
         document.getElementById('btn-cerrar-modal-ubi').addEventListener('click', cerrarModalUbi);
         document.getElementById('btn-cancelar-select-ubi').addEventListener('click', cerrarModalUbi);
 
-        document.getElementById('btn-confirmar-select-ubi').addEventListener('click', () => {
+        document.getElementById('btn-confirmar-select-ubi').addEventListener('click', function() {
             const optBinSel = selectBin.options[selectBin.selectedIndex];
             if (!optBinSel || !optBinSel.value) return;
 
@@ -478,18 +478,23 @@
             ubicacionCascada.idCompartimiento = optBinSel.value;
             ubicacionCascada.zona = optBinSel.dataset.zona;
 
-            document.getElementById('txt-mueble-activo').innerText = `MUEBLE: ${optBinSel.dataset.nombreMueble}`;
-            document.getElementById('txt-comp-activo').innerText = `BIN: ${optBinSel.value.split('-').slice(-3).join('-')}`;
+            document.getElementById('txt-mueble-activo').innerText = 'MUEBLE: ' + optBinSel.dataset.nombreMueble;
+            const resBin = optBinSel.value.split('-');
+            document.getElementById('txt-comp-activo').innerText = 'BIN: ' + resBin.slice(-3).join('-');
             document.getElementById('banner-cascada').style.display = 'flex';
 
             emitirTono('EXITO');
             cerrarModalUbi();
+
+            if (operacionActual === 'AUDITAR') {
+                iniciarAuditoriaBin(optBinSel.value);
+            } 
         });
 
-
-        // --- SINTETIZADOR DE TONOS WEB AUDIO API ---
+        // Sintetizador
         let audioCtx = null;
-        function emitirTono(tipo = 'EXITO') {
+        function emitirTono(tipo) {
+            tipo = tipo || 'EXITO';
             try {
                 if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -518,9 +523,7 @@
             } catch (e) {}
         }
 
-        // =========================================================================
-        // MOTOR DE ESCANEO DE CÁMARA DIRECTO (EAN-13, CODE-128, RÁFAGA INDUSTRIAL)
-        // =========================================================================
+        // MOTOR ESCÁNER
         let scannerInstancia = null;
         let camaraEncendida = false;
         let pestilloBloqueado = false;
@@ -535,7 +538,7 @@
         const luzEstado = document.getElementById('luz-estado');
         const txtEstadoLatch = document.getElementById('txt-estado-latch');
 
-        chkRafaga.addEventListener('change', () => {
+        chkRafaga.addEventListener('change', function() {
             if (chkRafaga.checked) {
                 wrapperRafaga.classList.add('activo');
                 if (navigator.vibrate) navigator.vibrate(30);
@@ -544,35 +547,35 @@
             }
         });
 
-        // Configuración idéntica a boveda-comercio y pos.html
-        const configFormatos = {
-            formatsToSupport: [
-                Html5QrcodeSupportedFormats.EAN_13,
-                Html5QrcodeSupportedFormats.EAN_8,
-                Html5QrcodeSupportedFormats.CODE_128,
-                Html5QrcodeSupportedFormats.CODE_39,
-                Html5QrcodeSupportedFormats.UPC_A,
-                Html5QrcodeSupportedFormats.UPC_E,
-                Html5QrcodeSupportedFormats.QR_CODE
-            ],
-            verbose: false
-        };
-
-        const configEscaneo = {
-            fps: 20,
-            qrbox: (anchoVista, altoVista) => {
-                const w = Math.floor(anchoVista * 0.88);
-                const h = Math.floor(Math.min(altoVista * 0.55, 130));
-                return { width: w, height: h };
-            },
-            aspectRatio: 1.333333
-        };
-
-        const encenderCamara = async () => {
+        const encenderCamara = async function() {
             visorCamara.style.display = 'block';
             txtBtnCamara.innerText = "APAGAR CÁMARA";
-            btnToggleCamara.style.background = "#ff4444";
+            btnToggleCamara.style.background = "var(--accent-red)";
+            btnToggleCamara.style.borderColor = "var(--accent-red)";
             camaraEncendida = true;
+
+            const configFormatos = {
+                formatsToSupport: [
+                    Html5QrcodeSupportedFormats.EAN_13,
+                    Html5QrcodeSupportedFormats.EAN_8,
+                    Html5QrcodeSupportedFormats.CODE_128,
+                    Html5QrcodeSupportedFormats.CODE_39,
+                    Html5QrcodeSupportedFormats.UPC_A,
+                    Html5QrcodeSupportedFormats.UPC_E,
+                    Html5QrcodeSupportedFormats.QR_CODE
+                ],
+                verbose: false
+            };
+
+            const configEscaneo = {
+                fps: 20,
+                qrbox: function(anchoVista, altoVista) {
+                    const w = Math.floor(anchoVista * 0.88);
+                    const h = Math.floor(Math.min(altoVista * 0.55, 130));
+                    return { width: w, height: h };
+                },
+                aspectRatio: 1.333333
+            };
 
             if (!scannerInstancia) {
                 scannerInstancia = new Html5Qrcode("lector-camara", configFormatos);
@@ -582,20 +585,19 @@
                 await scannerInstancia.start(
                     { facingMode: "environment" },
                     configEscaneo,
-                    (codigoDecodificado) => {
+                    function(codigoDecodificado) {
                         onLecturaOptica(codigoDecodificado);
                     },
-                    () => {}
+                    function() {}
                 );
             } catch (err) {
-                console.error("Fallo al iniciar cámara:", err);
-                window.mostrarAlertaInApp("No se pudo iniciar la cámara trasera. Verifica los permisos del dispositivo.", "Cámara no disponible");
+                console.error("Fallo cámara: " + err.message);
+                window.mostrarAlertaInApp("No se pudo iniciar la cámara trasera.", "Cámara no disponible");
                 apagarCamara();
             }
-
         };
 
-        const apagarCamara = async () => {
+        const apagarCamara = async function() {
             if (scannerInstancia && scannerInstancia.isScanning) {
                 try {
                     await scannerInstancia.stop();
@@ -604,55 +606,48 @@
             visorCamara.style.display = 'none';
             txtBtnCamara.innerText = "ACTIVAR CÁMARA";
             btnToggleCamara.style.background = "";
+            btnToggleCamara.style.borderColor = "";
             camaraEncendida = false;
         };
 
-        btnToggleCamara.addEventListener('click', () => {
+        btnToggleCamara.addEventListener('click', function() {
             if (camaraEncendida) apagarCamara();
             else encenderCamara();
         });
 
-        // PESTILLO CONCURRENTE DE CINTA TRANSPORTADORA
         function onLecturaOptica(codigo) {
             const esRafaga = chkRafaga.checked;
-
-            // Si el pestillo está bloqueado procesando el ítem previo, ignorar frame
             if (pestilloBloqueado) return;
-
-            // En ráfaga, no duplicar el mismo código si sigue enfrente de la cámara
             if (esRafaga && codigo === ultimoCodigoLeido) return;
 
             pestilloBloqueado = true;
             ultimoCodigoLeido = codigo;
-            luzEstado.className = "luz-pestillo bloqueado";
-            txtEstadoLatch.innerText = "PROCESANDO...";
+            luzEstado.classList.add("bloqueado");
+            txtEstadoLatch.innerText = "PROCESANDO";
 
             procesarMovimientoStock(codigo, "CÁMARA");
 
             if (!esRafaga) {
                 apagarCamara();
                 pestilloBloqueado = false;
-                luzEstado.className = "luz-pestillo";
+                luzEstado.classList.remove("bloqueado");
                 txtEstadoLatch.innerText = "LISTO";
             } else {
-                // Intervalo de enfriamiento de cinta transportadora (800ms)
                 clearTimeout(timerDesbloqueoPestillo);
-                timerDesbloqueoPestillo = setTimeout(() => {
+                timerDesbloqueoPestillo = setTimeout(function() {
                     pestilloBloqueado = false;
                     ultimoCodigoLeido = null;
-                    luzEstado.className = "luz-pestillo";
+                    luzEstado.classList.remove("bloqueado");
                     txtEstadoLatch.innerText = "LISTO";
                 }, 800);
             }
         }
 
-        // =========================================================================
-        // LECTOR FÍSICO NATIVO (PISTOLA USB-C / BLUETOOTH EN WINDOW)
-        // =========================================================================
+        // Lector USB / Teclado
         let bufferUSB = '';
         let ultimoTiempoTecla = 0;
-        window.addEventListener('keydown', (e) => {
-            if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+        window.addEventListener('keydown', function(e) {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
             const ahora = performance.now();
             if (ahora - ultimoTiempoTecla > 80) bufferUSB = '';
@@ -670,251 +665,282 @@
             if (e.key.length === 1) bufferUSB += e.key;
         }, true);
 
+
         // =========================================================================
-        // PROCESAMIENTO ATÓMICO Y KARDEX
+        // PROCESAMIENTO ATÓMICO Y KARDEX (Corregido y sin Hoisting Issues)
         // =========================================================================
-async function procesarMovimientoStock(codigo, origenHardware) {
-    if (navigator.vibrate) navigator.vibrate(50);
+        async function procesarMovimientoStock(codigo, origenHardware) {
+            if (navigator.vibrate) navigator.vibrate(50);
 
-    // Caso A: QR Maestro de Mueble (GEO-M-)
-    if (codigo.startsWith('GEO-M-')) {
-        emitirTono('EXITO');
-        const idMuebleEncontrado = codigo.replace('GEO-M-', '');
-        const muebleMatch = mueblesPlanoTienda.find(m => m.qr === codigo || m.id_mueble === idMuebleEncontrado || codigo.endsWith(m.id_mueble));
-        
-        ubicacionCascada.idEstante = muebleMatch ? muebleMatch.id_mueble : idMuebleEncontrado;
-        ubicacionCascada.zona = muebleMatch ? (muebleMatch.zona || 'PISO_VENTA') : 'BODEGA';
-        
-        document.getElementById('txt-mueble-activo').innerText = `MUEBLE: ${muebleMatch ? muebleMatch.nombre : idMuebleEncontrado}`;
-        document.getElementById('banner-cascada').style.display = 'flex';
-        return;
-    }
-
-
-
-      // Caso B: QR Canónico de Compartimiento (GEO-P-)
-    if (codigo.startsWith('GEO-P-')) {
-        emitirTono('EXITO');
-        ubicacionCascada.idCompartimiento = codigo;
-        
-        // Extracción canónica robusta desde la cola: ...-{idMueble}-{cara}-{nivel}-{bin}
-        const partes = codigo.split('-');
-        const len = partes.length;
-        if (len >= 6) {
-            const bin = partes[len - 1];
-            const niv = partes[len - 2];
-            const cara = partes[len - 3];
-            const idM = partes[len - 4];
-            
-            ubicacionCascada.idEstante = idM;
-            const muebleMatch = mueblesPlanoTienda.find(m => m.id_mueble === idM || codigo.includes(`-${m.id_mueble}-`));
-            if (muebleMatch) {
-                ubicacionCascada.idEstante = muebleMatch.id_mueble;
-                ubicacionCascada.zona = muebleMatch.zona || 'PISO_VENTA';
+            if (codigo.startsWith('GEO-M-')) {
+                emitirTono('EXITO');
+                const idMuebleEncontrado = codigo.replace('GEO-M-', '');
+                const muebleMatch = mueblesPlanoTienda.find(function(m) {
+                    return m.qr === codigo || m.id_mueble === idMuebleEncontrado || codigo.endsWith(m.id_mueble);
+                });
+                
+                ubicacionCascada.idEstante = muebleMatch ? muebleMatch.id_mueble : idMuebleEncontrado;
+                ubicacionCascada.zona = muebleMatch ? (muebleMatch.zona || 'PISO_VENTA') : 'BODEGA';
+                
+                document.getElementById('txt-mueble-activo').innerText = 'MUEBLE: ' + (muebleMatch ? muebleMatch.nombre : idMuebleEncontrado);
+                document.getElementById('banner-cascada').style.display = 'flex';
+                return;
             }
 
-            document.getElementById('txt-mueble-activo').innerText = `MUEBLE: ${muebleMatch ? muebleMatch.nombre : idM}`;
-            document.getElementById('txt-comp-activo').innerText = `BIN: ${cara}-${niv}-${bin}`;
-        } else {
-            document.getElementById('txt-comp-activo').innerText = `BIN: ${codigo.replace('GEO-P-', '')}`;
-        }
+            if (codigo.startsWith('GEO-P-')) {
+                emitirTono('EXITO');
+                ubicacionCascada.idCompartimiento = codigo;
+                
+                const partes = codigo.split('-');
+                const len = partes.length;
+                if (len >= 6) {
+                    const bin = partes[len - 1];
+                    const niv = partes[len - 2];
+                    const cara = partes[len - 3];
+                    const idM = partes[len - 4];
+                    
+                    ubicacionCascada.idEstante = idM;
+                    const muebleMatch = mueblesPlanoTienda.find(function(m) {
+                        return m.id_mueble === idM || codigo.indexOf('-' + m.id_mueble + '-') !== -1;
+                    });
+                    if (muebleMatch) {
+                        ubicacionCascada.idEstante = muebleMatch.id_mueble;
+                        ubicacionCascada.zona = muebleMatch.zona || 'PISO_VENTA';
+                    }
 
-        document.getElementById('banner-cascada').style.display = 'flex';
-        return;
-    }
-    // Rama especial: Si el operario escaneó un bin en modo AUDITAR
-    if (operacionActual === 'AUDITAR' && codigo.startsWith('GEO-P-')) {
-        await iniciarAuditoriaBin(codigo);
-        return;
-    }
+                    document.getElementById('txt-mueble-activo').innerText = 'MUEBLE: ' + (muebleMatch ? muebleMatch.nombre : idM);
+                    document.getElementById('txt-comp-activo').innerText = 'BIN: ' + cara + '-' + niv + '-' + bin;
+                } else {
+                    document.getElementById('txt-comp-activo').innerText = 'BIN: ' + codigo.replace('GEO-P-', '');
+                }
 
-    // Caso C: Producto (EAN-13 / SKU)
-    const unidadesLote = Math.max(1, Number(document.getElementById('input-unidades-lote').value) || 1);
-
-    // Si opera en modo AUDITAR, capturar el conteo físico incremental
-    if (operacionActual === 'AUDITAR') {
-        if (!sesionAuditoria.idCompartimiento) {
-            emitirTono('ERROR');
-            window.mostrarAlertaInApp("Primero debes escanear el QR del compartimiento (GEO-P-...) a auditar.", "Anaquel no Fijado");
-            return;
-        }
-
-        let itemAudit = sesionAuditoria.items.find(it => it.codigo_barras === codigo || it.id_prod === codigo);
-
-        if (itemAudit) {
-            itemAudit.stock_fisico += unidadesLote;
-            emitirTono('EXITO');
-        } else {
-            // Producto inesperado en este bin
-            let prodLocal = catalogoLocal.find(p => p.codigo_barras === codigo || p.id_prod === codigo);
-            let nombreProd = prodLocal ? prodLocal.nombre : "Producto Inesperado";
-            let prodId = prodLocal ? prodLocal.id_prod : codigo;
-
-            if (!prodLocal) {
-                const matchMatriz = await GeokatuDB.CatalogoMatrizService.obtenerProductoPorCodigo(codigo);
-                if (matchMatriz) nombreProd = matchMatriz.nombre;
-            }
-
-            sesionAuditoria.items.unshift({
-                id_prod: prodId,
-                codigo_barras: codigo,
-                nombre: nombreProd,
-                stock_teorico: 0,
-                stock_fisico: unidadesLote,
-                delta: unidadesLote,
-                inesperado: true,
-                lote: "S/L",
-                fecha_vencimiento: null
-            });
-
-            emitirTono('EXITO');
-        }
-
-        renderizarPanelAuditoria();
-        return;
-    }
-    
-    // 1. Buscar en inventario propio del negocio
-    let prod = catalogoLocal.find(p => p.codigo_barras === codigo || p.id_prod === codigo);
-
-
-    // 2. Si no existe localmente, consultar la Matriz Global en IndexedDB (0 ms)
-    let autoCompletadoMatriz = null;
-    if (!prod) {
-        autoCompletadoMatriz = await GeokatuDB.CatalogoMatrizService.obtenerProductoPorCodigo(codigo);
-        
-        if (autoCompletadoMatriz) {
-            // Producto detectado en catálogo maestro: Abrir modal pre-completado con autocompletado
-            emitirTono('EXITO');
-            abrirModalAltaRapida(codigo, unidadesLote, autoCompletadoMatriz);
-            return;
-        }
-    }
-
-    // 3. Si tampoco existe en la Matriz Global: Abrir modal completamente blanco
-    if (!prod) {
-        emitirTono('ERROR');
-        abrirModalAltaRapida(codigo, unidadesLote, null);
-        return;
-    }
-
-    // Producto existente en el inventario propio del negocio
-    emitirTono('EXITO');
-    let tipoKardex = operacionActual === 'REUBICAR' ? 'TRASLADO_INTERNO' : operacionActual;
-    let nuevoStock = prod.stock_actual !== undefined ? prod.stock_actual : 0;
-
-    if (tipoKardex === 'ENTRADA') nuevoStock += unidadesLote;
-    else if (tipoKardex === 'SALIDA') nuevoStock = Math.max(0, nuevoStock - unidadesLote);
-
-    if (operacionActual !== 'AUDITORIA') {
-        prod.stock_actual = nuevoStock;
-        localStorage.setItem(`geokatu_catalogo_${idNegocio}`, JSON.stringify(catalogoLocal));
-    }
-
-    // Proyección en la tarjeta inferior
-    const tarjeta = document.getElementById('tarjeta-producto');
-    document.getElementById('prod-nombre').innerText = prod.nombre;
-    document.getElementById('prod-codigo').innerText = codigo;
-    document.getElementById('res-operacion').innerText = operacionActual;
-    document.getElementById('res-hardware').innerText = origenHardware;
-    document.getElementById('res-stock').innerText = nuevoStock;
-    tarjeta.style.display = 'block';
-
-    if (operacionActual !== 'AUDITORIA') {
-        const esEntrada = operacionActual === 'ENTRADA';
-        const esSalida = operacionActual === 'SALIDA';
-
-        await GeokatuDB.InventarioService.registrarMovimientoFisico(
-            prod.id_prod, 
-            esEntrada ? "PROVEEDOR" : (ubicacionCascada.idCompartimiento || "BODEGA"), 
-            esSalida ? "CLIENTE" : (ubicacionCascada.idCompartimiento || "BODEGA"), 
-            tipoKardex,
-            unidadesLote,
-            {
-                // En SALIDA, el estante activo es el ORIGEN; en ENTRADA, es el DESTINO
-                idEstanteOrigen: esSalida ? ubicacionCascada.idEstante : null,
-                idCompOrigen: esSalida ? ubicacionCascada.idCompartimiento : null,
-                idEstanteDestino: esEntrada ? ubicacionCascada.idEstante : null,
-                idCompDestino: esEntrada ? ubicacionCascada.idCompartimiento : null,
-                zona: ubicacionCascada.zona
-            }
-        );
-    }
-
-}
-
-        // =========================================================================
-        // SESIÓN Y ALTA RÁPIDA
-        // =========================================================================
-GeokatuDB.SecurityService.observarEstadoSesion(async (user) => { 
-    if (user) {
-        const tenantMatriz = localStorage.getItem('geokatu_active_uid'); 
-        idNegocio = tenantMatriz || user.uid; 
-        if (!tenantMatriz) localStorage.setItem('geokatu_active_uid', user.uid);
-        document.getElementById('pantalla-login').style.display = 'none';
-        document.getElementById('app-terminal').style.display = 'flex';
-        document.getElementById('txt-operador').innerText = `Operador: ${user.email}`;
-
-        const res = await GeokatuDB.PosService.descargarCatalogoLocal(idNegocio);
-        catalogoLocal = res.success ? res.data : GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio);
-
-       // 🚀 Inicialización/Verificación atómica de la Matriz Global en IndexedDB
-        GeokatuDB.CatalogoMatrizService.inicializarMatriz();
-        
-        // 🗺️ Hidratación del plano para asignación espacial de muebles y bins
-        await hidratarMueblesDesdePlano();
-    } else {
-        document.getElementById('pantalla-login').style.display = 'flex';
-        document.getElementById('app-terminal').style.display = 'none';
-    }
-});
-
-        document.getElementById('btn-login').addEventListener('click', async () => {
-            const email = document.getElementById('login-email').value.trim();
-            const pass = document.getElementById('login-pass').value;
-            const res = await GeokatuDB.SecurityService.iniciarSesion(email, pass);
-            if (!res.success) window.mostrarAlertaInApp("Credenciales incorrectas: " + res.error, "Error de Inicio");
-        });
-
-
-        document.getElementById('btn-logout').addEventListener('click', async () => {
-            await apagarCamara();
-            await GeokatuDB.SecurityService.cerrarSesion();
-        });
-
-        document.querySelectorAll('#selector-operacion .ribbon-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                document.querySelectorAll('#selector-operacion .ribbon-btn').forEach(b => b.classList.remove('activo'));
-                btn.classList.add('activo');
-                operacionActual = btn.getAttribute('data-op');
-
-                const panelAuditoria = document.getElementById('panel-auditoria-ciclica');
-                const tarjetaProd = document.getElementById('tarjeta-producto');
+                document.getElementById('banner-cascada').style.display = 'flex';
 
                 if (operacionActual === 'AUDITAR') {
-                    panelAuditoria.style.display = 'flex';
-                    tarjetaProd.style.display = 'none';
-                    document.getElementById('banner-cascada').style.display = 'flex';
-
-                    // Activación automática de modo óptico en ráfaga
-                    chkRafaga.checked = true;
-                    wrapperRafaga.classList.add('activo');
-                    if (!camaraEncendida) encenderCamara();
-
-                    if (ubicacionCascada.idCompartimiento) {
-                        await iniciarAuditoriaBin(ubicacionCascada.idCompartimiento);
-                    } else {
-                        renderizarPanelAuditoria();
-                    }
-                } else {
-                    panelAuditoria.style.display = 'none';
-                    document.getElementById('banner-cascada').style.display = (operacionActual === 'REUBICAR' || operacionActual === 'ENTRADA') ? 'flex' : 'none';
+                    await iniciarAuditoriaBin(codigo);
                 }
+                return;
+            }
+
+            const unidadesLote = Math.max(1, Number(document.getElementById('input-unidades-lote').value) || 1);
+
+            if (operacionActual === 'AUDITAR') {
+                if (!sesionAuditoria.idCompartimiento) {
+                    emitirTono('ERROR');
+                    window.mostrarAlertaInApp("Primero debes escanear el QR del compartimiento a auditar.", "Anaquel no Fijado");
+                    return;
+                }
+
+                let itemAudit = sesionAuditoria.items.find(function(it) {
+                    return it.codigo_barras === codigo || it.id_prod === codigo;
+                });
+
+                if (itemAudit) {
+                    itemAudit.stock_fisico += unidadesLote;
+                    emitirTono('EXITO');
+                } else {
+                    let prodLocal = catalogoLocal.find(function(p) {
+                        return p.codigo_barras === codigo || p.id_prod === codigo;
+                    });
+                    let nombreProd = prodLocal ? prodLocal.nombre : "Producto Inesperado";
+                    let prodId = prodLocal ? prodLocal.id_prod : codigo;
+
+                    if (!prodLocal) {
+                        const matchMatriz = await GeokatuDB.CatalogoMatrizService.obtenerProductoPorCodigo(codigo);
+                        if (matchMatriz) nombreProd = matchMatriz.nombre;
+                    }
+
+                    sesionAuditoria.items.unshift({
+                        id_prod: prodId,
+                        codigo_barras: codigo,
+                        nombre: nombreProd,
+                        stock_teorico: 0,
+                        stock_fisico: unidadesLote,
+                        delta: unidadesLote,
+                        inesperado: true,
+                        lote: "S/L",
+                        fecha_vencimiento: null
+                    });
+
+                    emitirTono('EXITO');
+                }
+
+                renderizarPanelAuditoria();
+                return;
+            }
+            
+            let prod = catalogoLocal.find(function(p) {
+                return p.codigo_barras === codigo || p.id_prod === codigo;
             });
+
+            let autoCompletadoMatriz = null;
+            if (!prod) {
+                autoCompletadoMatriz = await GeokatuDB.CatalogoMatrizService.obtenerProductoPorCodigo(codigo);
+                if (autoCompletadoMatriz) {
+                    emitirTono('EXITO');
+                    window.abrirModalAltaRapidaLocal(codigo, unidadesLote, autoCompletadoMatriz);
+                    return;
+                }
+            }
+
+            if (!prod) {
+                emitirTono('ERROR');
+                window.abrirModalAltaRapidaLocal(codigo, unidadesLote, null);
+                return;
+            }
+
+            emitirTono('EXITO');
+            let tipoKardex = operacionActual === 'REUBICAR' ? 'TRASLADO_INTERNO' : operacionActual;
+            let nuevoStock = Number(prod.stock_actual) || 0;
+
+            if (tipoKardex === 'ENTRADA') nuevoStock += unidadesLote;
+            else if (tipoKardex === 'SALIDA') nuevoStock = Math.max(0, nuevoStock - unidadesLote);
+
+            if (operacionActual !== 'AUDITORIA') {
+                prod.stock_actual = nuevoStock;
+                localStorage.setItem("geokatu_catalogo_" + idNegocio, JSON.stringify(catalogoLocal));
+            }
+
+            const tarjeta = document.getElementById('tarjeta-producto');
+            document.getElementById('prod-nombre').innerText = prod.nombre;
+            document.getElementById('prod-codigo').innerText = codigo;
+            document.getElementById('res-operacion').innerText = operacionActual;
+            document.getElementById('res-hardware').innerText = origenHardware;
+            document.getElementById('res-stock').innerText = nuevoStock;
+            tarjeta.style.display = 'block';
+
+            if (operacionActual !== 'AUDITORIA') {
+                const esEntrada = operacionActual === 'ENTRADA';
+                const esSalida = operacionActual === 'SALIDA';
+                const esReubicar = operacionActual === 'REUBICAR';
+
+                await GeokatuDB.InventarioService.registrarMovimientoFisico(
+                    prod.id_prod, 
+                    esEntrada ? "PROVEEDOR" : (ubicacionCascada.idCompartimiento || "BODEGA"), 
+                    esSalida ? "CLIENTE" : (ubicacionCascada.idCompartimiento || "BODEGA"), 
+                    tipoKardex,
+                    unidadesLote,
+                    {
+                        idEstanteOrigen: esSalida ? ubicacionCascada.idEstante : null,
+                        idCompOrigen: esSalida ? ubicacionCascada.idCompartimiento : null,
+                        idEstanteDestino: (esEntrada || esReubicar) ? ubicacionCascada.idEstante : null,
+                        idCompDestino: (esEntrada || esReubicar) ? ubicacionCascada.idCompartimiento : null,
+                        zona: ubicacionCascada.zona
+                    }
+                );
+            }
+        }
+
+        // =========================================================================
+        // ALTA RÁPIDA (Enlazado al window para evitar errores ReferenceError)
+        // =========================================================================
+        let fotoAltaBlob = null;
+        window.abrirModalAltaRapidaLocal = function(codigo, cantSugerida, datosMatriz) {
+            datosMatriz = datosMatriz || null;
+            const tituloModal = document.getElementById('titulo-alta-rapida');
+            
+            document.getElementById('alta-codigo').value = codigo;
+            document.getElementById('alta-precio').value = '';
+            document.getElementById('alta-cantidad').value = cantSugerida || 1;
+
+            if (datosMatriz) {
+                document.getElementById('alta-nombre').value = datosMatriz.nombre;
+                document.getElementById('alta-categoria').value = datosMatriz.categoria;
+                tituloModal.innerText = 'PRODUCTO MATRIZ DETECTADO';
+                tituloModal.style.color = 'var(--accent-green)';
+            } else {
+                document.getElementById('alta-nombre').value = '';
+                document.getElementById('alta-categoria').value = 'General';
+                tituloModal.innerText = 'PRODUCTO NUEVO DETECTADO';
+                tituloModal.style.color = 'var(--naranja)';
+            }
+
+            document.getElementById('modal-alta-rapida').style.display = 'flex';
+        };
+
+        document.getElementById('btn-cerrar-alta').addEventListener('click', function() {
+            document.getElementById('modal-alta-rapida').style.display = 'none';
+            fotoAltaBlob = null;
+            document.getElementById('alta-foto-input').value = '';
+            document.getElementById('alta-foto-preview').style.display = 'none';
+            document.getElementById('alta-foto-icono').style.display = 'flex';
+        });
+
+        document.getElementById('alta-foto-input').addEventListener('change', function(e) {
+            const f = e.target.files[0];
+            if (f) {
+                fotoAltaBlob = f;
+                const r = new FileReader();
+                r.onload = function(ev) {
+                    const img = document.getElementById('alta-foto-preview');
+                    img.src = ev.target.result;
+                    img.style.display = 'block';
+                    document.getElementById('alta-foto-icono').style.display = 'none';
+                };
+                r.readAsDataURL(f);
+            }
+        });
+
+        document.getElementById('btn-guardar-alta-rapida').addEventListener('click', async function() {
+            const btn = document.getElementById('btn-guardar-alta-rapida');
+            const codigo = document.getElementById('alta-codigo').value.trim();
+            const nom = document.getElementById('alta-nombre').value.trim();
+            const pre = parseFloat(document.getElementById('alta-precio').value) || 0;
+            const cant = Math.max(1, parseFloat(document.getElementById('alta-cantidad').value) || 1);
+
+            if (!nom) return window.mostrarAlertaInApp("El nombre del producto es obligatorio.", "Campo Requerido");
+            btn.innerText = "GUARDANDO..."; 
+            btn.disabled = true;
+
+            try {
+                let imgUrl = "";
+                if (fotoAltaBlob) {
+                    const blobWebp = await window.comprimirImagen(fotoAltaBlob, 800, 0.7, true);
+                    const pathFoto = "productos/" + idNegocio + "/" + codigo + "_" + Date.now() + ".webp";
+                    const up = await GeokatuDB.AdminService.subirArchivo(pathFoto, blobWebp); 
+                    imgUrl = (typeof up === 'string') ? up : (up && up.data ? up.data : ''); 
+                }
+
+                const nuevoProd = {
+                    nombre: nom,
+                    precio: pre,
+                    codigo_barras: codigo,
+                    stock_actual: 0,
+                    categoria: document.getElementById('alta-categoria').value.trim() || "General",
+                    imagen: imgUrl,
+                    almacen_id_inicial: ubicacionCascada.idEstante || "BODEGA_GENERAL",
+                    fecha_creacion: new Date().toISOString(),
+                    agotado: false
+                };
+
+                const res = await GeokatuDB.AdminService.guardarProducto(idNegocio, null, nuevoProd);
+                if (!res.success) throw new Error(res.error);
+
+                nuevoProd.id_prod = res.id_generado;
+                catalogoLocal.push(nuevoProd);
+                localStorage.setItem("geokatu_catalogo_" + idNegocio, JSON.stringify(catalogoLocal));
+
+                fotoAltaBlob = null;
+                document.getElementById('alta-foto-input').value = '';
+                document.getElementById('alta-foto-preview').style.display = 'none';
+                document.getElementById('alta-foto-preview').src = '';
+                document.getElementById('alta-foto-icono').style.display = 'flex';
+                document.getElementById('modal-alta-rapida').style.display = 'none';
+
+                document.getElementById('input-unidades-lote').value = cant;
+                await procesarMovimientoStock(codigo, "ALTA_RAPIDA");
+                document.getElementById('input-unidades-lote').value = 1;
+
+            } catch (err) {
+                window.mostrarAlertaInApp("Error al registrar: " + err.message, "Fallo de Alta");
+            } finally {
+                btn.innerText = "INCORPORAR AL STOCK";
+                btn.disabled = false;
+            }
         });
 
         // =========================================================================
-        // MOTOR DE CONTEO CÍCLICO Y CONCILIACIÓN FÍSICA EN ANAQUEL
+        // MOTOR DE CONTEO CÍCLICO
         // =========================================================================
         async function iniciarAuditoriaBin(idComp) {
             sesionAuditoria.activa = true;
@@ -924,17 +950,19 @@ GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
             const resTeorico = await GeokatuDB.InventarioService.obtenerStockTeoricoBin(idNegocio, idComp);
             const articulosTeoricos = resTeorico.success ? resTeorico.data : [];
 
-            sesionAuditoria.items = articulosTeoricos.map(item => ({
-                id_prod: item.id_prod,
-                codigo_barras: item.codigo_barras,
-                nombre: item.nombre,
-                stock_teorico: Number(item.stock_teorico) || 0,
-                stock_fisico: 0,
-                delta: -(Number(item.stock_teorico) || 0),
-                inesperado: false,
-                lote: item.lote || "S/L",
-                fecha_vencimiento: item.fecha_vencimiento || null
-            }));
+            sesionAuditoria.items = articulosTeoricos.map(function(item) {
+                return {
+                    id_prod: item.id_prod,
+                    codigo_barras: item.codigo_barras,
+                    nombre: item.nombre,
+                    stock_teorico: Number(item.stock_teorico) || 0,
+                    stock_fisico: 0,
+                    delta: -(Number(item.stock_teorico) || 0),
+                    inesperado: false,
+                    lote: item.lote || "S/L",
+                    fecha_vencimiento: item.fecha_vencimiento || null
+                };
+            });
 
             renderizarPanelAuditoria();
         }
@@ -969,45 +997,44 @@ GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
 
             contenedorFilas.innerHTML = '';
 
-            sesionAuditoria.items.forEach((item, idx) => {
+            sesionAuditoria.items.forEach(function(item, idx) {
                 sumTeorico += item.stock_teorico;
                 sumContado += item.stock_fisico;
                 item.delta = Number((item.stock_fisico - item.stock_teorico).toFixed(3));
 
-                let colorDelta = '#00ff64'; // Verde: Cuadrado
+                let claseItem = 'cuadrado';
                 let textoEstado = 'Cuadrado';
 
                 if (item.delta > 0) {
-                    colorDelta = '#00e5ff'; // Cyan: Sobrante
+                    claseItem = 'sobrante';
                     textoEstado = '+' + item.delta + ' Sobrante';
                 } else if (item.delta < 0) {
-                    colorDelta = '#ff4444'; // Rojo: Faltante / Merma
+                    claseItem = 'faltante';
                     textoEstado = item.delta + ' Faltante';
                 }
 
                 const fila = document.createElement('div');
-                const bordeFila = item.delta === 0 ? 'rgba(255,255,255,0.06)' : colorDelta;
-                fila.style.cssText = 'background: rgba(0,0,0,0.5); border: 1px solid ' + bordeFila + '; border-radius: 10px; padding: 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px;';
+                fila.className = 'audit-fila-item ' + claseItem;
 
                 const badgeInesperado = item.inesperado 
-                    ? '<span style="background: #ffaa00; color: #000; font-size: 8px; font-weight: 900; padding: 1px 4px; border-radius: 4px; text-transform: uppercase;">Inesperado</span>' 
+                    ? '<span class="audit-badge-inesperado">Inesperado</span>' 
                     : '';
 
-                fila.innerHTML = '' +
-                    '<div style="flex: 1; min-width: 0;">' +
+                fila.innerHTML = 
+                    '<div class="audit-item-info">' +
                         '<div style="display: flex; align-items: center; gap: 6px;">' +
                             badgeInesperado +
-                            '<strong style="color: #fff; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">' + item.nombre + '</strong>' +
+                            '<span class="audit-item-nombre">' + item.nombre + '</span>' +
                         </div>' +
-                        '<span style="font-family: monospace; font-size: 10px; color: #888; display: block; margin-top: 2px;">' + item.codigo_barras + '</span>' +
-                        '<span style="font-size: 10px; font-weight: bold; color: ' + colorDelta + '; margin-top: 2px; display: block;">' + textoEstado + '</span>' +
+                        '<span class="audit-item-ean">' + item.codigo_barras + '</span>' +
+                        '<span class="audit-delta-rotulo ' + claseItem + '">' + textoEstado + '</span>' +
                     '</div>' +
                     '<div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">' +
                         '<div style="text-align: right;">' +
                             '<span style="font-size: 9px; color: #888; display: block;">Teór: ' + item.stock_teorico + '</span>' +
                             '<span style="font-size: 10px; color: #aaa; font-weight: bold;">Cont:</span>' +
                         </div>' +
-                        '<input type="number" min="0" value="' + item.stock_fisico + '" data-idx="' + idx + '" class="input-conteo-manual" style="width: 55px; background: rgba(0,0,0,0.7); border: 1px solid ' + colorDelta + '; color: white; text-align: center; border-radius: 6px; padding: 6px 2px; font-size: 13px; font-weight: bold;">' +
+                        '<input type="number" min="0" value="' + item.stock_fisico + '" data-idx="' + idx + '" class="audit-input-conteo">' +
                     '</div>';
 
                 contenedorFilas.appendChild(fila);
@@ -1019,12 +1046,10 @@ GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
             
             const kpiDelta = document.getElementById('kpi-audit-delta');
             kpiDelta.innerText = (deltaNeto > 0 ? ('+' + deltaNeto) : deltaNeto);
-            kpiDelta.style.color = deltaNeto === 0 ? '#00ff64' : (deltaNeto > 0 ? '#00e5ff' : '#ff4444');
+            kpiDelta.className = "audit-kpi-num " + (deltaNeto === 0 ? 'cuadrado' : (deltaNeto > 0 ? 'sobrante' : 'faltante'));
 
-
-            // Listener para ajustes manuales directos en celda
-            contenedorFilas.querySelectorAll('.input-conteo-manual').forEach(input => {
-                input.addEventListener('change', (e) => {
+            contenedorFilas.querySelectorAll('.audit-input-conteo').forEach(function(input) {
+                input.addEventListener('change', function(e) {
                     const i = Number(e.target.dataset.idx);
                     const val = Math.max(0, Number(e.target.value) || 0);
                     if (sesionAuditoria.items[i]) {
@@ -1035,30 +1060,30 @@ GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
             });
         }
 
-        document.getElementById('btn-cancelar-auditoria').addEventListener('click', async () => {
+        document.getElementById('btn-cancelar-auditoria').addEventListener('click', async function() {
             const ok = await window.mostrarConfirmacionInApp("¿Deseas reiniciar el conteo del compartimiento actual?", "Reiniciar Auditoría");
             if (ok && sesionAuditoria.idCompartimiento) {
                 await iniciarAuditoriaBin(sesionAuditoria.idCompartimiento);
             }
         });
 
-        document.getElementById('btn-confirmar-auditoria').addEventListener('click', async () => {
+        document.getElementById('btn-confirmar-auditoria').addEventListener('click', async function() {
             if (!sesionAuditoria.idCompartimiento || sesionAuditoria.items.length === 0) {
                 await window.mostrarAlertaInApp("No hay artículos contados en el compartimiento para asentar.", "Auditoría Vacía");
                 return;
             }
 
             let discrepanciasCount = 0;
-            sesionAuditoria.items.forEach(it => {
+            sesionAuditoria.items.forEach(function(it) {
                 if (it.delta !== 0) discrepanciasCount++;
             });
 
-            const mensaje = 'Se asentará el conteo de ' + sesionAuditoria.items.length + ' referencias en ' + sesionAuditoria.idCompartimiento + '.\nDiscrepancias con ajuste en Kardex: ' + discrepanciasCount + '.\n¿Confirmar y actualizar inventario?';
+            const mensaje = "Se asentará el conteo de " + sesionAuditoria.items.length + " referencias en " + sesionAuditoria.idCompartimiento + ".\nDiscrepancias con ajuste en Kardex: " + discrepanciasCount + ".\n¿Confirmar y actualizar inventario?";
             const ok = await window.mostrarConfirmacionInApp(mensaje, "Asentar Auditoría Física");
             if (!ok) return;
 
             const btn = document.getElementById('btn-confirmar-auditoria');
-            btn.innerText = "ASENTANDO AJUSTES EN KARDEX...";
+            btn.innerText = "ASENTANDO...";
             btn.disabled = true;
 
             try {
@@ -1076,18 +1101,12 @@ GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
                 if (!resAjuste.success) throw new Error(resAjuste.error);
 
                 emitirTono('EXITO');
-                const sufijoOffline = resAjuste.offline ? ' (Guardado local offline: se sincronizará automáticamente al detectar red)' : '';
-                await window.mostrarAlertaInApp(
-                    'Auditoría asentada exitosamente.' + sufijoOffline,
-                    "Conciliación Completa"
-                );
+                const sufijoOffline = resAjuste.offline ? " (Guardado local offline: se sincronizará automáticamente al detectar red)" : "";
+                await window.mostrarAlertaInApp("Auditoría asentada exitosamente." + sufijoOffline, "Conciliación Completa");
 
-
-                // Reiniciar estado
                 await iniciarAuditoriaBin(sesionAuditoria.idCompartimiento);
 
             } catch (err) {
-                console.error("[Auditoría] Error asentando conteo:", err);
                 emitirTono('ERROR');
                 await window.mostrarAlertaInApp("Fallo al asentar la auditoría: " + err.message, "Error Contable");
             } finally {
@@ -1096,124 +1115,49 @@ GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
             }
         });
 
+        // =========================================================================
+        // LOGIN Y ARRANQUE SEGURO
+        // =========================================================================
+        GeokatuDB.SecurityService.observarEstadoSesion(async function(user) { 
+            if (user) {
+                const tenantMatriz = localStorage.getItem('geokatu_active_uid'); 
+                idNegocio = tenantMatriz || user.uid; 
+                if (!tenantMatriz) localStorage.setItem('geokatu_active_uid', user.uid);
+                
+                document.getElementById('pantalla-login').style.display = 'none';
+                document.getElementById('app-terminal').style.display = 'flex';
+                document.getElementById('txt-operador').innerText = 'OPERADOR: ' + (user.email || '');
 
-        // Alta Rápida In Situ
-        let fotoAltaBlob = null;
-function abrirModalAltaRapida(codigo, cantSugerida, datosMatriz = null) {
-    const tituloModal = document.querySelector('#modal-alta-rapida h3');
-    
-    document.getElementById('alta-codigo').value = codigo;
-    document.getElementById('alta-precio').value = '';
-    document.getElementById('alta-cantidad').value = cantSugerida || 1;
+                const res = await GeokatuDB.PosService.descargarCatalogoLocal(idNegocio);
+                catalogoLocal = res.success ? res.data : GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio);
 
-    if (datosMatriz) {
-        // Pre-completado instantáneo desde la Matriz Global
-        document.getElementById('alta-nombre').value = datosMatriz.nombre;
-        document.getElementById('alta-categoria').value = datosMatriz.categoria;
-        tituloModal.innerHTML = '⚡ Producto Matriz Detectado';
-        tituloModal.style.color = '#00ff64';
-    } else {
-        // Formulario en blanco para código no catalogado
-        document.getElementById('alta-nombre').value = '';
-        document.getElementById('alta-categoria').value = 'General';
-        tituloModal.innerHTML = '✨ Producto Nuevo Detectado';
-        tituloModal.style.color = 'var(--naranja)';
-    }
+                GeokatuDB.CatalogoMatrizService.inicializarMatriz();
+                await hidratarMueblesDesdePlano();
 
-    document.getElementById('modal-alta-rapida').style.display = 'flex';
-}
-        document.getElementById('btn-cerrar-alta').addEventListener('click', () => {
-            document.getElementById('modal-alta-rapida').style.display = 'none';
-            fotoAltaBlob = null;
-            document.getElementById('alta-foto-input').value = '';
-            document.getElementById('alta-foto-preview').style.display = 'none';
-            document.getElementById('alta-foto-icono').style.display = 'block';
-            document.getElementById('alta-foto-txt').style.display = 'block';
-        });
-
-
-        document.getElementById('alta-foto-input').addEventListener('change', (e) => {
-            const f = e.target.files[0];
-            if (f) {
-                fotoAltaBlob = f;
-                const r = new FileReader();
-                r.onload = (ev) => {
-                    const img = document.getElementById('alta-foto-preview');
-                    img.src = ev.target.result;
-                    img.style.display = 'block';
-                    document.getElementById('alta-foto-icono').style.display = 'none';
-                    document.getElementById('alta-foto-txt').style.display = 'none';
-                };
-                r.readAsDataURL(f);
+                try {
+                    const resUbis = await GeokatuDB.InventarioService.obtenerMapaStockTiendaCompleto(idNegocio);
+                    if (resUbis.success && Array.isArray(resUbis.data)) {
+                        localStorage.setItem("geokatu_stock_ubis_" + idNegocio, JSON.stringify(resUbis.data));
+                    }
+                } catch (eUbi) {}
+            } else {
+                document.getElementById('pantalla-login').style.display = 'flex';
+                document.getElementById('app-terminal').style.display = 'none';
             }
         });
 
-        document.getElementById('btn-guardar-alta-rapida').addEventListener('click', async () => {
-            const btn = document.getElementById('btn-guardar-alta-rapida');
-            const codigo = document.getElementById('alta-codigo').value.trim();
-            const nom = document.getElementById('alta-nombre').value.trim();
-            const pre = parseFloat(document.getElementById('alta-precio').value) || 0;
-            const cant = Math.max(1, parseFloat(document.getElementById('alta-cantidad').value) || 1);
-
-            if (!nom) return window.mostrarAlertaInApp("El nombre del producto es obligatorio.", "Campo Requerido");
-            btn.innerText = "GUARDANDO..."; btn.disabled = true;
-
-
-                        try {
-                let imgUrl = "";
-                if (fotoAltaBlob) {
-                    // 1. Reducción obligatoria a WebP plano < 2MB para cumplir con Storage
-                    const blobWebp = await window.comprimirImagen(fotoAltaBlob, 800, 0.7, true);
-                    const pathFoto = `productos/${idNegocio}/${codigo}_${Date.now()}.webp`;
-                    const up = await GeokatuDB.AdminService.subirArchivo(pathFoto, blobWebp); 
-                    imgUrl = (typeof up === 'string') ? up : (up?.data || ''); 
-                }
-
-
-                  // Se registra con stock 0 para que procesarMovimientoStock asiente el Kardex oficial
-                const nuevoProd = {
-                    nombre: nom,
-                    precio: pre,
-                    codigo_barras: codigo,
-                    stock_actual: 0,
-                    categoria: document.getElementById('alta-categoria').value.trim() || "General",
-                    imagen: imgUrl,
-                    almacen_id_inicial: ubicacionCascada.idEstante || "BODEGA_GENERAL",
-                    fecha_creacion: new Date().toISOString(),
-                    agotado: false
-                };
-
-                const res = await GeokatuDB.AdminService.guardarProducto(idNegocio, null, nuevoProd);
-                if (!res.success) throw new Error(res.error);
-
-                nuevoProd.id_prod = res.id_generado;
-                catalogoLocal.push(nuevoProd);
-                localStorage.setItem(`geokatu_catalogo_${idNegocio}`, JSON.stringify(catalogoLocal));
-
-                // Limpieza completa del modal y reseteo de la cámara
-                fotoAltaBlob = null;
-                document.getElementById('alta-foto-input').value = '';
-                document.getElementById('alta-foto-preview').style.display = 'none';
-                document.getElementById('alta-foto-preview').src = '';
-                document.getElementById('alta-foto-icono').style.display = 'block';
-                document.getElementById('alta-foto-txt').style.display = 'block';
-                document.getElementById('modal-alta-rapida').style.display = 'none';
-
-                // Asienta el ingreso único real con las unidades indicadas
-                document.getElementById('input-unidades-lote').value = cant;
-                await procesarMovimientoStock(codigo, "ALTA_RÁPIDA");
-                document.getElementById('input-unidades-lote').value = 1;
-
-            } catch (err) {
-                window.mostrarAlertaInApp("Error al registrar: " + err.message, "Fallo de Alta");
-            } finally {
-
-                btn.innerText = "INCORPORAR AL STOCK";
-                btn.disabled = false;
-            }
+        document.getElementById('btn-login').addEventListener('click', async function() {
+            const email = document.getElementById('login-email').value.trim();
+            const pass = document.getElementById('login-pass').value;
+            const res = await GeokatuDB.SecurityService.iniciarSesion(email, pass);
+            if (!res.success) window.mostrarAlertaInApp("Credenciales incorrectas: " + res.error, "Error de Inicio");
         });
+
+        document.getElementById('btn-logout').addEventListener('click', async function() {
+            await apagarCamara();
+            await GeokatuDB.SecurityService.cerrarSesion();
+        });
+
     </script>
 </body>
 </html>
-
-

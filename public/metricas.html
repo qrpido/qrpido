@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>GEOKATU - Telemetria Comercial y WMS</title>
+    <meta name="theme-color" content="#0a0a0c">
+    <link rel="stylesheet" href="admin-boveda.css">
+    <style>
+        :root {
+            --naranja: #ff6b00;
+            --naranja-suave: rgba(255, 107, 0, 0.12);
+            --naranja-brillo: rgba(255, 107, 0, 0.35);
+            --verde-neon: #00ff64;
+            --verde-glow: rgba(0, 255, 100, 0.15);
+            --rojo-urgente: #ff4444;
+            --rojo-glow: rgba(255, 68, 68, 0.15);
+            --azul-cielo: #60a5fa;
+            --amber: #f59e0b;
+            --bg-oscuro: #0a0a0c;
+            --glass-bg: rgba(20, 20, 25, 0.75);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --fuente-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        }
+
+        body.metricas-view {
+            padding-bottom: 90px;
+            background: radial-gradient(circle at 50% 0%, #16161c 0%, var(--bg-oscuro) 100%);
+            min-height: 100vh;
+        }
+
+        .metricas-topbar {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            background: rgba(10, 10, 12, 0.88);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .topbar-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-icon-nav {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--glass-border);
+            color: #ffffff;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            outline: none;
+            transition: background 0.15s ease;
+        }
+
+        .btn-icon-nav:active {
+            background: var(--naranja-suave);
+            border-color: var(--naranja);
+        }
+
+        .badge-red-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10px;
+            font-weight: 800;
+            font-family: var(--fuente-mono);
+            letter-spacing: 0.5px;
+            padding: 4px 8px;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--glass-border);
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--verde-neon);
+            box-shadow: 0 0 8px var(--verde-neon);
+        }
+
+        .status-dot.offline {
+            background: var(--amber);
+            box-shadow: 0 0 8px var(--amber);
+        }
+
+        .reloj-terminal {
+            font-family: var(--fuente-mono);
+            font-size: 11px;
+            color: #888892;
+        }
+
+        .range-selector-strip {
+            display: flex;
+            gap: 6px;
+            padding: 10px 14px;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+
+        .range-selector-strip::-webkit-scrollbar {
+            display: none;
+        }
+
+        .btn-range-chip {
+            flex: 1;
+            min-width: max-content;
+            background: rgba(20, 20, 25, 0.7);
+            border: 1px solid var(--glass-border);
+            color: #8a909d;
+            font-size: 10.5px;
+            font-weight: 800;
+            text-transform: uppercase;
+            padding: 8px 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .btn-range-chip.activo {
+            background: var(--naranja-suave);
+            border-color: var(--naranja);
+            color: #ffffff;
+            box-shadow: 0 2px 10px var(--naranja-brillo);
+        }
+
+        .live-shift-strip {
+            margin: 0 14px 12px 14px;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.45);
+            border: 1px dashed var(--glass-border);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11px;
+            font-family: var(--fuente-mono);
+        }
+
+        .shift-badge {
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-size: 9.5px;
+            font-weight: 900;
+        }
+
+        .shift-badge.abierta {
+            background: var(--verde-glow);
+            color: var(--verde-neon);
+            border: 1px solid rgba(0, 255, 100, 0.3);
+        }
+
+        .shift-badge.cerrada {
+            background: rgba(255, 255, 255, 0.08);
+            color: #8a909d;
+            border: 1px solid var(--glass-border);
+        }
+
+        .main-container {
+            padding: 0 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .modulo-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 14px;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+        }
+
+        .modulo-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            padding-bottom: 8px;
+        }
+
+        .modulo-title {
+            font-size: 11.5px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: #ffffff;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .kpi-duo-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .kpi-trio-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .sub-kpi-box {
+            background: rgba(0, 0, 0, 0.45);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 10px;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+        }
+
+        .sub-kpi-label {
+            font-size: 9.5px;
+            font-weight: 800;
+            color: #8a909d;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .sub-kpi-valor {
+            font-size: 15px;
+            font-weight: 900;
+            font-family: var(--fuente-mono);
+            color: #ffffff;
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sub-kpi-valor.verde { color: var(--verde-neon); }
+        .sub-kpi-valor.naranja { color: var(--naranja); }
+        .sub-kpi-valor.rojo { color: var(--rojo-urgente); }
+        .sub-kpi-valor.azul { color: var(--azul-cielo); }
+
+        .svg-bar-track {
+            width: 100%;
+            height: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 5px;
+            overflow: hidden;
+            margin: 6px 0;
+            border: 1px solid var(--glass-border);
+        }
+
+        .split-row-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11px;
+            font-family: var(--fuente-mono);
+            margin-bottom: 4px;
+        }
+
+        .kardex-table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            border-radius: 10px;
+            border: 1px solid var(--glass-border);
+            background: rgba(0, 0, 0, 0.35);
+        }
+
+        .kardex-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10.5px;
+            font-family: var(--fuente-mono);
+            text-align: left;
+        }
+
+        .kardex-table th {
+            background: rgba(255, 255, 255, 0.04);
+            color: #8a909d;
+            font-weight: 800;
+            text-transform: uppercase;
+            padding: 8px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .kardex-table td {
+            padding: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            white-space: nowrap;
+        }
+
+        .odometro-box {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 8px 0;
+        }
+
+        .odometro-svg-wrap {
+            position: relative;
+            width: 84px;
+            height: 84px;
+            flex-shrink: 0;
+        }
+
+        .odometro-centro-texto {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--fuente-mono);
+            font-weight: 900;
+            font-size: 13px;
+        }
+
+        .odometro-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 11px;
+        }
+
+        .barra-progreso-storage {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+
+        .barra-fill-storage {
+            height: 100%;
+            background: var(--azul-cielo);
+            transition: width 0.3s ease;
+        }
+
+        .barra-fill-storage.peligro {
+            background: var(--rojo-urgente);
+        }
+
+        .actions-dock {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)) 14px;
+            background: rgba(10, 10, 12, 0.95);
+            backdrop-filter: blur(16px);
+            border-top: 1px solid var(--glass-border);
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            z-index: 999;
+        }
+
+        .btn-dock {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            border: 1px solid var(--glass-border);
+            outline: none;
+            transition: transform 0.15s ease;
+        }
+
+        .btn-dock:active { transform: scale(0.96); }
+
+        .btn-dock.exportar {
+            background: rgba(255, 255, 255, 0.06);
+            color: #ffffff;
+        }
+
+        .btn-dock.imprimir {
+            background: linear-gradient(135deg, #ff8c00 0%, var(--naranja) 100%);
+            border-color: var(--naranja);
+            color: #ffffff;
+            box-shadow: 0 4px 14px var(--naranja-brillo);
+        }
+
+        .toast-terminal {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: rgba(18, 18, 22, 0.98);
+            border: 1px solid var(--naranja);
+            border-radius: 12px;
+            padding: 10px 16px;
+            font-size: 11.5px;
+            font-weight: 800;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9);
+            z-index: 100060;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            max-width: 90%;
+            text-align: center;
+        }
+
+        .toast-terminal.activo {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+            pointer-events: auto;
+        }
+
+        #contenedor-impresion-termica {
+            display: none;
+        }
+
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #contenedor-impresion-termica, #contenedor-impresion-termica * {
+                visibility: visible;
+            }
+            #contenedor-impresion-termica {
+                display: block !important;
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                font-family: monospace;
+                color: #000000;
+                font-size: 12px;
+                padding: 4px;
+            }
+        }
+    </style>
+</head>
+<body class="metricas-view">
+
+    <header class="metricas-topbar">
+        <div class="topbar-left">
+            <button class="btn-icon-nav" id="btn-regresar" aria-label="Regresar a Oficina">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+            </button>
+            <div>
+                <span style="font-size: 12px; font-weight: 900; letter-spacing: 0.5px; display: block;" id="comercio-nombre">GEOKATU CORE</span>
+                <span class="badge-plan" id="badge-moneda-pais">COL: COP</span>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="badge-red-status" id="pill-red-status">
+                <div class="status-dot" id="indicador-red-dot"></div>
+                <span id="texto-red-status">ONLINE</span>
+            </div>
+            <span class="reloj-terminal" id="reloj-vivo">00:00:00</span>
+        </div>
+    </header>
+
+    <nav class="range-selector-strip" id="range-strip">
+        <button class="btn-range-chip activo" data-rango="HOY">Hoy</button>
+        <button class="btn-range-chip" data-rango="AYER">Ayer</button>
+        <button class="btn-range-chip" data-rango="7DIAS">7 Dias</button>
+        <button class="btn-range-chip" data-rango="MES">Mes</button>
+        <button class="btn-range-chip" data-rango="CUSTOM">Personalizado</button>
+    </nav>
+
+    <div class="live-shift-strip">
+        <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="color: #888892;">Turno Caja:</span>
+            <span class="shift-badge cerrada" id="badge-turno-estado">CERRADA</span>
+            <span id="id-sesion-activa" style="color: #60a5fa;">S/N</span>
+        </div>
+        <div id="cajero-en-turno" style="color: #aaa;">Sin cajero</div>
+    </div>
+
+    <main class="main-container">
+
+        <section class="modulo-card">
+            <div class="modulo-header">
+                <div class="modulo-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="1" x2="12" y2="23"></line>
+                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                    </svg>
+                    Radar Financiero y Liquidacion
+                </div>
+                <span style="font-size: 9.5px; color: #888892; font-family: var(--fuente-mono);" id="rango-fecha-etiqueta">Turno en curso</span>
+            </div>
+
+            <div class="kpi-duo-grid">
+                <div class="sub-kpi-box">
+                    <span class="sub-kpi-label">Ventas Netas Totales</span>
+                    <span class="sub-kpi-valor verde" id="kpi-ventas-netas">$ 0</span>
+                </div>
+                <div class="sub-kpi-box">
+                    <span class="sub-kpi-label">Costo Mercancia (CPP)</span>
+                    <span class="sub-kpi-valor" id="kpi-cogs-total">$ 0</span>
+                </div>
+            </div>
+
+            <div class="kpi-trio-grid">
+                <div class="sub-kpi-box">
+                    <span class="sub-kpi-label">Utilidad Bruta</span>
+                    <span class="sub-kpi-valor naranja" id="kpi-utilidad-bruta">$ 0</span>
+                </div>
+                <div class="sub-kpi-box">
+                    <span class="sub-kpi-label">Margen Bruto</span>
+                    <span class="sub-kpi-valor" id="kpi-margen-pct">0.0%</span>
+                </div>
+                <div class="sub-kpi-box">
+                    <span class="sub-kpi-label">Ticket Prom (AOV)</span>
+                    <span class="sub-kpi-valor" id="kpi-aov">$ 0</span>
+                </div>
+            </div>
+
+            <div class="sub-kpi-box" style="margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 800; color: #8a909d; text-transform: uppercase;">
+                    <span>Tickets Validos: <strong id="conteo-ordenes-validas" style="color: #fff;">0</strong></span>
+                    <span>Anulados / Devolucion: <strong id="conteo-ordenes-anuladas" style="color: var(--rojo-urgente);">0</strong></span>
+                </div>
+            </div>
+
+            <label class="section-title">Distribucion Medios de Pago</label>
+            <div class="sub-kpi-box" style="margin-bottom: 10px;">
+                <div class="split-row-item">
+                    <span>Efectivo Declarado:</span>
+                    <strong id="monto-split-efectivo">$ 0</strong>
+                </div>
+                <div class="svg-bar-track">
+                    <div id="bar-split-efectivo" style="height: 100%; width: 0%; background: var(--verde-neon);"></div>
+                </div>
+
+                <div class="split-row-item" style="margin-top: 6px;">
+                    <span>Datafono / Tarjetas:</span>
+                    <strong id="monto-split-tarjeta">$ 0</strong>
+                </div>
+                <div class="svg-bar-track">
+                    <div id="bar-split-tarjeta" style="height: 100%; width: 0%; background: var(--azul-cielo);"></div>
+                </div>
+
+                <div class="split-row-item" style="margin-top: 6px;">
+                    <span>Billeteras (Nequi / Transf):</span>
+                    <strong id="monto-split-digital">$ 0</strong>
+                </div>
+                <div class="svg-bar-track">
+                    <div id="bar-split-digital" style="height: 100%; width: 0%; background: var(--amber);"></div>
+                </div>
+            </div>
+
+            <label class="section-title">Auditoria Conciliacion Cierres Z</label>
+            <div class="kpi-duo-grid">
+                <div class="sub-kpi-box">
+                    <span class="sub-kpi-label">Descuadre Neto Arqueos</span>
+                    <span class="sub-kpi-valor" id="kpi-descuadre-arqueo">$ 0</span>
+                </div>
+                <div class="sub-kpi-box">
+                    <span class="sub-kpi-label">Gastos Menores Caja</span>
+                    <span class="sub-kpi-valor rojo" id="kpi-salidas-menores">$ 0</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="modulo-card">
+            <div class="modulo-header">
+                <div class="modulo-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                    </svg>
+                    Auditoria de Inventario WMS y Merma
+                </div>
+            </div>
+
+            <div class="kpi-trio-grid">
+                <div class="sub-kpi-box">
+                    <span class="sub-kpi-label">Valor Inv (CPP)</span>
+                    <span class="sub-kpi-valor azul" id="kpi-valor-inventario">$ 0</span>
+                </div>
+                <div class="sub-kpi-box">
+                    <span class="sub-kpi-label">Mermas / Bajas</span>
+                    <span class="sub-kpi-valor rojo" id="kpi-mermas-perdidas">$ 0</span>
+                </div>
+                <div class="sub-kpi-box">
+                    <span class="sub-kpi-label">Ajustes Anaquel</span>
+                    <span class="sub-kpi-valor" id="kpi-discrepancias-conteos">0</span>
+                </div>
+            </div>
+
+            <label class="section-title">Articulos Criticos / Quiebre de Stock</label>
+            <div class="kardex-table-wrapper">
+                <table class="kardex-table">
+                    <thead>
+                        <tr>
+                            <th>Codigo / SKU</th>
+                            <th>Descripcion</th>
+                            <th>Stock</th>
+                            <th>CPP</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-articulos-criticos">
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: #777; padding: 12px;">Sin quiebres de inventario</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="modulo-card">
+            <div class="modulo-header">
+                <div class="modulo-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                    </svg>
+                    Telemetria Infraestructura y Fiscal
+                </div>
+            </div>
+
+            <div class="odometro-box">
+                <div class="odometro-svg-wrap">
+                    <svg width="84" height="84" viewBox="0 0 36 36">
+                        <path stroke="rgba(255,255,255,0.08)" stroke-width="3.5" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                        <path id="odometro-progreso-path" stroke="var(--naranja)" stroke-dasharray="0, 100" stroke-width="3.5" stroke-linecap="round" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                    </svg>
+                    <div class="odometro-centro-texto">
+                        <span id="odometro-porcentaje">0%</span>
+                        <span style="font-size: 8px; color: #888;">CUOTA</span>
+                    </div>
+                </div>
+                <div class="odometro-info">
+                    <div>Consumo Mensual: <strong id="facturas-emitidas-mes" style="font-family: var(--fuente-mono); color: #fff;">0</strong> / <span id="facturas-cupo-max" style="font-family: var(--fuente-mono);">1300</span></div>
+                    <div>Proyeccion de Agotamiento: <strong id="proyeccion-cuota" style="font-family: var(--fuente-mono); color: var(--amber);">N/A</strong></div>
+                    <div style="font-size: 9.5px; color: #8a909d;">Plan: <span id="plan-nombre-activo">ESTANDAR B2B</span></div>
+                </div>
+            </div>
+
+            <div class="kpi-duo-grid" style="margin-top: 8px;">
+                <div class="sub-kpi-box">
+                    <span class="sub-kpi-label">Uso Almacenamiento Local</span>
+                    <span class="sub-kpi-valor" id="storage-porcentaje-uso">0.0%</span>
+                    <div class="barra-progreso-storage">
+                        <div class="barra-fill-storage" id="storage-fill-bar" style="width: 0%;"></div>
+                    </div>
+                </div>
+                <div class="sub-kpi-box">
+                    <span class="sub-kpi-label">Colas Offline Locales</span>
+                    <div style="font-size: 10.5px; font-family: var(--fuente-mono); margin-top: 4px;">
+                        <div>POS: <strong id="cola-ventas-count" style="color: var(--amber);">0</strong> pend</div>
+                        <div>WMS: <strong id="cola-bodega-count" style="color: var(--amber);">0</strong> pend</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sub-kpi-box" style="margin-top: 6px;">
+                <span class="sub-kpi-label" id="lbl-fiscal-titulo">Conformidad Fiscal DIAN / Contingencias</span>
+                <div style="display: flex; justify-content: space-between; font-size: 11px; font-family: var(--fuente-mono); margin-top: 4px;">
+                    <span><span id="lbl-fiscal-ok">Facturado con CUFE:</span> <strong id="conteo-dian-exitoso" style="color: var(--verde-neon);">0</strong></span>
+                    <span><span id="lbl-fiscal-alt">Contingencia Tipo 04:</span> <strong id="conteo-dian-contingencia" style="color: var(--amber);">0</strong></span>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <footer class="actions-dock">
+        <button class="btn-dock exportar" id="btn-exportar-auditoria">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Exportar CSV
+        </button>
+        <button class="btn-dock imprimir" id="btn-imprimir-informe">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                <rect x="6" y="14" width="12" height="8"></rect>
+            </svg>
+            Imprimir Cierre
+        </button>
+    </footer>
+
+    <div class="bottom-sheet-overlay" id="modal-custom-range">
+        <div class="bottom-sheet" style="max-height: 50vh;">
+            <div class="bottom-sheet-header">
+                <div class="bottom-sheet-drag"></div>
+                <span class="section-title" style="color: #fff; font-size: 13px;">Rango de Fecha Personalizado</span>
+                <button class="bottom-sheet-cerrar" id="btn-cerrar-modal-rango">&times;</button>
+            </div>
+            <div class="bottom-sheet-content">
+                <div>
+                    <label class="section-title">Fecha y Hora Desde</label>
+                    <input type="datetime-local" class="input-form" id="input-custom-desde">
+                </div>
+                <div>
+                    <label class="section-title">Fecha y Hora Hasta</label>
+                    <input type="datetime-local" class="input-form" id="input-custom-hasta">
+                </div>
+                <button class="btn-submit" id="btn-aplicar-rango-custom" style="margin-bottom: 20px;">Aplicar Filtro</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-terminal" id="toast-notificacion"></div>
+
+    <div id="contenedor-impresion-termica"></div>
+
+    <script type="module" src="metricas.js"></script>
+</body>
+</html>
+

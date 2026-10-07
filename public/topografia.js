@@ -179,10 +179,10 @@ if (sliderContraste) {
     sliderContraste.addEventListener('input', (e) => {
         const val = parseFloat(e.target.value) / 100;
         const mapaEl = document.getElementById('mapa-fondo-pmtiles');
-        if (mapaEl) {
+       if (mapaEl) {
             mapaEl.style.opacity = val;
             mapaEl.style.filter = val > 0 
-                ? `grayscale((1-val)*50%)brightness({0.75 + val * 0.25})` 
+                ? 'grayscale(' + ((1 - val) * 50) + '%) brightness(' + (0.75 + val * 0.25) + ')'
                 : 'none';
         }
     });
@@ -301,7 +301,7 @@ function actualizarEstadoBotonesAccion() {
             btnCerrar.style.display = 'none';
             btnDeshacer.style.display = 'none';
         } else {
-            btnCapturar.innerText = `📍 Marcar Mojón (P${vertices.length + 1})`;
+            btnCapturar.innerText = '📍 Marcar Mojón (P' + (vertices.length + 1) + ')';
             btnDeshacer.style.display = 'flex';
             btnCerrar.style.display = vertices.length >= 3 ? 'flex' : 'none';
         }
@@ -334,7 +334,7 @@ if ('geolocation' in navigator) {
 
             if (badgePct) {
                 let pct = Math.round(Math.max(10, Math.min(100, 100 - ((acc - 2.5) / 22.5) * 90)));
-                badgePct.innerText = `${pct}% (±${acc.toFixed(1)}m)`; 
+                badgePct.innerText = pct + '% (±' + acc.toFixed(1) + 'm)';
                 badgePct.classList.remove('precision-optima', 'precision-media', 'precision-baja');
 
                 if (acc <= 4.0) {
@@ -450,7 +450,7 @@ btnCapturar.addEventListener('click', () => {
         dibujarPlano();
     } else {
         const sig = vertices.length + 1;
-       document.getElementById('txt-titulo-tramo').innerText = `Medición Tramo P${sig - 1} ➔ P${sig}`; 
+       document.getElementById('txt-titulo-tramo').innerText = 'Medición Tramo P' + (sig - 1) + ' ➔ P' + sig; 
         inputDistCinta.value = '';
 
         // Precargar el colindante del tramo anterior por defecto
@@ -554,7 +554,7 @@ function detectarSnapPunto(pixelX, pixelY, umbralPx = 20) {
     for (let i = 0; i < vertices.length; i++) {
         const pt = mapaBase.project([vertices[i].lng, vertices[i].lat]);
         if (Math.hypot(pt.x - pixelX, pt.y - pixelY) <= umbralPx) {
-            return { lat: vertices[i].lat, lng: vertices[i].lng, idRef: `P${vertices[i].id}` };
+            return { lat: vertices[i].lat, lng: vertices[i].lng, idRef: 'P' + vertices[i].id };
         }
     }
 
@@ -641,13 +641,13 @@ function abrirEditorTextoEnVivo(lat, lng, textoInicial = "", idExistente = null)
     textarea.className = 'editor-cad-en-vivo';
     textarea.value = textoInicial;
     textarea.placeholder = "Escribe texto...";
-    textarea.style.left = `${pt.x}px`;
-    textarea.style.top = `${pt.y}px`;
+    textarea.style.left = pt.x + 'px';
+    textarea.style.top = pt.y + 'px';
 
     // Ajustar altura automáticamente al escribir
     textarea.addEventListener('input', () => {
         textarea.style.height = 'auto';
-        textarea.style.height = `${textarea.scrollHeight}px`;
+        textarea.style.height = textarea.scrollHeight + 'px';
     });
 
     // Consolidar al hacer clic fuera o presionar Shift+Enter
@@ -700,10 +700,11 @@ function cerrarEditorTextoEnVivo() {
 }
 
 function inyectarElementoTextoDOM(item) {
-    let el = document.getElementById(`texto-cad-${item.id}`);
+    let el = document.getElementById('texto-cad-' + item.id);
     if (!el) {
         el = document.createElement('div');
-        el.id = `texto-cad-${item.id}`;
+        el.id = 'texto-cad-' + item.id;
+
         el.className = 'cuadro-texto-cad';
         el.innerText = item.texto;
 
@@ -720,20 +721,7 @@ function inyectarElementoTextoDOM(item) {
 }
 
 
-document.getElementById('btn-eliminar-texto-cad').addEventListener('click', () => {
-    if (!confirm("¿Eliminar este texto del plano?")) return;
-    cuadrosTexto = cuadrosTexto.filter(t => t.id !== textoEnEdicionId);
-    const domEl = document.getElementById(`texto-cad-${textoEnEdicionId}`);
-    if (domEl) domEl.remove();
-    guardarBorradorEnDispositivo();
-    document.getElementById('modal-editar-texto-cad').style.display = 'none';
-    textoEnEdicionId = null;
-});
 
-document.getElementById('btn-cancelar-edicion-texto').addEventListener('click', () => {
-    document.getElementById('modal-editar-texto-cad').style.display = 'none';
-    textoEnEdicionId = null;
-});
 
 // =========================================================================
 // 8. RENDERIZADO CANVAS EN TIEMPO REAL (60 FPS)
@@ -807,8 +795,8 @@ function dibujarPlano() {
         ctx.fillStyle = '#00f0ff';
         ctx.font = 'bold 10px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText(`LOTE ${lote.numero}`, cPt.x, cPt.y - 4);
-        ctx.fillText(`${lote.area_m2} m²`, cPt.x, cPt.y + 8);
+        ctx.fillText('LOTE ' + lote.numero, cPt.x, cPt.y - 4);
+        ctx.fillText(lote.area_m2 + ' m²', cPt.x, cPt.y + 8);
         ctx.textAlign = 'start';
     });
 
@@ -852,7 +840,7 @@ function dibujarPlano() {
 
         ctx.fillStyle = '#00ff64';
         ctx.font = 'bold 11px monospace';
-        ctx.fillText(`~${distAprox.toFixed(1)}m (GPS)`, ptGps.x + 10, ptGps.y + 4);
+        ctx.fillText('~' + distAprox.toFixed(1) + 'm (GPS)', ptGps.x + 10, ptGps.y + 4);
     }
 
     // 6. Mojones y Cotas Métricas
@@ -869,7 +857,7 @@ function dibujarPlano() {
 
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 11px monospace';
-        ctx.fillText(`P${v.id}`, pt.x + 8, pt.y - 8);
+        ctx.fillText('P' + v.id, pt.x + 8, pt.y - 8);
 
         if (idx > 0 && v.distCinta > 0) {
             const vAnt = vertices[idx - 1];
@@ -879,7 +867,7 @@ function dibujarPlano() {
 
             ctx.fillStyle = '#ffaa00';
             ctx.font = '10px monospace';
-            ctx.fillText(`${v.distCinta.toFixed(2)}m [${v.colindante}]`, midX, midY - 5);
+            ctx.fillText(v.distCinta.toFixed(2) + 'm [' + v.colindante + ']', midX, midY - 5);
         }
     });
 
@@ -891,7 +879,7 @@ function dibujarPlano() {
         ctx.strokeRect(sPt.x - 7, sPt.y - 7, 14, 14);
         ctx.fillStyle = '#00ff64';
         ctx.font = 'bold 9px monospace';
-        ctx.fillText(`SNAP: ${puntoImantado.idRef}`, sPt.x + 10, sPt.y - 4);
+        ctx.fillText('SNAP: ' + puntoImantado.idRef, sPt.x + 10, sPt.y - 4);
     }
 
     actualizarPosicionTextosLibres();
@@ -918,21 +906,21 @@ function dibujarAvatarPulsante(context, x, y) {
 
 function actualizarPosicionTextosLibres() {
     cuadrosTexto.forEach(item => {
-        const el = document.getElementById(`texto-cad-${item.id}`);
+        const el = document.getElementById('texto-cad-' + item.id);
         if (el && mapaBase) {
             const pt = mapaBase.project([item.lng, item.lat]);
-            el.style.left = `${pt.x}px`;
-            el.style.top = `${pt.y}px`;
+            el.style.left = pt.x + 'px';
+            el.style.top = pt.y + 'px';
         }
     });
 
-    // Si el usuario está escribiendo un texto y mueve el mapa, la caja sigue al punto en pantalla
     if (editorCadActivoEl && editorCadActivoEl.el && mapaBase) {
         const ptEditor = mapaBase.project([editorCadActivoEl.lng, editorCadActivoEl.lat]);
-        editorCadActivoEl.el.style.left = `${ptEditor.x}px`;
-        editorCadActivoEl.el.style.top = `${ptEditor.y}px`;
+        editorCadActivoEl.el.style.left = ptEditor.x + 'px';
+        editorCadActivoEl.el.style.top = ptEditor.y + 'px';
     }
 }
+
 
 
 // =========================================================================
@@ -994,7 +982,7 @@ document.getElementById('btn-confirmar-cierre').addEventListener('click', () => 
     nombrePredioActivo = document.getElementById('input-nombre-predio').value.trim() || "Predio Sin Nombre";
     propietarioActivo = document.getElementById('input-propietario-predio').value.trim() || "Particular";
     municipioActivo = document.getElementById('input-municipio-predio').value.trim() || "Pereira, Risaralda";
-    idPlanoActivo = `PLANO_${nombrePredioActivo.replace(/[^a-zA-Z0-9_-]/g, '_').toUpperCase()}`;
+   idPlanoActivo = 'PLANO_' + nombrePredioActivo.replace(/[^a-zA-Z0-9_-]/g, '_').toUpperCase();
 
     const ultimo = vertices[vertices.length - 1];
     const primero = vertices[0];
@@ -1092,12 +1080,12 @@ function actualizarRotulosPlanoDOM() {
     const rTablaCRS = document.getElementById('rot-tabla-crs');
     const subModalCRS = document.getElementById('modal-subtitulo-crs');
 
-    if (rNombre) rNombre.innerText = `PLANO TOPOGRÁFICO: ${nombrePredioActivo.toUpperCase()}`;
+    if (rNombre) rNombre.innerText = 'PLANO TOPOGRÁFICO: ' + nombrePredioActivo.toUpperCase();
     if (rProp) rProp.innerText = propietarioActivo.toUpperCase();
     if (rMun) rMun.innerText = municipioActivo.toUpperCase();
     if (rCRS) rCRS.innerText = crsLabelActivo;
     if (rTablaCRS) rTablaCRS.innerText = crsLabelActivo;
-    if (subModalCRS) subModalCRS.innerText = `PROYECCIÓN: ${crsLabelActivo}`;
+    if (subModalCRS) subModalCRS.innerText = 'PROYECCIÓN: ' + crsLabelActivo;
 }
 
 function generarMemoriaLinderosNotarial() {
@@ -1129,7 +1117,7 @@ function generarMemoriaLinderosNotarial() {
 
     return grupos.map(g => {
         const formaLinea = g.tramos > 1 ? "en líneas quebradas" : "en línea recta";
-        return `Del punto P${g.pInicio} al punto P${g.pFin}, en una distancia acumulada de ${g.distanciaTotal.toFixed(2)} metros ${formaLinea}, colindando con ${g.colindante.toUpperCase()};`; 
+        return 'Del punto P' + g.pInicio + ' al punto P' + g.pFin + ', en una distancia acumulada de ' + g.distanciaTotal.toFixed(2) + ' metros ' + formaLinea + ', colindando con ' + g.colindante.toUpperCase() + ';';
     }).join(" ");
 }
 
@@ -1148,16 +1136,15 @@ function actualizarTablaCoordenadasDOM() {
         const vAnt = vertices[i - 1];
         perimetro += v.distCinta;
 
-        const filaHTML = `
-            <tr>
-                <td>P${vAnt.id} - P${v.id}</td> 
-                <td>${v.distCinta.toFixed(2)}</td>
-                <td>${v.rumboStr}</td>
-                <td>${v.e.toFixed(3)}</td>
-                <td>${v.n.toFixed(3)}</td>
-                <td>${v.colindante}</td>
-            </tr>
-        `;
+        const filaHTML = '<tr>' +
+            '<td>P' + vAnt.id + ' - P' + v.id + '</td>' +
+            '<td>' + v.distCinta.toFixed(2) + '</td>' +
+            '<td>' + v.rumboStr + '</td>' +
+            '<td>' + v.e.toFixed(3) + '</td>' +
+            '<td>' + v.n.toFixed(3) + '</td>' +
+            '<td>' + v.colindante + '</td>' +
+            '</tr>';
+
         tbodyModal.innerHTML += filaHTML;
         tbodyPrint.innerHTML += filaHTML;
     }
@@ -1175,10 +1162,11 @@ function actualizarTablaCoordenadasDOM() {
     const rotArea = document.getElementById('rot-area');
     const rotPerimetro = document.getElementById('rot-perimetro');
 
-    if (lblPerimetro) lblPerimetro.innerText = `${perimetro.toFixed(2)} m`;
-   if (lblArea) lblArea.innerText = `${areaFinal.toFixed(2)} m² (${(areaFinal / 10000).toFixed(4)} ha)`; 
-    if (rotArea) rotArea.innerText = `${areaFinal.toFixed(2)} m²`;
-    if (rotPerimetro) rotPerimetro.innerText = `${perimetro.toFixed(2)} m`;
+    if (lblPerimetro) lblPerimetro.innerText = perimetro.toFixed(2) + ' m';
+    if (lblArea) lblArea.innerText = areaFinal.toFixed(2) + ' m² (' + (areaFinal / 10000).toFixed(4) + ' ha)';
+    if (rotArea) rotArea.innerText = areaFinal.toFixed(2) + ' m²';
+    if (rotPerimetro) rotPerimetro.innerText = perimetro.toFixed(2) + ' m';
+
 
     const elMemoria = document.getElementById('rot-memoria-linderos');
     if (elMemoria) elMemoria.innerText = generarMemoriaLinderosNotarial();
@@ -1203,7 +1191,7 @@ async function actualizarBadgeCupoDOM() {
 
     if (!idNegocio || !navigator.onLine) {
         const descargasLocales = parseInt(localStorage.getItem('geokatu_topo_descargas_local') || '0', 10);
-        badge.innerText = `(${descargasLocales}/10)`;
+        badge.innerText = '(' + descargasLocales + '/10)';
         cupoPlanosCache = { descargas: descargasLocales, maximo: 10 };
         return;
     }
@@ -1212,7 +1200,7 @@ async function actualizarBadgeCupoDOM() {
         if (GeokatuDB?.TopografiaService?.obtenerEstadoCupoPlanos) {
             const res = await GeokatuDB.TopografiaService.obtenerEstadoCupoPlanos(idNegocio);
             if (res.success) {
-                badge.innerText = `(${res.descargas}/${res.cupoMaximo})`; 
+                badge.innerText = '(' + res.descargas + '/' + res.cupoMaximo + ')';
                 cupoPlanosCache = { descargas: res.descargas, maximo: res.cupoMaximo };
             }
         }
@@ -1235,7 +1223,7 @@ document.getElementById('btn-exportar-pdf').addEventListener('click', async () =
         return;
     }
 
-    const confirmar = confirm(`Esta acción generará el plano oficial y consumirá 1 plano (${cupoPlanosCache.descargas}/${cupoPlanosCache.maximo}).\n¿Deseas continuar?`); 
+    const confirmar = confirm('Esta acción generará el plano oficial y consumirá 1 plano (' + cupoPlanosCache.descargas + '/' + cupoPlanosCache.maximo + ').\n¿Deseas continuar?'); 
     if (!confirmar) return;
 
     try {
@@ -1315,7 +1303,8 @@ document.getElementById('btn-exportar-pdf').addEventListener('click', async () =
         ctxPrint.fillStyle = '#000000';
         ctxPrint.font = 'bold 10px monospace';
         ctxPrint.textAlign = 'center';
-        ctxPrint.fillText(`LOTE ${lote.numero}`, cx, cy - 3);
+        ctxPrint.fillText('LOTE ' + lote.numero, cx, cy - 3);
+ctxPrint.fillText(lote.area_m2 + ' m²', cx, cy + 9);
         ctxPrint.fillText(`${lote.area_m2} m²`, cx, cy + 9);
         ctxPrint.textAlign = 'start';
     });
@@ -1329,7 +1318,7 @@ document.getElementById('btn-exportar-pdf').addEventListener('click', async () =
         ctxPrint.arc(x, y, 4, 0, Math.PI * 2);
         ctxPrint.fill();
         ctxPrint.font = 'bold 12px monospace';
-        ctxPrint.fillText(`P${v.id}`, x + 6, y - 6);
+        ctxPrint.fillText('P' + v.id, x + 6, y - 6);
     });
 
     ctxPrint.restore();
@@ -1338,7 +1327,7 @@ document.getElementById('btn-exportar-pdf').addEventListener('click', async () =
 
 window.iniciarPagoWompiPlanos = function() {
     if (!idNegocio) return alert("Inicia sesión para asociar la recarga.");
-    const refTransaccion = `TOPOGK-${Date.now()}`;
+    const refTransaccion = 'TOPOGK-' + Date.now();
 
     if (typeof WidgetCheckout !== 'undefined') {
         const checkout = new WidgetCheckout({
@@ -1448,20 +1437,24 @@ window.abrirModalMisPlanos = async function() {
     try {
         const res = await GeokatuDB.TopografiaService.listarPlanosCatastrales(idNegocio);
         if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-            contenedor.innerHTML = res.data.map(p => `
-                <div style="background: rgba(15,18,25,0.85); border: 1px solid ${p.id_predio === idPlanoActivo ? 'var(--verde-cierre)' : 'var(--glass-border)'}; padding: 12px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
-                    <div>
-                        <strong style="color: ${p.id_predio === idPlanoActivo ? 'var(--verde-cierre)' : '#fff'}; font-size: 13px;">
-                            ${p.nombre_predio || p.id_predio} ${p.id_predio === idPlanoActivo ? '📍 (Activo)' : ''}
-                        </strong>
-                        <p style="margin: 3px 0 0 0; font-size: 11px; color: #aaa;">Área: ${p.area_m2} | Vértices: ${p.total_vertices}</p>
-                        <small style="color: #ffaa00; font-family: monospace; font-size: 9.5px;">${p.sistema_coordenadas || 'CTM12'}</small>
-                    </div>
-                    <button class="btn-hud-cad ${p.id_predio === idPlanoActivo ? 'activo' : 'verde'}" onclick="window.cargarPlanoDesdeBoveda('${p.id_predio}')"> 
-                        ${p.id_predio === idPlanoActivo ? 'Recargar' : 'Cargar'}
-                    </button>
-                </div>
-            `).join('');
+            contenedor.innerHTML = res.data.map(p => {
+                const esActivo = p.id_predio === idPlanoActivo;
+                const bordeColor = esActivo ? 'var(--verde-cierre)' : 'var(--glass-border)';
+                const tituloColor = esActivo ? 'var(--verde-cierre)' : '#fff';
+                const tagActivo = esActivo ? ' 📍 (Activo)' : '';
+                const btnClase = esActivo ? 'activo' : 'verde';
+                const btnTexto = esActivo ? 'Recargar' : 'Cargar';
+
+                return '<div style="background: rgba(15,18,25,0.85); border: 1px solid ' + bordeColor + '; padding: 12px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">' +
+                    '<div>' +
+                    '<strong style="color: ' + tituloColor + '; font-size: 13px;">' + (p.nombre_predio || p.id_predio) + tagActivo + '</strong>' +
+                    '<p style="margin: 3px 0 0 0; font-size: 11px; color: #aaa;">Área: ' + p.area_m2 + ' | Vértices: ' + p.total_vertices + '</p>' +
+                    '<small style="color: #ffaa00; font-family: monospace; font-size: 9.5px;">' + (p.sistema_coordenadas || 'CTM12') + '</small>' +
+                    '</div>' +
+                    '<button class="btn-hud-cad ' + btnClase + '" onclick="window.cargarPlanoDesdeBoveda(\'' + p.id_predio + '\')">' + btnTexto + '</button>' +
+                    '</div>';
+            }).join('');
+
         } else {
             contenedor.innerHTML = `<p style="color: #888; font-size: 12px; text-align:center;">No tienes planos guardados en la nube aún.</p>`;
         }
@@ -1673,7 +1666,7 @@ window.exportarGeoJSON = function() {
     const featuresVertices = vertices.map(v => ({
         type: "Feature",
         properties: {
-            mojon: `P${v.id}`,
+            mojon: 'P' + v.id,
             este: v.e,
             norte: v.n,
             colindante: v.colindante || ""
@@ -1690,48 +1683,48 @@ window.exportarGeoJSON = function() {
         features: [featurePoligono, ...featuresVertices]
     };
 
-    descargarArchivoTexto(JSON.stringify(coleccionGeoJSON, null, 2), `${idPlanoActivo}.geojson`, 'application/geo+json');
+    descargarArchivoTexto(JSON.stringify(coleccionGeoJSON, null, 2), idPlanoActivo + '.geojson', 'application/geo+json');
 };
 
 // 2. Exportación KML (Google Earth)
 window.exportarKML = function() {
     if (vertices.length < 3) return alert("Debes tener una poligonal de al menos 3 vértices.");
 
-   let kmlCoords = vertices.map(v => `${v.lng},${v.lat},0`).join(' '); 
-    // Cerrar anillo
-    kmlCoords += ` ${vertices[0].lng},${vertices[0].lat},0`; 
+   let kmlCoords = vertices.map(v => v.lng + ',' + v.lat + ',0').join(' ');
+    kmlCoords += ' ' + vertices[0].lng + ',' + vertices[0].lat + ',0';
 
-    let placemarksVertices = vertices.map(v => `
-        <Placemark>
-            <name>P${v.id}</name>
-            <description>Este: ${v.e} | Norte: ${v.n} | Colindante: ${v.colindante || ''}</description> 
-            <Point><coordinates>${v.lng},${v.lat},0</coordinates></Point> 
-        </Placemark>
-    `).join('');
+    let placemarksVertices = vertices.map(v => {
+        return '<Placemark>' +
+            '<name>P' + v.id + '</name>' +
+            '<description>Este: ' + v.e + ' | Norte: ' + v.n + ' | Colindante: ' + (v.colindante || '') + '</description>' +
+            '<Point><coordinates>' + v.lng + ',' + v.lat + ',0</coordinates></Point>' +
+            '</Placemark>';
+    }).join('');
 
-    const kmlDoc = `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2">
-  <Document>
-    <name>${nombrePredioActivo}</name>
-    <description>Levantamiento Catastral Geokatu CAD - ${crsSeleccionado}</description>
-    <Style id="estiloPoligono">
-      <LineStyle><color>ff00ff00</color><width>2.5</width></LineStyle>
-      <PolyStyle><color>4d00ff00</color></PolyStyle>
-    </Style>
-    <Placemark>
-      <name>${nombrePredioActivo} (Polígono)</name>
-      <styleUrl>#estiloPoligono</styleUrl>
-      <Polygon>
-        <outerBoundaryIs>
-          <LinearRing><coordinates>${kmlCoords}</coordinates></LinearRing>
-        </outerBoundaryIs>
-      </Polygon>
-    </Placemark>
-    ${placemarksVertices}
-  </Document>
-</kml>`;
+    const kmlDoc = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+        '<kml xmlns="http://www.opengis.net/kml/2.2">\n' +
+        '  <Document>\n' +
+        '    <name>' + nombrePredioActivo + '</name>\n' +
+        '    <description>Levantamiento Catastral Geokatu CAD - ' + crsSeleccionado + '</description>\n' +
+        '    <Style id="estiloPoligono">\n' +
+        '      <LineStyle><color>ff00ff00</color><width>2.5</width></LineStyle>\n' +
+        '      <PolyStyle><color>4d00ff00</color></PolyStyle>\n' +
+        '    </Style>\n' +
+        '    <Placemark>\n' +
+        '      <name>' + nombrePredioActivo + ' (Polígono)</name>\n' +
+        '      <styleUrl>#estiloPoligono</styleUrl>\n' +
+        '      <Polygon>\n' +
+        '        <outerBoundaryIs>\n' +
+        '          <LinearRing><coordinates>' + kmlCoords + '</coordinates></LinearRing>\n' +
+        '        </outerBoundaryIs>\n' +
+        '      </Polygon>\n' +
+        '    </Placemark>\n' +
+        '    ' + placemarksVertices + '\n' +
+        '  </Document>\n' +
+        '</kml>';
 
-    descargarArchivoTexto(kmlDoc, `${idPlanoActivo}.kml`, 'application/vnd.google-earth.kml+xml');
+    descargarArchivoTexto(kmlDoc, idPlanoActivo + '.kml', 'application/vnd.google-earth.kml+xml');
+
 };
 
 // 3. Exportación DXF ASCII Estándar (AutoCAD R12/2000 con coordenadas proyectadas E, N)
@@ -1743,13 +1736,13 @@ window.exportarDXF = function() {
     // Polilínea de linderos
     dxf += "0\nPOLYLINE\n8\nLINDEROS_EXTERIORES\n66\n1\n70\n1\n";
     vertices.forEach(v => {
-        dxf += `0\nVERTEX\n8\nLINDEROS_EXTERIORES\n10\n${v.e}\n20\n${v.n}\n30\n0.0\n`;
+        dxf += '0\nVERTEX\n8\nLINDEROS_EXTERIORES\n10\n' + v.e + '\n20\n' + v.n + '\n30\n0.0\n';
     });
     dxf += "0\nSEQEND\n";
 
     // Textos de vértices (P1, P2...)
     vertices.forEach(v => {
-        dxf += `0\nTEXT\n8\nMOJONES\n10\n${v.e + 1.2}\n20\n${v.n + 1.2}\n30\n0.0\n40\n1.8\n1\nP${v.id}\n`;
+        dxf += '0\nTEXT\n8\nMOJONES\n10\n' + (v.e + 1.2) + '\n20\n' + (v.n + 1.2) + '\n30\n0.0\n40\n1.8\n1\nP' + v.id + '\n';
     });
 
     // Lotes internos si existen
@@ -1757,14 +1750,13 @@ window.exportarDXF = function() {
         dxf += "0\nPOLYLINE\n8\nLOTES_INTERNOS\n66\n1\n70\n1\n";
         l.vertices.forEach(lv => {
             const proy = resolverCoordenadasOrigenCRS(lv.lat, lv.lng, crsSeleccionado);
-            dxf += `0\nVERTEX\n8\nLOTES_INTERNOS\n10\n${proy.este}\n20\n${proy.norte}\n30\n0.0\n`;
+            dxf += '0\nVERTEX\n8\nLOTES_INTERNOS\n10\n' + proy.este + '\n20\n' + proy.norte + '\n30\n0.0\n';
         });
         dxf += "0\nSEQEND\n";
     });
 
     dxf += "0\nENDSEC\n0\nEOF\n";
 
-    descargarArchivoTexto(dxf, `${idPlanoActivo}.dxf`, 'application/dxf');
+    descargarArchivoTexto(dxf, idPlanoActivo + '.dxf', 'application/dxf');
 };
-
 

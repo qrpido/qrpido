@@ -1,0 +1,1085 @@
+/* ==========================================================================
+   GEOKATU - SISTEMA DE DISEÑO BÓVEDA & OFICINA DE CONTROL
+   planeador.css | Módulo Maestro de Planeación Fiscal & Bitácora 2026
+   ========================================================================== */
+
+/* =========================================
+   1. VARIABLES DE DISEÑO & SISTEMA ÁUREO
+   ========================================= */
+:root {
+  /* Paleta Cromática Institucional */
+  --naranja: #ff6b00;
+  --naranja-brillo: rgba(255, 107, 0, 0.35);
+  --naranja-suave: rgba(255, 107, 0, 0.12);
+  --verde-neon: #00ff64;
+  --verde-glow: rgba(0, 255, 100, 0.2);
+  --azul-cobalto: #2563eb;
+  --azul-cielo: #60a5fa;
+  --rojo-urgente: #ff4444;
+
+  /* Fondos y Capas de Vidrio (Glassmorphism) */
+  --bg-oscuro: #0a0a0c;
+  --bg-superficie: #141418;
+  --glass-bg: rgba(20, 20, 25, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-focus: rgba(255, 107, 0, 0.5);
+
+  /* Tipografía y Escala Áurea */
+  --texto-sm: 11px;
+  --texto-base: 14px;
+  --texto-h3: 18px;
+  --texto-h1: 28px;
+
+  /* Espaciados Fibonacci */
+  --sp-micro: 6px;
+  --sp-sm: 10px;
+  --sp-md: 16px;
+  --sp-lg: 26px;
+  --sp-xl: 42px;
+}
+
+/* =========================================
+   2. RESET ERGONÓMICO Y VIEWPORT MÓVIL
+   ========================================= */
+*, *::before, *::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: radial-gradient(circle at 50% 0%, #1c1c24 0%, var(--bg-oscuro) 100%);
+  color: #ffffff;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.boveda-ui {
+  display: block;
+  padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+}
+
+/* =========================================
+   3. CABECERA FLOTANTE Y TABS DE NAVEGACIÓN
+   ========================================= */
+.panel-admin {
+  background: linear-gradient(135deg, rgba(30, 30, 36, 0.85) 0%, rgba(15, 15, 18, 0.95) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  padding: 12px 16px 8px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.oficina-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.header-titulos h3 {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-weight: 900;
+  color: #ffffff;
+}
+
+.subtexto-header {
+  font-size: 10px;
+  color: #888892;
+  font-family: monospace;
+  letter-spacing: 0.3px;
+  display: block;
+  margin-top: 2px;
+}
+
+.header-controles {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-accion-header {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  color: #aaa;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.btn-accion-header:active {
+  transform: scale(0.92);
+  border-color: var(--naranja);
+  color: var(--naranja);
+}
+
+.btn-accion-header svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+}
+
+.badge-plan {
+  background: rgba(255, 107, 0, 0.12);
+  border: 1px solid rgba(255, 107, 0, 0.35);
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--naranja);
+  letter-spacing: 0.5px;
+}
+
+/* Tabs Bóveda con desplazamiento horizontal táctil */
+.tabs {
+  display: flex;
+  background: rgba(12, 12, 16, 0.9);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  padding: 4px;
+  border-radius: 12px;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-btn {
+  flex: 1;
+  min-width: max-content;
+  padding: 8px 12px;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #777782;
+  background: transparent;
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.tab-btn:active {
+  transform: scale(0.96);
+}
+
+.tab-btn.activo {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tab-content {
+  display: none;
+  animation: fadeIn 0.25s ease;
+}
+
+.tab-content.activo {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* =========================================
+   4. CONTENEDOR PRINCIPAL Y PANELES BÓVEDA
+   ========================================= */
+.contenedor-app {
+  width: calc(100% - 24px);
+  max-width: 860px;
+  margin: 12px auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel-operaciones-bloque {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 16px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.seccion-titulo {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--naranja);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.seccion-titulo-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.btn-mini-accion {
+  background: var(--naranja);
+  border: none;
+  border-radius: 8px;
+  color: #ffffff;
+  padding: 5px 10px;
+  font-size: 10.5px;
+  font-weight: 900;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.btn-mini-accion:active {
+  transform: scale(0.94);
+  background: #e05e00;
+}
+
+/* =========================================
+   5. EL VASO TRIBUTARIO & KPIS TÁCTICOS
+   ========================================= */
+.split-vaso-telemetria {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 14px;
+  align-items: center;
+}
+
+@media (max-width: 480px) {
+  .split-vaso-telemetria {
+    grid-template-columns: 110px 1fr;
+    gap: 10px;
+  }
+}
+
+.vaso-svg-container {
+  width: 100%;
+  height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  padding: 8px 4px;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.7);
+}
+
+.vaso-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.escala-vaso-textos line.linea-escala {
+  stroke-dasharray: 2, 2;
+}
+
+.linea-39 { stroke: rgba(255, 68, 68, 0.4); }
+.linea-35, .linea-33, .linea-28 { stroke: rgba(255, 107, 0, 0.3); }
+.linea-19, .linea-0 { stroke: rgba(0, 255, 100, 0.3); }
+
+.escala-vaso-textos text {
+  font-family: monospace;
+  font-size: 6.5px;
+  fill: #777782;
+  font-weight: 800;
+}
+
+.vaso-vidrio-borde {
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 2.5px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+}
+
+#liquido-vaso {
+  transition: y 0.45s cubic-bezier(0.16, 1, 0.3, 1), height 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Grilla de Métricas KPI */
+.oficina-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.kpi-card {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 10px 8px;
+  text-align: center;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.kpi-card.destacado {
+  border-color: rgba(255, 107, 0, 0.35);
+  background: rgba(255, 107, 0, 0.04);
+}
+
+.kpi-card .titulo {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #888892;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  display: block;
+}
+
+.kpi-card .valor {
+  font-size: 15px;
+  font-weight: 900;
+  font-family: monospace;
+  margin-top: 3px;
+  display: block;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.valor-naranja { color: var(--naranja) !important; }
+.valor-verde { color: var(--verde-neon) !important; }
+.valor-rojo { color: var(--rojo-urgente) !important; }
+
+/* =========================================
+   6. CUPO LEGAL DE DESCUENTOS (TOPE 40%)
+   ========================================= */
+.tarjeta-estrategica {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--glass-border);
+  border-left: 3px solid var(--verde-neon);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-left-color 0.2s ease;
+}
+
+.tarjeta-estrategica.alerta {
+  border-left-color: var(--rojo-urgente);
+}
+
+.header-tarjeta-estrategica {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.badge-estrategico {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 9.5px;
+  font-weight: 900;
+  text-transform: uppercase;
+  width: max-content;
+  background: rgba(0, 255, 100, 0.12);
+  color: var(--verde-neon);
+  border: 1px solid rgba(0, 255, 100, 0.3);
+}
+
+.badge-estrategico.alerta {
+  background: rgba(255, 68, 68, 0.12);
+  color: var(--rojo-urgente);
+  border-color: rgba(255, 68, 68, 0.3);
+}
+
+.subtexto-tope {
+  font-size: 9.5px;
+  color: #777782;
+  font-family: monospace;
+}
+
+.cupo-progress-wrapper {
+  width: 100%;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 4px 0;
+  border: 1px solid var(--glass-border);
+}
+
+.cupo-progress-fill {
+  height: 100%;
+  background: var(--verde-neon);
+  width: 0%;
+  transition: width 0.35s ease, background-color 0.35s ease;
+}
+
+.cupo-progress-fill.tope {
+  background: var(--naranja);
+}
+
+.texto-estrategico {
+  font-size: 11.5px;
+  color: #dddddf;
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* =========================================
+   7. TIRILLA DE CAJA MENSUAL
+   ========================================= */
+.tirilla-caja {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px dashed var(--glass-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-family: monospace;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tirilla-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: #cccccc;
+}
+
+.tirilla-row.resta-pila { color: var(--rojo-urgente); }
+.tirilla-row.resta-retencion { color: var(--naranja); }
+
+.tirilla-row.tirilla-neto {
+  border-top: 1px dashed rgba(255, 255, 255, 0.2);
+  margin-top: 4px;
+  padding-top: 8px;
+  font-weight: 900;
+  font-size: 13.5px;
+  color: var(--verde-neon);
+}
+
+/* =========================================
+   8. SUB-MÓDULO: FACTURACIÓN ELECTRÓNICA
+   ========================================= */
+.modulo-facturas-wrapper {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fe-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fe-acumulado-tag {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--verde-neon);
+  background: rgba(0, 255, 100, 0.08);
+  border: 1px solid rgba(0, 255, 100, 0.25);
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-weight: 800;
+}
+
+.fe-toolbar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.btn-fe-action {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed var(--glass-border);
+  border-radius: 10px;
+  color: #cccccc;
+  padding: 8px 4px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+  min-height: 48px;
+}
+
+.btn-fe-action:active {
+  transform: scale(0.96);
+  border-color: var(--naranja);
+  color: var(--naranja);
+  background: var(--naranja-suave);
+}
+
+.btn-fe-action svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+}
+
+.fe-input-dock {
+  display: none;
+  background: rgba(10, 10, 12, 0.95);
+  border: 1px solid var(--naranja);
+  border-radius: 10px;
+  padding: 8px;
+  gap: 6px;
+  flex-direction: column;
+}
+
+.fe-input-dock.activo {
+  display: flex;
+}
+
+.fe-dock-row {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-fe-mini {
+  background: var(--naranja);
+  border: none;
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 10px;
+  padding: 0 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* =========================================
+   9. BITÁCORA DIARIA & EVENTOS MONETARIOS
+   ========================================= */
+.panel-nuevo-movimiento {
+  background: rgba(10, 10, 14, 0.95);
+  border: 1px solid var(--naranja);
+  border-radius: 14px;
+  padding: 12px;
+  margin-top: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+}
+
+.acciones-form-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.btn-cancelar {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  color: #aaa;
+  padding: 10px;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.btn-guardar {
+  flex: 2;
+  background: var(--naranja);
+  border: none;
+  color: #ffffff;
+  padding: 10px;
+  border-radius: 10px;
+  font-weight: 900;
+  font-size: 11px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+}
+
+.historial-movimientos-container {
+  margin-top: 12px;
+}
+
+.historial-header-resumen {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  color: #888892;
+  font-family: monospace;
+  margin-bottom: 6px;
+  padding: 0 4px;
+}
+
+.btn-enlace-limpiar {
+  background: transparent;
+  border: none;
+  color: var(--rojo-urgente);
+  font-size: 9.5px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.lista-movimientos-boveda {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.lista-movimientos-boveda::-webkit-scrollbar { display: none; }
+
+.movimiento-item-card {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.mov-info-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.mov-desc {
+  font-size: 11px;
+  font-weight: 700;
+  color: #e5e5e8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mov-monto-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.badge-cat {
+  font-size: 8.5px;
+  font-weight: 900;
+  text-transform: uppercase;
+  padding: 2px 5px;
+  border-radius: 5px;
+  width: max-content;
+  letter-spacing: 0.3px;
+}
+
+.tag-ingreso { background: rgba(0, 255, 100, 0.15); color: var(--verde-neon); }
+.tag-traslado { background: rgba(96, 165, 250, 0.15); color: var(--azul-cielo); }
+.tag-gasto { background: rgba(255, 107, 0, 0.15); color: var(--naranja); }
+
+.btn-eliminar-registro {
+  background: transparent;
+  border: none;
+  color: #666;
+  font-weight: 900;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.btn-eliminar-registro:hover { color: var(--rojo-urgente); }
+
+.bitacora-vacia-msg {
+  text-align: center;
+  padding: 16px;
+  font-size: 11px;
+  color: #777782;
+  border: 1px dashed var(--glass-border);
+  border-radius: 10px;
+}
+
+/* =========================================
+   10. COMPARADOR: REGIMEN SIMPLE VS ORDINARIO
+   ========================================= */
+.comparador-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+@media (max-width: 540px) {
+  .comparador-grid { grid-template-columns: 1fr; }
+}
+
+.tarjeta-regimen {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.tarjeta-regimen.destacado {
+  border-color: var(--naranja);
+  background: rgba(255, 107, 0, 0.05);
+  box-shadow: 0 4px 20px rgba(255, 107, 0, 0.15);
+}
+
+.regimen-titulo-box h4 {
+  margin: 6px 0 2px 0;
+  font-size: 18px;
+  font-family: monospace;
+  font-weight: 900;
+  color: #ffffff;
+}
+
+.regimen-tag {
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: #aaa;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.regimen-tag.tag-verde {
+  color: var(--verde-neon);
+  background: rgba(0, 255, 100, 0.12);
+}
+
+.regimen-subtexto {
+  font-size: 9.5px;
+  color: #888892;
+  line-height: 1.3;
+  display: block;
+}
+
+.regimen-lista-puntos {
+  margin: 0;
+  padding-left: 14px;
+  font-size: 10.5px;
+  color: #cccccc;
+  line-height: 1.4;
+}
+
+.tarjeta-veredicto-rst {
+  background: rgba(15, 15, 20, 0.95);
+  border: 1px solid var(--glass-border);
+  border-left: 3px solid var(--verde-neon);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.badge-veredicto {
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: var(--verde-neon);
+  margin-bottom: 4px;
+}
+
+.badge-veredicto.alerta {
+  color: var(--naranja);
+}
+
+.texto-veredicto {
+  font-size: 11.5px;
+  color: #e5e5e8;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* =========================================
+   11. RADAR DE CONSIGNACIONES & EXÓGENA
+   ========================================= */
+.radar-caja-bancos {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.radar-descripcion {
+  font-size: 11px;
+  color: #aaaab0;
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+
+.radar-indicadores-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.indicador-exogena strong {
+  display: block;
+  font-size: 15px;
+  font-family: monospace;
+  margin-top: 2px;
+  color: #ffffff;
+}
+
+.radar-progress-bg {
+  width: 100%;
+  height: 10px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+}
+
+.radar-marcador {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.6);
+  left: 80%;
+  z-index: 2;
+}
+
+.radar-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--verde-neon);
+  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.4s ease;
+}
+
+.radar-bar.alerta-media { background: var(--naranja); }
+.radar-bar.alerta-roja { background: var(--rojo-urgente); }
+
+.radar-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 9.5px;
+  font-weight: 800;
+  font-family: monospace;
+}
+
+/* =========================================
+   12. FORMULARIOS, INPUTS Y SELECTORES
+   ========================================= */
+.grid-inputs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+@media (max-width: 580px) {
+  .grid-inputs { grid-template-columns: 1fr; }
+}
+
+.grupo-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.campo-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: #888892;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.label-block { display: block; }
+.label-file-action { margin: 0; }
+
+.input-form {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--glass-border);
+  color: #ffffff;
+  padding: 10px 12px;
+  border-radius: 11px;
+  font-size: 12px;
+  outline: none;
+  font-family: monospace;
+  color-scheme: dark;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.input-form:focus {
+  border-color: var(--naranja);
+  background: rgba(0, 0, 0, 0.75);
+  box-shadow: 0 0 10px rgba(255, 107, 0, 0.25);
+}
+
+select.input-form {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  cursor: pointer;
+}
+
+.input-compact {
+  margin: 0;
+  font-size: 10.5px;
+  padding: 8px 10px;
+}
+
+/* =========================================
+   13. MODAL Y VISOR EN VIVO DE CÁMARA (QR)
+   ========================================= */
+.modal-camara-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 100010;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal-camara-overlay.activo {
+  display: flex;
+}
+
+.modal-camara-caja {
+  background: #141418;
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 360px;
+  padding: 16px;
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.9);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.camara-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  color: var(--naranja);
+}
+
+.btn-cerrar-modal {
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: #ffffff;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.visor-camara-wrapper {
+  position: relative;
+  width: 100%;
+  height: 260px;
+  background: #000000;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+}
+
+#video-qr-stream {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.reticula-guia {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 170px;
+  height: 170px;
+  border: 2px solid rgba(255, 107, 0, 0.85);
+  border-radius: 14px;
+  box-shadow: 0 0 15px rgba(255, 107, 0, 0.3);
+  pointer-events: none;
+}
+
+.linea-laser {
+  position: absolute;
+  width: 100%;
+  height: 2px;
+  background: var(--verde-neon);
+  box-shadow: 0 0 8px var(--verde-neon);
+  animation: laserScan 2s infinite ease-in-out;
+}
+
+@keyframes laserScan {
+  0%, 100% { top: 0%; opacity: 0.3; }
+  50% { top: 100%; opacity: 1; }
+}
+
+.camara-footer {
+  text-align: center;
+}
+
+/* =========================================
+   14. CLASES DE UTILIDAD Y COMPLEMENTOS
+   ========================================= */
+.margin-top-md { margin-top: 10px; }
+.mr-2 { margin-right: 8px; }
+.color-verde-neon { color: var(--verde-neon) !important; }
+.color-rojo { color: var(--rojo-urgente) !important; }
+.color-naranja { color: var(--naranja) !important; }
+.texto-atenuado { color: #888892 !important; }

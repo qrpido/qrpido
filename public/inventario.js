@@ -287,7 +287,7 @@ function calcularGradienteCromatico(valor, min, max, invertir = false) {
     if (invertir) ratio = 1 - ratio;
 
     const hue = ((1 - ratio) * 120).toFixed(0);
-    return `hsla(${hue}, 100%, 45%, 0.42)`;
+    return "hsla(" + hue + ", 100%, 45%, 0.42)"; 
 }
 
 // ==========================================
@@ -655,7 +655,10 @@ function renderizarGeometriaAlzado() {
             const nroCol = c + 1;
             const cellX = originX + (c * anchoCelda);
             const esTarget = (nroNivel === targetNivel && nroCol === targetCol);
-            const idCompGenerado = ['GEO-P', idNegocio, idSedeActiva, m.id_mueble, caraAlzadoSeleccionada, nroNivel, nroCol].join('-');
+            const strNivel = "N" + nroNivel;
+            const strBin = "B" + (nroCol < 10 ? "0" + nroCol : nroCol);
+            const idCompGenerado = "GEO-P-" + idNegocio + "-" + idSedeActiva + "-" + m.id_mueble + "-" + caraAlzadoSeleccionada + "-" + strNivel + "-" + strBin;
+
 
             // Existencias físicas del bin
             const itemsEnBin = stockPosicionalGlobal.filter(s => {
@@ -789,8 +792,11 @@ function desplegarMicroKardexFooter(binData) {
 }
 
 async function ejecutarReposicionBin(binData, itemOProd) {
-    const primerProd = (catalogoTotal && catalogoTotal.length > 0 && catalogoTotal[0]) ? catalogoTotal[0].id_prod : 'GENERICO';
-    const idProd = itemOProd ? (itemOProd.id_prod || itemOProd.codigo_barras) : primerProd;
+    if (!itemOProd) {
+        window.mostrarAlertaInApp("Este compartimiento está vacío. Asigna el producto escaneándolo desde la terminal de Bodega (Stock).", "Bin Sin Asignar");
+        return;
+    }
+    const idProd = itemOProd.id_prod || itemOProd.codigo_barras;
     dispararFeedbackHaptico('exito');
     reproducirTonoPiso('exito');
 
@@ -963,7 +969,7 @@ function poblarFiltros() {
     const maxP = precios.length > 0 ? Math.max(...precios) : 500000;
     filtroPrecio.max = maxP;
     filtroPrecio.value = maxP;
-    labelPrecioMax.innerText = `$${maxP.toLocaleString()}`;
+    labelPrecioMax.innerText = "$" + maxP.toLocaleString(); 
 }
 
 function ejecutarBusquedaYFiltros() {
@@ -1237,7 +1243,7 @@ inputBusqueda.addEventListener('input', ejecutarBusquedaYFiltros);
 filtroCat.addEventListener('change', ejecutarBusquedaYFiltros);
 filtroVenc.addEventListener('change', ejecutarBusquedaYFiltros);
 filtroPrecio.addEventListener('input', (e) => {
-    labelPrecioMax.innerText = `$${Number(e.target.value).toLocaleString()}`;
+   labelPrecioMax.innerText = "$" + Number(e.target.value).toLocaleString(); 
     ejecutarBusquedaYFiltros();
 });
 
@@ -1461,15 +1467,16 @@ function procesarLecturaRafaga(codigo) {
     );
 
     bannerRafaga.classList.remove('alerta-quiebre', 'alerta-vencido');
-    badgeRafagaConteo.innerText = `${conteoAuditoriaRafaga} leídos`;
+    badgeRafagaConteo.innerText = conteoAuditoriaRafaga + " leídos";
 
     if (!prod) {
-        txtRafagaProd.innerText = `❓ Desconocido: ${codigo}`;
+        txtRafagaProd.innerText = "❓ Desconocido: " + codigo;
         bannerRafaga.classList.add('alerta-quiebre');
         reproducirTonoPiso('quiebre');
         dispararFeedbackHaptico('quiebre');
         return;
     }
+
 
     const ubis = stockPosicionalGlobal.filter(s => s.id_prod === prod.id_prod);
     const stockTotal = Number(prod.stock_actual) || 0;
@@ -1595,9 +1602,10 @@ if (selectSede) {
 async function hidratarVisor() {
     if (!idNegocio) return;
 
-    const claveCachePlano = `geokatu_plano_${idNegocio}_${idSedeActiva}`;
-    const claveCacheStockUbis = `geokatu_stock_ubis_${idNegocio}`;
-    const claveSyncTimestamp = `geokatu_sync_ubis_time_${idNegocio}`;
+    const claveCachePlano = "geokatu_plano_" + idNegocio + "_" + idSedeActiva;
+    const claveCacheStockUbis = "geokatu_stock_ubis_" + idNegocio;
+    const claveSyncTimestamp = "geokatu_sync_ubis_time_" + idNegocio;
+
 
     // Paso 1: Carga fría en 0 ms desde caché local
     const cachePlano = localStorage.getItem(claveCachePlano);
@@ -1658,7 +1666,7 @@ async function hidratarVisor() {
                         stockPosicionalGlobal.push(delta);
                     }
                 });
-                console.log(`[GEOKATU SIG] ${resUbis.data.length} deltas de stock sincronizados.`);
+               console.log("[GEOKATU SIG] " + resUbis.data.length + " deltas de stock sincronizados."); 
             } else if (!resUbis.esDelta) {
                 stockPosicionalGlobal = resUbis.data;
             }
@@ -1671,20 +1679,16 @@ async function hidratarVisor() {
             }
         }
 
-        // Paso 3: Reactividad de existencias
+       // Paso 3: Reactividad de existencias
         GeokatuDB.InventarioService.escucharCambiosStock(idNegocio, (prodActualizado) => {
             const prod = catalogoTotal.find(p => p.id_prod === prodActualizado.id_prod);
             if (prod && prodActualizado.stock_actual !== undefined) {
                 prod.stock_actual = prodActualizado.stock_actual;
             }
-            if (drawer.classList.contains('visible')) {
-                const items = stockPosicionalGlobal.filter(s => s.id_prod === prodActualizado.id_prod);
-                if (items.length > 0) {
-                    items.forEach(it => it.cantidad = prodActualizado.stock_actual);
-                }
-            }
+            // Refresca las vistas cartográficas sin alterar la cuenta interna por compartimiento
             renderizarMueblesVisor();
         });
+
 
     } catch (err) {
         console.warn("[GEOKATU SIG] Error en sincronización:", err);

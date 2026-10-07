@@ -123,6 +123,14 @@ async function inicializarCajaVen() {
     cargarTicketsEnEsperaStorage();
     await verificarEstadoTurnoCaja();
 
+    // Sincronización inmediata al arrancar si hay conexión
+    if (navigator.onLine && idNegocio) {
+        GeokatuDB.PosService.sincronizarVentasPendientes(idNegocio).then(() => {
+            actualizarIndicadorCola();
+        }).catch(err => console.warn("[POSVen AutoSync]:", err));
+    }
+
+
     const res = await GeokatuDB.PosService.descargarCatalogoLocal(idNegocio);
     if (res.success) {
         catalogoLocal = res.data;
@@ -159,8 +167,99 @@ async function inicializarCajaVen() {
 }
 
 // =========================================================================
-// 3. MOTOR DE CONVERSIÓN DE MONEDAS Y TASAS FLOTANTES
+// CONTROL DEL MENÚ DE 3 PUNTOS, RESPALDOS .TXT Y RELEVO DE CAJERO
 // =========================================================================
+window.alternarMenuOpcionesPOS = (e) => {
+    e.stopPropagation();
+    const menu = document.getElementById('dropdown-menu-pos');
+    if (menu) menu.classList.toggle('activo');
+};
+
+window.cerrarMenuOpcionesPOS = () => {
+    const menu = document.getElementById('dropdown-menu-pos');
+    if (menu) menu.classList.remove('activo');
+};
+
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('#dropdown-menu-pos') && !e.target.closest('#btn-menu-tres-puntos')) {
+        window.cerrarMenuOpcionesPOS();
+    }
+});
+
+window.descargarRespaldoOfflineTxt = () => {
+    window.cerrarMenuOpcionesPOS();
+    const tenantReal = idNegocio || localStorage.getItem('geokatu_active_uid') || "";
+    const claveCola = `geokatu_sync_cola_${tenantReal}`;
+    const cola = JSON.parse(localStorage.getItem(claveCola) || "[]");
+
+    if (cola.length === 0) {
+        if (typeof window.mostrarAvisoPos === 'function') window.mostrarAvisoPos("No hay tickets pendientes en la cola offline.");
+        else alert("No hay tickets pendientes en la cola offline.");
+        return;
+    }
+
+    const blob = new Blob([JSON.stringify(cola, null, 2)], { type: "text/plain;charset=utf-8" });
+    const urlBlob = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = urlBlob;
+    a.download = `respaldo_posven_${tenantReal}_${Date.now()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(urlBlob);
+
+    setTimeout(() => {
+        if (confirm("Respaldo descargado. ¿Deseas vaciar la memoria de tickets pendientes para liberar espacio en el teléfono?")) {
+            localStorage.setItem(claveCola, "[]");
+            actualizarIndicadorCola();
+            if (typeof window.mostrarAvisoPos === 'function') window.mostrarAvisoPos("Memoria de tickets offline liberada.");
+        }
+    }, 400);
+};
+
+window.procesarArchivoRespaldoSeleccionado = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (!navigator.onLine) {
+        alert("Debes tener conexión a Internet activa para verificar y subir el respaldo a la nube.");
+        event.target.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const tickets = JSON.parse(e.target.result);
+            if (!Array.isArray(tickets) || tickets.length === 0) return alert("Formato de tickets inválido.");
+
+            document.getElementById('txt-conexion').innerText = "VERIFICANDO...";
+            const res = await GeokatuDB.PosService.analizarYSincronizarRespaldo(idNegocio, tickets);
+            alert(`Resultado del análisis de respaldo:\n\nTotal: ${res.total}\nDuplicados: ${res.duplicados}\nSincronizados: ${res.sincronizados}`);
+            actualizarIndicadorCola();
+        } catch (err) {
+            alert("Error al procesar archivo de respaldo.");
+        } finally {
+            document.getElementById('txt-conexion').innerText = "EN LÍNEA";
+            event.target.value = '';
+        }
+    };
+    reader.readAsText(file);
+};
+
+window.cerrarSesionCajeroPOS = async () => {
+    window.cerrarMenuOpcionesPOS();
+    if (carrito.length > 0 && !confirm("Hay artículos en el carrito actual. ¿Seguro que deseas salir sin completar la venta?")) return;
+
+    try {
+        await GeokatuDB.SecurityService.cerrarSesion();
+        GeokatuDB.SecurityService.destruirSesionTerminalLocal();
+        window.location.href = 'oficina';
+    } catch (e) {
+        alert("Error al cerrar sesión: " + e.message);
+    }
+};
+
 function cargarTasasDesdeStorage() {
     const raw = localStorage.getItem(`geokatu_tasas_${idNegocio}`);
     if (raw) {
@@ -529,29 +628,46 @@ function renderizarCarrito() {
     actualizarVisorRemanente();
 }
 
+// Abrir modal de catálogo en lista vertical
+document.getElementById('btn-abrir-catalogo-modal')?.addEventListener('click', () => {
+    const modalCat = document.getElementById('modal-catalogo-popup');
+    if (modalCat) modalCat.style.display = 'flex';
+});
+
+// Abrir modal de catálogo en lista vertical
+document.getElementById('btn-abrir-catalogo-modal')?.addEventListener('click', () => {
+    const modalCat = document.getElementById('modal-catalogo-popup');
+    if (modalCat) modalCat.style.display = 'flex';
+});
+
 function renderizarGridCatalogo() {
     const grid = document.getElementById('grid-rapida');
     if (!grid) return;
     grid.innerHTML = '';
 
     if (catalogoLocal.length === 0) {
-        grid.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: #666; padding: 40px 0;">No hay productos registrados en el inventario.</p>';
+        grid.innerHTML = '<p style="text-align: center; color: #666; padding: 20px 0; font-size: 12px;">No hay productos registrados en el inventario.</p>';
         return;
     }
 
-    catalogoLocal.slice(0, 18).forEach(prod => {
+    catalogoLocal.slice(0, 30).forEach(prod => {
         const item = document.createElement('div');
-        item.className = 'product-item';
+        item.className = 'product-row-item';
         item.innerHTML = `
-            <span class="material-symbols-outlined icon">${prod.icono || (prod.es_pesable ? 'scale' : 'inventory_2')}</span>
-            <span class="name">${prod.nombre}</span>
-            <div style="display: flex; flex-direction: column;">
-                <span class="price">$Number(prod.precio).toFixed(2){prod.es_pesable ? '/kg' : ''}</span>
-                <span style="font-size: 10px; color: #60a5fa; font-family: monospace;">Bs. ${convertirUSDaVES(prod.precio).toFixed(2)}</span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="material-symbols-outlined" style="color: var(--color-marca); font-size: 18px;">${prod.icono || (prod.es_pesable ? 'scale' : 'inventory_2')}</span>
+                <span class="item-title">${prod.nombre}</span>
+            </div>
+            <div style="text-align: right;">
+                <span class="item-price">$Number(prod.precio).toFixed(2){prod.es_pesable ? '/kg' : ''}</span>
+                <span style="display: block; font-size: 10px; color: #60a5fa; font-family: monospace;">Bs. ${convertirUSDaVES(prod.precio).toFixed(2)}</span>
             </div>
         `;
 
         item.onclick = () => {
+            const modalCat = document.getElementById('modal-catalogo-popup');
+            if (modalCat) modalCat.style.display = 'none';
+
             if (prod.es_pesable) {
                 if (pesoEnVivoActual > 0) {
                     agregarAlCarrito(prod, pesoEnVivoActual, true);
@@ -566,6 +682,8 @@ function renderizarGridCatalogo() {
         grid.appendChild(item);
     });
 }
+
+
 
 // =========================================================================
 // 6. VISOR DE SALDOS, ABONOS Y DENOMINACIONES RÁPIDAS
@@ -919,18 +1037,24 @@ async function ejecutarVentaFinalDefinitivaVen() {
     }
 
     const totales = calcularTotalesCarrito();
-    const productosAuditados = carrito.map(item => ({
-        id_prod: item.id_prod,
-        codigo_barras: item.codigo_barras || "",
-        nombre: item.nombre,
-        precio_usd: item.precio,
-        cantidad: item.cantidad,
-        subtotal_usd: item.precio_fijado_balanza ? Number(item.precio) : Number((Number(item.precio) * item.cantidad).toFixed(2)),
-        impuesto: item.impuesto,
-        es_pesable: item.es_pesable,
-        unidad_medida: item.unidad_medida,
-        nota: item.nota || ""
-    }));
+    const productosAuditados = carrito.map(item => {
+        const sub = item.precio_fijado_balanza ? Number(item.precio) : Number((Number(item.precio) * item.cantidad).toFixed(2));
+        return {
+            id_prod: item.id_prod,
+            codigo_barras: item.codigo_barras || "",
+            nombre: item.nombre,
+            precio: Number(item.precio), // Mandatorio para la validación en core-db.js
+            precio_usd: Number(item.precio),
+            cantidad: item.cantidad,
+            subtotal: sub, // Mandatorio para la validación en core-db.js
+            subtotal_usd: sub,
+            impuesto: item.impuesto,
+            es_pesable: item.es_pesable,
+            unidad_medida: item.unidad_medida,
+            nota: item.nota || ""
+        };
+    });
+
 
     const switchRif = document.getElementById('switch-rif-cliente');
     const datosCliente = {
@@ -972,10 +1096,15 @@ async function ejecutarVentaFinalDefinitivaVen() {
     document.getElementById('txt-conexion').innerText = "REGISTRANDO...";
     const res = await GeokatuDB.PosService.procesarVentaLote(idNegocio, ticketPayload);
 
-    if (res.success) {
+   if (res.success) {
         ultimoTicketIdVendido = res.ticketId || res.localId;
 
+        if (typeof window.mostrarAvisoPos === 'function') {
+            window.mostrarAvisoPos(`Venta asentada con éxito. Ticket: ${ultimoTicketIdVendido}`);
+        }
+
         // Acumular ventas en bóvedas del turno
+
         pagosAcumuladosTicket.forEach(p => {
             if (p.metodo === 'EFECTIVO_USD') acumuladoTurnoVen.usd_efectivo += p.monto_original;
             else if (p.metodo === 'EFECTIVO_VES') acumuladoTurnoVen.ves_efectivo += p.monto_original;
@@ -1259,8 +1388,20 @@ document.getElementById('btn-confirmar-cierre-z')?.addEventListener('click', asy
     const res = await GeokatuDB.PosService.ejecutarCierreZ(idNegocio, acumuladoTurnoVen.usd_efectivo, {
         efectivo: acumuladoTurnoVen.usd_efectivo,
         tarjeta: acumuladoTurnoVen.ves_punto_venta,
-        nequi: acumuladoTurnoVen.ves_pago_movil
+        nequi: acumuladoTurnoVen.ves_pago_movil,
+        // Inyección multicartera de Venezuela
+        pais: "VEN",
+        usd_efectivo: acumuladoTurnoVen.usd_efectivo,
+        ves_efectivo: acumuladoTurnoVen.ves_efectivo,
+        cop_efectivo: acumuladoTurnoVen.cop_efectivo,
+        ves_pago_movil: acumuladoTurnoVen.ves_pago_movil,
+        ves_punto_venta: acumuladoTurnoVen.ves_punto_venta,
+        usd_zelle: acumuladoTurnoVen.usd_zelle,
+        usd_usdt: acumuladoTurnoVen.usd_usdt,
+        igtf_recaudado_usd: acumuladoTurnoVen.igtf_recaudado_usd,
+        total_usd_consolidado: acumuladoTurnoVen.total_usd_consolidado
     }, cajaNumeroActiva);
+
 
     if (res.success) {
         document.getElementById('tz-id').innerText = turnoCajaActivo?.id_sesion || "SES-Z";
@@ -1491,85 +1632,278 @@ document.querySelectorAll('.tab-ayuda').forEach(tab => {
     });
 });
 
-// // =========================================================================
-// 12. COMPROBANTE DIGITAL ECOLÓGICO QR / WHATSAPP (SIN IMPRIMIR)
+// =========================================================================
+// 12. COMPROBANTE DIGITAL QR (24 HORAS, WHATSAPP Y COPIA DE TICKET)
 // =========================================================================
 window.deseaFacturaEcologicaQR = false;
+window.urlFacturaActiva = "";
+window.ticketIdFacturaActiva = "";
 
-async function generarFirmaFactura60Min(tktId, expTimestamp) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(`tktId:{idNegocio}:${expTimestamp}:GEOKATU_PUBLIC_TKT_SALT`);
-    const buffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(buffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).slice(0, 16).join('');
+window.alternarFacturaEcologica = async function(btn) {
+    if (carrito.length === 0 && ultimoTicketIdVendido) {
+        await abrirModalFacturaDigitalQR(ultimoTicketIdVendido);
+        return;
+    }
+    window.deseaFacturaEcologicaQR = !window.deseaFacturaEcologicaQR;
+    if (btn) {
+        btn.style.borderColor = window.deseaFacturaEcologicaQR ? 'var(--accent-green)' : 'var(--border-soft)';
+        btn.style.background = window.deseaFacturaEcologicaQR ? 'rgba(0,255,100,0.15)' : 'rgba(255,255,255,0.03)';
+        btn.style.color = window.deseaFacturaEcologicaQR ? 'var(--accent-green)' : '#fff';
+    }
+    if (typeof window.mostrarAvisoPos === 'function') {
+        window.mostrarAvisoPos(window.deseaFacturaEcologicaQR ? "Modo comprobante digital activo." : "Modo ticket impreso activo.");
+    }
+};
+
+async function generarFirmaFactura24Horas(tktId, expTimestamp) {
+    try {
+        const raw = `tktId:{idNegocio}:${expTimestamp}:GEOKATU_PUBLIC_TKT_SALT`;
+        if (window.crypto && window.crypto.subtle) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(raw);
+            const buffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(buffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).slice(0, 16).join('');
+        }
+    } catch (_) {}
+    return "SIG_" + Date.now().toString(16).toUpperCase();
 }
 
-async function abrirModalFacturaDigitalQR(ticketId) {
-    const modal = document.getElementById('modal-factura-qr');
-    const box = document.getElementById('contenedor-qr-factura');
-    if (!modal || !box) return;
+async function abrirModalFacturaDigitalQR(ticketId, telefonoPrevio = "") {
+    const modalQR = document.getElementById('modal-factura-qr');
+    const contenedor = document.getElementById('contenedor-qr-factura');
+    const inputWp = document.getElementById('input-whatsapp-cliente');
+    if (!modalQR || !contenedor) return;
 
-    const exp = Date.now() + (60 * 60 * 1000);
-    const sig = await generarFirmaFactura60Min(ticketId, exp);
-    const urlVisor = `window.location.origin/facturaven?com={idNegocio}&tkt=ticketId&exp={exp}&sig=${sig}`;
+    window.ticketIdFacturaActiva = ticketId;
+    const exp = Date.now() + (24 * 60 * 60 * 1000);
+    const sig = await generarFirmaFactura24Horas(ticketId, exp);
 
-    box.innerHTML = '';
+    window.urlFacturaActiva = `window.location.origin/facturaven?com={idNegocio}&tkt=ticketId&exp={exp}&sig=${sig}`;
+
+    contenedor.innerHTML = '';
     const canvas = document.createElement('canvas');
     canvas.style.display = 'block';
     canvas.style.margin = '0 auto';
-    box.appendChild(canvas);
+    contenedor.appendChild(canvas);
 
-    QRLocal.dibujarEnCanvas(canvas, urlVisor, { width: 200 });
-    modal.style.display = 'flex';
+    let renderExitoso = false;
+    if (typeof QRLocal !== 'undefined' && QRLocal.dibujarEnCanvas) {
+        try {
+            QRLocal.dibujarEnCanvas(canvas, window.urlFacturaActiva, { width: 240, margin: 4 });
+            renderExitoso = true;
+        } catch (_) {}
+    }
+
+    if (!renderExitoso) {
+        contenedor.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=15&data=${encodeURIComponent(window.urlFacturaActiva)}" style="display:block; width:220px; height:220px; margin:0 auto;" alt="QR Factura">`;
+    }
+
+    if (inputWp) inputWp.value = telefonoPrevio || '';
+    modalQR.style.display = 'flex';
 }
+
+window.enviarFacturaWhatsApp = function() {
+    const inputWp = document.getElementById('input-whatsapp-cliente');
+    const rawTel = inputWp ? inputWp.value.replace(/\D/g, '') : '';
+    if (!rawTel || rawTel.length < 7) {
+        alert("Digita un número de WhatsApp válido.");
+        return;
+    }
+    const numCompleto = rawTel.length === 10 ? `58${rawTel}` : rawTel;
+    const nombreLocal = (document.getElementById('ticket-negocio-nombre')?.innerText || "el comercio").trim();
+    const mensaje = `Hola. Adjuntamos tu comprobante de compra en ${nombreLocal}:\n\nComprobante: ${window.urlFacturaActiva}\nID Ticket: ${window.ticketIdFacturaActiva}\n\nValidez del enlace: 24 horas.`;
+    window.open(`https://wa.me/numCompleto?text={encodeURIComponent(mensaje)}`, '_blank');
+};
+
+window.abrirModalCopiaComprobante = function() {
+    const modal = document.getElementById('modal-buscar-copia');
+    const input = document.getElementById('input-buscar-ticket-id');
+    if (modal) {
+        if (input) input.value = ultimoTicketIdVendido || '';
+        modal.style.display = 'flex';
+        setTimeout(() => input?.focus(), 100);
+    }
+};
+
+window.generarCopiaComprobante = async function() {
+    const input = document.getElementById('input-buscar-ticket-id');
+    const tktId = input ? input.value.trim() : '';
+    if (!tktId) return alert("Ingresa un ID de ticket válido.");
+
+    document.getElementById('modal-buscar-copia').style.display = 'none';
+
+    let telGuardado = "";
+    try {
+        const cola = JSON.parse(localStorage.getItem(`geokatu_sync_cola_${idNegocio}`) || "[]");
+        const tktLocal = cola.find(t => t.ticketIdLocal === tktId || t.ticketId === tktId);
+        if (tktLocal?.cliente?.telefono) telGuardado = tktLocal.cliente.telefono;
+    } catch (_) {}
+
+    await abrirModalFacturaDigitalQR(tktId, telGuardado);
+};
 
 document.getElementById('btn-cerrar-qr')?.addEventListener('click', () => {
     document.getElementById('modal-factura-qr').style.display = 'none';
 });
 
+
 // =========================================================================
 // 13. CÁMARA Y MONITOR OFFLINE
 // =========================================================================
 let scannerInstancia = null;
+let escaneoEnCooldown = false;
+let linternaEncendida = false;
+
+window.alternarFlashCamaraPOS = async () => {
+    try {
+        const videoElem = document.querySelector('#lector-camara video');
+        if (videoElem && videoElem.srcObject) {
+            const track = videoElem.srcObject.getVideoTracks()[0];
+            if (track) {
+                const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+                if ('torch' in capabilities) {
+                    linternaEncendida = !linternaEncendida;
+                    await track.applyConstraints({ advanced: [{ torch: linternaEncendida }] });
+                    const btnFlash = document.getElementById('btn-flash-pos');
+                    if (btnFlash) {
+                        btnFlash.style.background = linternaEncendida ? 'var(--color-marca)' : 'rgba(0,0,0,0.65)';
+                        btnFlash.style.color = linternaEncendida ? '#000' : '#fff';
+                    }
+                    return;
+                }
+            }
+        }
+        alert("La linterna no está disponible en este dispositivo.");
+    } catch (e) {
+        alert("No se pudo controlar la linterna.");
+    }
+};
+
+window.cerrarCamaraPOS = () => {
+    const dock = document.getElementById('scanner-dock');
+    const btnCam = document.getElementById('btn-toggle-camara');
+    if (dock) dock.style.display = 'none';
+    if (btnCam) btnCam.innerHTML = `<span class="material-symbols-outlined">qr_code_scanner</span> Cámara`;
+
+    if (linternaEncendida) {
+        const videoElem = document.querySelector('#lector-camara video');
+        if (videoElem?.srcObject) {
+            const track = videoElem.srcObject.getVideoTracks()[0];
+            if (track) track.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
+        }
+        linternaEncendida = false;
+        const btnFlash = document.getElementById('btn-flash-pos');
+        if (btnFlash) {
+            btnFlash.style.background = 'rgba(0,0,0,0.65)';
+            btnFlash.style.color = '#fff';
+        }
+    }
+
+    if (scannerInstancia && scannerInstancia.isScanning) {
+        scannerInstancia.stop().catch(() => {});
+    }
+    escaneoEnCooldown = false;
+};
 
 window.escanearParaPOS = () => {
-    const visor = document.getElementById('lector-camara');
-    if (!visor) return;
+    const dock = document.getElementById('scanner-dock');
+    const btnCam = document.getElementById('btn-toggle-camara');
+    if (!dock) return;
 
-    if (visor.style.display === "block") {
-        if (scannerInstancia && scannerInstancia.isScanning) {
-            scannerInstancia.stop().then(() => { visor.style.display = "none"; });
-        } else {
-            visor.style.display = "none";
-        }
+    if (dock.style.display === "block") {
+        window.cerrarCamaraPOS();
         return;
     }
 
-    visor.style.display = "block";
-    if (!scannerInstancia) scannerInstancia = new Html5Qrcode("lector-camara");
+    dock.style.display = "block";
+    if (btnCam) btnCam.innerHTML = `<span class="material-symbols-outlined">close</span> Cerrar`;
+
+    const configFormatos = {
+        formatsToSupport: [
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.QR_CODE
+        ],
+        verbose: false
+    };
+
+    if (!scannerInstancia) scannerInstancia = new Html5Qrcode("lector-camara", configFormatos);
 
     scannerInstancia.start(
         { facingMode: "environment" },
-        { fps: 20, qrbox: { width: 240, height: 100 } },
-        (codigo) => {
-            if (navigator.vibrate) navigator.vibrate([100]);
-            scannerInstancia.stop().then(() => { visor.style.display = "none"; });
-            procesarEntradaCodigo(codigo);
+        { fps: 20, qrbox: { width: 220, height: 110 } },
+        (codigoDecodificado) => {
+            if (escaneoEnCooldown) return;
+            escaneoEnCooldown = true;
+
+            if (navigator.vibrate) navigator.vibrate(60);
+            procesarEntradaCodigo(codigoDecodificado);
+
+            setTimeout(() => {
+                escaneoEnCooldown = false;
+            }, 1200);
         },
         () => {}
-    ).catch(() => { visor.style.display = "none"; });
+    ).catch(err => {
+        alert("Comprueba los permisos de cámara en tu navegador.");
+        window.cerrarCamaraPOS();
+    });
 };
+
 
 document.getElementById('btn-toggle-camara')?.addEventListener('click', window.escanearParaPOS);
 
 function actualizarIndicadorCola() {
-    const cola = JSON.parse(localStorage.getItem(`geokatu_sync_cola_${idNegocio}`) || "[]");
-    const cont = document.getElementById('txt-cola-sync');
-    if (cont) {
-        cont.innerText = `${cola.length} Pendientes`;
-        cont.style.color = cola.length > 0 ? "orange" : "inherit";
+    const tenantReal = idNegocio || localStorage.getItem('geokatu_active_uid') || "";
+    const colaTenant = JSON.parse(localStorage.getItem(`geokatu_sync_cola_${tenantReal}`) || "[]");
+    const colaId = (idNegocio && idNegocio !== tenantReal) ? JSON.parse(localStorage.getItem(`geokatu_sync_cola_${idNegocio}`) || "[]") : [];
+    const totalPendientes = Math.max(colaTenant.length, colaId.length);
+
+    const txtRed = document.getElementById('txt-red-abono');
+    const ledRed = document.getElementById('led-red-abono');
+    const badgeRed = document.getElementById('badge-estado-red');
+
+    if (txtRed && ledRed && badgeRed) {
+        if (!navigator.onLine || totalPendientes > 0) {
+            txtRed.innerText = totalPendientes > 0 ? `Offline: ${totalPendientes} pend.` : "Offline";
+            txtRed.style.color = "orange";
+            ledRed.style.backgroundColor = "orange";
+            badgeRed.style.background = "rgba(255,165,0,0.15)";
+            badgeRed.style.borderColor = "rgba(255,165,0,0.4)";
+        } else {
+            txtRed.innerText = "Online";
+            txtRed.style.color = "var(--accent-green)";
+            ledRed.style.backgroundColor = "var(--accent-green)";
+            badgeRed.style.background = "rgba(0,255,100,0.1)";
+            badgeRed.style.borderColor = "rgba(0,255,100,0.25)";
+        }
+    }
+
+    monitorearCapacidadCola();
+}
+
+function monitorearCapacidadCola() {
+    const tenantReal = idNegocio || localStorage.getItem('geokatu_active_uid') || "";
+    const rawCola = localStorage.getItem(`geokatu_sync_cola_${tenantReal}`) || "[]";
+    const bytesOcupados = new Blob([rawCola]).size;
+    const cola = JSON.parse(rawCola);
+
+    const esCritico = bytesOcupados > 4000000 || cola.length >= 800;
+    const alertaElem = document.getElementById('alerta-memoria-cola');
+
+    if (alertaElem && esCritico && alertaElem.style.display !== 'flex') {
+        alertaElem.style.display = 'flex';
+        setTimeout(() => { alertaElem.style.opacity = '1'; }, 10);
+        setTimeout(() => {
+            alertaElem.style.opacity = '0';
+            setTimeout(() => { alertaElem.style.display = 'none'; }, 400);
+        }, 15000);
     }
 }
+
 
 window.addEventListener('online', async () => {
     document.getElementById('txt-conexion').innerText = "SINCRONIZANDO...";

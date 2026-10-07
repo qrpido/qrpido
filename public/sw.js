@@ -1,15 +1,35 @@
-const CACHE_NAME = 'geokatu-cache-v4';
+const CACHE_NAME = 'geokatu-cache-v6';
 const MAP_CACHE_NAME = 'geokatu-map-tiles-v1';
 
 // Módulos esenciales de la arquitectura GEOKATU
 const urlsToCache = [
     '/',
     '/oficina',
+    '/oficina.html',
+    '/metricas',
+    '/metricas.html',
+    '/metricas.js',
     '/pos',
+    '/pos.html',
+    '/pos.js',
+    '/posven',
+    '/posven.html',
+    '/posven.js',
+    '/estilos-pos.css',
+    '/factura',
+    '/factura.html',
+    '/facturaven',
+    '/facturaven.html',
+    '/cajon-motor.js',
+    '/balanza-motor.js',
     '/stock',
+    '/stock.html',
     '/inventario',
+    '/inventario.html',
     '/mapatienda',
+    '/mapatienda.html',
     '/negocio',
+    '/negocio.html',
     '/manifest.json',
     '/estilo-fresco.json',
     '/catalogo_matriz.json',
@@ -17,15 +37,19 @@ const urlsToCache = [
     '/maplibre-gl.js',
     '/pmtiles.js',
     '/html5-qrcode.min.js',
+    '/admin-boveda.css',
     '/ui-estilos.css',
     '/pines.css',
+    '/negocio.css',
     '/core-db.js',
     '/firebase-config.js',
+    '/billing-guard.js',
     '/auth-mando.js',
     '/motor-mapa.js',
     '/motor-movilidad.js',
     '/profiler.js'
 ];
+
 
 // Instalación resiliente: no colapsa el caché si un recurso estático falla
 self.addEventListener('install', event => {
@@ -36,7 +60,7 @@ self.addEventListener('install', event => {
                 try {
                     await cache.add(url);
                 } catch (err) {
-                    console.warn(`[SW Precaché Omitido]: ${url} no se pudo cargar.`);
+                    console.warn(`[SW Precache Omitido]: ${url} no se pudo precargar.`);
                 }
             }
         })
@@ -50,7 +74,7 @@ self.addEventListener('activate', event => {
             return Promise.all(
                 cacheNames.map(cacheName => {
                     if (cacheName !== CACHE_NAME && cacheName !== MAP_CACHE_NAME) {
-                        console.log(`[SW] Purgando caché antiguo: ${cacheName}`);
+                        console.log(`[SW] Purgando cache antiguo: ${cacheName}`);
                         return caches.delete(cacheName);
                     }
                 })
@@ -70,10 +94,10 @@ self.addEventListener('fetch', event => {
         url.hostname.includes('identitytoolkit') ||
         url.hostname.includes('googleapis.com')
     ) {
-        return; // Deja que el navegador o el SDK maneje su propia cola/caché
+        return;
     }
 
-    // 2. Estrategia Stale-While-Revalidate para App Shell local
+    // 2. Estrategia Stale-While-Revalidate con Fallback de Navegación
     if (event.request.method === 'GET') {
         event.respondWith(
             caches.match(event.request, { ignoreSearch: true }).then(cachedResponse => {
@@ -86,11 +110,18 @@ self.addEventListener('fetch', event => {
                     }
                     return networkResponse;
                 }).catch(() => {
-                    // Fallback JSON si falla la red y se pedían datos
+                    // Fallback para APIs o peticiones de datos JSON fuera de línea
                     if (event.request.headers.get('accept')?.includes('application/json') || url.pathname.endsWith('.json')) {
                         return new Response(JSON.stringify({ offline: true, data: [] }), { 
                             headers: { 'Content-Type': 'application/json' } 
                         });
+                    }
+
+                    // Fallback para navegación de páginas HTML
+                    if (event.request.mode === 'navigate') {
+                        const cleanPath = url.pathname;
+                        return caches.match(cleanPath, { ignoreSearch: true })
+                            .then(pageMatch => pageMatch || caches.match('/'));
                     }
                 });
 

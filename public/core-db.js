@@ -373,14 +373,16 @@ const GeokatuDB = {
 
                   // 1. Ingreso a compartimiento de destino (Solo en Entradas y Traslados)
                 if (metadata.idCompDestino && (tiposEntrada.includes(tipoMovimiento) || tipoMovimiento === 'TRASLADO_INTERNO')) {
-                    const ubiDestRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}/${productoId}/${_SCHEMA.SubColeccionUbicacionesStock}`, metadata.idCompDestino);
+                    const ubiDestRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + idNegocio + "/" + _SCHEMA.SubColeccionProductos + "/" + productoId + "/" + _SCHEMA.SubColeccionUbicacionesStock, metadata.idCompDestino);
                     const payloadUbicacion = {
+                        id_negocio: idNegocio,
                         id_estante: metadata.idEstanteDestino || "GENERAL",
                         id_compartimiento: metadata.idCompDestino,
                         zona: metadata.zona || "PISO_VENTA",
                         cantidad: increment(cantNumerica),
                         ultima_modificacion: payloadMovimiento.timestamp
                     };
+
                     if (metadata.lote) payloadUbicacion.lote = metadata.lote;
                     if (metadata.fechaVencimiento) payloadUbicacion.fecha_vencimiento = metadata.fechaVencimiento;
 
@@ -461,11 +463,13 @@ const GeokatuDB = {
                             const esConteoCiclico = mov.tipo === 'AJUSTE_CONTEO_CICLICO';
                             
                             const payloadSyncUbi = {
+                                id_negocio: idNegocio,
                                 id_estante: mov.id_estante_destino || "GENERAL",
                                 id_compartimiento: mov.id_compartimiento_destino,
                                 cantidad: esConteoCiclico ? Number(mov.stock_fisico_contado) : increment(mov.cantidad),
                                 ultima_modificacion: new Date().toISOString()
                             };
+
                             if (esConteoCiclico) payloadSyncUbi.ultimo_conteo_ciclico = new Date().toISOString();
                             if (mov.lote) payloadSyncUbi.lote = mov.lote;
                             if (mov.fecha_vencimiento) payloadSyncUbi.fecha_vencimiento = mov.fecha_vencimiento;
@@ -517,8 +521,9 @@ const GeokatuDB = {
         obtenerMapaStockTiendaCompleto: async (idNegocio, desdeTimestamp = null) => {
             if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
             try {
-                // Si viene timestamp local, consultamos solo los deltas que cambiaron después de esa fecha
-                let qConstraints = [];
+                const tenantReal = idNegocio || localStorage.getItem("geokatu_active_uid");
+                let qConstraints = [where("id_negocio", "==", tenantReal)];
+
                 if (desdeTimestamp) {
                     qConstraints.push(where("ultima_modificacion", ">", desdeTimestamp));
                 }
@@ -528,20 +533,18 @@ const GeokatuDB = {
                 const deltasOCompleto = [];
 
                 snap.forEach(docSnap => {
-                    if (docSnap.ref.path.includes(`${_SCHEMA.ColeccionDirectorio}/${idNegocio}`)) {
-                        const data = docSnap.data();
-                        const prodId = docSnap.ref.parent.parent ? docSnap.ref.parent.parent.id : null;
-                        deltasOCompleto.push({
-                            id_ubi_doc: docSnap.id,
-                            id_prod: prodId,
-                            id_estante: data.id_estante || "GENERAL",
-                            id_compartimiento: data.id_compartimiento || docSnap.id,
-                            cantidad: Number(data.cantidad) || 0,
-                            lote: data.lote || "S/L",
-                            fecha_vencimiento: data.fecha_vencimiento || null,
-                            ultima_modificacion: data.ultima_modificacion || new Date().toISOString()
-                        });
-                    }
+                    const data = docSnap.data();
+                    const prodId = docSnap.ref.parent.parent ? docSnap.ref.parent.parent.id : null;
+                    deltasOCompleto.push({
+                        id_ubi_doc: docSnap.id,
+                        id_prod: prodId,
+                        id_estante: data.id_estante || "GENERAL",
+                        id_compartimiento: data.id_compartimiento || docSnap.id,
+                        cantidad: Number(data.cantidad) || 0,
+                        lote: data.lote || "S/L",
+                        fecha_vencimiento: data.fecha_vencimiento || null,
+                        ultima_modificacion: data.ultima_modificacion || new Date().toISOString()
+                    });
                 });
 
                 return { 
@@ -551,10 +554,35 @@ const GeokatuDB = {
                     timestampCorte: new Date().toISOString() 
                 };
             } catch (e) {
-                return { success: false, error: e.message };
+                // Fallback automático por si existen documentos previos que aún no tenían el campo id_negocio
+                console.warn("[WMS] Reintentando lectura completa sin filtro compuesto:", e.message);
+                try {
+                    const tenantReal = idNegocio || localStorage.getItem("geokatu_active_uid");
+                    const qFallback = query(collectionGroup(db, _SCHEMA.SubColeccionUbicacionesStock));
+                    const snapFallback = await getDocs(qFallback);
+                    const filtrados = [];
+                    snapFallback.forEach(docSnap => {
+                        if (docSnap.ref.path.indexOf(_SCHEMA.ColeccionDirectorio + "/" + tenantReal) !== -1) {
+                            const data = docSnap.data();
+                            const prodId = docSnap.ref.parent.parent ? docSnap.ref.parent.parent.id : null;
+                            filtrados.push({
+                                id_ubi_doc: docSnap.id,
+                                id_prod: prodId,
+                                id_estante: data.id_estante || "GENERAL",
+                                id_compartimiento: data.id_compartimiento || docSnap.id,
+                                cantidad: Number(data.cantidad) || 0,
+                                lote: data.lote || "S/L",
+                                fecha_vencimiento: data.fecha_vencimiento || null,
+                                ultima_modificacion: data.ultima_modificacion || new Date().toISOString()
+                            });
+                        }
+                    });
+                    return { success: true, data: filtrados, esDelta: false, timestampCorte: new Date().toISOString() };
+                } catch (errFallback) {
+                    return { success: false, error: errFallback.message };
+                }
             }
         },
-
 
         escucharCambiosStock: (idNegocio, callback) => {
             if (!_verificarAcceso()) return () => {};
@@ -857,7 +885,7 @@ const GeokatuDB = {
                 const prodId = item.id_prod || item.codigo_producto;
                 if (!prodId) continue;
 
-                const stockPrevio = Math.max(0, Number(item.stock_previo) || 0);
+                const stockPrevio = Math.max(0, Number(item.stock_previo !== undefined ? item.stock_previo : item.stock_teorico) || 0);
                 const stockFisico = Math.max(0, Number(item.stock_fisico_contado !== undefined ? item.stock_fisico_contado : item.stock_fisico) || 0);
                 const deltaCalculado = Number((stockFisico - stockPrevio).toFixed(3));
                 const movIdLocal = "MOV-AUDIT-" + Date.now().toString(16).toUpperCase() + "-" + Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -1318,8 +1346,9 @@ const GeokatuDB = {
 
                 // Inicializar subcolección stock_ubicaciones si es producto nuevo con stock > 0
                 if (!idProducto && Number(dataObj.stock_actual) > 0) {
-                    const ubiInicialRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}/${docRef.id}/${_SCHEMA.SubColeccionUbicacionesStock}`, "BIN_INICIAL");
+                    const ubiInicialRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + idNegocio + "/" + _SCHEMA.SubColeccionProductos + "/" + docRef.id + "/" + _SCHEMA.SubColeccionUbicacionesStock, "BIN_INICIAL");
                     await setDoc(ubiInicialRef, {
+                        id_negocio: idNegocio,
                         id_estante: almacenInicial,
                         id_compartimiento: "BIN_INICIAL",
                         cantidad: Number(dataObj.stock_actual),
@@ -1329,6 +1358,7 @@ const GeokatuDB = {
                         ultima_modificacion: new Date().toISOString()
                     }, { merge: true });
                 }
+
 
                 // Incremento atómico en sistema/metricas_red para producto nuevo
                 if (!idProducto) {
@@ -2742,24 +2772,31 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
             const claveCache = `geokatu_catalogo_${tenantReal}`;
             let catalogoLocal = JSON.parse(localStorage.getItem(claveCache) || "[]");
 
-            // 🛡️ BARRERA ZERO-TRUST: Revalidación de subtotales vs total declarado
+           // 🛡️ BARRERA ZERO-TRUST MULTIMONEDA (COL: Enteros COP | VEN: Decimales USD)
+            const esVen = ticketData.pais_operacion === 'VEN' || ticketData.pais === 'VEN';
             let sumaVerificacion = 0;
+
             for (const item of ticketData.productos) {
                 const prod = catalogoLocal.find(p => p.id_prod === item.id_prod);
-                const precioValido = (item.precio_fijado_balanza && item.precio > 0) 
-                    ? Number(item.precio) 
-                    : (prod ? Number(prod.precio) : Number(item.precio));
+                const precioBase = item.precio !== undefined ? item.precio : (item.precio_usd !== undefined ? item.precio_usd : 0);
+                const precioValido = (item.precio_fijado_balanza && precioBase > 0) 
+                    ? Number(precioBase) 
+                    : (prod ? Number(prod.precio) : Number(precioBase));
 
-                const subtotal = Math.round(precioValido * item.cantidad);
+                const subtotal = esVen 
+                    ? Number((precioValido * item.cantidad).toFixed(2))
+                    : Math.round(precioValido * item.cantidad);
                 sumaVerificacion += subtotal;
             }
 
-            if (Math.abs(sumaVerificacion - Number(ticketData.total)) > 1) {
+            const margenTolerancia = esVen ? 0.05 : 1;
+            if (Math.abs(sumaVerificacion - Number(ticketData.total)) > margenTolerancia) {
                 return { 
                     success: false, 
                     error: "Discrepancia crítica de integridad contable: el total no coincide con los precios de inventario." 
                 };
             }
+
 
             // Descuento en catálogo local y captura de incidentes de stock negativo
             const quiebresDetectados = [];
@@ -2837,25 +2874,29 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                     tickets_emitidos: increment(1)
                 }, { merge: true });
 
-                                 ticketData.productos.forEach(item => {
+                ticketData.productos.forEach(item => {
                     if (item.id_prod && !item.id_prod.startsWith("GENERICO")) {
-                        const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/${_SCHEMA.SubColeccionProductos}`, item.id_prod);
-                        batch.update(prodRef, {
+                        const prodRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + tenantReal + "/" + _SCHEMA.SubColeccionProductos, item.id_prod);
+                        batch.set(prodRef, {
                             stock_actual: increment(-item.cantidad)
-                        });
+                        }, { merge: true });
 
-                        // Actualización de ubicación en subcolección
-                        if (item.id_compartimiento && item.id_compartimiento !== "BIN_INICIAL") {
-                            const ubiPisoRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/${_SCHEMA.SubColeccionProductos}/${item.id_prod}/${_SCHEMA.SubColeccionUbicacionesStock}`, item.id_compartimiento);
+
+
+                        const desglose = Array.isArray(item.desglose_ubicaciones) && item.desglose_ubicaciones.length > 0
+                            ? item.desglose_ubicaciones
+                            : (item.id_compartimiento ? [{ id_compartimiento: item.id_compartimiento, cantidad: item.cantidad }] : []);
+
+                        desglose.forEach(ubiItem => {
+                            const ubiPisoRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + tenantReal + "/" + _SCHEMA.SubColeccionProductos + "/" + item.id_prod + "/" + _SCHEMA.SubColeccionUbicacionesStock, ubiItem.id_compartimiento);
                             batch.set(ubiPisoRef, {
-                                cantidad: increment(-item.cantidad),
+                                cantidad: increment(-ubiItem.cantidad),
                                 zona: "PISO_VENTA",
                                 ultima_modificacion: new Date().toISOString()
                             }, { merge: true });
-                        }
+                        });
                     }
                 });
-
 
                 // Si la venta dejó saldos bajo cero, levantar incidentes en Alertas_Seguridad
                 if (quiebresDetectados.length > 0) {
@@ -2996,14 +3037,79 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                         }, { merge: true });
 
 
-                         ticket.productos.forEach(item => {
+                                                      // 🛡️ REVISIÓN FORENSE DE PRODUCTOS ANTES DE SINCRONIZAR
+                        for (const item of ticket.productos) {
                             if (item.id_prod && !item.id_prod.startsWith("GENERICO")) {
-                                const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/${_SCHEMA.SubColeccionProductos}`, item.id_prod);
-                                batch.update(prodRef, { 
+                                const prodRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + tenantReal + "/" + _SCHEMA.SubColeccionProductos, item.id_prod);
+                                
+                                // Lectura en tiempo real contra la nube para validar integridad
+                                const prodSnap = await getDoc(prodRef);
+                                
+                                if (!prodSnap.exists()) {
+                                    // 👻 ALERTA 1: PRODUCTO FANTASMA DETECTADO
+                                    const alertaRef = doc(collection(db, "Alertas_Seguridad"));
+                                    batch.set(alertaRef, {
+                                        id_negocio: tenantReal,
+                                        tipo: "PRODUCTO_FANTASMA_OFFLINE",
+                                        estado: "requiere_auditoria_urgente",
+                                        id_producto: item.id_prod,
+                                        nombre_producto: item.nombre || "Artículo eliminado",
+                                        stock_previo: 0,
+                                        stock_negativo_registrado: -item.cantidad,
+                                        cantidad_despachada: item.cantidad,
+                                        ticket_origen: idDoc,
+                                        terminal: ticket.caja_numero || "CAJA-01",
+                                        cajero: ticket.cajero_email || "CAJERO",
+                                        timestamp_alerta: new Date().toISOString(),
+                                        resuelto: false,
+                                        motivo: "El producto se vendió offline pero había sido eliminado en la nube."
+                                    });
+                                } else {
+                                    // 📉 ALERTA 2: QUIEBRE DE STOCK AL SINCRONIZAR
+                                    const stockNube = Number(prodSnap.data().stock_actual) || 0;
+                                    if (stockNube - item.cantidad < 0) {
+                                        const alertaRef = doc(collection(db, "Alertas_Seguridad"));
+                                        batch.set(alertaRef, {
+                                            id_negocio: tenantReal,
+                                            tipo: "DESCUADRE_STOCK_NEGATIVO",
+                                            estado: "requiere_auditoria_urgente",
+                                            id_producto: item.id_prod,
+                                            nombre_producto: item.nombre || prodSnap.data().nombre,
+                                            stock_previo: stockNube,
+                                            stock_negativo_registrado: stockNube - item.cantidad,
+                                            cantidad_despachada: item.cantidad,
+                                            ticket_origen: idDoc,
+                                            terminal: ticket.caja_numero || "CAJA-01",
+                                            cajero: ticket.cajero_email || "CAJERO",
+                                            timestamp_alerta: new Date().toISOString(),
+                                            resuelto: false,
+                                            motivo: "Venta offline generó saldo negativo al cruzar con la nube."
+                                        });
+                                    }
+                                }
+
+                                // Forzamos Upsert (set + merge) para que el ticket jamás falle y la cola fluya
+                                batch.set(prodRef, { 
                                     stock_actual: increment(-item.cantidad) 
+                                }, { merge: true });
+
+                                const desglose = Array.isArray(item.desglose_ubicaciones) && item.desglose_ubicaciones.length > 0
+                                    ? item.desglose_ubicaciones
+                                    : (item.id_compartimiento ? [{ id_compartimiento: item.id_compartimiento, cantidad: item.cantidad }] : []);
+
+                                desglose.forEach(ubiItem => {
+                                    const ubiPisoRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + tenantReal + "/" + _SCHEMA.SubColeccionProductos + "/" + item.id_prod + "/" + _SCHEMA.SubColeccionUbicacionesStock, ubiItem.id_compartimiento);
+                                    batch.set(ubiPisoRef, {
+                                        cantidad: increment(-ubiItem.cantidad),
+                                        zona: "PISO_VENTA",
+                                        ultima_modificacion: new Date().toISOString()
+                                    }, { merge: true });
                                 });
                             }
-                        });
+                        }
+
+
+
 
 
 
@@ -3123,26 +3229,53 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                     return { success: false, error: "Ticket original no encontrado." };
                 }
 
-                let totalReembolso = 0;
+               let totalReembolso = 0;
                 const batch = writeBatch(db);
+                const esVen = itemsDevueltos.some(i => i.precio_usd !== undefined || String(i.impuesto) === "16");
 
                 itemsDevueltos.forEach(item => {
-                    const montoLinea = Math.round(Number(item.precio) * Number(item.cantidad_devuelta));
+                    const precioItem = Number(item.precio !== undefined ? item.precio : (item.precio_usd || 0));
+                    const montoLinea = esVen 
+                        ? Number((precioItem * Number(item.cantidad_devuelta)).toFixed(2))
+                        : Math.round(precioItem * Number(item.cantidad_devuelta));
                     totalReembolso += montoLinea;
+
 
                       // 1. Reingreso de stock en Firestore (Ignorando ítems libres)
                     if (item.id_prod && !item.id_prod.startsWith("GENERICO")) {
-                        const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, item.id_prod);
+                        const prodRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + idNegocio + "/" + _SCHEMA.SubColeccionProductos, item.id_prod);
                         batch.update(prodRef, {
                             stock_actual: increment(item.cantidad_devuelta)
                         });
 
-                        // 2. Reingreso en memoria local
+                        // Determinar el compartimiento de destino para el reingreso físico
+                        const idCompRetorno = (Array.isArray(item.desglose_ubicaciones) && item.desglose_ubicaciones.length > 0)
+                            ? item.desglose_ubicaciones[0].id_compartimiento
+                            : (item.id_compartimiento || "BIN_INICIAL");
+
+                        const ubiRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + idNegocio + "/" + _SCHEMA.SubColeccionProductos + "/" + item.id_prod + "/" + _SCHEMA.SubColeccionUbicacionesStock, idCompRetorno);
+                        batch.set(ubiRef, {
+                            cantidad: increment(item.cantidad_devuelta),
+                            zona: "PISO_VENTA",
+                            ultima_modificacion: new Date().toISOString()
+                        }, { merge: true });
+
+                        // 2. Reingreso en memoria local de catálogo
                         const prodRAM = catalogoLocal.find(p => p.id_prod === item.id_prod);
                         if (prodRAM && prodRAM.stock_actual !== undefined) {
                             prodRAM.stock_actual = Number((prodRAM.stock_actual + item.cantidad_devuelta).toFixed(3));
                         }
+
+                        // 3. Reingreso en memoria local de ubicaciones WMS
+                        const claveUbis = "geokatu_stock_ubis_" + idNegocio;
+                        let ubisLocales = JSON.parse(localStorage.getItem(claveUbis) || "[]");
+                        const targetUbi = ubisLocales.find(u => u.id_prod === item.id_prod && u.id_compartimiento === idCompRetorno);
+                        if (targetUbi) {
+                            targetUbi.cantidad = Number((Number(targetUbi.cantidad) + Number(item.cantidad_devuelta)).toFixed(3));
+                            localStorage.setItem(claveUbis, JSON.stringify(ubisLocales));
+                        }
                     }
+
                 });
 
                 localStorage.setItem(claveCache, JSON.stringify(catalogoLocal));
@@ -3205,7 +3338,7 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                     }
                 }
 
-                // Reversión en memoria y localStorage
+               // Reversión en memoria local de catálogo
                 productosARevertir.forEach(itemRevertir => {
                     const prod = catalogoLocal.find(p => p.id_prod === itemRevertir.id_prod || p.codigo_barras === itemRevertir.codigo_barras);
                     if (prod && prod.stock_actual !== undefined) {
@@ -3214,6 +3347,23 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                 });
                 localStorage.setItem(claveCache, JSON.stringify(catalogoLocal));
 
+                // Reversión en memoria local de estanterías WMS
+                const claveUbis = "geokatu_stock_ubis_" + idNegocio;
+                let ubisLocales = JSON.parse(localStorage.getItem(claveUbis) || "[]");
+
+                productosARevertir.forEach(item => {
+                    const desglose = Array.isArray(item.desglose_ubicaciones) && item.desglose_ubicaciones.length > 0
+                        ? item.desglose_ubicaciones
+                        : (item.id_compartimiento ? [{ id_compartimiento: item.id_compartimiento, cantidad: item.cantidad }] : []);
+
+                    desglose.forEach(des => {
+                        const targetUbi = ubisLocales.find(u => u.id_prod === item.id_prod && u.id_compartimiento === des.id_compartimiento);
+                        if (targetUbi) {
+                            targetUbi.cantidad = Number((Number(targetUbi.cantidad) + Number(des.cantidad)).toFixed(3));
+                        }
+                    });
+                });
+                localStorage.setItem(claveUbis, JSON.stringify(ubisLocales));
                 
                 // Reversión en Firestore si existe en nube
                 if (navigator.onLine && ticketSnap.exists()) {
@@ -3227,12 +3377,27 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
 
                     productosARevertir.forEach(item => {
                         if (item.id_prod && !item.id_prod.startsWith("GENERICO")) {
-                            const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, item.id_prod);
+                            const prodRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + idNegocio + "/" + _SCHEMA.SubColeccionProductos, item.id_prod);
                             batch.update(prodRef, {
                                 stock_actual: increment(item.cantidad)
                             });
+
+                            // Reingreso atómico a cada anaquel físico registrado en el ticket
+                            const desglose = Array.isArray(item.desglose_ubicaciones) && item.desglose_ubicaciones.length > 0
+                                ? item.desglose_ubicaciones
+                                : (item.id_compartimiento ? [{ id_compartimiento: item.id_compartimiento, cantidad: item.cantidad }] : []);
+
+                            desglose.forEach(des => {
+                                const ubiRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + idNegocio + "/" + _SCHEMA.SubColeccionProductos + "/" + item.id_prod + "/" + _SCHEMA.SubColeccionUbicacionesStock, des.id_compartimiento);
+                                batch.set(ubiRef, {
+                                    cantidad: increment(des.cantidad),
+                                    zona: "PISO_VENTA",
+                                    ultima_modificacion: new Date().toISOString()
+                                }, { merge: true });
+                            });
                         }
                     });
+
 
                     const notaRef = doc(collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Notas_Credito_POS`));
                     batch.set(notaRef, {
@@ -3485,6 +3650,7 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
 
             const payloadCierre = {
                 ...sesionLocal,
+                ...resumenTotales, // 🛡️ Preserva de forma transparente todas las bóvedas multidivisa de Venezuela
                 terminal_id: terminalId,
                 estado: "CERRADA",
                 fecha_cierre: new Date().toISOString(),
@@ -3526,6 +3692,140 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                 return { success: true, cierre: payloadCierre };
             } catch (e) {
                 return { success: true, cierre: payloadCierre, offline: true };
+            }
+        }
+    },
+
+    /**
+     * @namespace MetricasService
+     * Telemetría comercial, auditoría forense WMS y cuotas de infraestructura
+     */
+    MetricasService: {
+        obtenerVentasRango: async (idNegocio, fechaInicioISO, fechaFinISO, maxRegistros = 400) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+            try {
+                const colRef = collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Ventas_POS`);
+                const q = query(
+                    colRef,
+                    where("timestamp_caja", ">=", fechaInicioISO),
+                    where("timestamp_caja", "<=", fechaFinISO),
+                    orderBy("timestamp_caja", "desc"),
+                    limit(maxRegistros)
+                );
+                const snap = await getDocs(q);
+                const ventas = [];
+                snap.forEach(d => ventas.push({ id_firestore: d.id, ...d.data() }));
+                return { success: true, data: ventas, origen: "nube" };
+            } catch (err) {
+                console.warn("[MetricasService] Fallback local para ventas:", err.message);
+                const cola = JSON.parse(localStorage.getItem(`geokatu_sync_cola_${idNegocio}`) || "[]");
+                const filtradas = cola.filter(t => t.timestamp_caja >= fechaInicioISO && t.timestamp_caja <= fechaFinISO);
+                return { success: true, data: filtradas, origen: "cola_local", error: err.message };
+            }
+        },
+
+        escucharVentasHoy: (idNegocio, fechaInicioHoyISO, callback) => {
+            if (!_verificarAcceso() || !navigator.onLine) return () => {};
+            try {
+                const colRef = collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Ventas_POS`);
+                const q = query(
+                    colRef,
+                    where("timestamp_caja", ">=", fechaInicioHoyISO),
+                    orderBy("timestamp_caja", "desc"),
+                    limit(150)
+                );
+                return onSnapshot(q, (snapshot) => {
+                    const ventas = [];
+                    snapshot.forEach(docSnap => ventas.push({ id_firestore: docSnap.id, ...docSnap.data() }));
+                    callback({ success: true, data: ventas });
+                }, (err) => {
+                    console.warn("[MetricasService] Suscripción interrumpida:", err.message);
+                });
+            } catch (e) {
+                console.warn("[MetricasService] Error listener ventas:", e.message);
+                return () => {};
+            }
+        },
+
+        obtenerCierresZRango: async (idNegocio, fechaInicioISO, fechaFinISO) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+            try {
+                const colRef = collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Cierres_Z`);
+                const q = query(
+                    colRef,
+                    where("fecha_cierre", ">=", fechaInicioISO),
+                    where("fecha_cierre", "<=", fechaFinISO),
+                    orderBy("fecha_cierre", "desc"),
+                    limit(60)
+                );
+                const snap = await getDocs(q);
+                const cierres = [];
+                snap.forEach(d => cierres.push({ id_firestore: d.id, ...d.data() }));
+                return { success: true, data: cierres };
+            } catch (e) {
+                return { success: false, error: e.message, data: [] };
+            }
+        },
+
+        obtenerMovimientosKardexRango: async (idNegocio, fechaInicioISO, fechaFinISO, maxLimit = 500) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+            try {
+                const colRef = collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Movimientos_Kardex`);
+                const q = query(
+                    colRef,
+                    where("timestamp", ">=", fechaInicioISO),
+                    where("timestamp", "<=", fechaFinISO),
+                    orderBy("timestamp", "desc"),
+                    limit(maxLimit)
+                );
+                const snap = await getDocs(q);
+                const movs = [];
+                snap.forEach(d => movs.push({ id_kardex: d.id, ...d.data() }));
+                return { success: true, data: movs };
+            } catch (e) {
+                console.warn("[MetricasService] Error recuperando Kardex:", e.message);
+                const colaMovs = JSON.parse(localStorage.getItem(`geokatu_movimientos_cola_${idNegocio}`) || "[]");
+                return { success: true, data: colaMovs, origen: "cola_local" };
+            }
+        },
+
+        obtenerAlertasSeguridadVivas: async (idNegocio) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+            try {
+                const q = query(
+                    collection(db, "Alertas_Seguridad"),
+                    where("id_negocio", "==", idNegocio),
+                    where("resuelto", "==", false),
+                    limit(50)
+                );
+                const snap = await getDocs(q);
+                const alertas = [];
+                snap.forEach(d => alertas.push({ id_alerta: d.id, ...d.data() }));
+                return { success: true, data: alertas };
+            } catch (e) {
+                return { success: false, error: e.message, data: [] };
+            }
+        },
+
+        obtenerControlFacturacion: async (idNegocio) => {
+            try {
+                const docSnap = await getDoc(doc(db, _SCHEMA.ColeccionDirectorio, idNegocio));
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    return {
+                        success: true,
+                        pais: data.pais || "COL",
+                        facturacion_control: data.facturacion_control || {
+                            facturas_emitidas_mes: 0,
+                            facturas_cupo_gratis: 1300,
+                            facturas_prepago_saldo: 0,
+                            plan_activo: "ESTANDAR"
+                        }
+                    };
+                }
+                return { success: false, error: "Comercio no encontrado" };
+            } catch (e) {
+                return { success: false, error: e.message };
             }
         }
     },

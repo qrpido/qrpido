@@ -377,10 +377,11 @@
     </div>
 
     <div style="margin-top: 15px;">
-        <button class="btn-submit btn-oneshot" style="width: 100%; padding: 12px; justify-content: center;" onclick="sincronizarCatalogoComercioNube()">
+        <button type="button" class="btn-submit btn-oneshot" id="btn-inyectar-catalogo-nube" style="width: 100%; padding: 12px; justify-content: center; font-size: 13px;" onclick="sincronizarCatalogoComercioNube()">
             INYECTAR CATALOGO A FIRESTORE
         </button>
     </div>
+
 </aside>
 
 <!-- Modal Camara -->
@@ -554,142 +555,16 @@
         </div>
 
 
-        <!-- CUERPO DE TRABAJO RESPONSIVE (PREVIEW ARRIBA, DOCK ABAJO EN MÓVIL) -->
-        <div class="estudio-workspace-grid">
-            <!-- ÁREA SUPERIOR: LIENZO CON TRANSPARENCIA DAMERO -->
-            <div class="estudio-lienzo-viewport" id="viewport-canvas-wrap">
-                <div id="estudio-crop-overlay"></div>
-                <canvas id="estudio-canvas-render"></canvas>
-            </div>
-
-            <!-- DOCK DE HERRAMIENTAS ERGONÓMICO -->
-            <div class="estudio-dock-herramientas">
-                <!-- 1. DESTINO DE ACOPLE Y METADATOS (CERO PROMPT NATIVOS) -->
-               <!-- ÁREA SUPERIOR: LIENZO CON TRANSPARENCIA DAMERO (EXPANDIDO) -->
+               <!-- 1. LIENZO SUPERIOR (SE ENCOGE AUTOMÁTICAMENTE CUANDO SE ABRE EL SUBMENÚ) -->
         <div class="estudio-lienzo-viewport" id="viewport-canvas-wrap">
             <div id="estudio-crop-overlay"></div>
             <canvas id="estudio-canvas-render"></canvas>
         </div>
 
-        <!-- BANDEJA CONTEXTUAL DE CONTROL ÚNICO (SOLO MUESTRA LA HERRAMIENTA ACTIVA) -->
-        <div class="estudio-bandeja-contextual" id="estudio-bandeja-contextual" style="display: none;">
-            <!-- 1. PANEL METADATOS -->
-            <div id="panel-tool-metadatos" class="subpanel-herramienta" style="display: none;">
-                <div class="subpanel-header">
-                    <span>Destino y Metadatos</span>
-                    <button type="button" class="btn-cerrar-subpanel" onclick="window.conmutarHerramientaEstudio('metadatos')">✕</button>
-                </div>
-                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                    <label style="font-size: 10px; color: #cbd5e1; display: flex; align-items: center; gap: 6px;">
-                        <span>Rol:</span>
-                        <select id="estudio-destino-rol" class="input-form-geo" style="font-size: 10px; padding: 4px 6px; width: 130px;" onchange="cambiarRolDestinoEstudio(this.value)">
-                            <option value="producto" selected>Producto Catálogo</option>
-                            <option value="logo">Identidad: Logo</option>
-                            <option value="portada">Identidad: Portada</option>
-                            <option value="link_pin">Identidad: Pin Mapa</option>
-                            <option value="logo_nombre">Identidad: Logo Nombre</option>
-                        </select>
-                    </label>
-                </div>
-                <div id="estudio-campos-producto" style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
-                    <input type="text" id="estudio-prod-nombre" class="input-form-geo" placeholder="Título comercial *" style="font-size: 10.5px; padding: 5px 8px; flex: 2; min-width: 140px;">
-                    <input type="number" id="estudio-prod-precio" class="input-form-geo" placeholder="Precio COP" style="font-size: 10.5px; padding: 5px 8px; flex: 1; min-width: 80px;">
-                    <input type="text" id="estudio-prod-categoria" class="input-form-geo" placeholder="Categoría" list="lista-categorias-catalogo-sugeridas" style="font-size: 10.5px; padding: 5px 8px; flex: 1.2; min-width: 100px;">
-                    <input type="text" id="estudio-prod-desc" class="input-form-geo" placeholder="Descripción breve / Ingredientes" style="font-size: 10px; padding: 5px 8px; width: 100%;">
-                </div>
-            </div>
+        <!-- 2. RIEL HORIZONTAL DE BOTONES (SIEMPRE JUSTO DEBAJO DE LA IMAGEN) -->
+        <div class="estudio-dock-herramientas" id="estudio-dock-herramientas">
 
-            <!-- 2. PANEL AJUSTES CROMÁTICOS -->
-            <div id="panel-tool-ajustes" class="subpanel-herramienta" style="display: none;">
-                <div class="subpanel-header">
-                    <span>Ajustes Cromáticos</span>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <button type="button" style="background: none; border: none; color: var(--azul-link); font-size: 10px; font-weight: bold; cursor: pointer;" onclick="restablecerFiltrosColorEstudio()">Reset</button>
-                        <button type="button" class="btn-cerrar-subpanel" onclick="window.conmutarHerramientaEstudio('ajustes')">✕</button>
-                    </div>
-                </div>
-                <div class="controles-slider-grid">
-                    <div class="item-slider-row">
-                        <span class="label-slider">Brillo <b id="valor-brillo-txt">100%</b></span>
-                        <input type="range" id="estudio-slider-brillo" class="estudio-slider" min="0" max="200" value="100" oninput="actualizarFiltrosColorLive()">
-                    </div>
-                    <div class="item-slider-row">
-                        <span class="label-slider">Contraste <b id="valor-contraste-txt">100%</b></span>
-                        <input type="range" id="estudio-slider-contraste" class="estudio-slider" min="0" max="200" value="100" oninput="actualizarFiltrosColorLive()">
-                    </div>
-                    <div class="item-slider-row">
-                        <span class="label-slider">Saturación <b id="valor-saturacion-txt">100%</b></span>
-                        <input type="range" id="estudio-slider-saturacion" class="estudio-slider" min="0" max="200" value="100" oninput="actualizarFiltrosColorLive()">
-                    </div>
-                </div>
-            </div>
-
-            <!-- 3. PANEL VARITA MÁGICA -->
-            <div id="panel-tool-varita" class="subpanel-herramienta" style="display: none;">
-                <div class="subpanel-header">
-                    <span>Varita Mágica de Fondo (Toca en la foto para calar)</span>
-                    <button type="button" class="btn-cerrar-subpanel" onclick="window.conmutarHerramientaEstudio('varita')">✕</button>
-                </div>
-                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-                    <div style="flex: 1; min-width: 140px;">
-                        <div style="display: flex; justify-content: space-between; font-size: 10px; color: #cbd5e1; margin-bottom: 2px;">
-                            <span>Tolerancia de Calado</span>
-                            <b id="valor-tolerancia-txt" style="color: var(--naranja); font-family: monospace;">35%</b>
-                        </div>
-                        <input type="range" id="estudio-slider-tolerancia" class="estudio-slider" min="1" max="100" value="35" oninput="document.getElementById('valor-tolerancia-txt').innerText = this.value + '%'">
-                    </div>
-                    <label style="cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: #94a3b8;">
-                        <input type="checkbox" id="estudio-varita-global" style="accent-color: var(--naranja);">
-                        <span>Borrado global (color idéntico)</span>
-                    </label>
-                </div>
-            </div>
-
-            <!-- 4. PANEL SUAVIZADO MORFOLÓGICO -->
-            <div id="panel-tool-suavizado" class="subpanel-herramienta" style="display: none;">
-                <div class="subpanel-header">
-                    <span>Suavizado Alfa (Anti-Halos / Eliminar Rebaba)</span>
-                    <button type="button" class="btn-cerrar-subpanel" onclick="window.conmutarHerramientaEstudio('suavizado')">✕</button>
-                </div>
-                <div class="grilla-botones-niveles" style="margin-top: 4px;">
-                    <button type="button" class="btn-nivel-suavizado" onclick="ejecutarSuavizadoMorfologico(1)" title="Nivel 1: Sutil">1</button>
-                    <button type="button" class="btn-nivel-suavizado" onclick="ejecutarSuavizadoMorfologico(2)" title="Nivel 2: Antialiasing">2</button>
-                    <button type="button" class="btn-nivel-suavizado" onclick="ejecutarSuavizadoMorfologico(3)" title="Nivel 3: Equilibrado">3</button>
-                    <button type="button" class="btn-nivel-suavizado" onclick="ejecutarSuavizadoMorfologico(4)" title="Nivel 4: Rebaba">4</button>
-                    <button type="button" class="btn-nivel-suavizado" onclick="ejecutarSuavizadoMorfologico(5)" title="Nivel 5: Supresión">5</button>
-                </div>
-            </div>
-
-            <!-- 5. PANEL NITIDEZ LAPLACIANA -->
-            <div id="panel-tool-nitidez" class="subpanel-herramienta" style="display: none;">
-                <div class="subpanel-header">
-                    <span>Nitidez Laplaciana (High-Pass)</span>
-                    <button type="button" class="btn-cerrar-subpanel" onclick="window.conmutarHerramientaEstudio('nitidez')">✕</button>
-                </div>
-                <div style="display: flex; align-items: center; gap: 10px; margin-top: 4px;">
-                    <input type="range" id="estudio-slider-nitidez" class="estudio-slider" min="0" max="100" value="0" oninput="aplicarNitidezLaplacianaLive(this.value)" style="flex: 1;">
-                    <span id="valor-nitidez-txt" style="color: var(--azul-link); font-family: monospace; font-size: 11px; font-weight: bold; width: 40px; text-align: right;">0%</span>
-                </div>
-            </div>
-
-            <!-- 6. PANEL RECORTE MANUAL -->
-            <div id="panel-tool-recorte" class="subpanel-herramienta" style="display: none;">
-                <div class="subpanel-header">
-                    <span>Encuadre y Recorte Manual</span>
-                    <button type="button" class="btn-cerrar-subpanel" onclick="window.conmutarHerramientaEstudio('recorte')">✕</button>
-                </div>
-                <div style="display: flex; gap: 8px; margin-top: 4px; align-items: center; flex-wrap: wrap;">
-                    <span style="font-size: 10.5px; color: #94a3b8;">Arrastra sobre la imagen para definir el marco.</span>
-                    <button type="button" class="btn-submit" id="btn-confirmar-crop-estudio" style="display: none; background: var(--verde-hoja); color: #052e16; font-weight: 800; padding: 6px 12px;" onclick="ejecutarRecorteManualEstudio()">
-                        Confirmar Recorte
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- RIEL HORIZONTAL DE BOTONES TÁCTIL (TODO EN UN SOLO SWIPE) -->
-        <div class="estudio-dock-herramientas">
-            <button type="button" class="btn-herramienta-ribbon" id="btn-tool-metadatos" onclick="window.conmutarHerramientaEstudio('metadatos')">
+                   <button type="button" class="btn-herramienta-ribbon" id="btn-tool-metadatos" onclick="window.conmutarHerramientaEstudio('metadatos')">
                 Metadatos
             </button>
             <button type="button" class="btn-herramienta-ribbon" id="btn-tool-ajustes" onclick="window.conmutarHerramientaEstudio('ajustes')">
@@ -727,6 +602,129 @@
             </button>
         </div>
 
+        <!-- 3. BANDEJA CONTEXTUAL INDEPENDIENTE (OCUPA EL ESPACIO INFERIOR DE LA PANTALLA) -->
+        <div class="estudio-bandeja-contextual" id="estudio-bandeja-contextual" style="display: none;">
+            
+            <!-- SUBPANEL A: METADATOS -->
+            <div id="panel-tool-metadatos" class="subpanel-herramienta" style="display: none;">
+                <div class="subpanel-header">
+                    <span>Destino y Metadatos</span>
+                    <button type="button" class="btn-cerrar-subpanel" onclick="window.conmutarHerramientaEstudio('metadatos')">✕</button>
+                </div>
+                <div class="subpanel-cuerpo">
+                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 11px; color: #888; font-weight: bold;">Rol:</span>
+                        <select id="estudio-destino-rol" class="input-form-geo" style="flex: 1;" onchange="cambiarRolDestinoEstudio(this.value)">
+                            <option value="producto" selected>Producto Catálogo</option>
+                            <option value="logo">Identidad: Logo</option>
+                            <option value="portada">Identidad: Portada</option>
+                            <option value="link_pin">Identidad: Pin Mapa</option>
+                            <option value="logo_nombre">Identidad: Logo Nombre</option>
+                        </select>
+                    </div>
+                    <div id="estudio-campos-producto" style="display: flex; flex-direction: column; gap: 8px;">
+                        <input type="text" id="estudio-prod-nombre" class="input-form-geo" placeholder="Título comercial *">
+                        <div style="display: flex; gap: 8px;">
+                            <input type="number" id="estudio-prod-precio" class="input-form-geo" placeholder="Precio COP" style="flex: 1;">
+                            <input type="text" id="estudio-prod-categoria" class="input-form-geo" placeholder="Categoría" list="lista-categorias-catalogo-sugeridas" style="flex: 1.2;">
+                        </div>
+                        <input type="text" id="estudio-prod-desc" class="input-form-geo" placeholder="Descripción breve / Ingredientes">
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUBPANEL B: COLOR -->
+            <div id="panel-tool-ajustes" class="subpanel-herramienta" style="display: none;">
+                <div class="subpanel-header">
+                    <span>Ajustes Cromáticos</span>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <button type="button" style="background: none; border: none; color: var(--azul-link); font-size: 11px; font-weight: bold; cursor: pointer;" onclick="restablecerFiltrosColorEstudio()">Reset</button>
+                        <button type="button" class="btn-cerrar-subpanel" onclick="window.conmutarHerramientaEstudio('ajustes')">✕</button>
+                    </div>
+                </div>
+                <div class="subpanel-cuerpo">
+                    <div class="item-slider-row">
+                        <span class="label-slider">Brillo <b id="valor-brillo-txt" style="color: var(--naranja); font-family: monospace;">100%</b></span>
+                        <input type="range" id="estudio-slider-brillo" class="estudio-slider" min="0" max="200" value="100" oninput="actualizarFiltrosColorLive()">
+                    </div>
+                    <div class="item-slider-row">
+                        <span class="label-slider">Contraste <b id="valor-contraste-txt" style="color: var(--naranja); font-family: monospace;">100%</b></span>
+                        <input type="range" id="estudio-slider-contraste" class="estudio-slider" min="0" max="200" value="100" oninput="actualizarFiltrosColorLive()">
+                    </div>
+                    <div class="item-slider-row">
+                        <span class="label-slider">Saturación <b id="valor-saturacion-txt" style="color: var(--naranja); font-family: monospace;">100%</b></span>
+                        <input type="range" id="estudio-slider-saturacion" class="estudio-slider" min="0" max="200" value="100" oninput="actualizarFiltrosColorLive()">
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUBPANEL C: VARITA -->
+            <div id="panel-tool-varita" class="subpanel-herramienta" style="display: none;">
+                <div class="subpanel-header">
+                    <span>Varita Mágica de Fondo</span>
+                    <button type="button" class="btn-cerrar-subpanel" onclick="window.conmutarHerramientaEstudio('varita')">✕</button>
+                </div>
+                <div class="subpanel-cuerpo">
+                    <div class="item-slider-row">
+                        <span class="label-slider">Tolerancia de Calado <b id="valor-tolerancia-txt" style="color: var(--naranja); font-family: monospace;">35%</b></span>
+                        <input type="range" id="estudio-slider-tolerancia" class="estudio-slider" min="1" max="100" value="35" oninput="document.getElementById('valor-tolerancia-txt').innerText = this.value + '%'">
+                    </div>
+                    <label style="cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: #cbd5e1; margin-top: 6px;">
+                        <input type="checkbox" id="estudio-varita-global" style="accent-color: var(--naranja); width: 18px; height: 18px;">
+                        <span>Borrado global (color idéntico en toda la imagen)</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- SUBPANEL D: SUAVIZADO -->
+            <div id="panel-tool-suavizado" class="subpanel-herramienta" style="display: none;">
+                <div class="subpanel-header">
+                    <span>Suavizado Alfa (Anti-Halos y Rebaba)</span>
+                    <button type="button" class="btn-cerrar-subpanel" onclick="window.conmutarHerramientaEstudio('suavizado')">✕</button>
+                </div>
+                <div class="subpanel-cuerpo">
+                    <div class="grilla-botones-niveles">
+                        <button type="button" class="btn-nivel-suavizado" onclick="ejecutarSuavizadoMorfologico(1)" title="Nivel 1: Sutil">1</button>
+                        <button type="button" class="btn-nivel-suavizado" onclick="ejecutarSuavizadoMorfologico(2)" title="Nivel 2: Antialiasing">2</button>
+                        <button type="button" class="btn-nivel-suavizado" onclick="ejecutarSuavizadoMorfologico(3)" title="Nivel 3: Equilibrado">3</button>
+                        <button type="button" class="btn-nivel-suavizado" onclick="ejecutarSuavizadoMorfologico(4)" title="Nivel 4: Rebaba">4</button>
+                        <button type="button" class="btn-nivel-suavizado" onclick="ejecutarSuavizadoMorfologico(5)" title="Nivel 5: Supresión">5</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUBPANEL E: NITIDEZ -->
+            <div id="panel-tool-nitidez" class="subpanel-herramienta" style="display: none;">
+                <div class="subpanel-header">
+                    <span>Nitidez Laplaciana (High-Pass)</span>
+                    <button type="button" class="btn-cerrar-subpanel" onclick="window.conmutarHerramientaEstudio('nitidez')">✕</button>
+                </div>
+                <div class="subpanel-cuerpo">
+                    <div class="item-slider-row">
+                        <span class="label-slider">Intensidad de Realce <b id="valor-nitidez-txt" style="color: var(--azul-link); font-family: monospace;">0%</b></span>
+                        <input type="range" id="estudio-slider-nitidez" class="estudio-slider" min="0" max="100" value="0" oninput="aplicarNitidezLaplacianaLive(this.value)">
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUBPANEL F: RECORTE -->
+            <div id="panel-tool-recorte" class="subpanel-herramienta" style="display: none;">
+                <div class="subpanel-header">
+                    <span>Encuadre y Recorte Manual</span>
+                    <button type="button" class="btn-cerrar-subpanel" onclick="window.conmutarHerramientaEstudio('recorte')">✕</button>
+                </div>
+                <div class="subpanel-cuerpo" style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                    <span style="font-size: 11px; color: #94a3b8;">Traza un recuadro con el dedo sobre la imagen de arriba.</span>
+                    <button type="button" class="btn-submit" id="btn-confirmar-crop-estudio" style="display: none; background: var(--verde-hoja); color: #052e16; font-weight: 800; padding: 8px 16px;" onclick="ejecutarRecorteManualEstudio()">
+                        Confirmar
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+
+
     </div>
 </div>
 
@@ -757,8 +755,20 @@
         actualizarHUD,
         actualizarConteoHistorial,
         inicializarMatrizGlobalUI
-    } from './onboarding-core.js?v=2.0.0';
-    import './despiece-estudio.js?v=2.0.0';
+    } from './onboarding-core.js?v=2.1.0';
+
+    // Carga resiliente del despiece: no tumba la aplicación si el archivo aún se está construyendo
+    import('./despiece-estudio.js?v=2.1.0').catch(function(err) {
+        console.warn("[Aviso] Módulo despiece-estudio.js en preparación o ausente:", err.message);
+    });
+
+    // Stubs de seguridad para que ningún botón huérfano rompa la consola si se presiona
+    window.cerrarEstudioCanvas = window.cerrarEstudioCanvas || function() {
+        const m = document.getElementById('modal-estudio-canvas-geokatu');
+        if (m) m.style.display = 'none';
+    };
+    window.acoplarImagenEditadaAProducto = window.acoplarImagenEditadaAProducto || function() {};
+    window.estudioNavegarImagen = window.estudioNavegarImagen || function() {};
 
     window.conmutarHerramientaEstudio = function(herramienta) {
         var herramientas = ['metadatos', 'ajustes', 'varita', 'suavizado', 'nitidez', 'recorte'];
@@ -791,14 +801,17 @@
     };
 
     var iniciarApp = function() {
-        actualizarDatalistCategoriasCatalogo();
-        inicializarEventosRueda();
-        renderizarTablero();
-        actualizarHUD();
-        actualizarConteoHistorial();
-        inicializarMatrizGlobalUI();
+        try {
+            actualizarDatalistCategoriasCatalogo();
+            inicializarEventosRueda();
+            renderizarTablero();
+            actualizarHUD();
+            actualizarConteoHistorial();
+            inicializarMatrizGlobalUI();
+        } catch (e) {
+            console.error("[Onboarding IniciarApp Error]:", e);
+        }
     };
-
 
     if (document.readyState === 'loading') {
         window.addEventListener('DOMContentLoaded', iniciarApp);

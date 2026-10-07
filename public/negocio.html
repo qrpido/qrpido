@@ -6,7 +6,8 @@
     <title>Cargando Comercio... | Geokatu</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#ff6b00">
-    <link rel="apple-touch-icon" href="https://via.placeholder.com/192/0a0a0c/ff6b00?text=GK">
+    <link rel="apple-touch-icon" href="data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20192%20192'%3E%3Crect%20width='192'%20height='192'%20rx='38'%20fill='%230a0a0c'/%3E%3Ctext%20x='96'%20y='118'%20fill='%23ff6b00'%20font-family='sans-serif'%20font-size='70'%20font-weight='900'%20text-anchor='middle'%3EGK%3C/text%3E%3C/svg%3E">
+
     
     <!-- Hojas de Estilos Base -->
     <link rel="stylesheet" href="negocio.css">
@@ -139,10 +140,44 @@
             <div id="carrusel-categorias" style="display: flex; gap: 8px;"></div>
         </div>
 
-        <!-- GRILLA DE PRODUCTOS (4 VARIANTES EDITORIALES - 10 FILAS MÁXIMO POR BLOQUE) -->
+        <!-- GRILLA DE PRODUCTOS (VIDRIO TRANSLÚCIDO CON HAZ VERTICAL DE ENTRADA) -->
         <main id="catalogo-contenedor">
-            <div class="grilla-productos-publica"></div>
+            <div class="grilla-productos-publica">
+                <div class="card-esqueleto-vidrio">
+                    <div class="esqueleto-bloque-img"></div>
+                    <div>
+                        <div class="esqueleto-linea" style="width: 80%;"></div>
+                        <div class="esqueleto-linea" style="width: 45%;"></div>
+                    </div>
+                    <div class="esqueleto-linea" style="width: 35%; height: 16px;"></div>
+                </div>
+                <div class="card-esqueleto-vidrio">
+                    <div class="esqueleto-bloque-img"></div>
+                    <div>
+                        <div class="esqueleto-linea" style="width: 70%;"></div>
+                        <div class="esqueleto-linea" style="width: 50%;"></div>
+                    </div>
+                    <div class="esqueleto-linea" style="width: 40%; height: 16px;"></div>
+                </div>
+                <div class="card-esqueleto-vidrio">
+                    <div class="esqueleto-bloque-img"></div>
+                    <div>
+                        <div class="esqueleto-linea" style="width: 85%;"></div>
+                        <div class="esqueleto-linea" style="width: 40%;"></div>
+                    </div>
+                    <div class="esqueleto-linea" style="width: 30%; height: 16px;"></div>
+                </div>
+                <div class="card-esqueleto-vidrio">
+                    <div class="esqueleto-bloque-img"></div>
+                    <div>
+                        <div class="esqueleto-linea" style="width: 75%;"></div>
+                        <div class="esqueleto-linea" style="width: 60%;"></div>
+                    </div>
+                    <div class="esqueleto-linea" style="width: 45%; height: 16px;"></div>
+                </div>
+            </div>
         </main>
+
         
         <!-- Paginador de 10 Filas Equivalentes -->
         <div id="paginacion-wrapper" style="margin: 15px 15px 25px 15px; display: none; text-align: center;">
@@ -416,19 +451,85 @@
                     </div>
                 </div>
 
+                <!-- Métrica y Contenido Neto (Alineado con Oficina) -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <div class="form-grupo-edicion">
+                        <label for="prod-edit-medida-valor">Contenido / Cantidad</label>
+                        <input type="number" step="any" id="prod-edit-medida-valor" class="input-edicion-perfil" placeholder="Ej: 500, 1.5, 12">
+                    </div>
+                    <div class="form-grupo-edicion">
+                        <label for="prod-edit-medida-unidad">Unidad de Medida</label>
+                        <select id="prod-edit-medida-unidad" class="input-edicion-perfil">
+                            <option value="und">und (Unidad)</option>
+                            <option value="g">g (Gramos)</option>
+                            <option value="kg">kg (Kilos)</option>
+                            <option value="lb">lb (Libras)</option>
+                            <option value="ml">ml (Mililitros)</option>
+                            <option value="L">L (Litros)</option>
+                            <option value="cm3">cm³ (C.C.)</option>
+                            <option value="paq">paq (Paquete)</option>
+                            <option value="cja">cja (Caja)</option>
+                            <option value="doc">doc (Docena)</option>
+                        </select>
+                        <input type="hidden" id="prod-edit-medida-magnitud" value="peso">
+                    </div>
+                </div>
+
+                <!-- Clasificación Retail WMS (Promociones & Ofertas) -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <div class="form-grupo-edicion">
+                        <label for="prod-edit-retail-codigo">Oferta / Estado Retail</label>
+                        <select id="prod-edit-retail-codigo" class="input-edicion-perfil" onchange="window.actualizarTipoRetailInSitu(this.value)">
+                            <option value="STD">STD (Venta Normal)</option>
+                            <option value="P-2X">⚡ Promo 2x1</option>
+                            <option value="P-DC">🏷️ Descuento %</option>
+                            <option value="P-L">🔥 Liquidación</option>
+                            <option value="P-XY">🎁 Combo / Pack</option>
+                            <option value="M-VP">⏳ Próx. a Vencer</option>
+                        </select>
+                        <input type="hidden" id="prod-edit-retail-tipo" value="estandar">
+                    </div>
+                    <div class="form-grupo-edicion">
+                        <label for="prod-edit-retail-detalle">Nota Oferta (Detalle)</label>
+                        <input type="text" id="prod-edit-retail-detalle" class="input-edicion-perfil" placeholder="Ej: 50%, Lleva 2">
+                    </div>
+                </div>
+
+                <!-- Panel Condicional Editorial: Posición de Foto -->
+                <div class="form-grupo-edicion" id="box-edit-posicion-imagen" style="display: none;">
+                    <label for="prod-edit-posicion-imagen">Alineación de Foto Editorial</label>
+                    <select id="prod-edit-posicion-imagen" class="input-edicion-perfil">
+                        <option value="izquierda">Foto Flotante a la Izquierda</option>
+                        <option value="derecha">Foto Flotante a la Derecha</option>
+                    </select>
+                </div>
+
                 <div class="form-grupo-edicion">
                     <label for="prod-edit-cuerpo">Descripción Editorial / Ingredientes</label>
                     <textarea id="prod-edit-cuerpo" class="input-edicion-perfil" rows="2" placeholder="Detalles de este artículo..."></textarea>
                 </div>
 
+                <!-- Fotografía Principal -->
                 <div class="form-grupo-edicion">
-                    <label>Fotografía del Artículo</label>
-                    <input type="file" id="prod-edit-file" accept="image/*" style="display:none;" onchange="window.previsualizarFotoProdInSitu(this)">
+                    <label>Fotografía Principal (Sensor Trasero)</label>
+                    <input type="file" id="prod-edit-file" accept="image/*" capture="environment" style="display:none;" onchange="window.previsualizarFotoProdInSitu(this)">
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <img id="prod-edit-preview-img" src="" style="width: 50px; height: 50px; border-radius: 8px; object-fit: cover; background: #000; border: 1px solid var(--glass-border);">
-                        <button type="button" class="btn-subir-archivo-modal" onclick="document.getElementById('prod-edit-file').click()">📷 Cargar Foto</button>
+                        <button type="button" class="btn-subir-archivo-modal" onclick="document.getElementById('prod-edit-file').click()">📷 Cargar Foto Principal</button>
                     </div>
                 </div>
+
+                <!-- Panel Condicional Galería Split (Miniaturas Secundarias) -->
+                <div class="form-grupo-edicion" id="box-edit-galeria-split" style="display: none; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 10px; border: 1px dashed var(--glass-border);">
+                    <label style="color: var(--color-marca);">Miniaturas Secundarias (Máximo 4)</label>
+                    <input type="file" id="prod-edit-galeria-files" accept="image/*" multiple style="display:none;" onchange="var c = document.getElementById('txt-edit-conteo-galeria'); if(c) c.innerText = this.files.length + ' fotos listas para subir';">
+                    <input type="hidden" id="prod-edit-galeria-actual" value="[]">
+                    <div style="display: flex; gap: 10px; align-items: center; margin-top: 4px;">
+                        <button type="button" class="btn-subir-archivo-modal" onclick="document.getElementById('prod-edit-galeria-files').click()">🖼️ Cargar Fotos Split</button>
+                        <span id="txt-edit-conteo-galeria" style="font-size: 10.5px; color: #8a909d; font-family: monospace;">Sin fotos adicionales</span>
+                    </div>
+                </div>
+
 
                 <div style="display: flex; gap: 8px; margin-top: 15px;">
                     <button type="button" id="btn-eliminar-prod-insitu" class="categoria-pill" style="color: #ff4444; border-color: #ff4444; display: none;" onclick="window.eliminarProductoInSitu()">🗑️ Eliminar</button>
@@ -452,13 +553,76 @@
             return d.innerHTML;
         };
 
-        window.formatearMoneda = function(valorInt64, moneda = 'COP') {
-            if (!valorInt64 || isNaN(valorInt64)) return moneda === 'USD' ? '0.00':'0';
-            const val = parseFloat(valorInt64);
+        // 1. Formateador Bimonetario (Pesos COP enteros / Dólar USD 2 decimales según país de Oficina)
+        window.formatearMoneda = function(valor) {
+            if (valor === undefined || valor === null || isNaN(valor)) return '$0';
+            var esVenezuela = (datosNegocio && datosNegocio.pais === 'VEN');
+            var val = parseFloat(valor);
+            if (esVenezuela) {
+                return '$' + val.toFixed(2);
+            }
             return '$' + Math.round(val).toLocaleString('es-CO');
         };
 
+        // 2. Extractor de Métrica Unificada (Soporta objeto metrica de Oficina y string plano tradicional)
+        window.obtenerTextoUnidadMetrica = function(p) {
+            if (p.metrica && p.metrica.valor && p.metrica.unidad) {
+                return ' / ' + p.metrica.valor + ' ' + window.sanitizarTexto(p.metrica.unidad);
+            }
+            if (p.unidad_medida) {
+                return ' / ' + window.sanitizarTexto(p.unidad_medida);
+            }
+            return '';
+        };
+
+        // 3. Generador de Badges de Clasificación Retail WMS (Promociones, Descuentos y Liquidación)
+        window.obtenerBadgeRetail = function(p) {
+            if (!p.clasificacion || !p.clasificacion.codigo || p.clasificacion.codigo === 'STD') return '';
+            var cod = p.clasificacion.codigo;
+            var det = p.clasificacion.detalle ? (' ' + window.sanitizarTexto(p.clasificacion.detalle)) : '';
+            var label = '';
+            var clase = 'badge-retail-promo';
+
+            if (cod === 'P-2X') {
+                label = '⚡ PROMO 2x1' + det;
+            } else if (cod === 'P-DC') {
+                label = '🏷️ DESC.' + det;
+            } else if (cod === 'P-L') {
+                label = '🔥 LIQUIDACIÓN' + det;
+                clase = 'badge-retail-liq';
+            } else if (cod === 'P-XY') {
+                label = '🎁 COMBO' + det;
+            } else if (cod === 'M-VP') {
+                label = '⏳ PRÓX. VENCER' + det;
+                clase = 'badge-retail-merma';
+            } else {
+                label = window.sanitizarTexto(cod) + det;
+            }
+            return '<span class="badge-retail ' + clase + '">' + label + '</span>';
+        };
+
+        // 4. Intercambio Táctil de Miniaturas en Galería Split (Swap de imagen a 0ms)
+        window.cambiarFotoPrincipalSplit = function(miniaturaEl, mainImgId) {
+            var target = document.getElementById(mainImgId);
+            if (!target || !miniaturaEl) return;
+            var nuevaSrc = miniaturaEl.getAttribute('src');
+            if (nuevaSrc) {
+                target.src = nuevaSrc;
+                if (navigator.vibrate) navigator.vibrate(20);
+            }
+        };
+
+        // Activo vectorial offline local (Cero peticiones de red externas)
+        const SVG_SIN_IMAGEN = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20240%20240'%3E%3Crect%20width='240'%20height='240'%20rx='16'%20fill='%23141418'/%3E%3Cg%20transform='rotate(-18%20120%20120)'%3E%3Crect%20x='-40'%20y='100'%20width='320'%20height='40'%20rx='8'%20fill='%230a0a0c'%20stroke='%23ff6b00'%20stroke-width='1.5'/%3E%3Ctext%20x='120'%20y='125'%20fill='%23ffffff'%20font-family='system-ui,%20-apple-system,%20sans-serif'%20font-size='12'%20font-weight='900'%20letter-spacing='1.5'%20text-anchor='middle'%3ESIN%20IMAGEN%3C/text%3E%3C/g%3E%3C/svg%3E";
+
+        window.manejarErrorImgCatalogo = function(img) {
+            img.onerror = null;
+            img.src = SVG_SIN_IMAGEN;
+        };
+
         let datosNegocio = {};
+
+
         let carrito = {};
         let productosMemoria = [];
         let categoriasGlobales = [];
@@ -484,102 +648,103 @@
             }
         });
 
-        // 2. CONSTRUCCIÓN Y RENDERIZADO DE LA TIENDA
-        async function construirTienda() {
-            try {
-                const carritoGuardado = localStorage.getItem(`geokatu_cart_${idNegocio}`);
-                if (carritoGuardado) {
-                    try { carrito = JSON.parse(carritoGuardado); } catch(e) {}
-                }
+        // 2. CONSTRUCCIÓN CONCURRENTE ULTRA-RÁPIDA + CACHÉ 0ms
+        function aplicarDatosNegocioEnDOM(data) {
+            datosNegocio = data;
 
-                const { success, data } = await GeokatuDB.RadarService.obtenerNegocio(idNegocio);
-                if (!success || !data) {
-                    document.getElementById('catalogo-contenedor').innerHTML = "<h3 style='color:#ff4444; text-align:center; padding: 40px;'>Esta tienda no existe o fue cerrada temporalmente.</h3>";
-                    return;
-                }
+            // Paleta Áurea Dinámica
+            var raw1 = datosNegocio.color_principal || 'rgba(255, 255, 255, 0.25)';
+            var raw2 = datosNegocio.color_acento || '';
+            var raw3 = datosNegocio.color_terciario || '';
+            var raw4 = datosNegocio.color_cuaternario || '';
 
-                datosNegocio = data;
+            if (datosNegocio.paleta_aurea && typeof datosNegocio.paleta_aurea === 'object') {
+                raw1 = datosNegocio.paleta_aurea.c1 || raw1;
+                raw2 = datosNegocio.paleta_aurea.c2 || raw2;
+                raw3 = datosNegocio.paleta_aurea.c3 || raw3;
+                raw4 = datosNegocio.paleta_aurea.c4 || raw4;
+            }
 
-                // Paleta Áurea Dinámica
-                var raw1 = datosNegocio.color_principal || '#ff6b00';
-                var raw2 = datosNegocio.color_acento || '';
-                var raw3 = datosNegocio.color_terciario || '';
-                var raw4 = datosNegocio.color_cuaternario || '';
+            var grisGeokatu = '#8a909d';
+            var blanco = '#ffffff';
 
-                if (datosNegocio.paleta_aurea && typeof datosNegocio.paleta_aurea === 'object') {
-                    raw1 = datosNegocio.paleta_aurea.c1 || raw1;
-                    raw2 = datosNegocio.paleta_aurea.c2 || raw2;
-                    raw3 = datosNegocio.paleta_aurea.c3 || raw3;
-                    raw4 = datosNegocio.paleta_aurea.c4 || raw4;
-                }
+            var c1 = raw1;
+            var c2 = raw2 ? raw2 : grisGeokatu;
+            var c3 = raw3 ? raw3 : (raw2 ? raw2 : raw1);
+            var c4 = raw4 ? raw4 : (raw3 ? grisGeokatu : (raw2 ? grisGeokatu : blanco));
 
-                var grisGeokatu = '#8a909d';
-                var blanco = '#ffffff';
+            document.documentElement.style.setProperty('--color-marca', c1);
+            document.documentElement.style.setProperty('--color-secundario', c2);
+            document.documentElement.style.setProperty('--color-terciario', c3);
+            document.documentElement.style.setProperty('--color-cuaternario', c4);
 
-                var c1 = raw1;
-                var c2 = raw2 ? raw2 : grisGeokatu;
-                var c3 = raw3 ? raw3 : (raw2 ? raw2 : raw1);
-                var c4 = raw4 ? raw4 : (raw3 ? grisGeokatu : (raw2 ? grisGeokatu : blanco));
-
-                document.documentElement.style.setProperty('--color-marca', c1);
-                document.documentElement.style.setProperty('--color-secundario', c2);
-                document.documentElement.style.setProperty('--color-terciario', c3);
-                document.documentElement.style.setProperty('--color-cuaternario', c4);
-
-                // Portada, Logo y Fondo desenfocado
-                var portadaUrl = datosNegocio.portada || './assets/portada-default.webp';
-                document.getElementById('portada-tienda').src = portadaUrl;
-                document.getElementById('avatar-tienda').src = datosNegocio.logo || './assets/logo-default.webp';
-
+            // Portada, Logo y Fondo
+            if (datosNegocio.portada) {
+                document.getElementById('portada-tienda').src = datosNegocio.portada;
                 var fondoEl = document.getElementById('fondo-pantalla');
-                if (datosNegocio.portada) {
-                    fondoEl.src = datosNegocio.portada;
-                    fondoEl.style.display = 'block';
+                fondoEl.src = datosNegocio.portada;
+                fondoEl.style.display = 'block';
+            }
+            if (datosNegocio.logo) {
+                document.getElementById('avatar-tienda').src = datosNegocio.logo;
+            }
+
+            // Nombre Tipográfico o Texto
+            var elNombrePng = document.getElementById('img-nombre-png');
+            var elNombreTxt = document.getElementById('texto-nombre');
+            if (datosNegocio.nombre_png) {
+                if (elNombrePng) { elNombrePng.src = datosNegocio.nombre_png; elNombrePng.style.display = 'block'; }
+                if (elNombreTxt) elNombreTxt.style.display = 'none';
+            } else {
+                if (elNombrePng) elNombrePng.style.display = 'none';
+                if (elNombreTxt) { elNombreTxt.innerText = datosNegocio.nombre || 'Comercio'; elNombreTxt.style.display = 'block'; }
+            }
+
+            document.title = (datosNegocio.nombre || 'Comercio') + ' | Geokatu';
+
+            // Slogan y Nicho
+            var elSlogan = document.getElementById('texto-slogan');
+            if (elSlogan) {
+                if (datosNegocio.slogan) {
+                    elSlogan.innerText = datosNegocio.slogan;
+                    elSlogan.style.display = 'block';
                 } else {
-                    fondoEl.style.display = 'none';
+                    elSlogan.style.display = 'none';
                 }
+            }
+            document.getElementById('texto-nicho').innerText = (datosNegocio.nicho || datosNegocio.categoria || 'Catálogo Oficial').toUpperCase();
 
-                // Logotipo Tipográfico o Texto
-                var elNombrePng = document.getElementById('img-nombre-png');
-                var elNombreTxt = document.getElementById('texto-nombre');
-                if (datosNegocio.nombre_png) {
-                    if (elNombrePng) { elNombrePng.src = datosNegocio.nombre_png; elNombrePng.style.display = 'block'; }
-                    if (elNombreTxt) elNombreTxt.style.display = 'none';
+            // Insignia Horario
+            var badgeHdr = document.getElementById('badge-horario-header');
+            if (badgeHdr) {
+                if (datosNegocio.es_24_horas) {
+                    badgeHdr.innerHTML = '<span class="badge-stock en-piso" style="font-weight:900;">⚡ SERVICIO 24 HORAS</span>';
+                } else if (datosNegocio.horario) {
+                    badgeHdr.innerHTML = '<span style="font-size:10px; color:#aaa; font-weight:bold;">🕒 ' + window.sanitizarTexto(datosNegocio.horario) + '</span>';
                 } else {
-                    if (elNombrePng) elNombrePng.style.display = 'none';
-                    if (elNombreTxt) { elNombreTxt.innerText = datosNegocio.nombre || 'Comercio'; elNombreTxt.style.display = 'block'; }
+                    badgeHdr.innerHTML = '';
                 }
+            }
 
-                document.title = (datosNegocio.nombre || 'Comercio') + ' | Geokatu';
+            // Canales Telefónicos Desacoplados
+            var numTel = (datosNegocio.whatsapp || datosNegocio.whatsApp || '').toString().replace(/\D/g, '');
+            var tieneWa = Boolean(numTel && numTel.length >= 7);
+            var pbxNum = (datosNegocio.pbx || '').toString().trim();
+            var tienePbx = Boolean(pbxNum && pbxNum.length >= 5);
 
-                // Slogan y Nicho
-                var elSlogan = document.getElementById('texto-slogan');
-                if (elSlogan) {
-                    if (datosNegocio.slogan) {
-                        elSlogan.innerText = datosNegocio.slogan;
-                        elSlogan.style.display = 'block';
-                    } else {
-                        elSlogan.style.display = 'none';
-                    }
+            var btnWa = document.getElementById('btn-whatsapp-header');
+            var elPbx = document.getElementById('btn-pbx-header');
+            var txtPbx = document.getElementById('txt-pbx-header');
+
+            if (tienePbx && !tieneWa) {
+                if (btnWa) btnWa.style.display = 'none';
+                if (elPbx) {
+                    elPbx.href = 'tel:' + pbxNum.replace(/\D/g, '');
+                    if (txtPbx) txtPbx.innerText = 'PBX: ' + pbxNum;
+                    elPbx.classList.add('btn-pbx-destacado');
+                    elPbx.style.display = 'inline-flex';
                 }
-                document.getElementById('texto-nicho').innerText = (datosNegocio.nicho || datosNegocio.categoria || 'Catálogo Oficial').toUpperCase();
-
-                // Insignia Horario en Header
-                var badgeHdr = document.getElementById('badge-horario-header');
-                if (badgeHdr) {
-                    if (datosNegocio.es_24_horas) {
-                        badgeHdr.innerHTML = '<span class="badge-stock en-piso" style="font-weight:900;">⚡ SERVICIO 24 HORAS</span>';
-                    } else if (datosNegocio.horario) {
-                        badgeHdr.innerHTML = `<span style="font-size:10px; color:#aaa; font-weight:bold;">🕒 ${datosNegocio.horario}</span>`;
-                    } else {
-                        badgeHdr.innerHTML = '';
-                    }
-                }
-
-                // Canales Telefónicos
-                var numTel = (datosNegocio.whatsapp || datosNegocio.whatsApp || '').toString().replace(/\D/g, '');
-                var tieneWa = Boolean(numTel && numTel.length >= 7);
-                var btnWa = document.getElementById('btn-whatsapp-header');
+            } else {
                 if (btnWa) {
                     if (tieneWa) {
                         btnWa.href = 'https://wa.me/' + numTel + '?text=' + encodeURIComponent('Hola! Vengo de ver tu catálogo en Geokatu.');
@@ -588,40 +753,90 @@
                         btnWa.style.display = 'none';
                     }
                 }
-
-                var pbxNum = (datosNegocio.pbx || '').toString().trim();
-                var tienePbx = Boolean(pbxNum && pbxNum.length >= 5);
-                var elPbx = document.getElementById('btn-pbx-header');
-                var txtPbx = document.getElementById('txt-pbx-header');
                 if (elPbx) {
                     if (tienePbx) {
                         elPbx.href = 'tel:' + pbxNum.replace(/\D/g, '');
                         if (txtPbx) txtPbx.innerText = 'PBX: ' + pbxNum;
+                        elPbx.classList.remove('btn-pbx-destacado');
                         elPbx.style.display = 'inline-flex';
-                        if (!tieneWa) elPbx.classList.add('btn-pbx-destacado');
                     } else {
                         elPbx.style.display = 'none';
                     }
                 }
+            }
 
-                var textoHistoria = datosNegocio.historia || datosNegocio.cuerpo_articulo;
-                if (textoHistoria) {
-                    var btnH = document.getElementById('btn-historia');
-                    if (btnH) btnH.style.display = 'inline-block';
-                    var modalCont = document.getElementById('contenido-modal-extra');
-                    if (modalCont) modalCont.innerHTML = window.sanitizarTexto(textoHistoria);
+            var textoHistoria = datosNegocio.historia || datosNegocio.cuerpo_articulo;
+            if (textoHistoria) {
+                var btnH = document.getElementById('btn-historia');
+                if (btnH) btnH.style.display = 'inline-block';
+                var modalCont = document.getElementById('contenido-modal-extra');
+                if (modalCont) modalCont.innerHTML = window.sanitizarTexto(textoHistoria);
+            }
+
+            renderizarFooterCorporativo();
+        }
+
+        async function construirTienda() {
+            try {
+                var carritoGuardado = localStorage.getItem('geokatu_cart_' + idNegocio);
+                if (carritoGuardado) {
+                    try { carrito = JSON.parse(carritoGuardado); } catch(e) {}
                 }
 
-                // Hidratación del Footer Corporativo Integral
-                renderizarFooterCorporativo();
+                // 1. Capa de Respuesta Inmediata (0ms si existe caché local previa)
+                var cacheNegocio = localStorage.getItem('geokatu_cache_neg_' + idNegocio);
+                var cacheProds = localStorage.getItem('geokatu_cache_prods_' + idNegocio);
 
-                // Consulta de Productos
-                await cargarCatalogoProductos();
+                if (cacheNegocio) {
+                    try { aplicarDatosNegocioEnDOM(JSON.parse(cacheNegocio)); } catch(e) {}
+                }
+                if (cacheProds) {
+                    try {
+                        productosMemoria = JSON.parse(cacheProds);
+                        categoriasGlobales = Array.from(new Set(productosMemoria.map(function(p) { return p.categoria || "Destacados"; })));
+                        construirCarruselCategorias();
+                        renderizarCatalogo(filtroActual);
+                        calcularTotales();
+                    } catch(e) {}
+                }
+
+                // 2. Disparo Concurrente a Red (Paralelo: ambas consultas viajan al mismo tiempo)
+                var promesas = [
+                    GeokatuDB.RadarService.obtenerNegocio(idNegocio),
+                    GeokatuDB.RadarService.obtenerProductosPublicos(idNegocio, { limite: 150 })
+                ];
+
+                var resultados = await Promise.all(promesas);
+                var resNegocio = resultados[0];
+                var resProds = resultados[1];
+
+                if (!resNegocio.success || !resNegocio.data) {
+                    document.getElementById('catalogo-contenedor').innerHTML = "<h3 style='color:#ff4444; text-align:center; padding: 40px;'>Esta tienda no existe o fue cerrada temporalmente.</h3>";
+                    return;
+                }
+
+                // Guardar en caché y sincronizar DOM con los datos más frescos
+                localStorage.setItem('geokatu_cache_neg_' + idNegocio, JSON.stringify(resNegocio.data));
+                aplicarDatosNegocioEnDOM(resNegocio.data);
+
+                if (resProds.success && resProds.data) {
+                    productosMemoria = resProds.data.filter(function(p) { return p.eliminado !== true; });
+                    productosMemoria.sort(function(a, b) { return (a.orden !== undefined ? a.orden : 0) - (b.orden !== undefined ? b.orden : 0); });
+
+                    localStorage.setItem('geokatu_cache_prods_' + idNegocio, JSON.stringify(productosMemoria));
+
+                    categoriasGlobales = Array.from(new Set(productosMemoria.map(function(p) { return p.categoria || "Destacados"; })));
+                    construirCarruselCategorias();
+                    limiteFilasActual = 10;
+                    renderizarCatalogo(filtroActual);
+                    calcularTotales();
+                }
 
             } catch (err) {
                 console.error("Fallo inicializando comercio:", err);
             }
         }
+
 
         // =========================================================================
         // RENDERIZADO DEL FOOTER INTEGRAL (WEB, REDES, CORREO, HORARIO, TAGS)
@@ -693,9 +908,12 @@
             var tagsArray = Array.isArray(rawTags) ? rawTags : String(rawTags).split(/[,|;]/).map(t => t.trim()).filter(Boolean);
 
             if (tagsArray.length > 0) {
-                grillaTags.innerHTML = tagsArray.map(t => `<span class="tag-pill-footer">#${t.replace(/^#/, '')}</span>`).join('');
+                grillaTags.innerHTML = tagsArray.map(function(t) {
+                    return '<span class="tag-pill-footer">#' + window.sanitizarTexto(t.replace(/^#/, '')) + '</span>';
+                }).join('');
                 tagsCont.style.display = 'block';
             } else {
+
                 tagsCont.style.display = 'none';
             }
         }
@@ -719,11 +937,12 @@
             if (categoriasGlobales.length === 0) return;
             document.getElementById('categorias-wrapper').style.display = 'block';
 
-            let html = `<div class="categoria-pill activa" onclick="window.filtrarCategoria('Todas', this)">TODAS</div>`;
-            categoriasGlobales.forEach(c => {
-                html += `<div class="categoria-pill" onclick="window.filtrarCategoria('${c.replace(/'/g, "\\'")}', this)">${c.toUpperCase()}</div>`;
+            var html = '<div class="categoria-pill activa" onclick="window.filtrarCategoria(\'Todas\', this)">TODAS</div>';
+            categoriasGlobales.forEach(function(c) {
+                html += '<div class="categoria-pill" onclick="window.filtrarCategoria(\'' + c.replace(/'/g, "\\'") + '\', this)">' + window.sanitizarTexto(c.toUpperCase()) + '</div>';
             });
             cont.innerHTML = html;
+
         }
 
         window.filtrarCategoria = function(cat, el) {
@@ -757,7 +976,7 @@
         }, { passive: true });
 
 
-        // =========================================================================
+// =========================================================================
         // 3. RENDERIZADO CON CONTROL DE FILAS (MÁXIMO 10 FILAS POR PÁGINA)
         // =========================================================================
         function renderizarCatalogo(filtro) {
@@ -765,22 +984,22 @@
             const paginadorWrapper = document.getElementById('paginacion-wrapper');
             contenedor.innerHTML = '';
 
-            let productosFiltrados = productosMemoria.filter(p => {
+            var productosFiltrados = productosMemoria.filter(function(p) {
                 if (filtro !== 'Todas' && (p.categoria || 'Destacados') !== filtro) return false;
                 if (busquedaActualLocal !== "") {
-                    const str = `${p.nombre || ''} ${p.categoria || ''} ${p.cuerpo_texto || ''}`.toLowerCase();
+                    var str = ((p.nombre || '') + ' ' + (p.categoria || '') + ' ' + (p.cuerpo_texto || '')).toLowerCase();
                     if (!str.includes(busquedaActualLocal)) return false;
                 }
                 return true;
             });
 
             if (productosFiltrados.length === 0) {
-                contenedor.innerHTML = `<div style="grid-column: span 2; text-align: center; color: #888; padding: 40px 0;">No encontramos artículos con esa búsqueda. 🔍</div>`;
+                contenedor.innerHTML = '<div style="grid-column: span 2; text-align: center; color: #888; padding: 40px 0;">No encontramos artículos con esa búsqueda. 🔍</div>';
                 if (paginadorWrapper) paginadorWrapper.style.display = 'none';
                 return;
             }
 
-            // Cálculo matemático de filas horizontales equivalentes
+            // Cálculo matemático de filas horizontales equivalentes (Grid = 0.5 filas, Hero/Split/Articulo = 1.0 fila)
             let filasAcumuladas = 0;
             let productosVisibles = [];
             let hayMasArticulos = false;
@@ -788,7 +1007,6 @@
             for (let i = 0; i < productosFiltrados.length; i++) {
                 const p = productosFiltrados[i];
                 const lClass = p.layout || 'layout-grid';
-                // Grid 1x1 equivale a 0.5 filas (caben 2 por fila). Hero, Split y Editorial equivalen a 1 fila completa.
                 const pesoFila = (lClass === 'layout-grid') ? 0.5 : 1.0;
 
                 if (filasAcumuladas + pesoFila <= limiteFilasActual) {
@@ -804,104 +1022,130 @@
                 paginadorWrapper.style.display = hayMasArticulos ? 'block' : 'none';
             }
 
-            productosVisibles.forEach(p => {
-                const card = document.createElement('div');
-                const lClass = p.layout || 'layout-grid';
+            productosVisibles.forEach(function(p) {
+                var card = document.createElement('div');
+                var lClass = p.layout || 'layout-grid';
                 
-                const stockNum = Number(p.stock_actual) || 0;
-                const estaAgotado = (p.agotado === true) || (stockNum <= 0);
-                const estaEnPiso = Boolean(p.en_piso_venta);
+                var stockNum = Number(p.stock_actual) || 0;
+                var estaAgotado = (p.agotado === true) || (stockNum <= 0);
+                var estaEnPiso = Boolean(p.en_piso_venta);
 
-                let badgeStockHTML = '';
+                // Badges de Stock WMS
+                var badgeStockHTML = '';
                 if (estaAgotado) {
-                    badgeStockHTML = `<span class="badge-stock sin-stock">Agotado</span>`;
+                    badgeStockHTML = '<span class="badge-stock sin-stock">Agotado</span>';
                 } else if (estaEnPiso) {
-                    badgeStockHTML = `<span class="badge-stock en-piso">● ${stockNum} en mostrador</span>`;
+                    badgeStockHTML = '<span class="badge-stock en-piso">● ' + stockNum + ' en mostrador</span>';
                 } else {
-                    badgeStockHTML = `<span class="badge-stock en-bodega">📦 ${stockNum} en bodega</span>`;
+                    badgeStockHTML = '<span class="badge-stock en-bodega">📦 ' + stockNum + ' en bodega</span>';
                 }
 
-                card.className = `producto-card ${lClass} ${estaAgotado ? 'agotado' : ''}`;
+                // Badge de Clasificación Retail WMS (Promo, Descuento, Liquidación)
+                var badgeRetailHTML = window.obtenerBadgeRetail(p);
+
+                card.className = 'producto-card ' + lClass + (estaAgotado ? ' agotado' : '');
                 
-                const imgPrincipal = (p.imagen && p.imagen.length > 10) 
-                    ? p.imagen 
-                    : 'https://via.placeholder.com/150/0a0a0c/ff6b00?text=PRODUCTO';
+                var imgPrincipal = (p.imagen && p.imagen.length > 10) ? p.imagen : SVG_SIN_IMAGEN;
+                var nombreSanitizado = window.sanitizarTexto(p.nombre || 'Producto');
+                var descSanitizada = window.sanitizarTexto(p.cuerpo_texto || '');
+                var unidadTexto = window.obtenerTextoUnidadMetrica(p);
+                var precioCompleto = window.formatearMoneda(p.precio) + (unidadTexto ? '<span class="prod-unidad">' + unidadTexto + '</span>' : '');
 
-                const unidadTexto = p.unidad_medida ? `<span style="font-size:10px; color:#aaa; font-weight:normal;"> / ${window.sanitizarTexto(p.unidad_medida)}</span>` : '';
-                const precioCompleto = `window.formatearMoneda(p.precio){unidadTexto}`;
-
-                let cuerpoHTML = '';
+                var cuerpoHTML = '';
 
                 if (lClass === 'layout-hero') {
-                    cuerpoHTML = `
-                        <div class="card-hero-header">
-                            <h3 class="prod-nombre">${window.sanitizarTexto(p.nombre)}</h3>
-                            ${badgeStockHTML}
-                        </div>
-                        <div class="card-hero-img-box"><img src="imgPrincipal"alt="{window.sanitizarTexto(p.nombre)}"></div>
-                        <div class="card-hero-footer">
-                            <p class="prod-desc">${window.sanitizarTexto(p.cuerpo_texto || '')}</p>
-                            <b class="prod-precio">${precioCompleto}</b>
-                        </div>
-                    `;
+                    cuerpoHTML = 
+                        '<div class="card-hero-header">' +
+                            '<h3 class="prod-nombre">' + nombreSanitizado + '</h3>' +
+                            badgeRetailHTML +
+                            badgeStockHTML +
+                        '</div>' +
+                        '<div class="card-hero-img-box">' +
+                            '<img src="' + imgPrincipal + '" alt="' + nombreSanitizado + '" onerror="window.manejarErrorImgCatalogo(this)">' +
+                        '</div>' +
+                        '<div class="card-hero-footer">' +
+                            '<p class="prod-desc">' + (descSanitizada || 'Artículo destacado del comercio.') + '</p>' +
+                            '<b class="prod-precio">' + precioCompleto + '</b>' +
+                        '</div>';
+
                 } else if (lClass === 'layout-galeria-split') {
-                    const gal = p.galeria && p.galeria.length > 0 ? p.galeria : [imgPrincipal, imgPrincipal, imgPrincipal, imgPrincipal];
-                    const miniaturas = gal.slice(0, 4).map(m => `<img src="${m && m.length > 10 ? m : imgPrincipal}">`).join('');
-                    cuerpoHTML = `
-                        <div class="split-top-row">
-                            <div class="split-main-photo"><img src="imgPrincipal"alt="{window.sanitizarTexto(p.nombre)}"></div>
-                            <div class="split-thumbnails-grid">${miniaturas}</div>
-                        </div>
-                        <div class="split-bottom-row">
-                            <div>
-                                <h4 class="prod-nombre">${window.sanitizarTexto(p.nombre)}</h4>
-                                ${badgeStockHTML}
-                            </div>
-                            <b class="prod-precio">${precioCompleto}</b>
-                        </div>
-                    `;
+                    var mainImgSplitId = 'img-split-main-' + p.id_prod;
+                    var gal = (p.galeria && Array.isArray(p.galeria) && p.galeria.length > 0) 
+                        ? p.galeria 
+                        : [imgPrincipal, imgPrincipal, imgPrincipal, imgPrincipal];
+                    
+                    var miniaturas = gal.slice(0, 4).map(function(m) {
+                        var srcM = (m && m.length > 10) ? m : imgPrincipal;
+                        return '<img src="' + srcM + '" alt="' + nombreSanitizado + '" onerror="window.manejarErrorImgCatalogo(this)" onclick="window.cambiarFotoPrincipalSplit(this, \'' + mainImgSplitId + '\')">';
+                    }).join('');
+
+                    cuerpoHTML = 
+                        '<div class="split-top-row">' +
+                            '<div class="split-main-photo">' +
+                                '<img id="' + mainImgSplitId + '" src="' + imgPrincipal + '" alt="' + nombreSanitizado + '" onerror="window.manejarErrorImgCatalogo(this)">' +
+                            '</div>' +
+                            '<div class="split-thumbnails-grid">' + miniaturas + '</div>' +
+                        '</div>' +
+                        '<div class="split-bottom-row">' +
+                            '<div>' +
+                                '<h4 class="prod-nombre">' + nombreSanitizado + '</h4>' +
+                                badgeRetailHTML +
+                                badgeStockHTML +
+                            '</div>' +
+                            '<b class="prod-precio">' + precioCompleto + '</b>' +
+                        '</div>';
+
                 } else if (lClass === 'layout-articulo') {
-                    const floatDir = p.posicion_imagen === 'derecha' ? 'float-derecha' : 'float-izquierda';
-                    cuerpoHTML = `
-                        <div class="articulo-wrapper">
-                            <h3 class="articulo-titulo">${window.sanitizarTexto(p.nombre)}</h3>
-                            ${badgeStockHTML}
-                            <div class="articulo-cuerpo">
-                                <div class="articulo-img-box floatDir"><imgsrc="{imgPrincipal}" alt="${window.sanitizarTexto(p.nombre)}"></div>
-                                <p class="articulo-texto">${window.sanitizarTexto(p.cuerpo_texto || '')}</p>
-                            </div>
-                            <div class="articulo-footer">
-                                <b class="prod-precio">${precioCompleto}</b>
-                            </div>
-                        </div>
-                    `;
+                    var floatDir = p.posicion_imagen === 'derecha' ? 'float-derecha' : 'float-izquierda';
+                    cuerpoHTML = 
+                        '<div class="articulo-wrapper">' +
+                            '<h3 class="articulo-titulo">' + nombreSanitizado + '</h3>' +
+                            badgeRetailHTML +
+                            badgeStockHTML +
+                            '<div class="articulo-cuerpo">' +
+                                '<div class="articulo-img-box ' + floatDir + '">' +
+                                    '<img src="' + imgPrincipal + '" alt="' + nombreSanitizado + '" onerror="window.manejarErrorImgCatalogo(this)">' +
+                                '</div>' +
+                                '<p class="articulo-texto">' + (descSanitizada || 'Sin descripción editorial añadida.') + '</p>' +
+                            '</div>' +
+                            '<div class="articulo-footer">' +
+                                '<b class="prod-precio">' + precioCompleto + '</b>' +
+                            '</div>' +
+                        '</div>';
+
                 } else {
-                    cuerpoHTML = `
-                        <div class="img-box-tradicional"><img src="imgPrincipal"alt="{window.sanitizarTexto(p.nombre)}"></div>
-                        <h4 class="prod-nombre">${window.sanitizarTexto(p.nombre)}</h4>
-                        ${badgeStockHTML}
-                        <b class="prod-precio">${precioCompleto}</b>
-                    `;
+                    // Layout Grid 1x1 tradicional
+                    cuerpoHTML = 
+                        '<div class="img-box-tradicional">' +
+                            '<img src="' + imgPrincipal + '" alt="' + nombreSanitizado + '" onerror="window.manejarErrorImgCatalogo(this)">' +
+                        '</div>' +
+                        '<h4 class="prod-nombre">' + nombreSanitizado + '</h4>' +
+                        badgeRetailHTML +
+                        badgeStockHTML +
+                        '<b class="prod-precio">' + precioCompleto + '</b>';
                 }
 
-                const cantActual = carrito[p.id_prod] ? carrito[p.id_prod].cant : 0;
-                card.innerHTML = `
-                    ${cuerpoHTML}
-                    <div class="controles-compra" style="justify-content: space-between; margin-top: 8px;">
-                        <button class="btn-agregar-carrito" estaAgotado?'disabled':''onclick="window.actualizarCarrito('{p.id_prod}', 1)">
-                            ${estaAgotado ? 'Agotado' : '+ Agregar'}
-                        </button>
-                        <span id="cant-p.idprod"style="font-weight:900;font-size:12px;color:#fff;">{cantActual > 0 ? cantActual : ''}</span>
-                    </div>
-                `;
+                var cantActual = (carrito[p.id_prod] && carrito[p.id_prod].cant) ? carrito[p.id_prod].cant : 0;
+                var btnDisabledAttr = estaAgotado ? 'disabled ' : '';
+                var textoBoton = estaAgotado ? 'Agotado' : '+ Agregar';
+                var cantTexto = (cantActual > 0) ? cantActual : '';
 
-                // Botón Lápiz de Edición In Situ para el Dueño
+                card.innerHTML = 
+                    cuerpoHTML +
+                    '<div class="controles-compra" style="justify-content: space-between; margin-top: 8px;">' +
+                        '<button class="btn-agregar-carrito" ' + btnDisabledAttr + 'onclick="window.actualizarCarrito(\'' + p.id_prod + '\', 1)">' +
+                            textoBoton +
+                        '</button>' +
+                        '<span id="cant-' + p.id_prod + '" style="font-weight:900;font-size:12px;color:#fff;">' + cantTexto + '</span>' +
+                    '</div>';
+
+                // Lápiz de edición in situ si el usuario es dueño
                 if (window.usuarioEsDueno) {
-                    const btnLapiz = document.createElement('div');
+                    var btnLapiz = document.createElement('div');
                     btnLapiz.className = 'lapiz-editar-prod';
                     btnLapiz.innerHTML = '✏️';
                     btnLapiz.title = "Editar este producto in situ";
-                    btnLapiz.onclick = (e) => {
+                    btnLapiz.onclick = function(e) {
                         e.stopPropagation();
                         window.abrirModalProductoEditar(p);
                     };
@@ -912,7 +1156,7 @@
             });
         }
 
-        // =========================================================================
+             // =========================================================================
         // 4. CONTROL DEL CARRITO
         // =========================================================================
         window.actualizarCarrito = function(id, cambio) {
@@ -932,7 +1176,7 @@
 
             if (cambio > 0 && (carrito[id].cant + cambio) > stockDisponible) {
                 if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
-                alert(`Solo hay ${stockDisponible} unidades disponibles.`);
+                alert('Solo hay ' + stockDisponible + ' unidades disponibles.');
                 return;
             }
 
@@ -940,12 +1184,13 @@
             carrito[id].cant += cambio;
             if (carrito[id].cant <= 0) delete carrito[id];
 
-            localStorage.setItem(`geokatu_cart_${idNegocio}`, JSON.stringify(carrito));
-            const span = document.getElementById(`cant-${id}`);
+            localStorage.setItem('geokatu_cart_' + idNegocio, JSON.stringify(carrito));
+            var span = document.getElementById('cant-' + id);
             if (span) span.innerText = (carrito[id] && carrito[id].cant > 0) ? carrito[id].cant : '';
 
             calcularTotales();
         };
+
 
         function calcularTotales() {
             let totalItems = 0;
@@ -978,12 +1223,11 @@
                 const subtotal = carrito[id].cant * prod.precio;
                 total += subtotal;
 
-                lista.innerHTML += `
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px;">
-                        <span><b>${carrito[id].cant}x</b> ${window.sanitizarTexto(prod.nombre)}</span>
-                        <span style="color: var(--color-marca); font-weight: bold;">${window.formatearMoneda(subtotal)}</span>
-                    </div>
-                `;
+                lista.innerHTML += 
+                    '<div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px;">' +
+                        '<span><b>' + carrito[id].cant + 'x</b> ' + window.sanitizarTexto(prod.nombre) + '</span>' +
+                        '<span style="color: var(--color-marca); font-weight: bold;">' + window.formatearMoneda(subtotal) + '</span>' +
+                    '</div>';
             }
 
             document.getElementById('total-final-checkout').innerText = window.formatearMoneda(total);
@@ -992,11 +1236,12 @@
 
         window.limpiarCarrito = function() {
             carrito = {};
-            localStorage.removeItem(`geokatu_cart_${idNegocio}`);
+            localStorage.removeItem('geokatu_cart_' + idNegocio);
             renderizarCatalogo(filtroActual);
             calcularTotales();
             window.cerrarModalManual('overlay-checkout');
         };
+
 
         // 5. ENVÍO DE PEDIDO POR WHATSAPP
         window.enviarPedido = function() {
@@ -1178,8 +1423,9 @@
                 const blobComprimido = await GeokatuDB.AdminService.comprimirAWebP(file, 1200, 0.82, false);
                 btnSubir.innerText = 'Subiendo a la nube... ☁️';
                 
-                const rutaDestino = `negocios/${idNegocio}/portada_${Date.now()}.webp`;
+                const rutaDestino = 'negocios/' + idNegocio + '/portada_' + Date.now() + '.webp';
                 const resUp = await GeokatuDB.AdminService.subirArchivo(rutaDestino, blobComprimido, 'image/webp');
+
                 const urlDescarga = (typeof resUp === 'string') ? resUp : (resUp && resUp.data ? resUp.data : '');
 
                 document.getElementById('input-edit-portada-url').value = urlDescarga;
@@ -1266,7 +1512,7 @@
             try {
                 const esLogo = tipo === 'logo';
                 const blob = await GeokatuDB.AdminService.comprimirAWebP(file, esLogo ? 400 : 1200, 0.8, esLogo);
-                const ruta = `negocios/idNegocio/{tipo}_${Date.now()}.webp`;
+              const ruta = 'negocios/' + idNegocio + '/' + tipo + '_' + Date.now() + '.webp';
                 const res = await GeokatuDB.AdminService.subirArchivo(ruta, blob, 'image/webp');
                 const url = (typeof res === 'string') ? res : (res && res.data ? res.data : '');
 
@@ -1284,20 +1530,40 @@
                     fondoEl.style.display = 'block';
                 }
             } catch (e) {
-                console.error(`Error actualizando ${tipo}:`, e);
-                alert(`No se pudo actualizar la imagen de ${tipo}.`);
+                console.error('Error actualizando ' + tipo + ':', e);
+                alert('No se pudo actualizar la imagen de ' + tipo + '.');
             }
+
         };
 
         // =========================================================================
         // 10. GESTIÓN DE PRODUCTOS IN SITU (CREACIÓN, EDICIÓN, FORMATO Y FOTO)
         // =========================================================================
-        window.seleccionarLayoutInSitu = function(layout) {
+       window.seleccionarLayoutInSitu = function(layout) {
             document.getElementById('prod-edit-layout').value = layout;
-            document.querySelectorAll('.modal-edicion-card .btn-layout-chip').forEach(btn => {
+            document.querySelectorAll('.modal-edicion-card .btn-layout-chip').forEach(function(btn) {
                 btn.classList.toggle('activo', btn.getAttribute('data-layout') === layout);
             });
+            var boxEditorial = document.getElementById('box-edit-posicion-imagen');
+            var boxSplit = document.getElementById('box-edit-galeria-split');
+            if (boxEditorial) boxEditorial.style.display = (layout === 'layout-articulo') ? 'block' : 'none';
+            if (boxSplit) boxSplit.style.display = (layout === 'layout-galeria-split') ? 'block' : 'none';
         };
+
+        window.actualizarTipoRetailInSitu = function(codigo) {
+            var inTipo = document.getElementById('prod-edit-retail-tipo');
+            if (!inTipo) return;
+            if (codigo === 'P-2X' || codigo === 'P-DC' || codigo === 'P-XY') {
+                inTipo.value = 'promociones';
+            } else if (codigo === 'P-L') {
+                inTipo.value = 'promociones';
+            } else if (codigo === 'M-VP') {
+                inTipo.value = 'merma';
+            } else {
+                inTipo.value = 'estandar';
+            }
+        };
+
 
         window.previsualizarFotoProdInSitu = function(input) {
             if (input.files && input.files[0]) {
@@ -1319,7 +1585,22 @@
             document.getElementById('prod-edit-categoria').value = (filtroActual !== 'Todas' ? filtroActual : (datosNegocio.nicho || "General"));
             document.getElementById('prod-edit-cuerpo').value = "";
             document.getElementById('prod-edit-imagen-actual').value = "";
-            document.getElementById('prod-edit-preview-img').src = "https://via.placeholder.com/150/0a0a0c/ff6b00?text=FOTO";
+            document.getElementById('prod-edit-preview-img').src = SVG_SIN_IMAGEN;
+
+            // Limpieza de métrica y retail
+            document.getElementById('prod-edit-medida-valor').value = "";
+            document.getElementById('prod-edit-medida-unidad').value = "und";
+            document.getElementById('prod-edit-medida-magnitud').value = "unidades";
+            document.getElementById('prod-edit-retail-codigo').value = "STD";
+            document.getElementById('prod-edit-retail-tipo').value = "estandar";
+            document.getElementById('prod-edit-retail-detalle').value = "";
+            document.getElementById('prod-edit-posicion-imagen').value = "izquierda";
+
+            // Limpieza galería Split
+            document.getElementById('prod-edit-galeria-actual').value = "[]";
+            var txtGal = document.getElementById('txt-edit-conteo-galeria');
+            if (txtGal) txtGal.innerText = "Sin fotos adicionales";
+
             document.getElementById('btn-eliminar-prod-insitu').style.display = "none";
             document.getElementById('btn-toggle-agotado-insitu').style.display = "none";
 
@@ -1332,15 +1613,36 @@
             document.getElementById('titulo-modal-producto').innerText = "✏️ Editar Artículo";
             document.getElementById('prod-edit-id').value = p.id_prod;
             document.getElementById('prod-edit-nombre').value = p.nombre || "";
-            document.getElementById('prod-edit-precio').value = p.precio || "";
+            document.getElementById('prod-edit-precio').value = p.precio !== undefined ? p.precio : "";
             document.getElementById('prod-edit-stock').value = p.stock_actual !== undefined ? p.stock_actual : 0;
             document.getElementById('prod-edit-categoria').value = p.categoria || "General";
             document.getElementById('prod-edit-cuerpo').value = p.cuerpo_texto || "";
             document.getElementById('prod-edit-imagen-actual').value = p.imagen || "";
-            document.getElementById('prod-edit-preview-img').src = p.imagen || "https://via.placeholder.com/150/0a0a0c/ff6b00?text=FOTO";
+            document.getElementById('prod-edit-preview-img').src = (p.imagen && p.imagen.length > 10) ? p.imagen : SVG_SIN_IMAGEN;
 
-            const btnEliminar = document.getElementById('btn-eliminar-prod-insitu');
-            const btnAgotar = document.getElementById('btn-toggle-agotado-insitu');
+            // Hidratar Métrica
+            var met = p.metrica || {};
+            document.getElementById('prod-edit-medida-valor').value = met.valor !== undefined ? met.valor : (p.unidad_medida ? p.unidad_medida.replace(/\D/g, '') : "");
+            document.getElementById('prod-edit-medida-unidad').value = met.unidad || (p.unidad_medida ? p.unidad_medida.replace(/[^a-zA-Z]/g, '') : "und");
+            document.getElementById('prod-edit-medida-magnitud').value = met.magnitud || "peso";
+
+            // Hidratar Clasificación Retail WMS
+            var clas = p.clasificacion || {};
+            document.getElementById('prod-edit-retail-codigo').value = clas.codigo || "STD";
+            document.getElementById('prod-edit-retail-tipo').value = clas.tipo || "estandar";
+            document.getElementById('prod-edit-retail-detalle').value = clas.detalle || "";
+
+            // Hidratar Posición Editorial
+            document.getElementById('prod-edit-posicion-imagen').value = p.posicion_imagen || "izquierda";
+
+            // Hidratar Galería Split
+            var gal = Array.isArray(p.galeria) ? p.galeria : [];
+            document.getElementById('prod-edit-galeria-actual').value = JSON.stringify(gal);
+            var txtGal = document.getElementById('txt-edit-conteo-galeria');
+            if (txtGal) txtGal.innerText = gal.length > 0 ? (gal.length + ' fotos guardadas') : "Sin fotos adicionales";
+
+            var btnEliminar = document.getElementById('btn-eliminar-prod-insitu');
+            var btnAgotar = document.getElementById('btn-toggle-agotado-insitu');
             btnEliminar.style.display = "inline-flex";
             btnAgotar.style.display = "inline-flex";
             btnAgotar.innerText = p.agotado ? "✔️ Activar" : "⛔ Agotar";
@@ -1349,37 +1651,82 @@
             window.abrirModal('modal-edicion-producto');
         };
 
+
         window.guardarProductoInSitu = async function(event) {
             event.preventDefault();
-            const btn = document.getElementById('btn-guardar-prod-insitu');
+            var btn = document.getElementById('btn-guardar-prod-insitu');
             btn.disabled = true;
             btn.innerText = "Guardando...";
 
-            const idProd = document.getElementById('prod-edit-id').value.trim();
-            const nombre = document.getElementById('prod-edit-nombre').value.trim();
-            const precio = parseFloat(document.getElementById('prod-edit-precio').value) || 0;
-            const stock = parseFloat(document.getElementById('prod-edit-stock').value) || 0;
-            const categoria = document.getElementById('prod-edit-categoria').value.trim() || "General";
-            const cuerpo = document.getElementById('prod-edit-cuerpo').value.trim();
-            const layout = document.getElementById('prod-edit-layout').value || "layout-grid";
-            let urlImg = document.getElementById('prod-edit-imagen-actual').value;
+            var idProd = document.getElementById('prod-edit-id').value.trim();
+            var nombre = document.getElementById('prod-edit-nombre').value.trim();
+            var precioInput = parseFloat(document.getElementById('prod-edit-precio').value) || 0;
+            var esVenezuela = (datosNegocio && datosNegocio.pais === 'VEN');
+            var precioNormalizado = esVenezuela ? parseFloat(precioInput.toFixed(2)) : Math.round(precioInput);
+            var stock = parseFloat(document.getElementById('prod-edit-stock').value) || 0;
+            var categoria = document.getElementById('prod-edit-categoria').value.trim() || "General";
+            var cuerpo = document.getElementById('prod-edit-cuerpo').value.trim();
+            var layout = document.getElementById('prod-edit-layout').value || "layout-grid";
+            var posicionImg = document.getElementById('prod-edit-posicion-imagen').value || "izquierda";
+
+            // Extracción de Métrica
+            var valorMedida = parseFloat(document.getElementById('prod-edit-medida-valor').value) || 0;
+            var unidadMedida = document.getElementById('prod-edit-medida-unidad').value || "und";
+            var magnitudMedida = document.getElementById('prod-edit-medida-magnitud').value || "peso";
+
+            // Extracción de Clasificación Retail
+            var retailCod = document.getElementById('prod-edit-retail-codigo').value || "STD";
+            var retailTip = document.getElementById('prod-edit-retail-tipo').value || "estandar";
+            var retailDet = document.getElementById('prod-edit-retail-detalle').value.trim();
+
+            var urlImg = document.getElementById('prod-edit-imagen-actual').value;
 
             try {
-                const fileInput = document.getElementById('prod-edit-file');
+                // 1. Subida de Foto Principal si se seleccionó archivo nuevo
+                var fileInput = document.getElementById('prod-edit-file');
                 if (fileInput.files && fileInput.files[0]) {
-                    const blob = await GeokatuDB.AdminService.comprimirAWebP(fileInput.files[0], 800, 0.75, true);
-                    const ruta = `productos/${idNegocio}/p_${Date.now()}.webp`;
-                    const resUp = await GeokatuDB.AdminService.subirArchivo(ruta, blob, 'image/webp');
+                    var blob = await GeokatuDB.AdminService.comprimirAWebP(fileInput.files[0], 800, 0.75, true);
+                    var ruta = 'productos/' + idNegocio + '/p_' + Date.now() + '.webp';
+                    var resUp = await GeokatuDB.AdminService.subirArchivo(ruta, blob, 'image/webp');
                     urlImg = (typeof resUp === 'string') ? resUp : (resUp && resUp.data ? resUp.data : '');
                 }
 
-                const payload = {
-                    nombre,
-                    precio,
+                // 2. Subida de Fotos Secundarias para Galería Split si se seleccionaron
+                var arrayGaleria = JSON.parse(document.getElementById('prod-edit-galeria-actual').value || "[]");
+                var galFiles = document.getElementById('prod-edit-galeria-files') ? document.getElementById('prod-edit-galeria-files').files : null;
+                if (galFiles && galFiles.length > 0) {
+                    var limite = Math.min(galFiles.length, 4);
+                    for (var i = 0; i < limite; i++) {
+                        var blobG = await GeokatuDB.AdminService.comprimirAWebP(galFiles[i], 600, 0.7, true);
+                        var pathGal = 'productos/' + idNegocio + '/gal_' + Date.now() + '_' + i + '.webp';
+                        var upG = await GeokatuDB.AdminService.subirArchivo(pathGal, blobG, 'image/webp');
+                        var urlG = (typeof upG === 'string') ? upG : (upG && upG.data ? upG.data : '');
+                        if (urlG) arrayGaleria.push(urlG);
+                    }
+                    arrayGaleria = arrayGaleria.slice(-4);
+                }
+
+                // 3. Payload consolidado con paridad de Oficina y compatibilidad con Firestore
+                var payload = {
+                    nombre: nombre,
+                    precio: precioNormalizado,
                     stock_actual: stock,
-                    categoria,
+                    categoria: categoria,
                     cuerpo_texto: cuerpo,
-                    layout,
+                    layout: layout,
+                    posicion_imagen: posicionImg,
+                    galeria: arrayGaleria,
+                    metrica: {
+                        magnitud: magnitudMedida,
+                        unidad: unidadMedida,
+                        valor: valorMedida
+                    },
+                    clasificacion: {
+                        tipo: retailTip,
+                        codigo: retailCod,
+                        detalle: retailDet
+                    },
+                    unidad_medida: valorMedida > 0 ? (valorMedida + ' ' + unidadMedida) : unidadMedida,
                     en_piso_venta: true,
                     eliminado: false,
                     fecha_actualizacion: new Date().toISOString()
@@ -1387,14 +1734,15 @@
 
                 if (urlImg) payload.imagen = urlImg;
                 if (!idProd) {
-                    payload.codigo_barras = `IN_${Date.now().toString().slice(-6)}`;
+                    payload.codigo_barras = 'IN_' + Date.now().toString().slice(-6);
                     payload.fecha_creacion = new Date().toISOString();
                     payload.agotado = (stock <= 0);
                 }
 
-                const resGuardar = await GeokatuDB.AdminService.guardarProducto(idNegocio, idProd || null, payload);
+                var resGuardar = await GeokatuDB.AdminService.guardarProducto(idNegocio, idProd || null, payload);
                 if (!resGuardar.success) throw new Error(resGuardar.error);
 
+                if (navigator.vibrate) navigator.vibrate([40, 80, 40]);
                 window.cerrarModalManual('modal-edicion-producto');
                 await cargarCatalogoProductos();
             } catch (err) {
@@ -1404,6 +1752,7 @@
                 btn.innerText = "Guardar";
             }
         };
+
 
         window.toggleAgotadoInSitu = async function() {
             if (!productoEnEdicionInSitu) return;
@@ -1416,11 +1765,12 @@
 
         window.eliminarProductoInSitu = async function() {
             if (!productoEnEdicionInSitu) return;
-            if (!confirm(`¿Eliminar definitivamente "${productoEnEdicionInSitu.nombre}"?`)) return;
+            if (!confirm('¿Eliminar definitivamente "' + (productoEnEdicionInSitu.nombre || '') + '"?')) return;
             await GeokatuDB.AdminService.eliminarProducto(idNegocio, productoEnEdicionInSitu.id_prod);
             window.cerrarModalManual('modal-edicion-producto');
             await cargarCatalogoProductos();
         };
+
 
         window.onload = construirTienda;
     </script>

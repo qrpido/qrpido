@@ -304,26 +304,35 @@ var loginScreen = document.getElementById('login-screen');
 
         await inicializarConsolaOficina();
 
-        // Máquina de estados del onboarding inicial
-        var progreso = window.datosTienda.progreso_boveda || 0;
+        // Máquina de estados del onboarding inicial en 3 fases
+        var progreso = Number(window.datosTienda.progreso_boveda) || 0;
         var dashboardScreen = document.getElementById('dashboard-screen');
-        var fase1 = document.getElementById('fase-1-pin');
-        var fase2 = document.getElementById('fase-mapa-sandbox');
+        var faseIdentidad = document.getElementById('fase-1-identidad');
+        var fasePin = document.getElementById('fase-1-pin');
+        var faseMapa = document.getElementById('fase-mapa-sandbox');
+
+        // Ocultar todas las pantallas antes de despachar
+        if (dashboardScreen) dashboardScreen.style.display = 'none';
+        if (faseIdentidad) faseIdentidad.style.display = 'none';
+        if (fasePin) fasePin.style.display = 'none';
+        if (faseMapa) faseMapa.style.display = 'none';
 
         if (progreso >= 100) {
             if (dashboardScreen) dashboardScreen.style.display = 'flex';
-            if (fase1) fase1.style.display = 'none';
-            if (fase2) fase2.style.display = 'none';
-        } else if (progreso === 50) {
-            if (dashboardScreen) dashboardScreen.style.display = 'none';
-            if (fase1) fase1.style.display = 'none';
+        } else if (progreso >= 60) {
+            // Paso 3: Ubicación y Gemelo Digital
             window.iniciarSandboxGeoespacial(false);
-        } else {
-            if (dashboardScreen) dashboardScreen.style.display = 'none';
-            if (fase2) fase2.style.display = 'none';
-            if (fase1) fase1.style.display = 'block';
+        } else if (progreso >= 30) {
+            // Paso 2: ADN y Branding
+            if (fasePin) fasePin.style.display = 'block';
             window.cargarDiccionarioEmojis();
+            window.actualizarPinLive();
+        } else {
+            // Paso 1: Identidad y Operación
+            if (faseIdentidad) faseIdentidad.style.display = 'block';
+            window.hidratarCamposPaso1Identidad(user.email);
         }
+
 
 
 } else {
@@ -501,34 +510,21 @@ elLogo.style.display = 'block';
 
 
 if (badgePlan) {
-
-badgePlan.innerText = `PLAN: ${window.datosTienda.premium ? 'PREMIUM VIP' : 'ESTÁNDAR'}`;
-
-if (window.datosTienda.premium) badgePlan.classList.add('premium');
-
+    badgePlan.innerText = 'PLAN: ' + (window.datosTienda.premium ? 'PREMIUM VIP' : 'ESTÁNDAR');
+    if (window.datosTienda.premium) badgePlan.classList.add('premium');
 }
-
-
 
 // Diagnóstico Siigo Nube
-
 const fis = window.datosTienda.perfil_fiscal;
-
 const txtSiigo = document.getElementById('txt-estado-fiscal-siigo');
-
 if (txtSiigo) {
-
-if (fis && fis.siigo_user) {
-
-txtSiigo.innerHTML = `Conexión API Siigo enlazada a <strong>${fis.razon_social || window.datosTienda.nombre}</strong> (NIT: ${fis.nit || 'S/N'}).`;
-
-} else {
-
-txtSiigo.innerText = "Modo comprobante equivalente POS local (sin llaves Siigo configuradas).";
-
+    if (fis && fis.siigo_user) {
+        txtSiigo.innerHTML = 'Conexión API Siigo enlazada a <strong>' + (fis.razon_social || window.datosTienda.nombre) + '</strong> (NIT: ' + (fis.nit || 'S/N') + ').';
+    } else {
+        txtSiigo.innerText = "Modo comprobante equivalente POS local (sin llaves Siigo configuradas).";
+    }
 }
 
-}
 
 
 
@@ -563,44 +559,29 @@ console.error("[Oficina] Fallo en arranque general:", err);
 
 
 async function cargarKpisDashboard() {
+    try {
+        const acum = JSON.parse(localStorage.getItem('geokatu_acumulado_' + window.idNegocioLogueado) || "{}");
+        const totalVendido = (acum.efectivo || 0) + (acum.tarjeta || 0) + (acum.nequi || 0);
+        const elVentas = document.getElementById('kpi-ventas-dia');
+        if (elVentas) elVentas.innerText = '$' + totalVendido.toLocaleString('es-CO');
 
-try {
+        const prodsSnap = await getDocs(collection(db, 'Directorio/' + window.idNegocioLogueado + '/productos'));
+        let cantProds = 0;
+        prodsSnap.forEach(d => { if (!d.data().eliminado) cantProds++; });
+        const elTotal = document.getElementById('kpi-articulos-total');
+        if (elTotal) elTotal.innerText = cantProds;
 
-const acum = JSON.parse(localStorage.getItem(`geokatu_acumulado_${window.idNegocioLogueado}`) || "{}");
+        const ventasSnap = await getDocs(query(collection(db, 'Directorio/' + window.idNegocioLogueado + '/Ventas_POS'), limit(100)));
+        const elTickets = document.getElementById('kpi-tickets-cant');
+        if (elTickets) elTickets.innerText = ventasSnap.size;
 
-const totalVendido = (acum.efectivo || 0) + (acum.tarjeta || 0) + (acum.nequi || 0);
-
-const elVentas = document.getElementById('kpi-ventas-dia');
-
-if (elVentas) elVentas.innerText = `$${totalVendido.toLocaleString('es-CO')}`;
-
-
-
-const prodsSnap = await getDocs(collection(db, `Directorio/${window.idNegocioLogueado}/productos`));
-
-let cantProds = 0;
-
-prodsSnap.forEach(d => { if (!d.data().eliminado) cantProds++; });
-
-const elTotal = document.getElementById('kpi-articulos-total');
-
-if (elTotal) elTotal.innerText = cantProds;
-
-
-
-const ventasSnap = await getDocs(query(collection(db, `Directorio/${window.idNegocioLogueado}/Ventas_POS`), limit(100)));
-
-const elTickets = document.getElementById('kpi-tickets-cant');
-
-if (elTickets) elTickets.innerText = ventasSnap.size;
-
-} catch (err) {
-
-console.warn("[Oficina] Error al cargar KPIs:", err.message);
-
+        // Escuchar y reflejar incidencias en tiempo real desde el arranque
+        window.cargarAlertasSeguridad();
+    } catch (err) {
+        console.warn("[Oficina] Error al cargar KPIs:", err.message);
+    }
 }
 
-}
 
 
 
@@ -1510,6 +1491,8 @@ var precioNormalizado = esVenezuela ? parseFloat(precioInput.toFixed(2)) : Math.
                 var inputLayoutSel = document.getElementById('prodLayoutSeleccionado');
         var layoutDefinido = inputLayoutSel ? inputLayoutSel.value : 'layout-grid';
 
+        var esPesableArticulo = Boolean(medidaMagnitud === 'peso' || medidaUnidad === 'kg' || medidaUnidad === 'g' || medidaUnidad === 'lb');
+
         var pObj = {
             nombre: nom,
             precio: precioNormalizado,
@@ -1522,6 +1505,8 @@ var precioNormalizado = esVenezuela ? parseFloat(precioInput.toFixed(2)) : Math.
             posicion_imagen: posImg,
             en_piso_venta: true,
             layout: layoutDefinido,
+            es_pesable: esPesableArticulo,
+            unidad_medida: medidaUnidad || (esPesableArticulo ? 'kg' : 'und'),
             metrica: {
                 magnitud: medidaMagnitud,
                 unidad: medidaUnidad,
@@ -1533,6 +1518,7 @@ var precioNormalizado = esVenezuela ? parseFloat(precioInput.toFixed(2)) : Math.
                 detalle: retailDetalle
             }
         };
+
 
         if (!editId) {
             pObj.agotado = cantStock === 0;
@@ -2663,12 +2649,12 @@ window.cargarAlertasSeguridad = function() {
     if (typeof window.desuscripcionAlertas === 'function') window.desuscripcionAlertas();
 
     var contenedor = document.getElementById('contenedor-alertas-lista');
+    
+    // Consulta sin orderBy compuesto para no exigir índices manuales en Firestore
     var qAlertas = query(
         collection(db, "Alertas_Seguridad"),
         where("id_negocio", "==", window.idNegocioLogueado),
-        where("estado", "==", "requiere_auditoria_urgente"),
-        orderBy("timestamp_alerta", "desc"),
-        limit(50)
+        where("estado", "==", "requiere_auditoria_urgente")
     );
 
     window.desuscripcionAlertas = onSnapshot(qAlertas, function(snap) {
@@ -2683,37 +2669,73 @@ window.cargarAlertasSeguridad = function() {
                 '<div style="text-align: center; padding: 20px 10px; color: #888;">' +
                     '<span style="font-size: 22px;">✅</span>' +
                     '<h4 style="color: white; margin: 4px 0; font-size: 12px;">Inventario en Orden</h4>' +
-                    '<p style="font-size: 10.5px; margin: 0;">Sin quiebres de caja ni saldos negativos.</p>' +
+                    '<p style="font-size: 10.5px; margin: 0;">Sin quiebres de caja ni averías en anaquel.</p>' +
                 '</div>';
             return;
         }
 
+        // Ordenar en memoria local por frescura sin romper Firestore
+        var alertas = [];
+        snap.forEach(function(d) { alertas.push({ id_doc: d.id, ...d.data() }); });
+        alertas.sort(function(a, b) { return new Date(b.timestamp_alerta || 0) - new Date(a.timestamp_alerta || 0); });
+
         var html = '';
-        snap.forEach(function(docSnap) {
-            var a = docSnap.data();
-            var fecha = new Date(a.timestamp_alerta).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            var nomProdLimpio = (a.nombre_producto || '').replace(/'/g, "\\'");
+        alertas.forEach(function(a) {
+            var fecha = a.timestamp_alerta ? new Date(a.timestamp_alerta).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+            var esMerma = a.tipo === 'MERMA_EN_ANAQUEL';
+            
+            // Resolución inteligente del nombre del artículo
+            var nombreProd = a.nombre_producto || '';
+            if (!nombreProd && a.id_producto) {
+                var match = window.listaProductosGlobal.find(function(p) { return p.id_prod === a.id_producto; });
+                nombreProd = match ? match.nombre : a.id_producto;
+            }
+            if (!nombreProd) nombreProd = "Artículo sin identificar";
+            var nomProdLimpio = nombreProd.replace(/'/g, "\\'");
+
+                        var esFantasma = a.tipo === 'PRODUCTO_FANTASMA_OFFLINE';
+            var etiquetaBadge = esMerma ? 'Avería / Merma' : (esFantasma ? 'Producto Fantasma' : 'Quiebre en Caja');
+            
+            var estiloBadge = esMerma 
+                ? 'background:rgba(255,170,0,0.18); color:#ffaa00; border:1px solid rgba(255,170,0,0.4);' 
+                : (esFantasma ? 'background:rgba(184,68,255,0.18); color:#b844ff; border:1px solid rgba(184,68,255,0.4);' : 'background:rgba(255,68,68,0.2); color:#ff4444; border:1px solid rgba(255,68,68,0.4);');
+
+            var cuerpoDetalle = esMerma
+                ? '<p style="font-size:10.5px; color:#aaa; margin:2px 0 0 0;">' +
+                    'Anaquel: <strong style="color:white; font-family:monospace;">' + (a.id_mueble || 'Góndola') + ' [' + (a.id_compartimiento || 'BIN') + ']</strong><br>' +
+                    'Motivo: <span style="color:#ddd;">' + (a.motivo || 'Reporte físico') + '</span>' +
+                  '</p>'
+                : '<p style="font-size:10.5px; color:#aaa; margin:2px 0 0 0;">' +
+                    'Saldo en sistema: <strong style="color:#ff4444; font-family:monospace;">' + (a.stock_negativo_registrado !== undefined ? a.stock_negativo_registrado : 0) + ' und</strong> (Venta: ' + (a.cantidad_despachada || 1) + ' und)<br>' +
+                    '<span style="color:#888; font-size:10px; display:block; margin-top:3px;">' +
+                        '🧾 Ticket: <strong style="color:#fff;">' + (a.ticket_origen || 'DESCONOCIDO') + '</strong> | 👤 ' + (a.cajero || 'Caja') + ' (' + (a.terminal || 'CAJA-01') + ')' +
+                    '</span>' +
+                    (esFantasma ? '<span style="color:#b844ff; font-size:9px; display:block; margin-top:2px;">⚠️ ' + (a.motivo || 'Producto borrado en nube previo a sincronización') + '</span>' : '') +
+                  '</p>';
+
+            var saldoParaModal = esMerma ? ('En ' + (a.id_compartimiento || 'Góndola')) : ((a.stock_negativo_registrado !== undefined ? a.stock_negativo_registrado : 0) + ' und');
 
             html += 
-                '<div class="incidente-item">' +
+                '<div class="incidente-item" style="border-left-color: ' + (esMerma ? '#ffaa00' : '#ff4444') + ';">' +
                     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
-                        '<span class="badge-alerta-urgente">Quiebre en Caja</span>' +
+                        '<span class="badge-alerta-urgente" style="' + estiloBadge + '">' + etiquetaBadge + '</span>' +
                         '<span style="font-size:10px; color:#888; font-family:monospace;">' + fecha + '</span>' +
                     '</div>' +
                     '<div>' +
-                        '<strong style="font-size:12.5px; color:white;">' + a.nombre_producto + '</strong>' +
-                        '<p style="font-size:10.5px; color:#aaa; margin:2px 0 0 0;">' +
-                            'Saldo registrado: <strong style="color:#ff4444; font-family:monospace;">' + a.stock_negativo_registrado + ' und</strong> (Venta: ' + a.cantidad_despachada + ' und)' +
-                        '</p>' +
+                        '<strong style="font-size:12.5px; color:white;">' + nombreProd + '</strong>' +
+                        cuerpoDetalle +
                     '</div>' +
-                    '<button type="button" class="btn-submit" style="margin-top:4px !important; padding:6px !important; font-size:10.5px; background:rgba(0,255,100,0.15); border:1px solid rgba(0,255,100,0.4); color:#00ff64;" onclick="window.abrirModalConciliacion(\'' + docSnap.id + '\', \'' + a.id_producto + '\', \'' + nomProdLimpio + '\', \'' + a.stock_negativo_registrado + '\')">' +
-                        'Conciliar en Anaquel' +
+                    '<button type="button" class="btn-submit" style="margin-top:6px !important; padding:6px !important; font-size:10.5px; background:rgba(0,255,100,0.15); border:1px solid rgba(0,255,100,0.4); color:#00ff64;" onclick="window.abrirModalConciliacion(\'' + a.id_doc + '\', \'' + (a.id_producto || '') + '\', \'' + nomProdLimpio + '\', \'' + saldoParaModal + '\')">' +
+                        'Conciliar Stock Físico' +
                     '</button>' +
                 '</div>';
         });
         contenedor.innerHTML = html;
+    }, function(err) {
+        console.warn("[Alertas] Error en radar de seguridad:", err.message);
     });
 };
+
 
 window.abrirModalConciliacion = function(idAlerta, idProd, nombreProd, stockNeg) {
     document.getElementById('concilia-alerta-id').value = idAlerta;
@@ -3110,9 +3132,9 @@ window.actualizarPinLive = function() {
     window.actualizarContenedorPin('pin-live-preview', 'img-live-preview', forma, color, efectoRaw, window.imagenCargadaTemporalPaso1, anim);
 };
 
-window.guardarPaso1ADN = async function() {
+window.guardarPaso2ADN = async function() {
     var btn = document.getElementById('btn-siguiente-fase');
-    btn.innerText = "GUARDANDO...";
+    btn.innerText = "Guardando...";
     btn.disabled = true;
 
     var forma = document.getElementById('select-forma').value;
@@ -3121,39 +3143,55 @@ window.guardarPaso1ADN = async function() {
     var tema = document.getElementById('select-tema-onboarding') ? document.getElementById('select-tema-onboarding').value : 'carbon';
     var pinPack = forma + '|' + anim + '|' + efecto;
 
+    var c1 = document.getElementById('wizColorHex1').value;
+    var c2 = document.getElementById('wizColorHex2').value;
+    var c3 = document.getElementById('wizColorHex3').value;
+    var c4 = document.getElementById('wizColorHex4') ? document.getElementById('wizColorHex4').value : '';
+    var paleta = window.calcularPaletaAureaSilenciosa(c1, c2, c3, c4);
+
     var payload = {
         pin_pack: pinPack,
         tema_popup: tema,
-        color_principal: document.getElementById('wizColorHex1').value,
-        color_acento: document.getElementById('wizColorHex2').value,
-        color_terciario: document.getElementById('wizColorHex3').value,
-        progreso_boveda: 50
+        color_principal: paleta.c1,
+        color_acento: paleta.c2,
+        color_terciario: paleta.c3,
+        color_cuaternario: paleta.c4,
+        paleta_aurea: paleta,
+        progreso_boveda: 65
     };
 
+    try {
+        var pinF = document.getElementById('file-pin').files[0];
+        if (pinF) {
+            var blob = await GeokatuDB.AdminService.comprimirAWebP(pinF, 400, 0.7, true);
+            var res = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/pin_mapa.webp', blob);
+            var urlPin = (typeof res === 'string') ? res : (res && res.data ? res.data : '');
+            if (urlPin) payload.link_pin = urlPin;
+        }
 
-    var pinF = document.getElementById('file-pin').files[0];
-    if (pinF) {
-        var blob = await window.comprimirImagen(pinF, 400, 0.6, true);
-        var res = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/pin_mapa.webp', blob);
-        var urlPin = (typeof res === 'string') ? res : (res && res.data ? res.data : '');
-        if (urlPin) payload.link_pin = urlPin;
+        var nombreF = document.getElementById('fase1-file-nombre-png') ? document.getElementById('fase1-file-nombre-png').files[0] : null;
+        if (nombreF) {
+            var blobWebp = await window.comprimirImagenTransparenteWebP(nombreF, 460, 110);
+            var resNom = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/nombre_png.webp', blobWebp);
+            var urlNom = (typeof resNom === 'string') ? resNom : (resNom && resNom.data ? resNom.data : '');
+            if (urlNom) payload.nombre_png = urlNom;
+        }
+
+        await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, payload);
+        Object.assign(window.datosTienda, payload);
+
+        document.getElementById('fase-1-pin').style.display = 'none';
+        window.iniciarSandboxGeoespacial(false);
+    } catch (e) {
+        alert("Error al guardar ADN del PIN: " + e.message);
+    } finally {
+        btn.innerText = "Continuar a Ubicación";
+        btn.disabled = false;
     }
-
-    var nombreF = document.getElementById('fase1-file-nombre-png') ? document.getElementById('fase1-file-nombre-png').files[0] : null;
-    if (nombreF) {
-        var blobWebp = await window.comprimirImagenTransparenteWebP(nombreF, 460, 110);
-        var resNom = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/nombre_png.webp', blobWebp);
-        var urlNom = (typeof resNom === 'string') ? resNom : (resNom && resNom.data ? resNom.data : '');
-        if (urlNom) payload.nombre_png = urlNom;
-    }
-
-
-    await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, payload);
-
-
-    document.getElementById('fase-1-pin').style.display = 'none';
-    window.iniciarSandboxGeoespacial(false);
 };
+// Mantenemos alias retrocompatible por si algún listener lo invoca
+window.guardarPaso1ADN = window.guardarPaso2ADN;
+
 
 window.iniciarSandboxGeoespacial = function() {
     var faseSandbox = document.getElementById('fase-mapa-sandbox');
@@ -3195,19 +3233,17 @@ window.iniciarSandboxGeoespacial = function() {
     var color = window.datosTienda.color_principal || '#ff6b00';
 
     elDOM.innerHTML = '<div class="pin-wrapper anim-salto" data-forma="' + fClass + '" style="--color-main: ' + color + '; cursor: pointer;"></div>';
-    elDOM.querySelector('.pin-wrapper').innerHTML = window.obtenerContenidoSVG(fClass, foto, 'img-pin-fase-2');
+    elDOM.querySelector('.pin-wrapper').innerHTML = window.obtenerContenidoSVG(fClass, foto, 'img-pin-fase-3');
 
     window.markerOnboarding = new maplibregl.Marker({ element: elDOM, draggable: true, anchor: 'bottom' })
         .setLngLat([lng, lat])
         .addTo(window.mapaOnboarding);
 
-    // Ajuste inicial del país según posición inicial
     var selectorPais = document.getElementById('wiz-pais-comercio');
     if (selectorPais) {
         selectorPais.value = window.detectarPaisPorCoordenadas(lat, lng);
     }
 
-    // Al arrastrar el pin, inferir automáticamente el país en el desplegable
     window.markerOnboarding.on('dragend', function() {
         var pos = window.markerOnboarding.getLngLat();
         if (selectorPais) {
@@ -3215,8 +3251,79 @@ window.iniciarSandboxGeoespacial = function() {
         }
     });
 
-    setTimeout(function() { window.mapaOnboarding.resize(); }, 400);
+    // Al tocar el pin en el paso de onboarding, se despliega el Gemelo Digital para verificar los datos
+    elDOM.addEventListener('click', function(e) {
+        e.stopPropagation();
+        window.abrirGemeloDigitalEnMapa(window.mapaOnboarding, window.markerOnboarding);
+    });
+
+    setTimeout(function() { 
+        window.mapaOnboarding.resize(); 
+        // Abrir automáticamente el Gemelo Digital para confirmar visualmente
+        window.abrirGemeloDigitalEnMapa(window.mapaOnboarding, window.markerOnboarding);
+    }, 450);
 };
+
+// Función genérica para renderizar el Gemelo Digital en cualquier instancia de mapa
+window.abrirGemeloDigitalEnMapa = function(instanciaMapa, instanciaMarker) {
+    if (!instanciaMapa || !instanciaMarker) return;
+
+    var p = window.datosTienda.portada || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=600&q=80';
+    var l = window.datosTienda.logo || 'https://via.placeholder.com/150/0a0a0c/ff6b00?text=LOGO';
+    var n = window.datosTienda.nombre || 'Tu Comercio';
+    var s = window.datosTienda.slogan || '';
+    var w = window.datosTienda.whatsapp || window.datosTienda.whatsApp || '';
+    var pbx = window.datosTienda.pbx || '';
+    var c = (window.datosTienda.nicho || window.datosTienda.categoria || 'General').toUpperCase();
+    var h = window.datosTienda.horario || '';
+    var es24 = Boolean(window.datosTienda.es_24_horas);
+
+    var bloqueNombre = window.datosTienda.nombre_png
+        ? '<img src="' + window.datosTienda.nombre_png + '" style="max-height:22px;max-width:140px;object-fit:contain;margin:0 auto 2px auto;display:block;" alt="' + n + '">'
+        : '<h4 style="margin: 0; color: white; font-size: 13px; font-weight: 900; text-transform: uppercase;">' + n + '</h4>';
+
+    var bloqueSlogan = s ? '<span class="popup-slogan">' + s + '</span>' : '';
+    var badgeHorario = es24 
+        ? '<span style="display:inline-block; background:rgba(0,255,100,0.15); color:var(--verde-hoja); font-weight:900; font-size:9px; padding:1px 6px; border-radius:4px; margin-top:2px;">[24 HORAS]</span>'
+        : (h ? '<span style="display:block; font-size:9.5px; color:#aaa; margin-top:2px;">Horario: ' + h + '</span>' : '');
+
+    var botonWhatsApp = w ? '<a href="https://wa.me/' + w + '" target="_blank" class="badge-comunicacion badge-whatsapp">WhatsApp: ' + w + '</a>' : '';
+    var botonPbx = pbx ? '<a href="tel:' + pbx.replace(/\D/g, '') + '" class="badge-comunicacion badge-pbx">PBX: ' + pbx + '</a>' : '';
+
+    var html = 
+        '<div style="position: relative;">' +
+            '<button type="button" onclick="if(window.popupActivo) window.popupActivo.remove();" style="position: absolute; top: 6px; left: 6px; z-index: 50; width: 24px; height: 24px; background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.25); color: #ffffff; border-radius: 50%; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>' +
+            '<img src="' + p + '" class="popup-portada">' +
+        '</div>' +
+        '<div class="popup-info">' +
+            '<img src="' + l + '" class="popup-logo">' +
+            '<div style="margin-top: 6px;">' + bloqueNombre + '</div>' +
+            bloqueSlogan +
+            '<div style="margin-top: 2px;">' +
+                '<span style="font-size: 9px; color: var(--naranja); text-transform: uppercase; font-weight: bold;">' + c + '</span>' +
+            '</div>' +
+            badgeHorario +
+            '<div style="display: flex; flex-direction: column; gap: 3px; margin-top: 6px;">' +
+                botonWhatsApp +
+                botonPbx +
+            '</div>' +
+        '</div>';
+
+    if (window.popupActivo) window.popupActivo.remove();
+
+    window.popupActivo = new maplibregl.Popup({
+        offset: [0, 8],
+        anchor: 'top',
+        closeOnClick: false,
+        closeButton: false,
+        maxWidth: '210px',
+        className: 'popup-boveda-estricto'
+    })
+    .setHTML(html)
+    .setLngLat(instanciaMarker.getLngLat())
+    .addTo(instanciaMapa);
+};
+
 
 
 window.buscarDireccionWizard = async function() {
@@ -3253,9 +3360,9 @@ window.obtenerUbicacionActualWizard = function() {
     }, { enableHighAccuracy: true });
 };
 
-window.guardarPaso2Ubicacion = async function() {
+window.guardarPaso3Ubicacion = async function() {
     var btn = document.getElementById('btn-guardar-paso-2');
-    btn.innerText = "SELLANDO...";
+    btn.innerText = "Sellando Bóveda...";
     btn.disabled = true;
 
     var pos = window.markerOnboarding.getLngLat();
@@ -3263,24 +3370,176 @@ window.guardarPaso2Ubicacion = async function() {
     var selPais = document.getElementById('wiz-pais-comercio');
     var paisElegido = selPais ? selPais.value : window.detectarPaisPorCoordenadas(pos.lat, pos.lng);
 
+    var t = window.datosTienda;
+
+    // Payload canónico consolidado
+    var payloadFinal = {
+        nombre: t.nombre || "Comercio Aliado",
+        slogan: t.slogan || "",
+        cuerpo_articulo: t.slogan || "",
+        nicho: t.nicho || t.categoria || "General",
+        categoria: t.nicho || t.categoria || "General",
+        categoria_maestra: t.nicho || t.categoria || "General",
+
+        whatsapp: t.whatsapp || t.whatsApp || "",
+        whatsApp: t.whatsapp || t.whatsApp || "",
+        telefonos: t.telefonos || [t.whatsapp || ""],
+        pbx: t.pbx || "",
+        correo: t.correo || t.email || "",
+        email: t.correo || t.email || "",
+        instagram: t.instagram || "",
+        web: t.web || t.sitio_web || "",
+        sitio_web: t.web || t.sitio_web || "",
+
+        horario: t.horario || "",
+        es_24_horas: Boolean(t.es_24_horas),
+
+        pin_pack: t.pin_pack || "forma-gota|anim-salto||",
+        tema_popup: t.tema_popup || "carbon",
+        color_principal: t.color_principal || "#ff6b00",
+        color_acento: t.color_acento || "#8a909d",
+        color_terciario: t.color_terciario || "#ffffff",
+        color_cuaternario: t.color_cuaternario || "#0a0a0c",
+        paleta_aurea: t.paleta_aurea || {},
+
+        Coordenadas: { latitude: pos.lat, longitude: pos.lng },
+        lat: pos.lat,
+        lng: pos.lng,
+        ubicacion: { lat: pos.lat, lng: pos.lng },
+        geohash: hash,
+        pais: paisElegido,
+
+        progreso_boveda: 100,
+        estado_moderacion: t.estado_moderacion || "pendiente",
+        tipo_modelo: "negocio",
+        fecha_actualizacion: new Date().toISOString()
+    };
+
+    if (t.link_pin) payloadFinal.link_pin = t.link_pin;
+    if (t.nombre_png) payloadFinal.nombre_png = t.nombre_png;
+
     try {
-        await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, {
-            Coordenadas: { latitude: pos.lat, longitude: pos.lng },
-            geohash: hash,
-            pais: paisElegido,
-            progreso_boveda: 100
-        });
-        
-        // Persistir en memoria y almacenamiento local
-        window.datosTienda.Coordenadas = { latitude: pos.lat, longitude: pos.lng };
-        window.datosTienda.pais = paisElegido;
-        window.datosTienda.progreso_boveda = 100;
+        await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, payloadFinal);
         localStorage.setItem('geokatu_pais_' + window.idNegocioLogueado, paisElegido);
 
-        btn.innerText = "BÓVEDA LISTA ✔️";
-        setTimeout(function() { window.location.reload(); }, 600);
+        btn.innerText = "Bóveda Lista";
+        setTimeout(function() { window.location.reload(); }, 500);
     } catch (e) {
         alert("Error al sellar ubicación: " + e.message);
+        btn.disabled = false;
+        btn.innerText = "Sellar Bóveda y Finalizar";
+    }
+};
+// Mantenemos alias retrocompatible
+window.guardarPaso2Ubicacion = window.guardarPaso3Ubicacion;
+
+// ============================================================================
+// PASO 1: CONTROLADOR DE IDENTIDAD Y OPERACIÓN (HORARIOS Y DATOS COMERCIALES)
+// ============================================================================
+window.hidratarCamposPaso1Identidad = function(emailAuth) {
+    var t = window.datosTienda || {};
+    var inNom = document.getElementById('wiz-nombre');
+    var inSlo = document.getElementById('wiz-slogan');
+    var inNic = document.getElementById('wiz-nicho');
+    var inWa = document.getElementById('wiz-whatsapp');
+    var inPbx = document.getElementById('wiz-pbx');
+    var inCor = document.getElementById('wiz-correo-publico');
+    var inIg = document.getElementById('wiz-instagram');
+    var inWeb = document.getElementById('wiz-web');
+    var chk24 = document.getElementById('wiz-check-24h');
+    var hIni = document.getElementById('wiz-hora-inicio');
+    var hFin = document.getElementById('wiz-hora-fin');
+
+    if (inNom) inNom.value = (t.nombre && t.nombre !== 'Mi Negocio') ? t.nombre : '';
+    if (inSlo) inSlo.value = t.slogan || '';
+    if (inNic) inNic.value = t.nicho || t.categoria || '';
+    if (inWa) inWa.value = t.whatsapp || t.whatsApp || '';
+    if (inPbx) inPbx.value = t.pbx || '';
+    if (inCor) inCor.value = t.correo || t.email || emailAuth || '';
+    if (inIg) inIg.value = String(t.instagram || '').replace(/^@/, '');
+    if (inWeb) inWeb.value = t.sitio_web || t.web || '';
+
+    if (t.es_24_horas) {
+        if (chk24) chk24.checked = true;
+        window.toggleHorario24HWizard(true);
+    } else if (t.horario && t.horario.includes('-')) {
+        var partesH = t.horario.split('-').map(function(s) { return s.trim(); });
+        if (hIni && partesH[0]) hIni.value = partesH[0];
+        if (hFin && partesH[1]) hFin.value = partesH[1];
+    }
+};
+
+window.toggleHorario24HWizard = function(es24) {
+    var contRango = document.getElementById('contenedor-rango-horas');
+    var hIni = document.getElementById('wiz-hora-inicio');
+    var hFin = document.getElementById('wiz-hora-fin');
+
+    if (contRango) {
+        contRango.style.opacity = es24 ? "0.35" : "1";
+        contRango.style.pointerEvents = es24 ? "none" : "auto";
+    }
+    if (hIni) hIni.disabled = es24;
+    if (hFin) hFin.disabled = es24;
+};
+
+window.guardarPaso1Identidad = async function() {
+    var nom = document.getElementById('wiz-nombre').value.trim();
+    var nic = document.getElementById('wiz-nicho').value.trim();
+    var wa = document.getElementById('wiz-whatsapp').value.trim().replace(/\D/g, '');
+
+    if (!nom) return alert("Por favor ingresa el nombre comercial.");
+    if (!nic) return alert("Selecciona o escribe el nicho o categoría de tu negocio.");
+    if (wa.length < 7) return alert("Ingresa un número de WhatsApp válido.");
+
+    var btn = document.getElementById('btn-guardar-paso-1');
+    btn.innerText = "Guardando...";
+    btn.disabled = true;
+
+    var es24 = document.getElementById('wiz-check-24h').checked;
+    var horarioStr = es24 
+        ? "24 Horas" 
+        : (document.getElementById('wiz-hora-inicio').value + " - " + document.getElementById('wiz-hora-fin').value);
+
+    var igHandle = document.getElementById('wiz-instagram').value.trim().replace(/^@/, '');
+    var webUrl = document.getElementById('wiz-web').value.trim();
+    var correoPub = document.getElementById('wiz-correo-publico').value.trim();
+    var pbxVal = document.getElementById('wiz-pbx').value.trim();
+
+    var payloadIdentidad = {
+        nombre: nom,
+        slogan: document.getElementById('wiz-slogan').value.trim(),
+        cuerpo_articulo: document.getElementById('wiz-slogan').value.trim(),
+        nicho: nic,
+        categoria: nic,
+        categoria_maestra: nic,
+        whatsapp: wa,
+        whatsApp: wa,
+        telefonos: [wa],
+        pbx: pbxVal,
+        correo: correoPub,
+        email: correoPub,
+        instagram: igHandle,
+        web: webUrl,
+        sitio_web: webUrl,
+        horario: horarioStr,
+        es_24_horas: es24,
+        progreso_boveda: 35
+    };
+
+    try {
+        await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, payloadIdentidad);
+        Object.assign(window.datosTienda, payloadIdentidad);
+
+        document.getElementById('fase-1-identidad').style.display = 'none';
+        var fasePin = document.getElementById('fase-1-pin');
+        if (fasePin) fasePin.style.display = 'block';
+
+        window.cargarDiccionarioEmojis();
+        window.actualizarPinLive();
+    } catch (e) {
+        alert("Error al guardar identidad: " + e.message);
+    } finally {
+        btn.innerText = "Continuar a Diseño de PIN";
         btn.disabled = false;
     }
 };

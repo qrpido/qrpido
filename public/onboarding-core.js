@@ -67,7 +67,7 @@ export function emitirTono(tipo) {
 window.emitirTono = emitirTono;
 
 // =========================================================================
-// TOASTS Y MODALES GLASSMORPHIC (REGLA DE ORO 2: CERO ALERT/CONFIRM NATIVOS)
+// TOASTS Y MODALES GLASSMORPHIC
 // =========================================================================
 export function mostrarToast(mensaje, tipo, duracion) {
     const tModo = tipo || 'info';
@@ -133,6 +133,113 @@ export function solicitarConfirmacion(titulo, mensaje) {
 window.solicitarConfirmacion = solicitarConfirmacion;
 
 // =========================================================================
+// HUD, CONTADORES Y GESTIÓN DE MATRIZ (EXPORTACIONES DEL HTML)
+// =========================================================================
+export function actualizarHUD() {
+    const kpiFlores = document.getElementById('kpi-flores');
+    if (kpiFlores) kpiFlores.innerText = floresRecolectadas;
+
+    const elTotal = document.getElementById('kpi-total');
+    if (elTotal) elTotal.innerText = listaComercios.length;
+
+    const validados = listaComercios.filter(function(c) { return Boolean(c.validado); }).length;
+    const subidos = listaComercios.filter(function(c) { return Boolean(c.subido); }).length;
+    const enVuelo = listaComercios.filter(function(c) { return !c.capturado && !c.archivado; }).length;
+
+    const elValidados = document.getElementById('kpi-validados');
+    if (elValidados) elValidados.innerText = validados;
+
+    const elListos = document.getElementById('conteo-listos');
+    if (elListos) elListos.innerText = validados;
+
+    const elSubidos = document.getElementById('conteo-subidos');
+    if (elSubidos) elSubidos.innerText = subidos;
+
+    const elEnVuelo = document.getElementById('conteo-en-vuelo');
+    if (elEnVuelo) elEnVuelo.innerText = enVuelo;
+
+    const elVisibles = document.getElementById('badge-total-visibles');
+    if (elVisibles) {
+        const visibles = listaComercios.filter(function(c) { return Boolean(c.capturado); }).length;
+        elVisibles.innerText = visibles;
+    }
+}
+window.actualizarHUD = actualizarHUD;
+
+export function iniciarEnjambreSiAutorizado() {
+    const cielo = document.getElementById('cielo');
+    if (!cielo) return;
+
+    cielo.innerHTML = '';
+    let contadorVoladores = 0;
+
+    listaComercios.forEach(function(comercio) {
+        if (!comercio.capturado && !comercio.archivado) {
+            lanzarEntidadVoladora(comercio, contadorVoladores);
+            contadorVoladores++;
+        }
+    });
+
+    abejasActivas = contadorVoladores;
+    actualizarHUD();
+}
+window.iniciarEnjambreSiAutorizado = iniciarEnjambreSiAutorizado;
+
+export async function inicializarMatrizGlobalUI() {
+    const badge = document.getElementById('kpi-skus-matriz');
+    try {
+        if (badge) badge.innerText = "Indexando...";
+        if (GeokatuDB && GeokatuDB.CatalogoMatrizService) {
+            const res = await GeokatuDB.CatalogoMatrizService.inicializarMatriz();
+            if (res && res.success) {
+                if (badge) badge.innerText = (res.count || 0).toLocaleString('es-CO') + ' SKUs (0 ms)';
+                return;
+            }
+        }
+        if (badge) badge.innerText = 'Matriz Lista';
+    } catch (e) {
+        if (badge) badge.innerText = 'Modo Local';
+    }
+}
+window.inicializarMatrizGlobalUI = inicializarMatrizGlobalUI;
+
+window.subirOneShotAFirebase = async function() {
+    const listosParaSubir = listaComercios.filter(function(c) {
+        return c.validado === true && c.subido !== true;
+    });
+
+    if (listosParaSubir.length === 0) {
+        mostrarToast("No hay comercios clasificados como 'Listos OneShot'.", "info");
+        return;
+    }
+
+    const conf = await solicitarConfirmacion(
+        "Subida OneShot a Firestore",
+        "¿Deseas asentar masivamente " + listosParaSubir.length + " comercios en la coleccion Directorio?"
+    );
+    if (!conf) return;
+
+    try {
+        mostrarToast("Inyectando tanda en Firestore...", "info");
+        const res = await GeokatuDB.AdminService.subirLoteComerciosDirectorio(listosParaSubir);
+        if (res.success) {
+            listosParaSubir.forEach(function(c) {
+                c.subido = true;
+            });
+            AppState.guardarColaLocal();
+            renderizarTablero();
+            actualizarHUD();
+            emitirTono('EXITO');
+            mostrarToast("OneShot completado: " + res.totalSubidos + " comercios sincronizados.", "exito", 4000);
+        } else {
+            throw new Error(res.error || "Fallo en la transacción");
+        }
+    } catch (err) {
+        mostrarToast("Error en subida masiva: " + err.message, "error", 5000);
+    }
+};
+
+// =========================================================================
 // BÚNKER DE AUTENTICACIÓN ZERO-TRUST (SUPERADMIN)
 // =========================================================================
 GeokatuDB.SecurityService.observarEstadoSesion(async function(user) {
@@ -149,8 +256,14 @@ GeokatuDB.SecurityService.observarEstadoSesion(async function(user) {
         if (panelVerificando) panelVerificando.style.display = 'block';
 
         try {
+            await GeokatuDB.SecurityService.sellarSesionTerminalLocal(user.uid);
+        } catch (eSig) {}
+
+        try {
             const res = await GeokatuDB.SecurityService.obtenerRolAdmin(user.uid);
-            if (res.success && res.data && res.data.rol === 'superadmin') {
+            const esAdminValido = res.success && res.data && (res.data.rol === 'superadmin' || res.data.rol === 'admin');
+
+            if (esAdminValido) {
                 superadminAutorizado = true;
                 if (panelVerificando) panelVerificando.style.display = 'none';
                 if (gate) gate.style.display = 'none';
@@ -161,27 +274,34 @@ GeokatuDB.SecurityService.observarEstadoSesion(async function(user) {
                 }
                 if (btnLogout) btnLogout.style.display = 'inline-flex';
 
-                actualizarDatalistNichos();
-                renderizarTablero();
-                actualizarHUD();
-                iniciarEnjambreSiAutorizado();
+                try {
+                    actualizarDatalistNichos();
+                    actualizarDatalistCategoriasCatalogo();
+                    renderizarTablero();
+                    actualizarHUD();
+                    iniciarEnjambreSiAutorizado();
+                    inicializarMatrizGlobalUI();
+                } catch (errUI) {
+                    console.error("[Onboarding UI Render]", errUI);
+                }
             } else {
                 superadminAutorizado = false;
                 if (panelVerificando) panelVerificando.style.display = 'none';
                 if (gate) gate.style.display = 'flex';
-                
+
                 const rolDetectado = (res.data && res.data.rol) ? res.data.rol : 'Usuario Estandar';
                 const txtMotivo = document.getElementById('txt-motivo-denegado');
                 if (txtMotivo) {
-                    txtMotivo.innerHTML = 'Sesion iniciada como <b>' + user.email + '</b>.<br>Tu rol actual es: <code style="color:var(--naranja);">' + rolDetectado + '</code>.<br>Se requiere rol: <code style="color:var(--verde-hoja);">superadmin</code>.';
+                    txtMotivo.innerHTML = 'Sesión iniciada como <b>' + user.email + '</b>.<br>UID: <code style="color:#29b6f6; font-size:10px;">' + user.uid + '</code><br>Tu rol detectado es: <code style="color:var(--naranja);">' + rolDetectado + '</code>.<br>Se requiere rol: <code style="color:var(--verde-hoja);">superadmin</code> en la colección <code>Usuarios_Admin</code>.';
                 }
                 if (cajaDenegado) cajaDenegado.style.display = 'block';
             }
         } catch (err) {
+            console.error("[Búnker Auth Error]", err);
             if (panelVerificando) panelVerificando.style.display = 'none';
             if (cajaDenegado) cajaDenegado.style.display = 'block';
             const txtMotivo = document.getElementById('txt-motivo-denegado');
-            if (txtMotivo) txtMotivo.innerText = "Fallo de conexion validando privilegios en Firestore.";
+            if (txtMotivo) txtMotivo.innerText = "Error validando credenciales: " + err.message;
         }
     } else {
         superadminAutorizado = false;
@@ -195,7 +315,7 @@ GeokatuDB.SecurityService.observarEstadoSesion(async function(user) {
 });
 
 // =========================================================================
-// ENJAMBRE ORGÁNICO Y SISTEMA DE POLINIZACIÓN FLORAL ORIGINAL (🐝 🦋 🌸)
+// ENJAMBRE ORGÁNICO Y SISTEMA DE POLINIZACIÓN FLORAL
 // =========================================================================
 export function dispararFlores(clienteX, clienteY) {
     const escenario = document.getElementById('escenario');
@@ -229,6 +349,50 @@ export function dispararFlores(clienteX, clienteY) {
 }
 window.dispararFlores = dispararFlores;
 
+function ejecutarCapturaComercio(wrapper, idComercio, clienteX, clienteY) {
+    if (!wrapper || wrapper.classList.contains('salvada')) return;
+
+    wrapper.classList.add('salvada');
+    wrapper.style.pointerEvents = 'none';
+    wrapper.style.transition = 'transform 0.25s ease, opacity 0.25s ease';
+    wrapper.style.opacity = '0';
+    wrapper.style.transform = wrapper.style.transform + ' scale(1.6)';
+
+    dispararFlores(clienteX, clienteY);
+    emitirTono('EXITO');
+    if (navigator.vibrate) navigator.vibrate([40, 30, 40]);
+
+    setTimeout(function() {
+        wrapper.remove();
+        actualizarHUD();
+    }, 280);
+
+    const comercio = listaComercios.find(function(c) {
+        return String(c.id) === String(idComercio);
+    });
+
+    if (comercio) {
+        comercio.capturado = true;
+        comercio.archivado = false;
+        comercio.subido = false;
+        if (comercio.estado_flujo === 'Cerrado' || comercio.estado_flujo === 'Seguimiento') {
+            comercio.estado_flujo = 'Auditado';
+        }
+
+        AppState.guardarColaLocal();
+        renderizarTablero();
+        actualizarHUD();
+
+        setTimeout(function() {
+            const tarjeta = document.querySelector('.cuadrito-actividad[data-id="' + idComercio + '"]');
+            if (tarjeta) {
+                tarjeta.classList.add('recien-aterrizado');
+                tarjeta.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }, 100);
+    }
+}
+
 function lanzarEntidadVoladora(comercio, index) {
     const cielo = document.getElementById('cielo');
     if (!cielo || cielo.querySelector('.abeja-wrapper[data-id-comercio="' + comercio.id + '"]')) return;
@@ -240,24 +404,26 @@ function lanzarEntidadVoladora(comercio, index) {
     const esMariposa = (index % 2 === 1);
     const emoji = esMariposa ? '🦋' : '🐝';
 
-    const anchoMax = Math.max(100, cielo.clientWidth - 50);
-    const altoMax = Math.max(80, cielo.clientHeight - 50);
+    const anchoMax = Math.max(100, (cielo.clientWidth || 320) - 50);
+    const altoMax = Math.max(80, (cielo.clientHeight || 160) - 50);
 
     let posX = Math.random() * anchoMax;
     let posY = Math.random() * altoMax;
 
     wrapper.style.transform = 'translate(' + posX + 'px, ' + posY + 'px)';
     wrapper.innerHTML = '<div class="abeja-sprite" style="font-size:26px;">' + emoji + '</div>';
+
+    wrapper.addEventListener('pointerdown', function(e) {
+        e.stopPropagation();
+        ejecutarCapturaComercio(wrapper, comercio.id, e.clientX, e.clientY);
+    });
+
     cielo.appendChild(wrapper);
-
-
-    abejasActivas++;
-    actualizarHUD();
 
     function volarHaciaNuevoPunto() {
         if (wrapper.classList.contains('salvada')) return;
-        const nuevoX = 15 + Math.random() * (cielo.clientWidth - 70);
-        const nuevoY = 15 + Math.random() * (cielo.clientHeight - 65);
+        const nuevoX = 15 + Math.random() * (Math.max(100, cielo.clientWidth) - 65);
+        const nuevoY = 15 + Math.random() * (Math.max(80, cielo.clientHeight) - 60);
         const dx = nuevoX - posX;
         const dy = nuevoY - posY;
         const distancia = Math.hypot(dx, dy);
@@ -275,76 +441,50 @@ function lanzarEntidadVoladora(comercio, index) {
     setTimeout(volarHaciaNuevoPunto, 100 + Math.random() * 500);
 }
 
-function iniciarEnjambreSiAutorizado() {
-    const cielo = document.getElementById('cielo');
-    if (cielo) cielo.innerHTML = '';
-    abejasActivas = 0;
-    const pendientes = listaComercios.filter(function(c) {
-        return !c.capturado && !c.validado && !c.subido && !c.archivado && c.estado_flujo !== 'Cerrado';
-    });
-    pendientes.forEach(function(c, idx) {
-        lanzarEntidadVoladora(c, idx);
-    });
-    actualizarHUD();
-}
-
-export function actualizarHUD() {
-    const elVuelo = document.getElementById('conteo-en-vuelo');
-    const elFlores = document.getElementById('kpi-flores');
-    if (elVuelo) elVuelo.innerText = abejasActivas;
-    if (elFlores) elFlores.innerText = floresRecolectadas;
-}
-window.actualizarHUD = actualizarHUD;
-
-export async function inicializarMatrizGlobalUI() {
-    try {
-        const el = document.getElementById('kpi-skus-matriz');
-        if (el) el.innerText = "Indexando...";
-        const res = await GeokatuDB.CatalogoMatrizService.inicializarMatriz();
-        if (el) {
-            el.innerText = (res && res.success) 
-                ? (Number(res.count || 0).toLocaleString('es-CO') + ' SKUs') 
-                : "Sin Matriz";
-        }
-    } catch (e) {
-        const el = document.getElementById('kpi-skus-matriz');
-        if (el) el.innerText = "Error Local";
-    }
-}
-window.inicializarMatrizGlobalUI = inicializarMatrizGlobalUI;
-
-
 const escenarioEl = document.getElementById('escenario');
 if (escenarioEl) {
-    escenarioEl.addEventListener('mousedown', function(e) {
-        const objetivo = e.target.closest('.abeja-wrapper');
-        if (objetivo && !objetivo.classList.contains('salvada')) {
-            const idComercio = objetivo.getAttribute('data-id-comercio');
-            dispararFlores(e.clientX, e.clientY);
-            emitirTono('EXITO');
-            if (navigator.vibrate) navigator.vibrate([40, 30, 40]);
+    escenarioEl.addEventListener('pointerdown', function(e) {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
 
-            objetivo.classList.add('salvada');
-            abejasActivas = Math.max(0, abejasActivas - 1);
-            actualizarHUD();
-            setTimeout(function() { objetivo.remove(); }, 450);
+        let objetivo = e.target.closest('.abeja-wrapper');
 
-            const comercio = listaComercios.find(function(c) { return c.id === idComercio; });
+        if (!objetivo) {
+            const cielo = document.getElementById('cielo');
+            const abejas = cielo ? cielo.querySelectorAll('.abeja-wrapper:not(.salvada)') : [];
+            let mejorDistancia = 60;
+            let mejorAbeja = null;
 
-            if (comercio) {
-                comercio.capturado = true;
-                AppState.guardarColaLocal();
-                renderizarTablero();
+            for (let i = 0; i < abejas.length; i++) {
+                const ab = abejas[i];
+                let centroX = 0;
+                let centroY = 0;
 
-                setTimeout(function() {
-                    const tarjeta = document.querySelector('.cuadrito-actividad[data-id="' + idComercio + '"]');
-                    if (tarjeta) {
-                        tarjeta.classList.add('recien-aterrizado');
-                        tarjeta.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                }, 100);
+                try {
+                    const matrix = new DOMMatrix(window.getComputedStyle(ab).transform);
+                    const cieloRect = cielo.getBoundingClientRect();
+                    centroX = cieloRect.left + matrix.m41 + 24;
+                    centroY = cieloRect.top + matrix.m42 + 24;
+                } catch (err) {
+                    const r = ab.getBoundingClientRect();
+                    centroX = r.left + r.width / 2;
+                    centroY = r.top + r.height / 2;
+                }
+
+                const dist = Math.hypot(e.clientX - centroX, e.clientY - centroY);
+                if (dist < mejorDistancia) {
+                    mejorDistancia = dist;
+                    mejorAbeja = ab;
+                }
             }
 
+            if (mejorAbeja) {
+                objetivo = mejorAbeja;
+            }
+        }
+
+        if (objetivo && !objetivo.classList.contains('salvada')) {
+            const idComercio = objetivo.getAttribute('data-id-comercio');
+            ejecutarCapturaComercio(objetivo, idComercio, e.clientX, e.clientY);
         } else {
             dispararFlores(e.clientX, e.clientY);
         }
@@ -352,7 +492,7 @@ if (escenarioEl) {
 }
 
 // =========================================================================
-// TRADUCTOR ESPACIAL UNIVERSAL (MAPS, PLUS CODES, DMS, DECIMAL)
+// TRADUCTOR ESPACIAL UNIVERSAL
 // =========================================================================
 function parsearCoordenadasUniversales(input) {
     if (!input || typeof input !== 'string') return null;
@@ -696,7 +836,6 @@ window.guardarNuevoComercio = function() {
     const lng = parseFloat(document.getElementById('nuevo-lng')?.value);
     const direccion = document.getElementById('nuevo-direccion')?.value?.trim() || '';
 
-
     if (!nombre) { mostrarToast("Nombre de comercio obligatorio.", "error"); return; }
     if (isNaN(lat) || isNaN(lng)) { mostrarToast("Fija el punto en el mapa.", "error"); return; }
 
@@ -737,7 +876,7 @@ window.guardarNuevoComercio = function() {
 };
 
 // =========================================================================
-// GESTOR DE IDENTIDAD DE MARCA, PINES Y RUEDA CROMÁTICA ÁUREA
+// IDENTIDAD, PINES Y RUEDA CROMÁTICA
 // =========================================================================
 const GRIS_METALLIC_GEOKATU = "#8a909d";
 const BLANCO_GEOKATU = "#ffffff";
@@ -831,6 +970,7 @@ export function actualizarPinDrawerLive() {
     recalcularDistribucionAureaSilenciosa();
 }
 window.actualizarPinDrawerLive = actualizarPinDrawerLive;
+
 export function recalcularDistribucionAureaSilenciosa() {
     if (!comercioActivoParaCatalogo) return;
     const c1 = document.getElementById('hex-slot-1')?.value || '#ff6b00';
@@ -925,7 +1065,6 @@ window.confirmarColorSeleccionado = function() {
     }
 };
 
-
 window.sincronizarColorDesdeHex = function(valorIngresado) {
     const hexLimpio = (valorIngresado || '').replace('#', '').trim();
     const inputHex = document.getElementById('input-hex-manual');
@@ -936,7 +1075,6 @@ window.sincronizarColorDesdeHex = function(valorIngresado) {
         if (inputHex) inputHex.style.borderColor = '#ff4444';
     }
 };
-
 
 window.eliminarSlotColor = function(slot) {
     const box = document.getElementById('slot-color-box-' + slot);
@@ -1084,7 +1222,7 @@ export function inicializarEventosRueda() {
 window.inicializarEventosRueda = inicializarEventosRueda;
 
 // =========================================================================
-// GESTOR DE CATEGORÍAS MAESTRAS Y NICHOS
+// CATEGORÍAS MAESTRAS Y NICHOS
 // =========================================================================
 let poolCategoriasCatalogo = new Set();
 
@@ -1322,9 +1460,9 @@ export function renderizarTablero() {
             '</div>' +
 
             '<div class="ticket-cuerpo">' +
-                '<button class="btn-eliminar-inline" title="Eliminar fila">🗑️</button>' +
-                '<button class="btn-editar-inline" title="Editar datos">✏️</button>' +
-                '<button class="btn-enviar-sheets-inline" onclick="event.stopPropagation(); enviarComercioASheets(' + index + ')" title="Enviar este ticket a la última fila de Sheets">📤</button>' +
+                '<button type="button" class="btn-eliminar-inline" onclick="event.stopPropagation(); window.eliminarComercioTicket(' + index + ')" title="Eliminar fila">🗑️</button>' +
+                '<button type="button" class="btn-editar-inline" onclick="event.stopPropagation(); window.toggleEditarTicket(' + index + ', this)" title="Editar datos">✏️</button>' +
+                '<button type="button" class="btn-enviar-sheets-inline" onclick="event.stopPropagation(); enviarComercioASheets(' + index + ')" title="Enviar este ticket a la última fila de Sheets">📤</button>' +
 
                 '<div class="cuadrito-datos">' +
                     sloganHTML +
@@ -1378,18 +1516,7 @@ sedesHTML +
             '</div>';
     }
 
-    const elValidados = document.getElementById('kpi-validados');
-
-    const elTotal = document.getElementById('kpi-total');
-    const elListos = document.getElementById('conteo-listos');
-    const elSubidos = document.getElementById('conteo-subidos');
-    const elVisibles = document.getElementById('badge-total-visibles');
-
-    if (elValidados) elValidados.innerText = validados;
-    if (elTotal) elTotal.innerText = listaComercios.length;
-    if (elListos) elListos.innerText = validados;
-    if (elSubidos) elSubidos.innerText = subidos;
-    if (elVisibles) elVisibles.innerText = visibles;
+    actualizarHUD();
     AppState.guardarColaLocal();
 }
 window.renderizarTablero = renderizarTablero;
@@ -1418,6 +1545,91 @@ window.filtrarComerciosUI = function() {
 // =========================================================================
 // EDICIÓN EN CALIENTE Y COPIADO TÁCTIL
 // =========================================================================
+window.eliminarComercioTicket = async function(index) {
+    var conf = await solicitarConfirmacion("Eliminar Comercio", "¿Deseas eliminar este registro del radar local?");
+    if (!conf) return;
+    listaComercios.splice(index, 1);
+    AppState.guardarColaLocal();
+    renderizarTablero();
+    actualizarConteoHistorial();
+    mostrarToast("Comercio removido.", "info");
+};
+
+window.toggleEditarTicket = function(index, btnElement) {
+    var btn = btnElement || document.querySelector('.cuadrito-actividad[data-index="' + index + '"] .btn-editar-inline');
+    if (!btn) return;
+    var card = btn.closest('.cuadrito-actividad');
+    if (!card) return;
+
+    var spans = card.querySelectorAll('.dato-copiable');
+    var btnTrash = card.querySelector('.btn-eliminar-inline');
+    var contenedorWa = card.querySelector('.contenedor-botones-wa');
+    var spanWaRaw = card.querySelector('.dato-whatsapp-raw');
+    var btnGeoInline = card.querySelector('.btn-geo-inline');
+
+    var editando = btn.textContent.trim().indexOf('✔️') !== -1;
+
+    if (editando) {
+        var inputNicho = card.querySelector('.input-nicho-editable');
+        var spanNicho = card.querySelector('.dato-nicho-texto');
+        if (inputNicho && listaComercios[index]) {
+            var valorFinal = inputNicho.value.trim() || 'General';
+            listaComercios[index].nicho = valorFinal;
+            listaComercios[index].categoria = valorFinal;
+            if (spanNicho) spanNicho.innerText = valorFinal;
+        }
+
+        spans.forEach(function(span) {
+            var key = span.getAttribute('data-key');
+            if (key && key !== 'nicho' && listaComercios[index]) {
+                listaComercios[index][key] = span.innerText.trim();
+            }
+            span.contentEditable = "false";
+            span.classList.remove('modo-edicion');
+        });
+
+        btn.textContent = '✏️';
+        if (btnTrash) btnTrash.style.display = 'none';
+        if (contenedorWa) contenedorWa.style.display = 'inline-flex';
+        if (spanWaRaw) spanWaRaw.style.display = 'none';
+        if (btnGeoInline) btnGeoInline.style.display = 'none';
+        if (inputNicho && spanNicho) {
+            inputNicho.style.display = 'none';
+            spanNicho.style.display = 'inline-block';
+        }
+        actualizarDatalistNichos();
+        AppState.guardarColaLocal();
+        renderizarTablero();
+        mostrarToast("Cambios guardados.", "exito");
+    } else {
+        btn.textContent = '✔️';
+        if (btnTrash) btnTrash.style.display = 'block';
+        if (btnGeoInline) btnGeoInline.style.display = 'inline-flex';
+
+        if (contenedorWa) contenedorWa.style.display = 'none';
+        if (spanWaRaw) {
+            spanWaRaw.style.display = 'inline-block';
+            spanWaRaw.contentEditable = "true";
+            spanWaRaw.classList.add('modo-edicion');
+        }
+
+        var inputNicho = card.querySelector('.input-nicho-editable');
+        var spanNicho = card.querySelector('.dato-nicho-texto');
+        if (inputNicho && spanNicho) {
+            spanNicho.style.display = 'none';
+            inputNicho.style.display = 'inline-block';
+            inputNicho.focus();
+        }
+
+        spans.forEach(function(span) {
+            if (!span.classList.contains('dato-whatsapp-raw') && !span.classList.contains('dato-nicho-texto')) {
+                span.contentEditable = "true";
+                span.classList.add('modo-edicion');
+            }
+        });
+    }
+};
+
 document.addEventListener('click', async function(event) {
     if (event.target.classList.contains('dato-copiable')) {
         const span = event.target;
@@ -1429,7 +1641,7 @@ document.addEventListener('click', async function(event) {
         return;
     }
 
-   if (event.target.classList.contains('btn-eliminar-inline')) {
+    if (event.target.classList.contains('btn-eliminar-inline')) {
         event.stopPropagation();
         const conf = await solicitarConfirmacion("Eliminar Comercio", "¿Deseas eliminar este registro del radar local?");
         if (!conf) return;
@@ -1517,7 +1729,6 @@ document.addEventListener('click', async function(event) {
         }
         return;
     }
-
 });
 
 // =========================================================================
@@ -1589,13 +1800,18 @@ window.addEventListener('popstate', function() {
     const modalEstudio = document.getElementById('modal-estudio-canvas-geokatu');
 
     if (modalEstudio && modalEstudio.style.display === 'flex') {
-        window.cerrarEstudioCanvas();
+        if (typeof window.cerrarEstudioCanvas === 'function') {
+            window.cerrarEstudioCanvas();
+        } else {
+            modalEstudio.style.display = 'none';
+        }
         return;
     }
     if (drawer && drawer.classList.contains('activo')) {
         window.cerrarDrawerCatalogo(true);
     }
 });
+
 
 export function renderizarListaSkusDrawer() {
     const cont = document.getElementById('drawer-lista-skus');
@@ -1694,7 +1910,6 @@ window.procesarCodigoEscaneadoCatalogo = async function(codigo) {
         if (!comercioActivoParaCatalogo.catalogo) comercioActivoParaCatalogo.catalogo = [];
         comercioActivoParaCatalogo.catalogo.unshift(nuevo);
     } else {
-
         const nombre = prompt('Codigo: ' + codigo + '\nNombre del articulo:');
         if (nombre && nombre.trim()) {
             const nuevo = {
@@ -1874,19 +2089,59 @@ window.procesarLoteImagenes = async function(archivos) {
 // SINCRONIZACIÓN ATÓMICA FIRESTORE ONESHOT
 // =========================================================================
 window.sincronizarCatalogoComercioNube = async function() {
-    if (!comercioActivoParaCatalogo) return;
+    if (!comercioActivoParaCatalogo) {
+        mostrarToast("No hay comercio activo seleccionado.", "error");
+        return;
+    }
+
     const c = comercioActivoParaCatalogo;
     const prods = c.catalogo || [];
+    const btn = document.getElementById('btn-inyectar-catalogo-nube');
 
     const confirmado = await solicitarConfirmacion(
         "Sincronizar Expediente",
-        'Deseas asentar en Firestore el comercio "' + c.nombre + '" con sus ' + prods.length + ' productos, ubicacion y branding?'
+        'Deseas asentar en Firestore el comercio "' + (c.nombre || 'Comercio') + '" con sus ' + prods.length + ' productos, ubicacion y branding?'
     );
     if (!confirmado) return;
 
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = "Preparando datos...";
+        btn.style.opacity = "0.7";
+    }
+
     try {
+        const idSeguro = String(c.id || ('GEO-' + Date.now().toString().slice(-4))).trim();
+        c.id = idSeguro;
+
+        const storage = getStorage(db.app);
+        for (let i = 0; i < prods.length; i++) {
+            const p = prods[i];
+            const esBlobLocal = p.imagen && p.imagen.indexOf('blob:') === 0;
+            if (p.archivoBlob || esBlobLocal) {
+                if (btn) {
+                    btn.innerText = "Subiendo foto (" + (i + 1) + " de " + prods.length + ")...";
+                }
+                try {
+                    const blobParaSubir = p.archivoBlob || (await (await fetch(p.imagen)).blob());
+                    const rutaStorage = 'negocios/' + idSeguro + '/productos/' + (p.codigo_barras || Date.now()) + '_' + Date.now() + '.webp';
+                    const storageRef = ref(storage, rutaStorage);
+                    const snapshot = await uploadBytes(storageRef, blobParaSubir, { contentType: 'image/webp' });
+                    const downloadURL = await getDownloadURL(snapshot.ref);
+                    p.imagen = downloadURL;
+                    p.subido_storage = true;
+                } catch (errFoto) {
+                    console.warn("Fallo subiendo foto del producto " + p.nombre, errFoto);
+                }
+            }
+        }
+
+        if (btn) {
+            btn.innerText = "Asentando en Firestore...";
+        }
+
         const batch = writeBatch(db);
-        const docNegocioRef = doc(db, "Directorio", c.id);
+        const docNegocioRef = doc(db, "Directorio", idSeguro);
 
         const coordsRaw = c.coordenada_validada || c.coordenadas_crudo || c.plus_code || (String(c.lat || '') + ', ' + String(c.lng || ''));
         const coords = parsearCoordenadasUniversales(coordsRaw) || { lat: 4.81333, lng: -75.69611 };
@@ -1973,9 +2228,9 @@ window.sincronizarCatalogoComercioNube = async function() {
 
         batch.set(docNegocioRef, payloadMaestro, { merge: true });
 
-        const coleccionProds = collection(db, 'Directorio/' + c.id + '/productos');
+        const coleccionProds = collection(db, 'Directorio/' + idSeguro + '/productos');
         prods.forEach(function(p) {
-            const docRef = p.id ? doc(coleccionProds, p.id) : doc(coleccionProds);
+            const docRef = p.id ? doc(coleccionProds, String(p.id)) : doc(coleccionProds);
             const payloadProd = {
                 nombre: p.nombre || "Sin nombre",
                 codigo_barras: String(p.codigo_barras || "").trim(),
@@ -1987,7 +2242,9 @@ window.sincronizarCatalogoComercioNube = async function() {
                 eliminado: false,
                 fecha_actualizacion: new Date().toISOString()
             };
-            if (p.imagen && p.imagen.indexOf('http') === 0) payloadProd.imagen = p.imagen;
+            if (p.imagen && p.imagen.indexOf('http') === 0) {
+                payloadProd.imagen = p.imagen;
+            }
             batch.set(docRef, payloadProd, { merge: true });
         });
 
@@ -1998,162 +2255,34 @@ window.sincronizarCatalogoComercioNube = async function() {
         AppState.guardarColaLocal();
         renderizarTablero();
 
-        mostrarToast('Expediente de "' + c.nombre + '" sincronizado en Firestore.', "exito", 4000);
-        cerrarDrawerCatalogo();
-    } catch (err) {
-        mostrarToast("Fallo de subida: " + err.message, "error", 4500);
-    }
-};
-
-window.subirOneShotAFirebase = async function() {
-    if (!superadminAutorizado) {
-        mostrarToast("Accion denegada: Requiere sesion activa de Superadmin.", "error");
-        return;
-    }
-    const listos = listaComercios.filter(function(c) { return c.validado && !c.subido; });
-    if (listos.length === 0) {
-        mostrarToast("No hay comercios validados pendientes de subir.", "info");
-        return;
-    }
-
-    const confirmado = await solicitarConfirmacion(
-        "Subida Masiva OneShot",
-        'Subir por lotes atomicos ' + listos.length + ' comercio(s) y sus catalogos a Firestore?'
-    );
-    if (!confirmado) return;
-
-    let batch = writeBatch(db);
-    let contadorOperaciones = 0;
-    const urlAppsScript = localStorage.getItem('geokatu_apps_script_url');
-
-    try {
-        for (let i = 0; i < listos.length; i++) {
-            const item = listos[i];
-            const coordsRaw = item.coordenada_validada || item.coordenadas_crudo || '';
-            const coords = parsearCoordenadasUniversales(coordsRaw) || { lat: 4.81333, lng: -75.69611 };
-            let geoHashCalculado = "";
-            try {
-                if (typeof geofire !== 'undefined' && geofire.geohashForLocation) {
-                    geoHashCalculado = geofire.geohashForLocation([coords.lat, coords.lng]);
-                }
-            } catch (e) {}
-
-            const docNegocioRef = doc(db, "Directorio", item.id);
-            const arrFonos = String(item.whatsapp || '').split('|').map(function(f) { return f.trim().replace(/\D/g, ''); }).filter(Boolean);
-            const primerFono = arrFonos[0] ? (arrFonos[0].length === 10 ? '57' + arrFonos[0] : arrFonos[0]) : "";
-
-            let tagsArr = [];
-            if (Array.isArray(item.tags_busqueda)) tagsArr = item.tags_busqueda;
-            else if (typeof item.tags_busqueda === 'string' && item.tags_busqueda.trim()) {
-                tagsArr = item.tags_busqueda.split(/[,|;]/).map(function(t) { return t.replace(/^#/, '').trim(); }).filter(Boolean);
-            }
-
-            const payloadCanónico = {
-                nombre: item.nombre || "Comercio Aliado",
-                slogan: item.slogan || "",
-                cuerpo_articulo: item.slogan || item.cuerpo_articulo || "",
-                nicho: item.nicho || item.categoria || "General",
-                categoria: item.nicho || item.categoria || "General",
-                categoria_maestra: item.nicho || item.categoria || "General",
-                tags_busqueda: tagsArr,
-                informacion_adicional: item.informacion_adicional || "",
-                direccion: item.direccion || "",
-                plus_code: item.plus_code || "",
-                Coordenadas: { latitude: coords.lat, longitude: coords.lng },
-                lat: coords.lat,
-                lng: coords.lng,
-                ubicacion: { lat: coords.lat, lng: coords.lng },
-                geohash: geoHashCalculado,
-                pais: item.pais || "COL",
-                whatsapp: primerFono,
-                whatsApp: primerFono,
-                telefonos: arrFonos,
-                pbx: String(item.pbx || '').trim(),
-                email: item.correo || item.email || "",
-                correo: item.correo || item.email || "",
-                instagram: String(item.instagram_handle || item.instagram || '').replace(/^@/, '').trim(),
-                facebook: item.facebook || "",
-                web: item.sitio_web || item.web || "",
-                sitio_web: item.sitio_web || item.web || "",
-                horario: item.horario || "",
-                es_24_horas: Boolean(item.es_24_horas),
-                verificado_maps: item.verificado_maps || "NO",
-                cant_resenas: Number(item.cant_resenas) || 0,
-                resena_picante: item.resena_picante || "",
-                destacado_estrella: Boolean(item.destacado_estrella),
-                pin_pack: item.pin_pack || "forma-gota|anim-salto",
-                color_principal: item.color_principal || "#ff6b00",
-                color_acento: item.color_acento || "#8a909d",
-                color_terciario: item.color_terciario || "#ffffff",
-                paleta_distribucion: item.paleta_distribucion || [
-                    { color: item.color_principal || "#ff6b00", porcentaje: 50 },
-                    { color: item.color_acento || "#8a909d", porcentaje: 25 },
-                    { color: item.color_terciario || "#ffffff", porcentaje: 12.5 }
-                ],
-                logo: (item.logo && item.logo.indexOf('http') === 0) ? item.logo : "",
-                portada: (item.portada && item.portada.indexOf('http') === 0) ? item.portada : "",
-                link_pin: (item.link_pin && item.link_pin.indexOf('http') === 0) ? item.link_pin : "",
-                logo_nombre: (item.logo_nombre && item.logo_nombre.indexOf('http') === 0) ? item.logo_nombre : "",
-                reclamado: Boolean(item.reclamado),
-                dueno_registrado: Boolean(item.dueno_registrado),
-                owner_email: item.owner_email || item.dueno_email || "",
-                estado_moderacion: "aprobado",
-                premium: false,
-                progreso_boveda: 100,
-                tipo_modelo: "negocio",
-                fecha_ingreso: item.fecha_ingreso || new Date().toISOString(),
-                fecha_actualizacion: new Date().toISOString(),
-                origen_cuenta: "Onboarding_OneShot_Radar"
-            };
-
-            batch.set(docNegocioRef, payloadCanónico, { merge: true });
-            contadorOperaciones++;
-
-
-            const prods = item.catalogo || [];
-            const coleccionProds = collection(db, 'Directorio/' + item.id + '/productos');
-            for (let j = 0; j < prods.length; j++) {
-                const p = prods[j];
-                const docProdRef = doc(coleccionProds);
-                batch.set(docProdRef, {
-                    nombre: p.nombre || "Sin nombre",
-                    codigo_barras: String(p.codigo_barras || "").trim(),
-                    precio: Number(p.precio) || 0,
-                    categoria: p.categoria || item.nicho || "General",
-                    stock_actual: Number(p.stock_actual) || 0,
-                    en_piso_venta: true,
-                    fecha_actualizacion: new Date().toISOString()
-                }, { merge: true });
-                contadorOperaciones++;
-
-                if (contadorOperaciones >= 450) {
-                    await batch.commit();
-                    batch = writeBatch(db);
-                    contadorOperaciones = 0;
-                }
-            }
+        emitirTono('EXITO');
+        if (btn) {
+            btn.innerText = "Catalogo Inyectado con Exito";
+            btn.style.background = "var(--verde-hoja)";
+            btn.style.color = "#052e16";
         }
 
-        if (contadorOperaciones > 0) await batch.commit();
+        mostrarToast('Expediente de "' + c.nombre + '" guardado en Firestore.', "exito", 4000);
 
-        listos.forEach(function(item) {
-            item.subido = true;
-            if (urlAppsScript && item.fila_index) {
-                fetch(urlAppsScript, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ accion: "marcar_subido", fila_index: item.fila_index, nombre: item.nombre })
-                }).catch(function() {});
+        setTimeout(function() {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerText = "INYECTAR CATALOGO A FIRESTORE";
+                btn.style.background = "";
+                btn.style.color = "";
+                btn.style.opacity = "1";
             }
-        });
+            cerrarDrawerCatalogo();
+        }, 1200);
 
-        AppState.guardarColaLocal();
-        renderizarTablero();
-        emitirTono('EXITO');
-        mostrarToast('OneShot completado: ' + listos.length + ' comercios guardados en Firestore.', "exito", 4500);
     } catch (err) {
-        mostrarToast("Fallo durante el envio del lote: " + err.message, "error", 4500);
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = "Error al Inyectar (Reintentar)";
+            btn.style.background = "var(--rojo-fuego)";
+            btn.style.opacity = "1";
+        }
+        mostrarToast("Fallo Firestore: " + err.message, "error", 5500);
     }
 };
 
@@ -2185,42 +2314,42 @@ window.sincronizarConAppsScript = async function() {
 
         let nuevos = 0;
 
-            data.forEach(function(item) {
-                const idx = listaComercios.findIndex(function(c) { return c.id === item.id; });
+        data.forEach(function(item) {
+            const idx = listaComercios.findIndex(function(c) { return c.id === item.id; });
 
-                if (idx === -1) {
-                    const yaAuditado = (item.estado === 'Auditado' || item.estado === 'SUBIDO_FIREBASE' || item.estado_flujo === 'Cerrado');
-                    const nuevoItem = {
-                        ...item,
-                        capturado: yaAuditado,
-                        validado: (item.estado === 'Auditado' || item.estado === 'SUBIDO_FIREBASE'),
-                        subido: (item.estado === 'SUBIDO_FIREBASE'),
-                        catalogo: []
-                    };
+            if (idx === -1) {
+                const yaAuditado = (item.estado === 'Auditado' || item.estado === 'SUBIDO_FIREBASE' || item.estado_flujo === 'Cerrado');
+                const nuevoItem = {
+                    ...item,
+                    capturado: yaAuditado,
+                    validado: (item.estado === 'Auditado' || item.estado === 'SUBIDO_FIREBASE'),
+                    subido: (item.estado === 'SUBIDO_FIREBASE'),
+                    catalogo: []
+                };
 
-                    listaComercios.push(nuevoItem);
+                listaComercios.push(nuevoItem);
 
-                    if (!nuevoItem.capturado && !nuevoItem.archivado) {
-                        lanzarEntidadVoladora(nuevoItem, nuevos);
-                    }
-                    nuevos++;
-                } else {
-                    listaComercios[idx].nombre = item.nombre;
-                    listaComercios[idx].direccion = item.direccion;
-                    listaComercios[idx].whatsapp = item.whatsapp;
-                    listaComercios[idx].horario = item.horario;
-                    listaComercios[idx].pbx = item.pbx;
-                    listaComercios[idx].correo = item.correo;
-                    listaComercios[idx].coordenadas_crudo = item.coordenadas_crudo || item.coordenada_validada;
+                if (!nuevoItem.capturado && !nuevoItem.archivado) {
+                    lanzarEntidadVoladora(nuevoItem, nuevos);
                 }
-            });
+                nuevos++;
+            } else {
+                listaComercios[idx].nombre = item.nombre;
+                listaComercios[idx].direccion = item.direccion;
+                listaComercios[idx].whatsapp = item.whatsapp;
+                listaComercios[idx].horario = item.horario;
+                listaComercios[idx].pbx = item.pbx;
+                listaComercios[idx].correo = item.correo;
+                listaComercios[idx].coordenadas_crudo = item.coordenadas_crudo || item.coordenada_validada;
+            }
+        });
 
-            AppState.guardarColaLocal();
-            actualizarDatalistNichos();
-            actualizarHUD();
-            renderizarTablero();
-            emitirTono('EXITO');
-            mostrarToast('Sincronización: ' + nuevos + ' comercios lanzados al enjambre.', "exito");
+        AppState.guardarColaLocal();
+        actualizarDatalistNichos();
+        actualizarHUD();
+        renderizarTablero();
+        emitirTono('EXITO');
+        mostrarToast('Sincronización: ' + nuevos + ' comercios lanzados al enjambre.', "exito");
 
     } catch (e) {
         mostrarToast("Error conectando con Google Sheets: " + e.message, "error");
@@ -2250,7 +2379,7 @@ window.enviarComercioASheets = async function(index) {
 };
 
 // =========================================================================
-// BÓVEDA HISTORIAL Y ASIGNACIÓN DE DUEÑOS (CLAIM)
+// BÓVEDA HISTORIAL Y DUEÑOS
 // =========================================================================
 let claimComercioIndex = null;
 
@@ -2336,7 +2465,6 @@ window.toggleNegocioTomado = async function(index, tomado) {
     mostrarToast('Estado actualizado: ' + (tomado ? 'TOMADO' : 'LIBRE'), 'info');
 };
 
-
 window.reabrirComercioEnRadar = function(index) {
     listaComercios[index].archivado = false;
     listaComercios[index].capturado = true;
@@ -2398,7 +2526,6 @@ window.confirmarEntregaDueno = async function() {
     }
 };
 
-
 window.abrirWhatsAppDirecto = function(numero, nombreComercio) {
     let limpio = String(numero || '').replace(/\D/g, '');
     if (!limpio) return;
@@ -2410,5 +2537,3 @@ window.abrirWhatsAppDirecto = function(numero, nombreComercio) {
 window.abrirWA = function(fono, nom) {
     window.abrirWhatsAppDirecto(fono, nom);
 };
-
-

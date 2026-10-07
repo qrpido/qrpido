@@ -1,11 +1,15 @@
 import GeokatuDB from './core-db.js';
 import { BillingGuard } from './billing-guard.js';
-import { MotorLector } from './lector-motor.js';
 import { MotorBalanza } from './balanza-motor.js';
 import { MotorCajonMonedero } from './cajon-motor.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
+// Obviamos MotorLector y QRLocal como módulos ES6 estrictos porque fallan sus rutas/exports. 
+// Usaremos la instancia global de Html5Qrcode directamente desde el HTML, como lo haces en stock.html.
+
 const auth = getAuth();
+const motorCajon = new MotorCajonMonedero();
+
 
 
 // ==========================================
@@ -1153,7 +1157,7 @@ async function ejecutarVentaFinalDefinitiva() {
     let totalVentaCalculado = 0;
     let productosAuditados = [];
 
-   for (const item of carrito) {
+    for (const item of carrito) {
         // Si es un ítem libre creado en el momento, pasa directo con su precio validado
         if (item.id_prod && item.id_prod.startsWith("GENERICO_")) {
             const subtotalLibre = Math.round(Number(item.precio) * Number(item.cantidad));
@@ -1170,14 +1174,16 @@ async function ejecutarVentaFinalDefinitiva() {
                 cantidad: item.cantidad,
                 subtotal: subtotalLibre,
                 precio_fijado_balanza: false,
-                nota: item.nota || ""
+                nota: item.nota || "",
+                id_compartimiento: "BIN_INICIAL",
+                desglose_ubicaciones: [{ id_compartimiento: "BIN_INICIAL", cantidad: item.cantidad }]
             });
             continue;
         }
 
         const prodMaestro = catalogoLocal.find(p => p.id_prod === item.id_prod);
         if (!prodMaestro) {
-            alert(`⚠️ Error de Integridad: Producto "${item.nombre}" inválido.`);
+            alert('⚠️ Error de Integridad: Producto "' + item.nombre + '" inválido.');
             return;
         }
 
@@ -1186,19 +1192,51 @@ async function ejecutarVentaFinalDefinitiva() {
             : Number(prodMaestro.precio);
         let subtotal = item.precio_fijado_balanza ? precioFinal : Math.round(precioFinal * item.cantidad);
 
-         // 🛡️ ENLACE ESPACIAL AUTOMÁTICO: Deducir compartimiento activo en Piso de Venta y actualizar caché local
-        let idCompPisoVenta = "BIN_INICIAL";
+        // 🛡️ DEDUCCIÓN EN CASCADA EN PISO DE VENTA (MAYOR EXISTENCIA PRIMERO)
+        let idCompPrincipal = "BIN_INICIAL";
+        let desgloseUbicaciones = [];
         try {
-            const stockUbisLocal = JSON.parse(localStorage.getItem(`geokatu_stock_ubis_${idNegocio}`) || "[]");
-            // Buscar la primera ubicación del producto que esté en zona de piso de ventas con stock > 0
-            const ubiPiso = stockUbisLocal.find(u => u.id_prod === prodMaestro.id_prod && u.zona === 'PISO_VENTA' && u.cantidad > 0);
-            if (ubiPiso && ubiPiso.id_compartimiento) {
-                idCompPisoVenta = ubiPiso.id_compartimiento;
-                ubiPiso.cantidad = Math.max(0, Number((ubiPiso.cantidad - item.cantidad).toFixed(3)));
-                localStorage.setItem(`geokatu_stock_ubis_${idNegocio}`, JSON.stringify(stockUbisLocal));
+            const claveUbis = "geokatu_stock_ubis_" + idNegocio;
+            const stockUbisLocal = JSON.parse(localStorage.getItem(claveUbis) || "[]");
+            
+            // 1. Filtrar compartimientos de Piso de Venta con stock positivo
+            const candidatos = stockUbisLocal
+                .filter(u => u.id_prod === prodMaestro.id_prod && u.zona === "PISO_VENTA" && Number(u.cantidad) > 0)
+                .sort((a, b) => Number(b.cantidad) - Number(a.cantidad));
+
+            let restantePorDescontar = Number(item.cantidad);
+
+            // 2. Descuento en cascada
+            for (let ubi of candidatos) {
+                if (restantePorDescontar <= 0) break;
+                const disponible = Number(ubi.cantidad);
+                const aDescontar = Math.min(disponible, restantePorDescontar);
+                ubi.cantidad = Number((disponible - aDescontar).toFixed(3));
+                restantePorDescontar = Number((restantePorDescontar - aDescontar).toFixed(3));
+                desgloseUbicaciones.push({
+                    id_compartimiento: ubi.id_compartimiento,
+                    cantidad: aDescontar
+                });
             }
+
+            // 3. Si hay sobreventa o el producto no tenía estante fijado
+            if (restantePorDescontar > 0) {
+                if (desgloseUbicaciones.length > 0) {
+                    desgloseUbicaciones[0].cantidad = Number((desgloseUbicaciones[0].cantidad + restantePorDescontar).toFixed(3));
+                    candidatos[0].cantidad = Number((candidatos[0].cantidad - restantePorDescontar).toFixed(3));
+                } else {
+                    desgloseUbicaciones.push({
+                        id_compartimiento: "BIN_INICIAL",
+                        cantidad: restantePorDescontar
+                    });
+                }
+            }
+
+            idCompPrincipal = desgloseUbicaciones[0].id_compartimiento;
+            localStorage.setItem(claveUbis, JSON.stringify(stockUbisLocal));
         } catch (eUbi) {
-            console.warn("[POS Contexto Espacial] Usando compartimiento por defecto:", eUbi);
+            console.warn("[POS Cascada] Fallo en deducción espacial:", eUbi);
+            desgloseUbicaciones = [{ id_compartimiento: "BIN_INICIAL", cantidad: item.cantidad }];
         }
 
         totalVentaCalculado += subtotal;
@@ -1215,11 +1253,10 @@ async function ejecutarVentaFinalDefinitiva() {
             subtotal: subtotal,
             precio_fijado_balanza: !!item.precio_fijado_balanza,
             nota: item.nota || "",
-            id_compartimiento: idCompPisoVenta // 📍 Coordenada física para descuento atómico en el estante
+            id_compartimiento: idCompPrincipal,
+            desglose_ubicaciones: desgloseUbicaciones
         });
     }
-
-
 
     const switchDian = document.getElementById('switch-dian');
     const requiereFacturaDian = switchDian ? switchDian.checked : false;
@@ -1231,14 +1268,14 @@ async function ejecutarVentaFinalDefinitiva() {
     };
 
     if (requiereFacturaDian) {
-        const nit = document.getElementById('dian-nit').value.trim();
-        const nombre = document.getElementById('dian-nombre').value.trim();
-        const email = document.getElementById('dian-email').value.trim();
+        const nit = (document.getElementById('dian-nit')?.value || '').trim();
+        const nombre = (document.getElementById('dian-nombre')?.value || '').trim();
+        const email = (document.getElementById('dian-email')?.value || '').trim();
         if (!nit || !nombre || !email) {
             alert("⚠️ Para factura electrónica DIAN debes ingresar NIT, Nombre y Correo.");
             return;
         }
-        datosCliente = { nit, nombre, email };
+        datosCliente = { nit: nit, nombre: nombre, email: email };
     }
 
     const ticketPayload = {
@@ -1253,22 +1290,18 @@ async function ejecutarVentaFinalDefinitiva() {
         cliente: datosCliente
     };
 
-
-   document.getElementById('txt-conexion').innerText = "REGISTRANDO...";
+    document.getElementById('txt-conexion').innerText = "REGISTRANDO...";
     const res = await GeokatuDB.PosService.procesarVentaLote(idNegocio, ticketPayload);
 
-        if (res.success) {
-        ultimoTicketIdVendido = res.localId || res.ticketId;
+    if (res.success) {
+        ultimoTicketIdVendido = res.ticketId || res.localId;
         
         if (typeof window.mostrarAvisoPos === 'function') {
-            window.mostrarAvisoPos(`Venta asentada con éxito. Ticket: ${ultimoTicketIdVendido}`);
+            window.mostrarAvisoPos("Venta asentada con éxito. Ticket: " + ultimoTicketIdVendido);
         }
-
 
         let datosFiscalesResueltos = null;
 
-        // 🛡️ BARRERA FISCAL RESOLUCIÓN 000165 DIAN:
-        // Si requiere factura electrónica, retenemos la impresión hasta 4 segundos esperando CUFE
         if (requiereFacturaDian) {
             if (navigator.onLine && !res.offline && res.ticketId) {
                 document.getElementById('txt-conexion').innerText = "EMITIENDO CUFE DIAN...";
@@ -1287,7 +1320,6 @@ async function ejecutarVentaFinalDefinitiva() {
                     };
                 }
             } else {
-                // Offline inmediato: entra en contingencia tipo 04
                 datosFiscalesResueltos = {
                     cufe: null,
                     consecutivo: null,
@@ -1298,21 +1330,18 @@ async function ejecutarVentaFinalDefinitiva() {
 
         armarTirillaTermica(ticketPayload, ultimoTicketIdVendido, datosFiscalesResueltos);
 
-        // Acumular ventas por medio de pago individual y desglose tributario real
         pagosAcumuladosTicket.forEach(p => {
             if (p.metodo === 'EFECTIVO') acumuladoTurno.efectivo += p.monto;
             else if (p.metodo === 'TARJETA') acumuladoTurno.tarjeta += p.monto;
             else if (p.metodo === 'NEQUI') acumuladoTurno.nequi += p.monto;
         });
 
-        // Sumar canasta mixta auditada del ticket canonico
         const fiscalTicket = res.payloadCanonico?.totales || ticketPayload.despacho_fiscal?.payload_canonico?.totales;
         if (fiscalTicket) {
             acumuladoTurno.base_gravable += (fiscalTicket.base_gravable || 0);
             acumuladoTurno.iva_19 += (fiscalTicket.impuesto_iva || 0);
             acumuladoTurno.exento += (fiscalTicket.total_exento || 0);
         } else {
-            // Calculo directo si no viaja el payload
             let b = 0, iv = 0, ex = 0;
             productosAuditados.forEach(pr => {
                 if (String(pr.impuesto) === "19") {
@@ -1327,24 +1356,19 @@ async function ejecutarVentaFinalDefinitiva() {
             acumuladoTurno.iva_19 += Math.round(iv);
             acumuladoTurno.exento += Math.round(ex);
         }
-        localStorage.setItem(`geokatu_acumulado_${idNegocio}`, JSON.stringify(acumuladoTurno));
+        localStorage.setItem("geokatu_acumulado_" + idNegocio, JSON.stringify(acumuladoTurno));
 
-
-         // Actualizar KPIs de ventas del día
         const kpiObj = document.getElementById('kpi-ventas');
         if (kpiObj) {
             const kpiActual = Number(kpiObj.innerText.replace(/\D/g, ''));
-            kpiObj.innerText = `$${(kpiActual + totalVentaCalculado).toLocaleString('es-CO')}`;
+            kpiObj.innerText = "$" + (kpiActual + totalVentaCalculado).toLocaleString('es-CO');
         }
 
-        // Actualizar contador mensual de facturas libres en tiempo real
         if (controlFacturacionActivo) {
             controlFacturacionActivo.facturas_emitidas_mes = (Number(controlFacturacionActivo.facturas_emitidas_mes) || 0) + 1;
             BillingGuard.verificarEstadoCuota(controlFacturacionActivo, 'pos-alerta-facturas');
         }
 
-
-        // Limpiar estado
         carrito = [];
         pagosAcumuladosTicket = [];
         catalogoLocal = GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio);
@@ -1358,15 +1382,14 @@ async function ejecutarVentaFinalDefinitiva() {
 
         if (switchDian) {
             switchDian.checked = false;
-            document.getElementById('formulario-dian').style.display = 'none';
+            const modalDian = document.getElementById('modal-formulario-dian');
+            if (modalDian) modalDian.style.display = 'none';
         }
 
-        // 🛡️ BIFURCACIÓN ECOLÓGICA VS. IMPRESIÓN FÍSICA
         if (window.deseaFacturaEcologicaQR) {
             window.deseaFacturaEcologicaQR = false;
             await abrirModalFacturaDigitalQR(ultimoTicketIdVendido);
         } else {
-            // Corte de papel automático por WebUSB/Serial + Diálogo de impresión térmica
             motorCajon.dispararAperturaDirecta(0, true).catch(() => {});
             setTimeout(() => window.print(), 300);
         }
@@ -1377,6 +1400,7 @@ async function ejecutarVentaFinalDefinitiva() {
 
     document.getElementById('txt-conexion').innerText = "EN LÍNEA";
 }
+
 
 // =========================================================================
 // GENERADOR NATIVO CODE-128B EN SVG PURO (SIN DEPENDENCIAS)
@@ -1541,12 +1565,12 @@ function armarTirillaTermica(ticket, ticketId, datosFiscales = null) {
     }
 
 
-    // 7. Código de barras Code-128 para devolución rápida por escáner
+        // 7. Código de barras Code-128 para devolución rápida por escáner
     const txtBarcode = document.getElementById('t-barcode-text');
     if (txtBarcode) txtBarcode.innerText = ticketId;
-    if (typeof generarCode128SVG === 'function') {
-        generarCode128SVG(ticketId, 't-barcode-svg');
-    }
+    // Forzamos la llamada directa al generador nativo que ya tienes definido arriba
+    generarCode128SVG(ticketId, 't-barcode-svg');
+
 }
 
 // ==========================================
@@ -2282,7 +2306,7 @@ function abrirModalAperturaCaja() {
     }
 }
 
-document.getElementById('btn-confirmar-apertura').addEventListener('click', async () => {
+document.getElementById('btn-confirmar-apertura')?.addEventListener('click', async () => { 
     const base = parseFloat(document.getElementById('input-base-caja').value);
     if (isNaN(base) || base < 0) {
         alert("Ingresa un monto de base válido (puede ser 0 si no hay sencillo).");
@@ -2850,32 +2874,32 @@ async function abrirModalFacturaDigitalQR(ticketId, telefonoPrevio = "") {
     const exp = Date.now() + (24 * 60 * 60 * 1000); // 24 horas
     const sig = await generarFirmaFactura24Horas(ticketId, exp);
 
-    window.urlFacturaActiva = `${window.location.origin}/factura?com=${idNegocio}&tkt=${ticketId}&exp=${exp}&sig=${sig}`;
+    window.urlFacturaActiva = window.location.origin + "/factura?com=" + idNegocio + "&tkt=" + ticketId + "&exp=" + exp + "&sig=" + sig;
 
-        contenedor.innerHTML = '';
+    contenedor.innerHTML = ''; 
 
-    // Renderizado estándar offline mediante qrcode.min.js
-    if (typeof QRCode !== 'undefined') {
-        new QRCode(contenedor, {
-            text: window.urlFacturaActiva,
-            width: 210,
-            height: 210,
-            colorDark: "#000000",
-            colorLight: "#ffffff",
-            correctLevel: QRCode.CorrectLevel.M
-        });
-    } else {
-        console.error("[QR Error] La librería qrcode.min.js no está cargada en pos.html");
+    // 🛡️ Generación 100% Offline garantizada usando qrcode.min.js
+    try {
+        if (typeof QRCode !== 'undefined') {
+            new QRCode(contenedor, {
+                text: window.urlFacturaActiva,
+                width: 220,
+                height: 220,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.M
+            });
+        } else {
+            contenedor.innerHTML = '<span style="color:#ff4444; font-size:12px; font-weight:bold;">Error: Falta qrcode.min.js en el HTML</span>';
+        }
+    } catch (err) {
+        console.warn("Fallo en generador QR:", err);
     }
 
     const inputWp = document.getElementById('input-whatsapp-cliente');
     if (inputWp) inputWp.value = telefonoPrevio || '';
 
-    const txtTicketId = document.getElementById('txt-qr-ticket-id');
-    if (txtTicketId) txtTicketId.innerText = ticketId;
-
     modalQR.style.display = 'flex';
-
 }
 
 
@@ -2923,6 +2947,7 @@ window.generarCopiaComprobante = async function() {
 document.getElementById('btn-cerrar-qr')?.addEventListener('click', () => {
     document.getElementById('modal-factura-qr').style.display = 'none';
 });
+
 
 
 
