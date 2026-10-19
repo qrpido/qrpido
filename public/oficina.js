@@ -417,17 +417,24 @@ AuthGate.inicializar({
 
         if (progreso >= 100) {
             if (dashboardScreen) dashboardScreen.style.display = 'flex';
+            if (window.GeokatuTour && typeof window.GeokatuTour.iniciar === 'function') {
+                setTimeout(function() { window.GeokatuTour.iniciar('oficina'); }, 800);
+            }
         } else if (progreso >= 60) {
             window.iniciarSandboxGeoespacial(false);
+            setTimeout(function() { if (window.lanzarGuiaOnboardingFase) window.lanzarGuiaOnboardingFase(3); }, 600);
         } else if (progreso >= 30) {
             if (fasePin) fasePin.style.display = 'block';
             window.cargarDiccionarioEmojis();
             window.actualizarPinLive();
+            setTimeout(function() { if (window.lanzarGuiaOnboardingFase) window.lanzarGuiaOnboardingFase(2); }, 600);
         } else {
             if (faseIdentidad) faseIdentidad.style.display = 'block';
             var emailActivo = (AuthGate._estado.usuarioAuth && AuthGate._estado.usuarioAuth.email) ? AuthGate._estado.usuarioAuth.email : '';
             window.hidratarCamposPaso1Identidad(emailActivo);
+            setTimeout(function() { if (window.lanzarGuiaOnboardingFase) window.lanzarGuiaOnboardingFase(1); }, 600);
         }
+
     },
     onCerrarSesion: function() {
         // Purga atómica de memoria para que nunca quede rota la pantalla
@@ -1944,29 +1951,241 @@ window.actualizarContenedorPin = function(idContenedor, idImagen, forma, color1,
     contenedor.innerHTML = window.obtenerContenidoSVG(forma, fotoSrc, idImagen);
 };
 
+window.dataUrlABlob = function(dataUrl) {
+    try {
+        if (!dataUrl || typeof dataUrl !== 'string' || dataUrl.indexOf(',') === -1) return null;
+        var partes = dataUrl.split(',');
+        var mimeMatch = partes[0].match(/:(.*?);/);
+        var mime = mimeMatch ? mimeMatch[1] : 'image/webp';
+        var bstr = atob(partes[1]);
+        var n = bstr.length;
+        var u8arr = new Uint8Array(n);
+        while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+        }
+        return new Blob([u8arr], { type: mime });
+    } catch (e) {
+        return null;
+    }
+};
+
+window.DICCIONARIO_EMOJIS_GRID = [
+    {
+        grupo: "Energia, Fuego y Destellos",
+        anclajeDefault: "anclaje-esquina",
+        iconos: ["👑","🎓","🧢","🌸","🎀","🏵️","✨","⭐","💫","⚡","💥","💢","💤","💯","🔥","🎉","🎊","💋","❤️‍🔥","❣️","♥️","💕","💞","🩷","🩵","💚","💜","💛","🧡","💭","🗯️","💬","🗨️","‼️","⁉️","❌","♨️","📴","🛜","📲","🔷","💠"]
+    },
+    {
+        grupo: "Clima y Cosmos",
+        anclajeDefault: "anclaje-arriba",
+        iconos: ["🌈","🌧️","🌤️","⛈️","🌦️","🌛","🌙","☄️","🪐","🌕","🌑","🌒","🌘"]
+    },
+    {
+        grupo: "Gastronomia y Bebidas",
+        anclajeDefault: "anclaje-arriba",
+        iconos: ["🍔","☕","🍻","🍕","🍟","🌮","🥖","🍞","🍒","🍋‍🟩","🍿","🦞","🥞","🍲","🍚","🍺","🍵","🍷","🍽️","🍴","🍹","🍸","🥂","🥢"]
+    },
+    {
+        grupo: "Movilidad, Fiestas y Musica",
+        anclajeDefault: "anclaje-arriba",
+        iconos: ["🚲","🏍️","🚑","🚕","🚀","💈","🚨","🛟","🛸","🎃","🎂","🎈","🎄","🎋","🎗️","🏆","📢","🎲","🎩","🧶","🎻","🎸","🎷","🎺","🪇","🎭"]
+    },
+    {
+        grupo: "Moda, Joyas, Salud y Oficios",
+        anclajeDefault: "anclaje-arriba",
+        iconos: ["💎","💸","💰","💡","🕯️","🛍️","👒","💄","💍","👜","🪭","👠","👢","🥾","👟","👞","👓","🕶️","🧬","🩹","💊","🩺","🛰️","📡","🧯","🛠️","🔨","📚","🏷️","📯","🔊","⚰️","🔮","🪬","🔑","🔐"]
+    },
+    {
+        grupo: "Naturaleza y Animales",
+        anclajeDefault: "anclaje-arriba",
+        iconos: ["🕸️","🐚","🐝","🐞","🦋","🦗","🐙","🦀","🐬","🦈","🦩","🦜","🦅","🐥","🐣","🐦","🪶","🐘","🦏","🐪","🐖","🐕","🐃","🐄","🐎","🐈","🐸","🐢","🐲","🐴","🐷","🐱","🐶"]
+    }
+];
+
+window.anclajeEmojiActivo = 'anclaje-arriba';
+window.selectEmojiTargetId = null;
+
 window.cargarDiccionarioEmojis = function() {
-    var diccionario = [
-        { grupo: "🎩 Coronas y Sombreros", anclaje: "anclaje-arriba", iconos: "👑,🎓,🎩,🧢,🌸" },
-        { grupo: "🎀 Esquinas y Tiaras", anclaje: "anclaje-esquina", iconos: "🎀,🏵️,✨,⭐" },
-        { grupo: "🍔 Comida (Flotante)", anclaje: "anclaje-arriba", iconos: "🍔,🍕,☕,🍻" }
-    ];
-    var selects = [document.getElementById('edit-select-efecto'), document.getElementById('select-efecto')];
-    selects.forEach(function(select) {
+    var idsSelect = ['edit-select-efecto', 'select-efecto'];
+    idsSelect.forEach(function(idSel) {
+        var select = document.getElementById(idSel);
         if (!select) return;
-        select.innerHTML = '<option value="|">Sin Emoticón</option>';
-        diccionario.forEach(function(cat) {
-            var optgroup = document.createElement('optgroup'); 
-            optgroup.label = cat.grupo;
-            cat.iconos.split(',').forEach(function(emoji) {
-                var opt = document.createElement('option');
-                opt.value = cat.anclaje + '|' + emoji; 
-                opt.text = emoji;
-                optgroup.appendChild(opt);
+        var valorPrevio = select.value || '|';
+        select.innerHTML = '<option value="|">Sin Emoticon</option>';
+        window.DICCIONARIO_EMOJIS_GRID.forEach(function(cat) {
+            cat.iconos.forEach(function(emoji) {
+                var optArr = document.createElement('option');
+                optArr.value = 'anclaje-arriba|' + emoji;
+                optArr.text = emoji + ' (Arriba)';
+                select.appendChild(optArr);
+                var optEsq = document.createElement('option');
+                optEsq.value = 'anclaje-esquina|' + emoji;
+                optEsq.text = emoji + ' (Esquina)';
+                select.appendChild(optEsq);
             });
-            select.appendChild(optgroup);
         });
+        select.value = valorPrevio;
+        if (!select.value) select.value = '|';
+        window.convertirSelectEnBotonTecladoEmoji(select);
+    });
+    window.inyectarModalTecladoEmojis();
+};
+
+window.convertirSelectEnBotonTecladoEmoji = function(selectEl) {
+    if (!selectEl) return;
+    var btnId = 'btn-grid-' + selectEl.id;
+    var btnExistente = document.getElementById(btnId);
+    selectEl.style.display = 'none';
+    if (!btnExistente) {
+        btnExistente = document.createElement('button');
+        btnExistente.type = 'button';
+        btnExistente.id = btnId;
+        btnExistente.className = 'input-form';
+        btnExistente.style.cssText = 'margin:0; padding:8px 10px !important; font-size:12px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; background:rgba(255,255,255,0.06); color:#fff; border:1px solid rgba(255,107,0,0.35); border-radius:10px;';
+        btnExistente.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.abrirTecladoEmojisGrid(selectEl.id);
+        };
+        selectEl.parentNode.insertBefore(btnExistente, selectEl.nextSibling);
+    }
+    window.sincronizarEtiquetaBotonEmoji(selectEl.id);
+};
+
+window.sincronizarEtiquetaBotonEmoji = function(selectId) {
+    var selectEl = document.getElementById(selectId);
+    var btn = document.getElementById('btn-grid-' + selectId);
+    if (!selectEl || !btn) return;
+    var val = selectEl.value || '|';
+    var partes = val.split('|');
+    var emoji = partes[1] || '';
+    if (emoji) {
+        btn.innerHTML = '<span style="font-size:17px; line-height:1;">' + emoji + '</span><span style="font-size:10px; color:#ff6b00; font-weight:800;">Cambiar ▾</span>';
+    } else {
+        btn.innerHTML = '<span style="font-size:11px; color:#ccc;">😊 Emoticon</span><span style="font-size:10px; color:#ff6b00;">▾</span>';
+    }
+};
+
+window.inyectarModalTecladoEmojis = function() {
+    if (document.getElementById('gk-modal-teclado-emojis')) return;
+    var modal = document.createElement('div');
+    modal.id = 'gk-modal-teclado-emojis';
+    modal.style.cssText = 'display:none; position:fixed; inset:0; z-index:200050; background:rgba(0,0,0,0.82); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); align-items:flex-end; justify-content:center; padding:0; box-sizing:border-box;';
+    modal.onclick = function(e) {
+        if (e.target === modal) modal.style.display = 'none';
+    };
+
+    var htmlGrupos = '';
+    window.DICCIONARIO_EMOJIS_GRID.forEach(function(cat) {
+        htmlGrupos += '<div style="font-size:10px; font-weight:900; color:#ff6b00; text-transform:uppercase; letter-spacing:0.8px; margin:10px 0 6px 2px;">' + cat.grupo + '</div>';
+        htmlGrupos += '<div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:6px;">';
+        cat.iconos.forEach(function(em) {
+            htmlGrupos += '<button type="button" class="gk-emoji-key-btn" data-emoji="' + em + '" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); border-radius:10px; height:42px; font-size:22px; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0;">' + em + '</button>';
+        });
+        htmlGrupos += '</div>';
+    });
+
+    modal.innerHTML =
+        '<div style="background:#121217; border-top:2px solid #ff6b00; border-radius:22px 22px 0 0; width:100%; max-width:460px; max-height:76vh; display:flex; flex-direction:column; padding:14px 14px 18px 14px; box-sizing:border-box; box-shadow:0 -12px 40px rgba(0,0,0,0.95);">' +
+            '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">' +
+                '<strong style="color:#fff; font-size:13px; text-transform:uppercase; letter-spacing:0.8px;">Elige un Emoticon para tu PIN</strong>' +
+                '<button type="button" id="gk-cerrar-teclado-emoji" style="background:rgba(255,255,255,0.08); border:none; color:#fff; width:28px; height:28px; border-radius:50%; cursor:pointer; font-weight:bold;">✕</button>' +
+            '</div>' +
+            '<div style="display:grid; grid-template-columns:1fr 1fr auto; gap:6px; margin-bottom:10px;">' +
+                '<button type="button" id="gk-anc-arriba" style="padding:8px; border-radius:8px; border:1px solid #ff6b00; background:rgba(255,107,0,0.2); color:#fff; font-size:11px; font-weight:800; cursor:pointer;">⬆️ Corona Arriba</button>' +
+                '<button type="button" id="gk-anc-esquina" style="padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.04); color:#aaa; font-size:11px; font-weight:800; cursor:pointer;">↗️ En Esquina</button>' +
+                '<button type="button" id="gk-sin-emoji" style="padding:8px 10px; border-radius:8px; border:1px solid rgba(255,68,68,0.4); background:rgba(255,68,68,0.12); color:#ff4444; font-size:11px; font-weight:800; cursor:pointer;">🚫 Quitar</button>' +
+            '</div>' +
+            '<div id="gk-scroll-emojis-grid" style="overflow-y:auto; flex:1; padding-right:2px;">' +
+                htmlGrupos +
+            '</div>' +
+        '</div>';
+
+    document.body.appendChild(modal);
+
+    var actualizarBotonesAnclajeUI = function() {
+        var btnArr = document.getElementById('gk-anc-arriba');
+        var btnEsq = document.getElementById('gk-anc-esquina');
+        if (!btnArr || !btnEsq) return;
+        if (window.anclajeEmojiActivo === 'anclaje-esquina') {
+            btnEsq.style.borderColor = '#ff6b00';
+            btnEsq.style.background = 'rgba(255,107,0,0.2)';
+            btnEsq.style.color = '#fff';
+            btnArr.style.borderColor = 'rgba(255,255,255,0.15)';
+            btnArr.style.background = 'rgba(255,255,255,0.04)';
+            btnArr.style.color = '#aaa';
+        } else {
+            btnArr.style.borderColor = '#ff6b00';
+            btnArr.style.background = 'rgba(255,107,0,0.2)';
+            btnArr.style.color = '#fff';
+            btnEsq.style.borderColor = 'rgba(255,255,255,0.15)';
+            btnEsq.style.background = 'rgba(255,255,255,0.04)';
+            btnEsq.style.color = '#aaa';
+        }
+    };
+
+    document.getElementById('gk-cerrar-teclado-emoji').onclick = function() {
+        modal.style.display = 'none';
+    };
+    document.getElementById('gk-anc-arriba').onclick = function() {
+        window.anclajeEmojiActivo = 'anclaje-arriba';
+        actualizarBotonesAnclajeUI();
+    };
+    document.getElementById('gk-anc-esquina').onclick = function() {
+        window.anclajeEmojiActivo = 'anclaje-esquina';
+        actualizarBotonesAnclajeUI();
+    };
+    document.getElementById('gk-sin-emoji').onclick = function() {
+        window.aplicarEmojiSeleccionadoGrid('|');
+        modal.style.display = 'none';
+    };
+    modal.querySelectorAll('.gk-emoji-key-btn').forEach(function(btn) {
+        btn.onclick = function() {
+            var em = btn.getAttribute('data-emoji');
+            window.aplicarEmojiSeleccionadoGrid(window.anclajeEmojiActivo + '|' + em);
+            modal.style.display = 'none';
+        };
     });
 };
+
+window.abrirTecladoEmojisGrid = function(selectId) {
+    if (navigator.vibrate) navigator.vibrate(20);
+    window.inyectarModalTecladoEmojis();
+    window.selectEmojiTargetId = selectId;
+    var sel = document.getElementById(selectId);
+    if (sel && sel.value && sel.value.indexOf('anclaje-esquina') === 0) {
+        window.anclajeEmojiActivo = 'anclaje-esquina';
+        document.getElementById('gk-anc-esquina').click();
+    } else {
+        window.anclajeEmojiActivo = 'anclaje-arriba';
+        document.getElementById('gk-anc-arriba').click();
+    }
+    var modal = document.getElementById('gk-modal-teclado-emojis');
+    if (modal) modal.style.display = 'flex';
+};
+
+window.aplicarEmojiSeleccionadoGrid = function(valorCompuesto) {
+    if (navigator.vibrate) navigator.vibrate(25);
+    var targetId = window.selectEmojiTargetId || 'select-efecto';
+    var sel = document.getElementById(targetId);
+    if (sel) {
+        sel.value = valorCompuesto;
+        if (sel.value !== valorCompuesto) {
+            var opt = document.createElement('option');
+            opt.value = valorCompuesto;
+            opt.text = valorCompuesto;
+            sel.appendChild(opt);
+            sel.value = valorCompuesto;
+        }
+        window.sincronizarEtiquetaBotonEmoji(targetId);
+        if (targetId === 'edit-select-efecto') {
+            window.actualizarPinLiveModal();
+        } else {
+            window.actualizarPinLive();
+        }
+    }
+};
+
 
 window.blobPinEditadoModal = null;
 window.cargarPreviewPinModal = async function(input) {
@@ -2110,21 +2329,16 @@ window.procesarGuardadoPinBrandingModal = async function() {
         palabras_clave: tagsVal
     };
 
-
-
-
-    var pinF = document.getElementById('edit-file-pin') ? document.getElementById('edit-file-pin').files[0] : null;
-    if (pinF) {
-        var blob = await window.comprimirImagen(pinF, 400, 0.6, true);
-        var resPin = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/pin_mapa.webp', blob);
+var blobPinSubir = window.blobPinEditadoModal || window.dataUrlABlob(window.imagenCargadaTemporalModal);
+    if (blobPinSubir) {
+        var resPin = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/pin_mapa.webp', blobPinSubir, 'image/webp');
         var urlPin = (typeof resPin === 'string') ? resPin : (resPin && resPin.data ? resPin.data : '');
         if (urlPin) payload.link_pin = urlPin;
+        window.blobPinEditadoModal = null;
     }
-
-    var nombreFModal = document.getElementById('modal-file-nombre-png') ? document.getElementById('modal-file-nombre-png').files[0] : null;
-    if (nombreFModal) {
-        var blobWebpModal = await window.comprimirImagenTransparenteWebP(nombreFModal, 460, 110);
-        var resNomModal = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/nombre_png.webp', blobWebpModal);
+    var blobNomModal = window.blobNombrePngEditadoModal || window.dataUrlABlob(window.nombrePngTemporalModal);
+    if (blobNomModal) {
+        var resNomModal = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/nombre_png.webp', blobNomModal, 'image/webp');
         var urlNomModal = (typeof resNomModal === 'string') ? resNomModal : (resNomModal && resNomModal.data ? resNomModal.data : '');
         if (urlNomModal) {
             payload.nombre_png = urlNomModal;
@@ -2133,7 +2347,10 @@ window.procesarGuardadoPinBrandingModal = async function() {
             if (uiPng) { uiPng.src = urlNomModal; uiPng.style.display = 'block'; }
             if (uiTxt) uiTxt.style.display = 'none';
         }
+        window.blobNombrePngEditadoModal = null;
     }
+    window.sincronizarEtiquetaBotonEmoji('edit-select-efecto');
+
 
 
     await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, payload);
@@ -2363,23 +2580,44 @@ if (sliderBrillo) {
 // ============================================================================
 // BLOQUE 8: PERFIL GEOESPACIAL, MINIMAPA & GEMELO DIGITAL (RESTAURADO)
 // ============================================================================
-window.obtenerDireccionGeocoding = async function(lat, lng, targetInputId) {
+window.CIUDADES_LOCALES_OFICINA = [
+    { nombre: "Pereira, Colombia", lat: 4.8133, lng: -75.6961 },
+    { nombre: "Dosquebradas, Colombia", lat: 4.8365, lng: -75.6725 },
+    { nombre: "Bogota, Colombia", lat: 4.6097, lng: -74.0817 },
+    { nombre: "Medellin, Colombia", lat: 6.2476, lng: -75.5658 },
+    { nombre: "Cali, Colombia", lat: 3.4516, lng: -76.5320 },
+    { nombre: "Barranquilla, Colombia", lat: 10.9685, lng: -74.7813 },
+    { nombre: "Armenia, Colombia", lat: 4.5339, lng: -75.6811 },
+    { nombre: "Manizales, Colombia", lat: 5.0689, lng: -75.5174 },
+    { nombre: "Caracas, Venezuela", lat: 10.4806, lng: -66.9036 },
+    { nombre: "Maracaibo, Venezuela", lat: 10.6666, lng: -71.6124 },
+    { nombre: "Valencia, Venezuela", lat: 10.1620, lng: -68.0077 },
+    { nombre: "San Cristobal / Tachira, Venezuela", lat: 7.7794, lng: -72.2247 },
+    { nombre: "Lobatera, Tachira, Venezuela", lat: 7.9302, lng: -72.2442 }
+];
+
+window.resolverCoordenadaLocalOficina = function(queryRaw) {
+    var q = String(queryRaw || '').trim();
+    if (!q) return null;
+    var matchCoords = q.match(/^(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)$/);
+    if (matchCoords) {
+        return { lat: parseFloat(matchCoords[1]), lng: parseFloat(matchCoords[2]) };
+    }
+    var qLow = q.toLowerCase();
+    var ciudad = window.CIUDADES_LOCALES_OFICINA.find(function(c) {
+        return c.nombre.toLowerCase().indexOf(qLow) !== -1;
+    });
+    if (ciudad) return { lat: ciudad.lat, lng: ciudad.lng };
+    return null;
+};
+
+window.obtenerDireccionGeocoding = function(lat, lng, targetInputId) {
     var el = document.getElementById(targetInputId);
     if (!el) return;
-    try {
-        var url = "https://nominatim.openstreetmap.org/reverse?format=json&lat=" + lat + "&lon=" + lng;
-        var resp = await fetch(url, { headers: { 'Accept-Language': 'es' } });
-        var data = await resp.json();
-        if (data && data.display_name) {
-            var addr = data.address || {};
-            var via = addr.road || addr.pedestrian || addr.suburb || '';
-            var num = addr.house_number ? ' #' + addr.house_number : '';
-            var ciudad = addr.city || addr.town || addr.municipality || '';
-            var dirCorta = (via + num + (ciudad ? ', ' + ciudad : '')).trim();
-            el.value = dirCorta || data.display_name.split(',').slice(0, 3).join(',');
-        }
-    } catch (e) {
-        console.warn("[Geocoding] Fallo inverso:", e);
+    var latF = Number(lat).toFixed(5);
+    var lngF = Number(lng).toFixed(5);
+    if (!el.value || el.value.indexOf('Coord:') === 0) {
+        el.value = 'Coord: ' + latF + ', ' + lngF;
     }
 };
 
@@ -2388,45 +2626,36 @@ window.buscarDireccionSandbox = async function(inputId, mapa, marker) {
     if (!inEl) return;
     var query = inEl.value.trim();
     if (!query) return;
-
-    try {
-        var url = "https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(query);
-        var resp = await fetch(url, { headers: { 'Accept-Language': 'es' } });
-        var data = await resp.json();
-        if (data && data.length > 0) {
-            var lat = parseFloat(data[0].lat);
-            var lng = parseFloat(data[0].lon);
-
-            if (mapa) mapa.flyTo({ center: [lng, lat], zoom: 17, duration: 1200 });
-            if (marker) marker.setLngLat([lng, lat]);
-
-            var inLat = document.getElementById('perfilLat');
-            var inLng = document.getElementById('perfilLng');
-            if (inLat) inLat.value = lat;
-            if (inLng) inLng.value = lng;
-
-            var hash = window.generarGeohash(lat, lng);
-            var paisAuto = window.detectarPaisPorCoordenadas(lat, lng);
-
-            window.datosTienda.Coordenadas = { latitude: lat, longitude: lng };
-            window.datosTienda.pais = paisAuto;
-            localStorage.setItem('geokatu_pais_' + window.idNegocioLogueado, paisAuto);
-
-            await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, {
-                Coordenadas: window.datosTienda.Coordenadas,
-                geohash: hash,
-                pais: paisAuto
-            });
-
-            if (navigator.vibrate) navigator.vibrate([40, 40]);
-        } else {
-            alert("No se hallaron resultados para esa dirección.");
-        }
-    } catch (e) {
-        console.warn("[Geocoding] Fallo en búsqueda:", e);
-        alert("Error al conectar con el servicio de geocodificación.");
+    var destino = window.resolverCoordenadaLocalOficina(query);
+    if (destino) {
+        var lat = destino.lat;
+        var lng = destino.lng;
+        if (mapa) mapa.flyTo({ center: [lng, lat], zoom: 16, duration: 1200 });
+        if (marker) marker.setLngLat([lng, lat]);
+        var inLat = document.getElementById('perfilLat');
+        var inLng = document.getElementById('perfilLng');
+        if (inLat) inLat.value = lat;
+        if (inLng) inLng.value = lng;
+        var hash = window.generarGeohash(lat, lng);
+        var paisAuto = window.detectarPaisPorCoordenadas(lat, lng);
+        window.datosTienda.Coordenadas = { latitude: lat, longitude: lng };
+        window.datosTienda.direccion = query;
+        window.datosTienda.pais = paisAuto;
+        localStorage.setItem('geokatu_pais_' + window.idNegocioLogueado, paisAuto);
+        await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, {
+            Coordenadas: window.datosTienda.Coordenadas,
+            direccion: query,
+            geohash: hash,
+            pais: paisAuto
+        });
+        if (navigator.vibrate) navigator.vibrate([40, 40]);
+    } else {
+        window.datosTienda.direccion = query;
+        await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, { direccion: query });
+        alert("Direccion textual guardada. Arrastra el pin en el mapa o pulsa el boton GPS para fijar el punto exacto.");
     }
 };
+
 
 window.obtenerUbicacionActualPerfil = function() {
     if (!navigator.geolocation) {
@@ -3420,24 +3649,20 @@ window.actualizarPinLive = function() {
     window.actualizarContenedorPin('pin-live-preview', 'img-live-preview', forma, c1, c2, c3, c4, efectoRaw, foto, anim, '');
 };
 
-
 window.guardarPaso2ADN = async function() {
     var btn = document.getElementById('btn-siguiente-fase');
     btn.innerText = "Guardando...";
     btn.disabled = true;
-
     var forma = document.getElementById('select-forma').value;
     var anim = document.getElementById('select-animacion') ? document.getElementById('select-animacion').value : 'anim-salto';
     var efecto = document.getElementById('select-efecto') ? document.getElementById('select-efecto').value : '';
     var tema = document.getElementById('select-tema-onboarding') ? document.getElementById('select-tema-onboarding').value : 'carbon';
     var pinPack = forma + '|' + anim + '|' + efecto;
-
     var c1 = document.getElementById('wizColorHex1').value;
     var c2 = document.getElementById('wizColorHex2').value;
     var c3 = document.getElementById('wizColorHex3').value;
     var c4 = document.getElementById('wizColorHex4') ? document.getElementById('wizColorHex4').value : '';
     var paleta = window.calcularPaletaAureaSilenciosa(c1, c2, c3, c4);
-
     var payload = {
         pin_pack: pinPack,
         tema_popup: tema,
@@ -3448,36 +3673,48 @@ window.guardarPaso2ADN = async function() {
         paleta_aurea: paleta,
         progreso_boveda: 65
     };
-
     try {
-        var pinF = document.getElementById('file-pin').files[0];
-        if (pinF) {
-            var blob = await GeokatuDB.AdminService.comprimirAWebP(pinF, 400, 0.7, true);
-            var res = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/pin_mapa.webp', blob);
-            var urlPin = (typeof res === 'string') ? res : (res && res.data ? res.data : '');
-            if (urlPin) payload.link_pin = urlPin;
+        // 1. Subir foto del PIN desde el Blob ya procesado en RAM (evita NotReadableError de FileReader en Android)
+        var blobPin = window.blobPinEditadoPaso1 || window.dataUrlABlob(window.imagenCargadaTemporalPaso1);
+        if (blobPin && navigator.onLine) {
+            try {
+                var res = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/pin_mapa.webp', blobPin, 'image/webp');
+                var urlPin = (typeof res === 'string') ? res : (res && res.data ? res.data : (res && res.url ? res.url : ''));
+                if (urlPin) {
+                    payload.link_pin = urlPin;
+                    if (!window.datosTienda.logo) payload.logo = urlPin;
+                }
+                window.blobPinEditadoPaso1 = null;
+            } catch (errPinUp) {
+                console.warn("[Paso 2] Aviso subiendo foto del PIN:", errPinUp.message);
+            }
         }
-
-        var nombreF = document.getElementById('fase1-file-nombre-png') ? document.getElementById('fase1-file-nombre-png').files[0] : null;
-        if (nombreF) {
-            var blobWebp = await window.comprimirImagenTransparenteWebP(nombreF, 460, 110);
-            var resNom = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/nombre_png.webp', blobWebp);
-            var urlNom = (typeof resNom === 'string') ? resNom : (resNom && resNom.data ? resNom.data : '');
-            if (urlNom) payload.nombre_png = urlNom;
+        // 2. Subir logotipo tipografico PNG/WebP desde el Blob ya procesado en RAM
+        var blobNom = window.blobNombrePngEditadoFase1 || window.dataUrlABlob(window.nombrePngTemporalPaso1);
+        if (blobNom && navigator.onLine) {
+            try {
+                var resNom = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/nombre_png.webp', blobNom, 'image/webp');
+                var urlNom = (typeof resNom === 'string') ? resNom : (resNom && resNom.data ? resNom.data : (resNom && resNom.url ? resNom.url : ''));
+                if (urlNom) payload.nombre_png = urlNom;
+                window.blobNombrePngEditadoFase1 = null;
+            } catch (errNomUp) {
+                console.warn("[Paso 2] Aviso subiendo logo tipografico:", errNomUp.message);
+            }
         }
-
-        await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, payload);
+        var resUpd = await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, payload);
+        if (resUpd && !resUpd.success) throw new Error(resUpd.error || "Fallo actualizando Firestore");
         Object.assign(window.datosTienda, payload);
-
         document.getElementById('fase-1-pin').style.display = 'none';
         window.iniciarSandboxGeoespacial(false);
+        setTimeout(function() { if (window.lanzarGuiaOnboardingFase) window.lanzarGuiaOnboardingFase(3); }, 550);
     } catch (e) {
         alert("Error al guardar ADN del PIN: " + e.message);
     } finally {
-        btn.innerText = "Continuar a Ubicación";
+        btn.innerText = "Continuar a Ubicación →";
         btn.disabled = false;
     }
 };
+
 // Mantenemos alias retrocompatible por si algún listener lo invoca
 window.guardarPaso1ADN = window.guardarPaso2ADN;
 
@@ -3623,27 +3860,82 @@ window.abrirGemeloDigitalEnMapa = function(instanciaMapa, instanciaMarker) {
     .addTo(instanciaMapa);
 };
 
-
-
-window.buscarDireccionWizard = async function() {
+window.buscarDireccionWizard = function() {
     var input = document.getElementById('wiz-direccion-inteligente');
-    var query = input.value.trim();
+    var query = input ? input.value.trim() : '';
     if (!query) return;
-    try {
-        var res = await fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(query));
-        var data = await res.json();
-        if (data && data.length > 0) {
-            var lat = parseFloat(data[0].lat);
-            var lng = parseFloat(data[0].lon);
-            if (window.mapaOnboarding && window.markerOnboarding) {
-                window.mapaOnboarding.flyTo({ center: [lng, lat], zoom: 17 });
-                window.markerOnboarding.setLngLat([lng, lat]);
-            }
-        }
-    } catch (e) {
-        console.warn("Fallo geocodificación wizard:", e);
+    var destino = window.resolverCoordenadaLocalOficina(query);
+    if (destino && window.mapaOnboarding && window.markerOnboarding) {
+        window.mapaOnboarding.flyTo({ center: [destino.lng, destino.lat], zoom: 16.5, duration: 1200 });
+        window.markerOnboarding.setLngLat([destino.lng, destino.lat]);
+        window.datosTienda.Coordenadas = { latitude: destino.lat, longitude: destino.lng };
+        window.datosTienda.direccion = query;
+    } else {
+        window.datosTienda.direccion = query;
+        alert("Direccion registrada. Toca cualquier punto del mapa o usa el boton GPS 📍 para colocar tu PIN sobre el local.");
     }
 };
+
+window.GUIA_FASES_ONBOARDING = {
+    1: {
+        titulo: "Paso 1: Identidad y Canales",
+        pasos: [
+            "1. Nombre, Lema y Nicho: Define como te encontraran los ciudadanos en el radar urbano.",
+            "2. Canales de Contacto: Ingresa tu WhatsApp de pedidos y/o linea PBX. Si solo tienes PBX, el catalogo mostrara automaticamente el boton de llamada PBX.",
+            "3. Privacidad y Horario: Tu correo permanece privado salvo que marques 'Hacer publico'. Configura tu horario o activa Servicio 24 Horas."
+        ]
+    },
+    2: {
+        titulo: "Paso 2: ADN Visual y Branding",
+        pasos: [
+            "1. Foto del PIN y Logo Tipografico: Toca el PIN central para subir la foto o icono de tu local, y carga opcionalmente tu logotipo en PNG/WebP sin fondo.",
+            "2. Forma, Animacion y Emoticon: Elige la silueta geometrica, el movimiento 3D y toca el boton de Emoticon para abrir el teclado en cuadricula.",
+            "3. Paleta Aurea Automatica: Pulsa 'Auto-Extraer Colores (PIN)' para detectar los colores de tu imagen o personalizalos tocando cada circulo."
+        ]
+    },
+    3: {
+        titulo: "Paso 3: Ubicacion y Gemelo Digital",
+        pasos: [
+            "1. Posiciona tu Comercio: Pulsa el boton GPS 📍 o toca directamente sobre tu cuadra en el mapa para fijar la coordenada exacta.",
+            "2. Prueba tu Gemelo Digital: Toca tu PIN en el mapa para previsualizar como veran tu tarjeta los clientes.",
+            "3. Pais y Regimen POS: Verifica el regimen (Colombia COP/DIAN o Venezuela USD/Multidivisa) y pulsa 'Sellar Boveda y Finalizar'."
+        ]
+    }
+};
+
+window.lanzarGuiaOnboardingFase = function(numFase, forzar) {
+    var cfg = window.GUIA_FASES_ONBOARDING[numFase];
+    if (!cfg) return;
+    var claveVista = 'geokatu_onboarding_fase_vista_' + numFase;
+    if (!forzar && sessionStorage.getItem(claveVista)) return;
+    sessionStorage.setItem(claveVista, '1');
+
+    var existente = document.getElementById('gk-guia-fase-modal');
+    if (existente) existente.remove();
+
+    var overlay = document.createElement('div');
+    overlay.id = 'gk-guia-fase-modal';
+    overlay.style.cssText = 'position:fixed; inset:0; z-index:200100; background:rgba(0,0,0,0.82); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); display:flex; align-items:center; justify-content:center; padding:18px; box-sizing:border-box;';
+
+    var listaHtml = cfg.pasos.map(function(txt) {
+        return '<div style="background:rgba(255,255,255,0.04); border-left:3px solid #ff6b00; border-radius:8px; padding:9px 11px; font-size:11.5px; color:#ddd; line-height:1.4; text-align:left;">' + txt + '</div>';
+    }).join('');
+
+    overlay.innerHTML =
+        '<div style="background:#14141a; border:1px solid rgba(255,107,0,0.45); border-radius:20px; width:100%; max-width:370px; padding:20px 18px; box-sizing:border-box; box-shadow:0 16px 40px rgba(0,0,0,0.95); display:flex; flex-direction:column; gap:10px; text-align:center;">' +
+            '<div style="display:inline-flex; align-self:center; background:rgba(255,107,0,0.15); color:#ff6b00; border:1px solid rgba(255,107,0,0.4); border-radius:20px; padding:3px 10px; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:0.8px;">Guia Interactiva Geokatu</div>' +
+            '<h3 style="margin:0; color:#fff; font-size:15px; font-weight:900; text-transform:uppercase;">' + cfg.titulo + '</h3>' +
+            '<div style="display:flex; flex-direction:column; gap:8px; margin:4px 0;">' + listaHtml + '</div>' +
+            '<button type="button" id="gk-btn-entendido-fase" style="width:100%; padding:12px; border-radius:12px; border:none; background:linear-gradient(135deg, #ff8c00, #ff6b00); color:#fff; font-size:12px; font-weight:900; text-transform:uppercase; letter-spacing:0.8px; cursor:pointer; margin-top:4px;">Entendido, Continuar</button>' +
+        '</div>';
+
+    document.body.appendChild(overlay);
+    document.getElementById('gk-btn-entendido-fase').onclick = function() {
+        if (navigator.vibrate) navigator.vibrate(20);
+        overlay.remove();
+    };
+};
+
 
 window.obtenerUbicacionActualWizard = function() {
     if (!navigator.geolocation) return alert("Tu dispositivo no soporta GPS.");
@@ -3865,14 +4157,14 @@ window.guardarPaso1Identidad = async function() {
     try {
         await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, payloadIdentidad);
         Object.assign(window.datosTienda, payloadIdentidad);
-
         document.getElementById('fase-1-identidad').style.display = 'none';
         var fasePin = document.getElementById('fase-1-pin');
         if (fasePin) fasePin.style.display = 'block';
-
         window.cargarDiccionarioEmojis();
         window.actualizarPinLive();
+        setTimeout(function() { if (window.lanzarGuiaOnboardingFase) window.lanzarGuiaOnboardingFase(2); }, 450);
     } catch (e) {
+
         alert("Error al guardar identidad: " + e.message);
     } finally {
         btn.innerText = "Continuar a Diseño de PIN";

@@ -1844,8 +1844,14 @@ window.barridoRadar = function(filtroTexto = "") {
 
 
 
+        const firmaVisualActual = (p.pin_pack || '') + '|' + c1 + '|' + c2 + '|' + (p.link_pin || p.portada || '');
+        if (window.marcadoresRadar[p.codigo] && window.marcadoresRadar[p.codigo]._firmaVisual !== firmaVisualActual) {
+            try { window.marcadoresRadar[p.codigo].remove(); } catch (eRem) {}
+            delete window.marcadoresRadar[p.codigo];
+        }
         if (!window.marcadoresRadar[p.codigo]) {
             const elDOM = document.createElement('div');
+
             elDOM.style.width = '60px';
             elDOM.style.height = '60px';
             elDOM.style.display = 'flex';
@@ -1966,8 +1972,10 @@ window.barridoRadar = function(filtroTexto = "") {
                     setTimeout(() => { elDOM.style.animation = 'flotarMoneda 2.5s infinite ease-in-out'; }, 600);
                 });
             }
+            marker._firmaVisual = firmaVisualActual;
             window.marcadoresRadar[p.codigo] = marker;
         }
+
 
 
 
