@@ -170,8 +170,31 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
 <h1 id="texto-logo-fallback" class="logo-palpitante" style="font-size: 48px; margin: 0; letter-spacing: 6px; font-weight: 900; line-height: 1;">
     <span style="color: #ff6b00; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">GEO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);">KATU</span>
 </h1>
-<p class="texto-palpitante">Sincronizando ciudad...</p>
+<p class="texto-palpitante" id="txt-estado-carga">Sincronizando ciudad...</p>
 </div>
+
+<!-- MODAL DE SELECCIÓN MANUAL DE CIUDAD (COL / VEN) CUANDO SE NIEGA EL GPS -->
+<div class="bottom-sheet-overlay" id="modal-selector-ciudad" style="display: none; opacity: 1; pointer-events: all;">
+    <div class="bottom-sheet-contenido" style="text-align: center; max-width: 380px;">
+        <div class="drag-handle"></div>
+        <h3 style="color: var(--naranja); margin-top: 0; text-transform: uppercase; font-size: 16px; font-weight: 900;">Selecciona tu Ubicación</h3>
+        <p style="color: #bbb; font-size: 12px; margin-bottom: 15px; line-height: 1.4;">No pudimos acceder a tu GPS. Elige o escribe la ciudad donde deseas operar:</p>
+        
+        <input type="text" id="input-selector-ciudad" class="input-login" placeholder="Escribe tu ciudad (Ej: Bogotá, Caracas, Medellín...)" style="margin-bottom: 12px; font-size: 13px;" oninput="window.filtrarCiudadesSugeridas(this.value)">
+        
+        <div id="lista-ciudades-sugeridas" style="display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto; margin-bottom: 15px; text-align: left;">
+            <!-- Sugerencias precargadas Colombia / Venezuela -->
+            <div class="pill-ciudad-sugerida" onclick="window.fijarCiudadManual(4.6097, -74.0817, 'Bogotá, Colombia')" style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold;">🇨🇴 Bogotá D.C.</div>
+            <div class="pill-ciudad-sugerida" onclick="window.fijarCiudadManual(10.4806, -66.9036, 'Caracas, Venezuela')" style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold;">🇻🇪 Caracas</div>
+            <div class="pill-ciudad-sugerida" onclick="window.fijarCiudadManual(6.2476, -75.5658, 'Medellín, Colombia')" style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold;">🇨🇴 Medellín</div>
+            <div class="pill-ciudad-sugerida" onclick="window.fijarCiudadManual(4.8133, -75.6961, 'Pereira, Colombia')" style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold;">🇨🇴 Pereira</div>
+            <div class="pill-ciudad-sugerida" onclick="window.fijarCiudadManual(7.7794, -72.2247, 'San Cristóbal / Táchira, Venezuela')" style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold;">🇻🇪 Táchira (Lobatera)</div>
+        </div>
+
+        <button class="btn-auth btn-ingresar" onclick="window.usarUbicacionPorDefectoPereira()">Continuar en Pereira (Predeterminado)</button>
+    </div>
+</div>
+
 
 <div id="tour-overlay"></div>
 
@@ -717,20 +740,27 @@ import './profiler.js';
 
 import('./core-db.js').then(({ default: GeokatuDB }) => {
     window.GeokatuDB_Global = GeokatuDB;
-
     GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
         if (user) {
             window.idUsuarioActual = user.uid;
-            const infoNegocio = await GeokatuDB.AdminService.obtenerNegocioPorUsuario(user.uid);
-            if (!infoNegocio.success || !infoNegocio.data) {
-                console.log("FANTASMA DETECTADO: Forzando Onboarding...");
-                const modalLogin = document.getElementById('modal-login');
-                if (modalLogin) modalLogin.classList.remove('activo');
-                if (typeof window.dispararOnboardingPerfiles === 'function') window.dispararOnboardingPerfiles();
+            const uidActivoCache = localStorage.getItem('geokatu_active_uid');
+            const cacheCtx = localStorage.getItem('geokatu_contextos_cache_' + user.uid);
+            if (uidActivoCache || cacheCtx) {
+                return;
             }
+            const infoNegocio = await GeokatuDB.AdminService.obtenerNegocioPorUsuario(user.uid, user.email);
+            if (infoNegocio && infoNegocio.success && infoNegocio.data) {
+                localStorage.setItem('geokatu_active_uid', infoNegocio.data.id || user.uid);
+                return;
+            }
+            console.log("FANTASMA DETECTADO: Forzando Onboarding...");
+            const modalLogin = document.getElementById('modal-login');
+            if (modalLogin) modalLogin.classList.remove('activo');
+            if (typeof window.dispararOnboardingPerfiles === 'function') window.dispararOnboardingPerfiles();
         }
     });
 }).catch(error => console.error("Error al iniciar Trampa Anti-Fantasmas:", error));
+
 
 window.cerrarSheetInmuebles = function() {
     const sheet = document.getElementById('lista-inmuebles-sheet');
@@ -751,34 +781,6 @@ setTimeout(() => {
 }, 1500); 
 </script>
 
-<script>
-window.buscarCiudadGlobal = async function() {
-    const input = document.getElementById('input-buscador').value.trim();
-    if (!input) return;
-    const btn = document.getElementById('btn-lupa');
-    const originalIcon = btn.innerText; btn.innerText = "⏳";
-    try {
-        const regexCoords = /^(-?\d+(\.\d+)?)[,\s]+(-?\d+(\.\d+)?)$/;
-        const matchCoords = input.match(regexCoords);
-        if (matchCoords) {
-            const lat = parseFloat(matchCoords[1]); const lng = parseFloat(matchCoords[3]);
-            if (window.mapa) window.mapa.flyTo({ center: [lng, lat], zoom: 17 });
-            btn.innerText = originalIcon; return;
-        }
-        if (typeof OpenLocationCode !== 'undefined' && OpenLocationCode.isValid(input) && OpenLocationCode.isFull(input)) {
-            const decoded = OpenLocationCode.decode(input);
-            if (window.mapa) window.mapa.flyTo({ center: [decoded.longitudeCenter, decoded.latitudeCenter], zoom: 17 });
-            btn.innerText = originalIcon; return;
-        }
-        const response = await fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(input));
-        const data = await response.json();
-        if (data && data.length > 0) {
-            const lat = parseFloat(data[0].lat); const lng = parseFloat(data[0].lon);
-            if (window.mapa) window.mapa.flyTo({ center: [lng, lat], zoom: 16 });
-        } else { alert("No encontramos esa ubicación. Prueba usando coordenadas o un Plus Code."); }
-    } catch (e) { console.error("Error en la búsqueda SIG:", e); } finally { btn.innerText = originalIcon; }
-};
-</script>
 
 <!-- =========================================================================
      CONTROLADOR DE PASTILLAS FLOTANTES, HERRAMIENTAS Y TEMPORIZADORES (2 MIN)
@@ -1324,76 +1326,80 @@ aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
         document.getElementById('modal-camara-escaneo').close();
     };
 
- // =========================================================================
+// =========================================================================
     // 3. FICHA INFORMATIVA DE PRODUCTO (DISEÑO REFINADO DE SOLO LECTURA)
     // =========================================================================
     window.crearModalProductoUnificado = function(datos, idsComerciosValidos = []) {
-        const modalId = `modal-prod-${Date.now()}`;
-        const cantidadTiendas = (idsComerciosValidos && Array.isArray(idsComerciosValidos)) ? idsComerciosValidos.length : 0;
+        const modalId = 'modal-prod-' + Date.now();
+        const listaIdsSegura = Array.isArray(idsComerciosValidos) ? idsComerciosValidos : [];
+        const cantidadTiendas = listaIdsSegura.length;
         
-        // Formateo visual de precio
         const precioNumero = parseFloat(datos.precio) || 0;
         const precioFormateado = precioNumero > 0 
-            ? `$${precioNumero.toLocaleString('es-CO')}` 
+            ? ('$' + precioNumero.toLocaleString('es-CO')) 
             : 'Consultar en tienda';
+        const nombreSeguro = window.sanitizarTexto(datos.nombre || 'Producto no identificado');
+        const nombreJsSeguro = String(datos.nombre || 'Producto').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const barcodeSeguro = window.sanitizarTexto(datos.barcode || '');
+        const categoriaSegura = window.sanitizarTexto(datos.categoria || 'General');
+        const htmlImagen = datos.imagen 
+            ? ('<img src="' + window.sanitizarURL(datos.imagen) + '" alt="' + nombreSeguro + '">') 
+            : '<span>📦</span>';
+        const claseStock = cantidadTiendas > 0 ? 'con-stock' : 'sin-stock';
+        const textoStock = cantidadTiendas > 0 
+            ? ('🟢 ' + cantidadTiendas + ' tienda' + (cantidadTiendas > 1 ? 's' : '')) 
+            : '🔴 Agotado cerca';
+        const textoBoton = cantidadTiendas > 0 
+            ? ('VER ' + cantidadTiendas + ' TIENDA' + (cantidadTiendas > 1 ? 'S' : '') + ' EN EL MAPA') 
+            : 'BUSCAR TIENDAS CERCANAS';
 
-        const modalHTML = `
-            <div id="${modalId}" class="modal-producto-unificado modal-consumidor">
-                <!-- Tirador táctil superior (Toca o desliza para minimizar) -->
-                <div class="modal-drag-indicator" onclick="window.minimizarABurbuja('${modalId}', '${datos.nombre}')" title="Minimizar a burbuja"></div>
-
-                <div class="modal-header-prod" id="header-${modalId}">
-                    <h3>✨ ARTÍCULO DETECTADO</h3>
-                    <div class="controles-acciones-prod">
-                        <!-- Botón circular de cristal para Minimizar (Icono minus SVG) -->
-                        <button class="btn-control-glass" title="Minimizar a burbuja" onclick="window.minimizarABurbuja('${modalId}', '${datos.nombre}')">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                        </button>
-                        <!-- Botón circular de cristal para Cerrar (✕) -->
-                        <button class="btn-control-glass btn-close-glass" title="Cerrar" onclick="document.getElementById('${modalId}').remove()">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Bloque Principal: Foto + Nombre + EAN -->
-                <div class="grid-top-producto">
-                    <div class="foto-placeholder-gk">
-                        ${datos.imagen ? `<img src="${datos.imagen}" alt="${datos.nombre}">` : `<span>📦</span>`}
-                    </div>
-                    <div class="producto-datos-principales">
-                        <div class="pill-codigo-ean">
-                            <span>🏷️</span> <span class="txt-ean">${datos.barcode}</span>
-                        </div>
-                        <h2 class="producto-nombre-display">${datos.nombre || 'Producto no identificado'}</h2>
-                        <span class="badge-categoria-tag">${datos.categoria || 'General'}</span>
-                    </div>
-                </div>
-
-                <!-- Métricas Informativas de Solo Lectura -->
-                <div class="panel-info-consumidor">
-                    <div class="caja-metrica-consumidor">
-                        <span class="metrica-label">Precio Referencia</span>
-                        <span class="metrica-valor-precio">${precioFormateado}</span>
-                    </div>
-                    <div class="caja-metrica-consumidor">
-                        <span class="metrica-label">Disponibilidad</span>
-                        <span class="metrica-valor-stock ${cantidadTiendas > 0 ? 'con-stock' : 'sin-stock'}">
-                            ${cantidadTiendas > 0 ? `🟢 ${cantidadTiendas} tienda${cantidadTiendas > 1 ? 's' : ''}` : '🔴 Agotado cerca'}
-                        </span>
-                    </div>
-                </div>
-
-                <!-- Botón de Filtrado en Mapa -->
-                <button class="btn-filtrar-comercios-gk" onclick="window.dispararFiltroComercios('${datos.barcode}', ${JSON.stringify(idsComerciosValidos)})">
-                    📍 ${cantidadTiendas > 0 ? `VER ${cantidadTiendas} TIENDA${cantidadTiendas > 1 ? 'S' : ''} EN EL MAPA` : 'BUSCAR TIENDAS CERCANAS'}
-                </button>
-            </div>
-        `;
-
+        const modalHTML = 
+            '<div id="' + modalId + '" class="modal-producto-unificado modal-consumidor">' +
+                '<div class="modal-drag-indicator" onclick="window.minimizarABurbuja(\'' + modalId + '\', \'' + nombreJsSeguro + '\')" title="Minimizar a burbuja"></div>' +
+                '<div class="modal-header-prod" id="header-' + modalId + '">' +
+                    '<h3>✨ ARTÍCULO DETECTADO</h3>' +
+                    '<div class="controles-acciones-prod">' +
+                        '<button class="btn-control-glass" title="Minimizar a burbuja" onclick="window.minimizarABurbuja(\'' + modalId + '\', \'' + nombreJsSeguro + '\')">' +
+                            '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>' +
+                        '</button>' +
+                        '<button class="btn-control-glass btn-close-glass" title="Cerrar" onclick="document.getElementById(\'' + modalId + '\').remove()">' +
+                            '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
+                        '</button>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="grid-top-producto">' +
+                    '<div class="foto-placeholder-gk">' + htmlImagen + '</div>' +
+                    '<div class="producto-datos-principales">' +
+                        '<div class="pill-codigo-ean">' +
+                            '<span>🏷️</span> <span class="txt-ean">' + barcodeSeguro + '</span>' +
+                        '</div>' +
+                        '<h2 class="producto-nombre-display">' + nombreSeguro + '</h2>' +
+                        '<span class="badge-categoria-tag">' + categoriaSegura + '</span>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="panel-info-consumidor">' +
+                    '<div class="caja-metrica-consumidor">' +
+                        '<span class="metrica-label">Precio Referencia</span>' +
+                        '<span class="metrica-valor-precio">' + precioFormateado + '</span>' +
+                    '</div>' +
+                    '<div class="caja-metrica-consumidor">' +
+                        '<span class="metrica-label">Disponibilidad</span>' +
+                        '<span class="metrica-valor-stock ' + claseStock + '">' + textoStock + '</span>' +
+                    '</div>' +
+                '</div>' +
+                '<button class="btn-filtrar-comercios-gk" id="btn-filtrar-' + modalId + '">' +
+                    '📍 ' + textoBoton +
+                '</button>' +
+            '</div>';
         document.getElementById('contenedor-modales-productos').insertAdjacentHTML('beforeend', modalHTML);
         const modalEl = document.getElementById(modalId);
-        window.hacerElementoArrastrable(modalEl, document.getElementById(`header-${modalId}`));
+        const btnFiltrar = document.getElementById('btn-filtrar-' + modalId);
+        if (btnFiltrar) {
+            btnFiltrar.onclick = function() {
+                window.dispararFiltroComercios(datos.barcode, listaIdsSegura);
+            };
+        }
+        window.hacerElementoArrastrable(modalEl, document.getElementById('header-' + modalId));
     };
 
 

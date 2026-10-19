@@ -71,6 +71,97 @@ margin-top: 4px;
 display: block;
 
 }
+.kpi-card {
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.2s ease, background 0.2s ease;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+.kpi-card:active {
+    transform: scale(0.96);
+    border-color: var(--naranja);
+    background: rgba(255, 107, 0, 0.08);
+}
+.kpi-badge-urgente {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #ff4444;
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 900;
+    font-family: monospace;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    box-shadow: 0 0 10px rgba(255, 68, 68, 0.7);
+    border: 1.5px solid #0a0a0c;
+    animation: pulsoAlertaKpi 2s infinite ease-in-out;
+}
+@keyframes pulsoAlertaKpi {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); box-shadow: 0 0 14px rgba(255, 68, 68, 0.9); }
+}
+.kpi-drilldown-sheet {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: 550px;
+    margin: 0 auto;
+    background: rgba(18, 18, 24, 0.98);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border-top: 1.5px solid var(--naranja);
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.9);
+    z-index: 100050;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    transform: translateY(100%);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    box-sizing: border-box;
+}
+.kpi-drilldown-sheet.activo {
+    transform: translateY(0);
+}
+.kpi-filtro-chip-input {
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-size: 11px;
+    outline: none;
+    box-sizing: border-box;
+}
+.kpi-filtro-chip-input:focus {
+    border-color: var(--naranja);
+}
+.tab-btn-kpi {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #888;
+    padding: 8px 4px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+.tab-btn-kpi.activo {
+    color: #ffffff;
+    border-bottom-color: var(--naranja);
+}
 
 .badge-alerta-urgente {
 
@@ -201,8 +292,15 @@ align-items: center;
                 </div>
             </div>
 
-            <label class="section-title" style="margin-bottom: 4px; font-size: 10px;">Correo de Exhibición Pública</label>
-            <input type="email" id="wiz-correo-publico" class="input-form" placeholder="contacto@minegocio.com">
+           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <label class="section-title" style="margin: 0; font-size: 10px;">Correo de Contacto</label>
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 10px; color: #aaa; cursor: pointer; user-select: none;">
+                    <input type="checkbox" id="wiz-check-correo-publico" onchange="window.toggleVisibilidadCorreoWizard(this.checked)" style="accent-color: var(--naranja); width: 14px; height: 14px; cursor: pointer;">
+                    <span>Hacer público en mi perfil</span>
+                </label>
+            </div>
+            <input type="email" id="wiz-correo-publico" class="input-form" placeholder="contacto@minegocio.com" style="opacity: 0.55;">
+
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
                 <div>
@@ -316,7 +414,7 @@ align-items: center;
             </div>
 
             <!-- Selector de Tema de Tarjeta en Onboarding -->
-            <div style="margin-bottom: 15px;">
+            <div style="margin-bottom: 12px;">
                 <label class="section-title" style="margin-bottom: 5px; font-size: 10px; text-transform: uppercase;">Fondo de Tarjeta en Radar</label>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
                     <button type="button" id="btn-tema-ob-carbon" class="btn-layout-chip activo" onclick="window.seleccionarTemaPopupOnboarding('carbon')" style="margin: 0; padding: 8px; font-size: 11px; text-transform: uppercase; font-weight: bold; border-radius: 8px;">Carbón</button>
@@ -325,10 +423,57 @@ align-items: center;
                 <input type="hidden" id="select-tema-onboarding" value="carbon">
             </div>
 
+            <!-- BOTÓN MÁGICO DE EXTRACCIÓN AUTOMÁTICA DE COLORES -->
+            <input type="file" id="fase1-file-color-alterno" accept="image/*" style="display: none;" onchange="window.extraerColoresDesdeInput(this, 'fase1')">
+            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                <button type="button" class="btn-dashed-action" style="flex: 1; padding: 8px 10px; font-size: 10px; display: flex; align-items: center; justify-content: center; gap: 6px;" onclick="window.ejecutarExtraccionMagicaColores('fase1')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                    <span>Auto-Extraer Colores (PIN)</span>
+                </button>
+                <button type="button" class="btn-dashed-action" style="width: auto; padding: 8px 10px; font-size: 10px;" onclick="document.getElementById('fase1-file-color-alterno').click()" title="Subir otro logo o volante para extraer colores">
+                    <span>Otra Foto</span>
+                </button>
+            </div>
 
-           <button id="btn-siguiente-fase" class="btn-submit" style="margin-top:0;" onclick="window.guardarPaso2ADN()">Continuar a Ubicación</button>
+            <!-- SLOTS DE PALETA DE COLOR EN FASE 2 -->
+            <div style="display: flex; gap: 8px; justify-content: center; align-items: center; background: rgba(0,0,0,0.35); padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); margin-bottom: 14px;">
+                <div id="color-slot-1" style="display:flex; flex-direction:column; align-items:center;">
+                    <div data-slot="1" onclick="window.abrirSelectorColor(1)" style="width: 30px; height: 30px; border-radius: 50%; background: #ff6b00; cursor: pointer; border: 2px solid rgba(255,255,255,0.2);"></div>
+                    <span style="font-size: 8px; color:#888; margin-top:2px; font-weight:bold;">1° 50%</span>
+                </div>
+                <div id="color-slot-2" style="display:flex; flex-direction:column; align-items:center; position: relative;">
+                    <button type="button" onclick="window.eliminarColor(2)" style="position: absolute; top: -5px; right: -5px; background: rgba(255,0,0,0.8); color: white; border: none; border-radius: 50%; width: 14px; height: 14px; font-size: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>
+                    <div data-slot="2" onclick="window.abrirSelectorColor(2)" style="width: 30px; height: 30px; border-radius: 50%; background: #ffffff; cursor: pointer; border: 2px solid rgba(255,255,255,0.2);"></div>
+                    <span style="font-size: 8px; color:#888; margin-top:2px; font-weight:bold;">2° 25%</span>
+                </div>
+                <div id="add-slot-2" style="display:none; flex-direction:column; align-items:center; cursor: pointer;" onclick="window.agregarColor(2)">
+                    <div style="width: 30px; height: 30px; border-radius: 50%; border: 1px dashed rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.5);">+</div>
+                </div>
+                <div id="color-slot-3" style="display:flex; flex-direction:column; align-items:center; position: relative;">
+                    <button type="button" onclick="window.eliminarColor(3)" style="position: absolute; top: -5px; right: -5px; background: rgba(255,0,0,0.8); color: white; border: none; border-radius: 50%; width: 14px; height: 14px; font-size: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>
+                    <div data-slot="3" onclick="window.abrirSelectorColor(3)" style="width: 30px; height: 30px; border-radius: 50%; background: #0a0a0c; cursor: pointer; border: 2px solid rgba(255,255,255,0.2);"></div>
+                    <span style="font-size: 8px; color:#888; margin-top:2px; font-weight:bold;">3° 12.5%</span>
+                </div>
+                <div id="add-slot-3" style="display:none; flex-direction:column; align-items:center; cursor: pointer;" onclick="window.agregarColor(3)">
+                    <div style="width: 30px; height: 30px; border-radius: 50%; border: 1px dashed rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.5);">+</div>
+                </div>
+                <div id="color-slot-4" style="display:none; flex-direction:column; align-items:center; position: relative;">
+                    <button type="button" onclick="window.eliminarColor(4)" style="position: absolute; top: -5px; right: -5px; background: rgba(255,0,0,0.8); color: white; border: none; border-radius: 50%; width: 14px; height: 14px; font-size: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>
+                    <div data-slot="4" onclick="window.abrirSelectorColor(4)" style="width: 30px; height: 30px; border-radius: 50%; background: #00f5d4; cursor: pointer; border: 2px solid rgba(255,255,255,0.2);"></div>
+                    <span style="font-size: 8px; color:#888; margin-top:2px; font-weight:bold;">4° 7.5%</span>
+                </div>
+                <div id="add-slot-4" style="display:flex; flex-direction:column; align-items:center; cursor: pointer;" onclick="window.agregarColor(4)">
+                    <div style="width: 30px; height: 30px; border-radius: 50%; border: 1px dashed rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.5);">+</div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn-submit" style="margin-top:0; flex:1; background: transparent; border: 1px solid rgba(255,255,255,0.2); color:#aaa;" onclick="window.volverAFase1Identidad()">← Volver</button>
+                <button type="button" id="btn-siguiente-fase" class="btn-submit" style="margin-top:0; flex:2;" onclick="window.guardarPaso2ADN()">Continuar a Ubicación →</button>
+            </div>
         </div>
     </div>
+
 
     <!-- FASE 3: SANDBOX GEOESPACIAL Y GEMELO DIGITAL -->
     <div id="fase-mapa-sandbox" style="display: none; position: fixed; inset: 0; z-index: 50; background: var(--bg-oscuro); flex-direction: column;">
@@ -365,40 +510,12 @@ align-items: center;
                 </select>
             </div>
 
-            <button id="btn-guardar-paso-2" class="btn-submit" style="margin-top: 10px !important;" onclick="window.guardarPaso2Ubicacion()">Sellar Bóveda y Finalizar ➡️</button>
-
+           <div style="display: flex; gap: 8px; margin-top: 10px;">
+                <button type="button" class="btn-submit" style="margin: 0; flex: 1; background: transparent; border: 1px solid rgba(255,255,255,0.2); color: #aaa;" onclick="window.volverAFase2Pin()">← Volver al PIN</button>
+                <button type="button" id="btn-guardar-paso-2" class="btn-submit" style="margin: 0; flex: 2;" onclick="window.guardarPaso2Ubicacion()">Sellar Bóveda y Finalizar</button>
+            </div>
         </div>
     </div>
-
-
-
-
-
-
-<!-- PANTALLA DE ACCESO Y AUTENTICACIÓN -->
-
-<div id="login-screen" style="display: none;">
-
-<div class="panel-login">
-
-<div class="logo-login">GEO<span>KATU</span></div>
-
-<div class="sub-logo">Consola de Mando y Oficina</div>
-
-<button class="btn-google" onclick="window.iniciarSesionGoogle()">
-
-<img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" width="18" height="18" alt="G">
-
-Acceder como Administrador
-
-</button>
-
-<p style="text-align: center; font-size: 11px; color: #666; margin: 0;">Exclusivo para dueños y supervisores asignados.</p>
-
-</div>
-
-</div>
-
 
 
 <!-- INPUTS OCULTOS DE CARGA DIRECTA -->
@@ -410,15 +527,9 @@ Acceder como Administrador
 <input type="file" id="file-nombre-png" accept="image/*" style="display:none;" onchange="window.subirImagenDirecta('nombre_png', this)">
 
 
-
-
-
 <!-- PANTALLA PRINCIPAL: DASHBOARD -->
 
 <main id="dashboard-screen" style="display: none; height: 100vh; height: 100dvh; width: 100%; max-width: 550px; margin: 0 auto; flex-direction: column; overflow-y: auto; overflow-x: hidden; position: relative; box-sizing: border-box;">
-
-
-
 
 <!-- CABECERA FLOTANTE DE IDENTIDAD -->
 
@@ -427,17 +538,11 @@ Acceder como Administrador
 <button class="btn-opciones-cabecera" onclick="document.getElementById('menu-cabecera-principal').classList.toggle('activo')" title="Módulos del Sistema">⋮</button>
 
 <div id="menu-cabecera-principal" class="menu-cabecera-dropdown">
-
 <button onclick="window.abrirTerminalPOS()">Punto de Venta (POS)</button>
-
 <button onclick="window.open('stock', '_blank')">Bodega y Recepción</button>
-
 <button onclick="window.open('inventario', '_blank')">Inventario y Mapa de Piso</button>
-
 <button onclick="window.open('mapatienda', '_blank')">Editor de Góndolas SIG</button>
-
 <button onclick="window.open('admin-gerencial', '_blank')">Control de Cajas</button>
-
 <button onclick="const id = window.idNegocioLogueado || localStorage.getItem('geokatu_active_uid') || ''; window.location.href = '/metricas' + (id ? '?id=' + id : '');">Telemetria y Metricas</button>
 
 <button onclick="window.open('negocio?id=' + window.idNegocioLogueado, '_blank')">Catálogo Público</button>
@@ -454,37 +559,22 @@ Acceder como Administrador
 
 
 <div class="oficina-header" style="border: none; margin: 0; padding: 0; display: flex; align-items: center; gap: 12px;">
-
 <img id="ui-logo" src="" class="oficina-logo" style="display: none; background: var(--bg-oscuro);">
-
 <div class="oficina-info" style="flex: 1;">
-
 <div style="display: flex; align-items: center; gap: 8px;">
-
 <img id="ui-nombre-png" src="" alt="Logotipo Tipográfico" style="display: none; max-height: 28px; max-width: 170px; object-fit: contain;">
-
 <h3 id="ui-nombre" style="margin: 0; font-size: 18px; color: white;">CARGANDO COMERCIO...</h3>
-
 <button type="button" onclick="document.getElementById('file-nombre-png').click()" title="Cargar tipografía PNG" style="background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border); color: #aaa; border-radius: 6px; padding: 2px 6px; font-size: 11px; cursor: pointer;">🏷️</button>
-
 </div>
 
 <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
 
-
-
 <span id="ofi-estado-cuenta" class="badge-plan">ESTADO: ACTIVO</span>
-
 <span id="ofi-uid-badge" style="font-size: 10px; color: #888; font-family: monospace;">---</span>
-
 </div>
-
 <div id="billing-alert-container" style="margin-top: 6px;"></div>
-
 </div>
-
 </div>
-
 </header>
 
 
@@ -503,27 +593,35 @@ Acceder como Administrador
 
 
 
-<!-- PESTAÑA 1: RESUMEN OPERATIVO & KPIS -->
+<!-- PESTAÑA 1: RESUMEN OPERATIVO & KPIS INTERACTIVOS -->
 <section id="content-kpis" class="tab-content activo" style="padding: 15px; margin: 0 15px; width: calc(100% - 30px); box-sizing: border-box; overflow-x: hidden;">
-<label class="section-title">Resumen Operativo en Tiempo Real</label>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; position: relative;">
+    <label class="section-title" style="margin: 0;">Resumen Operativo en Tiempo Real</label>
+    <button type="button" class="btn-ayuda-pregunta" onclick="window.mostrarTooltipKpiHelp(this)" title="Información sobre las métricas">
+        <span>?</span>
+    </button>
+    <div id="tooltip-kpi-info" class="tooltip-flotante-efimero" style="display: none;" onclick="this.style.display='none'"></div>
+</div>
 <div class="oficina-kpi-grid">
-<div class="kpi-card">
-<span style="font-size: 11px; color: #888; text-transform: uppercase;">Ventas del Día</span>
-<strong class="valor" id="kpi-ventas-dia" style="color: #00ff64;">$0</strong>
+    <div class="kpi-card" onclick="window.abrirModalDetalleKPI('ventas')" title="Ver detalle de ventas">
+        <span style="font-size: 11px; color: #888; text-transform: uppercase;">Ventas del Día</span>
+        <strong class="valor" id="kpi-ventas-dia" style="color: #00ff64;">$0</strong>
+    </div>
+    <div class="kpi-card" onclick="window.abrirModalDetalleKPI('tickets')" title="Ver detalle de tickets">
+        <span style="font-size: 11px; color: #888; text-transform: uppercase;">Tickets Emitidos</span>
+        <strong class="valor" id="kpi-tickets-cant" style="color: #60a5fa;">0</strong>
+    </div>
+    <div class="kpi-card" onclick="window.abrirModalDetalleKPI('articulos')" title="Ver estado de catálogo">
+        <span style="font-size: 11px; color: #888; text-transform: uppercase;">Artículos Activos</span>
+        <strong class="valor" id="kpi-articulos-total">0</strong>
+    </div>
+    <div class="kpi-card" onclick="window.abrirModalDetalleKPI('incidencias')" title="Ver incidencias y auditoría">
+        <span id="badge-kpi-incidencias" class="kpi-badge-urgente" style="display: none;">0</span>
+        <span style="font-size: 11px; color: #888; text-transform: uppercase;">Incidencias</span>
+        <strong class="valor" id="kpi-alertas-activas" style="color: #ffaa00;">0</strong>
+    </div>
 </div>
-<div class="kpi-card">
-<span style="font-size: 11px; color: #888; text-transform: uppercase;">Tickets Emitidos</span>
-<strong class="valor" id="kpi-tickets-cant" style="color: #60a5fa;">0</strong>
-</div>
-<div class="kpi-card">
-<span style="font-size: 11px; color: #888; text-transform: uppercase;">Artículos Activos</span>
-<strong class="valor" id="kpi-articulos-total">0</strong>
-</div>
-<div class="kpi-card">
-<span style="font-size: 11px; color: #888; text-transform: uppercase;">Incidencias</span>
-<strong class="valor" id="kpi-alertas-activas" style="color: #ffaa00;">0</strong>
-</div>
-</div>
+
 
 
 
@@ -719,23 +817,6 @@ Abrir Telemetria Comercial y Auditoria WMS
                 </button>
             </div>
 
-
-            <!-- AUDITORÍA DE STOCK EN CAJA -->
-            <div class="panel-operaciones-bloque">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <div>
-                        <h4 style="margin: 0; font-size: 12px; text-transform: uppercase; color: #ff4444;">Auditoría de Stock en Caja</h4>
-                        <span style="font-size: 10.5px; color: #888;">Desfases y ventas bajo cero reportadas</span>
-                    </div>
-                    <button type="button" onclick="window.cargarAlertasSeguridad()" style="background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border); color: #fff; padding: 5px 10px; border-radius: 6px; font-size: 10px; cursor: pointer;">
-                        Refrescar
-                    </button>
-                </div>
-                <div id="contenedor-alertas-lista">
-                    <p style="text-align: center; color: #666; padding: 10px 0; font-size: 11px;">Cargando incidentes...</p>
-                </div>
-            </div>
-
             <!-- DATOS FISCALES & DIAN -->
             <div class="panel-operaciones-bloque">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -878,43 +959,46 @@ Abrir Telemetria Comercial y Auditoria WMS
 
 
 
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
-
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
 <select id="emp-nuevo-rol" class="input-form" style="margin-bottom: 0;">
-
 <option value="cajero" selected>Cajero POS</option>
-
 <option value="asesor">Asesor de Ventas</option>
-
 <option value="operador_bodega">Operario de Bodega</option>
-
 <option value="visual_merchandising">Visual Merchandising</option>
-
 <option value="supervisor_pos">Supervisor</option>
-
 <option value="administrador_delegado">Administrador Delegado</option>
-
 </select>
-
-
-
 <select id="emp-nuevo-almacen" class="input-form" style="margin-bottom: 0;">
-
 <option value="SALA_VENTAS" selected>Sede Principal</option>
-
 <option value="BODEGA_CENTRAL">Bodega Central</option>
-
 </select>
-
 </div>
 
-
+<!-- BLOQUE VECTORIAL DE HORARIO LABORAL Y CONTROL PERIMETRAL -->
+<div style="background: rgba(0,0,0,0.35); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px; margin-bottom: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <label class="section-title" style="margin: 0; font-size: 10px; color: var(--naranja);">Control de Turno Laboral</label>
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: #ddd; cursor: pointer;">
+            <input type="checkbox" id="emp-horario-activo" checked onchange="document.getElementById('caja-horas-operario').style.display = this.checked ? 'grid' : 'none';" style="accent-color: var(--naranja); width: 14px; height: 14px;">
+            Restringir por Horario
+        </label>
+    </div>
+    <div id="caja-horas-operario" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div>
+            <span style="font-size: 9.5px; color: #888; display: block; margin-bottom: 2px;">Hora Entrada</span>
+            <input type="time" id="emp-hora-inicio" class="input-form" value="07:00" style="margin-bottom: 0; padding: 8px 10px !important;">
+        </div>
+        <div>
+            <span style="font-size: 9.5px; color: #888; display: block; margin-bottom: 2px;">Hora Salida</span>
+            <input type="time" id="emp-hora-fin" class="input-form" value="16:00" style="margin-bottom: 0; padding: 8px 10px !important;">
+        </div>
+    </div>
+</div>
 
 <button type="button" id="btn-crear-empleado" class="btn-submit" style="margin: 0;" onclick="window.registrarEmpleado()">
-
 Registrar Operario
-
 </button>
+
 
 </div>
 
@@ -1344,7 +1428,7 @@ Ingresa las unidades reales contadas en anaquel para ajustar Kardex.
             <div id="tour-target-formulario" class="aurea-master-container">
                 <!-- Izquierda: Foto cuadrada con disparo directo a cámara posterior -->
                 <div class="aurea-photo-box file-upload-wrapper" onclick="document.getElementById('prodImagenFile').click()" title="Tomar foto con sensor trasero">
-                    <input type="file" id="prodImagenFile" class="file-upload-input" accept="image/*" capture="environment" style="position:absolute; inset:0; width:100%; height:100%; opacity:0; z-index:2; cursor:pointer;" onchange="window.actualizarNombreImagenUI(this, 'file-upload-text')" onclick="event.stopPropagation()">
+                    <input type="file" id="prodImagenFile" class="file-upload-input" accept="image/*" style="position:absolute; inset:0; width:100%; height:100%; opacity:0; z-index:2; cursor:pointer;" onchange="window.actualizarNombreImagenUI(this, 'file-upload-text')" onclick="event.stopPropagation()">
                     <div class="file-upload-ui" id="file-upload-text">
                         <span style="font-size:18px;">📸</span>
                         <span>Foto</span>
@@ -1539,6 +1623,48 @@ Ingresa las unidades reales contadas en anaquel para ajustar Kardex.
 </div>
 
 
+<!-- VENTANA MODAL FLUIDA BOTTOM-SHEET: DESGLOSE POLIMÓRFICO DE MÉTRICAS -->
+<div id="overlay-kpi-drilldown" class="bottom-sheet-overlay" style="display: none;" onclick="if(event.target === this) window.cerrarModalDetalleKPI();">
+    <div id="sheet-kpi-drilldown" class="kpi-drilldown-sheet">
+        <!-- Manija de arrastre hacia abajo (Swipe-Down to Dismiss) -->
+        <div id="drag-handle-kpi" style="padding: 12px 0 6px 0; cursor: grab; touch-action: none; display: flex; flex-direction: column; align-items: center;">
+            <div style="width: 38px; height: 4px; background: rgba(255,255,255,0.25); border-radius: 10px;"></div>
+        </div>
+
+        <!-- Cabecera de la modal -->
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 18px 10px 18px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <div>
+                <h3 id="txt-kpi-sheet-titulo" style="margin: 0; font-size: 14px; text-transform: uppercase; color: #ffffff; letter-spacing: 0.5px;">Desglose</h3>
+                <span id="txt-kpi-sheet-subtitulo" style="font-size: 10.5px; color: #888;">Trazabilidad operativa</span>
+            </div>
+            <button type="button" onclick="window.cerrarModalDetalleKPI();" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: #fff; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+
+        <!-- Submenú de filtros manuales (Código, Operario, Fecha) -->
+        <div style="display: grid; grid-template-columns: 1.2fr 1fr 1.1fr auto; gap: 6px; padding: 8px 16px; background: rgba(0,0,0,0.3); border-bottom: 1px solid rgba(255,255,255,0.06); align-items: center;">
+            <input type="text" id="kpi-filtro-codigo" class="kpi-filtro-chip-input" placeholder="Código / ID..." oninput="window.filtrarContenidoKpiModal()">
+            <input type="text" id="kpi-filtro-operario" class="kpi-filtro-chip-input" placeholder="Operario..." oninput="window.filtrarContenidoKpiModal()">
+            <input type="date" id="kpi-filtro-fecha" class="kpi-filtro-chip-input" onchange="window.filtrarContenidoKpiModal()">
+            <button type="button" onclick="window.limpiarFiltrosKpiModal()" title="Limpiar filtros" style="background: transparent; border: none; color: #888; cursor: pointer; padding: 4px; display: flex; align-items: center;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+            </button>
+        </div>
+
+        <!-- Barra de las 3 pestañas -->
+        <div style="display: flex; background: rgba(0,0,0,0.4); border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0 10px;">
+            <button type="button" id="kpi-tab-0" class="tab-btn-kpi activo" onclick="window.conmutarTabModalKPI(0)">Hoy</button>
+            <button type="button" id="kpi-tab-1" class="tab-btn-kpi" onclick="window.conmutarTabModalKPI(1)">Pendientes</button>
+            <button type="button" id="kpi-tab-2" class="tab-btn-kpi" onclick="window.conmutarTabModalKPI(2)">Historial</button>
+        </div>
+
+        <!-- Contenedor scrolleable de lista -->
+        <div id="kpi-modal-lista-scroll" style="flex: 1; overflow-y: auto; padding: 12px 16px; min-height: 220px; max-height: 52vh; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px;">
+            <p style="text-align: center; color: #666; font-size: 11px; padding: 20px 0;">Cargando registros...</p>
+        </div>
+    </div>
+</div>
 
 <!-- CEREBRO LÓGICO DE LA OFICINA -->
 

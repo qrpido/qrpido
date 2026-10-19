@@ -3,6 +3,9 @@
  * Multi-Sede Dinámica + Parser Óptico Trifásico + RBAC Operativo Universal
  */
 import GeokatuDB from './core-db.js';
+import { AuthGate } from './auth-gate.js';
+import './geokatu-tour.js';
+
 
 let idNegocio = localStorage.getItem('geokatu_active_uid') || null;
 let idSedeActiva = localStorage.getItem('geokatu_sede_activa') || 'SALA_VENTAS';
@@ -392,7 +395,8 @@ function renderizarMueblesVisor() {
         subGrid.classList.add('mueble-subdivisiones');
         const binsFrontal = (m.caras && m.caras.A) ? (m.caras.A.bins || 4) : 4;
         const cols = Math.ceil(Math.sqrt(binsFrontal));
-        subGrid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+        subGrid.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+
         for (let i = 0; i < binsFrontal; i++) {
             const c = document.createElement('div');
             c.classList.add('subdivision-celda');
@@ -1002,12 +1006,13 @@ function ejecutarBusquedaYFiltros() {
         return;
     }
 
-    // --- CASO B: DETECCIÓN DIRECTA DE QR DE BIN (GEO-P-) ---
+   // --- CASO B: DETECCIÓN DIRECTA DE QR DE BIN (GEO-P-) ---
     if (rawInput.startsWith('GEO-P-')) {
         const muebleEncontrado = muebles.find(m => 
             (m.compartimientos || []).some(c => c.id_comp === rawInput) ||
-            rawInput.includes(`-${m.id_mueble}-`)
+            rawInput.indexOf('-' + m.id_mueble + '-') !== -1
         );
+
         if (muebleEncontrado) {
             centrarMuebleEnPantalla(muebleEncontrado);
             colocarPinGpsEnMueble(muebleEncontrado, rawInput);
@@ -1559,36 +1564,46 @@ document.getElementById('btn-cerrar-camara').addEventListener('click', cerrarCam
 
 
 // ==========================================
-// 8. MULTI-SEDE DINÁMICA Y LOCAL-FIRST DELTAS
+// 8. MULTI-SEDE DINÁMICA Y LOCAL-FIRST DELTAS (ZERO-READS)
 // ==========================================
 async function cargarSedesDinamicas() {
     if (!idNegocio || !selectSede) return;
+    const claveSedesCache = 'geokatu_sedes_cache_' + idNegocio;
+    const pintarOpcionesSedes = (listaSedes) => {
+        selectSede.innerHTML = '';
+        listaSedes.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id_sede;
+            opt.innerText = (s.tipo === 'BODEGA' ? '[BODEGA] ' : '[SALA] ') + (s.nombre || s.id_sede);
+            selectSede.appendChild(opt);
+        });
+        const existeActiva = listaSedes.some(s => s.id_sede === idSedeActiva);
+        if (!existeActiva && listaSedes.length > 0) {
+            idSedeActiva = listaSedes[0].id_sede;
+            localStorage.setItem('geokatu_sede_activa', idSedeActiva);
+        }
+        selectSede.value = idSedeActiva;
+    };
+
     try {
+        const cacheStr = localStorage.getItem(claveSedesCache);
+        if (cacheStr) {
+            const listaLocal = JSON.parse(cacheStr);
+            if (Array.isArray(listaLocal) && listaLocal.length > 0) {
+                pintarOpcionesSedes(listaLocal);
+                if (!navigator.onLine) return;
+            }
+        }
+        if (!navigator.onLine) return;
         const resSedes = await GeokatuDB.RadarService.obtenerSedesComercio(idNegocio);
         if (resSedes.success && resSedes.data.length > 0) {
-            selectSede.innerHTML = '';
-            resSedes.data.forEach(s => {
-                const opt = document.createElement('option');
-                opt.value = s.id_sede;
-                opt.innerText = (s.tipo === 'BODEGA' ? '[BODEGA] ' : '[SALA] ') + (s.nombre || s.id_sede);
-                selectSede.appendChild(opt);
-            });
-
-
-
-            // Conservar la sede activa si existe en la lista, sino adoptar la primera
-            const existeActiva = resSedes.data.some(s => s.id_sede === idSedeActiva);
-            if (!existeActiva) {
-                idSedeActiva = resSedes.data[0].id_sede;
-                localStorage.setItem('geokatu_sede_activa', idSedeActiva);
-            }
-            selectSede.value = idSedeActiva;
+            localStorage.setItem(claveSedesCache, JSON.stringify(resSedes.data));
+            pintarOpcionesSedes(resSedes.data);
         }
     } catch (e) {
-        console.warn("[GEOKATU SIG] Error cargando sedes dinámicas:", e);
+        console.warn("[GEOKATU SIG] Error cargando sedes dinamicas:", e);
     }
 }
-
 if (selectSede) {
     selectSede.addEventListener('change', async (e) => {
         idSedeActiva = e.target.value;
@@ -1598,62 +1613,94 @@ if (selectSede) {
     });
 }
 
+// Reactividad en 0 ms entre pestañas locales (POS / Stock / Oficina -> Visor)
+window.addEventListener('storage', (e) => {
+    if (!idNegocio || !e.key) return;
+    if (e.key === 'geokatu_catalogo_' + idNegocio && e.newValue) {
+        try {
+            catalogoTotal = JSON.parse(e.newValue);
+            renderizarMueblesVisor();
+        } catch (err) {}
+    } else if (e.key === 'geokatu_stock_ubis_' + idNegocio && e.newValue) {
+        try {
+            stockPosicionalGlobal = JSON.parse(e.newValue);
+            renderizarMueblesVisor();
+        } catch (err) {}
+    } else if (e.key === 'geokatu_plano_' + idNegocio + '_' + idSedeActiva && e.newValue) {
+        try {
+            const pData = JSON.parse(e.newValue);
+            if (pData.perimetro) perimetro = pData.perimetro;
+            if (Array.isArray(pData.elementos)) muebles = pData.elementos;
+            if (Array.isArray(pData.muros)) celdasMurosBloqueadas = new Set(pData.muros);
+            redibujarArea();
+            renderizarMueblesVisor();
+        } catch (err) {}
+    }
+});
 
 async function hidratarVisor() {
     if (!idNegocio) return;
-
     const claveCachePlano = "geokatu_plano_" + idNegocio + "_" + idSedeActiva;
     const claveCacheStockUbis = "geokatu_stock_ubis_" + idNegocio;
     const claveSyncTimestamp = "geokatu_sync_ubis_time_" + idNegocio;
 
-
-    // Paso 1: Carga fría en 0 ms desde caché local
+    // Paso 1: Carga fria en 0 ms desde cache local (Cero lecturas de red)
     const cachePlano = localStorage.getItem(claveCachePlano);
     const cacheUbis = localStorage.getItem(claveCacheStockUbis);
+    let modPlanoLocal = null;
 
     if (cachePlano) {
-        const planoData = JSON.parse(cachePlano);
-        if (planoData.perimetro) perimetro = planoData.perimetro;
-        if (Array.isArray(planoData.elementos)) muebles = planoData.elementos;
-        if (Array.isArray(planoData.muros)) celdasMurosBloqueadas = new Set(planoData.muros);
+        try {
+            const planoData = JSON.parse(cachePlano);
+            modPlanoLocal = planoData.ultima_modificacion || null;
+            if (planoData.perimetro) perimetro = planoData.perimetro;
+            if (Array.isArray(planoData.elementos)) muebles = planoData.elementos;
+            if (Array.isArray(planoData.muros)) celdasMurosBloqueadas = new Set(planoData.muros);
+        } catch (eP) {}
     } else {
         perimetro = { anchoM: 12, largoM: 18 };
         muebles = [];
         celdasMurosBloqueadas = new Set();
     }
-
     if (cacheUbis) {
-        stockPosicionalGlobal = JSON.parse(cacheUbis);
+        try { stockPosicionalGlobal = JSON.parse(cacheUbis); } catch (eU) { stockPosicionalGlobal = []; }
     }
-
     catalogoTotal = GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio);
     poblarFiltros();
-
     redibujarArea();
     renderizarMueblesVisor();
     actualizarTransform();
 
-    // Paso 2: Hidratación por deltas en segundo plano
+    if (!navigator.onLine) return;
+
+    // Paso 2: Hidratacion estrictamente por deltas en segundo plano
     try {
         const resPlano = await GeokatuDB.RadarService.obtenerMapaBodega(idNegocio, idSedeActiva);
         if (resPlano.success && resPlano.data) {
-            localStorage.setItem(claveCachePlano, JSON.stringify(resPlano.data));
-            if (resPlano.data.perimetro) perimetro = resPlano.data.perimetro;
-            if (Array.isArray(resPlano.data.elementos)) muebles = resPlano.data.elementos;
-            if (Array.isArray(resPlano.data.muros)) celdasMurosBloqueadas = new Set(resPlano.data.muros);
-            redibujarArea();
-            renderizarMueblesVisor();
+            const modRemota = resPlano.data.ultima_modificacion || null;
+            if (!cachePlano || (modRemota && modRemota !== modPlanoLocal)) {
+                localStorage.setItem(claveCachePlano, JSON.stringify(resPlano.data));
+                if (resPlano.data.perimetro) perimetro = resPlano.data.perimetro;
+                if (Array.isArray(resPlano.data.elementos)) muebles = resPlano.data.elementos;
+                if (Array.isArray(resPlano.data.muros)) celdasMurosBloqueadas = new Set(resPlano.data.muros);
+                redibujarArea();
+                renderizarMueblesVisor();
+            }
         }
 
-        const resCat = await GeokatuDB.PosService.descargarCatalogoLocal(idNegocio);
+        // Sincronizar unicamente deltas del catalogo (fecha_actualizacion > ultimoSync)
+        const resCat = await GeokatuDB.PosService.descargarCatalogoLocal(idNegocio, false);
         if (resCat.success) {
             catalogoTotal = resCat.data;
-            poblarFiltros();
+            if (!resCat.esDelta || (resCat.deltasLeidos && resCat.deltasLeidos > 0)) {
+                poblarFiltros();
+                renderizarMueblesVisor();
+            }
         }
 
-        const ultimoSync = localStorage.getItem(claveSyncTimestamp) || null;
+        // Sincronizar unicamente deltas de ubicaciones (ultima_modificacion > ultimoSync)
+        const ultimoSync = (stockPosicionalGlobal.length > 0) ? (localStorage.getItem(claveSyncTimestamp) || null) : null;
         const resUbis = await GeokatuDB.InventarioService.obtenerMapaStockTiendaCompleto(idNegocio, ultimoSync);
-
         if (resUbis.success) {
             if (resUbis.esDelta && resUbis.data.length > 0) {
                 resUbis.data.forEach(delta => {
@@ -1666,77 +1713,82 @@ async function hidratarVisor() {
                         stockPosicionalGlobal.push(delta);
                     }
                 });
-               console.log("[GEOKATU SIG] " + resUbis.data.length + " deltas de stock sincronizados."); 
+                console.log("[GEOKATU SIG] " + resUbis.data.length + " deltas de stock sincronizados."); 
             } else if (!resUbis.esDelta) {
                 stockPosicionalGlobal = resUbis.data;
             }
-
             localStorage.setItem(claveCacheStockUbis, JSON.stringify(stockPosicionalGlobal));
             localStorage.setItem(claveSyncTimestamp, resUbis.timestampCorte);
-
-            if (resUbis.data.length > 0) {
+            if (resUbis.data.length > 0 || !resUbis.esDelta) {
                 renderizarMueblesVisor();
             }
         }
-
-       // Paso 3: Reactividad de existencias
-        GeokatuDB.InventarioService.escucharCambiosStock(idNegocio, (prodActualizado) => {
-            const prod = catalogoTotal.find(p => p.id_prod === prodActualizado.id_prod);
-            if (prod && prodActualizado.stock_actual !== undefined) {
-                prod.stock_actual = prodActualizado.stock_actual;
-            }
-            // Refresca las vistas cartográficas sin alterar la cuenta interna por compartimiento
-            renderizarMueblesVisor();
-        });
-
-
     } catch (err) {
-        console.warn("[GEOKATU SIG] Error en sincronización:", err);
+        console.warn("[GEOKATU SIG] Error en sincronizacion delta:", err);
     }
 }
 
+
 // ==========================================
-// 9. GUARDIÁN RBAC OPERATIVO UNIVERSAL
+// 9. CONTROL DE SESIÓN Y RADAR OPERATIVO CON AUTH-GATE
 // ==========================================
-GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
-    if (user) {
-        // Enlace de identidad de comercio
-        const uidComercio = localStorage.getItem('geokatu_active_uid') || user.uid;
-        idNegocio = uidComercio;
+AuthGate.inicializar({
+    tituloModulo: 'Radar de Inventario SIG',
+    subtituloModulo: 'Visor de Piso y Ubicacion Espacial de Stock',
+    minutosInactividad: 20,
+    onSesionLista: async function(contexto) {
+        idNegocio = contexto.idNegocio;
+        idSedeActiva = contexto.almacen || localStorage.getItem('geokatu_sede_activa') || 'SALA_VENTAS';
+        rolUsuarioActivo = contexto.rol || 'cajero';
 
-        // Validar permisos del colaborador
-        const { autorizado, rol, error } = await GeokatuDB.RadarService.validarPermisosOperador(idNegocio, user.email);
+        localStorage.setItem('geokatu_active_uid', contexto.idNegocio);
+        localStorage.setItem('geokatu_sede_activa', idSedeActiva);
 
-        if (!autorizado) {
-            await window.mostrarAlertaInApp('Acceso denegado: ' + (error || 'No tienes permisos en esta sucursal.'), 'Control de Seguridad');
-            window.location.href = "oficina";
-            return;
-        }
+        // Sellado criptografico de la terminal
+        await GeokatuDB.SecurityService.sellarSesionTerminalLocal(contexto.idNegocio);
 
-
-        rolUsuarioActivo = rol;
-
-        // Regla RBAC: Botón "Editar Plano SIG" solo visible para roles arquitectos
-        const rolesConEdicion = ['owner', 'administrador_delegado', 'visual_merchandising', 'admin', 'superadmin'];
-        const btnEditor = document.getElementById('btn-ir-editor');
-        if (btnEditor && rolesConEdicion.includes(rolUsuarioActivo)) {
-            btnEditor.style.display = 'inline-block';
+        // Regla RBAC: Boton "Editar Plano SIG" solo para roles arquitectos
+        var rolesConEdicion = ['owner', 'dueño', 'administrador_delegado', 'visual_merchandising', 'admin', 'superadmin'];
+        var btnEditor = document.getElementById('btn-ir-editor');
+        if (btnEditor) {
+            btnEditor.style.display = rolesConEdicion.includes(rolUsuarioActivo) ? 'inline-block' : 'none';
         }
 
         await cargarSedesDinamicas();
         await hidratarVisor();
         ejecutarZoomExtents(false);
-    } else {
-        // Fallback para terminales locales operando offline con sesión sellada
-        if (idNegocio) {
-            await cargarSedesDinamicas();
-            await hidratarVisor();
-            ejecutarZoomExtents(false);
-        } else {
-            window.location.href = "oficina";
-        }
-    }
 
+        // Iniciar explicación del visor de piso y radar
+        if (window.GeokatuTour && typeof window.GeokatuTour.iniciar === 'function') {
+            setTimeout(function() {
+                window.GeokatuTour.iniciar('inventario');
+            }, 900);
+        }
+    },
+
+    onCerrarSesion: async function() {
+        if (typeof cerrarCamara === 'function') {
+            cerrarCamara();
+        }
+        detenerAnimacionRuta();
+        muebles = [];
+        catalogoTotal = [];
+        stockPosicionalGlobal = [];
+        contenedorMuebles.innerHTML = '';
+        if (drawer) drawer.classList.remove('visible');
+        if (widgetAlzado) widgetAlzado.classList.add('oculto');
+    }
 });
+
+// Listener del boton salir en la barra superior
+var btnLogoutVisor = document.getElementById('btn-logout-visor');
+if (btnLogoutVisor) {
+    btnLogoutVisor.addEventListener('click', async function(e) {
+        e.stopPropagation();
+        if (typeof cerrarCamara === 'function') cerrarCamara();
+        await AuthGate.cerrarSesion();
+    });
+}
+
 
 

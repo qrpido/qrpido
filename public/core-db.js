@@ -1,7 +1,57 @@
 import { doc, getDoc, setDoc, collection, writeBatch, getDocs, query, where, limit, startAfter, orderBy, startAt, endAt, collectionGroup, deleteDoc, getCountFromServer, onSnapshot, increment, runTransaction } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, getAdditionalUserInfo, setPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { getAnalytics, logEvent } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js';
-import * as geofire from "https://cdn.jsdelivr.net/npm/geofire-common@5.2.0/+esm";
+// Motor Geohash Base32 100% Nativo (Cero dependencias externas / Offline-First)
+const _BASE32_GH = "0123456789bcdefghjkmnpqrstuvwxyz";
+const geofire = {
+    geohashForLocation: function(coords, precision) {
+        const pres = precision || 9;
+        const lat = Number(coords[0]) || 0;
+        const lng = Number(coords[1]) || 0;
+        let idx = 0, bit = 0, evenBit = true, geohash = "";
+        let latMin = -90, latMax = 90, lngMin = -180, lngMax = 180;
+        while (geohash.length < pres) {
+            if (evenBit) {
+                const lngMid = (lngMin + lngMax) / 2;
+                if (lng >= lngMid) { idx = idx * 2 + 1; lngMin = lngMid; }
+                else { idx = idx * 2; lngMax = lngMid; }
+            } else {
+                const latMid = (latMin + latMax) / 2;
+                if (lat >= latMid) { idx = idx * 2 + 1; latMin = latMid; }
+                else { idx = idx * 2; latMax = latMid; }
+            }
+            evenBit = !evenBit;
+            if (++bit === 5) {
+                geohash += _BASE32_GH.charAt(idx);
+                bit = 0;
+                idx = 0;
+            }
+        }
+        return geohash;
+    },
+    geohashQueryBounds: function(center, radiusInM) {
+        const lat = Number(center[0]) || 0;
+        const lng = Number(center[1]) || 0;
+        const r = Math.max(500, Number(radiusInM) || 3000);
+        const precision = r <= 1000 ? 6 : (r <= 5000 ? 5 : (r <= 25000 ? 4 : 3));
+        const latDelta = r / 110574;
+        const lngDelta = r / (111320 * Math.max(0.1, Math.cos(lat * Math.PI / 180)));
+        const prefijos = new Set();
+        const pasos = [-1, 0, 1];
+        for (let i = 0; i < pasos.length; i++) {
+            for (let j = 0; j < pasos.length; j++) {
+                const pLat = Math.max(-89.9, Math.min(89.9, lat + pasos[i] * latDelta));
+                const pLng = Math.max(-179.9, Math.min(179.9, lng + pasos[j] * lngDelta));
+                prefijos.add(this.geohashForLocation([pLat, pLng], precision));
+            }
+        }
+        const bounds = [];
+        prefijos.forEach(function(pref) {
+            bounds.push([pref, pref + "~"]);
+        });
+        return bounds;
+    }
+};
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
 import { getDatabase, ref as rtdbRef, set, get, onValue, child, serverTimestamp, query as queryRTDB, limitToLast, orderByChild } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js'; 
@@ -65,6 +115,8 @@ const _SCHEMA = {
 // 2. CACHÉ EN MEMORIA (Privado)
 // ==========================================
 const _cacheLocales = {};
+const _cacheContactos = {};
+
 // ==========================================
 // 2.1 CONTROL DE CONCURRENCIA OFFLINE (Mutex)
 // ==========================================
@@ -201,32 +253,160 @@ export const CatalogoMatrizService = {
                 txWrite.onerror = (e) => rej(e.target.error);
             });
 
-            console.log(`[IndexedDB Matriz] Hidratación completada: ${productos.length} registros.`);
+           console.log('[IndexedDB Matriz] Hidratacion completada: ' + productos.length + ' registros.');
             return { success: true, count: productos.length };
         } catch (err) {
-            console.error('[IndexedDB Matriz] Error durante inicialización:', err);
+            console.error('[IndexedDB Matriz] Error durante inicializacion:', err);
             return { success: false, error: err.message };
         }
     },
-
-    /**
-     * Busca un código de barras en la Matriz Global IndexedDB (Respuesta 0ms)
-     * @param {string} barcode 
-     * @returns {Promise<{codigo_barras: string, nombre: string, categoria: string}|null>}
-     */
     async obtenerProductoPorCodigo(barcode) {
         try {
             const db = await abrirDBMatriz();
             const tx = db.transaction(STORE_MATRIZ, 'readonly');
             const store = tx.objectStore(STORE_MATRIZ);
-            const query = store.get(String(barcode).trim());
-
+            const req = store.get(String(barcode).trim());
             return new Promise((resolve) => {
-                query.onsuccess = () => resolve(query.result || null);
-                query.onerror = () => resolve(null);
+                req.onsuccess = () => resolve(req.result || null);
+                req.onerror = () => resolve(null);
             });
         } catch (err) {
-            console.error('[IndexedDB Matriz] Error en consulta por código:', err);
+            console.error('[IndexedDB Matriz] Error en consulta por codigo:', err);
+            return null;
+        }
+    }
+};
+
+// =========================================================================
+// SERVICIO DIRECTORIO MATRIZ GLOBAL (INDEXEDDB OFFLINE-FIRST 0ms)
+// =========================================================================
+const DB_NAME_DIR = 'GeokatuDirectorioDB';
+const DB_VERSION_DIR = 1;
+const STORE_DIR = 'comercios_matriz';
+function abrirDBDirectorio() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME_DIR, DB_VERSION_DIR);
+        request.onupgradeneeded = (e) => {
+            const dbInstance = e.target.result;
+            if (!dbInstance.objectStoreNames.contains(STORE_DIR)) {
+                const store = dbInstance.createObjectStore(STORE_DIR, { keyPath: 'id' });
+                store.createIndex('categoria', 'c', { unique: false });
+            }
+        };
+        request.onsuccess = (e) => resolve(e.target.result);
+        request.onerror = (e) => reject(e.target.error);
+    });
+}
+export const DirectorioMatrizService = {
+    async inicializarDirectorio(forzarRecarga = false) {
+        try {
+            const dbInstance = await abrirDBDirectorio();
+            const txRead = dbInstance.transaction(STORE_DIR, 'readonly');
+            const storeRead = txRead.objectStore(STORE_DIR);
+            const countReq = storeRead.count();
+            const total = await new Promise((res) => {
+                countReq.onsuccess = () => res(countReq.result);
+                countReq.onerror = () => res(0);
+            });
+            if (total > 0 && !forzarRecarga) {
+                return { success: true, count: total };
+            }
+            const bucketName = (db.app.options && db.app.options.storageBucket) 
+                ? db.app.options.storageBucket 
+                : 'geo-katu.appspot.com';
+            const urlStorage = 'https://storage.googleapis.com/' + bucketName + '/directorio_matriz.json';
+            
+            let resp = null;
+            try {
+                resp = await fetch(urlStorage + '?t=' + Date.now());
+                if (!resp.ok) throw new Error('HTTP Storage ' + resp.status);
+            } catch (errStorage) {
+                resp = await fetch('/directorio_matriz.json');
+            }
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const comercios = await resp.json();
+            const txWrite = dbInstance.transaction(STORE_DIR, 'readwrite');
+            const storeWrite = txWrite.objectStore(STORE_DIR);
+            if (forzarRecarga) {
+                storeWrite.clear();
+            }
+            for (let i = 0; i < comercios.length; i++) {
+                storeWrite.put(comercios[i]);
+            }
+            await new Promise((res, rej) => {
+                txWrite.oncomplete = () => res();
+                txWrite.onerror = (e) => rej(e.target.error);
+            });
+            localStorage.setItem('geokatu_matriz_timestamp', new Date().toISOString());
+            return { success: true, count: comercios.length };
+        } catch (err) {
+            console.warn('[DirectorioMatriz] Error durante inicializacion:', err.message);
+            return { success: false, error: err.message };
+        }
+    },
+    async sincronizarDeltaNube(timestampUltimoCorte, onNuevoComercioCallback) {
+        if (!navigator.onLine) return;
+        try {
+            const fechaCorteISO = timestampUltimoCorte || new Date(Date.now() - 86400000).toISOString();
+            const q = query(
+                collection(db, "Directorio"),
+                where("estado_moderacion", "==", "aprobado"),
+                where("fecha_actualizacion", ">", fechaCorteISO)
+            );
+            return onSnapshot(q, (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === "added" || change.type === "modified") {
+                        const data = change.doc.data();
+                        const comercioFormateado = {
+                            id: change.doc.id,
+                            n: data.nombre || "Comercio Aliado",
+                            s: (data.slogan || "").substring(0, 70),
+                            c: data.nicho || data.categoria || "General",
+                            g: [data.lat || 4.81333, data.lng || -75.69611],
+                            p: data.pin_pack || "forma-gota|anim-salto",
+                            b: [data.color_principal || "#ff6b00", data.color_acento || "#8a909d"],
+                            l: data.logo || "",
+                            f: (data.whatsapp ? 1 : 0) | (data.es_24_horas ? 4 : 0)
+                        };
+                        abrirDBDirectorio().then((dbInstance) => {
+                            const tx = dbInstance.transaction(STORE_DIR, 'readwrite');
+                            tx.objectStore(STORE_DIR).put(comercioFormateado);
+                        });
+                        if (typeof onNuevoComercioCallback === 'function') {
+                            onNuevoComercioCallback(comercioFormateado);
+                        }
+                    }
+                });
+            });
+        } catch (err) {
+            console.warn("[Directorio Delta] Sincronizacion omitida:", err.message);
+        }
+    },
+    async obtenerTodosComercios() {
+        try {
+            const dbInstance = await abrirDBDirectorio();
+            const tx = dbInstance.transaction(STORE_DIR, 'readonly');
+            const store = tx.objectStore(STORE_DIR);
+            const req = store.getAll();
+            return new Promise((resolve) => {
+                req.onsuccess = () => resolve(req.result || []);
+                req.onerror = () => resolve([]);
+            });
+        } catch (e) {
+            return [];
+        }
+    },
+    async obtenerComercioPorId(id) {
+        try {
+            const dbInstance = await abrirDBDirectorio();
+            const tx = dbInstance.transaction(STORE_DIR, 'readonly');
+            const store = tx.objectStore(STORE_DIR);
+            const req = store.get(String(id));
+            return new Promise((resolve) => {
+                req.onsuccess = () => resolve(req.result || null);
+                req.onerror = () => resolve(null);
+            });
+        } catch (e) {
             return null;
         }
     }
@@ -235,6 +415,7 @@ export const CatalogoMatrizService = {
 
 const GeokatuDB = {
     CatalogoMatrizService,
+    DirectorioMatrizService, 
     /**
      * @namespace InventarioService
      * Tuberías de datos en tiempo real y conexiones con la blockchain
@@ -1061,6 +1242,48 @@ const GeokatuDB = {
      */
 
     LocalService: {
+obtenerContactoComercio: async (idNegocio) => {
+            if (!idNegocio) return { success: false, error: "ID de comercio requerido." };
+            const idLimpio = String(idNegocio).trim();
+
+            // 1. Caché de sesión en memoria (0 ms, 0 lecturas en Firestore)
+            if (_cacheContactos[idLimpio]) {
+                return { success: true, data: _cacheContactos[idLimpio] };
+            }
+
+            try {
+                // 2. Consulta puntual a la colección protegida (allow get: if true; allow list: if false)
+                const docRef = doc(db, "Directorio_Contacto", idLimpio);
+                const snap = await getDoc(docRef);
+
+                if (snap.exists()) {
+                    const data = snap.data();
+                    _cacheContactos[idLimpio] = data;
+                    return { success: true, data: data };
+                }
+
+                // 3. Respaldo retrocompatible para registros previos a la migración
+                const docDirRef = doc(db, _SCHEMA.ColeccionDirectorio, idLimpio);
+                const snapDir = await getDoc(docDirRef);
+                if (snapDir.exists()) {
+                    const d = snapDir.data();
+                    const dataRespaldo = {
+                        whatsapp: d.whatsapp || d.whatsApp || (d.telefonos && d.telefonos[0]) || "",
+                        telefonos: d.telefonos || [],
+                        pbx: d.pbx || "",
+                        correo: d.correo || d.email || "",
+                        instagram: d.instagram || "",
+                        web: d.web || d.sitio_web || ""
+                    };
+                    _cacheContactos[idLimpio] = dataRespaldo;
+                    return { success: true, data: dataRespaldo };
+                }
+
+                return { success: false, error: "Contacto no disponible." };
+            } catch (e) {
+                return { success: false, error: e.message };
+            }
+        },
 
         getDetails: async (idNegocio) => {
             try {
@@ -1136,12 +1359,44 @@ const GeokatuDB = {
         },
         obtenerNegocioPorUsuario: async (uid, email, userRole) => {
             try {
+                // 1. Intento por UID directo (cuentas registradas tradicionalmente)
                 const snap = await getDoc(doc(db, _SCHEMA.ColeccionDirectorio, uid));
                 if (snap.exists()) {
                     return { success: true, data: { id: snap.id, ...snap.data() } };
                 }
+
+                // 2. Intento por coincidencia de correo (Comercios creados en Onboarding)
+                if (email && typeof email === 'string') {
+                    const emailLimpio = email.trim().toLowerCase();
+                    const q = query(
+                        collection(db, _SCHEMA.ColeccionDirectorio),
+                        where("owner_email", "==", emailLimpio),
+                        limit(1)
+                    );
+                    const snapEmail = await getDocs(q);
+                    if (!snapEmail.empty) {
+                        const docDueno = snapEmail.docs[0];
+                        const dataDueno = docDueno.data();
+
+                        // Vincular el UID de Google con el comercio para accesos posteriores
+                        if (!dataDueno.uid_dueno || dataDueno.uid_dueno !== uid) {
+                            await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, docDueno.id), {
+                                uid_dueno: uid,
+                                dueno_registrado: true,
+                                fecha_primer_login: new Date().toISOString()
+                            }, { merge: true });
+                        }
+
+                        // Sellar en memoria para POS, Stock y Cajas
+                        localStorage.setItem('geokatu_active_uid', docDueno.id);
+                        return { success: true, data: { id: docDueno.id, ...dataDueno } };
+                    }
+                }
+
                 return { success: true, data: null };
-            } catch (e) { return { success: false, error: e.message }; }
+            } catch (e) { 
+                return { success: false, error: e.message }; 
+            }
         },
                 subirArchivo: async (path, blob, customContentType = null) => {
             try {
@@ -1220,24 +1475,18 @@ const GeokatuDB = {
 
         subirFotoProductoCanonica: async function(idNegocio, codigoBarras, archivoOriginal, vista = 'frontal') {
             try {
-                if (!archivoOriginal) return { success: false, error: "No se proporcionó archivo" };
-
-                // 1. Garantizar UID del comercio dueño para blindar las reglas de Storage
+                if (!archivoOriginal) return { success: false, error: "No se proporciono archivo" };
                 const uidOwner = (auth.currentUser && auth.currentUser.uid) 
                     ? auth.currentUser.uid 
                     : (idNegocio || localStorage.getItem('geokatu_active_uid'));
-
                 if (!uidOwner) {
-                    throw new Error("No hay una sesión de comercio válida para autenticar la subida.");
+                    throw new Error("No hay una sesion de comercio valida para autenticar la subida.");
                 }
-
-                // 2. Compresión cliente a WebP (< 200 KB)
                 const blobComprimido = await this.comprimirAWebP(archivoOriginal, 800, 0.75, true);
                 const codigoLimpio = String(codigoBarras || Date.now()).trim().replace(/[^a-zA-Z0-9_-]/g, '');
-                const nombreArchivo = `${codigoLimpio}-${vista}.webp`;
-                const rutaStorage = `productos/${uidOwner}/${nombreArchivo}`;
+                const nombreArchivo = codigoLimpio + '-' + vista + '.webp';
+                const rutaStorage = 'productos/' + uidOwner + '/' + nombreArchivo;
                 
-                // 3. Obtención directa de la instancia viva de Storage y metadatos explícitos
                 const instanciaStorage = getStorage(db.app);
                 const referenciaArchivo = ref(instanciaStorage, rutaStorage);
                 
@@ -1249,7 +1498,6 @@ const GeokatuDB = {
                         vista: vista
                     }
                 };
-
                 const snapshot = await uploadBytes(referenciaArchivo, blobComprimido, metadata);
                 const urlDescarga = await getDownloadURL(snapshot.ref);
                 return { success: true, url: urlDescarga };
@@ -1258,22 +1506,28 @@ const GeokatuDB = {
                 return { success: false, error: err.message };
             }
         },
-
-
         updateCatalog: async (idReferencia, arrayProductos, esFranquicia = false) => {
             try {
                 const batch = writeBatch(db);
                 const coleccionPadre = esFranquicia ? _SCHEMA.ColeccionCatalogos : _SCHEMA.ColeccionDirectorio;
                 const productosRef = collection(db, coleccionPadre, idReferencia, _SCHEMA.SubColeccionProductos);
+                const ahoraISO = new Date().toISOString();
                 
                 arrayProductos.forEach(producto => {
                     const prodRef = producto.id ? doc(productosRef, producto.id) : doc(productosRef);
-                    batch.set(prodRef, producto, { merge: true }); 
+                    batch.set(prodRef, { ...producto, fecha_actualizacion: ahoraISO }, { merge: true }); 
                 });
                 
                 await batch.commit();
-                return { success: true, data: "Catálogo sincronizado correctamente." };
-            } catch (e) { return { success: false, error: "Error sincronizando el catálogo", details: e.message }; }
+                if (!esFranquicia) {
+                    setDoc(doc(db, _SCHEMA.ColeccionDirectorio, idReferencia), {
+                        catalogo_version: Date.now(),
+                        fecha_actualizacion: ahoraISO
+                    }, { merge: true }).catch(() => {});
+                    delete _cacheLocales[idReferencia];
+                }
+                return { success: true, data: "Catalogo sincronizado correctamente." };
+            } catch (e) { return { success: false, error: "Error sincronizando el catalogo", details: e.message }; }
         },
         verificarUsernameDisponible: async (usernameStr) => {
             try {
@@ -1307,7 +1561,6 @@ const GeokatuDB = {
                 return { success: true };
             } catch (e) { return { success: false, error: e.message }; }
         },
-
         sellarBovedaDefinitiva: async (idNegocio, dataObj) => {
             try {
                 const payload = { ...dataObj, progreso_boveda: 100 };
@@ -1316,35 +1569,120 @@ const GeokatuDB = {
                 return { success: true };
             } catch (e) { return { success: false, error: e.message }; }
         },
+        // Compilador Zero-Reads: Construye el JSON base del catalogo en Storage CDN y el diccionario mapa_precios en el documento raiz
+        compilarCatalogoJSON: async (idNegocio, soloActualizarPrecios = false) => {
+            try {
+                const claveCache = 'geokatu_catalogo_' + idNegocio;
+                const listaLocal = JSON.parse(localStorage.getItem(claveCache) || '[]').filter(p => !p.eliminado);
+                if (listaLocal.length === 0) return { success: false };
+
+               // 1. Construir diccionario ultraligero mapa_precios: SOLO [precio, agotadoBit] para jamas pisar el stock_actual operativo
+                const mapaPrecios = {};
+                const limiteSkus = Math.min(listaLocal.length, 1000);
+                for (let i = 0; i < limiteSkus; i++) {
+                    const item = listaLocal[i];
+                    if (item && item.id_prod) {
+                        mapaPrecios[item.id_prod] = [
+                            Number(item.precio) || 0,
+                            item.agotado ? 1 : 0
+                        ];
+                    }
+                }
+
+
+                const selloAhora = Date.now();
+                const payloadRaiz = {
+                    mapa_precios: mapaPrecios,
+                    precios_version: selloAhora
+                };
+
+                // 2. Si cambio la estructura del catalogo (alta, edicion de foto/nombre/layout o baja), subir catalogo_base.json al CDN de Storage
+                if (!soloActualizarPrecios && navigator.onLine) {
+                    try {
+                        const jsonString = JSON.stringify({
+                            v: selloAhora,
+                            id: idNegocio,
+                            p: listaLocal
+                        });
+                        const blobJson = new Blob([jsonString], { type: 'application/json' });
+                        const rutaJson = 'productos/' + idNegocio + '/catalogo_base.json';
+                        const refJson = ref(storage, rutaJson);
+                        await uploadBytes(refJson, blobJson, { contentType: 'application/json' });
+                        const urlJson = await getDownloadURL(refJson);
+                        payloadRaiz.catalogo_json_url = urlJson;
+                        payloadRaiz.catalogo_version = selloAhora;
+                        localStorage.setItem('geokatu_cache_ver_' + idNegocio, String(selloAhora));
+                    } catch (eSt) {
+                        payloadRaiz.catalogo_version = selloAhora;
+                    }
+                }
+
+                await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, idNegocio), payloadRaiz, { merge: true });
+                localStorage.setItem('geokatu_cache_prods_' + idNegocio, JSON.stringify(listaLocal));
+                delete _cacheLocales[idNegocio];
+                return { success: true, version: selloAhora };
+            } catch (errComp) {
+                console.warn("[Compilador JSON] Aviso:", errComp.message);
+                return { success: false, error: errComp.message };
+            }
+        },
         guardarProducto: async (idNegocio, idProducto, dataObj) => {
             try {
+                const rutaProds = _SCHEMA.ColeccionDirectorio + '/' + idNegocio + '/' + _SCHEMA.SubColeccionProductos;
                 const docRef = idProducto 
-                    ? doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, idProducto)
-                    : doc(collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`));
+                    ? doc(db, rutaProds, idProducto)
+                    : doc(collection(db, rutaProds));
                 
                 const almacenInicial = dataObj.almacen_id_inicial || "BODEGA_GENERAL";
+                const ahoraISO = new Date().toISOString();
                 
-                // Normalización de imagen para cumplir las reglas de Firestore
                 let imagenNormalizada = null;
                 if (dataObj.imagen && typeof dataObj.imagen === 'string' && dataObj.imagen.trim().length > 10) {
                     imagenNormalizada = dataObj.imagen.trim();
                 }
-
                 const payloadFinal = { 
                     ...dataObj, 
                     almacen_id_inicial: almacenInicial,
-                    trazabilidad_activa: true 
+                    trazabilidad_activa: true,
+                    eliminado: false,
+                    fecha_actualizacion: ahoraISO
                 };
-
                 if (imagenNormalizada) {
                     payloadFinal.imagen = imagenNormalizada;
                 } else {
                     delete payloadFinal.imagen;
                 }
-
                 await setDoc(docRef, payloadFinal, { merge: true });
 
-                // Inicializar subcolección stock_ubicaciones si es producto nuevo con stock > 0
+                // Actualizar en caliente la cache local unificada y compilar JSON + mapa_precios
+                try {
+                    const claveCache = 'geokatu_catalogo_' + idNegocio;
+                    const listaLocal = JSON.parse(localStorage.getItem(claveCache) || '[]');
+                    const itemNormalizado = {
+                        ...payloadFinal,
+                        id_prod: docRef.id,
+                        codigo_barras: payloadFinal.codigo_barras ? String(payloadFinal.codigo_barras).trim() : "",
+                        plu: payloadFinal.plu ? String(payloadFinal.plu).trim() : "",
+                        nombre: payloadFinal.nombre || "Sin nombre",
+                        precio: Number(payloadFinal.precio) || 0,
+                        stock_actual: payloadFinal.stock_actual !== undefined ? Number(payloadFinal.stock_actual) : 0,
+                        impuesto: payloadFinal.impuesto || "19",
+                        icono: payloadFinal.icono || "inventory_2",
+                        es_pesable: Boolean(payloadFinal.es_pesable),
+                        unidad_medida: payloadFinal.unidad_medida || (payloadFinal.es_pesable ? "kg" : "und")
+                    };
+                    const idxExistente = listaLocal.findIndex(p => p.id_prod === docRef.id);
+                    if (idxExistente !== -1) {
+                        listaLocal[idxExistente] = Object.assign({}, listaLocal[idxExistente], itemNormalizado);
+                    } else {
+                        listaLocal.push(itemNormalizado);
+                    }
+                    localStorage.setItem(claveCache, JSON.stringify(listaLocal));
+                    localStorage.setItem('geokatu_catalogo_sync_' + idNegocio, ahoraISO);
+                } catch (eCache) {}
+
+                GeokatuDB.AdminService.compilarCatalogoJSON(idNegocio, false).catch(() => {});
+
                 if (!idProducto && Number(dataObj.stock_actual) > 0) {
                     const ubiInicialRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + idNegocio + "/" + _SCHEMA.SubColeccionProductos + "/" + docRef.id + "/" + _SCHEMA.SubColeccionUbicacionesStock, "BIN_INICIAL");
                     await setDoc(ubiInicialRef, {
@@ -1355,19 +1693,16 @@ const GeokatuDB = {
                         lote: dataObj.lote_inicial || dataObj.lote || "L-INICIAL",
                         fecha_vencimiento: dataObj.fecha_vencimiento || null,
                         zona: "PISO_VENTA",
-                        ultima_modificacion: new Date().toISOString()
+                        ultima_modificacion: ahoraISO
                     }, { merge: true });
                 }
-
-
-                // Incremento atómico en sistema/metricas_red para producto nuevo
                 if (!idProducto) {
                     try {
                         await setDoc(doc(db, "sistema", "metricas_red"), {
                             total_skus: increment(1)
                         }, { merge: true });
                     } catch (eMet) {
-                        console.warn("[Métricas Red] Advertencia en contador global:", eMet.message);
+                        console.warn("[Metricas Red] Advertencia en contador global:", eMet.message);
                     }
                 }
                 return { success: true, id_generado: docRef.id };
@@ -1376,38 +1711,65 @@ const GeokatuDB = {
                 return { success: false, error: e.message }; 
             }
         },
-
-
-
         obtenerProductos: async (idNegocio, filtros) => {
             try {
-                const qSnap = await getDocs(collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`));
-                const resultados = [];
-                qSnap.forEach(doc => {
-                    const d = doc.data();
-                    if (!d.eliminado) resultados.push({ id_prod: doc.id, ...d });
-                });
-                return { success: true, data: resultados, ultimoDoc: null };
+                const forzarCompleta = Boolean(filtros && filtros.forzarCompleta);
+                const resSync = await GeokatuDB.PosService.descargarCatalogoLocal(idNegocio, forzarCompleta);
+                if (resSync && resSync.success) {
+                    return { success: true, data: resSync.data || [], ultimoDoc: null, esDelta: Boolean(resSync.esDelta) };
+                }
+                return { success: false, error: (resSync && resSync.error) || "Error obteniendo catalogo" };
             } catch (e) { return { success: false, error: e.message }; }
         },
         actualizarProducto: async (idNegocio, idProducto, dataObj) => {
             try {
-                await setDoc(doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, idProducto), dataObj, { merge: true });
+                const ahoraISO = new Date().toISOString();
+                const payload = { ...dataObj, fecha_actualizacion: ahoraISO };
+                await setDoc(doc(db, _SCHEMA.ColeccionDirectorio + '/' + idNegocio + '/' + _SCHEMA.SubColeccionProductos, idProducto), payload, { merge: true });
+
+                try {
+                    const claveCache = 'geokatu_catalogo_' + idNegocio;
+                    const listaLocal = JSON.parse(localStorage.getItem(claveCache) || '[]');
+                    const idx = listaLocal.findIndex(p => p.id_prod === idProducto);
+                    if (idx !== -1) {
+                        listaLocal[idx] = Object.assign({}, listaLocal[idx], payload);
+                        if (payload.precio !== undefined) listaLocal[idx].precio = Number(payload.precio) || 0;
+                        if (payload.stock_actual !== undefined) listaLocal[idx].stock_actual = Number(payload.stock_actual) || 0;
+                        localStorage.setItem(claveCache, JSON.stringify(listaLocal));
+                    }
+                } catch (eCache) {}
+
+                // Si solo cambio precio, stock o estado agotado, solo hidrata mapa_precios sin resubir el JSON entero
+                const llaves = Object.keys(dataObj || {});
+                const soloPrecioOEstado = llaves.every(k => ['precio', 'agotado', 'stock_actual', 'fecha_actualizacion'].includes(k));
+                GeokatuDB.AdminService.compilarCatalogoJSON(idNegocio, soloPrecioOEstado).catch(() => {});
                 return { success: true };
             } catch (e) { return { success: false, error: e.message }; }
         },
         guardarComision: async (idNegocio, idComision, dataObj) => {
             try {
-                await setDoc(doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/comisiones_referidos`, idComision), dataObj, { merge: true });
+                await setDoc(doc(db, _SCHEMA.ColeccionDirectorio + '/' + idNegocio + '/comisiones_referidos', idComision), dataObj, { merge: true });
                 return { success: true };
             } catch (e) { return { success: false, error: e.message }; }
         },
         eliminarProducto: async (idNegocio, idProducto) => {
             try {
-                await setDoc(doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, idProducto), { agotado: true, eliminado: true }, { merge: true });
+                const ahoraISO = new Date().toISOString();
+                await setDoc(doc(db, _SCHEMA.ColeccionDirectorio + '/' + idNegocio + '/' + _SCHEMA.SubColeccionProductos, idProducto), {
+                    agotado: true,
+                    eliminado: true,
+                    fecha_actualizacion: ahoraISO
+                }, { merge: true });
+                try {
+                    const claveCache = 'geokatu_catalogo_' + idNegocio;
+                    const listaLocal = JSON.parse(localStorage.getItem(claveCache) || '[]').filter(p => p.id_prod !== idProducto);
+                    localStorage.setItem(claveCache, JSON.stringify(listaLocal));
+                } catch (eCache) {}
+                GeokatuDB.AdminService.compilarCatalogoJSON(idNegocio, false).catch(() => {});
                 return { success: true };
             } catch (e) { return { success: false, error: e.message }; }
         },
+
         obtenerNegociosPendientes: async () => {
             try {
                 const q = query(
@@ -1793,14 +2155,77 @@ const GeokatuDB = {
             // CORREGIDO: Llamando correctamente a GeokatuDB
             return await GeokatuDB.LocalService.getDetails(idNegocio);
         },
+       // Inyector O(1) exclusivo de precios y estado agotado desde el documento raiz (preserva intacto el stock_actual)
+        hidratarPreciosEnCatalogo: (listaProductos, mapaPrecios) => {
+            if (!Array.isArray(listaProductos)) return [];
+            if (!mapaPrecios || typeof mapaPrecios !== 'object') return listaProductos;
+            return listaProductos.map(prod => {
+                const idP = prod.id_prod || prod.id;
+                const entrada = idP ? mapaPrecios[idP] : null;
+                if (entrada !== undefined && entrada !== null) {
+                    if (Array.isArray(entrada)) {
+                        prod.precio = Number(entrada[0]) || 0;
+                        prod.agotado = Boolean(entrada[1] === 1 || entrada[1] === true);
+                    } else if (typeof entrada === 'number') {
+                        prod.precio = entrada;
+                    } else if (typeof entrada === 'object') {
+                        if (entrada.p !== undefined) prod.precio = Number(entrada.p) || 0;
+                        if (entrada.a !== undefined) prod.agotado = Boolean(entrada.a);
+                    }
+                }
+                return prod;
+            });
+        },
+
         obtenerProductosPublicos: async (idNegocio, filtros) => {
+            const claveProdsPub = 'geokatu_cache_prods_' + idNegocio;
+            const claveVerPub = 'geokatu_cache_ver_' + idNegocio;
             try {
-                // CORREGIDO: Llamando correctamente a GeokatuDB
                 const infoLocal = await GeokatuDB.LocalService.getDetails(idNegocio);
-                if (!infoLocal.success) throw new Error("No se pudo rutear el catálogo.");
+                if (!infoLocal.success) throw new Error("No se pudo rutear el catalogo.");
                 
-                const rutaCatalogo = infoLocal.data._meta.idParaProductos;
-                const esFranquicia = infoLocal.data._meta.esFranquicia;
+                const dataNeg = infoLocal.data || {};
+                const mapaPreciosRaiz = dataNeg.mapa_precios || null;
+                const versionRemota = dataNeg.catalogo_version ? String(dataNeg.catalogo_version) : null;
+                const urlJsonCatalogo = dataNeg.catalogo_json_url || null;
+                const versionLocal = localStorage.getItem(claveVerPub);
+                const cacheCruda = localStorage.getItem(claveProdsPub);
+
+                // CAPA 1: Si el esqueleto no ha cambiado (versionLocal === versionRemota), hidratar precios en 0 ms desde mapa_precios (0 lecturas Firestore / 0 descargas Storage)
+                if (cacheCruda && !(filtros && filtros.startAfterDoc) && !(filtros && filtros.forzarNube)) {
+                    if (!navigator.onLine || (versionRemota && versionLocal === versionRemota)) {
+                        const prodsCache = JSON.parse(cacheCruda);
+                        if (Array.isArray(prodsCache) && prodsCache.length > 0) {
+                            const prodsHidratados = GeokatuDB.RadarService.hidratarPreciosEnCatalogo(prodsCache, mapaPreciosRaiz);
+                            localStorage.setItem(claveProdsPub, JSON.stringify(prodsHidratados));
+                            return { success: true, data: prodsHidratados, ultimoDoc: null, desdeCache: true };
+                        }
+                    }
+                }
+
+                // CAPA 2: Descargar el esqueleto desde el JSON estatico en Cloud Storage CDN (0 lecturas a la subcoleccion productos en Firestore)
+                if (urlJsonCatalogo && navigator.onLine && !(filtros && filtros.startAfterDoc)) {
+                    try {
+                        const sep = urlJsonCatalogo.indexOf('?') !== -1 ? '&' : '?';
+                        const respJson = await fetch(urlJsonCatalogo + sep + 'v=' + (versionRemota || Date.now()));
+                        if (respJson.ok) {
+                            const paqueteJson = await respJson.json();
+                            const arrayBase = Array.isArray(paqueteJson) ? paqueteJson : (paqueteJson.p || []);
+                            const filtradosJson = arrayBase.filter(p => p && p.eliminado !== true);
+                            const prodsConPrecios = GeokatuDB.RadarService.hidratarPreciosEnCatalogo(filtradosJson, mapaPreciosRaiz);
+                            localStorage.setItem(claveProdsPub, JSON.stringify(prodsConPrecios));
+                            localStorage.setItem('geokatu_catalogo_' + idNegocio, JSON.stringify(prodsConPrecios));
+                            if (versionRemota) localStorage.setItem(claveVerPub, versionRemota);
+                            return { success: true, data: prodsConPrecios, ultimoDoc: null, desdeJsonCDN: true };
+                        }
+                    } catch (eCdn) {
+                        console.warn("[Catalogo JSON CDN] Fallback a subcoleccion:", eCdn.message);
+                    }
+                }
+
+                // CAPA 3: Fallback retrocompatible a Firestore solo para comercios antiguos que aun no tienen catalogo_base.json
+                const rutaCatalogo = dataNeg._meta.idParaProductos;
+                const esFranquicia = dataNeg._meta.esFranquicia;
                 const coleccionBase = esFranquicia ? _SCHEMA.ColeccionCatalogos : _SCHEMA.ColeccionDirectorio;
                 const productosRef = collection(db, coleccionBase, rutaCatalogo, _SCHEMA.SubColeccionProductos);
                 
@@ -1810,16 +2235,16 @@ const GeokatuDB = {
                 const q = query(productosRef, ...queryConstraints);
                 
                 const querySnapshot = await getDocs(q);
-                const resultados = [];
+                let resultados = [];
                 let ultimoDoc = null;
                 
                 if (!querySnapshot.empty) {
                     ultimoDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
-                    querySnapshot.forEach((doc) => {
-                        const d = doc.data();
+                    querySnapshot.forEach((docSnap) => {
+                        const d = docSnap.data();
                         if (d.eliminado !== true) {
                             resultados.push({ 
-                                id_prod: doc.id, 
+                                id_prod: docSnap.id, 
                                 stock_actual: d.stock_actual !== undefined ? Number(d.stock_actual) : 0,
                                 en_piso_venta: d.en_piso_venta !== undefined ? Boolean(d.en_piso_venta) : false,
                                 ...d 
@@ -1827,13 +2252,25 @@ const GeokatuDB = {
                         }
                     });
                 }
-
-                return { success: true, data: resultados, ultimoDoc: ultimoDoc };
+                resultados = GeokatuDB.RadarService.hidratarPreciosEnCatalogo(resultados, mapaPreciosRaiz);
+                if (!(filtros && filtros.startAfterDoc)) {
+                    try {
+                        localStorage.setItem(claveProdsPub, JSON.stringify(resultados));
+                        if (versionRemota) {
+                            localStorage.setItem(claveVerPub, versionRemota);
+                        }
+                    } catch (eSt) {}
+                }
+                return { success: true, data: resultados, ultimoDoc: ultimoDoc, desdeCache: false };
             } catch (e) {
+                const respaldoLocal = localStorage.getItem(claveProdsPub);
+                if (respaldoLocal) {
+                    return { success: true, data: JSON.parse(respaldoLocal), ultimoDoc: null, desdeCache: true, offline: true };
+                }
                 return { success: false, error: "Error obteniendo productos", details: e.message };
             }
         },
-    
+
         
        /**
          * Motor de Doble Capa por Código de Barras (IndexedDB 0 ms + Firestore Híbrido)
@@ -2084,31 +2521,52 @@ const GeokatuDB = {
             } catch (e) { return { success: false, error: e.message }; }
         },
         guardarMapaBodega: async (idNegocio, idAlmacen, gridData) => {
-            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+            if (!_verificarAcceso()) return { success: false, error: "Sesion no autorizada." };
+            const clavePlano = 'geokatu_plano_' + idNegocio + '_' + (idAlmacen || 'PLANO_PRINCIPAL');
+            const payload = {
+                ...gridData,
+                ultima_modificacion: new Date().toISOString()
+            };
             try {
-                const docRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Planos_Almacenes`, idAlmacen);
-                const payload = {
-                    ...gridData,
-                    ultima_modificacion: new Date().toISOString()
-                };
+                localStorage.setItem(clavePlano, JSON.stringify(payload));
+            } catch (eLocal) {}
+            try {
+                if (!navigator.onLine) {
+                    return { success: true, offline: true, mensaje: "Plano guardado en memoria local (Modo Avion)." };
+                }
+                const docRef = doc(db, _SCHEMA.ColeccionDirectorio + '/' + idNegocio + '/Planos_Almacenes', idAlmacen);
                 await setDoc(docRef, payload, { merge: true });
                 return { success: true, mensaje: "Plano espacial guardado correctamente." };
-            } catch (e) { return { success: false, error: e.message }; }
+            } catch (e) {
+                return { success: true, offline: true, error: e.message };
+            }
         },
-
-                obtenerMapaBodega: async (idNegocio, idAlmacen = "PLANO_PRINCIPAL") => {
-            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+        obtenerMapaBodega: async (idNegocio, idAlmacen = "PLANO_PRINCIPAL", opciones = {}) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesion no autorizada." };
+            const clavePlano = 'geokatu_plano_' + idNegocio + '_' + idAlmacen;
+            const planoCacheStr = localStorage.getItem(clavePlano);
+            if (planoCacheStr && (!navigator.onLine || !opciones.forzarNube)) {
+                try {
+                    return { success: true, data: JSON.parse(planoCacheStr), origen: "cache_local" };
+                } catch (eParse) {}
+            }
             try {
-                const docRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Planos_Almacenes`, idAlmacen);
+                const docRef = doc(db, _SCHEMA.ColeccionDirectorio + '/' + idNegocio + '/Planos_Almacenes', idAlmacen);
                 const snap = await getDoc(docRef);
                 if (snap.exists()) {
-                    return { success: true, data: snap.data() };
+                    const dataPlano = snap.data();
+                    try { localStorage.setItem(clavePlano, JSON.stringify(dataPlano)); } catch (eS) {}
+                    return { success: true, data: dataPlano, origen: "nube" };
                 }
-                return { success: true, data: null };
+                return { success: true, data: planoCacheStr ? JSON.parse(planoCacheStr) : null };
             } catch (e) {
+                if (planoCacheStr) {
+                    return { success: true, data: JSON.parse(planoCacheStr), origen: "fallback_local", offline: true };
+                }
                 return { success: false, error: e.message };
             }
         },
+
 
         // =========================================================================
         // MÉTODOS RBAC Y MULTI-SEDE PARA RADAR ESPACIAL
@@ -2505,14 +2963,15 @@ const GeokatuDB = {
         // MOTOR CANÓNICO FISCAL: ESTÁNDAR NEUTRAL UBL 2.1 / DIAN MULTI-PROVEEDOR
         // =========================================================================
 obtenerDestinoPOS: async (idNegocio) => {
-            let pais = localStorage.getItem(`geokatu_pais_${idNegocio}`);
+            let pais = localStorage.getItem('geokatu_pais_' + idNegocio);
             if (!pais) {
                 const res = await GeokatuDB.LocalService.getDetails(idNegocio);
-                pais = res.data?.pais || "COL";
-                localStorage.setItem(`geokatu_pais_${idNegocio}`, pais);
+                pais = (res.data && res.data.pais) ? res.data.pais : "COL";
+                localStorage.setItem('geokatu_pais_' + idNegocio, pais);
             }
-            return pais === "VEN" ? "posven.html" : "pos.html";
+            return pais === "VEN" ? "/posven" : "/pos";
         },
+
 
         _construirPayloadFiscalCanonico: (ticketData) => {
             const fechaActual = new Date();
@@ -2608,42 +3067,158 @@ obtenerDestinoPOS: async (idNegocio) => {
             };
         },
 
-                descargarCatalogoLocal: async (idNegocio) => {
-            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
-            try {
-                const productosRef = collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`);
-                const snap = await getDocs(productosRef);
+               descargarCatalogoLocal: async (idNegocio, forzarCompleta = false) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesion no autorizada." };
+            const claveCache = 'geokatu_catalogo_' + idNegocio;
+            const claveSync = 'geokatu_catalogo_sync_' + idNegocio;
+            const claveVerCat = 'geokatu_cache_ver_' + idNegocio;
+            const claveVerPrecios = 'geokatu_precios_ver_' + idNegocio;
 
-                const catalogoLocal = [];
+            const normalizarProd = (idDoc, d) => ({
+                ...d,
+                id_prod: idDoc,
+                codigo_barras: d.codigo_barras ? String(d.codigo_barras).trim() : "",
+                plu: d.plu ? String(d.plu).trim() : "",
+                nombre: d.nombre || "Sin nombre",
+                precio: Number(d.precio) || 0,
+                stock_actual: d.stock_actual !== undefined ? Number(d.stock_actual) : 0,
+                impuesto: d.impuesto || "19",
+                icono: d.icono || "inventory_2",
+                es_pesable: Boolean(d.es_pesable),
+                unidad_medida: d.unidad_medida || (d.es_pesable ? "kg" : "und")
+            });
+
+            const cacheExistenteStr = localStorage.getItem(claveCache);
+            let catalogoMemoria = [];
+            try {
+                catalogoMemoria = cacheExistenteStr ? JSON.parse(cacheExistenteStr) : [];
+            } catch (eP) {
+                catalogoMemoria = [];
+            }
+
+            if (!navigator.onLine && catalogoMemoria.length > 0) {
+                return { success: true, cantidad: catalogoMemoria.length, data: catalogoMemoria, offline: true, esDelta: true };
+            }
+
+            try {
+                const ahoraCorte = new Date().toISOString();
+
+                // 1. Consultar el documento raiz del comercio (en cache de sesion o 1 lectura) para revisar catalogo_version y mapa_precios
+                const infoRaiz = await GeokatuDB.LocalService.getDetails(idNegocio);
+                const dataRaiz = (infoRaiz && infoRaiz.success && infoRaiz.data) ? infoRaiz.data : {};
+                const verCatRemota = dataRaiz.catalogo_version ? String(dataRaiz.catalogo_version) : null;
+                const verPreciosRemota = dataRaiz.precios_version ? String(dataRaiz.precios_version) : null;
+                const urlJson = dataRaiz.catalogo_json_url || null;
+                const mapaPrecios = dataRaiz.mapa_precios || null;
+
+                const verCatLocal = localStorage.getItem(claveVerCat);
+                const verPreciosLocal = localStorage.getItem(claveVerPrecios);
+
+                // CASO A (ZERO-READS ABSOLUTO): Si ya tenemos el catalogo en cache y catalogo_version coincide, 0 consultas a la subcoleccion productos
+                if (!forzarCompleta && catalogoMemoria.length > 0 && verCatRemota && verCatLocal === verCatRemota) {
+                    let deltasPrecio = 0;
+                    if (mapaPrecios && verPreciosRemota !== verPreciosLocal) {
+                        catalogoMemoria = GeokatuDB.RadarService.hidratarPreciosEnCatalogo(catalogoMemoria, mapaPrecios);
+                        localStorage.setItem(claveCache, JSON.stringify(catalogoMemoria));
+                        if (verPreciosRemota) localStorage.setItem(claveVerPrecios, verPreciosRemota);
+                        deltasPrecio = 1;
+                    }
+                    return {
+                        success: true,
+                        cantidad: catalogoMemoria.length,
+                        data: catalogoMemoria,
+                        esDelta: true,
+                        deltasLeidos: deltasPrecio
+                    };
+                }
+
+                // CASO B (DESCARGA DESDE JSON EN STORAGE CDN): Si la terminal no tiene el catalogo o cambio catalogo_version, bajar el JSON estatico (0 lecturas a la subcoleccion productos)
+                if (urlJson && !forzarCompleta) {
+                    try {
+                        const sep = urlJson.indexOf('?') !== -1 ? '&' : '?';
+                        const resp = await fetch(urlJson + sep + 'v=' + (verCatRemota || Date.now()));
+                        if (resp.ok) {
+                            const paquete = await resp.json();
+                            const listaJson = Array.isArray(paquete) ? paquete : (paquete.p || []);
+                            let normalizados = listaJson
+                                .filter(p => p && p.eliminado !== true)
+                                .map(p => normalizarProd(p.id_prod || p.id, p));
+                            normalizados = GeokatuDB.RadarService.hidratarPreciosEnCatalogo(normalizados, mapaPrecios);
+                            localStorage.setItem(claveCache, JSON.stringify(normalizados));
+                            localStorage.setItem(claveSync, ahoraCorte);
+                            if (verCatRemota) localStorage.setItem(claveVerCat, verCatRemota);
+                            if (verPreciosRemota) localStorage.setItem(claveVerPrecios, verPreciosRemota);
+                            return { success: true, cantidad: normalizados.length, data: normalizados, esDelta: false, desdeJsonCDN: true };
+                        }
+                    } catch (eJson) {
+                        console.warn("[PosService JSON] Fallback a deltas Firestore:", eJson.message);
+                    }
+                }
+
+                // CASO C: Fallback a deltas por fecha_actualizacion o primera compilacion automatica del JSON
+                const productosRef = collection(db, _SCHEMA.ColeccionDirectorio + '/' + idNegocio + '/' + _SCHEMA.SubColeccionProductos);
+                const ultimoSync = localStorage.getItem(claveSync);
+
+                if (!forzarCompleta && catalogoMemoria.length > 0 && ultimoSync) {
+                    const qDelta = query(productosRef, where("fecha_actualizacion", ">", ultimoSync));
+                    const snapDelta = await getDocs(qDelta);
+                    let cambiosAplicados = 0;
+
+                    if (!snapDelta.empty) {
+                        const mapaCatalogo = new Map();
+                        catalogoMemoria.forEach(item => mapaCatalogo.set(item.id_prod, item));
+
+                        snapDelta.forEach(docSnap => {
+                            const d = docSnap.data();
+                            if (d.eliminado === true) {
+                                mapaCatalogo.delete(docSnap.id);
+                            } else {
+                                const previo = mapaCatalogo.get(docSnap.id) || {};
+                                mapaCatalogo.set(docSnap.id, normalizarProd(docSnap.id, Object.assign({}, previo, d)));
+                            }
+                            cambiosAplicados++;
+                        });
+
+                        catalogoMemoria = Array.from(mapaCatalogo.values());
+                    }
+                    catalogoMemoria = GeokatuDB.RadarService.hidratarPreciosEnCatalogo(catalogoMemoria, mapaPrecios);
+                    localStorage.setItem(claveCache, JSON.stringify(catalogoMemoria));
+                    localStorage.setItem(claveSync, ahoraCorte);
+                    return {
+                        success: true,
+                        cantidad: catalogoMemoria.length,
+                        data: catalogoMemoria,
+                        esDelta: true,
+                        deltasLeidos: cambiosAplicados
+                    };
+                }
+
+                const snap = await getDocs(productosRef);
+                let catalogoLocal = [];
                 snap.forEach(docSnap => {
                     const d = docSnap.data();
                     if (d.eliminado !== true) {
-                        catalogoLocal.push({ 
-                            id_prod: docSnap.id, 
-                            codigo_barras: d.codigo_barras ? String(d.codigo_barras).trim() : "",
-                            plu: d.plu ? String(d.plu).trim() : "",
-                            nombre: d.nombre || "Sin nombre",
-                            precio: Number(d.precio) || 0,
-                            stock_actual: d.stock_actual !== undefined ? d.stock_actual : 0,
-                            impuesto: d.impuesto || "19",
-                            icono: d.icono || "inventory_2",
-                            es_pesable: Boolean(d.es_pesable),
-                            unidad_medida: d.unidad_medida || (d.es_pesable ? "kg" : "und")
-                        });
+                        catalogoLocal.push(normalizarProd(docSnap.id, d));
                     }
                 });
+                catalogoLocal = GeokatuDB.RadarService.hidratarPreciosEnCatalogo(catalogoLocal, mapaPrecios);
+                localStorage.setItem(claveCache, JSON.stringify(catalogoLocal));
+                localStorage.setItem(claveSync, ahoraCorte);
 
-
-                localStorage.setItem(`geokatu_catalogo_${idNegocio}`, JSON.stringify(catalogoLocal));
-                return { success: true, cantidad: catalogoLocal.length, data: catalogoLocal };
-            } catch (e) { 
-                const cache = localStorage.getItem(`geokatu_catalogo_${idNegocio}`);
-                if (cache) {
-                    return { success: true, cantidad: JSON.parse(cache).length, data: JSON.parse(cache), offline: true };
+                // Si el comercio aun no tenia su catalogo_base.json compilado en Storage, generarlo automaticamente en segundo plano
+                if (!urlJson && catalogoLocal.length > 0) {
+                    GeokatuDB.AdminService.compilarCatalogoJSON(idNegocio, false).catch(() => {});
                 }
-                return { success: false, error: "Error descargando catálogo", details: e.message }; 
+                return { success: true, cantidad: catalogoLocal.length, data: catalogoLocal, esDelta: false };
+            } catch (e) { 
+                if (catalogoMemoria.length > 0) {
+                    return { success: true, cantidad: catalogoMemoria.length, data: catalogoMemoria, offline: true };
+                }
+                return { success: false, error: "Error descargando catalogo", details: e.message }; 
             }
         },
+
+
 
        // 🛡️ SEMÁFORO REACTIVO DELTA ULTRA-RÁPIDO (O(1) Map + Debounce Storage)
         escucharSemaforoStock: (idNegocio, callbackDelta) => {
@@ -2831,7 +3406,7 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
             const seqStr = String(secuencia).padStart(4, '0');
 
             // Formato estándar limpio: TK-01-D9A4-0001
-            const ticketIdLocal = `TK-${cajaCod}-${cajeroCod}-${seqStr}`;
+           const ticketIdLocal = 'TK-' + cajaCod + '-' + cajeroCod + '-' + seqStr;
 
             const payloadCanonico = GeokatuDB.PosService._construirPayloadFiscalCanonico({
                 ...ticketData,
@@ -3450,9 +4025,9 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
 
 
         abrirTurnoCaja: async (idNegocio, baseInicial, cajeroEmail = "CAJERO", terminalId = "CAJA-01") => {
-            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+            if (!_verificarAcceso()) return { success: false, error: "Sesion no autorizada." };
+            const idSesion = 'SES-' + terminalId + '-' + Date.now().toString(16).toUpperCase();
 
-            const idSesion = `SES-${terminalId}-${Date.now().toString(16).toUpperCase()}`;
             const payloadApertura = {
                 id_sesion: idSesion,
                 terminal_id: terminalId,
@@ -3937,7 +4512,7 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
         },
         transmitirCoordenadasUnidad: async (tipoUnidad, placaId, dataCoordenadas) => {
             try {
-                const nodoRef = rtdbRef(realtimeDb, `malla_de_gas/telemetria_activa/${tipoUnidad}/${placaId}`);
+                const nodoRef = rtdbRef(realtimeDb, 'malla_de_gas/telemetria_activa/' + tipoUnidad + '/' + placaId);
                 await set(nodoRef, {
                     lat: dataCoordenadas.lat, lng: dataCoordenadas.lng,
                     ruta: dataCoordenadas.ruta || "N/A", razonSocial: dataCoordenadas.razonSocial || "Independiente",
@@ -3946,6 +4521,7 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                 return { success: true };
             } catch (e) { return { success: false, error: e.message }; }
         },
+
         escucharFlotaActiva: (callback) => {
             const flotaRef = rtdbRef(realtimeDb, 'malla_de_gas/telemetria_activa');
             return onValue(flotaRef, (snapshot) => {
@@ -3977,6 +4553,10 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
 // EXPORTACIÓN ESTRICTA (Singleton)
 // ==========================================
 export default GeokatuDB;
+
+
+
+
 
 
 

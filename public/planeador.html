@@ -17,11 +17,16 @@
         <span class="subtexto-header">Planeación en Tiempo Presente • DIAN Colombia</span>
       </div>
       <div class="header-controles">
+        <div class="cedula-input-dock" title="Últimos 2 dígitos de NIT/Cédula para vencimientos">
+          <span style="font-size: 9.5px; color: #888;">CC/NIT:</span>
+          <input type="text" id="input-ultimos-digitos" class="input-cedula-digitos" maxlength="2" value="01">
+        </div>
         <button type="button" class="btn-accion-header" id="btn-exportar-datos" title="Copia de Seguridad JSON">
           <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
         </button>
-        <span class="badge-plan" id="badge-ano-fiscal">AÑO 2026</span>
+        <span class="badge-plan" id="badge-ano-fiscal">2026</span>
       </div>
+
     </div>
 
     <!-- PESTAÑAS DE NAVEGACIÓN MODULAR (TABS BÓVEDA) -->
@@ -161,6 +166,33 @@
           </div>
         </div>
       </section>
+<section class="panel-operaciones-bloque">
+        <div class="seccion-titulo">
+          <span>⏰ Vencimientos Críticos (Dígitos: <span id="lbl-digitos-actuales" style="color:#fff;">01</span>)</span>
+        </div>
+        <div class="tarjeta-calendario-alertas">
+          <div class="calendario-item">
+            <span class="subtexto-tope">Plazo Mensual Planilla PILA</span>
+            <strong id="cal-pila-fecha" style="color:var(--verde-neon); display:block; font-size:12px; margin-top:2px;">Día hábil 2 de cada mes</strong>
+          </div>
+          <div class="calendario-item">
+            <span class="subtexto-tope">Declaración Renta Personas Naturales</span>
+            <strong id="cal-renta-fecha" style="color:var(--naranja); display:block; font-size:12px; margin-top:2px;">Agosto 2026</strong>
+          </div>
+        </div>
+
+        <div class="toggle-exclusion-box" id="box-exclusion-art336" style="display:none;">
+          <div>
+            <span style="font-size:10.5px; font-weight:800; color:var(--naranja); display:block;">Art. 336 Par. 5 E.T. (Independientes)</span>
+            <span style="font-size:9.5px; color:#aaa;">¿Deseas renunciar a los costos para tomar la exención del 25%?</span>
+          </div>
+          <select id="sel-optar-costos-o-exenta" class="input-form" style="width: auto; padding: 4px 8px; font-size: 10px; margin:0;">
+            <option value="costos">Imputar Costos Reales</option>
+            <option value="exenta">Tomar 25% Renta Exenta</option>
+          </select>
+        </div>
+      </section>
+
 
     </div>
 
@@ -593,14 +625,14 @@
       // ======================================================================
       // MOTOR DETERMINISTA: PROCESAMIENTO TRIBUTARIO COMPLETO
       // ======================================================================
-      const MotorFiscal = {
-        ejecutarCiclo() {
+      ejecutarCiclo() {
           const estado = BovedaState.cargar();
           const movs = estado.movimientos || [];
 
           // 1. Agregación analítica de la bitácora
           let ingresosLaborales = 0;
           let ingresosHonorarios = 0;
+          let ingresosCapital = 0;
           let trasladosPropios = 0;
           let facturasElectronicas = 0;
           let costosNegocio = 0;
@@ -612,40 +644,35 @@
           movs.forEach(m => {
             const val = m.monto || 0;
             switch (m.categoria) {
-              case 'ingreso_salario':
-                ingresosLaborales += val;
-                break;
-              case 'ingreso_cliente':
-                ingresosHonorarios += val;
-                break;
-              case 'traslado_propio':
-                trasladosPropios += val;
-                break;
-              case 'factura_electronica':
-                facturasElectronicas += val;
-                totalFacturasConteo++;
-                break;
-              case 'costo_operativo':
-                costosNegocio += val;
-                break;
-              case 'ahorro_fpv':
-                aportesFPV += val;
-                break;
-              case 'salud_prepagada':
-                saludPrepagada += val;
-                break;
-              case 'interes_vivienda':
-                interesesVivienda += val;
-                break;
+              case 'ingreso_salario': ingresosLaborales += val; break;
+              case 'ingreso_cliente': ingresosHonorarios += val; break;
+              case 'ingreso_capital': ingresosCapital += val; break;
+              case 'traslado_propio': trasladosPropios += val; break;
+              case 'factura_electronica': facturasElectronicas += val; totalFacturasConteo++; break;
+              case 'costo_operativo': costosNegocio += val; break;
+              case 'ahorro_fpv': aportesFPV += val; break;
+              case 'salud_prepagada': saludPrepagada += val; break;
+              case 'interes_vivienda': interesesVivienda += val; break;
             }
           });
 
-          // Si la bitácora está vacía, inicializar con supuestos base para diagnóstico
-          const ingresoBrutoTotal = (ingresosLaborales + ingresosHonorarios) > 0 
-            ? (ingresosLaborales + ingresosHonorarios)
-            : 144000000; // $12M mes de referencia por defecto si no hay data
+          const ingresoBrutoTotal = (ingresosLaborales + ingresosHonorarios + ingresosCapital) > 0 
+            ? (ingresosLaborales + ingresosHonorarios + ingresosCapital)
+            : 144000000;
 
-          const tipoPrincipal = ingresosLaborales > ingresosHonorarios ? 'laboral' : 'honorarios';
+          // Determinación estricta de la cédula dominante
+          let tipoPrincipal = 'honorarios';
+          if (ingresosLaborales >= ingresosHonorarios && ingresosLaborales >= ingresosCapital) tipoPrincipal = 'laboral';
+          else if (ingresosCapital > ingresosHonorarios && ingresosCapital > ingresosLaborales) tipoPrincipal = 'rentas_capital';
+
+          // Mostrar/Ocultar switch de exclusión mutua Art. 336
+          const boxExclusion = document.getElementById('box-exclusion-art336');
+          if (boxExclusion) {
+            boxExclusion.style.display = (tipoPrincipal === 'honorarios' && costosNegocio > 0) ? 'flex' : 'none';
+          }
+          const opcionExclusion = document.getElementById('sel-optar-costos-o-exenta') 
+            ? document.getElementById('sel-optar-costos-o-exenta').value 
+            : 'costos';
 
           // 2. Liquidación de Seguridad Social (PILA)
           let pilaAnual = 0;
@@ -655,7 +682,7 @@
             pilaAnual = ingresoBrutoTotal * 0.08;
             saludMensual = (ingresoBrutoTotal / 12) * 0.04;
             pensionMensual = (ingresoBrutoTotal / 12) * 0.04;
-          } else {
+          } else if (tipoPrincipal === 'honorarios') {
             const baseImputable = Math.max(0, ingresoBrutoTotal - costosNegocio);
             const baseMensual = baseImputable / 12;
             let ibcMensual = baseMensual * 0.40;
@@ -672,22 +699,38 @@
           const viviendaValida = Math.min(interesesVivienda, 1200 * PARAMS.uvt);
           const deduccionesBase = prepagadaValida + viviendaValida + aportesFPV;
 
-          // Renta Exenta 25% (Tope 790 UVT)
-          const baseExenta = Math.max(0, ingresoNeto - deduccionesBase);
-          const rentaExenta25 = Math.min(baseExenta * 0.25, 790 * PARAMS.uvt);
+          // BLINDAJE MATEMÁTICO: Renta Exenta 25% (Art. 336 Par. 5 & Rentas de Capital)
+          let rentaExenta25 = 0;
+          if (tipoPrincipal === 'laboral') {
+            const baseExenta = Math.max(0, ingresoNeto - deduccionesBase);
+            rentaExenta25 = Math.min(baseExenta * 0.25, 790 * PARAMS.uvt);
+          } else if (tipoPrincipal === 'honorarios') {
+            if (costosNegocio > 0 && opcionExclusion === 'costos') {
+              // Si imputa costos reales, la exenta del 25% es CERO por ley
+              rentaExenta25 = 0;
+            } else {
+              // Si opta por la exención del 25%, renuncia a costos
+              costosNegocio = 0;
+              const baseExenta = Math.max(0, ingresoNeto - deduccionesBase);
+              rentaExenta25 = Math.min(baseExenta * 0.25, 790 * PARAMS.uvt);
+            }
+          } else if (tipoPrincipal === 'rentas_capital') {
+            // Rentas de capital NO tienen derecho a exención laboral del 25%
+            rentaExenta25 = 0;
+          }
 
           const sumaDeduccionesSujetas = deduccionesBase + rentaExenta25;
           const topeMaximo40 = Math.min(ingresoNeto * 0.40, 1340 * PARAMS.uvt);
           const deduccionesEfectivas40 = Math.min(sumaDeduccionesSujetas, topeMaximo40);
 
-          // 4. Deducción 1% Factura Electrónica (Art. 336 num. 5 - Extra tope)
+          // Deducción 1% Factura Electrónica (Extra-tope)
           const deduccion1PorcientoFE = Math.min(facturasElectronicas * 0.01, 240 * PARAMS.uvt);
 
-          // 5. Renta Líquida Gravable (RLG)
+          // 4. Renta Líquida Gravable (RLG)
           const rlgPesos = Math.max(0, ingresoNeto - deduccionesEfectivas40 - deduccion1PorcientoFE);
           const rlgUVT = rlgPesos / PARAMS.uvt;
 
-          // 6. Impuesto Art. 241 E.T. (Régimen Ordinario)
+          // 5. Impuesto Art. 241 E.T. (Régimen Ordinario)
           const tramoOrdinario = PARAMS.tramosArt241.find(t => rlgUVT >= t.desde && rlgUVT < t.hasta)
             || PARAMS.tramosArt241[PARAMS.tramosArt241.length - 1];
 
@@ -697,7 +740,7 @@
           const efectiva = ingresoBrutoTotal > 0 ? (impuestoOrdinarioPesos / ingresoBrutoTotal) : 0;
           const cupoRestante = Math.max(0, topeMaximo40 - sumaDeduccionesSujetas);
 
-          // 7. Cálculo Régimen Simple de Tributación (RST)
+          // 6. Cálculo RST y Margen de Indiferencia
           const actividadSel = document.getElementById('rst-grupo-actividad') ? document.getElementById('rst-grupo-actividad').value : 'servicios_profesionales';
           const tablasAct = PARAMS.tarifasSimple[actividadSel] || PARAMS.tarifasSimple.servicios_profesionales;
           const ingresoBrutoUVT = ingresoBrutoTotal / PARAMS.uvt;
@@ -711,15 +754,25 @@
           }
           const impuestoSimplePesos = Math.round(ingresoBrutoTotal * tarifaRST);
 
-          // 8. Radar de Movimientos Bancarios (Exógena)
-          const consignacionesTotales = ingresosLaborales + ingresosHonorarios + trasladosPropios;
-          const topeExogenaPesos = 1400 * PARAMS.uvt;
+          // Margen de quiebre: % de costos donde ambos regímenes empatan
+          const margenQuiebre = efectiva > 0 ? Math.max(0, (1 - (tarifaRST / efectiva)) * 100) : 0;
 
-          // ACTUALIZAR INTERFAZ GRÁFICA
+          // 7. Calendario por dígitos de Cédula
+          const digitosCC = document.getElementById('input-ultimos-digitos') ? document.getElementById('input-ultimos-digitos').value : '01';
+          const digitoNum = parseInt(digitosCC, 10) || 1;
+          
+          // PILA: Días hábiles del 2 al 16 según pares de dígitos
+          const diaHabilPila = Math.min(16, Math.max(2, Math.floor(digitoNum / 7) + 2));
+          
+          // Renta: Calendario DIAN escalonado de agosto a octubre
+          let mesRenta = 'Agosto';
+          if (digitoNum > 66) mesRenta = 'Octubre';
+          else if (digitoNum > 33) mesRenta = 'Septiembre';
+
+          // Actualizar UI
           this.actualizarUI({
             ingresoBrutoTotal,
             ingresoNeto,
-            pilaAnual,
             saludMensual,
             pensionMensual,
             impuestoOrdinarioPesos,
@@ -732,14 +785,18 @@
             sumaDeduccionesSujetas,
             facturasElectronicas,
             totalFacturasConteo,
-            deduccion1PorcientoFE,
-            consignacionesTotales,
+            consignacionesTotales: ingresosLaborales + ingresosHonorarios + ingresosCapital + trasladosPropios,
             trasladosPropios,
-            ingresosReales: ingresosLaborales + ingresosHonorarios,
-            topeExogenaPesos,
+            ingresosReales: ingresosLaborales + ingresosHonorarios + ingresosCapital,
+            topeExogenaPesos: 1400 * PARAMS.uvt,
+            margenQuiebre,
+            diaHabilPila,
+            mesRenta,
+            digitosCC,
             movs
           });
-        },
+        }
+
 
         actualizarUI(d) {
           // KPIs Principales
@@ -767,7 +824,7 @@
             badgeCupo.textContent = 'CUPO LIBRE PARA REDUCIR IMPUESTOS';
             const ahorroPorMillon = Math.round(1000000 * d.marginal);
             textoCupo.innerHTML = `Tienes hasta <strong>${formatoCOP.format(d.cupoRestante)}</strong> de margen legal antes del 31 de diciembre para justificar gastos o meter a tu propio ahorro (para vivienda o pensión voluntaria).<br>
-            <span class="color-verde-neon">• Por cada <strong>$1.000.000</strong> que guardes en estos fondos (la plata sigue siendo tuya), la DIAN te perdona <strong>${formatoCOP.format(ahorroPorMillon)}</strong> de impuesto de contado.</span>`;
+            <span class="color-verde-neon">• Por cada <strong>1.000.000</strong>queguardesenestosfondos(laplatasiguesiendotuya),laDIANteperdona<strong>{formatoCOP.format(ahorroPorMillon)}</strong> de impuesto de contado.</span>`;
           } else {
             boxCupo.classList.add('alerta');
             badgeCupo.classList.add('alerta');
@@ -807,15 +864,16 @@
             badgeRst.className = 'badge-veredicto';
             cardSim.classList.add('destacado');
             cardOrd.classList.remove('destacado');
-            textoRst.innerHTML = `Pagarías <strong>${formatoCOP.format(ahorro)} menos</strong> al año en el Régimen Simple. Eliminas retenciones en la fuente mensuales y unificas ICA y Renta.`;
+            textoRst.innerHTML = `Pagas <strong>formatoCOP.format(ahorro)menos</strong>enelSimple.Teconvienesiemprequetuscostosoperativosrealesseaninferioresal<strong>{d.margenQuiebre.toFixed(1)}%</strong> de tus ventas.`;
           } else {
             const ahorro = d.impuestoSimplePesos - d.impuestoOrdinarioPesos;
             badgeRst.textContent = 'CONVIENE: RÉGIMEN ORDINARIO';
             badgeRst.className = 'badge-veredicto alerta';
             cardOrd.classList.add('destacado');
             cardSim.classList.remove('destacado');
-            textoRst.innerHTML = `El Régimen Ordinario te ahorra <strong>${formatoCOP.format(ahorro)}</strong> gracias a que tus costos imputables y deducciones reducen tu base gravable por debajo de la tarifa bruta del Simple.`;
+            textoRst.innerHTML = `El Ordinario te ahorra <strong>formatoCOP.format(ahorro)</strong>.Tuscostosydeduccionessuperanelmargencríticodel<strong>{d.margenQuiebre.toFixed(1)}%</strong>, haciendo inviable tributar sobre el ingreso bruto.`;
           }
+
 
           // Análisis Persona Natural vs SAS
           const textoSas = document.getElementById('texto-sas-analisis');
@@ -914,7 +972,7 @@
             return `
               <div class="movimiento-item-card">
                 <div class="mov-info-box">
-                  <span class="badge-cat ${badgeClass}">${m.categoria.replace('_', ' ')}</span>
+                  <span class="badge-cat badgeClass">{m.categoria.replace('_', ' ')}</span>
                   <span class="mov-desc">${m.descripcion || 'Sin nota'}</span>
                   <span class="subtexto-tope">${m.fecha}</span>
                 </div>
@@ -1037,6 +1095,12 @@
         document.getElementById('btn-procesar-cufe').addEventListener('click', () => {
           const raw = document.getElementById('input-cufe-raw').value.trim();
           const montoManual = limpiarNumero(document.getElementById('input-cufe-monto').value);
+          const inputCC = document.getElementById('input-ultimos-digitos');
+        if (inputCC) inputCC.addEventListener('input', () => MotorFiscal.ejecutarCiclo());
+
+        const selExclusion = document.getElementById('sel-optar-costos-o-exenta');
+        if (selExclusion) selExclusion.addEventListener('change', () => MotorFiscal.ejecutarCiclo());
+
 
           let monto = montoManual;
           let cufe = '';
@@ -1171,3 +1235,4 @@
   </script>
 </body>
 </html>
+

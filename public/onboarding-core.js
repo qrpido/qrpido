@@ -67,7 +67,7 @@ export function emitirTono(tipo) {
 window.emitirTono = emitirTono;
 
 // =========================================================================
-// TOASTS Y MODALES GLASSMORPHIC
+// TOASTS Y MODALES GLASSMORPHIC (REGLA DE ORO 2: CERO ALERT/CONFIRM NATIVOS)
 // =========================================================================
 export function mostrarToast(mensaje, tipo, duracion) {
     const tModo = tipo || 'info';
@@ -131,9 +131,8 @@ export function solicitarConfirmacion(titulo, mensaje) {
     });
 }
 window.solicitarConfirmacion = solicitarConfirmacion;
-
 // =========================================================================
-// HUD, CONTADORES Y GESTIÓN DE MATRIZ (EXPORTACIONES DEL HTML)
+// HUD, CONTADORES Y ENJAMBRE (SATISFACEN LOS IMPORTS DEL HTML)
 // =========================================================================
 export function actualizarHUD() {
     const kpiFlores = document.getElementById('kpi-flores');
@@ -181,14 +180,15 @@ export function iniciarEnjambreSiAutorizado() {
     });
 
     abejasActivas = contadorVoladores;
-    actualizarHUD();
 }
 window.iniciarEnjambreSiAutorizado = iniciarEnjambreSiAutorizado;
 
+// =========================================================================
+// MATRIZ GLOBAL INDEXEDDB (KPI BARCODE DEL HUD)
+// =========================================================================
 export async function inicializarMatrizGlobalUI() {
     const badge = document.getElementById('kpi-skus-matriz');
     try {
-        if (badge) badge.innerText = "Indexando...";
         if (GeokatuDB && GeokatuDB.CatalogoMatrizService) {
             const res = await GeokatuDB.CatalogoMatrizService.inicializarMatriz();
             if (res && res.success) {
@@ -203,6 +203,9 @@ export async function inicializarMatrizGlobalUI() {
 }
 window.inicializarMatrizGlobalUI = inicializarMatrizGlobalUI;
 
+// =========================================================================
+// SUBIDA MASIVA ONESHOT (BOTÓN DEL HEADER DEL HTML)
+// =========================================================================
 window.subirOneShotAFirebase = async function() {
     const listosParaSubir = listaComercios.filter(function(c) {
         return c.validado === true && c.subido !== true;
@@ -256,14 +259,8 @@ GeokatuDB.SecurityService.observarEstadoSesion(async function(user) {
         if (panelVerificando) panelVerificando.style.display = 'block';
 
         try {
-            await GeokatuDB.SecurityService.sellarSesionTerminalLocal(user.uid);
-        } catch (eSig) {}
-
-        try {
             const res = await GeokatuDB.SecurityService.obtenerRolAdmin(user.uid);
-            const esAdminValido = res.success && res.data && (res.data.rol === 'superadmin' || res.data.rol === 'admin');
-
-            if (esAdminValido) {
+            if (res.success && res.data && res.data.rol === 'superadmin') {
                 superadminAutorizado = true;
                 if (panelVerificando) panelVerificando.style.display = 'none';
                 if (gate) gate.style.display = 'none';
@@ -274,34 +271,27 @@ GeokatuDB.SecurityService.observarEstadoSesion(async function(user) {
                 }
                 if (btnLogout) btnLogout.style.display = 'inline-flex';
 
-                try {
-                    actualizarDatalistNichos();
-                    actualizarDatalistCategoriasCatalogo();
-                    renderizarTablero();
-                    actualizarHUD();
-                    iniciarEnjambreSiAutorizado();
-                    inicializarMatrizGlobalUI();
-                } catch (errUI) {
-                    console.error("[Onboarding UI Render]", errUI);
-                }
+                actualizarDatalistNichos();
+                renderizarTablero();
+                actualizarHUD();
+                iniciarEnjambreSiAutorizado();
             } else {
                 superadminAutorizado = false;
                 if (panelVerificando) panelVerificando.style.display = 'none';
                 if (gate) gate.style.display = 'flex';
-
+                
                 const rolDetectado = (res.data && res.data.rol) ? res.data.rol : 'Usuario Estandar';
                 const txtMotivo = document.getElementById('txt-motivo-denegado');
                 if (txtMotivo) {
-                    txtMotivo.innerHTML = 'Sesión iniciada como <b>' + user.email + '</b>.<br>UID: <code style="color:#29b6f6; font-size:10px;">' + user.uid + '</code><br>Tu rol detectado es: <code style="color:var(--naranja);">' + rolDetectado + '</code>.<br>Se requiere rol: <code style="color:var(--verde-hoja);">superadmin</code> en la colección <code>Usuarios_Admin</code>.';
+                    txtMotivo.innerHTML = 'Sesion iniciada como <b>' + user.email + '</b>.<br>Tu rol actual es: <code style="color:var(--naranja);">' + rolDetectado + '</code>.<br>Se requiere rol: <code style="color:var(--verde-hoja);">superadmin</code>.';
                 }
                 if (cajaDenegado) cajaDenegado.style.display = 'block';
             }
         } catch (err) {
-            console.error("[Búnker Auth Error]", err);
             if (panelVerificando) panelVerificando.style.display = 'none';
             if (cajaDenegado) cajaDenegado.style.display = 'block';
             const txtMotivo = document.getElementById('txt-motivo-denegado');
-            if (txtMotivo) txtMotivo.innerText = "Error validando credenciales: " + err.message;
+            if (txtMotivo) txtMotivo.innerText = "Fallo de conexion validando privilegios en Firestore.";
         }
     } else {
         superadminAutorizado = false;
@@ -315,7 +305,7 @@ GeokatuDB.SecurityService.observarEstadoSesion(async function(user) {
 });
 
 // =========================================================================
-// ENJAMBRE ORGÁNICO Y SISTEMA DE POLINIZACIÓN FLORAL
+// ENJAMBRE ORGÁNICO Y SISTEMA DE POLINIZACIÓN FLORAL ORIGINAL (🐝 🦋 🌸)
 // =========================================================================
 export function dispararFlores(clienteX, clienteY) {
     const escenario = document.getElementById('escenario');
@@ -342,14 +332,58 @@ export function dispararFlores(clienteX, clienteY) {
         setTimeout(function() { flor.remove(); }, 850);
     }
 
-    floresRecolectadas++;
+       floresRecolectadas++;
     localStorage.setItem('geokatu_flores_contador', floresRecolectadas.toString());
     const kpiFlores = document.getElementById('kpi-flores');
     if (kpiFlores) kpiFlores.innerText = floresRecolectadas;
 }
 window.dispararFlores = dispararFlores;
 
+// =========================================================================
+// GESTIÓN DEL ENJAMBRE, HUD Y MATRIZ GLOBAL (EXPORTACIONES REQUERIDAS)
+// =========================================================================
+export function actualizarHUD() {
+    const elVuelo = document.getElementById('conteo-en-vuelo');
+    const elFlores = document.getElementById('kpi-flores');
+    const cielo = document.getElementById('cielo');
+    const vivas = cielo ? cielo.querySelectorAll('.abeja-wrapper:not(.salvada)').length : 0;
+    if (elVuelo) elVuelo.innerText = vivas;
+    if (elFlores) elFlores.innerText = floresRecolectadas;
+}
+window.actualizarHUD = actualizarHUD;
+
+function iniciarEnjambreSiAutorizado() {
+    const cielo = document.getElementById('cielo');
+    if (cielo) cielo.innerHTML = '';
+    abejasActivas = 0;
+    const pendientes = listaComercios.filter(function(c) {
+        return !c.capturado && !c.validado && !c.subido && !c.archivado && c.estado_flujo !== 'Cerrado';
+    });
+    pendientes.forEach(function(c, idx) {
+        lanzarEntidadVoladora(c, idx);
+    });
+    actualizarHUD();
+}
+
+export async function inicializarMatrizGlobalUI() {
+    try {
+        const el = document.getElementById('kpi-skus-matriz');
+        if (el) el.innerText = "Indexando...";
+        const res = await GeokatuDB.CatalogoMatrizService.inicializarMatriz();
+        if (el) {
+            el.innerText = (res && res.success) 
+                ? (Number(res.count || 0).toLocaleString('es-CO') + ' SKUs') 
+                : "Sin Matriz";
+        }
+    } catch (e) {
+        const el = document.getElementById('kpi-skus-matriz');
+        if (el) el.innerText = "Error Local";
+    }
+}
+window.inicializarMatrizGlobalUI = inicializarMatrizGlobalUI;
+
 function ejecutarCapturaComercio(wrapper, idComercio, clienteX, clienteY) {
+
     if (!wrapper || wrapper.classList.contains('salvada')) return;
 
     wrapper.classList.add('salvada');
@@ -413,6 +447,7 @@ function lanzarEntidadVoladora(comercio, index) {
     wrapper.style.transform = 'translate(' + posX + 'px, ' + posY + 'px)';
     wrapper.innerHTML = '<div class="abeja-sprite" style="font-size:26px;">' + emoji + '</div>';
 
+    // Disparador directo táctil con máxima prioridad de intercepción
     wrapper.addEventListener('pointerdown', function(e) {
         e.stopPropagation();
         ejecutarCapturaComercio(wrapper, comercio.id, e.clientX, e.clientY);
@@ -446,12 +481,14 @@ if (escenarioEl) {
     escenarioEl.addEventListener('pointerdown', function(e) {
         if (e.pointerType === 'mouse' && e.button !== 0) return;
 
+        // 1. Intento por elemento directo
         let objetivo = e.target.closest('.abeja-wrapper');
 
+        // 2. Búsqueda de proximidad con lectura de matriz en vuelo (GPU)
         if (!objetivo) {
             const cielo = document.getElementById('cielo');
             const abejas = cielo ? cielo.querySelectorAll('.abeja-wrapper:not(.salvada)') : [];
-            let mejorDistancia = 60;
+            let mejorDistancia = 60; // Radio perimetral de captura táctil (60px)
             let mejorAbeja = null;
 
             for (let i = 0; i < abejas.length; i++) {
@@ -491,8 +528,10 @@ if (escenarioEl) {
     });
 }
 
+
+
 // =========================================================================
-// TRADUCTOR ESPACIAL UNIVERSAL
+// TRADUCTOR ESPACIAL UNIVERSAL (MAPS, PLUS CODES, DMS, DECIMAL)
 // =========================================================================
 function parsearCoordenadasUniversales(input) {
     if (!input || typeof input !== 'string') return null;
@@ -836,6 +875,7 @@ window.guardarNuevoComercio = function() {
     const lng = parseFloat(document.getElementById('nuevo-lng')?.value);
     const direccion = document.getElementById('nuevo-direccion')?.value?.trim() || '';
 
+
     if (!nombre) { mostrarToast("Nombre de comercio obligatorio.", "error"); return; }
     if (isNaN(lat) || isNaN(lng)) { mostrarToast("Fija el punto en el mapa.", "error"); return; }
 
@@ -876,7 +916,7 @@ window.guardarNuevoComercio = function() {
 };
 
 // =========================================================================
-// IDENTIDAD, PINES Y RUEDA CROMÁTICA
+// GESTOR DE IDENTIDAD DE MARCA, PINES Y RUEDA CROMÁTICA ÁUREA
 // =========================================================================
 const GRIS_METALLIC_GEOKATU = "#8a909d";
 const BLANCO_GEOKATU = "#ffffff";
@@ -970,7 +1010,6 @@ export function actualizarPinDrawerLive() {
     recalcularDistribucionAureaSilenciosa();
 }
 window.actualizarPinDrawerLive = actualizarPinDrawerLive;
-
 export function recalcularDistribucionAureaSilenciosa() {
     if (!comercioActivoParaCatalogo) return;
     const c1 = document.getElementById('hex-slot-1')?.value || '#ff6b00';
@@ -1065,6 +1104,7 @@ window.confirmarColorSeleccionado = function() {
     }
 };
 
+
 window.sincronizarColorDesdeHex = function(valorIngresado) {
     const hexLimpio = (valorIngresado || '').replace('#', '').trim();
     const inputHex = document.getElementById('input-hex-manual');
@@ -1075,6 +1115,7 @@ window.sincronizarColorDesdeHex = function(valorIngresado) {
         if (inputHex) inputHex.style.borderColor = '#ff4444';
     }
 };
+
 
 window.eliminarSlotColor = function(slot) {
     const box = document.getElementById('slot-color-box-' + slot);
@@ -1222,7 +1263,7 @@ export function inicializarEventosRueda() {
 window.inicializarEventosRueda = inicializarEventosRueda;
 
 // =========================================================================
-// CATEGORÍAS MAESTRAS Y NICHOS
+// GESTOR DE CATEGORÍAS MAESTRAS Y NICHOS
 // =========================================================================
 let poolCategoriasCatalogo = new Set();
 
@@ -1464,6 +1505,7 @@ export function renderizarTablero() {
                 '<button type="button" class="btn-editar-inline" onclick="event.stopPropagation(); window.toggleEditarTicket(' + index + ', this)" title="Editar datos">✏️</button>' +
                 '<button type="button" class="btn-enviar-sheets-inline" onclick="event.stopPropagation(); enviarComercioASheets(' + index + ')" title="Enviar este ticket a la última fila de Sheets">📤</button>' +
 
+
                 '<div class="cuadrito-datos">' +
                     sloganHTML +
                     '<pre style="margin: 0; line-height: 1.6;">• ID: <span class="dato-copiable" data-key="id">' + c.id + '</span>\n' +
@@ -1496,11 +1538,14 @@ sedesHTML +
                     '📦 Gestionar Catálogo (<strong id="badge-cat-' + index + '">' + totalCat + '</strong> SKUs)' +
                 '</button>' +
 
-                '<div class="cuadrito-acciones-comercio">' +
-                    '<a class="btn-act btn-act-web" href="' + normalizarURL(c.sitio_web || c.web) + '" target="_blank">🌐 Web</a>' +
-                    '<a class="btn-act btn-act-ig" href="' + igUrlFinal + '" target="_blank">📸 Instagram</a>' +
+                '<div class="cuadrito-acciones-comercio" style="grid-template-columns: 1fr 1fr 1fr 1.2fr;">' +
+                    '<a class="btn-act btn-act-web" href="' + normalizarURL(c.sitio_web || c.web) + '" target="_blank">Web</a>' +
+                    '<a class="btn-act btn-act-ig" href="' + igUrlFinal + '" target="_blank">Instagram</a>' +
+                    '<button type="button" class="btn-act" style="background: rgba(41,182,246,0.18); border-color: var(--azul-link); color: var(--azul-link);" onclick="event.stopPropagation(); window.abrirModalDefinirDueno(' + index + ')" title="Asignar correo del dueño">' +
+                        (c.reclamado ? 'Dueño: OK' : 'Ceder') +
+                    '</button>' +
                     '<button class="btn-act btn-act-val ' + (c.validado ? 'activo' : '') + '" onclick="toggleValidado(' + index + ')">' +
-                        (c.validado ? '✅ Validado' : 'Validar') +
+                        (c.validado ? 'Validado' : 'Validar') +
                     '</button>' +
                 '</div>' +
             '</div>';
@@ -1516,7 +1561,18 @@ sedesHTML +
             '</div>';
     }
 
-    actualizarHUD();
+    const elValidados = document.getElementById('kpi-validados');
+
+    const elTotal = document.getElementById('kpi-total');
+    const elListos = document.getElementById('conteo-listos');
+    const elSubidos = document.getElementById('conteo-subidos');
+    const elVisibles = document.getElementById('badge-total-visibles');
+
+    if (elValidados) elValidados.innerText = validados;
+    if (elTotal) elTotal.innerText = listaComercios.length;
+    if (elListos) elListos.innerText = validados;
+    if (elSubidos) elSubidos.innerText = subidos;
+    if (elVisibles) elVisibles.innerText = visibles;
     AppState.guardarColaLocal();
 }
 window.renderizarTablero = renderizarTablero;
@@ -1600,7 +1656,47 @@ window.toggleEditarTicket = function(index, btnElement) {
         actualizarDatalistNichos();
         AppState.guardarColaLocal();
         renderizarTablero();
-        mostrarToast("Cambios guardados.", "exito");
+
+        // Si el comercio ya está en Firebase, actualizar en caliente
+        var cActual = listaComercios[index];
+        if (cActual && cActual.subido === true) {
+            mostrarToast("Sincronizando cambios con Firestore...", "info", 2000);
+            (async function() {
+                try {
+                    var docRef = doc(db, "Directorio", String(cActual.id));
+                    var arrFonos = String(cActual.whatsapp || '').split('|').map(function(f) { return f.trim().replace(/\D/g, ''); }).filter(Boolean);
+                    var pbxLimpio = String(cActual.pbx || '').trim();
+
+                    var payloadUpdate = {
+                        nombre: cActual.nombre || "Comercio Aliado",
+                        nicho: cActual.nicho || "General",
+                        categoria: cActual.nicho || "General",
+                        categoria_maestra: cActual.nicho || "General",
+                        direccion: cActual.direccion || "",
+                        plus_code: cActual.plus_code || "",
+                        horario: cActual.horario || "No registra",
+                        pbx: pbxLimpio,
+                        correo: cActual.correo || "",
+                        email: cActual.correo || "",
+                        instagram: String(cActual.instagram || '').replace(/^@/, '').trim(),
+                        web: cActual.web || cActual.sitio_web || "",
+                        sitio_web: cActual.web || cActual.sitio_web || "",
+                        whatsapp: arrFonos[0] || "",
+                        whatsApp: arrFonos[0] || "",
+                        telefonos: arrFonos,
+                        fecha_actualizacion: new Date().toISOString()
+                    };
+
+                    await setDoc(docRef, payloadUpdate, { merge: true });
+                    emitirTono('EXITO');
+                    mostrarToast('Actualizado en vivo en Firestore.', "exito", 2500);
+                } catch (errSync) {
+                    mostrarToast("Error actualizando en la nube: " + errSync.message, "error", 4000);
+                }
+            })();
+        } else {
+            mostrarToast("Cambios guardados localmente.", "exito");
+        }
     } else {
         btn.textContent = '✔️';
         if (btnTrash) btnTrash.style.display = 'block';
@@ -1631,6 +1727,7 @@ window.toggleEditarTicket = function(index, btnElement) {
 };
 
 document.addEventListener('click', async function(event) {
+
     if (event.target.classList.contains('dato-copiable')) {
         const span = event.target;
         if (span.classList.contains('modo-edicion')) return;
@@ -1641,7 +1738,7 @@ document.addEventListener('click', async function(event) {
         return;
     }
 
-    if (event.target.classList.contains('btn-eliminar-inline')) {
+   if (event.target.classList.contains('btn-eliminar-inline')) {
         event.stopPropagation();
         const conf = await solicitarConfirmacion("Eliminar Comercio", "¿Deseas eliminar este registro del radar local?");
         if (!conf) return;
@@ -1729,6 +1826,7 @@ document.addEventListener('click', async function(event) {
         }
         return;
     }
+
 });
 
 // =========================================================================
@@ -1800,18 +1898,13 @@ window.addEventListener('popstate', function() {
     const modalEstudio = document.getElementById('modal-estudio-canvas-geokatu');
 
     if (modalEstudio && modalEstudio.style.display === 'flex') {
-        if (typeof window.cerrarEstudioCanvas === 'function') {
-            window.cerrarEstudioCanvas();
-        } else {
-            modalEstudio.style.display = 'none';
-        }
+        window.cerrarEstudioCanvas();
         return;
     }
     if (drawer && drawer.classList.contains('activo')) {
         window.cerrarDrawerCatalogo(true);
     }
 });
-
 
 export function renderizarListaSkusDrawer() {
     const cont = document.getElementById('drawer-lista-skus');
@@ -1910,6 +2003,7 @@ window.procesarCodigoEscaneadoCatalogo = async function(codigo) {
         if (!comercioActivoParaCatalogo.catalogo) comercioActivoParaCatalogo.catalogo = [];
         comercioActivoParaCatalogo.catalogo.unshift(nuevo);
     } else {
+
         const nombre = prompt('Codigo: ' + codigo + '\nNombre del articulo:');
         if (nombre && nombre.trim()) {
             const nuevo = {
@@ -1997,7 +2091,8 @@ window.procesarFotoIdentidadIndividual = async function(file, campo) {
 export async function subirFotoIdentidadStorage(blob, campo, idComercio) {
     try {
         const storage = getStorage(db.app);
-        const storageRef = ref(storage, 'negocios/' + idComercio + '/branding_' + campo + '_' + Date.now() + '.webp');
+        const rutaStorage = 'tiendas/' + idComercio + '/' + campo + '_' + Date.now() + '.webp';
+        const storageRef = ref(storage, rutaStorage);
         const snapshot = await uploadBytes(storageRef, blob, { contentType: 'image/webp' });
         const downloadURL = await getDownloadURL(snapshot.ref);
         if (comercioActivoParaCatalogo) {
@@ -2009,20 +2104,26 @@ export async function subirFotoIdentidadStorage(blob, campo, idComercio) {
         return null;
     }
 }
+
 window.subirFotoIdentidadStorage = subirFotoIdentidadStorage;
 
 export async function subirFotoAStorageEnSegundoPlano(producto, idComercio) {
     try {
+        if (!producto.archivoBlob || !(producto.archivoBlob instanceof Blob)) return;
         const storage = getStorage(db.app);
-        const path = 'negocios/' + idComercio + '/productos/' + producto.codigo_barras + '_' + Date.now() + '.webp';
+        const path = 'productos/' + idComercio + '/' + producto.codigo_barras + '_' + Date.now() + '.webp';
         const storageRef = ref(storage, path);
         const snapshot = await uploadBytes(storageRef, producto.archivoBlob, { contentType: 'image/webp' });
         const downloadURL = await getDownloadURL(snapshot.ref);
         producto.imagen = downloadURL;
         producto.subido_storage = true;
+        delete producto.archivoBlob; // Purga el binario para que no se convierta en objeto vacío {} al guardar en JSON
         AppState.guardarColaLocal();
-    } catch (err) {}
+    } catch (err) {
+        console.warn("[Storage Background]", err);
+    }
 }
+
 
 window.procesarLoteImagenes = async function(archivos) {
     if (!archivos || archivos.length === 0 || !comercioActivoParaCatalogo) return;
@@ -2114,27 +2215,47 @@ window.sincronizarCatalogoComercioNube = async function() {
         const idSeguro = String(c.id || ('GEO-' + Date.now().toString().slice(-4))).trim();
         c.id = idSeguro;
 
+        // 1. Subir fotos pendientes en formato Blob a Firebase Storage
+        const storage = getStorage(db.app);
         const storage = getStorage(db.app);
         for (let i = 0; i < prods.length; i++) {
             const p = prods[i];
-            const esBlobLocal = p.imagen && p.imagen.indexOf('blob:') === 0;
-            if (p.archivoBlob || esBlobLocal) {
+
+            // 1. Si la foto ya está subida en Firebase Storage con URL remota válida, se omite
+            if (p.imagen && p.imagen.indexOf('http') === 0 && p.subido_storage === true) {
+                continue;
+            }
+
+            // 2. Si es un Blob local pendiente o URL blob: temporal
+            let blobParaSubir = null;
+            if (p.archivoBlob && p.archivoBlob instanceof Blob) {
+                blobParaSubir = p.archivoBlob;
+            } else if (p.imagen && p.imagen.indexOf('blob:') === 0) {
+                try {
+                    const resBlob = await fetch(p.imagen);
+                    blobParaSubir = await resBlob.blob();
+                } catch (eBlob) {}
+            }
+
+            // 3. Solo sube si el binario es una imagen real de más de 200 bytes (bloquea basura de 9B)
+            if (blobParaSubir && blobParaSubir.size > 200) {
                 if (btn) {
                     btn.innerText = "Subiendo foto (" + (i + 1) + " de " + prods.length + ")...";
                 }
                 try {
-                    const blobParaSubir = p.archivoBlob || (await (await fetch(p.imagen)).blob());
-                    const rutaStorage = 'negocios/' + idSeguro + '/productos/' + (p.codigo_barras || Date.now()) + '_' + Date.now() + '.webp';
+                    const rutaStorage = 'productos/' + idSeguro + '/' + (p.codigo_barras || Date.now()) + '_' + Date.now() + '.webp';
                     const storageRef = ref(storage, rutaStorage);
                     const snapshot = await uploadBytes(storageRef, blobParaSubir, { contentType: 'image/webp' });
                     const downloadURL = await getDownloadURL(snapshot.ref);
                     p.imagen = downloadURL;
                     p.subido_storage = true;
+                    delete p.archivoBlob;
                 } catch (errFoto) {
                     console.warn("Fallo subiendo foto del producto " + p.nombre, errFoto);
                 }
             }
         }
+
 
         if (btn) {
             btn.innerText = "Asentando en Firestore...";
@@ -2228,6 +2349,7 @@ window.sincronizarCatalogoComercioNube = async function() {
 
         batch.set(docNegocioRef, payloadMaestro, { merge: true });
 
+        // 2. Inyección de subcolección de productos
         const coleccionProds = collection(db, 'Directorio/' + idSeguro + '/productos');
         prods.forEach(function(p) {
             const docRef = p.id ? doc(coleccionProds, String(p.id)) : doc(coleccionProds);
@@ -2286,6 +2408,7 @@ window.sincronizarCatalogoComercioNube = async function() {
     }
 };
 
+
 // =========================================================================
 // GOOGLE SHEETS & APPS SCRIPT
 // =========================================================================
@@ -2314,42 +2437,42 @@ window.sincronizarConAppsScript = async function() {
 
         let nuevos = 0;
 
-        data.forEach(function(item) {
-            const idx = listaComercios.findIndex(function(c) { return c.id === item.id; });
+            data.forEach(function(item) {
+                const idx = listaComercios.findIndex(function(c) { return c.id === item.id; });
 
-            if (idx === -1) {
-                const yaAuditado = (item.estado === 'Auditado' || item.estado === 'SUBIDO_FIREBASE' || item.estado_flujo === 'Cerrado');
-                const nuevoItem = {
-                    ...item,
-                    capturado: yaAuditado,
-                    validado: (item.estado === 'Auditado' || item.estado === 'SUBIDO_FIREBASE'),
-                    subido: (item.estado === 'SUBIDO_FIREBASE'),
-                    catalogo: []
-                };
+                if (idx === -1) {
+                    const yaAuditado = (item.estado === 'Auditado' || item.estado === 'SUBIDO_FIREBASE' || item.estado_flujo === 'Cerrado');
+                    const nuevoItem = {
+                        ...item,
+                        capturado: yaAuditado,
+                        validado: (item.estado === 'Auditado' || item.estado === 'SUBIDO_FIREBASE'),
+                        subido: (item.estado === 'SUBIDO_FIREBASE'),
+                        catalogo: []
+                    };
 
-                listaComercios.push(nuevoItem);
+                    listaComercios.push(nuevoItem);
 
-                if (!nuevoItem.capturado && !nuevoItem.archivado) {
-                    lanzarEntidadVoladora(nuevoItem, nuevos);
+                    if (!nuevoItem.capturado && !nuevoItem.archivado) {
+                        lanzarEntidadVoladora(nuevoItem, nuevos);
+                    }
+                    nuevos++;
+                } else {
+                    listaComercios[idx].nombre = item.nombre;
+                    listaComercios[idx].direccion = item.direccion;
+                    listaComercios[idx].whatsapp = item.whatsapp;
+                    listaComercios[idx].horario = item.horario;
+                    listaComercios[idx].pbx = item.pbx;
+                    listaComercios[idx].correo = item.correo;
+                    listaComercios[idx].coordenadas_crudo = item.coordenadas_crudo || item.coordenada_validada;
                 }
-                nuevos++;
-            } else {
-                listaComercios[idx].nombre = item.nombre;
-                listaComercios[idx].direccion = item.direccion;
-                listaComercios[idx].whatsapp = item.whatsapp;
-                listaComercios[idx].horario = item.horario;
-                listaComercios[idx].pbx = item.pbx;
-                listaComercios[idx].correo = item.correo;
-                listaComercios[idx].coordenadas_crudo = item.coordenadas_crudo || item.coordenada_validada;
-            }
-        });
+            });
 
-        AppState.guardarColaLocal();
-        actualizarDatalistNichos();
-        actualizarHUD();
-        renderizarTablero();
-        emitirTono('EXITO');
-        mostrarToast('Sincronización: ' + nuevos + ' comercios lanzados al enjambre.', "exito");
+            AppState.guardarColaLocal();
+            actualizarDatalistNichos();
+            actualizarHUD();
+            renderizarTablero();
+            emitirTono('EXITO');
+            mostrarToast('Sincronización: ' + nuevos + ' comercios lanzados al enjambre.', "exito");
 
     } catch (e) {
         mostrarToast("Error conectando con Google Sheets: " + e.message, "error");
@@ -2379,7 +2502,7 @@ window.enviarComercioASheets = async function(index) {
 };
 
 // =========================================================================
-// BÓVEDA HISTORIAL Y DUEÑOS
+// BÓVEDA HISTORIAL Y ASIGNACIÓN DE DUEÑOS (CLAIM)
 // =========================================================================
 let claimComercioIndex = null;
 
@@ -2465,6 +2588,7 @@ window.toggleNegocioTomado = async function(index, tomado) {
     mostrarToast('Estado actualizado: ' + (tomado ? 'TOMADO' : 'LIBRE'), 'info');
 };
 
+
 window.reabrirComercioEnRadar = function(index) {
     listaComercios[index].archivado = false;
     listaComercios[index].capturado = true;
@@ -2501,30 +2625,83 @@ window.regenerarPasswordClaim = function() {
 window.confirmarEntregaDueno = async function() {
     if (claimComercioIndex === null) return;
     const c = listaComercios[claimComercioIndex];
-    const email = document.getElementById('claim-email')?.value?.trim();
+    const emailInput = document.getElementById('claim-email');
+    const passInput = document.getElementById('claim-pass');
+    const email = emailInput ? emailInput.value.trim().toLowerCase() : '';
+    const passTemporal = passInput ? passInput.value.trim() : '';
 
-    if (!email) {
-        mostrarToast("Ingresa un correo institucional valido.", "error");
+    if (!email || !email.includes('@')) {
+        mostrarToast("Ingresa un correo electrónico válido.", "error");
         return;
     }
 
-    try {
-        const res = await GeokatuDB.AdminService.asignarDuenoComercio(c.id, email);
-        if (!res.success) throw new Error(res.error || "Fallo en autorizacion");
+    const btn = document.getElementById('btn-confirmar-claim');
+    if (btn) { btn.disabled = true; btn.innerText = "Transfiriendo..."; }
 
+    try {
         c.reclamado = true;
-        c.dueno_registrado = true;
-        c.owner_email = email.toLowerCase();
+        c.dueno_registrado = false;
+        c.owner_email = email;
+        c.password_temporal = passTemporal;
         AppState.guardarColaLocal();
 
+    // Si el comercio ya está en Firestore, impactar el documento raíz sin exponer contraseñas
+        if (c.subido === true || c.id) {
+            const idDocStr = String(c.id);
+            const docRef = doc(db, "Directorio", idDocStr);
+            
+            // 1. Datos públicos / administrativos en el documento raíz
+            await setDoc(docRef, {
+                reclamado: true,
+                dueno_registrado: false,
+                owner_email: email,
+                fecha_entrega_dueno: new Date().toISOString()
+            }, { merge: true });
+
+            // 2. Credencial aislada en subcolección protegida (invisible para scrapers y consultas públicas)
+            const bovedaRef = doc(db, "Directorio/" + idDocStr + "/Boveda_Seguridad", "Credenciales");
+            await setDoc(bovedaRef, {
+                password_temporal: passTemporal,
+                owner_email: email,
+                fecha_generacion: new Date().toISOString()
+            }, { merge: true });
+        }
+
+
         emitirTono('EXITO');
-        mostrarToast('Custodia transferida a ' + email + '.', "exito");
+        renderizarTablero();
+        mostrarToast('Titularidad asignada a ' + email, "exito", 3000);
+
+        // Envío directo por WhatsApp
+        const arrFonos = String(c.whatsapp || '').split('|').map(function(f) { return f.trim().replace(/\D/g, ''); }).filter(Boolean);
+        const fono = arrFonos[0] || '';
+        const fonoCompleto = fono.length === 10 ? ('57' + fono) : fono;
+        const urlAcceso = window.location.origin + '/oficina';
+
+        const mensajeWA = encodeURIComponent(
+            "Hola *" + (c.nombre || "Comercio") + "*! Te entregamos el acceso a tu consola en GEOKATU:\n\n" +
+            "1. Ingresa a: " + urlAcceso + "\n" +
+            "2. Toca 'Continuar con Google' usando tu correo: *" + email + "*\n\n" +
+            "(Clave de respaldo opcional: " + passTemporal + ")\n" +
+            "Tu catálogo y ubicación ya están listos en el radar."
+        );
+
+        if (fonoCompleto.length >= 7) {
+            if (confirm("¿Deseas enviar las credenciales por WhatsApp a " + c.nombre + "?")) {
+                window.open("https://api.whatsapp.com/send?phone=" + fonoCompleto + "&text=" + mensajeWA, '_blank');
+            }
+        }
+
         cerrarModalDefinirDueno();
         renderizarListaHistorial();
     } catch (err) {
-        mostrarToast("Error vinculando cuenta: " + err.message, "error");
+        mostrarToast("Error asignando titularidad: " + err.message, "error", 4500);
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerText = "DEFINIR DUEÑO"; }
     }
 };
+
+
 
 window.abrirWhatsAppDirecto = function(numero, nombreComercio) {
     let limpio = String(numero || '').replace(/\D/g, '');
@@ -2537,3 +2714,63 @@ window.abrirWhatsAppDirecto = function(numero, nombreComercio) {
 window.abrirWA = function(fono, nom) {
     window.abrirWhatsAppDirecto(fono, nom);
 };
+// =========================================================================
+// COMPILADOR DE MATRIZ OFFLINE (REPLICA DE catalogo_matriz.json)
+// =========================================================================
+window.exportarDirectorioMatrizJSON = function() {
+    const aprobados = listaComercios.filter(function(c) {
+        return Boolean(c.validado) || c.estado_flujo === 'Cerrado' || c.subido === true;
+    });
+
+    if (aprobados.length === 0) {
+        mostrarToast("No hay comercios auditados para exportar.", "info");
+        return;
+    }
+
+    const payloadCompacto = aprobados.map(function(c) {
+        const coords = parsearCoordenadasUniversales(c.coordenada_validada || c.coordenadas_crudo || '');
+        const lat = coords ? coords.lat : 4.81333;
+        const lng = coords ? coords.lng : -75.69611;
+
+        // Empaquetado binario de flags para ahorrar bytes
+        let flags = 0;
+        if (c.whatsapp && String(c.whatsapp).trim().length > 5) flags |= 1;  // Bit 0: WhatsApp
+        if (c.pbx && (!c.whatsapp || String(c.whatsapp).trim() === '')) flags |= 2; // Bit 1: Solo PBX
+        if (Boolean(c.es_24_horas)) flags |= 4;                             // Bit 2: 24 Horas
+        if (c.verificado_maps === 'SI') flags |= 8;                         // Bit 3: Verificado Maps
+        if (Boolean(c.destacado_estrella)) flags |= 16;                     // Bit 4: Estrella
+
+        const colores = [
+            c.color_principal || "#ff6b00",
+            c.color_acento || "#8a909d"
+        ];
+
+        return {
+            id: String(c.id),
+            n: String(c.nombre || "Comercio"),
+            s: String(c.slogan || "").substring(0, 70),
+            c: String(c.nicho || c.categoria || "General"),
+            g: [lat, lng],
+            p: String(c.pin_pack || "forma-gota|anim-salto"),
+            b: colores,
+            l: String(c.logo || ""),
+            f: flags
+        };
+    });
+
+    const blob = new Blob([JSON.stringify(payloadCompacto)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "directorio_matriz.json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    mostrarToast("Matriz exportada (" + payloadCompacto.length + " comercios).", "exito");
+};
+
+
+
+

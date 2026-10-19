@@ -13,11 +13,10 @@
 
 
 import GeokatuDB, { CatalogoMatrizService } from './core-db.js';
-
-import { BillingGuard } from './billing-guard.js';
-
-import * as geofire from 'https://cdn.jsdelivr.net/npm/geofire-common@5.2.0/+esm';
-
+import { BillingGuard } from './billing-guard.js'; 
+import { AuthGate } from './auth-gate.js'; 
+import './estudio-imagen-universal.js';
+import './geokatu-tour.js';  
 import {
 
 getFirestore,
@@ -72,18 +71,61 @@ window.BillingGuard = BillingGuard;
 
 window.CatalogoMatrizService = CatalogoMatrizService;
 
-window.generarGeohash = (lat, lng) => geofire.geohashForLocation([lat, lng]);
+// Algoritmo Geohash nativo (Base 32 canónica, 100% offline, cero dependencias)
+window.generarGeohash = function(lat, lng, precision) {
+    if (precision === undefined) precision = 9;
+    var BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz";
+    var latRango = [-90.0, 90.0];
+    var lngRango = [-180.0, 180.0];
+    var hash = "";
+    var esPar = true;
+    var bit = 0;
+    var caracterIdx = 0;
+
+    while (hash.length < precision) {
+        if (esPar) {
+            var medioLng = (lngRango[0] + lngRango[1]) / 2;
+            if (lng >= medioLng) {
+                caracterIdx |= (1 << (4 - bit));
+                lngRango[0] = medioLng;
+            } else {
+                lngRango[1] = medioLng;
+            }
+        } else {
+            var medioLat = (latRango[0] + latRango[1]) / 2;
+            if (lat >= medioLat) {
+                caracterIdx |= (1 << (4 - bit));
+                latRango[0] = medioLat;
+            } else {
+                latRango[1] = medioLat;
+            }
+        }
+
+        esPar = !esPar;
+        if (bit < 4) {
+            bit++;
+        } else {
+            hash += BASE32[caracterIdx];
+            bit = 0;
+            caracterIdx = 0;
+        }
+    }
+    return hash;
+};
+
 
 // Ruteador dinámico según país del comercio
 window.abrirTerminalPOS = async function() {
     var idTenant = window.idNegocioLogueado || localStorage.getItem('geokatu_active_uid');
     if (!idTenant) {
-        window.open('pos.html', '_blank');
+        window.open('/pos', '_blank');
         return;
     }
     var destino = await GeokatuDB.PosService.obtenerDestinoPOS(idTenant);
-    window.open(destino, '_blank');
+    var cleanDestino = String(destino).replace(/\.html/g, '');
+    window.open(cleanDestino.startsWith('/') ? cleanDestino : ('/' + cleanDestino), '_blank');
 };
+
 
 // Detección automática por coordenadas (Frontera y territorio)
 window.detectarPaisPorCoordenadas = function(lat, lng) {
@@ -161,6 +203,49 @@ window.mostrarTooltipNombrePng = function(origen, btnElement) {
         }, 350);
     }, 4500);
 };
+window.comprimirImagen = function(file, maxWidth, quality, forceSquare) {
+    if (maxWidth === undefined) maxWidth = 800;
+    if (quality === undefined) quality = 0.75;
+    if (forceSquare === undefined) forceSquare = false;
+    return new Promise(function(resolve, reject) {
+        if (!file) return resolve(null);
+        var reader = new FileReader();
+        reader.onload = function(event) {
+            var img = new Image();
+            img.onload = function() {
+                var width = img.width;
+                var height = img.height;
+                var sx = 0, sy = 0, sWidth = width, sHeight = height;
+                if (forceSquare) {
+                    var size = Math.min(width, height);
+                    sx = (width - size) / 2;
+                    sy = (height - size) / 2;
+                    sWidth = size;
+                    sHeight = size;
+                    width = size;
+                    height = size;
+                }
+                if (width > maxWidth) {
+                    height = Math.round((height * maxWidth) / width);
+                    width = maxWidth;
+                }
+                var canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                var ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, width, height);
+                ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, width, height);
+                canvas.toBlob(function(blob) {
+                    resolve(blob || file);
+                }, 'image/webp', quality);
+            };
+            img.onerror = function() { reject(new Error("Archivo de imagen no valido")); };
+            img.src = event.target.result;
+        };
+        reader.onerror = function() { reject(new Error("Error leyendo el archivo")); };
+        reader.readAsDataURL(file);
+    });
+};
 
 window.comprimirImagenTransparenteWebP = function(file, maxAncho, maxAlto) {
     return new Promise(function(resolve, reject) {
@@ -227,27 +312,34 @@ window.mostrarTooltipEtiquetasRadar = function(btnElement) {
     }, 4500);
 };
 
-window.cargarPreviewNombrePng = function(input, contexto) {
-    if (input.files && input.files[0]) {
-        var f = input.files[0];
-        var reader = new FileReader();
-        reader.onload = function(e) {
-            var dataUrl = e.target.result;
-            if (contexto === 'fase1') {
-                window.nombrePngTemporalPaso1 = dataUrl;
-                var img1 = document.getElementById('fase1-img-nombre-preview');
-                var ph1 = document.getElementById('fase1-placeholder-nombre');
-                if (img1) { img1.src = dataUrl; img1.style.display = 'block'; }
-                if (ph1) ph1.style.display = 'none';
-            } else {
-                window.nombrePngTemporalModal = dataUrl;
-                var imgM = document.getElementById('modal-img-nombre-preview');
-                var phM = document.getElementById('modal-placeholder-nombre');
-                if (imgM) { imgM.src = dataUrl; imgM.style.display = 'block'; }
-                if (phM) phM.style.display = 'none';
-            }
-        };
-        reader.readAsDataURL(f);
+window.blobNombrePngEditadoFase1 = null;
+window.blobNombrePngEditadoModal = null;
+
+window.cargarPreviewNombrePng = async function(input, contexto) {
+    if (!input.files || !input.files[0]) return;
+    var f = input.files[0];
+    var editada = await window.GeokatuEstudio.editarImagen(f, {
+        maxAncho: 500,
+        maxAlto: 140,
+        calidad: 0.90,
+        titulo: 'Editar Logo Tipográfico (Sin Fondo)'
+    });
+    if (!editada) { input.value = ''; return; }
+
+    if (contexto === 'fase1') {
+        window.nombrePngTemporalPaso1 = editada.dataUrl;
+        window.blobNombrePngEditadoFase1 = editada.blob;
+        var img1 = document.getElementById('fase1-img-nombre-preview');
+        var ph1 = document.getElementById('fase1-placeholder-nombre');
+        if (img1) { img1.src = editada.dataUrl; img1.style.display = 'block'; }
+        if (ph1) ph1.style.display = 'none';
+    } else {
+        window.nombrePngTemporalModal = editada.dataUrl;
+        window.blobNombrePngEditadoModal = editada.blob;
+        var imgM = document.getElementById('modal-img-nombre-preview');
+        var phM = document.getElementById('modal-placeholder-nombre');
+        if (imgM) { imgM.src = editada.dataUrl; imgM.style.display = 'block'; }
+        if (phM) phM.style.display = 'none';
     }
 };
 
@@ -255,8 +347,21 @@ window.subirImagenDirecta = async function(tipo, input) {
     if (!input.files || !input.files[0] || !window.idNegocioLogueado) return;
     var file = input.files[0];
     try {
-        var path = 'tiendas/' + window.idNegocioLogueado + '/' + tipo + (tipo === 'nombre_png' ? '.png' : '.webp');
-        var res = await GeokatuDB.AdminService.subirArchivo(path, file);
+        var titulos = {
+            nombre_png: 'Editar Logo Tipográfico',
+            logo: 'Editar Logo de Perfil',
+            portada: 'Editar Foto de Portada'
+        };
+        var editada = await window.GeokatuEstudio.editarImagen(file, {
+            maxAncho: tipo === 'portada' ? 1200 : 600,
+            maxAlto: tipo === 'nombre_png' ? 150 : 800,
+            calidad: 0.86,
+            titulo: titulos[tipo] || 'Editar Imagen'
+        });
+        if (!editada) { input.value = ''; return; }
+
+        var path = 'tiendas/' + window.idNegocioLogueado + '/' + tipo + '_' + Date.now() + '.webp';
+        var res = await GeokatuDB.AdminService.subirArchivo(path, editada.blob);
         var url = (typeof res === 'string') ? res : (res && res.data ? res.data : '');
         if (url) {
             var payload = {};
@@ -280,27 +385,20 @@ window.subirImagenDirecta = async function(tipo, input) {
 };
 
 
-// ============================================================================
-
-// BLOQUE 1: SESIÓN, CONTROL DE ACCESO Y SEGURIDAD
 
 // ============================================================================
-
-GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
-
-if (user) {
-
-window.idNegocioLogueado = user.uid;
-
-await GeokatuDB.SecurityService.sellarSesionTerminalLocal(user.uid);
-
-
-
-var loginScreen = document.getElementById('login-screen');
-        if (loginScreen) loginScreen.style.display = 'none';
+// BLOQUE 1: SESIÓN Y CONTROL DE ACCESO MEDIANTE AUTH-GATE
+// ============================================================================
+AuthGate.inicializar({
+    tituloModulo: 'Oficina de Control',
+    subtituloModulo: 'Consola de Administracion y Boveda Comercial',
+    permitirPinDirecto: true,
+    onSesionLista: async function(contexto) {
+        window.idNegocioLogueado = contexto.idNegocio;
+        await GeokatuDB.SecurityService.sellarSesionTerminalLocal(contexto.idNegocio);
 
         var uidBadge = document.getElementById('ofi-uid-badge');
-        if (uidBadge) uidBadge.innerText = 'ID: ' + user.uid.slice(0, 8) + '...';
+        if (uidBadge) uidBadge.innerText = 'ID: ' + String(contexto.idNegocio).slice(0, 8) + '...';
 
         await inicializarConsolaOficina();
 
@@ -320,68 +418,48 @@ var loginScreen = document.getElementById('login-screen');
         if (progreso >= 100) {
             if (dashboardScreen) dashboardScreen.style.display = 'flex';
         } else if (progreso >= 60) {
-            // Paso 3: Ubicación y Gemelo Digital
             window.iniciarSandboxGeoespacial(false);
         } else if (progreso >= 30) {
-            // Paso 2: ADN y Branding
             if (fasePin) fasePin.style.display = 'block';
             window.cargarDiccionarioEmojis();
             window.actualizarPinLive();
         } else {
-            // Paso 1: Identidad y Operación
             if (faseIdentidad) faseIdentidad.style.display = 'block';
-            window.hidratarCamposPaso1Identidad(user.email);
+            var emailActivo = (AuthGate._estado.usuarioAuth && AuthGate._estado.usuarioAuth.email) ? AuthGate._estado.usuarioAuth.email : '';
+            window.hidratarCamposPaso1Identidad(emailActivo);
         }
+    },
+    onCerrarSesion: function() {
+        // Purga atómica de memoria para que nunca quede rota la pantalla
+        if (typeof window.desuscripcionAlertas === 'function') {
+            window.desuscripcionAlertas();
+        }
+        if (window.miniMapaPerfil) {
+            window.miniMapaPerfil.remove();
+            window.miniMapaPerfil = null;
+        }
+        // Ocultar todas las áreas operativas
+        var dashboardScreen = document.getElementById('dashboard-screen');
+        var faseIdentidad = document.getElementById('fase-1-identidad');
+        var fasePin = document.getElementById('fase-1-pin');
+        var faseMapa = document.getElementById('fase-mapa-sandbox');
 
+        if (dashboardScreen) dashboardScreen.style.display = 'none';
+        if (faseIdentidad) faseIdentidad.style.display = 'none';
+        if (fasePin) fasePin.style.display = 'none';
+        if (faseMapa) faseMapa.style.display = 'none';
 
-
-} else {
-
-const loginScreen = document.getElementById('login-screen');
-
-const dashboardScreen = document.getElementById('dashboard-screen');
-
-if (loginScreen) loginScreen.style.display = 'block';
-
-if (dashboardScreen) dashboardScreen.style.display = 'none';
-
-
-
-if (typeof window.desuscripcionAlertas === 'function') {
-
-window.desuscripcionAlertas();
-
-}
-
-}
-
+        window.datosTienda = {};
+        window.idNegocioLogueado = null;
+    }
 });
 
-
-
-window.iniciarSesionGoogle = async function() {
-
-const res = await GeokatuDB.SecurityService.iniciarConGoogle();
-
-if (!res.success) alert("Error de autenticación: " + res.error);
-
-};
-
-
-
 window.cerrarSesionOficina = async function() {
-
-if (confirm("¿Cerrar sesión de la consola de administración?")) {
-
-await GeokatuDB.SecurityService.cerrarSesion();
-
-GeokatuDB.SecurityService.destruirSesionTerminalLocal();
-
-window.location.reload();
-
-}
-
+    if (confirm("¿Cerrar sesión de la consola de administración?")) {
+        await AuthGate.cerrarSesion();
+    }
 };
+
 
 
 
@@ -509,10 +587,13 @@ elLogo.style.display = 'block';
 
 
 
-if (badgePlan) {
-    badgePlan.innerText = 'PLAN: ' + (window.datosTienda.premium ? 'PREMIUM VIP' : 'ESTÁNDAR');
-    if (window.datosTienda.premium) badgePlan.classList.add('premium');
-}
+// Disparar tour guiado si el usuario entra por primera vez a la consola
+        if (window.GeokatuTour && typeof window.GeokatuTour.iniciar === 'function') {
+            setTimeout(function() {
+                window.GeokatuTour.iniciar('oficina');
+            }, 800);
+        }
+
 
 // Diagnóstico Siigo Nube
 const fis = window.datosTienda.perfil_fiscal;
@@ -560,27 +641,85 @@ console.error("[Oficina] Fallo en arranque general:", err);
 
 async function cargarKpisDashboard() {
     try {
-        const acum = JSON.parse(localStorage.getItem('geokatu_acumulado_' + window.idNegocioLogueado) || "{}");
+        const tenantId = window.idNegocioLogueado;
+        if (!tenantId) return;
+
+        // 1. Lectura inmediata desde cache local (0 ms, 0 lecturas en Firestore)
+        const acum = JSON.parse(localStorage.getItem('geokatu_acumulado_' + tenantId) || "{}");
         const totalVendido = (acum.efectivo || 0) + (acum.tarjeta || 0) + (acum.nequi || 0);
         const elVentas = document.getElementById('kpi-ventas-dia');
         if (elVentas) elVentas.innerText = '$' + totalVendido.toLocaleString('es-CO');
 
-        const prodsSnap = await getDocs(collection(db, 'Directorio/' + window.idNegocioLogueado + '/productos'));
-        let cantProds = 0;
-        prodsSnap.forEach(d => { if (!d.data().eliminado) cantProds++; });
+        const claveCacheCat = 'geokatu_catalogo_' + tenantId;
+        const catalogoLocalStr = localStorage.getItem(claveCacheCat);
+        let catalogoMemoria = [];
+        try {
+            catalogoMemoria = catalogoLocalStr ? JSON.parse(catalogoLocalStr) : [];
+        } catch (eC) {
+            catalogoMemoria = [];
+        }
+
         const elTotal = document.getElementById('kpi-articulos-total');
-        if (elTotal) elTotal.innerText = cantProds;
+        if (elTotal) {
+            const cantActivos = catalogoMemoria.filter(function(p) { return !p.eliminado; }).length;
+            elTotal.innerText = cantActivos;
+        }
 
-        const ventasSnap = await getDocs(query(collection(db, 'Directorio/' + window.idNegocioLogueado + '/Ventas_POS'), limit(100)));
+        const claveCacheVentas = 'geokatu_ventas_cache_' + tenantId;
+        const ventasLocalStr = localStorage.getItem(claveCacheVentas);
+        window.ventasCacheGlobal = [];
+        try {
+            window.ventasCacheGlobal = ventasLocalStr ? JSON.parse(ventasLocalStr) : [];
+        } catch (eV) {
+            window.ventasCacheGlobal = [];
+        }
+
         const elTickets = document.getElementById('kpi-tickets-cant');
-        if (elTickets) elTickets.innerText = ventasSnap.size;
+        if (elTickets) elTickets.innerText = window.ventasCacheGlobal.length;
 
-        // Escuchar y reflejar incidencias en tiempo real desde el arranque
+        // 2. Sincronización ligera por deltas en segundo plano (solo si hay red)
+        if (navigator.onLine) {
+            // A. Sincronizar unicamente productos modificados despues del ultimoSync
+            const resSync = await GeokatuDB.PosService.descargarCatalogoLocal(tenantId, false);
+            if (resSync && resSync.success && elTotal) {
+                const cantActivosSync = (resSync.data || []).filter(function(p) { return !p.eliminado; }).length;
+                elTotal.innerText = cantActivosSync;
+            }
+
+            // B. Traer unicamente tickets creados despues del ultimo timestamp guardado
+            const ultimoSyncVentas = localStorage.getItem('geokatu_ventas_sync_' + tenantId) || new Date(Date.now() - 86400000).toISOString();
+            const ventasRef = collection(db, 'Directorio/' + tenantId + '/Ventas_POS');
+            const qVentasDelta = query(ventasRef, where("timestamp_caja", ">", ultimoSyncVentas), limit(50));
+            const snapVentasDelta = await getDocs(qVentasDelta);
+
+            if (!snapVentasDelta.empty) {
+                const mapaVentas = new Map();
+                window.ventasCacheGlobal.forEach(function(v) { mapaVentas.set(v.ticketIdLocal || v.id_doc, v); });
+                snapVentasDelta.forEach(function(docSnap) {
+                    const dataV = docSnap.data();
+                    dataV.id_doc = docSnap.id;
+                    mapaVentas.set(dataV.ticketIdLocal || docSnap.id, dataV);
+                });
+                window.ventasCacheGlobal = Array.from(mapaVentas.values());
+                window.ventasCacheGlobal.sort(function(a, b) {
+                    var fA = a.fecha_creacion || a.timestamp_caja || 0;
+                    var fB = b.fecha_creacion || b.timestamp_caja || 0;
+                    return new Date(fB).getTime() - new Date(fA).getTime();
+                });
+                localStorage.setItem(claveCacheVentas, JSON.stringify(window.ventasCacheGlobal));
+                localStorage.setItem('geokatu_ventas_sync_' + tenantId, new Date().toISOString());
+            }
+
+            if (elTickets) elTickets.innerText = window.ventasCacheGlobal.length;
+        }
+
+        // C. Refrescar alertas en tiempo real
         window.cargarAlertasSeguridad();
     } catch (err) {
         console.warn("[Oficina] Error al cargar KPIs:", err.message);
     }
 }
+
 
 
 
@@ -625,27 +764,26 @@ window.cargarMisProductos = async function(reiniciar) {
     var cont = document.getElementById('lista-productos-container');
     var btnMas = document.getElementById('btn-cargar-mas');
     if (!cont) return;
-
     if (reiniciar) {
-        cont.innerHTML = "<p style='text-align:center; color:#888; padding:20px 0;'>Cargando inventario...</p>";
+        cont.innerHTML = "<p style='text-align:center; color:#888; padding:20px 0;'>Cargando inventario en 0 ms...</p>";
         window.ultimoDocCatalogo = null;
         window.listaProductosGlobal = [];
     } else if (btnMas) {
         btnMas.innerText = "Cargando...";
         btnMas.disabled = true;
     }
-
     try {
-        var filtros = {
-            terminoBusqueda: window.terminoBusquedaActual,
-            limite: 20,
-            startAfterDoc: reiniciar ? null : window.ultimoDocCatalogo
-        };
+        // Carga instantanea desde la cache local unificada de PosService
+        if (reiniciar) {
+            var resCache = await GeokatuDB.PosService.descargarCatalogoLocal(window.idNegocioLogueado, false);
+            if (resCache && resCache.success && Array.isArray(resCache.data)) {
+                window.listaProductosGlobal = resCache.data.filter(function(p) { return !p.eliminado; });
+            }
+        }
+        var success = true;
+        var data = window.listaProductosGlobal;
+        var ultimoDoc = null;
 
-        var resp = await GeokatuDB.AdminService.obtenerProductos(window.idNegocioLogueado, filtros);
-        var success = resp.success;
-        var data = resp.data;
-        var ultimoDoc = resp.ultimoDoc;
 
         if (reiniciar) cont.innerHTML = "";
         if (!success || (data.length === 0 && reiniciar)) {
@@ -1181,16 +1319,26 @@ document.addEventListener('click', function(e) {
 });
 
 // --- BOTTOM SHEET Y FORMULARIO DE PRODUCTO ---
-window.actualizarNombreImagenUI = function(input, idTexto) {
+window.blobProductoEditadoCatalogo = null;
+
+window.actualizarNombreImagenUI = async function(input, idTexto) {
     var textoUI = document.getElementById(idTexto);
     if (input.files && input.files[0] && textoUI) {
-        var reader = new FileReader();
-        reader.onload = function(e) {
-            textoUI.innerHTML = '<img src="' + e.target.result + '" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">';
-        };
-        reader.readAsDataURL(input.files[0]);
+        var editada = await window.GeokatuEstudio.editarImagen(input.files[0], {
+            maxAncho: 800,
+            maxAlto: 800,
+            calidad: 0.84,
+            titulo: 'Editar Foto del Producto'
+        });
+        if (!editada) {
+            input.value = '';
+            return;
+        }
+        window.blobProductoEditadoCatalogo = editada.blob;
+        textoUI.innerHTML = '<img src="' + editada.dataUrl + '" style="width:100%;height:100%;object-fit:contain;border-radius:12px;">';
     }
 };
+
 
 window.previsualizarImagenProducto = function(input) {
     window.actualizarNombreImagenUI(input, 'file-upload-text');
@@ -1432,19 +1580,34 @@ window.guardarProducto = async function() {
         var barcodeVal = document.getElementById('prodBarcode') ? document.getElementById('prodBarcode').value.trim() : "";
         var urlImg = document.getElementById('prodImagenActual').value.trim() || '';
         var fInput = document.getElementById('prodImagenFile');
-        var f = (fInput && fInput.files) ? fInput.files[0] : null;
+        var f = (fInput && fInput.files && fInput.files.length > 0) ? fInput.files[0] : null;
 
-        // Pipeline canónico con compresión centralizada
-        if (f) {
-            var resFoto = await GeokatuDB.AdminService.subirFotoProductoCanonica(
-                window.idNegocioLogueado,
-                barcodeVal,
-                f,
-                'frontal'
-            );
-            if (!resFoto.success) throw new Error(resFoto.error || "Fallo en subida canónica.");
-            urlImg = resFoto.data;
+       // Subida de imagen usando el Blob editado en el Estudio 2D (con transparencia WebP intacta)
+        if (window.blobProductoEditadoCatalogo || f) {
+            var blobWebpProd = window.blobProductoEditadoCatalogo || (await window.comprimirImagen(f, 600, 0.75, true));
+            var codNombreArchivo = (barcodeVal || 'prod') + '_' + Date.now();
+            var pathFoto = 'productos/' + window.idNegocioLogueado + '/' + codNombreArchivo + '.webp';
+            var resFoto = await GeokatuDB.AdminService.subirArchivo(pathFoto, blobWebpProd);
+            window.blobProductoEditadoCatalogo = null;
+
+
+            if (resFoto) {
+                if (typeof resFoto === 'string') {
+                    urlImg = resFoto;
+                } else if (resFoto.data && typeof resFoto.data === 'string') {
+                    urlImg = resFoto.data;
+                } else if (resFoto.data && resFoto.data.url) {
+                    urlImg = resFoto.data.url;
+                } else if (resFoto.url) {
+                    urlImg = resFoto.url;
+                }
+            }
+
+            if (!urlImg) {
+                console.warn("[Catálogo] Aviso: La subida de imagen no retornó URL válida.");
+            }
         }
+
 
     
 var esVenezuela = window.datosTienda.pais === 'VEN';
@@ -1805,16 +1968,22 @@ window.cargarDiccionarioEmojis = function() {
     });
 };
 
-window.cargarPreviewPinModal = function(input) {
+window.blobPinEditadoModal = null;
+window.cargarPreviewPinModal = async function(input) {
     if (input.files && input.files[0]) {
-        var reader = new FileReader();
-        reader.onload = function(e) { 
-            window.imagenCargadaTemporalModal = e.target.result;
-            window.actualizarPinLiveModal();
-        };
-        reader.readAsDataURL(input.files[0]);
+        var editada = await window.GeokatuEstudio.editarImagen(input.files[0], {
+            maxAncho: 500,
+            maxAlto: 500,
+            calidad: 0.85,
+            titulo: 'Editar Imagen del PIN'
+        });
+        if (!editada) { input.value = ''; return; }
+        window.imagenCargadaTemporalModal = editada.dataUrl;
+        window.blobPinEditadoModal = editada.blob;
+        window.actualizarPinLiveModal();
     }
 };
+
 
 window.actualizarPinLiveModal = function() {
     var forma = document.getElementById('edit-select-forma') ? document.getElementById('edit-select-forma').value : 'forma-gota';
@@ -2645,92 +2814,58 @@ window.toggleGuardarTarjetaPopup = async function() {
 // ============================================================================
 // BLOQUE 9: AUDITORÍA DE CAJA, DATOS FISCALES & DIAN (ZERO ${})
 // ============================================================================
+window.incidenciasCacheGlobal = [];
+
 window.cargarAlertasSeguridad = function() {
     if (typeof window.desuscripcionAlertas === 'function') window.desuscripcionAlertas();
+    if (!window.idNegocioLogueado) return;
 
-    var contenedor = document.getElementById('contenedor-alertas-lista');
-    
-    // Consulta sin orderBy compuesto para no exigir índices manuales en Firestore
     var qAlertas = query(
         collection(db, "Alertas_Seguridad"),
-        where("id_negocio", "==", window.idNegocioLogueado),
-        where("estado", "==", "requiere_auditoria_urgente")
+        where("id_negocio", "==", window.idNegocioLogueado)
     );
 
     window.desuscripcionAlertas = onSnapshot(qAlertas, function(snap) {
-        var total = snap.size;
+        var todas = [];
+        var pendientes = 0;
+
+        snap.forEach(function(d) {
+            var data = d.data();
+            data.id_doc = d.id;
+            todas.push(data);
+            if (data.estado === "requiere_auditoria_urgente" || !data.resuelto) {
+                pendientes++;
+            }
+        });
+
+        // Ordenar en memoria por frescura (mas reciente arriba)
+        todas.sort(function(a, b) {
+            var tA = a.timestamp_alerta ? new Date(a.timestamp_alerta.toDate ? a.timestamp_alerta.toDate() : a.timestamp_alerta).getTime() : 0;
+            var tB = b.timestamp_alerta ? new Date(b.timestamp_alerta.toDate ? b.timestamp_alerta.toDate() : b.timestamp_alerta).getTime() : 0;
+            return tB - tA;
+        });
+
+        window.incidenciasCacheGlobal = todas;
+
+        // Actualizar tacómetro de incidencias
         var elTotal = document.getElementById('kpi-alertas-activas');
-        if (elTotal) elTotal.innerText = total;
+        if (elTotal) elTotal.innerText = pendientes;
 
-        if (!contenedor) return;
-
-        if (snap.empty) {
-            contenedor.innerHTML = 
-                '<div style="text-align: center; padding: 20px 10px; color: #888;">' +
-                    '<span style="font-size: 22px;">✅</span>' +
-                    '<h4 style="color: white; margin: 4px 0; font-size: 12px;">Inventario en Orden</h4>' +
-                    '<p style="font-size: 10.5px; margin: 0;">Sin quiebres de caja ni averías en anaquel.</p>' +
-                '</div>';
-            return;
+        // Actualizar burbuja roja urgente de aviso visual
+        var badgeUrgente = document.getElementById('badge-kpi-incidencias');
+        if (badgeUrgente) {
+            if (pendientes > 0) {
+                badgeUrgente.innerText = pendientes;
+                badgeUrgente.style.display = 'flex';
+            } else {
+                badgeUrgente.style.display = 'none';
+            }
         }
 
-        // Ordenar en memoria local por frescura sin romper Firestore
-        var alertas = [];
-        snap.forEach(function(d) { alertas.push({ id_doc: d.id, ...d.data() }); });
-        alertas.sort(function(a, b) { return new Date(b.timestamp_alerta || 0) - new Date(a.timestamp_alerta || 0); });
-
-        var html = '';
-        alertas.forEach(function(a) {
-            var fecha = a.timestamp_alerta ? new Date(a.timestamp_alerta).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
-            var esMerma = a.tipo === 'MERMA_EN_ANAQUEL';
-            
-            // Resolución inteligente del nombre del artículo
-            var nombreProd = a.nombre_producto || '';
-            if (!nombreProd && a.id_producto) {
-                var match = window.listaProductosGlobal.find(function(p) { return p.id_prod === a.id_producto; });
-                nombreProd = match ? match.nombre : a.id_producto;
-            }
-            if (!nombreProd) nombreProd = "Artículo sin identificar";
-            var nomProdLimpio = nombreProd.replace(/'/g, "\\'");
-
-                        var esFantasma = a.tipo === 'PRODUCTO_FANTASMA_OFFLINE';
-            var etiquetaBadge = esMerma ? 'Avería / Merma' : (esFantasma ? 'Producto Fantasma' : 'Quiebre en Caja');
-            
-            var estiloBadge = esMerma 
-                ? 'background:rgba(255,170,0,0.18); color:#ffaa00; border:1px solid rgba(255,170,0,0.4);' 
-                : (esFantasma ? 'background:rgba(184,68,255,0.18); color:#b844ff; border:1px solid rgba(184,68,255,0.4);' : 'background:rgba(255,68,68,0.2); color:#ff4444; border:1px solid rgba(255,68,68,0.4);');
-
-            var cuerpoDetalle = esMerma
-                ? '<p style="font-size:10.5px; color:#aaa; margin:2px 0 0 0;">' +
-                    'Anaquel: <strong style="color:white; font-family:monospace;">' + (a.id_mueble || 'Góndola') + ' [' + (a.id_compartimiento || 'BIN') + ']</strong><br>' +
-                    'Motivo: <span style="color:#ddd;">' + (a.motivo || 'Reporte físico') + '</span>' +
-                  '</p>'
-                : '<p style="font-size:10.5px; color:#aaa; margin:2px 0 0 0;">' +
-                    'Saldo en sistema: <strong style="color:#ff4444; font-family:monospace;">' + (a.stock_negativo_registrado !== undefined ? a.stock_negativo_registrado : 0) + ' und</strong> (Venta: ' + (a.cantidad_despachada || 1) + ' und)<br>' +
-                    '<span style="color:#888; font-size:10px; display:block; margin-top:3px;">' +
-                        '🧾 Ticket: <strong style="color:#fff;">' + (a.ticket_origen || 'DESCONOCIDO') + '</strong> | 👤 ' + (a.cajero || 'Caja') + ' (' + (a.terminal || 'CAJA-01') + ')' +
-                    '</span>' +
-                    (esFantasma ? '<span style="color:#b844ff; font-size:9px; display:block; margin-top:2px;">⚠️ ' + (a.motivo || 'Producto borrado en nube previo a sincronización') + '</span>' : '') +
-                  '</p>';
-
-            var saldoParaModal = esMerma ? ('En ' + (a.id_compartimiento || 'Góndola')) : ((a.stock_negativo_registrado !== undefined ? a.stock_negativo_registrado : 0) + ' und');
-
-            html += 
-                '<div class="incidente-item" style="border-left-color: ' + (esMerma ? '#ffaa00' : '#ff4444') + ';">' +
-                    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
-                        '<span class="badge-alerta-urgente" style="' + estiloBadge + '">' + etiquetaBadge + '</span>' +
-                        '<span style="font-size:10px; color:#888; font-family:monospace;">' + fecha + '</span>' +
-                    '</div>' +
-                    '<div>' +
-                        '<strong style="font-size:12.5px; color:white;">' + nombreProd + '</strong>' +
-                        cuerpoDetalle +
-                    '</div>' +
-                    '<button type="button" class="btn-submit" style="margin-top:6px !important; padding:6px !important; font-size:10.5px; background:rgba(0,255,100,0.15); border:1px solid rgba(0,255,100,0.4); color:#00ff64;" onclick="window.abrirModalConciliacion(\'' + a.id_doc + '\', \'' + (a.id_producto || '') + '\', \'' + nomProdLimpio + '\', \'' + saldoParaModal + '\')">' +
-                        'Conciliar Stock Físico' +
-                    '</button>' +
-                '</div>';
-        });
-        contenedor.innerHTML = html;
+        // Si la modal esta abierta visualizando incidencias, refrescar en caliente
+        if (window.tipoKpiActivoModal === 'incidencias') {
+            window.filtrarContenidoKpiModal();
+        }
     }, function(err) {
         console.warn("[Alertas] Error en radar de seguridad:", err.message);
     });
@@ -2910,6 +3045,10 @@ window.cargarEquipoOficina = async function() {
                 selectDest.innerHTML += '<option value="' + d.id + '">' + (emp.nombre || emp.email) + '</option>';
             }
 
+            var textoHorario = (emp.horario_laboral && emp.horario_laboral.activo)
+                ? (emp.horario_laboral.hora_inicio_str + ' - ' + emp.horario_laboral.hora_fin_str)
+                : 'Turno Libre 24/7';
+
             html += 
                 '<div style="background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); border-radius:10px; padding:10px 12px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">' +
                     '<div style="text-align:left;">' +
@@ -2917,12 +3056,16 @@ window.cargarEquipoOficina = async function() {
                             '<strong style="color:white; font-size:12.5px;">' + (emp.nombre || emp.email) + '</strong>' +
                             '<span style="background:rgba(255,107,0,0.2); color:var(--naranja); padding:1px 5px; border-radius:4px; font-family:monospace; font-size:10px; font-weight:900;">PIN: ' + (emp.codigo_cajero || '----') + '</span>' +
                         '</div>' +
-                        '<span style="color:#777; font-size:10.5px;">' + emp.email + '</span>' +
+                        '<div style="display:flex; gap:8px; align-items:center; margin-top:2px;">' +
+                            '<span style="color:#777; font-size:10.5px;">' + emp.email + '</span>' +
+                            '<span style="color:#aaa; font-size:9.5px; font-family:monospace; background:rgba(255,255,255,0.06); padding:1px 5px; border-radius:4px;">' + textoHorario + '</span>' +
+                        '</div>' +
                     '</div>' +
                     '<span style="background:' + rolInfo.col + '; color:white; font-weight:bold; font-size:9.5px; padding:3px 7px; border-radius:6px; text-transform:uppercase;">' +
                         rolInfo.txt +
                     '</span>' +
                 '</div>';
+
         });
         contenedor.innerHTML = html;
     } catch (e) {
@@ -2955,16 +3098,38 @@ window.registrarEmpleado = async function() {
     var btn = document.getElementById('btn-crear-empleado');
 
     if (!email || pass.length < 6 || !/^\d{4}$/.test(codigo)) {
-        return alert("Completa el correo, clave (mín. 6 caracteres) y un PIN numérico de 4 dígitos.");
+        return alert("Completa el correo, clave (min. 6 caracteres) y un PIN numerico de 4 digitos.");
+    }
+
+    // Calculo del contrato de horario laboral
+    var chkHorario = document.getElementById('emp-horario-activo');
+    var tieneHorario = chkHorario ? chkHorario.checked : false;
+    var horarioPayload = null;
+
+    if (tieneHorario) {
+        var hIni = document.getElementById('emp-hora-inicio').value || '07:00';
+        var hFin = document.getElementById('emp-hora-fin').value || '16:00';
+        var pIni = hIni.split(':');
+        var pFin = hFin.split(':');
+        var minInicio = (parseInt(pIni[0], 10) * 60) + parseInt(pIni[1], 10);
+        var minFin = (parseInt(pFin[0], 10) * 60) + parseInt(pFin[1], 10);
+
+        horarioPayload = {
+            activo: true,
+            hora_inicio_str: hIni,
+            hora_fin_str: hFin,
+            hora_inicio_minutos: minInicio,
+            hora_fin_minutos: minFin,
+            dias_permitidos: [1, 2, 3, 4, 5, 6], // Lunes a Sabado
+            tolerancia_minutos: 45
+        };
     }
 
     btn.innerText = "Registrando...";
     btn.disabled = true;
-
     try {
         var funcModule = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js');
         var forjarOperario = funcModule.httpsCallable(funcModule.getFunctions(db.app), 'crearOperarioComercio');
-
         var res = await forjarOperario({
             idNegocio: window.idNegocioLogueado,
             nombre: nombre || email.split('@')[0],
@@ -2973,8 +3138,10 @@ window.registrarEmpleado = async function() {
             passwordTemporal: pass,
             codigoCajero: codigo,
             rol: rol,
-            almacenHabitual: almacen
+            almacenHabitual: almacen,
+            horarioLaboral: horarioPayload
         });
+
 
         if (!res.data || !res.data.success) {
             throw new Error((res.data && res.data.mensaje) ? res.data.mensaje : "Fallo en servidor.");
@@ -3113,24 +3280,146 @@ window.imagenCargadaTemporalPaso1 = null;
 window.mapaOnboarding = null;
 window.markerOnboarding = null;
 
-window.cargarPreviewPin = function(input) {
+window.blobPinEditadoPaso1 = null;
+window.cargarPreviewPin = async function(input) {
+    if (input.files && input.files[0]) {
+        var editada = await window.GeokatuEstudio.editarImagen(input.files[0], {
+            maxAncho: 500,
+            maxAlto: 500,
+            calidad: 0.85,
+            titulo: 'Editar Imagen del PIN'
+        });
+        if (!editada) { input.value = ''; return; }
+        window.imagenCargadaTemporalPaso1 = editada.dataUrl;
+        window.blobPinEditadoPaso1 = editada.blob;
+        window.actualizarPinLive();
+        window.extraerColoresDeImagen(window.imagenCargadaTemporalPaso1).then(function(pal) {
+            if (pal && pal.c1) {
+                window.setSlotColor(1, pal.c1);
+                if (pal.c2) window.setSlotColor(2, pal.c2);
+                window.actualizarPinLive();
+            }
+        }).catch(function() {});
+    }
+};
+
+
+// ============================================================================
+// MOTOR MÁGICO: EXTRACCIÓN AUTOMÁTICA DE PALETA DESDE IMAGEN (MICRO-CANVAS 2D)
+// ============================================================================
+window.extraerColoresDeImagen = function(imgSrcODataUrl) {
+    return new Promise(function(resolve, reject) {
+        if (!imgSrcODataUrl) return reject(new Error("No hay imagen disponible"));
+        var img = new Image();
+        img.crossOrigin = "Anonymous";
+        img.onload = function() {
+            var canvas = document.createElement('canvas');
+            var ctx = canvas.getContext('2d');
+            canvas.width = 40;
+            canvas.height = 40;
+            ctx.drawImage(img, 0, 0, 40, 40);
+            var data = ctx.getImageData(0, 0, 40, 40).data;
+            
+            var cubos = {};
+            for (var i = 0; i < data.length; i += 4) {
+                var r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+                if (a < 128) continue; // Descartar píxeles transparentes
+                if (r > 240 && g > 240 && b > 240) continue; // Descartar blanco puro
+                if (r < 20 && g < 20 && b < 20) continue; // Descartar negro puro
+                
+                // Cuantización de color a saltos de 24
+                var qr = Math.round(r / 24) * 24;
+                var qg = Math.round(g / 24) * 24;
+                var qb = Math.round(b / 24) * 24;
+                var hex = '#' + ((1 << 24) + (qr << 16) + (qg << 8) + qb).toString(16).slice(1).toUpperCase();
+                cubos[hex] = (cubos[hex] || 0) + 1;
+            }
+            
+            var ordenados = Object.keys(cubos).sort(function(a, b) { return cubos[b] - cubos[a]; });
+            var c1 = ordenados[0] || '#FF6B00';
+            var c2 = ordenados[1] || '#8A909D';
+            resolve({ c1: c1, c2: c2 });
+        };
+        img.onerror = reject;
+        img.src = imgSrcODataUrl;
+    });
+};
+
+window.ejecutarExtraccionMagicaColores = async function(contexto) {
+    var fotoSrc = (contexto === 'fase1') 
+        ? window.imagenCargadaTemporalPaso1 
+        : (window.imagenCargadaTemporalModal || window.datosTienda.link_pin);
+
+    if (!fotoSrc) {
+        alert("Primero carga una foto al PIN o pulsa 'Otra Foto' para seleccionar un volante o logo.");
+        return;
+    }
+
+    try {
+        var pal = await window.extraerColoresDeImagen(fotoSrc);
+        if (pal && pal.c1) {
+            window.setSlotColor(1, pal.c1);
+            if (pal.c2) window.setSlotColor(2, pal.c2);
+            if (contexto === 'fase1') window.actualizarPinLive();
+            else window.actualizarPinLiveModal();
+            if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+        }
+    } catch (e) {
+        alert("No se pudieron extraer colores de la imagen: " + e.message);
+    }
+};
+
+window.extraerColoresDesdeInput = function(input, contexto) {
     if (input.files && input.files[0]) {
         var reader = new FileReader();
-        reader.onload = function(e) {
-            window.imagenCargadaTemporalPaso1 = e.target.result;
-            window.actualizarPinLive();
+        reader.onload = async function(e) {
+            try {
+                var pal = await window.extraerColoresDeImagen(e.target.result);
+                if (pal && pal.c1) {
+                    window.setSlotColor(1, pal.c1);
+                    if (pal.c2) window.setSlotColor(2, pal.c2);
+                    if (contexto === 'fase1') window.actualizarPinLive();
+                    else window.actualizarPinLiveModal();
+                    if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+                }
+            } catch (err) {
+                alert("Error analizando foto: " + err.message);
+            }
         };
         reader.readAsDataURL(input.files[0]);
     }
 };
 
-window.actualizarPinLive = function() {
-    var forma = document.getElementById('select-forma').value;
-    var anim = document.getElementById('select-animacion') ? document.getElementById('select-animacion').value : 'anim-salto';
-    var color = document.getElementById('wizColorHex1') ? document.getElementById('wizColorHex1').value : '#ff6b00';
-    var efectoRaw = document.getElementById('select-efecto') ? document.getElementById('select-efecto').value : '';
-    window.actualizarContenedorPin('pin-live-preview', 'img-live-preview', forma, color, efectoRaw, window.imagenCargadaTemporalPaso1, anim);
+window.volverAFase1Identidad = function() {
+    var f1 = document.getElementById('fase-1-identidad');
+    var f2 = document.getElementById('fase-1-pin');
+    if (f2) f2.style.display = 'none';
+    if (f1) f1.style.display = 'block';
 };
+
+window.volverAFase2Pin = function() {
+    var f2 = document.getElementById('fase-1-pin');
+    var f3 = document.getElementById('fase-mapa-sandbox');
+    if (f3) f3.style.display = 'none';
+    if (f2) f2.style.display = 'block';
+    window.actualizarPinLive();
+};
+
+
+window.actualizarPinLive = function() {
+    var forma = document.getElementById('select-forma') ? document.getElementById('select-forma').value : 'forma-gota';
+    var anim = document.getElementById('select-animacion') ? document.getElementById('select-animacion').value : 'anim-salto';
+    var efectoRaw = document.getElementById('select-efecto') ? document.getElementById('select-efecto').value : '';
+    var c1 = document.getElementById('wizColorHex1') ? document.getElementById('wizColorHex1').value : '#ff6b00';
+    var c2 = document.getElementById('wizColorHex2') ? document.getElementById('wizColorHex2').value : '';
+    var c3 = document.getElementById('wizColorHex3') ? document.getElementById('wizColorHex3').value : '';
+    var c4 = document.getElementById('wizColorHex4') ? document.getElementById('wizColorHex4').value : '';
+    var foto = window.imagenCargadaTemporalPaso1 || (window.datosTienda && window.datosTienda.link_pin) || null;
+
+    // Se respetan los 11 parámetros exactos para que la imagen no caiga en el argumento de color
+    window.actualizarContenedorPin('pin-live-preview', 'img-live-preview', forma, c1, c2, c3, c4, efectoRaw, foto, anim, '');
+};
+
 
 window.guardarPaso2ADN = async function() {
     var btn = document.getElementById('btn-siguiente-fase');
@@ -3246,12 +3535,23 @@ window.iniciarSandboxGeoespacial = function() {
 
     window.markerOnboarding.on('dragend', function() {
         var pos = window.markerOnboarding.getLngLat();
+        window.datosTienda.Coordenadas = { latitude: pos.lat, longitude: pos.lng };
         if (selectorPais) {
             selectorPais.value = window.detectarPaisPorCoordenadas(pos.lat, pos.lng);
         }
     });
 
-    // Al tocar el pin en el paso de onboarding, se despliega el Gemelo Digital para verificar los datos
+    // Permite tocar cualquier parte del mapa para mover el pin allí
+    window.mapaOnboarding.on('click', function(e) {
+        if (window.popupActivo) window.popupActivo.remove();
+        window.markerOnboarding.setLngLat(e.lngLat);
+        window.datosTienda.Coordenadas = { latitude: e.lngLat.lat, longitude: e.lngLat.lng };
+        if (selectorPais) {
+            selectorPais.value = window.detectarPaisPorCoordenadas(e.lngLat.lat, e.lngLat.lng);
+        }
+    });
+
+    // Solo abre el gemelo si el usuario hace clic expresamente en el pin, no automáticamente para que no tape el mapa
     elDOM.addEventListener('click', function(e) {
         e.stopPropagation();
         window.abrirGemeloDigitalEnMapa(window.mapaOnboarding, window.markerOnboarding);
@@ -3259,9 +3559,8 @@ window.iniciarSandboxGeoespacial = function() {
 
     setTimeout(function() { 
         window.mapaOnboarding.resize(); 
-        // Abrir automáticamente el Gemelo Digital para confirmar visualmente
-        window.abrirGemeloDigitalEnMapa(window.mapaOnboarding, window.markerOnboarding);
-    }, 450);
+    }, 300);
+
 };
 
 // Función genérica para renderizar el Gemelo Digital en cualquier instancia de mapa
@@ -3419,7 +3718,32 @@ window.guardarPaso3Ubicacion = async function() {
     if (t.nombre_png) payloadFinal.nombre_png = t.nombre_png;
 
     try {
-        await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, payloadFinal);
+        // 1. Payload público de cartografía (sin teléfonos planos)
+        var payloadPublico = Object.assign({}, payloadFinal);
+        delete payloadPublico.whatsapp;
+        delete payloadPublico.whatsApp;
+        delete payloadPublico.telefonos;
+        delete payloadPublico.pbx;
+        delete payloadPublico.correo;
+        delete payloadPublico.email;
+
+        await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, payloadPublico);
+
+        // 2. Colección protegida de contacto (solo expone el correo si el usuario marcó el check público)
+        var correoPublicoAutorizado = (t.mostrar_correo_publico === true) ? (t.correo || t.email || "") : "";
+        await setDoc(doc(db, "Directorio_Contacto", window.idNegocioLogueado), {
+            id: window.idNegocioLogueado,
+            whatsapp: t.whatsapp || t.whatsApp || "",
+            telefonos: t.telefonos || [t.whatsapp || ""],
+            pbx: t.pbx || "",
+            correo: correoPublicoAutorizado,
+            mostrar_correo_publico: Boolean(t.mostrar_correo_publico === true),
+            instagram: t.instagram || "",
+            web: t.web || t.sitio_web || "",
+            fecha_actualizacion: new Date().toISOString()
+        }, { merge: true });
+
+
         localStorage.setItem('geokatu_pais_' + window.idNegocioLogueado, paisElegido);
 
         btn.innerText = "Bóveda Lista";
@@ -3444,18 +3768,24 @@ window.hidratarCamposPaso1Identidad = function(emailAuth) {
     var inWa = document.getElementById('wiz-whatsapp');
     var inPbx = document.getElementById('wiz-pbx');
     var inCor = document.getElementById('wiz-correo-publico');
+    var chkCorPub = document.getElementById('wiz-check-correo-publico');
     var inIg = document.getElementById('wiz-instagram');
     var inWeb = document.getElementById('wiz-web');
     var chk24 = document.getElementById('wiz-check-24h');
     var hIni = document.getElementById('wiz-hora-inicio');
     var hFin = document.getElementById('wiz-hora-fin');
-
     if (inNom) inNom.value = (t.nombre && t.nombre !== 'Mi Negocio') ? t.nombre : '';
     if (inSlo) inSlo.value = t.slogan || '';
     if (inNic) inNic.value = t.nicho || t.categoria || '';
     if (inWa) inWa.value = t.whatsapp || t.whatsApp || '';
     if (inPbx) inPbx.value = t.pbx || '';
     if (inCor) inCor.value = t.correo || t.email || emailAuth || '';
+
+    // Por defecto el correo es PRIVADO (false), salvo que el comercio ya hubiera activado mostrarlo
+    var mostrarCorreo = Boolean(t.mostrar_correo_publico === true);
+    if (chkCorPub) chkCorPub.checked = mostrarCorreo;
+    window.toggleVisibilidadCorreoWizard(mostrarCorreo);
+
     if (inIg) inIg.value = String(t.instagram || '').replace(/^@/, '');
     if (inWeb) inWeb.value = t.sitio_web || t.web || '';
 
@@ -3473,7 +3803,6 @@ window.toggleHorario24HWizard = function(es24) {
     var contRango = document.getElementById('contenedor-rango-horas');
     var hIni = document.getElementById('wiz-hora-inicio');
     var hFin = document.getElementById('wiz-hora-fin');
-
     if (contRango) {
         contRango.style.opacity = es24 ? "0.35" : "1";
         contRango.style.pointerEvents = es24 ? "none" : "auto";
@@ -3482,29 +3811,34 @@ window.toggleHorario24HWizard = function(es24) {
     if (hFin) hFin.disabled = es24;
 };
 
+window.toggleVisibilidadCorreoWizard = function(esPublico) {
+    var inCor = document.getElementById('wiz-correo-publico');
+    if (inCor) {
+        inCor.style.opacity = esPublico ? "1" : "0.55";
+        inCor.style.borderColor = esPublico ? "var(--naranja)" : "var(--glass-border)";
+    }
+};
+
 window.guardarPaso1Identidad = async function() {
     var nom = document.getElementById('wiz-nombre').value.trim();
     var nic = document.getElementById('wiz-nicho').value.trim();
     var wa = document.getElementById('wiz-whatsapp').value.trim().replace(/\D/g, '');
-
     if (!nom) return alert("Por favor ingresa el nombre comercial.");
     if (!nic) return alert("Selecciona o escribe el nicho o categoría de tu negocio.");
     if (wa.length < 7) return alert("Ingresa un número de WhatsApp válido.");
-
     var btn = document.getElementById('btn-guardar-paso-1');
     btn.innerText = "Guardando...";
     btn.disabled = true;
-
     var es24 = document.getElementById('wiz-check-24h').checked;
     var horarioStr = es24 
         ? "24 Horas" 
         : (document.getElementById('wiz-hora-inicio').value + " - " + document.getElementById('wiz-hora-fin').value);
-
     var igHandle = document.getElementById('wiz-instagram').value.trim().replace(/^@/, '');
     var webUrl = document.getElementById('wiz-web').value.trim();
-    var correoPub = document.getElementById('wiz-correo-publico').value.trim();
+    var correoInput = document.getElementById('wiz-correo-publico').value.trim();
+    var chkCorreoPub = document.getElementById('wiz-check-correo-publico');
+    var mostrarCorreoPub = chkCorreoPub ? chkCorreoPub.checked : false;
     var pbxVal = document.getElementById('wiz-pbx').value.trim();
-
     var payloadIdentidad = {
         nombre: nom,
         slogan: document.getElementById('wiz-slogan').value.trim(),
@@ -3516,8 +3850,10 @@ window.guardarPaso1Identidad = async function() {
         whatsApp: wa,
         telefonos: [wa],
         pbx: pbxVal,
-        correo: correoPub,
-        email: correoPub,
+        correo_interno: correoInput,
+        correo: mostrarCorreoPub ? correoInput : "",
+        email: mostrarCorreoPub ? correoInput : "",
+        mostrar_correo_publico: mostrarCorreoPub,
         instagram: igHandle,
         web: webUrl,
         sitio_web: webUrl,
@@ -3544,6 +3880,490 @@ window.guardarPaso1Identidad = async function() {
     }
 };
 
+window.marcarIncidenciaRevisada = async function(idAlerta) {
+    try {
+        await updateDoc(doc(db, "Alertas_Seguridad", idAlerta), {
+            estado: "auditada_resuelta",
+            resuelto: true,
+            fecha_auditoria: new Date().toISOString()
+        });
+        if (navigator.vibrate) navigator.vibrate(20);
+    } catch (e) {
+        alert("Error al archivar incidencia: " + e.message);
+    }
+};
+// ============================================================================
+// CONTROLADOR DEL BOTTOM-SHEET DRILLDOWN DE MÉTRICAS, INCIDENCIAS Y GESTOS
+// ============================================================================
+window.tipoKpiActivoModal = null;
+window.tabIndiceKpiActivo = 0;
+
+window.mostrarTooltipKpiHelp = function(btnElement) {
+    if (navigator.vibrate) navigator.vibrate(25);
+    var el = document.getElementById('tooltip-kpi-info');
+    if (!el) return;
+    el.innerHTML = 
+        '<div style="display:flex; gap:8px; align-items:flex-start;">' +
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--naranja)" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>' +
+            '<div style="flex:1;">' +
+                '<strong style="color:#ffffff; display:block; margin-bottom:2px;">Métricas Interactivas</strong>' +
+                '<p style="margin:0; color:#b5b5be; line-height:1.35; font-size:10.5px;">Toca cualquier tarjeta de métrica para desplegar su historial detallado, auditoría de hoy y filtros por código o fecha.</p>' +
+            '</div>' +
+        '</div>';
+    el.style.display = 'block';
+    el.classList.remove('fade-out');
+    el.classList.add('activo');
+    setTimeout(function() {
+        el.classList.add('fade-out');
+        setTimeout(function() {
+            el.style.display = 'none';
+            el.classList.remove('activo');
+            el.classList.remove('fade-out');
+        }, 350);
+    }, 4500);
+};
+
+window.abrirModalDetalleKPI = function(tipo) {
+    if (navigator.vibrate) navigator.vibrate(30);
+    window.tipoKpiActivoModal = tipo;
+    window.tabIndiceKpiActivo = 0;
+
+    // Registrar estado en el historial del navegador para capturar el botón atrás
+    window.history.pushState({ modal_kpi_abierta: true }, '');
+
+    var titulos = {
+        incidencias: { t: "Incidencias y Auditoría", sub: "Control de seguridad, stock y turnos" },
+        ventas: { t: "Ventas y Recaudos", sub: "Desglose financiero del comercio" },
+        tickets: { t: "Tickets Emitidos", sub: "Trazabilidad de cajas y comprobantes" },
+        articulos: { t: "Inventario de Catálogo", sub: "Estado de existencias en mostrador" }
+    };
+
+    var config = titulos[tipo] || { t: "Desglose Operativo", sub: "Registros en tiempo real" };
+    document.getElementById('txt-kpi-sheet-titulo').innerText = config.t;
+    document.getElementById('txt-kpi-sheet-subtitulo').innerText = config.sub;
+
+    // Configuración de los nombres de pestañas según la métrica
+    var tabNombres = {
+        incidencias: ["Hoy", "Pendientes", "Historial"],
+        ventas: ["Hoy", "Grandes", "Historial"],
+        tickets: ["Hoy", "Con DIAN", "Historial"],
+        articulos: ["En Stock", "Agotados", "Bajo Stock"]
+    };
+
+    var nombres = tabNombres[tipo] || ["Hoy", "Pendientes", "Historial"];
+    for (var i = 0; i < 3; i++) {
+        var btnTab = document.getElementById('kpi-tab-' + i);
+        if (btnTab) {
+            btnTab.innerText = nombres[i];
+            if (i === 0) btnTab.classList.add('activo');
+            else btnTab.classList.remove('activo');
+        }
+    }
+
+    window.limpiarFiltrosKpiModal(false);
+
+    var overlay = document.getElementById('overlay-kpi-drilldown');
+    var sheet = document.getElementById('sheet-kpi-drilldown');
+    if (overlay) overlay.style.display = 'flex';
+    setTimeout(function() {
+        if (sheet) sheet.classList.add('activo');
+    }, 10);
+
+    window.filtrarContenidoKpiModal();
+};
+
+window.conmutarTabModalKPI = function(indice) {
+    if (navigator.vibrate) navigator.vibrate(20);
+    window.tabIndiceKpiActivo = indice;
+    for (var i = 0; i < 3; i++) {
+        var btn = document.getElementById('kpi-tab-' + i);
+        if (btn) {
+            if (i === indice) btn.classList.add('activo');
+            else btn.classList.remove('activo');
+        }
+    }
+    window.filtrarContenidoKpiModal();
+};
+
+window.limpiarFiltrosKpiModal = function(ejecutarRender = true) {
+    var inCod = document.getElementById('kpi-filtro-codigo');
+    var inOp = document.getElementById('kpi-filtro-operario');
+    var inFec = document.getElementById('kpi-filtro-fecha');
+    if (inCod) inCod.value = '';
+    if (inOp) inOp.value = '';
+    if (inFec) inFec.value = '';
+    if (ejecutarRender) window.filtrarContenidoKpiModal();
+};
+
+window.cerrarModalDetalleKPI = function(desdePopstate = false) {
+    var sheet = document.getElementById('sheet-kpi-drilldown');
+    var overlay = document.getElementById('overlay-kpi-drilldown');
+    if (sheet) sheet.classList.remove('activo');
+    setTimeout(function() {
+        if (overlay) overlay.style.display = 'none';
+        window.tipoKpiActivoModal = null;
+    }, 280);
+
+    // Si se cerro por clic exterior o boton X, revertir el pushState sin salir de oficina
+    if (!desdePopstate && window.history.state && window.history.state.modal_kpi_abierta) {
+        window.history.back();
+    }
+};
+
+// ============================================================================
+// MOTOR DE FILTRADO Y RENDERIZADO DEL CONTENIDO DE LA MODAL
+// ============================================================================
+window.filtrarContenidoKpiModal = function() {
+    var contenedor = document.getElementById('kpi-modal-lista-scroll');
+    if (!contenedor) return;
+
+    var tipo = window.tipoKpiActivoModal;
+    var tabIdx = window.tabIndiceKpiActivo;
+
+    var fCodigo = (document.getElementById('kpi-filtro-codigo')?.value || '').trim().toLowerCase();
+    var fOp = (document.getElementById('kpi-filtro-operario')?.value || '').trim().toLowerCase();
+    var fFecha = document.getElementById('kpi-filtro-fecha')?.value || '';
+
+    // 1. RENDERIZADO DE LA MÉTRICA DE INCIDENCIAS
+    if (tipo === 'incidencias') {
+        var lista = [].concat(window.incidenciasCacheGlobal || []);
+        var ahora = new Date();
+        var inicioHoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()).getTime();
+
+        // Filtro por pestaña
+        if (tabIdx === 0) {
+            // "Hoy": incidencias desde las 00:00 de hoy
+            lista = lista.filter(function(a) {
+                var t = a.timestamp_alerta ? new Date(a.timestamp_alerta.toDate ? a.timestamp_alerta.toDate() : a.timestamp_alerta).getTime() : 0;
+                return t >= inicioHoy;
+            });
+        } else if (tabIdx === 1) {
+            // "Pendientes": las que requieran atencion
+            lista = lista.filter(function(a) {
+                return a.estado === "requiere_auditoria_urgente" || !a.resuelto;
+            });
+        }
+        // tabIdx === 2 es "Historial" (muestra todas en orden cronologico)
+
+        // Filtros manuales del submenu superior
+        if (fCodigo) {
+            lista = lista.filter(function(a) {
+                return (a.codigo_cajero && a.codigo_cajero.toLowerCase().indexOf(fCodigo) !== -1) ||
+                       (a.id_producto && a.id_producto.toLowerCase().indexOf(fCodigo) !== -1) ||
+                       (a.id_compartimiento && a.id_compartimiento.toLowerCase().indexOf(fCodigo) !== -1);
+            });
+        }
+        if (fOp) {
+            lista = lista.filter(function(a) {
+                return (a.cajero && a.cajero.toLowerCase().indexOf(fOp) !== -1) ||
+                       (a.operador_uid && a.operador_uid.toLowerCase().indexOf(fOp) !== -1) ||
+                       (a.codigo_cajero && a.codigo_cajero.toLowerCase().indexOf(fOp) !== -1);
+            });
+        }
+        if (fFecha) {
+            lista = lista.filter(function(a) {
+                var dStr = a.timestamp_alerta ? new Date(a.timestamp_alerta.toDate ? a.timestamp_alerta.toDate() : a.timestamp_alerta).toISOString().split('T')[0] : '';
+                return dStr === fFecha;
+            });
+        }
+
+        if (lista.length === 0) {
+            var msjsVacios = [
+                "Sin incidencias registradas hoy.",
+                "No hay incidencias pendientes por resolver.",
+                "Historial de incidencias vacio."
+            ];
+            contenedor.innerHTML = '<p style="text-align: center; color: #888; font-style: italic; padding: 40px 10px; font-size: 12px; margin: 0;">' + (msjsVacios[tabIdx] || "Sin registros.") + '</p>';
+            return;
+        }
+
+        var html = '';
+        lista.forEach(function(a) {
+            var fechaObj = a.timestamp_alerta ? new Date(a.timestamp_alerta.toDate ? a.timestamp_alerta.toDate() : a.timestamp_alerta) : null;
+            var fechaStr = fechaObj ? (fechaObj.toLocaleDateString() + ' ' + fechaObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) : '--:--';
+            var estaResuelta = Boolean(a.resuelto);
+
+            if (a.tipo === 'ACCESO_FUERA_DE_TURNO') {
+                var coordsTxt = (a.coordenadas && a.coordenadas.lat) 
+                    ? (a.coordenadas.lat + ', ' + a.coordenadas.lng + ' (±' + (a.coordenadas.precision_m || 0) + 'm)')
+                    : 'Sin coordenadas';
+
+                html += 
+                    '<div class="incidente-item" style="border-left-color: ' + (estaResuelta ? '#00ff64' : '#ffaa00') + '; background: rgba(0,0,0,0.45); padding: 10px 12px;">' +
+                        '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+                            '<span class="badge-alerta-urgente" style="background:' + (estaResuelta ? 'rgba(0,255,100,0.15)' : 'rgba(255,170,0,0.18)') + '; color:' + (estaResuelta ? '#00ff64' : '#ffaa00') + '; border:1px solid ' + (estaResuelta ? 'rgba(0,255,100,0.4)' : 'rgba(255,170,0,0.4)') + '; font-size:9.5px;">Acceso Fuera de Turno</span>' +
+                            '<span style="font-size:10px; color:#888; font-family:monospace;">' + fechaStr + '</span>' +
+                        '</div>' +
+                        '<div style="margin-top:4px;">' +
+                            '<strong style="font-size:12px; color:white;">Operario: OP #' + (a.codigo_cajero || '----') + ' (' + (a.rol || 'Caja') + ')</strong>' +
+                            '<p style="font-size:10.5px; color:#aaa; margin:2px 0 0 0;">' +
+                                'Motivo: <span style="color:#ffaa00;">' + (a.motivo || 'Ingreso extraordinario') + '</span><br>' +
+                                'GPS: <span style="color:#ddd; font-family:monospace;">' + coordsTxt + '</span>' +
+                            '</p>' +
+                        '</div>' +
+                        (!estaResuelta 
+                            ? '<button type="button" class="btn-submit" style="margin-top:8px !important; padding:6px !important; font-size:10px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#ddd;" onclick="window.marcarIncidenciaRevisada(\'' + a.id_doc + '\')">Marcar como Revisado</button>' 
+                            : '<span style="font-size:9.5px; color:#00ff64; font-weight:bold; margin-top:6px; display:block;">Revisado / Auditado</span>') +
+                    '</div>';
+            } else {
+                var esMerma = a.tipo === 'MERMA_EN_ANAQUEL';
+                var nomProd = a.nombre_producto || a.id_producto || "Articulo";
+                var nomLimpio = nomProd.replace(/'/g, "\\'");
+
+                html += 
+                    '<div class="incidente-item" style="border-left-color: ' + (estaResuelta ? '#00ff64' : (esMerma ? '#ffaa00' : '#ff4444')) + '; background: rgba(0,0,0,0.45); padding: 10px 12px;">' +
+                        '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+                            '<span class="badge-alerta-urgente" style="background:' + (estaResuelta ? 'rgba(0,255,100,0.15)' : 'rgba(255,68,68,0.2)') + '; color:' + (estaResuelta ? '#00ff64' : '#ff4444') + '; border:1px solid ' + (estaResuelta ? 'rgba(0,255,100,0.4)' : 'rgba(255,68,68,0.4)') + ';">' + (esMerma ? 'Averia Anaquel' : 'Quiebre Stock') + '</span>' +
+                            '<span style="font-size:10px; color:#888; font-family:monospace;">' + fechaStr + '</span>' +
+                        '</div>' +
+                        '<div style="margin-top:4px;">' +
+                            '<strong style="font-size:12px; color:white;">' + nomProd + '</strong>' +
+                            '<p style="font-size:10.5px; color:#aaa; margin:2px 0 0 0;">' + (a.motivo || 'Desfase de unidades en anaquel') + '</p>' +
+                        '</div>' +
+                        (!estaResuelta 
+                            ? '<button type="button" class="btn-submit" style="margin-top:8px !important; padding:6px !important; font-size:10.5px; background:rgba(0,255,100,0.15); border:1px solid rgba(0,255,100,0.4); color:#00ff64;" onclick="window.abrirModalConciliacion(\'' + a.id_doc + '\', \'' + (a.id_producto || '') + '\', \'' + nomLimpio + '\', \'' + (a.stock_negativo_registrado || 0) + '\')">Conciliar Stock Fisico</button>'
+                            : '<span style="font-size:9.5px; color:#00ff64; font-weight:bold; margin-top:6px; display:block;">Conciliado</span>') +
+                    '</div>';
+            }
+        });
+        contenedor.innerHTML = html;
+        return;
+    }
+
+    // 2. RENDERIZADO DE LAS OTRAS 3 MÉTRICAS (CATÁLOGO, TICKETS, VENTAS)
+    if (tipo === 'articulos') {
+        var prods = [].concat(window.listaProductosGlobal || []);
+        if (tabIdx === 1) prods = prods.filter(p => p.agotado);
+        else if (tabIdx === 2) prods = prods.filter(p => (Number(p.stock_actual) || 0) <= 3 && !p.agotado);
+        else prods = prods.filter(p => !p.agotado);
+
+        if (fCodigo) prods = prods.filter(p => (p.codigo_barras && p.codigo_barras.toLowerCase().includes(fCodigo)) || p.id_prod.toLowerCase().includes(fCodigo));
+        if (fOp) prods = prods.filter(p => p.nombre.toLowerCase().includes(fOp));
+
+        if (prods.length === 0) {
+            contenedor.innerHTML = '<p style="text-align: center; color: #888; font-style: italic; padding: 40px 10px; font-size: 12px; margin: 0;">Sin articulos bajo este criterio.</p>';
+            return;
+        }
+
+        var htmlArt = '';
+        prods.forEach(p => {
+            htmlArt += 
+                '<div style="background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center;">' +
+                    '<div>' +
+                        '<strong style="color:white; font-size:12px; display:block;">' + p.nombre + '</strong>' +
+                        '<span style="font-size:10px; color:#888; font-family:monospace;">EAN: ' + (p.codigo_barras || 'S/N') + ' | Cat: ' + (p.categoria || 'Gral') + '</span>' +
+                    '</div>' +
+                    '<div style="text-align:right;">' +
+                        '<strong style="color:var(--naranja); font-size:13px; font-family:monospace;">$' + p.precio + '</strong>' +
+                        '<span style="display:block; font-size:10px; color:' + (p.agotado ? '#ff4444' : '#00ff64') + '; font-weight:bold;">' + (p.agotado ? 'AGOTADO' : (p.stock_actual + ' ' + (p.unidad_medida || 'und'))) + '</span>' +
+                    '</div>' +
+                '</div>';
+        });
+        contenedor.innerHTML = htmlArt;
+        return;
+    }
+
+    // 3. RENDERIZADO DE LA MÉTRICA: VENTAS DEL DÍA
+    if (tipo === 'ventas') {
+        var ventas = [].concat(window.ventasCacheGlobal || []);
+        var ahora = new Date();
+        var inicioHoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()).getTime();
+
+        // Filtro por pestañas de Ventas: ["Hoy", "Grandes", "Historial"]
+        if (tabIdx === 0) {
+            // "Hoy": Ventas asentadas desde las 00:00 de hoy
+            ventas = ventas.filter(function(v) {
+                var t = v.fecha_creacion || v.timestamp || 0;
+                return new Date(t).getTime() >= inicioHoy;
+            });
+        } else if (tabIdx === 1) {
+            // "Grandes": Ventas destacadas con ticket superior a $50.000 COP
+            ventas = ventas.filter(function(v) {
+                var total = Number(v.total_cobrado || v.total || 0);
+                return total >= 50000;
+            });
+        }
+        // tabIdx === 2 es "Historial" (todas las ventas ordenadas cronológicamente)
+
+        // Filtros manuales del submenú superior
+        if (fCodigo) {
+            ventas = ventas.filter(function(v) {
+                var tId = (v.ticketIdLocal || v.id_doc || '').toLowerCase();
+                return tId.indexOf(fCodigo) !== -1;
+            });
+        }
+        if (fOp) {
+            ventas = ventas.filter(function(v) {
+                var op = (v.cajero_pin || v.cajero || v.operador_uid || '').toLowerCase();
+                return op.indexOf(fOp) !== -1;
+            });
+        }
+        if (fFecha) {
+            ventas = ventas.filter(function(v) {
+                var t = v.fecha_creacion || v.timestamp || '';
+                var dStr = t ? new Date(t).toISOString().split('T')[0] : '';
+                return dStr === fFecha;
+            });
+        }
+
+        if (ventas.length === 0) {
+            var msjsVaciosVentas = [
+                "No hay ventas registradas el día de hoy.",
+                "No hay ventas de alto valor registradas.",
+                "Historial de ventas vacío."
+            ];
+            contenedor.innerHTML = '<p style="text-align:center; color:#888; font-style:italic; padding:40px 10px; font-size:12px; margin:0;">' + (msjsVaciosVentas[tabIdx] || "Sin ventas.") + '</p>';
+            return;
+        }
+
+        var htmlVentas = '';
+        ventas.forEach(function(v) {
+            var total = Number(v.total_cobrado || v.total || 0);
+            var fecha = v.fecha_creacion || v.timestamp;
+            var horaStr = fecha ? new Date(fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+            var fechaStr = fecha ? new Date(fecha).toLocaleDateString() : '';
+            var cantItems = Array.isArray(v.items) ? v.items.length : (v.total_articulos || 1);
+            var medioPago = v.medio_pago || (Array.isArray(v.pagos) && v.pagos[0] ? v.pagos[0].metodo : 'EFECTIVO');
+
+            htmlVentas += 
+                '<div style="background:rgba(0,0,0,0.4); border:1px solid var(--glass-border); border-radius:12px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center;">' +
+                    '<div>' +
+                        '<div style="display:flex; align-items:center; gap:6px;">' +
+                            '<strong style="color:#ffffff; font-size:12.5px; font-family:monospace;">' + (v.ticketIdLocal || v.id_doc.slice(-6).toUpperCase()) + '</strong>' +
+                            '<span style="background:rgba(0,255,100,0.12); color:#00ff64; font-size:9.5px; padding:1px 5px; border-radius:4px; font-weight:bold; text-transform:uppercase;">' + medioPago + '</span>' +
+                        '</div>' +
+                        '<span style="font-size:10px; color:#888; display:block; margin-top:2px;">' + cantItems + ' art. | OP: ' + (v.cajero_pin || '0000') + ' | ' + fechaStr + ' ' + horaStr + '</span>' +
+                    '</div>' +
+                    '<div style="text-align:right;">' +
+                        '<strong style="color:#00ff64; font-size:14px; font-family:monospace;">$' + total.toLocaleString('es-CO') + '</strong>' +
+                    '</div>' +
+                '</div>';
+        });
+        contenedor.innerHTML = htmlVentas;
+        return;
+    }
+
+    // 4. RENDERIZADO DE LA MÉTRICA: TICKETS EMITIDOS
+    if (tipo === 'tickets') {
+        var tickets = [].concat(window.ventasCacheGlobal || []);
+        var ahoraT = new Date();
+        var inicioHoyT = new Date(ahoraT.getFullYear(), ahoraT.getMonth(), ahoraT.getDate()).getTime();
+
+        // Filtro por pestañas de Tickets: ["Hoy", "Con DIAN", "Historial"]
+        if (tabIdx === 0) {
+            tickets = tickets.filter(function(tk) {
+                var t = tk.fecha_creacion || tk.timestamp || 0;
+                return new Date(t).getTime() >= inicioHoyT;
+            });
+        } else if (tabIdx === 1) {
+            // "Con DIAN": Comprobantes enviados o enlazados a facturación electrónica
+            tickets = tickets.filter(function(tk) {
+                return tk.factura_electronica || (tk.despacho_fiscal && tk.despacho_fiscal.estado === 'FACTURADO_EXITOSO');
+            });
+        }
+        // tabIdx === 2 es "Historial"
+
+        if (fCodigo) {
+            tickets = tickets.filter(function(tk) {
+                var tId = (tk.ticketIdLocal || tk.id_doc || '').toLowerCase();
+                return tId.indexOf(fCodigo) !== -1;
+            });
+        }
+        if (fOp) {
+            tickets = tickets.filter(function(tk) {
+                var op = (tk.cajero_pin || tk.cajero || tk.operador_uid || '').toLowerCase();
+                return op.indexOf(fOp) !== -1;
+            });
+        }
+        if (fFecha) {
+            tickets = tickets.filter(function(tk) {
+                var t = tk.fecha_creacion || tk.timestamp || '';
+                var dStr = t ? new Date(t).toISOString().split('T')[0] : '';
+                return dStr === fFecha;
+            });
+        }
+
+        if (tickets.length === 0) {
+            var msjsVaciosTickets = [
+                "No hay tickets timbrados hoy.",
+                "No hay facturas electrónicas DIAN en este periodo.",
+                "Historial de tickets vacío."
+            ];
+            contenedor.innerHTML = '<p style="text-align:center; color:#888; font-style:italic; padding:40px 10px; font-size:12px; margin:0;">' + (msjsVaciosTickets[tabIdx] || "Sin comprobantes.") + '</p>';
+            return;
+        }
+
+        var htmlTickets = '';
+        tickets.forEach(function(tk) {
+            var total = Number(tk.total_cobrado || tk.total || 0);
+            var fecha = tk.fecha_creacion || tk.timestamp;
+            var fechaCompleta = fecha ? new Date(fecha).toLocaleDateString() + ' ' + new Date(fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+            var esDian = tk.factura_electronica || (tk.despacho_fiscal && tk.despacho_fiscal.estado === 'FACTURADO_EXITOSO');
+            var cufeOId = (tk.despacho_fiscal && tk.despacho_fiscal.consecutivo) ? tk.despacho_fiscal.consecutivo : (tk.ticketIdLocal || tk.id_doc.slice(-6).toUpperCase());
+
+            htmlTickets += 
+                '<div style="background:rgba(0,0,0,0.4); border:1px solid var(--glass-border); border-radius:12px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center;">' +
+                    '<div>' +
+                        '<div style="display:flex; align-items:center; gap:6px;">' +
+                            '<strong style="color:#ffffff; font-size:12px; font-family:monospace;">#' + cufeOId + '</strong>' +
+                            '<span style="background:' + (esDian ? 'rgba(96,165,250,0.18)' : 'rgba(255,255,255,0.06)') + '; color:' + (esDian ? '#60a5fa' : '#888') + '; font-size:9px; padding:1px 5px; border-radius:4px; font-weight:bold;">' + (esDian ? 'DIAN ELECTRÓNICA' : 'EQUIVALENTE POS') + '</span>' +
+                        '</div>' +
+                        '<span style="font-size:10px; color:#888; display:block; margin-top:2px;">Cajero: OP #' + (tk.cajero_pin || '0000') + ' | ' + fechaCompleta + '</span>' +
+                    '</div>' +
+                    '<div style="text-align:right;">' +
+                        '<strong style="color:#60a5fa; font-size:13.5px; font-family:monospace;">$' + total.toLocaleString('es-CO') + '</strong>' +
+                    '</div>' +
+                '</div>';
+        });
+        contenedor.innerHTML = htmlTickets;
+        return;
+    }
+
+};
+
+// ============================================================================
+// GESTOS TÁCTILES: SWIPE DOWN TO DISMISS & ATRÁS NATIVO DE ANDROID
+// ============================================================================
+window.addEventListener('popstate', function(e) {
+    var overlayKpi = document.getElementById('overlay-kpi-drilldown');
+    if (overlayKpi && overlayKpi.style.display !== 'none') {
+        window.cerrarModalDetalleKPI(true);
+        return;
+    }
+});
+
+// Soporte de deslizamiento táctil hacia abajo en la cabecera de la modal
+(function inicializarGestoArrastreKpi() {
+    var handle = document.getElementById('drag-handle-kpi');
+    var sheet = document.getElementById('sheet-kpi-drilldown');
+    if (!handle || !sheet) return;
+
+    var inicioY = 0;
+    var deltaY = 0;
+
+    handle.addEventListener('touchstart', function(e) {
+        inicioY = e.touches[0].clientY;
+        sheet.style.transition = 'none';
+    }, { passive: true });
+
+    handle.addEventListener('touchmove', function(e) {
+        deltaY = e.touches[0].clientY - inicioY;
+        if (deltaY > 0) {
+            sheet.style.transform = 'translateY(' + deltaY + 'px)';
+        }
+    }, { passive: true });
+
+    handle.addEventListener('touchend', function() {
+        sheet.style.transition = 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)';
+        if (deltaY > 90) {
+            window.cerrarModalDetalleKPI();
+        } else {
+            sheet.style.transform = 'translateY(0)';
+        }
+        inicioY = 0;
+        deltaY = 0;
+    });
+})();
 
 
 

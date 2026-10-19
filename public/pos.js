@@ -1,11 +1,12 @@
 import GeokatuDB from './core-db.js';
 import { BillingGuard } from './billing-guard.js';
+import { AuthGate } from './auth-gate.js'; 
+import './geokatu-tour.js';
+import { MotorLector } from './lector-motor.js';
 import { MotorBalanza } from './balanza-motor.js';
 import { MotorCajonMonedero } from './cajon-motor.js';
+import { QRLocal } from './qrcode-local.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-
-// Obviamos MotorLector y QRLocal como módulos ES6 estrictos porque fallan sus rutas/exports. 
-// Usaremos la instancia global de Html5Qrcode directamente desde el HTML, como lo haces en stock.html.
 
 const auth = getAuth();
 const motorCajon = new MotorCajonMonedero();
@@ -40,29 +41,45 @@ let cajaNumeroActiva = localStorage.getItem('geokatu_caja_num') || "CAJA-01";
  
 
 // ==========================================
-// 1. INICIALIZACIÓN DE SESIÓN Y CATÁLOGO
+// 1. INICIALIZACIÓN DE TERMINAL MEDIANTE AUTH-GATE (DEFINITIVA)
 // ==========================================
-GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
-    if (user && user.uid) {
-        const idTenant = localStorage.getItem('geokatu_active_uid') || user.uid;
-        idNegocio = idTenant;
+AuthGate.inicializar({
+    tituloModulo: 'Punto de Venta POS',
+    subtituloModulo: 'Caja Registradora y Facturacion Local',
+    minutosInactividad: 10,
+    onSesionLista: async function(contexto) {
+        idNegocio = contexto.idNegocio;
+        localStorage.setItem('geokatu_active_uid', contexto.idNegocio);
 
-        // 🛡️ SELLADO DE ENCLAVE CRIPTOGRÁFICO DE TERMINAL LOCAL
-        await GeokatuDB.SecurityService.sellarSesionTerminalLocal(idTenant);
+        // 1. Asignación de credencial de cajero (Soporta relevo en caliente Josefa / Pepito)
+        if (contexto.codigoCajero) {
+            cajeroCodigoActivo = String(contexto.codigoCajero).trim();
+            localStorage.setItem('geokatu_cajero_pin', cajeroCodigoActivo);
+        } else if (contexto.esDueno) {
+            var sufijoDueno = String(contexto.idNegocio).slice(-4).toUpperCase();
+            cajeroCodigoActivo = 'D-' + sufijoDueno;
+            localStorage.setItem('geokatu_cajero_pin', cajeroCodigoActivo);
+        }
 
-        // 🚦 Lectura de estado fiscal y cuota del comercio matriz con persistencia para impresión
+        // 2. Sellado criptográfico de terminal
+        await GeokatuDB.SecurityService.sellarSesionTerminalLocal(contexto.idNegocio);
+
+        // 3. Actualizar indicador visual del cajero en cabecera
+        var elCajero = document.getElementById('t-cajero-cod');
+        if (elCajero) elCajero.innerText = 'OP #' + cajeroCodigoActivo;
+
+        // 4. Lectura de estado fiscal y cuota del comercio
         try {
-            const { success: sNeg, data: dNeg } = await GeokatuDB.LocalService.getDetails(idTenant);
-            if (sNeg && dNeg) {
-                const pais = dNeg.pais || localStorage.getItem(`geokatu_pais_${idTenant}`);
-                if (pais === 'VEN') {
-                    console.warn("[Router POS] Comercio de Venezuela detectado. Redirigiendo a posven.html...");
-                    window.location.replace('posven.html');
+            var resDetalles = await GeokatuDB.LocalService.getDetails(contexto.idNegocio);
+            if (resDetalles.success && resDetalles.data) {
+                var dNeg = resDetalles.data;
+                var pais = dNeg.pais || localStorage.getItem('geokatu_pais_' + contexto.idNegocio);
+              if (pais === 'VEN') {
+                    console.warn("[Router POS] Comercio de Venezuela detectado. Redirigiendo a /posven...");
+                    window.location.replace('/posven');
                     return;
                 }
-
-                const perfilParaTicket = dNeg.perfil_fiscal || {
-
+                var perfilParaTicket = dNeg.perfil_fiscal || {
                     razon_social: dNeg.nombre || "GEOKATU COMERCIO",
                     nit: dNeg.nit || "",
                     dv: dNeg.dv || "0",
@@ -70,10 +87,9 @@ GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
                     regimen_tributario: dNeg.regimen_tributario || "RESPONSABLE_IVA",
                     codigo_tienda: dNeg.codigo_tienda || "T-01"
                 };
-                localStorage.setItem(`geokatu_perfil_${idTenant}`, JSON.stringify(perfilParaTicket));
+                localStorage.setItem('geokatu_perfil_' + contexto.idNegocio, JSON.stringify(perfilParaTicket));
             }
-
-            controlFacturacionActivo = (sNeg && dNeg?.facturacion_control) ? dNeg.facturacion_control : {
+            controlFacturacionActivo = (resDetalles.success && resDetalles.data && resDetalles.data.facturacion_control) ? resDetalles.data.facturacion_control : {
                 plan_activo: "FREEMIUM",
                 facturas_emitidas_mes: 0,
                 facturas_cupo_gratis: 1300,
@@ -81,79 +97,68 @@ GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
             };
             BillingGuard.verificarEstadoCuota(controlFacturacionActivo, 'pos-alerta-facturas');
         } catch (eFact) {
-            console.warn("[BillingGuard] Fallo al consultar estado de cuota:", eFact.message);
+            console.warn("[BillingGuard] Fallo al consultar cuota:", eFact.message);
         }
 
-        // Auditoría de perfil de operario y políticas de seguridad de contraseñas
-        const { getFirestore, doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
-        const db = getFirestore();
-
-        
-         try {
-            let docOperario = await getDoc(doc(db, `Directorio/${idNegocio}/Equipo`, user.uid));
-            if (!docOperario.exists()) {
-                docOperario = await getDoc(doc(db, `Directorio/${idNegocio}/Colaboradores`, user.uid));
-            }
-
-                        if (docOperario.exists()) {
-                const dataOp = docOperario.data();
-                cajeroCodigoActivo = String(dataOp.codigo_cajero || "0000").trim();
-                localStorage.setItem('geokatu_cajero_pin', cajeroCodigoActivo);
-
-                // FILTRO 1: Clave provisional de onboarding (Caduca en 48 horas)
-                if (dataOp.requiere_cambio_password) {
-                    if (dataOp.expiracion_clave_temporal && new Date() > new Date(dataOp.expiracion_clave_temporal)) {
-                        alert("La contraseña provisional ha expirado. Solicita al administrador restablecer tu clave.");
-                        GeokatuDB.SecurityService.destruirSesionTerminalLocal();
-                        window.location.href = 'oficina';
-                        return;
-                    }
-
-                    const modalPass = document.getElementById('modal-cambio-password-obligatorio');
-                    if (modalPass) modalPass.style.display = 'flex';
-                    return;
+        // 5. Auditoría de contraseña temporal (solo si ingresó con correo/clave tradicional)
+        var userAuthActual = AuthGate._estado.usuarioAuth;
+        if (userAuthActual && !contexto.esDueno) {
+            try {
+                var firestoreModule = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+                var dbInst = firestoreModule.getFirestore();
+                var docOperario = await firestoreModule.getDoc(firestoreModule.doc(dbInst, 'Directorio/' + contexto.idNegocio + '/Equipo', userAuthActual.uid));
+                if (!docOperario.exists()) {
+                    docOperario = await firestoreModule.getDoc(firestoreModule.doc(dbInst, 'Directorio/' + contexto.idNegocio + '/Colaboradores', userAuthActual.uid));
                 }
 
-                // FILTRO 2: Rotación obligatoria cada 10 semanas (70 días)
-                const DIEZ_SEMANAS_MS = 10 * 7 * 24 * 60 * 60 * 1000;
-                if (dataOp.fecha_ultimo_cambio_password) {
-                    const tiempoTranscurrido = Date.now() - new Date(dataOp.fecha_ultimo_cambio_password).getTime();
-                    if (tiempoTranscurrido > DIEZ_SEMANAS_MS) {
-                        alert("Por política de seguridad, debes renovar tu contraseña cada 10 semanas.");
-                        const modalPass = document.getElementById('modal-cambio-password-obligatorio');
+                if (docOperario.exists()) {
+                    var dataOp = docOperario.data();
+                    if (dataOp.requiere_cambio_password) {
+                        if (dataOp.expiracion_clave_temporal && new Date() > new Date(dataOp.expiracion_clave_temporal)) {
+                            alert("La contrasena provisional ha expirado. Solicita al administrador restablecer tu clave.");
+                            await AuthGate.cerrarSesion();
+                            return;
+                        }
+                        var modalPass = document.getElementById('modal-cambio-password-obligatorio');
                         if (modalPass) modalPass.style.display = 'flex';
                         return;
                     }
                 }
-            } else {
-                // Si no está en nómina de colaboradores y coincide con el comercio o titular, es el dueño
-                if (user.uid === idTenant || localStorage.getItem('geokatu_active_uid') === user.uid) {
-                    const sufijoDueno = user.uid.slice(-4).toUpperCase();
-                    cajeroCodigoActivo = `D-${sufijoDueno}`;
-                    localStorage.setItem('geokatu_cajero_pin', cajeroCodigoActivo);
-                }
+            } catch (errPerfil) {
+                console.warn("[POS] Auditoria de clave temporal omitida:", errPerfil.message);
             }
-        } catch (errPerfil) {
-            console.warn("[POS] No se pudo leer perfil de operario en línea:", errPerfil.message);
         }
 
         await inicializarCaja();
-    } else {
-         if (typeof unsubscribeSemaforoStock === 'function') {
+
+        // Lanzar tour guiado del POS al entrar el cajero
+        if (window.GeokatuTour && typeof window.GeokatuTour.iniciar === 'function') {
+            setTimeout(function() {
+                window.GeokatuTour.iniciar('pos');
+            }, 900);
+        }
+    },
+    onCerrarSesion: function() {
+
+        if (typeof unsubscribeSemaforoStock === 'function') {
             unsubscribeSemaforoStock();
             unsubscribeSemaforoStock = null;
         }
-        // 🛡️ DESTRUCCIÓN SEGURA DE ENCLAVE AL SALIR
-        GeokatuDB.SecurityService.destruirSesionTerminalLocal();
-        window.location.href = 'oficina';
+        if (typeof window.cerrarCamaraPOS === 'function') {
+            window.cerrarCamaraPOS();
+        }
+        carrito = [];
+        pagosAcumuladosTicket = [];
+        renderizarCarrito();
+        turnoCajaActivo = null;
+
+        var btnCaja = document.getElementById('txt-estado-caja-btn');
+        if (btnCaja) {
+            btnCaja.innerText = "Caja";
+            btnCaja.style.color = "#aaa";
+        }
     }
 });
-
-
-
-
-
-
 async function inicializarCaja() {
     actualizarIndicadorCola();
     cargarTicketsEnEsperaStorage();
@@ -1565,12 +1570,12 @@ function armarTirillaTermica(ticket, ticketId, datosFiscales = null) {
     }
 
 
-        // 7. Código de barras Code-128 para devolución rápida por escáner
+    // 7. Código de barras Code-128 para devolución rápida por escáner
     const txtBarcode = document.getElementById('t-barcode-text');
     if (txtBarcode) txtBarcode.innerText = ticketId;
-    // Forzamos la llamada directa al generador nativo que ya tienes definido arriba
-    generarCode128SVG(ticketId, 't-barcode-svg');
-
+    if (typeof generarCode128SVG === 'function') {
+        generarCode128SVG(ticketId, 't-barcode-svg');
+    }
 }
 
 // ==========================================
@@ -1725,22 +1730,20 @@ window.procesarArchivoRespaldoSeleccionado = (event) => {
     reader.readAsText(file);
 };
 
-// 3. Cierre de sesión individual del cajero (mantiene el turno de caja abierto)
-window.cerrarSesionCajeroPOS = async () => {
+// 3. Cierre de sesión atómico mediante AuthGate
+window.cerrarSesionCajeroPOS = async function() {
     window.cerrarMenuOpcionesPOS();
-    if (carrito.length > 0 && !confirm("Hay artículos en el carrito actual. ¿Seguro que deseas salir sin completar la venta?")) {
+    if (carrito.length > 0 && !confirm("Hay articulos en el carrito actual. Deseas salir sin completar la venta?")) {
         return;
     }
-
     try {
-        await GeokatuDB.SecurityService.cerrarSesion();
-        GeokatuDB.SecurityService.destruirSesionTerminalLocal();
-        // Redirigir a login de oficina para que el relevo ingrese con sus credenciales
-        window.location.href = 'oficina';
+        await AuthGate.cerrarSesion();
     } catch (e) {
-        alert("Error al cerrar sesión: " + e.message);
+        alert("Error al cerrar sesion: " + e.message);
     }
 };
+
+
 
 
 window.addEventListener('online', async () => {
@@ -2874,26 +2877,26 @@ async function abrirModalFacturaDigitalQR(ticketId, telefonoPrevio = "") {
     const exp = Date.now() + (24 * 60 * 60 * 1000); // 24 horas
     const sig = await generarFirmaFactura24Horas(ticketId, exp);
 
-    window.urlFacturaActiva = window.location.origin + "/factura?com=" + idNegocio + "&tkt=" + ticketId + "&exp=" + exp + "&sig=" + sig;
+    window.urlFacturaActiva = `${window.location.origin}/factura?com=${idNegocio}&tkt=${ticketId}&exp=${exp}&sig=${sig}`;
 
-    contenedor.innerHTML = ''; 
+    contenedor.innerHTML = '';
+    const canvas = document.createElement('canvas');
+    canvas.style.display = 'block';
+    canvas.style.margin = '0 auto';
+    contenedor.appendChild(canvas);
 
-    // 🛡️ Generación 100% Offline garantizada usando qrcode.min.js
-    try {
-        if (typeof QRCode !== 'undefined') {
-            new QRCode(contenedor, {
-                text: window.urlFacturaActiva,
-                width: 220,
-                height: 220,
-                colorDark : "#000000",
-                colorLight : "#ffffff",
-                correctLevel : QRCode.CorrectLevel.M
-            });
-        } else {
-            contenedor.innerHTML = '<span style="color:#ff4444; font-size:12px; font-weight:bold;">Error: Falta qrcode.min.js en el HTML</span>';
-        }
-    } catch (err) {
-        console.warn("Fallo en generador QR:", err);
+    let renderExitoso = false;
+    if (typeof QRLocal !== 'undefined' && QRLocal.dibujarEnCanvas) {
+        try {
+            // quietZone: 4 módulos blancos mandatorios para lectura óptica en pantallas
+            QRLocal.dibujarEnCanvas(canvas, window.urlFacturaActiva, { width: 240, margin: 4 });
+            renderExitoso = true;
+        } catch (_) {}
+    }
+
+    if (!renderExitoso) {
+        // Fallback en alta resolución con margin 15px de zona muda
+        contenedor.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=15&data=${encodeURIComponent(window.urlFacturaActiva)}" style="display:block; width:220px; height:220px; margin:0 auto;" alt="QR Factura">`;
     }
 
     const inputWp = document.getElementById('input-whatsapp-cliente');

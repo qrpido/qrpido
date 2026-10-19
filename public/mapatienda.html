@@ -6,7 +6,8 @@
     <title>Plano Espacial de Tienda | Geokatu SIG</title>
     <meta name="theme-color" content="#ff6b00">
     <link rel="stylesheet" href="mapatienda.css">
-  <script src="qrcode.min.js"></script>
+    <!-- SE INCLUYE QRCODE NATIVO AQUÍ PARA EVITAR EL CRASH DEL IMPORT -->
+    <script src="qrcode.min.js" type="text/javascript"></script>
 </head>
 <body>
 
@@ -23,7 +24,7 @@
         </div>
     </div>
 
-    <!-- 2. HUD FLOTANTE SUPERIOR -->
+    <!-- 2. HUD FLOTANTE SUPERIOR ZERO-OVERFLOW (MULTI-SEDE, RADAR Y CONTROLES) -->
     <header class="hud-barra-superior">
         <select id="selector-sede-activa" class="hud-radar-select" title="Cambiar sede">
             <option value="SALA_VENTAS" selected>🏢 Principal</option>
@@ -35,13 +36,17 @@
         </div>
         <button id="btn-toggle-modo-edicion" class="btn-radar-buscar" title="Bloqueo/Desbloqueo de edición">🔒 Lectura</button>
         <button id="btn-modo-muros" class="btn-radar-buscar btn-secundario" title="Modo Muros">🧱 Muros</button>
-        <button id="btn-guardar-nube" class="btn-radar-buscar btn-secundario" title="Guardar cambios">💾 Guardar</button>
+       <button id="btn-guardar-nube" class="btn-radar-buscar btn-secundario" title="Guardar cambios">💾 Guardar</button>
+        <button type="button" class="btn-radar-buscar btn-secundario" onclick="window.AuthGate.bloquearTerminalPorInactividad();" title="Pausar o cambiar operario por PIN" style="color: var(--naranja); border-color: rgba(255, 107, 0, 0.4);">PIN</button>
+        <button id="btn-logout-mapatienda" class="btn-radar-buscar btn-secundario" title="Cerrar sesión" style="color: #ff4444; border-color: rgba(255, 68, 68, 0.4);">Salir</button>
     </header>
 
+
+
     <!-- MODAL CREACIÓN DE NUEVA TIENDA O BODEGA -->
-    <div id="modal-nueva-sede" class="modal-flotante-wrap">
+    <div id="modal-nueva-sede" class="modal-flotante-wrap" style="display: none;">
         <div class="modal-tarjeta-boveda">
-            <h3 style="margin: 0 0 15px 0; font-size: 15px; text-transform: uppercase; color: var(--naranja);">Crear Espacio / Bodega</h3>
+            <h3 style="margin: 0 0 15px 0; font-size: 15px; text-transform: uppercase; color: var(--naranja);">Crear Espacio / Tienda / Bodega</h3>
             
             <label style="font-size: 11px; color: #aaa;">IDENTIFICADOR CORTO (ID):</label>
             <input type="text" id="nueva-sede-id" class="input-modal" placeholder="Ej: BODEGA_NORTE" style="font-family: monospace; text-transform: uppercase;">
@@ -53,7 +58,7 @@
             <select id="nueva-sede-tipo" class="input-modal">
                 <option value="TIENDA" selected>🛒 Piso de Ventas / Tienda</option>
                 <option value="BODEGA">📦 Almacén / Bodega de Stock</option>
-                <option value="MIXTO">🏬 Espacio Mixto</option>
+                <option value="MIXTO">🏬 Espacio Mixto (Piso de Venta + Bodega)</option>
             </select>
 
             <div style="display: flex; gap: 10px; margin-top: 10px;">
@@ -88,7 +93,7 @@
         </button>
     </nav>
 
-    <!-- MINIMAPA MAGNÉTICO EN BURBUJA FLOTANTE -->
+    <!-- MINIMAPA MAGNÉTICO EN BURBUJA FLOTANTE COLAPSABLE -->
     <div id="contenedor-minimapa" class="minimapa-burbuja-wrap colapsado" title="Minimapa 2D">
         <div class="minimapa-header-bar">
             <span class="minimapa-titulo">RADAR 2D</span>
@@ -110,9 +115,8 @@
         <div id="drawer-lista-contenedor" class="drawer-lista-scroll"></div>
     </aside>
 
-    <!-- 4. MODALES PARAMÉTRICOS -->
-    <!-- ÁREA -->
-    <div id="modal-area" class="modal-flotante-wrap">
+    <!-- 4. MODAL PARAMÉTRICO: DELIMITAR ÁREA -->
+    <div id="modal-area" class="modal-flotante-wrap" style="display: none;">
         <div class="modal-tarjeta-boveda">
             <h3 style="margin: 0 0 15px 0; font-size: 15px; text-transform: uppercase; color: var(--naranja);">Delimitar Área de Tienda</h3>
             <label style="font-size: 11px; color: #aaa;">ANCHO EN METROS (X):</label>
@@ -128,10 +132,10 @@
         </div>
     </div>
 
-    <!-- MUEBLE -->
-    <div id="modal-mueble" class="modal-flotante-wrap">
+    <!-- 5. MODAL PARAMÉTRICO: NUEVO / EDITAR MUEBLE -->
+    <div id="modal-mueble" class="modal-flotante-wrap" style="display: none;">
         <div class="modal-tarjeta-boveda">
-            <h3 id="modal-mueble-titulo" style="margin: 0 0 15px 0; font-size: 15px; text-transform: uppercase; color: var(--naranja);">Diseñar Mueble</h3>
+            <h3 id="modal-mueble-titulo" style="margin: 0 0 15px 0; font-size: 15px; text-transform: uppercase; color: var(--naranja);">Diseñar Mueble / Estante</h3>
             
             <div style="display: flex; gap: 8px;">
                 <div style="flex: 1.5;">
@@ -188,19 +192,31 @@
         </div>
     </div>
 
-    <!-- ÍTEM -->
-    <div id="modal-item" class="modal-flotante-wrap">
+    <!-- 6. MODAL IMPRESIÓN DE SEÑALÉTICA QR -->
+    <div id="modal-impresion" class="modal-flotante-wrap" style="display: none;">
         <div class="modal-tarjeta-boveda">
-            <h3 id="modal-item-titulo" style="margin: 0 0 12px 0; font-size: 15px; text-transform: uppercase; color: var(--naranja);">Agregar Elemento</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--naranja); padding-bottom: 8px;">
+                <h3 style="margin: 0; font-size: 15px; text-transform: uppercase;">Señalética QR de Tienda</h3>
+                <button id="btn-cerrar-print" style="background: none; border: none; font-size: 18px; cursor: pointer;">✕</button>
+            </div>
+            <div class="grid-qrs-print" id="contenedor-qrs-render"></div>
+            <button onclick="window.print()" class="btn-modal-accion" style="margin-top: 10px;">🖨️ Mandar a Imprimir</button>
+        </div>
+    </div>
+
+    <!-- MODAL PARAMÉTRICO: ÍTEMS ARQUITECTÓNICOS -->
+    <div id="modal-item" class="modal-flotante-wrap" style="display: none;">
+        <div class="modal-tarjeta-boveda">
+            <h3 id="modal-item-titulo" style="margin: 0 0 12px 0; font-size: 15px; text-transform: uppercase; color: var(--naranja);">Agregar Elemento / Acceso</h3>
             
             <label style="font-size: 10px; color: #aaa;">TIPO DE ELEMENTO:</label>
             <select id="item-tipo-preset" class="input-modal">
-                <option value="PUERTA_PPAL">🚪 Puerta Principal</option>
-                <option value="PUERTA_SEC">🚪 Puerta Secundaria</option>
+                <option value="PUERTA_PPAL">🚪 Puerta Principal (Entrada)</option>
+                <option value="PUERTA_SEC">🚪 Puerta Secundaria (Acceso)</option>
                 <option value="PUERTA_BOD_INT">📦 Puerta Bodega Interna</option>
-                <option value="PUERTA_BOD_EXT">🚚 Portón Bodega Externa</option>
-                <option value="ZONA_TEXTO">🏷️ Rótulo de Zona</option>
-                <option value="SIMBOLO_FORMA">🔷 Figura Geométrica</option>
+                <option value="PUERTA_BOD_EXT">🚚 Portón Bodega / Carga Externa</option>
+                <option value="ZONA_TEXTO">🏷️ Rótulo / Cuadro de Texto</option>
+                <option value="SIMBOLO_FORMA">🔷 Símbolo / Figura Geométrica</option>
             </select>
 
             <label style="font-size: 10px; color: #aaa;">TEXTO / IDENTIFICADOR:</label>
@@ -213,29 +229,29 @@
                         <option value="rectangulo" selected>Rectángulo</option>
                         <option value="circulo">Círculo</option>
                         <option value="elipse">Elipse</option>
-                        <option value="nube">Nube Delineada</option>
+                        <option value="nube">Nube de Revisión</option>
                     </select>
                 </div>
                 <div style="flex: 1;">
                     <label style="font-size: 10px; color: #aaa;">COLOR / FONDO:</label>
                     <select id="item-color" class="input-modal">
                         <option value="rgba(0, 255, 100, 0.25)" selected>Verde Acceso</option>
-                        <option value="rgba(255, 107, 0, 0.25)">Naranja</option>
-                        <option value="rgba(0, 136, 255, 0.25)">Azul</option>
+                        <option value="rgba(255, 107, 0, 0.25)">Naranja Geokatu</option>
+                        <option value="rgba(0, 136, 255, 0.25)">Azul Operativo</option>
                         <option value="rgba(255, 68, 68, 0.25)">Rojo Restricción</option>
-                        <option value="rgba(184, 68, 255, 0.25)">Púrpura</option>
-                        <option value="rgba(255, 255, 255, 0.08)">Neutro</option>
+                        <option value="rgba(184, 68, 255, 0.25)">Púrpura Especial</option>
+                        <option value="rgba(255, 255, 255, 0.08)">Neutro Translúcido</option>
                     </select>
                 </div>
             </div>
 
             <div style="display: flex; gap: 8px;">
                 <div style="flex: 1;">
-                    <label style="font-size: 10px; color: #aaa;">ANCHO (m):</label>
+                    <label style="font-size: 10px; color: #aaa;">ANCHO (Metros):</label>
                     <input type="number" id="item-ancho" class="input-modal" value="1.2" step="0.1" min="0.4" max="20">
                 </div>
                 <div style="flex: 1;">
-                    <label style="font-size: 10px; color: #aaa;">LARGO (m):</label>
+                    <label style="font-size: 10px; color: #aaa;">LARGO (Metros):</label>
                     <input type="number" id="item-largo" class="input-modal" value="0.4" step="0.1" min="0.2" max="20">
                 </div>
             </div>
@@ -247,28 +263,166 @@
         </div>
     </div>
 
-    <!-- IMPRESIÓN QR -->
-    <div id="modal-impresion" class="modal-flotante-wrap">
-        <div class="modal-tarjeta-boveda">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--naranja); padding-bottom: 8px;">
-                <h3 style="margin: 0; font-size: 15px; text-transform: uppercase;">Señalética QR de Tienda</h3>
-                <button id="btn-cerrar-print" style="background: none; border: none; font-size: 18px; cursor: pointer;">✕</button>
-            </div>
-            <div class="grid-qrs-print" id="contenedor-qrs-render"></div>
-            <button onclick="window.print()" class="btn-modal-accion" style="margin-top: 12px;">🖨️ Mandar a Imprimir</button>
-        </div>
-    </div>
-
-    <!-- =========================================================================
-         SCRIPT PRINCIPAL BLINDADO
-         ========================================================================= -->
+    <!-- 7. SCRIPT DEL MOTOR MATEMÁTICO CANVAS & SMART GUIDES -->
     <script type="module">
         import GeokatuDB from './core-db.js';
+        import { AuthGate } from './auth-gate.js';
+        import './geokatu-tour.js';
 
-        // 1. ESTADO GLOBAL
         let idNegocio = localStorage.getItem('geokatu_active_uid') || null;
         let idSedeActiva = localStorage.getItem('geokatu_sede_activa') || 'SALA_VENTAS';
         let permisosUsuario = { autorizado: false, rol: null, puedeCrearSedes: false, puedeMoverMuebles: false };
+
+        const selectSede = document.getElementById('selector-sede-activa');
+        const btnAbrirModalSede = document.getElementById('btn-abrir-modal-sede');
+
+        // Cargar lista dinámica de sedes
+        async function cargarListaSedes() {
+            if (!idNegocio || !selectSede) return;
+            if (typeof GeokatuDB.RadarService.obtenerSedesComercio !== 'function') return;
+            const res = await GeokatuDB.RadarService.obtenerSedesComercio(idNegocio);
+             if (res && res.success && Array.isArray(res.data)) {
+                selectSede.innerHTML = '';
+                res.data.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.id_sede;
+                    const icono = s.tipo === 'BODEGA' ? '📦' : (s.tipo === 'MIXTO' ? '🏬' : '🛒');
+                    opt.innerText = icono + " " + s.nombre + " [" + (s.tipo || 'TIENDA') + "]";
+                    if (s.id_sede === idSedeActiva) opt.selected = true;
+                    selectSede.appendChild(opt);
+                });
+            }
+        }
+
+        if (selectSede) {
+            selectSede.addEventListener('change', async (e) => {
+                idSedeActiva = e.target.value;
+                localStorage.setItem('geokatu_sede_activa', idSedeActiva);
+                await hidratarPlanoNube();
+            });
+        }
+
+        if (btnAbrirModalSede) {
+            btnAbrirModalSede.addEventListener('click', () => {
+                if (!permisosUsuario.puedeCrearSedes) {
+                    alert("Solo el Dueño o un Administrador pueden crear nuevas sedes o bodegas.");
+                    return;
+                }
+                document.getElementById('modal-nueva-sede').style.display = 'flex';
+            });
+        }
+
+        const btnCancNS = document.getElementById('btn-cancelar-nueva-sede');
+        if (btnCancNS) {
+            btnCancNS.addEventListener('click', () => {
+                document.getElementById('modal-nueva-sede').style.display = 'none';
+            });
+        }
+
+        const btnGuarNS = document.getElementById('btn-guardar-nueva-sede');
+        if (btnGuarNS) {
+            btnGuarNS.addEventListener('click', async () => {
+                const rawId = document.getElementById('nueva-sede-id').value.trim();
+                const nom = document.getElementById('nueva-sede-nombre').value.trim();
+                const tipo = document.getElementById('nueva-sede-tipo').value;
+
+                if (!rawId || !nom) return alert("Completa el ID y Nombre de la nueva sede.");
+                const cleanId = rawId.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+
+                const res = await GeokatuDB.RadarService.crearSedeBodega(idNegocio, cleanId, { 
+                    nombre: nom, 
+                    tipo: tipo,
+                    fecha_creacion: new Date().toISOString()
+                });
+                if (res.success) {
+                    await GeokatuDB.RadarService.guardarMapaBodega(idNegocio, cleanId, {
+                        perimetro: { anchoM: 12, largoM: 18 },
+                        elementos: [],
+                        muros: [],
+                        sede: cleanId,
+                        tipo_espacio: tipo
+                    });
+
+                    alert("✅ Espacio [" + nom + "] (" + tipo + ") creado con éxito.");
+                    document.getElementById('modal-nueva-sede').style.display = 'none';
+                    idSedeActiva = cleanId;
+                    localStorage.setItem('geokatu_sede_activa', idSedeActiva);
+                    await cargarListaSedes();
+                    await hidratarPlanoNube();
+                } else {
+                    alert("Error creando espacio: " + res.error);
+                }
+            });
+        }
+
+        // ==========================================
+        // CONTROL DE SESIÓN Y DISEÑO ESPACIAL CON AUTH-GATE
+        // ==========================================
+        AuthGate.inicializar({
+            tituloModulo: 'Editor de Góndolas SIG',
+            subtituloModulo: 'Plano Espacial de Tienda y Diseño de Mobiliario',
+            minutosInactividad: 10,
+            onSesionLista: async function(contexto) {
+                idNegocio = contexto.idNegocio;
+                idSedeActiva = contexto.almacen || localStorage.getItem('geokatu_sede_activa') || 'SALA_VENTAS';
+
+                localStorage.setItem('geokatu_active_uid', contexto.idNegocio);
+                localStorage.setItem('geokatu_sede_activa', idSedeActiva);
+
+                // Sellado criptográfico de terminal
+                await GeokatuDB.SecurityService.sellarSesionTerminalLocal(contexto.idNegocio);
+
+                // Validación de permisos de diseño espacial
+                if (typeof GeokatuDB.RadarService.validarPermisosOperador === 'function' && !contexto.esDueno) {
+                    var emailOp = (AuthGate._estado.usuarioAuth && AuthGate._estado.usuarioAuth.email) ? AuthGate._estado.usuarioAuth.email : '';
+                    permisosUsuario = await GeokatuDB.RadarService.validarPermisosOperador(idNegocio, emailOp);
+                } else {
+                    permisosUsuario = { autorizado: true, rol: "dueno", puedeCrearSedes: true, puedeMoverMuebles: true };
+                }
+
+                if (!permisosUsuario.autorizado) {
+                    alert("Acceso denegado: " + (permisosUsuario.motivo || 'No tienes permisos para editar el plano de la tienda.'));
+                    await AuthGate.cerrarSesion();
+                    return;
+                }
+
+                if (permisosUsuario.puedeCrearSedes && btnAbrirModalSede) {
+                    btnAbrirModalSede.style.display = 'inline-block';
+                } else if (btnAbrirModalSede) {
+                    btnAbrirModalSede.style.display = 'none';
+                }
+
+                await cargarListaSedes();
+                await hidratarPlanoNube();
+
+                // Iniciar guía del editor espacial de tienda
+                if (window.GeokatuTour && typeof window.GeokatuTour.iniciar === 'function') {
+                    setTimeout(function() {
+                        window.GeokatuTour.iniciar('mapatienda');
+                    }, 850);
+                }
+            },
+
+            onCerrarSesion: async function() {
+                muebles = [];
+                itemsEspaciales = [];
+                celdasMurosBloqueadas = new Set();
+                if (contenedorMuebles) contenedorMuebles.innerHTML = '';
+                if (contenedorItems) contenedorItems.innerHTML = '';
+                window.deseleccionarMuebles();
+                window.deseleccionarItems();
+            }
+        });
+
+        // Listener del botón Salir del HUD superior
+        const btnLogoutMapatienda = document.getElementById('btn-logout-mapatienda');
+        if (btnLogoutMapatienda) {
+            btnLogoutMapatienda.addEventListener('click', async () => {
+                await AuthGate.cerrarSesion();
+            });
+        }
+
+
 
         const METRO_PX = 60;
         let perimetro = { anchoM: 12, largoM: 18 };
@@ -284,19 +438,50 @@
         let modoPincelMuros = false;
         let celdasMurosBloqueadas = new Set();
         let modoEdicionActivo = false; 
-        let viewport = { x: 40, y: 100, escala: 1 };
-        const SCALE_MIN = 0.15; 
-        const SCALE_MAX = 5.0;
 
-        let caraActivaModal = 'A';
-        let configCarasEnMemoria = {
-            A: { niveles: 4, bins: 4, activa: true },
-            B: { niveles: 0, bins: 0, activa: false },
-            C: { niveles: 0, bins: 0, activa: false },
-            D: { niveles: 0, bins: 0, activa: false }
+        window.alternarModoEdicion = function(forzarEstado) {
+            modoEdicionActivo = (forzarEstado !== undefined && forzarEstado !== null) ? forzarEstado : !modoEdicionActivo;
+            const btnModo = document.getElementById('btn-toggle-modo-edicion');
+            const vp = document.getElementById('viewport-infinito');
+
+            if (modoEdicionActivo) {
+                vp.classList.add('modo-edicion');
+                vp.classList.remove('modo-lectura');
+                if (btnModo) {
+                    btnModo.innerHTML = '🔓 Edición';
+                    btnModo.style.background = 'var(--naranja)';
+                    btnModo.style.borderColor = '#ffffff';
+                }
+            } else {
+                vp.classList.remove('modo-edicion');
+                vp.classList.add('modo-lectura');
+                window.deseleccionarMuebles();
+                if (btnModo) {
+                    btnModo.innerHTML = '🔒 Lectura';
+                    btnModo.style.background = 'rgba(255,255,255,0.08)';
+                    btnModo.style.borderColor = 'rgba(255,255,255,0.2)';
+                }
+            }
         };
 
-        // 2. REFERENCIAS DOM VITALES
+        let viewport = { x: 40, y: 100, escala: 1 };
+        const SCALE_MIN = 0.15; 
+        const SCALE_MAX = 5.0;  
+
+        window.obtenerScaleMin = function() {
+            return SCALE_MIN;
+        };
+
+        window.zoomExtents = function() {
+            const planoW = perimetro.anchoM * METRO_PX;
+            const planoH = perimetro.largoM * METRO_PX;
+            const factor = Math.min((window.innerWidth * 0.85) / planoW, (window.innerHeight * 0.85) / planoH);
+            viewport.escala = Math.max(SCALE_MIN, Math.min(factor, 2.0));
+            viewport.x = (window.innerWidth - planoW * viewport.escala) / 2;
+            viewport.y = (window.innerHeight - planoH * viewport.escala) / 2;
+            window.actualizarTransform();
+        };
+
         const vpEl = document.getElementById('viewport-infinito'); 
         const capaTransform = document.getElementById('capa-transform');
         const canvasRejilla = document.getElementById('rejilla-canvas');
@@ -305,10 +490,10 @@
         const contenedorItems = document.getElementById('contenedor-items');
         const guiaH = document.getElementById('guia-h');
         const guiaV = document.getElementById('guia-v');
+
         const canvasMinimapa = document.getElementById('canvas-minimapa');
         const ctxMinimapa = canvasMinimapa ? canvasMinimapa.getContext('2d') : null;
 
-        // 3. FUNCIONES DE DIBUJO Y CANVAS
         window.actualizarTransform = function() {
             capaTransform.style.transform = "translate3d(" + viewport.x + "px, " + viewport.y + "px, 0) scale(" + viewport.escala + ")";
             const tamRejilla = METRO_PX * viewport.escala;
@@ -317,46 +502,9 @@
             window.renderizarMinimapa();
         };
 
-        window.redibujarArea = function() {
-            const w = perimetro.anchoM * METRO_PX;
-            const h = perimetro.largoM * METRO_PX;
-
-            canvasRejilla.width = w;
-            canvasRejilla.height = h;
-            canvasRejilla.style.width = w + "px";
-            canvasRejilla.style.height = h + "px";
-
-            ctxRejilla.clearRect(0, 0, w, h);
-            ctxRejilla.fillStyle = '#21212b';
-            ctxRejilla.fillRect(0, 0, w, h);
-
-            ctxRejilla.strokeStyle = 'rgba(255, 255, 255, 0.09)';
-            ctxRejilla.lineWidth = 1;
-            for (let x = 0; x <= w; x += METRO_PX) {
-                ctxRejilla.beginPath(); ctxRejilla.moveTo(x, 0); ctxRejilla.lineTo(x, h); ctxRejilla.stroke();
-            }
-            for (let y = 0; y <= h; y += METRO_PX) {
-                ctxRejilla.beginPath(); ctxRejilla.moveTo(0, y); ctxRejilla.lineTo(w, y); ctxRejilla.stroke();
-            }
-
-            ctxRejilla.strokeStyle = '#ff6b00';
-            ctxRejilla.lineWidth = 3;
-            ctxRejilla.strokeRect(0, 0, w, h);
-
-            celdasMurosBloqueadas.forEach(function(coord) {
-                const arr = coord.split(',');
-                const cx = Number(arr[0]);
-                const cy = Number(arr[1]);
-                ctxRejilla.fillStyle = 'rgba(255, 68, 68, 0.45)';
-                ctxRejilla.fillRect(cx * METRO_PX, cy * METRO_PX, METRO_PX, METRO_PX);
-                ctxRejilla.strokeStyle = '#ff4444';
-                ctxRejilla.lineWidth = 1;
-                ctxRejilla.strokeRect(cx * METRO_PX, cy * METRO_PX, METRO_PX, METRO_PX);
-            });
-        };
-
         window.renderizarMinimapa = function() {
             if (!ctxMinimapa || !canvasMinimapa) return;
+
             const dpr = window.devicePixelRatio || 1;
             const rectMini = canvasMinimapa.getBoundingClientRect();
             if (canvasMinimapa.width !== rectMini.width * dpr || canvasMinimapa.height !== rectMini.height * dpr) {
@@ -381,10 +529,10 @@
             ctxMinimapa.strokeRect(offsetX, offsetY, planoW * escalaMini, planoH * escalaMini);
 
             ctxMinimapa.fillStyle = 'rgba(255, 68, 68, 0.6)';
-            celdasMurosBloqueadas.forEach(function(coord) {
-                const arr = coord.split(',');
-                const cx = Number(arr[0]);
-                const cy = Number(arr[1]);
+            celdasMurosBloqueadas.forEach(coord => {
+                const parts = coord.split(',');
+                const cx = Number(parts[0]);
+                const cy = Number(parts[1]);
                 ctxMinimapa.fillRect(
                     offsetX + cx * METRO_PX * escalaMini,
                     offsetY + cy * METRO_PX * escalaMini,
@@ -393,7 +541,7 @@
                 );
             });
 
-            itemsEspaciales.forEach(function(it) {
+            itemsEspaciales.forEach(it => {
                 const iW = (it.anchoM * METRO_PX) * escalaMini;
                 const iH = (it.largoM * METRO_PX) * escalaMini;
                 const cX = offsetX + (it.x * escalaMini) + (iW / 2);
@@ -402,6 +550,7 @@
                 ctxMinimapa.save();
                 ctxMinimapa.translate(cX, cY);
                 ctxMinimapa.rotate(((it.rotacion || 0) * Math.PI) / 180);
+
                 ctxMinimapa.fillStyle = it.colorFondo || 'rgba(0,255,100,0.3)';
                 ctxMinimapa.strokeStyle = '#00ff64';
                 ctxMinimapa.lineWidth = 1;
@@ -409,7 +558,8 @@
                 if (it.forma === 'circulo' || it.forma === 'elipse') {
                     ctxMinimapa.beginPath();
                     ctxMinimapa.ellipse(0, 0, iW / 2, iH / 2, 0, 0, Math.PI * 2);
-                    ctxMinimapa.fill(); ctxMinimapa.stroke();
+                    ctxMinimapa.fill();
+                    ctxMinimapa.stroke();
                 } else if (it.forma === 'nube') {
                     ctxMinimapa.setLineDash([2, 2]);
                     ctxMinimapa.strokeRect(-iW / 2, -iH / 2, iW, iH);
@@ -418,10 +568,11 @@
                     ctxMinimapa.fillRect(-iW / 2, -iH / 2, iW, iH);
                     ctxMinimapa.strokeRect(-iW / 2, -iH / 2, iW, iH);
                 }
+
                 ctxMinimapa.restore();
             });
 
-            muebles.forEach(function(m) {
+            muebles.forEach(m => {
                 const mW = (m.anchoM * METRO_PX) * escalaMini;
                 const mH = (m.largoM * METRO_PX) * escalaMini;
                 const centroX = offsetX + (m.x * escalaMini) + (mW / 2);
@@ -439,11 +590,14 @@
                     ctxMinimapa.lineWidth = 2.5;
                     ctxMinimapa.strokeRect((-mW / 2) - 3, (-mH / 2) - 3, mW + 6, mH + 6);
                 }
+
                 ctxMinimapa.fillStyle = enRadar ? '#00ff64' : (esSeleccionado ? '#ff8c00' : '#ff6b00');
                 ctxMinimapa.fillRect(-mW / 2, -mH / 2, mW, mH);
+
                 ctxMinimapa.strokeStyle = enRadar ? '#ffffff' : (esSeleccionado ? '#00ff64' : 'rgba(255, 255, 255, 0.4)');
                 ctxMinimapa.lineWidth = enRadar ? 2 : 1;
                 ctxMinimapa.strokeRect(-mW / 2, -mH / 2, mW, mH);
+
                 ctxMinimapa.restore();
             });
 
@@ -453,11 +607,22 @@
             const camMundoH = window.innerHeight / viewport.escala;
 
             ctxMinimapa.fillStyle = 'rgba(0, 255, 100, 0.12)';
-            ctxMinimapa.fillRect(offsetX + camMundoX * escalaMini, offsetY + camMundoY * escalaMini, camMundoW * escalaMini, camMundoH * escalaMini);
+            ctxMinimapa.fillRect(
+                offsetX + camMundoX * escalaMini,
+                offsetY + camMundoY * escalaMini,
+                camMundoW * escalaMini,
+                camMundoH * escalaMini
+            );
+
             ctxMinimapa.strokeStyle = '#00ff64';
             ctxMinimapa.lineWidth = 1.8;
-            ctxMinimapa.strokeRect(offsetX + camMundoX * escalaMini, offsetY + camMundoY * escalaMini, camMundoW * escalaMini, camMundoH * escalaMini);
-            
+            ctxMinimapa.strokeRect(
+                offsetX + camMundoX * escalaMini,
+                offsetY + camMundoY * escalaMini,
+                camMundoW * escalaMini,
+                camMundoH * escalaMini
+            );
+
             const centroVisorX = offsetX + (camMundoX + camMundoW / 2) * escalaMini;
             const centroVisorY = offsetY + (camMundoY + camMundoH / 2) * escalaMini;
             ctxMinimapa.strokeStyle = 'rgba(0, 255, 100, 0.5)';
@@ -468,12 +633,262 @@
             ctxMinimapa.moveTo(centroVisorX, centroVisorY - 4);
             ctxMinimapa.lineTo(centroVisorX, centroVisorY + 4);
             ctxMinimapa.stroke();
+
             ctxMinimapa.restore();
         };
 
+      const contenedorMini = document.getElementById('contenedor-minimapa');
+        const btnCerrarMini = document.getElementById('btn-cerrar-minimapa');
+
+        if (contenedorMini && canvasMinimapa) {
+            let arrastrandoMinimapa = false;
+
+            contenedorMini.addEventListener('click', (e) => {
+                if (contenedorMini.classList.contains('colapsado')) {
+                    e.stopPropagation();
+                    contenedorMini.classList.remove('colapsado');
+                    window.renderizarMinimapa();
+                }
+            });
+
+            if (btnCerrarMini) {
+                btnCerrarMini.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    contenedorMini.classList.add('colapsado');
+                });
+            }
+
+            const moverCamaraDesdeMinimapa = (e) => {
+                if (contenedorMini.classList.contains('colapsado')) return;
+                const rect = canvasMinimapa.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const clickY = e.clientY - rect.top;
+
+                const planoW = perimetro.anchoM * METRO_PX;
+                const planoH = perimetro.largoM * METRO_PX;
+                const escalaMini = Math.min((rect.width - 20) / planoW, (rect.height - 20) / planoH);
+                const offsetX = (rect.width - planoW * escalaMini) / 2;
+                const offsetY = (rect.height - planoH * escalaMini) / 2;
+
+                const mundoX = (clickX - offsetX) / escalaMini;
+                const mundoY = (clickY - offsetY) / escalaMini;
+
+                viewport.x = (window.innerWidth / 2) - (mundoX * viewport.escala);
+                viewport.y = (window.innerHeight / 2) - (mundoY * viewport.escala);
+                window.actualizarTransform();
+            };
+
+            canvasMinimapa.addEventListener('pointerdown', (e) => {
+                if (contenedorMini.classList.contains('colapsado')) return;
+                e.stopPropagation();
+                arrastrandoMinimapa = true;
+                canvasMinimapa.setPointerCapture(e.pointerId);
+                moverCamaraDesdeMinimapa(e);
+            });
+
+            canvasMinimapa.addEventListener('pointermove', (e) => {
+                if (!arrastrandoMinimapa || contenedorMini.classList.contains('colapsado')) return;
+                e.stopPropagation();
+                moverCamaraDesdeMinimapa(e);
+            });
+
+            const finDragMini = (e) => {
+                arrastrandoMinimapa = false;
+                try { canvasMinimapa.releasePointerCapture(e.pointerId); } catch (_) {}
+            };
+
+            canvasMinimapa.addEventListener('pointerup', finDragMini);
+            canvasMinimapa.addEventListener('pointercancel', finDragMini);
+        }
+
+        window.redibujarArea = function() {
+            const w = perimetro.anchoM * METRO_PX;
+            const h = perimetro.largoM * METRO_PX;
+
+            canvasRejilla.width = w;
+            canvasRejilla.height = h;
+            canvasRejilla.style.width = w + "px";
+            canvasRejilla.style.height = h + "px";
+
+            ctxRejilla.clearRect(0, 0, w, h);
+            ctxRejilla.fillStyle = '#21212b';
+            ctxRejilla.fillRect(0, 0, w, h);
+
+            ctxRejilla.strokeStyle = 'rgba(255, 255, 255, 0.09)';
+            ctxRejilla.lineWidth = 1;
+
+            for (let x = 0; x <= w; x += METRO_PX) {
+                ctxRejilla.beginPath();
+                ctxRejilla.moveTo(x, 0);
+                ctxRejilla.lineTo(x, h);
+                ctxRejilla.stroke();
+            }
+            for (let y = 0; y <= h; y += METRO_PX) {
+                ctxRejilla.beginPath();
+                ctxRejilla.moveTo(0, y);
+                ctxRejilla.lineTo(w, y);
+                ctxRejilla.stroke();
+            }
+
+            ctxRejilla.strokeStyle = '#ff6b00';
+            ctxRejilla.lineWidth = 3;
+            ctxRejilla.strokeRect(0, 0, w, h);
+
+            celdasMurosBloqueadas.forEach(coord => {
+                const parts = coord.split(',');
+                const cx = Number(parts[0]);
+                const cy = Number(parts[1]);
+                ctxRejilla.fillStyle = 'rgba(255, 68, 68, 0.45)';
+                ctxRejilla.fillRect(cx * METRO_PX, cy * METRO_PX, METRO_PX, METRO_PX);
+                ctxRejilla.strokeStyle = '#ff4444';
+                ctxRejilla.lineWidth = 1;
+                ctxRejilla.strokeRect(cx * METRO_PX, cy * METRO_PX, METRO_PX, METRO_PX);
+            });
+        };
+
+        const punterosActivos = new Map();
+        let distanciaInicialPinch = 0;
+        let escalaInicialPinch = 1;
+        let centroInicialPinch = { x: 0, y: 0 };
+        let viewportInicialPinch = { x: 0, y: 0 };
+        let inicioArrastreUnico = { x: 0, y: 0 };
+
+        vpEl.addEventListener('pointerdown', (e) => {
+            if (e.target.closest('.mueble-bloque') || e.target.closest('.pivote-giro')) return;
+            if (modoPincelMuros) return;
+
+            punterosActivos.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            vpEl.setPointerCapture(e.pointerId);
+            window.deseleccionarMuebles();
+
+            if (punterosActivos.size === 1) {
+                inicioArrastreUnico = { x: e.clientX - viewport.x, y: e.clientY - viewport.y };
+            } else if (punterosActivos.size === 2) {
+                const pts = Array.from(punterosActivos.values());
+                distanciaInicialPinch = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+                escalaInicialPinch = viewport.escala;
+                viewportInicialPinch = { x: viewport.x, y: viewport.y };
+                centroInicialPinch = {
+                    x: (pts[0].x + pts[1].x) / 2,
+                    y: (pts[0].y + pts[1].y) / 2
+                };
+            }
+        });
+
+        vpEl.addEventListener('pointermove', (e) => {
+            if (!punterosActivos.has(e.pointerId)) return;
+            punterosActivos.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+            if (punterosActivos.size === 1) {
+                viewport.x = e.clientX - inicioArrastreUnico.x;
+                viewport.y = e.clientY - inicioArrastreUnico.y;
+                window.actualizarTransform();
+            } else if (punterosActivos.size === 2) {
+                const pts = Array.from(punterosActivos.values());
+                const distActual = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+                if (distanciaInicialPinch === 0) return;
+
+                const factor = distActual / distanciaInicialPinch;
+                const escalaMin = window.obtenerScaleMin();
+                const nuevaEscala = Math.min(Math.max(escalaMin, escalaInicialPinch * factor), SCALE_MAX);
+
+                const centroActual = {
+                    x: (pts[0].x + pts[1].x) / 2,
+                    y: (pts[0].y + pts[1].y) / 2
+                };
+
+                const mundoPivotX = (centroInicialPinch.x - viewportInicialPinch.x) / escalaInicialPinch;
+                const mundoPivotY = (centroInicialPinch.y - viewportInicialPinch.y) / escalaInicialPinch;
+
+                viewport.x = centroActual.x - (mundoPivotX * nuevaEscala);
+                viewport.y = centroActual.y - (mundoPivotY * nuevaEscala);
+                viewport.escala = nuevaEscala;
+                window.actualizarTransform();
+            }
+        });
+
+        const limpiarPuntero = (e) => {
+            punterosActivos.delete(e.pointerId);
+            if (punterosActivos.size === 1) {
+                const pRestante = Array.from(punterosActivos.values())[0];
+                inicioArrastreUnico = { x: pRestante.x - viewport.x, y: pRestante.y - viewport.y };
+            }
+        };
+
+        vpEl.addEventListener('pointerup', limpiarPuntero);
+        vpEl.addEventListener('pointercancel', limpiarPuntero);
+
+        vpEl.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const escalaMin = window.obtenerScaleMin();
+            const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
+            const nuevaEscala = Math.min(Math.max(escalaMin, viewport.escala * zoomFactor), SCALE_MAX);
+
+            if (nuevaEscala !== viewport.escala) {
+                const mouseX = e.clientX;
+                const mouseY = e.clientY;
+                viewport.x = mouseX - (mouseX - viewport.x) * (nuevaEscala / viewport.escala);
+                viewport.y = mouseY - (mouseY - viewport.y) * (nuevaEscala / viewport.escala);
+                viewport.escala = nuevaEscala;
+                window.actualizarTransform();
+            }
+        }, { passive: false });
+
+        const btnModoMuros = document.getElementById('btn-modo-muros');
+        if (btnModoMuros) {
+            btnModoMuros.addEventListener('click', () => {
+                modoPincelMuros = !modoPincelMuros;
+                if (modoPincelMuros) {
+                    btnModoMuros.style.background = 'var(--naranja)';
+                    btnModoMuros.style.borderColor = 'white';
+                    alert("🧱 Modo Muros Activado: Toca las celdas del plano para poner o quitar columnas y paredes irregulares.");
+                } else {
+                    btnModoMuros.style.background = 'rgba(255,255,255,0.1)';
+                    btnModoMuros.style.borderColor = 'rgba(255,255,255,0.2)';
+                }
+            });
+        }
+
+        canvasRejilla.style.pointerEvents = 'auto'; 
+        canvasRejilla.addEventListener('pointerdown', (e) => {
+            if (!modoPincelMuros) return;
+            const rect = canvasRejilla.getBoundingClientRect();
+            const clickX = (e.clientX - rect.left) / viewport.escala;
+            const clickY = (e.clientY - rect.top) / viewport.escala;
+
+            const celdaX = Math.floor(clickX / METRO_PX);
+            const celdaY = Math.floor(clickY / METRO_PX);
+            const clave = celdaX + "," + celdaY;
+
+            if (celdasMurosBloqueadas.has(clave)) {
+                celdasMurosBloqueadas.delete(clave);
+            } else {
+                celdasMurosBloqueadas.add(clave);
+            }
+            window.redibujarArea();
+        });
+
+        window.verificarColisionMuros = function(x, y, anchoM, largoM) {
+            const minX = Math.floor(x / METRO_PX);
+            const minY = Math.floor(y / METRO_PX);
+            const maxX = Math.floor((x + (anchoM * METRO_PX)) / METRO_PX);
+            const maxY = Math.floor((y + (largoM * METRO_PX)) / METRO_PX);
+
+            for (let cx = minX; cx <= maxX; cx++) {
+                for (let cy = minY; cy <= maxY; cy++) {
+                    if (celdasMurosBloqueadas.has(cx + "," + cy)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+
+        let muebleEnEdicion = null;
+
         window.aplicarContraRotacion = function(el, angulo) {
             const elementosUI = el.querySelectorAll('.contra-rotacion');
-            elementosUI.forEach(function(elem) {
+            elementosUI.forEach(elem => {
                 if (elem.classList.contains('menu-contextual-mueble') || elem.classList.contains('pivote-giro')) {
                     elem.style.transform = "translateX(-50%) rotate(" + (-angulo) + "deg)";
                 } else {
@@ -484,7 +899,7 @@
 
         window.renderizarMuebles = function() {
             contenedorMuebles.innerHTML = '';
-            muebles.forEach(function(m) {
+            muebles.forEach((m) => {
                 const el = document.createElement('div');
                 el.classList.add('mueble-bloque');
                 if (muebleSeleccionado && muebleSeleccionado.id_mueble === m.id_mueble) {
@@ -502,15 +917,15 @@
                 menuContextual.classList.add('menu-contextual-mueble', 'contra-rotacion');
                 menuContextual.innerHTML = '<button class="btn-mini-contextual btn-editar-m">✏️ Configurar Caras</button><button class="btn-mini-contextual peligro btn-borrar-m">🗑️ Borrar</button>';
 
-                menuContextual.querySelector('.btn-editar-m').addEventListener('pointerdown', function(e) {
+                menuContextual.querySelector('.btn-editar-m').addEventListener('pointerdown', (e) => {
                     e.stopPropagation();
                     window.abrirModalEditarMueble(m);
                 });
 
-                menuContextual.querySelector('.btn-borrar-m').addEventListener('pointerdown', function(e) {
+                menuContextual.querySelector('.btn-borrar-m').addEventListener('pointerdown', (e) => {
                     e.stopPropagation();
                     if (confirm("¿Eliminar " + m.nombre + " del plano?")) {
-                        muebles = muebles.filter(function(item) { return item.id_mueble !== m.id_mueble; });
+                        muebles = muebles.filter(item => item.id_mueble !== m.id_mueble);
                         window.deseleccionarMuebles();
                         window.renderizarMuebles();
                     }
@@ -532,13 +947,14 @@
                 const tag = document.createElement('div');
                 tag.classList.add('mueble-etiqueta', 'contra-rotacion');
                 const totalBins = m.compartimientos ? m.compartimientos.length : 0;
-                tag.innerText = m.nombre + "\n[" + (m.zona === 'BODEGA' ? 'Bodega' : 'Piso Venta') + "]\n" + totalBins + " Bins";
+                const mZonaStr = m.zona === 'BODEGA' ? 'Bodega' : 'Piso Venta';
+                tag.innerText = m.nombre + "\n[" + mZonaStr + "]\n" + totalBins + " Bins";
                 el.appendChild(tag);
 
                 const pivote = document.createElement('div');
                 pivote.classList.add('pivote-giro', 'contra-rotacion');
                 pivote.innerHTML = '🔄';
-                pivote.addEventListener('pointerdown', function(e) {
+                pivote.addEventListener('pointerdown', (e) => {
                     e.stopPropagation();
                     m.rotacion = ((m.rotacion || 0) + 45) % 360;
                     el.style.transform = "rotate(" + m.rotacion + "deg)";
@@ -552,96 +968,93 @@
             });
         };
 
-        window.renderizarItemsEspaciales = function() {
-            if (!contenedorItems) return;
-            contenedorItems.innerHTML = '';
-            itemsEspaciales.forEach(function(it) {
-                const el = document.createElement('div');
-                el.classList.add('item-espacial-bloque', "forma-" + it.forma);
-                if (itemSeleccionado && itemSeleccionado.id_item === it.id_item) el.classList.add('seleccionado');
-                el.id = "item-" + it.id_item;
-                el.style.width = (it.anchoM * METRO_PX) + "px";
-                el.style.height = (it.largoM * METRO_PX) + "px";
-                el.style.left = it.x + "px";
-                el.style.top = it.y + "px";
-                el.style.background = it.colorFondo;
-                el.style.transform = "rotate(" + (it.rotacion || 0) + "deg)";
+        window.iniciarDragMueble = function(el, mueble) {
+            let offsetArrastre = { x: 0, y: 0 };
+            let arrastrando = false;
 
-                const tag = document.createElement('div');
-                tag.classList.add('item-etiqueta', 'contra-rotacion');
-                tag.innerText = it.etiqueta || '';
-                el.appendChild(tag);
+            el.addEventListener('pointerdown', (e) => {
+                if (!modoEdicionActivo) return; 
+                e.stopPropagation();
+                arrastrando = true;
+                window.seleccionarMueble(mueble, el);
 
-                const pivote = document.createElement('div');
-                pivote.classList.add('pivote-giro', 'contra-rotacion');
-                pivote.innerHTML = '🔄';
-                pivote.addEventListener('pointerdown', function(e) {
-                    e.stopPropagation();
-                    it.rotacion = ((it.rotacion || 0) + 45) % 360;
-                    el.style.transform = "rotate(" + it.rotacion + "deg)";
-                    window.aplicarContraRotacion(el, it.rotacion);
-                    window.renderizarMinimapa();
-                });
-                el.appendChild(pivote);
-
-                const menu = document.createElement('div');
-                menu.classList.add('menu-contextual-mueble', 'contra-rotacion');
-                menu.innerHTML = '<button class="btn-mini-contextual btn-editar-it">✏️ Editar</button><button class="btn-mini-contextual peligro btn-borrar-it">🗑️ Borrar</button>';
-                menu.querySelector('.btn-editar-it').addEventListener('pointerdown', function(e) {
-                    e.stopPropagation();
-                    window.abrirModalEditarItem(it);
-                });
-                menu.querySelector('.btn-borrar-it').addEventListener('pointerdown', function(e) {
-                    e.stopPropagation();
-                    if (confirm("¿Eliminar " + it.etiqueta + "?")) {
-                        itemsEspaciales = itemsEspaciales.filter(function(x) { return x.id_item !== it.id_item; });
-                        window.deseleccionarItems();
-                        window.renderizarItemsEspaciales();
-                        window.renderizarMinimapa();
-                    }
-                });
-                el.appendChild(menu);
-
-                window.iniciarDragItem(el, it);
-                contenedorItems.appendChild(el);
-                window.aplicarContraRotacion(el, it.rotacion || 0);
+                const rectM = { x: mueble.x, y: mueble.y };
+                offsetArrastre = {
+                    x: (e.clientX / viewport.escala) - rectM.x,
+                    y: (e.clientY / viewport.escala) - rectM.y
+                };
+                el.setPointerCapture(e.pointerId);
             });
-        };
 
-        window.verificarColisionMuros = function(x, y, anchoM, largoM) {
-            const minX = Math.floor(x / METRO_PX);
-            const minY = Math.floor(y / METRO_PX);
-            const maxX = Math.floor((x + (anchoM * METRO_PX)) / METRO_PX);
-            const maxY = Math.floor((y + (largoM * METRO_PX)) / METRO_PX);
-            for (let cx = minX; cx <= maxX; cx++) {
-                for (let cy = minY; cy <= maxY; cy++) {
-                    if (celdasMurosBloqueadas.has(cx + "," + cy)) return true;
+            el.addEventListener('pointermove', (e) => {
+                if (!arrastrando) return;
+                let nuevoX = (e.clientX / viewport.escala) - offsetArrastre.x;
+                let nuevoY = (e.clientY / viewport.escala) - offsetArrastre.y;
+
+                const snap = window.calcularSmartGuides(mueble, nuevoX, nuevoY);
+                
+                if (!window.verificarColisionMuros(snap.x, snap.y, mueble.anchoM, mueble.largoM)) {
+                    mueble.x = snap.x;
+                    mueble.y = snap.y;
+                    el.style.left = snap.x + "px";
+                    el.style.top = snap.y + "px";
+                    window.renderizarMinimapa();
                 }
-            }
-            return false;
+            });
+
+            const finDrag = () => {
+                arrastrando = false;
+                window.ocultarGuias();
+            };
+            el.addEventListener('pointerup', finDrag);
+            el.addEventListener('pointercancel', finDrag);
         };
 
         window.calcularSmartGuides = function(muebleActual, x, y) {
             const TOLERANCIA = 8;
-            let snapX = x; let snapY = y;
+            let snapX = x;
+            let snapY = y;
             let guiasActivas = { h: null, v: null };
+
             const w = muebleActual.anchoM * METRO_PX;
             const h = muebleActual.largoM * METRO_PX;
 
-            muebles.forEach(function(otro) {
+            muebles.forEach((otro) => {
                 if (otro.id_mueble === muebleActual.id_mueble) return;
                 const otroW = otro.anchoM * METRO_PX;
                 const otroH = otro.largoM * METRO_PX;
-                if (Math.abs(y - otro.y) < TOLERANCIA) { snapY = otro.y; guiasActivas.h = snapY; }
-                else if (Math.abs((y + h) - (otro.y + otroH)) < TOLERANCIA) { snapY = otro.y + otroH - h; guiasActivas.h = snapY + h; }
-                if (Math.abs(x - otro.x) < TOLERANCIA) { snapX = otro.x; guiasActivas.v = snapX; }
-                else if (Math.abs((x + w) - (otro.x + otroW)) < TOLERANCIA) { snapX = otro.x + otroW - w; guiasActivas.v = snapX + w; }
+
+                if (Math.abs(y - otro.y) < TOLERANCIA) {
+                    snapY = otro.y;
+                    guiasActivas.h = snapY;
+                } else if (Math.abs((y + h) - (otro.y + otroH)) < TOLERANCIA) {
+                    snapY = otro.y + otroH - h;
+                    guiasActivas.h = snapY + h;
+                }
+
+                if (Math.abs(x - otro.x) < TOLERANCIA) {
+                    snapX = otro.x;
+                    guiasActivas.v = snapX;
+                } else if (Math.abs((x + w) - (otro.x + otroW)) < TOLERANCIA) {
+                    snapX = otro.x + otroW - w;
+                    guiasActivas.v = snapX + w;
+                }
             });
 
-            if (guiasActivas.h !== null) { guiaH.style.top = guiasActivas.h + "px"; guiaH.style.display = 'block'; }
-            else { guiaH.style.display = 'none'; }
-            if (guiasActivas.v !== null) { guiaV.style.left = guiasActivas.v + "px"; guiaV.style.display = 'block'; }
-            else { guiaV.style.display = 'none'; }
+            if (guiasActivas.h !== null) {
+                guiaH.style.top = guiasActivas.h + "px";
+                guiaH.style.display = 'block';
+            } else {
+                guiaH.style.display = 'none';
+            }
+
+            if (guiasActivas.v !== null) {
+                guiaV.style.left = guiasActivas.v + "px";
+                guiaV.style.display = 'block';
+            } else {
+                guiaV.style.display = 'none';
+            }
+
             return { x: snapX, y: snapY };
         };
 
@@ -658,256 +1071,49 @@
 
         window.deseleccionarMuebles = function() {
             muebleSeleccionado = null;
-            document.querySelectorAll('.mueble-bloque').forEach(function(m) { m.classList.remove('seleccionado'); });
+            document.querySelectorAll('.mueble-bloque').forEach(m => m.classList.remove('seleccionado'));
         };
 
-        window.seleccionarItem = function(it, el) {
-            window.deseleccionarItems();
-            itemSeleccionado = it;
-            el.classList.add('seleccionado');
-        };
-
-        window.deseleccionarItems = function() {
-            itemSeleccionado = null;
-            document.querySelectorAll('.item-espacial-bloque').forEach(function(b) { b.classList.remove('seleccionado'); });
-        };
-
-        window.iniciarDragMueble = function(el, mueble) {
-            let offsetArrastre = { x: 0, y: 0 };
-            let arrastrando = false;
-            el.addEventListener('pointerdown', function(e) {
-                if (!modoEdicionActivo) return;
-                e.stopPropagation();
-                arrastrando = true;
-                window.seleccionarMueble(mueble, el);
-                offsetArrastre = {
-                    x: (e.clientX / viewport.escala) - mueble.x,
-                    y: (e.clientY / viewport.escala) - mueble.y
-                };
-                el.setPointerCapture(e.pointerId);
-            });
-            el.addEventListener('pointermove', function(e) {
-                if (!arrastrando) return;
-                let nuevoX = (e.clientX / viewport.escala) - offsetArrastre.x;
-                let nuevoY = (e.clientY / viewport.escala) - offsetArrastre.y;
-                const snap = window.calcularSmartGuides(mueble, nuevoX, nuevoY);
-                if (!window.verificarColisionMuros(snap.x, snap.y, mueble.anchoM, mueble.largoM)) {
-                    mueble.x = snap.x;
-                    mueble.y = snap.y;
-                    el.style.left = snap.x + "px";
-                    el.style.top = snap.y + "px";
-                    window.renderizarMinimapa();
-                }
-            });
-            const finDrag = function() { arrastrando = false; window.ocultarGuias(); };
-            el.addEventListener('pointerup', finDrag);
-            el.addEventListener('pointercancel', finDrag);
-        };
-
-        window.iniciarDragItem = function(el, item) {
-            let offset = { x: 0, y: 0 };
-            let arrastrando = false;
-            el.addEventListener('pointerdown', function(e) {
-                if (!modoEdicionActivo) return;
-                e.stopPropagation();
-                arrastrando = true;
-                window.deseleccionarMuebles();
-                window.seleccionarItem(item, el);
-                offset = {
-                    x: (e.clientX / viewport.escala) - item.x,
-                    y: (e.clientY / viewport.escala) - item.y
-                };
-                el.setPointerCapture(e.pointerId);
-            });
-            el.addEventListener('pointermove', function(e) {
-                if (!arrastrando) return;
-                item.x = (e.clientX / viewport.escala) - offset.x;
-                item.y = (e.clientY / viewport.escala) - offset.y;
-                el.style.left = item.x + "px";
-                el.style.top = item.y + "px";
-                window.renderizarMinimapa();
-            });
-            const fin = function() { arrastrando = false; };
-            el.addEventListener('pointerup', fin);
-            el.addEventListener('pointercancel', fin);
-        };
-
-        // 4. LÓGICA DE VIEWPORT Y PANEO
-        const punterosActivos = new Map();
-        let inicioArrastreUnico = { x: 0, y: 0 };
-        let distanciaInicialPinch = 0; let escalaInicialPinch = 1; let centroInicialPinch = { x: 0, y: 0 }; let viewportInicialPinch = { x: 0, y: 0 };
-
-        vpEl.addEventListener('pointerdown', function(e) {
-            if (e.target.closest('.mueble-bloque') || e.target.closest('.pivote-giro') || e.target.closest('.item-espacial-bloque')) return;
-            if (modoPincelMuros) return;
-            punterosActivos.set(e.pointerId, { x: e.clientX, y: e.clientY });
-            vpEl.setPointerCapture(e.pointerId);
-            window.deseleccionarMuebles();
-            window.deseleccionarItems();
-            if (punterosActivos.size === 1) {
-                inicioArrastreUnico = { x: e.clientX - viewport.x, y: e.clientY - viewport.y };
-            } else if (punterosActivos.size === 2) {
-                const pts = Array.from(punterosActivos.values());
-                distanciaInicialPinch = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
-                escalaInicialPinch = viewport.escala;
-                viewportInicialPinch = { x: viewport.x, y: viewport.y };
-                centroInicialPinch = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
-            }
-        });
-        vpEl.addEventListener('pointermove', function(e) {
-            if (!punterosActivos.has(e.pointerId)) return;
-            punterosActivos.set(e.pointerId, { x: e.clientX, y: e.clientY });
-            if (punterosActivos.size === 1) {
-                viewport.x = e.clientX - inicioArrastreUnico.x;
-                viewport.y = e.clientY - inicioArrastreUnico.y;
-                window.actualizarTransform();
-            } else if (punterosActivos.size === 2) {
-                const pts = Array.from(punterosActivos.values());
-                const distActual = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
-                if (distanciaInicialPinch === 0) return;
-                const factor = distActual / distanciaInicialPinch;
-                const nuevaEscala = Math.min(Math.max(SCALE_MIN, escalaInicialPinch * factor), SCALE_MAX);
-                const centroActual = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
-                const mundoPivotX = (centroInicialPinch.x - viewportInicialPinch.x) / escalaInicialPinch;
-                const mundoPivotY = (centroInicialPinch.y - viewportInicialPinch.y) / escalaInicialPinch;
-                viewport.x = centroActual.x - (mundoPivotX * nuevaEscala);
-                viewport.y = centroActual.y - (mundoPivotY * nuevaEscala);
-                viewport.escala = nuevaEscala;
-                window.actualizarTransform();
-            }
-        });
-        const limpiarPuntero = function(e) {
-            punterosActivos.delete(e.pointerId);
-            if (punterosActivos.size === 1) {
-                const pRestante = Array.from(punterosActivos.values())[0];
-                inicioArrastreUnico = { x: pRestante.x - viewport.x, y: pRestante.y - viewport.y };
-            }
-        };
-        vpEl.addEventListener('pointerup', limpiarPuntero);
-        vpEl.addEventListener('pointercancel', limpiarPuntero);
-        vpEl.addEventListener('wheel', function(e) {
-            e.preventDefault();
-            const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
-            const nuevaEscala = Math.min(Math.max(SCALE_MIN, viewport.escala * zoomFactor), SCALE_MAX);
-            if (nuevaEscala !== viewport.escala) {
-                const mouseX = e.clientX; const mouseY = e.clientY;
-                viewport.x = mouseX - (mouseX - viewport.x) * (nuevaEscala / viewport.escala);
-                viewport.y = mouseY - (mouseY - viewport.y) * (nuevaEscala / viewport.escala);
-                viewport.escala = nuevaEscala;
-                window.actualizarTransform();
-            }
-        }, { passive: false });
-
-        // 5. PINCEL MUROS
-        const btnMuros = document.getElementById('btn-modo-muros');
-        if (btnMuros) {
-            btnMuros.addEventListener('click', function() {
-                modoPincelMuros = !modoPincelMuros;
-                if (modoPincelMuros) {
-                    btnMuros.style.background = 'var(--naranja)'; btnMuros.style.borderColor = 'white';
-                    alert("Modo Muros Activado. Toca las celdas para pintar paredes.");
-                } else {
-                    btnMuros.style.background = 'rgba(255,255,255,0.1)'; btnMuros.style.borderColor = 'rgba(255,255,255,0.2)';
-                }
+        const btnBurbujaArea = document.getElementById('btn-burbuja-area');
+        if (btnBurbujaArea) {
+            btnBurbujaArea.addEventListener('click', () => {
+                document.getElementById('modal-area').style.display = 'flex';
             });
         }
-        canvasRejilla.style.pointerEvents = 'auto';
-        canvasRejilla.addEventListener('pointerdown', function(e) {
-            if (!modoPincelMuros) return;
-            const rect = canvasRejilla.getBoundingClientRect();
-            const clickX = (e.clientX - rect.left) / viewport.escala;
-            const clickY = (e.clientY - rect.top) / viewport.escala;
-            const celdaX = Math.floor(clickX / METRO_PX);
-            const celdaY = Math.floor(clickY / METRO_PX);
-            const clave = celdaX + "," + celdaY;
-            if (celdasMurosBloqueadas.has(clave)) celdasMurosBloqueadas.delete(clave);
-            else celdasMurosBloqueadas.add(clave);
-            window.redibujarArea();
-        });
-
-        // 6. MINIMAPA ARRASTRE
-        const contenedorMini = document.getElementById('contenedor-minimapa');
-        if (contenedorMini && canvasMinimapa) {
-            let arrastrandoMini = false;
-            contenedorMini.addEventListener('click', function(e) {
-                if (contenedorMini.classList.contains('colapsado')) {
-                    e.stopPropagation();
-                    contenedorMini.classList.remove('colapsado');
-                    window.renderizarMinimapa();
-                }
+        
+        const btnCancelarArea = document.getElementById('btn-cancelar-area');
+        if (btnCancelarArea) {
+            btnCancelarArea.addEventListener('click', () => {
+                document.getElementById('modal-area').style.display = 'none';
             });
-            const btnCerMini = document.getElementById('btn-cerrar-minimapa');
-            if (btnCerMini) btnCerMini.addEventListener('click', function(e) { e.stopPropagation(); contenedorMini.classList.add('colapsado'); });
-            const moverDesdeMini = function(e) {
-                if (contenedorMini.classList.contains('colapsado')) return;
-                const rect = canvasMinimapa.getBoundingClientRect();
-                const planoW = perimetro.anchoM * METRO_PX;
-                const planoH = perimetro.largoM * METRO_PX;
-                const escMini = Math.min((rect.width - 20) / planoW, (rect.height - 20) / planoH);
-                const offX = (rect.width - planoW * escMini) / 2;
-                const offY = (rect.height - planoH * escMini) / 2;
-                const clickX = e.clientX - rect.left;
-                const clickY = e.clientY - rect.top;
-                const mundoX = (clickX - offX) / escMini;
-                const mundoY = (clickY - offY) / escMini;
-                viewport.x = (window.innerWidth / 2) - (mundoX * viewport.escala);
-                viewport.y = (window.innerHeight / 2) - (mundoY * viewport.escala);
-                window.actualizarTransform();
-            };
-            canvasMinimapa.addEventListener('pointerdown', function(e) {
-                if (contenedorMini.classList.contains('colapsado')) return;
-                e.stopPropagation(); arrastrandoMini = true; canvasMinimapa.setPointerCapture(e.pointerId); moverDesdeMini(e);
-            });
-            canvasMinimapa.addEventListener('pointermove', function(e) {
-                if (!arrastrandoMini || contenedorMini.classList.contains('colapsado')) return;
-                e.stopPropagation(); moverDesdeMini(e);
-            });
-            const finMini = function(e) { arrastrandoMini = false; try { canvasMinimapa.releasePointerCapture(e.pointerId); } catch (_) {} };
-            canvasMinimapa.addEventListener('pointerup', finMini);
-            canvasMinimapa.addEventListener('pointercancel', finMini);
         }
 
-        // 7. MÉTODOS DE MODALES
-        window.abrirModalEditarMueble = function(m) {
-            muebleEnEdicion = m;
-            const titulo = document.getElementById('modal-mueble-titulo');
-            if (titulo) titulo.innerText = "Editar: " + m.nombre;
-            document.getElementById('mueble-nombre').value = m.nombre;
-            document.getElementById('mueble-zona').value = m.zona || 'PISO_VENTA';
-            document.getElementById('mueble-ancho').value = m.anchoM;
-            document.getElementById('mueble-largo').value = m.largoM;
-
-            configCarasEnMemoria = JSON.parse(JSON.stringify(m.caras || {
-                A: { niveles: m.niveles || 4, bins: m.subdivisionesXNivel || 4, activa: true },
-                B: { niveles: 0, bins: 0, activa: false },
-                C: { niveles: 0, bins: 0, activa: false },
-                D: { niveles: 0, bins: 0, activa: false }
-            }));
-            caraActivaModal = 'A';
-            document.querySelectorAll('#dock-selector-caras .tab-cara-btn').forEach(function(b) {
-                if (b.dataset.cara === 'A') b.classList.add('activa'); else b.classList.remove('activa');
+        const btnAplicarArea = document.getElementById('btn-aplicar-area');
+        if (btnAplicarArea) {
+            btnAplicarArea.addEventListener('click', () => {
+                perimetro.anchoM = Number(document.getElementById('area-ancho').value) || 12;
+                perimetro.largoM = Number(document.getElementById('area-largo').value) || 18;
+                document.getElementById('modal-area').style.display = 'none';
+                window.redibujarArea();
             });
-            document.getElementById('mueble-niveles').value = configCarasEnMemoria.A.niveles;
-            document.getElementById('mueble-subdivs').value = configCarasEnMemoria.A.bins;
-            window.actualizarPreviewBins();
-            document.getElementById('modal-mueble').style.display = 'flex';
+        }
+
+        let caraActivaModal = 'A';
+        let configCarasEnMemoria = {
+            A: { niveles: 4, bins: 4, activa: true },
+            B: { niveles: 0, bins: 0, activa: false },
+            C: { niveles: 0, bins: 0, activa: false },
+            D: { niveles: 0, bins: 0, activa: false }
         };
 
-        window.abrirModalEditarItem = function(it) {
-            itemEnEdicion = it;
-            const tit = document.getElementById('modal-item-titulo');
-            if (tit) tit.innerText = "Editar Ítem Espacial";
-            document.getElementById('item-etiqueta').value = it.etiqueta;
-            document.getElementById('item-forma').value = it.forma;
-            document.getElementById('item-color').value = it.colorFondo;
-            document.getElementById('item-ancho').value = it.anchoM;
-            document.getElementById('item-largo').value = it.largoM;
-            document.getElementById('modal-item').style.display = 'flex';
-        };
+        const inputNiveles = document.getElementById('mueble-niveles');
+        const inputSubdivs = document.getElementById('mueble-subdivs');
+        const previewTxt = document.getElementById('txt-preview-bins');
 
         window.actualizarPreviewBins = function() {
-            const niv = Number(document.getElementById('mueble-niveles').value) || 0;
-            const bins = Number(document.getElementById('mueble-subdivs').value) || 0;
+            const niv = Number(inputNiveles.value) || 0;
+            const bins = Number(inputSubdivs.value) || 0;
+            
             configCarasEnMemoria[caraActivaModal].niveles = niv;
             configCarasEnMemoria[caraActivaModal].bins = bins;
             configCarasEnMemoria[caraActivaModal].activa = (niv > 0 && bins > 0);
@@ -916,23 +1122,22 @@
             for (const c in configCarasEnMemoria) {
                 totalBins += (configCarasEnMemoria[c].niveles * configCarasEnMemoria[c].bins);
             }
-            const nombresCaras = { A: 'Frontal', B: 'Posterior', C: 'Cabecera Izq', D: 'Cabecera Der' };
-            const pt = document.getElementById('txt-preview-bins');
-            if (pt) pt.innerText = "Cara " + nombresCaras[caraActivaModal] + ": " + (niv * bins) + " Bins | Total Góndola: " + totalBins + " Bins";
+
+            const nombresCaras = { A: 'Frontal (A)', B: 'Posterior (B)', C: 'Cabecera Izq (C)', D: 'Cabecera Der (D)' };
+            previewTxt.innerText = "Cara " + nombresCaras[caraActivaModal] + ": " + (niv * bins) + " Bins | Total Góndola: " + totalBins + " Bins";
         };
 
-        const inNiv = document.getElementById('mueble-niveles');
-        const inSub = document.getElementById('mueble-subdivs');
-        if (inNiv) inNiv.addEventListener('input', window.actualizarPreviewBins);
-        if (inSub) inSub.addEventListener('input', window.actualizarPreviewBins);
+        if (inputNiveles) inputNiveles.addEventListener('input', window.actualizarPreviewBins);
+        if (inputSubdivs) inputSubdivs.addEventListener('input', window.actualizarPreviewBins);
 
-        document.querySelectorAll('#dock-selector-caras .tab-cara-btn').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                document.querySelectorAll('#dock-selector-caras .tab-cara-btn').forEach(function(b) { b.classList.remove('activa'); });
+        document.querySelectorAll('#dock-selector-caras .tab-cara-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('#dock-selector-caras .tab-cara-btn').forEach(b => b.classList.remove('activa'));
                 btn.classList.add('activa');
                 caraActivaModal = btn.dataset.cara;
-                document.getElementById('mueble-niveles').value = configCarasEnMemoria[caraActivaModal].niveles || 0;
-                document.getElementById('mueble-subdivs').value = configCarasEnMemoria[caraActivaModal].bins || 0;
+
+                inputNiveles.value = configCarasEnMemoria[caraActivaModal].niveles || 0;
+                inputSubdivs.value = configCarasEnMemoria[caraActivaModal].bins || 0;
                 window.actualizarPreviewBins();
             });
         });
@@ -940,7 +1145,8 @@
         window.generarMatrizCanonicaBins = function(idMueble, carasConfig) {
             const compartimientos = [];
             const codigosCaras = ['A', 'B', 'C', 'D'];
-            codigosCaras.forEach(function(cara) {
+
+            codigosCaras.forEach(cara => {
                 const cfg = carasConfig[cara];
                 if (cfg && cfg.activa && cfg.niveles > 0 && cfg.bins > 0) {
                     for (let niv = 1; niv <= cfg.niveles; niv++) {
@@ -949,6 +1155,7 @@
                             const strBin = "B" + String(b).padStart(2, '0');
                             const idCanonicoComp = "GEO-P-" + idNegocio + "-" + idSedeActiva + "-" + idMueble + "-" + cara + "-" + strNivel + "-" + strBin;
                             const idEstantePadre = "GEO-M-" + idNegocio + "-" + idSedeActiva + "-" + idMueble;
+
                             compartimientos.push({
                                 id_comp: idCanonicoComp,
                                 id_estante: idEstantePadre,
@@ -965,375 +1172,710 @@
             return compartimientos;
         };
 
-        const btnMueble = document.getElementById('btn-burbuja-mueble');
-        if (btnMueble) btnMueble.addEventListener('click', function() {
-            muebleEnEdicion = null;
-            const tit = document.getElementById('modal-mueble-titulo');
-            if (tit) tit.innerText = "Diseñar Mueble";
-            document.getElementById('mueble-nombre').value = "Góndola " + (muebles.length + 1);
-            document.getElementById('mueble-zona').value = 'PISO_VENTA';
-            document.getElementById('mueble-ancho').value = 2;
-            document.getElementById('mueble-largo').value = 4;
-            configCarasEnMemoria = {
-                A: { niveles: 4, bins: 4, activa: true },
-                B: { niveles: 4, bins: 4, activa: true },
+        window.abrirModalEditarMueble = function(m) {
+            muebleEnEdicion = m;
+            document.getElementById('modal-mueble-titulo').innerText = "Editar: " + m.nombre;
+            document.getElementById('mueble-nombre').value = m.nombre;
+            document.getElementById('mueble-zona').value = m.zona || 'PISO_VENTA';
+            document.getElementById('mueble-ancho').value = m.anchoM;
+            document.getElementById('mueble-largo').value = m.largoM;
+
+            configCarasEnMemoria = JSON.parse(JSON.stringify(m.caras || {
+                A: { niveles: m.niveles || 4, bins: m.subdivisionesXNivel || 4, activa: true },
+                B: { niveles: 0, bins: 0, activa: false },
                 C: { niveles: 0, bins: 0, activa: false },
                 D: { niveles: 0, bins: 0, activa: false }
-            };
+            }));
+
             caraActivaModal = 'A';
-            document.querySelectorAll('#dock-selector-caras .tab-cara-btn').forEach(function(b) {
-                if (b.dataset.cara === 'A') b.classList.add('activa'); else b.classList.remove('activa');
+            document.querySelectorAll('#dock-selector-caras .tab-cara-btn').forEach(b => {
+                if (b.dataset.cara === 'A') {
+                    b.classList.add('activa');
+                } else {
+                    b.classList.remove('activa');
+                }
             });
-            document.getElementById('mueble-niveles').value = configCarasEnMemoria.A.niveles;
-            document.getElementById('mueble-subdivs').value = configCarasEnMemoria.A.bins;
+            inputNiveles.value = configCarasEnMemoria.A.niveles;
+            inputSubdivs.value = configCarasEnMemoria.A.bins;
             window.actualizarPreviewBins();
+
             document.getElementById('modal-mueble').style.display = 'flex';
-        });
+        };
+
+        const btnBurbujaMueble = document.getElementById('btn-burbuja-mueble');
+        if (btnBurbujaMueble) {
+            btnBurbujaMueble.addEventListener('click', () => {
+                muebleEnEdicion = null;
+                document.getElementById('modal-mueble-titulo').innerText = "Diseñar Mueble / Góndola";
+                document.getElementById('mueble-nombre').value = "Góndola " + (muebles.length + 1);
+                document.getElementById('mueble-zona').value = 'PISO_VENTA';
+                document.getElementById('mueble-ancho').value = 2;
+                document.getElementById('mueble-largo').value = 4;
+
+                configCarasEnMemoria = {
+                    A: { niveles: 4, bins: 4, activa: true },
+                    B: { niveles: 4, bins: 4, activa: true }, 
+                    C: { niveles: 0, bins: 0, activa: false },
+                    D: { niveles: 0, bins: 0, activa: false }
+                };
+
+                caraActivaModal = 'A';
+                document.querySelectorAll('#dock-selector-caras .tab-cara-btn').forEach(b => {
+                    if (b.dataset.cara === 'A') {
+                        b.classList.add('activa');
+                    } else {
+                        b.classList.remove('activa');
+                    }
+                });
+                inputNiveles.value = configCarasEnMemoria.A.niveles;
+                inputSubdivs.value = configCarasEnMemoria.A.bins;
+                window.actualizarPreviewBins();
+
+                document.getElementById('modal-mueble').style.display = 'flex';
+            });
+        }
+
+        const btnCancelarMueble = document.getElementById('btn-cancelar-mueble');
+        if (btnCancelarMueble) {
+            btnCancelarMueble.addEventListener('click', () => {
+                document.getElementById('modal-mueble').style.display = 'none';
+            });
+        }
 
         const btnCrearMueble = document.getElementById('btn-crear-mueble');
-        if (btnCrearMueble) btnCrearMueble.addEventListener('click', function() {
-            const nombre = document.getElementById('mueble-nombre').value.trim() || "Góndola";
-            const zona = document.getElementById('mueble-zona').value;
-            const anchoM = Number(document.getElementById('mueble-ancho').value) || 2;
-            const largoM = Number(document.getElementById('mueble-largo').value) || 4;
+        if (btnCrearMueble) {
+            btnCrearMueble.addEventListener('click', () => {
+                const nombre = document.getElementById('mueble-nombre').value.trim() || "Góndola";
+                const zona = document.getElementById('mueble-zona').value;
+                const anchoM = Number(document.getElementById('mueble-ancho').value) || 2;
+                const largoM = Number(document.getElementById('mueble-largo').value) || 4;
 
-            const nivActual = Number(document.getElementById('mueble-niveles').value) || 0;
-            const binsActual = Number(document.getElementById('mueble-subdivs').value) || 0;
-            configCarasEnMemoria[caraActivaModal].niveles = nivActual;
-            configCarasEnMemoria[caraActivaModal].bins = binsActual;
-            configCarasEnMemoria[caraActivaModal].activa = (nivActual > 0 && binsActual > 0);
-            window.actualizarPreviewBins();
+                const nivActual = Number(document.getElementById('mueble-niveles').value) || 0;
+                const binsActual = Number(document.getElementById('mueble-subdivs').value) || 0;
+                configCarasEnMemoria[caraActivaModal].niveles = nivActual;
+                configCarasEnMemoria[caraActivaModal].bins = binsActual;
+                configCarasEnMemoria[caraActivaModal].activa = (nivActual > 0 && binsActual > 0);
 
-            let maxNiveles = 1;
-            for (const c in configCarasEnMemoria) {
-                if (configCarasEnMemoria[c].activa && configCarasEnMemoria[c].niveles > maxNiveles) {
-                    maxNiveles = configCarasEnMemoria[c].niveles;
+                window.actualizarPreviewBins();
+
+                let maxNiveles = 1;
+                for (const c in configCarasEnMemoria) {
+                    if (configCarasEnMemoria[c].activa && configCarasEnMemoria[c].niveles > maxNiveles) {
+                        maxNiveles = configCarasEnMemoria[c].niveles;
+                    }
                 }
-            }
 
-            if (muebleEnEdicion) {
-                muebleEnEdicion.nombre = nombre;
-                muebleEnEdicion.zona = zona;
-                muebleEnEdicion.anchoM = anchoM;
-                muebleEnEdicion.largoM = largoM;
-                muebleEnEdicion.caras = JSON.parse(JSON.stringify(configCarasEnMemoria));
-                muebleEnEdicion.compartimientos = window.generarMatrizCanonicaBins(muebleEnEdicion.id_mueble, muebleEnEdicion.caras);
-                muebleEnEdicion = null;
-            } else {
-                const sigNumero = muebles.length + 1;
-                const strNum = String(sigNumero).padStart(2, '0');
-                const prefZona = (zona === 'BODEGA') ? 'BOD' : 'PV';
-                const idCanonicoMueble = prefZona + "_M" + strNum + "_" + anchoM + "x" + largoM + "_H" + maxNiveles;
-                const carasCopia = JSON.parse(JSON.stringify(configCarasEnMemoria));
-                const compartimientos = window.generarMatrizCanonicaBins(idCanonicoMueble, carasCopia);
+                if (muebleEnEdicion) {
+                    muebleEnEdicion.nombre = nombre;
+                    muebleEnEdicion.zona = zona;
+                    muebleEnEdicion.anchoM = anchoM;
+                    muebleEnEdicion.largoM = largoM;
+                    muebleEnEdicion.caras = JSON.parse(JSON.stringify(configCarasEnMemoria));
+                    muebleEnEdicion.compartimientos = window.generarMatrizCanonicaBins(muebleEnEdicion.id_mueble, muebleEnEdicion.caras);
+                    muebleEnEdicion = null;
+                } else {
+                    const sigNumero = muebles.length + 1;
+                    const strNum = String(sigNumero).padStart(2, '0');
+                    const prefZona = (zona === 'BODEGA') ? 'BOD' : 'PV';
+                    const idCanonicoMueble = prefZona + "_M" + strNum + "_" + anchoM + "x" + largoM + "_H" + maxNiveles;
 
-                muebles.push({
-                    id_mueble: idCanonicoMueble,
-                    qr: "GEO-M-" + idNegocio + "-" + idSedeActiva + "-" + idCanonicoMueble,
-                    nombre: nombre,
-                    zona: zona,
-                    anchoM: anchoM,
-                    largoM: largoM,
-                    caras: carasCopia,
-                    compartimientos: compartimientos,
-                    x: 80,
-                    y: 80,
-                    rotacion: 0
-                });
-            }
-            document.getElementById('modal-mueble').style.display = 'none';
-            window.renderizarMuebles();
-            window.actualizarContadorDrawer();
-        });
+                    const carasCopia = JSON.parse(JSON.stringify(configCarasEnMemoria));
+                    const compartimientos = window.generarMatrizCanonicaBins(idCanonicoMueble, carasCopia);
 
-        const btnCancM = document.getElementById('btn-cancelar-mueble');
-        if (btnCancM) btnCancM.addEventListener('click', function() { document.getElementById('modal-mueble').style.display = 'none'; });
+                    const nuevoMueble = {
+                        id_mueble: idCanonicoMueble,
+                        qr: "GEO-M-" + idNegocio + "-" + idSedeActiva + "-" + idCanonicoMueble,
+                        nombre: nombre,
+                        zona: zona,
+                        anchoM: anchoM,
+                        largoM: largoM,
+                        caras: carasCopia,
+                        compartimientos: compartimientos,
+                        x: 80,
+                        y: 80,
+                        rotacion: 0
+                    };
+                    muebles.push(nuevoMueble);
+                }
 
-        // DRAWER LATERAL
-        window.actualizarContadorDrawer = function() {
-            const b = document.getElementById('badge-contador-muebles');
-            const d = document.getElementById('drawer-resumen-total');
-            if (b) b.innerText = muebles.length;
-            if (d) d.innerText = muebles.length + " muebles en plano";
-        };
-
-        window.renderizarDrawerMuebles = function() {
-            const cont = document.getElementById('drawer-lista-contenedor');
-            if (!cont) return;
-            cont.innerHTML = '';
-            if (muebles.length === 0) {
-                cont.innerHTML = '<div style="text-align: center; color: #777; padding: 30px 10px; font-size: 12px;">No has agregado muebles.<br>Usa el botón + Mueble.</div>';
-                return;
-            }
-            muebles.forEach(function(m) {
-                const totalBins = m.compartimientos ? m.compartimientos.length : 0;
-                const card = document.createElement('div');
-                card.classList.add('tarjeta-mueble-index');
-                const txtZona = m.zona === 'BODEGA' ? 'BODEGA' : 'PISO VENTA';
-                const colZona = m.zona === 'BODEGA' ? '#ffaa00' : '#00ff64';
-                const bgZona = m.zona === 'BODEGA' ? 'rgba(255,170,0,0.2)' : 'rgba(0,255,100,0.2)';
-
-                card.innerHTML = 
-                    '<div style="display: flex; justify-content: space-between; align-items: center;">' +
-                        '<strong style="color: white; font-size: 13px;">' + m.nombre + '</strong>' +
-                        '<span style="font-size: 9px; padding: 2px 6px; border-radius: 6px; background: ' + bgZona + '; color: ' + colZona + '; font-weight: bold;">' + txtZona + '</span>' +
-                    '</div>' +
-                    '<div style="font-family: monospace; font-size: 11px; color: var(--naranja); margin-top: 4px;">' + m.id_mueble + '</div>' +
-                    '<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px; color: #888;">' +
-                        '<span>Dim: ' + m.anchoM + 'm x ' + m.largoM + 'm</span>' +
-                        '<span style="color: #00ff64; font-weight: bold;">' + totalBins + ' Bins</span>' +
-                    '</div>';
-
-                card.addEventListener('click', function() {
-                    window.navegarYResaltarMueble(m);
-                    const dEl = document.getElementById('drawer-muebles');
-                    if (dEl) dEl.classList.remove('abierto');
-                });
-                cont.appendChild(card);
+                document.getElementById('modal-mueble').style.display = 'none';
+                window.alternarModoEdicion(true);
+                window.renderizarMuebles();
+                window.actualizarContadorDrawer();
+                window.persistirPlanoLocal();
             });
+        }
+
+
+        // Persistencia instantanea en localStorage (0 ms, sobrevive a recargas y modo avion)
+        window.persistirPlanoLocal = function() {
+            if (!idNegocio) return;
+            const clavePlano = 'geokatu_plano_' + idNegocio + '_' + idSedeActiva;
+            const gridData = {
+                perimetro: perimetro,
+                elementos: muebles,
+                items: itemsEspaciales,
+                muros: Array.from(celdasMurosBloqueadas),
+                sede: idSedeActiva,
+                ultima_modificacion: new Date().toISOString()
+            };
+            try {
+                localStorage.setItem(clavePlano, JSON.stringify(gridData));
+            } catch (eL) {}
+            return gridData;
         };
 
-        window.navegarYResaltarMueble = function(m) {
-            document.querySelectorAll('.mueble-bloque').forEach(function(b) { b.classList.remove('radar-activo', 'seleccionado'); });
-            const miniWrap = document.getElementById('contenedor-minimapa');
-            if (miniWrap && miniWrap.classList.contains('colapsado')) miniWrap.classList.remove('colapsado');
-            muebleRadarActivoId = m.id_mueble;
-            window.renderizarMinimapa();
-            if (animacionRadarMiniTimer) clearTimeout(animacionRadarMiniTimer);
-            animacionRadarMiniTimer = setTimeout(function() { muebleRadarActivoId = null; window.renderizarMinimapa(); }, 3200);
-
-            capaTransform.style.transition = 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)';
-            viewport.x = (window.innerWidth / 2) - ((m.x + (m.anchoM * METRO_PX) / 2) * viewport.escala);
-            viewport.y = (window.innerHeight / 2) - ((m.y + (m.largoM * METRO_PX) / 2) * viewport.escala);
-            window.actualizarTransform();
-            setTimeout(function() { capaTransform.style.transition = ''; }, 450);
-
-            const elMueble = document.getElementById("mueble-" + m.id_mueble);
-            if (elMueble) {
-                window.seleccionarMueble(m, elMueble);
-                elMueble.classList.add('radar-activo');
-                setTimeout(function() { elMueble.classList.remove('radar-activo'); }, 3000);
-            }
-        };
-
-        const btnPest = document.getElementById('btn-pestana-lista-muebles');
-        if (btnPest) btnPest.addEventListener('click', function() {
-            window.renderizarDrawerMuebles();
-            const d = document.getElementById('drawer-muebles');
-            if (d) d.classList.add('abierto');
-        });
-        const btnCerD = document.getElementById('btn-cerrar-drawer');
-        if (btnCerD) btnCerD.addEventListener('click', function() {
-            const d = document.getElementById('drawer-muebles');
-            if (d) d.classList.remove('abierto');
-        });
-
-        // ÍTEMS
-        const btnItem = document.getElementById('btn-burbuja-item');
-        if (btnItem) btnItem.addEventListener('click', function() {
-            itemEnEdicion = null;
-            const tit = document.getElementById('modal-item-titulo');
-            if (tit) tit.innerText = "Agregar Elemento / Acceso";
-            document.getElementById('item-etiqueta').value = "Puerta Principal";
-            document.getElementById('item-forma').value = "rectangulo";
-            document.getElementById('item-ancho').value = 1.2;
-            document.getElementById('item-largo').value = 0.4;
-            document.getElementById('modal-item').style.display = 'flex';
-        });
-
-        const tipPres = document.getElementById('item-tipo-preset');
-        if (tipPres) tipPres.addEventListener('change', function(e) {
-            const val = e.target.value;
-            if (val.startsWith('PUERTA')) {
-                document.getElementById('item-forma').value = 'rectangulo';
-                document.getElementById('item-color').value = 'rgba(0, 255, 100, 0.25)';
-                document.getElementById('item-ancho').value = (val === 'PUERTA_BOD_EXT') ? 3.0 : 1.2;
-                document.getElementById('item-largo').value = 0.4;
-                document.getElementById('item-etiqueta').value = e.target.options[e.target.selectedIndex].text.replace(/^[^\s]+\s/, '');
-            } else if (val === 'ZONA_TEXTO') {
-                document.getElementById('item-forma').value = 'nube';
-                document.getElementById('item-color').value = 'rgba(255, 255, 255, 0.08)';
-                document.getElementById('item-ancho').value = 3.5;
-                document.getElementById('item-largo').value = 2.0;
-                document.getElementById('item-etiqueta').value = 'Zona / Checkout';
-            }
-        });
-
-        const btnCancI = document.getElementById('btn-cancelar-item');
-        if (btnCancI) btnCancI.addEventListener('click', function() { document.getElementById('modal-item').style.display = 'none'; });
-
-        const btnGuarI = document.getElementById('btn-guardar-item');
-        if (btnGuarI) btnGuarI.addEventListener('click', function() {
-            const etiq = document.getElementById('item-etiqueta').value.trim() || 'Ítem';
-            const forma = document.getElementById('item-forma').value;
-            const color = document.getElementById('item-color').value;
-            const w = Number(document.getElementById('item-ancho').value) || 1.2;
-            const h = Number(document.getElementById('item-largo').value) || 0.4;
-
-            if (itemEnEdicion) {
-                itemEnEdicion.etiqueta = etiq; itemEnEdicion.forma = forma;
-                itemEnEdicion.colorFondo = color; itemEnEdicion.anchoM = w; itemEnEdicion.largoM = h;
-                itemEnEdicion = null;
-            } else {
-                itemsEspaciales.push({
-                    id_item: "IT_" + Date.now(), etiqueta: etiq, forma: forma, colorFondo: color,
-                    anchoM: w, largoM: h, x: 60, y: 60, rotacion: 0
-                });
-            }
-            document.getElementById('modal-item').style.display = 'none';
-            window.renderizarItemsEspaciales();
-            window.renderizarMinimapa();
-        });
-
-        const btnModo = document.getElementById('btn-toggle-modo-edicion');
-        if (btnModo) btnModo.addEventListener('click', function() {
-            modoEdicionActivo = !modoEdicionActivo;
-            if (modoEdicionActivo) {
-                vpEl.classList.add('modo-edicion'); vpEl.classList.remove('modo-lectura');
-                btnModo.innerHTML = '🔓 Edición'; btnModo.style.background = 'var(--naranja)'; btnModo.style.borderColor = '#ffffff';
-            } else {
-                vpEl.classList.remove('modo-edicion'); vpEl.classList.add('modo-lectura');
-                window.deseleccionarMuebles();
-                btnModo.innerHTML = '🔒 Lectura'; btnModo.style.background = 'rgba(255,255,255,0.08)'; btnModo.style.borderColor = 'rgba(255,255,255,0.2)';
-            }
-        });
-
-        // ÁREA
-        const btnArea = document.getElementById('btn-burbuja-area');
-        if (btnArea) btnArea.addEventListener('click', function() { document.getElementById('modal-area').style.display = 'flex'; });
-        const btnCancA = document.getElementById('btn-cancelar-area');
-        if (btnCancA) btnCancA.addEventListener('click', function() { document.getElementById('modal-area').style.display = 'none'; });
-        const btnAplA = document.getElementById('btn-aplicar-area');
-        if (btnAplA) btnAplA.addEventListener('click', function() {
-            perimetro.anchoM = Number(document.getElementById('area-ancho').value) || 12;
-            perimetro.largoM = Number(document.getElementById('area-largo').value) || 18;
-            document.getElementById('modal-area').style.display = 'none';
-            window.redibujarArea();
-        });
-
-        // QRS
-        const btnQr = document.getElementById('btn-burbuja-qrs');
-        if (btnQr) btnQr.addEventListener('click', function() {
-            const cont = document.getElementById('contenedor-qrs-render');
-            cont.innerHTML = '';
-            muebles.forEach(function(m) {
-                const cardM = document.createElement('div'); cardM.classList.add('tarjeta-qr-print');
-                const canM = document.createElement('canvas'); QRLocal.dibujarEnCanvas(canM, m.qr, { width: 100 });
-                cardM.appendChild(canM);
-                cardM.innerHTML += '<p style="margin: 4px 0 0 0; font-size: 11px; font-weight: bold;">' + m.nombre + '<br><span style="color:#ff6b00;">' + m.qr + '</span></p>';
-                cont.appendChild(cardM);
-
-                (m.compartimientos || []).forEach(function(comp) {
-                    const cardC = document.createElement('div'); cardC.classList.add('tarjeta-qr-print');
-                    const canC = document.createElement('canvas'); QRLocal.dibujarEnCanvas(canC, comp.id_comp, { width: 100 });
-                    cardC.appendChild(canC);
-                    cardC.innerHTML += '<p style="margin: 4px 0 0 0; font-size: 10px;">' + m.nombre + ' [Cara ' + (comp.cara || 'A') + ']<br>' + (comp.nivel || '') + '-' + (comp.bin || '') + '<br><span style="color:#0088ff; font-weight: bold;">' + comp.id_comp + '</span></p>';
-                    cont.appendChild(cardC);
-                });
-            });
-            document.getElementById('modal-impresion').style.display = 'flex';
-        });
-        const btnCerrP = document.getElementById('btn-cerrar-print');
-        if (btnCerrP) btnCerrP.addEventListener('click', function() { document.getElementById('modal-impresion').style.display = 'none'; });
-
-        // RADAR BÚSQUEDA
-        const btnEjecR = document.getElementById('btn-ejecutar-radar');
-        if (btnEjecR) btnEjecR.addEventListener('click', async function() {
-            const sku = document.getElementById('input-radar-sku').value.trim();
-            if (!sku || !idNegocio) { alert("Ingresa un código SKU válido."); return; }
-            document.querySelectorAll('.mueble-bloque').forEach(function(m) { m.classList.remove('radar-activo'); });
-
-            const res = await GeokatuDB.InventarioService.obtenerStockUbicacionesProducto(idNegocio, sku);
-            if (res.success && res.data.length > 0) {
-                const ubi = res.data[0];
-                const idComp = ubi.id_compartimiento || ubi.id || "";
-                const mueble = muebles.find(function(m) {
-                    if (m.id_mueble === ubi.id_estante || m.qr === ubi.id_estante) return true;
-                    return (m.compartimientos || []).some(function(c) { return c.id_comp === idComp; });
-                });
-
-                if (mueble) {
-                    const el = document.getElementById("mueble-" + mueble.id_mueble);
-                    if (el) {
-                        el.classList.add('radar-activo');
-                        viewport.x = (window.innerWidth / 2) - ((mueble.x + (mueble.anchoM * METRO_PX) / 2) * viewport.escala);
-                        viewport.y = (window.innerHeight / 2) - ((mueble.y + (mueble.largoM * METRO_PX) / 2) * viewport.escala);
-                        window.actualizarTransform();
-
-                        const partes = idComp.split('-');
-                        let detalle = idComp;
-                        if (partes.length >= 6) {
-                            detalle = "Góndola: " + mueble.nombre + " | Cara: " + partes[partes.length - 3] + " | Nivel: " + partes[partes.length - 2] + " | Bin: " + partes[partes.length - 1];
-                        }
-                        const tagEl = el.querySelector('.mueble-etiqueta');
-                        if (tagEl) tagEl.innerText = "🎯 SKU AQUÍ\n" + detalle;
+        // --- 6. PERSISTENCIA EN FIRESTORE + LOCALSTORAGE ---
+        const btnGuardarNube = document.getElementById('btn-guardar-nube');
+        if (btnGuardarNube) {
+            btnGuardarNube.addEventListener('click', async () => {
+                if (!idNegocio) {
+                    alert("Inicia sesion para respaldar el plano.");
+                    return;
+                }
+                const gridData = window.persistirPlanoLocal();
+                const res = await GeokatuDB.RadarService.guardarMapaBodega(idNegocio, idSedeActiva, gridData);
+                if (res.success) {
+                    if (res.offline) {
+                        alert("💾 Plano guardado en memoria local (Modo Avion). Se sincronizara al recuperar red.");
+                    } else {
+                        alert("✅ Plano espacial de [" + idSedeActiva + "] sincronizado con exito.");
                     }
                 } else {
-                    alert("SKU en bin [" + idComp + "], pero el mueble no está en el plano actual.");
+                    alert("⚠️ Guardado en memoria local. Aviso de nube: " + res.error);
                 }
-            } else {
-                alert("El producto no posee registros en ubicaciones físicas.");
+            });
+        }
+       // --- 7. RADAR ESPACIAL 0-MS OFFLINE-FIRST ---
+        const btnEjecutarRadar = document.getElementById('btn-ejecutar-radar');
+        if (btnEjecutarRadar) {
+            btnEjecutarRadar.addEventListener('click', async () => {
+                const sku = document.getElementById('input-radar-sku').value.trim();
+                if (!sku || !idNegocio) {
+                    alert("Ingresa un codigo SKU, EAN o nombre de articulo.");
+                    return;
+                }
+                document.querySelectorAll('.mueble-bloque').forEach(m => m.classList.remove('radar-activo'));
+
+                // 1. Resolver primero desde cache local (0 ms, 0 lecturas en Firestore)
+                const skuLower = sku.toLowerCase();
+                const catLocal = JSON.parse(localStorage.getItem('geokatu_catalogo_' + idNegocio) || '[]');
+                const ubisLocal = JSON.parse(localStorage.getItem('geokatu_stock_ubis_' + idNegocio) || '[]');
+
+                const prodMatch = catLocal.find(p =>
+                    (p.id_prod && p.id_prod.toLowerCase() === skuLower) ||
+                    (p.codigo_barras && String(p.codigo_barras).toLowerCase() === skuLower) ||
+                    (p.nombre && p.nombre.toLowerCase().indexOf(skuLower) !== -1)
+                );
+                const targetProdId = prodMatch ? prodMatch.id_prod : sku;
+                let ubisEncontradas = ubisLocal.filter(u =>
+                    u.id_prod === targetProdId ||
+                    (u.id_prod && u.id_prod.toLowerCase() === skuLower) ||
+                    (u.id_compartimiento && u.id_compartimiento.toLowerCase() === skuLower)
+                );
+
+                let res = { success: true, data: ubisEncontradas };
+                // 2. Fallback a Firestore solo si no hay cache local y estamos en linea
+                if (ubisEncontradas.length === 0 && navigator.onLine) {
+                    res = await GeokatuDB.InventarioService.obtenerStockUbicacionesProducto(idNegocio, targetProdId);
+                }
+
+                if (res.success && res.data.length > 0) {
+                    const ubi = res.data[0];
+                    const idComp = ubi.id_compartimiento || ubi.id || "";
+                    
+                    const mueble = muebles.find(m => {
+                        if (m.id_mueble === ubi.id_estante || m.qr === ubi.id_estante) return true;
+                        return (m.compartimientos || []).some(c => c.id_comp === idComp);
+                    });
+
+                    if (mueble) {
+                        const el = document.getElementById("mueble-" + mueble.id_mueble);
+                        if (el) {
+                            el.classList.add('radar-activo');
+                            
+                            viewport.x = (window.innerWidth / 2) - ((mueble.x + (mueble.anchoM * METRO_PX) / 2) * viewport.escala);
+                            viewport.y = (window.innerHeight / 2) - ((mueble.y + (mueble.largoM * METRO_PX) / 2) * viewport.escala);
+                            window.actualizarTransform();
+
+                            const partes = idComp.split('-');
+                            let detalleUbicacion = idComp;
+                            const len = partes.length;
+                            if (len >= 6) {
+                                const bin = partes[len - 1];
+                                const nivel = partes[len - 2];
+                                const cara = partes[len - 3];
+                                detalleUbicacion = "Góndola: " + mueble.nombre + " | Cara: " + cara + " | Nivel: " + nivel + " | Bin: " + bin;
+                            }
+                            
+                            const tagEl = el.querySelector('.mueble-etiqueta');
+                            if (tagEl) {
+                                tagEl.innerText = "🎯 SKU AQUÍ\n" + detalleUbicacion;
+                            }
+                        }
+                    } else {
+                        alert("SKU asignado al bin [" + idComp + "], pero el mueble no se encuentra emplazado en el plano actual.");
+                    }
+                } else {
+                    alert("El producto no posee registros en la subcolección de ubicaciones físicas.");
+                }
+            });
+        }
+
+        // --- 8. GENERACIÓN DE SEÑALÉTICA QR ---
+        const btnBurbujaQrs = document.getElementById('btn-burbuja-qrs');
+        if (btnBurbujaQrs) {
+            btnBurbujaQrs.addEventListener('click', () => {
+                const contenedor = document.getElementById('contenedor-qrs-render');
+                contenedor.innerHTML = '';
+
+                muebles.forEach((m) => {
+                    const cardM = document.createElement('div');
+                    cardM.classList.add('tarjeta-qr-print');
+                    const divQrM = document.createElement('div');
+                    
+                    try {
+                        if(typeof QRCode !== 'undefined') {
+                            new QRCode(divQrM, { text: m.qr, width: 100, height: 100, colorDark: "#000000", colorLight: "#ffffff" });
+                        }
+                    } catch(e){}
+                    
+                    cardM.appendChild(divQrM);
+                    cardM.innerHTML += "<p style=\"margin: 4px 0 0 0; font-size: 11px; font-weight: bold;\">" + m.nombre + "<br><span style=\"color:#ff6b00;\">" + m.qr + "</span></p>";
+                    contenedor.appendChild(cardM);
+
+                    (m.compartimientos || []).forEach((comp) => {
+                        const cardC = document.createElement('div');
+                        cardC.classList.add('tarjeta-qr-print');
+                        const divQrC = document.createElement('div');
+                        
+                        try {
+                            if(typeof QRCode !== 'undefined') {
+                                new QRCode(divQrC, { text: comp.id_comp, width: 100, height: 100, colorDark: "#000000", colorLight: "#ffffff" });
+                            }
+                        } catch(e){}
+
+                        cardC.appendChild(divQrC);
+                        cardC.innerHTML += "<p style=\"margin: 4px 0 0 0; font-size: 10px;\">" + m.nombre + " [Cara " + (comp.cara || 'A') + "]<br>" + (comp.nivel || '') + "-" + (comp.bin || '') + "<br><span style=\"color:#0088ff; font-weight: bold;\">" + comp.id_comp + "</span></p>";
+                        contenedor.appendChild(cardC);
+                    });
+                });
+
+                document.getElementById('modal-impresion').style.display = 'flex';
+            });
+        }
+
+        const btnCerrarPrint = document.getElementById('btn-cerrar-print');
+        if (btnCerrarPrint) {
+            btnCerrarPrint.addEventListener('click', () => {
+                document.getElementById('modal-impresion').style.display = 'none';
+            });
+        }
+
+       // --- 9. AUTO-CARGA DEL PLANO PERSISTIDO (0-MS LOCALSTORAGE + NUBE) ---
+        window.aplicarDatosPlanoEnMemoria = function(planoObj) {
+            if (!planoObj) {
+                itemsEspaciales = [];
+                perimetro = { anchoM: 12, largoM: 18 };
+                document.getElementById('area-ancho').value = 12;
+                document.getElementById('area-largo').value = 18;
+                muebles = [];
+                celdasMurosBloqueadas = new Set();
+                return;
             }
-        });
+            if (planoObj.perimetro) {
+                perimetro = planoObj.perimetro;
+                document.getElementById('area-ancho').value = perimetro.anchoM;
+                document.getElementById('area-largo').value = perimetro.largoM;
+            }
+            if (Array.isArray(planoObj.elementos)) {
+                muebles = planoObj.elementos.map(m => {
+                    if (!m.caras) {
+                        m.caras = {
+                            A: { niveles: m.niveles || 4, bins: m.subdivisionesXNivel || 4, activa: true },
+                            B: { niveles: 0, bins: 0, activa: false },
+                            C: { niveles: 0, bins: 0, activa: false },
+                            D: { niveles: 0, bins: 0, activa: false }
+                        };
+                    }
+                    if (!m.compartimientos || m.compartimientos.length === 0) {
+                        m.compartimientos = window.generarMatrizCanonicaBins(m.id_mueble, m.caras);
+                    }
+                    return m;
+                });
+            } else {
+                muebles = [];
+            }
+            itemsEspaciales = Array.isArray(planoObj.items) ? planoObj.items : [];
+            celdasMurosBloqueadas = Array.isArray(planoObj.muros) ? new Set(planoObj.muros) : new Set();
+        };
 
-        // GUARDADO NUBE
-        const btnGuardN = document.getElementById('btn-guardar-nube');
-        if (btnGuardN) btnGuardN.addEventListener('click', async function() {
-            if (!idNegocio) { alert("Inicia sesión para respaldar."); return; }
-            const gridData = {
-                perimetro: perimetro, elementos: muebles, items: itemsEspaciales,
-                muros: Array.from(celdasMurosBloqueadas), sede: idSedeActiva
-            };
-            const res = await GeokatuDB.RadarService.guardarMapaBodega(idNegocio, idSedeActiva, gridData);
-            if (res.success) alert("✅ Plano espacial de [" + idSedeActiva + "] sincronizado con éxito.");
-            else alert("⚠️ Error guardando: " + res.error);
-        });
-
-        // CARGA NUBE
         window.hidratarPlanoNube = async function() {
             if (!idNegocio) return;
+            const claveCachePlano = 'geokatu_plano_' + idNegocio + '_' + idSedeActiva;
+            let planoLocal = null;
+
+            // Paso 1: Hidratacion instantanea en 0 ms desde localStorage (nunca abre en blanco en bodega sin red)
+            const rawLocal = localStorage.getItem(claveCachePlano);
+            if (rawLocal) {
+                try {
+                    planoLocal = JSON.parse(rawLocal);
+                    window.aplicarDatosPlanoEnMemoria(planoLocal);
+                    window.alternarModoEdicion(false);
+                    window.redibujarArea();
+                    window.renderizarMuebles();
+                    window.actualizarTransform();
+                    window.renderizarItemsEspaciales();
+                    window.actualizarContadorDrawer();
+                } catch (eL) {}
+            }
+
+            if (!navigator.onLine && planoLocal) {
+                return;
+            }
+
+            // Paso 2: Respaldo o verificacion desde GeokatuDB
             try {
                 const res = await GeokatuDB.RadarService.obtenerMapaBodega(idNegocio, idSedeActiva);
                 if (res.success && res.data) {
-                    if (res.data.perimetro) {
-                        perimetro = res.data.perimetro;
-                        document.getElementById('area-ancho').value = perimetro.anchoM;
-                        document.getElementById('area-largo').value = perimetro.largoM;
+                    const modLocal = planoLocal && planoLocal.ultima_modificacion ? planoLocal.ultima_modificacion : '';
+                    const modRemota = res.data.ultima_modificacion || '';
+                    if (!planoLocal || (modRemota && modRemota > modLocal)) {
+                        localStorage.setItem(claveCachePlano, JSON.stringify(res.data));
+                        window.aplicarDatosPlanoEnMemoria(res.data);
                     }
-                    if (Array.isArray(res.data.elementos)) {
-                        muebles = res.data.elementos.map(function(m) {
-                            if (!m.caras) m.caras = { A: { niveles: m.niveles || 4, bins: m.subdivisionesXNivel || 4, activa: true }, B: { niveles: 0, bins: 0, activa: false }, C: { niveles: 0, bins: 0, activa: false }, D: { niveles: 0, bins: 0, activa: false } };
-                            if (!m.compartimientos || m.compartimientos.length === 0) m.compartimientos = window.generarMatrizCanonicaBins(m.id_mueble, m.caras);
-                            return m;
-                        });
-                    } else { muebles = []; }
-                    if (Array.isArray(res.data.items)) itemsEspaciales = res.data.items; else itemsEspaciales = [];
-                    if (Array.isArray(res.data.muros)) celdasMurosBloqueadas = new Set(res.data.muros); else celdasMurosBloqueadas = new Set();
-                } else {
-                    itemsEspaciales = []; perimetro = { anchoM: 12, largoM: 18 };
-                    document.getElementById('area-ancho').value = 12; document.getElementById('area-largo').value = 18;
-                    muebles = []; celdasMurosBloqueadas = new Set();
+                } else if (!planoLocal) {
+                    window.aplicarDatosPlanoEnMemoria(null);
                 }
-                
-                modoEdicionActivo = false;
-                vpEl.classList.remove('modo-edicion'); vpEl.classList.add('modo-lectura');
-                window.deseleccionarMuebles();
-                const bModo = document.getElementById('btn-toggle-modo-edicion');
-                if (bModo) { bModo.innerHTML = '🔒 Lectura'; bModo.style.background = 'rgba(255,255,255,0.08)'; bModo.style.borderColor = 'rgba(255,255,255,0.2)'; }
-
+                window.alternarModoEdicion(false);
                 window.redibujarArea();
                 window.renderizarMuebles();
                 window.actualizarTransform();
                 window.renderizarItemsEspaciales();
                 window.actualizarContadorDrawer();
-            } catch (err) {}
+                console.log("[GEOKATU SIG] Plano de sede [" + idSedeActiva + "] hidratado en 0 ms.");
+            } catch (err) {
+                console.warn("[GEOKATU SIG] Operando sobre plano en cache local:", err);
+            }
         };
 
-        // INICIALIZACIÓN
+
+        const btnToggleModoEdicion = document.getElementById('btn-toggle-modo-edicion');
+        if (btnToggleModoEdicion) {
+            btnToggleModoEdicion.addEventListener('click', () => window.alternarModoEdicion());
+        }
+
+        // --- DRAWER LATERAL DE MUEBLES ---
+        const drawerEl = document.getElementById('drawer-muebles');
+        const contenedorDrawer = document.getElementById('drawer-lista-contenedor');
+        const badgeContador = document.getElementById('badge-contador-muebles');
+        const drawerTotalTxt = document.getElementById('drawer-resumen-total');
+
+        window.actualizarContadorDrawer = function() {
+            if (badgeContador) badgeContador.innerText = muebles.length;
+            if (drawerTotalTxt) drawerTotalTxt.innerText = muebles.length + " muebles en plano";
+        };
+
+        window.renderizarDrawerMuebles = function() {
+            if (!contenedorDrawer) return;
+            contenedorDrawer.innerHTML = '';
+
+            if (muebles.length === 0) {
+                contenedorDrawer.innerHTML = "<div style=\"text-align: center; color: #777; padding: 30px 10px; font-size: 12px;\">No has agregado muebles al plano.<br>Usa el botón <strong>+ Mueble</strong> para diseñar estanterías.</div>";
+                return;
+            }
+
+            muebles.forEach((m) => {
+                const totalBins = m.compartimientos ? m.compartimientos.length : 0;
+                const card = document.createElement('div');
+                card.classList.add('tarjeta-mueble-index');
+                
+                const txtZona = m.zona === 'BODEGA' ? 'BODEGA' : 'PISO VENTA';
+                const colorBg = m.zona === 'BODEGA' ? 'rgba(255,170,0,0.2)' : 'rgba(0,255,100,0.2)';
+                const colorTxt = m.zona === 'BODEGA' ? '#ffaa00' : '#00ff64';
+
+                card.innerHTML = "<div style=\"display: flex; justify-content: space-between; align-items: center;\">" +
+                    "<strong style=\"color: white; font-size: 13px;\">" + m.nombre + "</strong>" +
+                    "<span style=\"font-size: 9px; padding: 2px 6px; border-radius: 6px; background: " + colorBg + "; color: " + colorTxt + "; font-weight: bold;\">" + txtZona + "</span>" +
+                    "</div>" +
+                    "<div style=\"font-family: monospace; font-size: 11px; color: var(--naranja); margin-top: 4px;\">" + m.id_mueble + "</div>" +
+                    "<div style=\"display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px; color: #888;\">" +
+                    "<span>Dim: " + m.anchoM + "m x " + m.largoM + "m</span>" +
+                    "<span style=\"color: #00ff64; font-weight: bold;\">" + totalBins + " Bins</span>" +
+                    "</div>";
+
+                card.addEventListener('click', () => {
+                    window.navegarYResaltarMueble(m);
+                    drawerEl.classList.remove('abierto');
+                });
+
+                contenedorDrawer.appendChild(card);
+            });
+        };
+
+        window.navegarYResaltarMueble = function(m) {
+            document.querySelectorAll('.mueble-bloque').forEach(b => {
+                b.classList.remove('radar-activo', 'seleccionado');
+            });
+
+            const miniWrap = document.getElementById('contenedor-minimapa');
+            if (miniWrap && miniWrap.classList.contains('colapsado')) {
+                miniWrap.classList.remove('colapsado');
+            }
+
+            muebleRadarActivoId = m.id_mueble;
+            window.renderizarMinimapa();
+
+            if (animacionRadarMiniTimer) clearTimeout(animacionRadarMiniTimer);
+            animacionRadarMiniTimer = setTimeout(() => {
+                muebleRadarActivoId = null;
+                window.renderizarMinimapa();
+            }, 3200);
+
+            capaTransform.style.transition = 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)';
+            viewport.x = (window.innerWidth / 2) - ((m.x + (m.anchoM * METRO_PX) / 2) * viewport.escala);
+            viewport.y = (window.innerHeight / 2) - ((m.y + (m.largoM * METRO_PX) / 2) * viewport.escala);
+            window.actualizarTransform();
+
+            setTimeout(() => {
+                capaTransform.style.transition = '';
+            }, 450);
+
+            const elMueble = document.getElementById("mueble-" + m.id_mueble);
+            if (elMueble) {
+                window.seleccionarMueble(m, elMueble);
+                elMueble.classList.add('radar-activo');
+                setTimeout(() => {
+                    elMueble.classList.remove('radar-activo');
+                }, 3000);
+            }
+        };
+
+        const btnPestanaListaMuebles = document.getElementById('btn-pestana-lista-muebles');
+        if (btnPestanaListaMuebles) {
+            btnPestanaListaMuebles.addEventListener('click', () => {
+                window.renderizarDrawerMuebles();
+                if (drawerEl) drawerEl.classList.add('abierto');
+            });
+        }
+
+        const btnCerrarDrawer = document.getElementById('btn-cerrar-drawer');
+        if (btnCerrarDrawer) {
+            btnCerrarDrawer.addEventListener('click', () => {
+                if (drawerEl) drawerEl.classList.remove('abierto');
+            });
+        }
+
+        // =======================================================
+        // GESTIÓN DE ÍTEMS ESPACIALES, PUERTAS Y ANOTACIONES
+        // =======================================================
+        window.renderizarItemsEspaciales = function() {
+            if (!contenedorItems) return;
+            contenedorItems.innerHTML = '';
+
+            itemsEspaciales.forEach((it) => {
+                const el = document.createElement('div');
+                el.classList.add('item-espacial-bloque', "forma-" + it.forma);
+                if (itemSeleccionado && itemSeleccionado.id_item === it.id_item) {
+                    el.classList.add('seleccionado');
+                }
+                el.id = "item-" + it.id_item;
+                el.style.width = (it.anchoM * METRO_PX) + "px";
+                el.style.height = (it.largoM * METRO_PX) + "px";
+                el.style.left = it.x + "px";
+                el.style.top = it.y + "px";
+                el.style.background = it.colorFondo;
+                el.style.transform = "rotate(" + (it.rotacion || 0) + "deg)";
+
+                const tag = document.createElement('div');
+                tag.classList.add('item-etiqueta', 'contra-rotacion');
+                tag.innerText = it.etiqueta || '';
+                el.appendChild(tag);
+
+                const pivote = document.createElement('div');
+                pivote.classList.add('pivote-giro', 'contra-rotacion');
+                pivote.innerHTML = '🔄';
+                pivote.addEventListener('pointerdown', (e) => {
+                    e.stopPropagation();
+                    it.rotacion = ((it.rotacion || 0) + 45) % 360;
+                    el.style.transform = "rotate(" + it.rotacion + "deg)";
+                    window.aplicarContraRotacion(el, it.rotacion);
+                    window.renderizarMinimapa();
+                });
+                el.appendChild(pivote);
+
+                const menu = document.createElement('div');
+                menu.classList.add('menu-contextual-mueble', 'contra-rotacion');
+                menu.innerHTML = "<button class=\"btn-mini-contextual btn-editar-it\">✏️ Editar</button><button class=\"btn-mini-contextual peligro btn-borrar-it\">🗑️ Borrar</button>";
+                
+                menu.querySelector('.btn-editar-it').addEventListener('pointerdown', (e) => {
+                    e.stopPropagation();
+                    window.abrirModalEditarItem(it);
+                });
+                menu.querySelector('.btn-borrar-it').addEventListener('pointerdown', (e) => {
+                    e.stopPropagation();
+                    if (confirm("¿Eliminar \"" + it.etiqueta + "\"?")) {
+                        itemsEspaciales = itemsEspaciales.filter(x => x.id_item !== it.id_item);
+                        window.deseleccionarItems();
+                        window.renderizarItemsEspaciales();
+                        window.renderizarMinimapa();
+                    }
+                });
+                el.appendChild(menu);
+
+                window.iniciarDragItem(el, it);
+                contenedorItems.appendChild(el);
+                window.aplicarContraRotacion(el, it.rotacion || 0);
+            });
+        };
+
+        window.iniciarDragItem = function(el, item) {
+            let offset = { x: 0, y: 0 };
+            let arrastrando = false;
+
+            el.addEventListener('pointerdown', (e) => {
+                if (!modoEdicionActivo) return;
+                e.stopPropagation();
+                arrastrando = true;
+                window.deseleccionarMuebles();
+                window.seleccionarItem(item, el);
+
+                offset = {
+                    x: (e.clientX / viewport.escala) - item.x,
+                    y: (e.clientY / viewport.escala) - item.y
+                };
+                el.setPointerCapture(e.pointerId);
+            });
+
+            el.addEventListener('pointermove', (e) => {
+                if (!arrastrando) return;
+                item.x = (e.clientX / viewport.escala) - offset.x;
+                item.y = (e.clientY / viewport.escala) - offset.y;
+                el.style.left = item.x + "px";
+                el.style.top = item.y + "px";
+                window.renderizarMinimapa();
+            });
+
+            const fin = () => { arrastrando = false; };
+            el.addEventListener('pointerup', fin);
+            el.addEventListener('pointercancel', fin);
+        };
+
+        window.seleccionarItem = function(it, el) {
+            window.deseleccionarItems();
+            itemSeleccionado = it;
+            el.classList.add('seleccionado');
+        };
+
+        window.deseleccionarItems = function() {
+            itemSeleccionado = null;
+            document.querySelectorAll('.item-espacial-bloque').forEach(b => b.classList.remove('seleccionado'));
+        };
+
+        window.abrirModalEditarItem = function(it) {
+            itemEnEdicion = it;
+            document.getElementById('modal-item-titulo').innerText = "Editar Ítem Espacial";
+            document.getElementById('item-etiqueta').value = it.etiqueta;
+            document.getElementById('item-forma').value = it.forma;
+            document.getElementById('item-color').value = it.colorFondo;
+            document.getElementById('item-ancho').value = it.anchoM;
+            document.getElementById('item-largo').value = it.largoM;
+            document.getElementById('modal-item').style.display = 'flex';
+        };
+
+        const btnBurbujaItem = document.getElementById('btn-burbuja-item');
+        if (btnBurbujaItem) {
+            btnBurbujaItem.addEventListener('click', () => {
+                itemEnEdicion = null;
+                document.getElementById('modal-item-titulo').innerText = "Agregar Elemento / Acceso";
+                document.getElementById('item-etiqueta').value = "Puerta Principal";
+                document.getElementById('item-forma').value = "rectangulo";
+                document.getElementById('item-ancho').value = 1.2;
+                document.getElementById('item-largo').value = 0.4;
+                document.getElementById('modal-item').style.display = 'flex';
+            });
+        }
+
+        const itemTipoPreset = document.getElementById('item-tipo-preset');
+        if (itemTipoPreset) {
+            itemTipoPreset.addEventListener('change', (e) => {
+                const val = e.target.value;
+                const inputEtiq = document.getElementById('item-etiqueta');
+                const inputForma = document.getElementById('item-forma');
+                const inputColor = document.getElementById('item-color');
+                const inputW = document.getElementById('item-ancho');
+                const inputH = document.getElementById('item-largo');
+
+                if (val.startsWith('PUERTA')) {
+                    inputForma.value = 'rectangulo';
+                    inputColor.value = 'rgba(0, 255, 100, 0.25)';
+                    inputW.value = (val === 'PUERTA_BOD_EXT') ? 3.0 : 1.2;
+                    inputH.value = 0.4;
+                    inputEtiq.value = e.target.options[e.target.selectedIndex].text.replace(/^[^\s]+\s/, '');
+                } else if (val === 'ZONA_TEXTO') {
+                    inputForma.value = 'nube';
+                    inputColor.value = 'rgba(255, 255, 255, 0.08)';
+                    inputW.value = 3.5;
+                    inputH.value = 2.0;
+                    inputEtiq.value = 'Zona Cajas / Checkout';
+                }
+            });
+        }
+
+        const btnCancelarItem = document.getElementById('btn-cancelar-item');
+        if (btnCancelarItem) {
+            btnCancelarItem.addEventListener('click', () => {
+                document.getElementById('modal-item').style.display = 'none';
+            });
+        }
+
+        const btnGuardarItem = document.getElementById('btn-guardar-item');
+        if (btnGuardarItem) {
+            btnGuardarItem.addEventListener('click', () => {
+                const etiq = document.getElementById('item-etiqueta').value.trim() || 'Ítem';
+                const forma = document.getElementById('item-forma').value;
+                const color = document.getElementById('item-color').value;
+                const w = Number(document.getElementById('item-ancho').value) || 1.2;
+                const h = Number(document.getElementById('item-largo').value) || 0.4;
+
+                if (itemEnEdicion) {
+                    itemEnEdicion.etiqueta = etiq;
+                    itemEnEdicion.forma = forma;
+                    itemEnEdicion.colorFondo = color;
+                    itemEnEdicion.anchoM = w;
+                    itemEnEdicion.largoM = h;
+                    itemEnEdicion = null;
+                } else {
+                    itemsEspaciales.push({
+                        id_item: "IT_" + Date.now(),
+                        etiqueta: etiq,
+                        forma: forma,
+                        colorFondo: color,
+                        anchoM: w,
+                        largoM: h,
+                        x: 60,
+                        y: 60,
+                        rotacion: 0
+                    });
+                }
+                document.getElementById('modal-item').style.display = 'none';
+                window.alternarModoEdicion(true);
+                window.renderizarItemsEspaciales();
+                window.renderizarMinimapa();
+                window.persistirPlanoLocal();
+            });
+        }
+
+
+        // Inicialización del Modelo CAD
         window.redibujarArea();
         window.actualizarTransform();
         window.actualizarContadorDrawer();
-
+        window.renderizarItemsEspaciales();
+        
     </script>
+
 </body>
 </html>
+
+

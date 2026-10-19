@@ -1229,36 +1229,31 @@ exports.webhookWompiEventos = functions.runWith({ secrets: [secretoWebhooks] })
         }
     });
 // ============================================================================
-// 20. GESTIÓN DE EQUIPO: CREAR OPERARIO CON REGLAS DE SEGURIDAD Y EXPIRACIÓN
+// 20. GESTIÓN DE EQUIPO: CREAR OPERARIO CON HORARIOS Y PROTECCIÓN MULTI-TENANT
 // ============================================================================
 exports.crearOperarioComercio = onCall({ memory: '256MB', maxInstances: 10 }, async (request) => {
     if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'Acceso denegado. Se requiere sesión activa.');
+        throw new HttpsError('unauthenticated', 'Acceso denegado. Se requiere sesion activa.');
     }
-
     const uidAdmin = request.auth.uid;
-    const { idNegocio, nombre, telefono, email, passwordTemporal, codigoCajero, rol, almacenHabitual } = request.data;
-
+    const { idNegocio, nombre, telefono, email, passwordTemporal, codigoCajero, rol, almacenHabitual, horarioLaboral } = request.data;
     if (!idNegocio || !email || !passwordTemporal || !codigoCajero) {
-        throw new HttpsError('invalid-argument', 'Faltan parámetros obligatorios.');
+        throw new HttpsError('invalid-argument', 'Faltan parametros obligatorios.');
     }
-
     if (!/^\d{4}$/.test(codigoCajero)) {
-        throw new HttpsError('invalid-argument', 'El código de cajero debe ser exactamente de 4 dígitos numéricos (1000 - 9999).');
+        throw new HttpsError('invalid-argument', 'El codigo de cajero debe ser exactamente de 4 digitos numericos (1000 - 9999).');
     }
-
     const db = admin.firestore();
-
-    // 🛡️ ZERO-TRUST: Verificar titularidad del comercio
+    // ZERO-TRUST: Verificar titularidad del comercio
     if (uidAdmin !== idNegocio) {
         const adminSnap = await db.collection('Usuarios_Admin').doc(uidAdmin).get();
         if (!adminSnap.exists || (adminSnap.data().rol !== 'superadmin' && adminSnap.data().rol !== 'administrador_delegado')) {
-            throw new HttpsError('permission-denied', 'No tienes permisos de gestión sobre este comercio.');
+            throw new HttpsError('permission-denied', 'No tienes permisos de gestion sobre este comercio.');
         }
     }
-
     try {
         let userRecord;
+        let esCuentaNueva = true;
         try {
             userRecord = await admin.auth().createUser({
                 email: email,
@@ -1267,23 +1262,23 @@ exports.crearOperarioComercio = onCall({ memory: '256MB', maxInstances: 10 }, as
             });
         } catch (authError) {
             if (authError.code === 'auth/email-already-exists') {
+                // La cuenta ya existe (ej. entra con Google o ya tiene su propio negocio):
+                // NO sobrescribimos su password personal para no bloquearle su cuenta
                 userRecord = await admin.auth().getUserByEmail(email);
-                await admin.auth().updateUser(userRecord.uid, { password: passwordTemporal });
+                esCuentaNueva = false;
             } else {
                 throw authError;
             }
         }
-
-        // Custom Claims para autorizaciones en Security Rules
-        await admin.auth().setCustomUserClaims(userRecord.uid, {
+        // Preservar Custom Claims existentes sin destruir permisos previos del usuario
+        const claimsPrevios = userRecord.customClaims || {};
+        await admin.auth().setCustomUserClaims(userRecord.uid, Object.assign({}, claimsPrevios, {
             rol: rol || 'cajero',
             id_negocio_padre: idNegocio,
             codigo_cajero: codigoCajero
-        });
-
-        // Plazo máximo para primer inicio: 48 horas
-        const expiracionTemporal = new Date(Date.now() + (48 * 60 * 60 * 1000)).toISOString();
-
+        }));
+        // Plazo maximo para primer inicio con clave temporal: 48 horas (solo si es cuenta nueva)
+        const expiracionTemporal = esCuentaNueva ? new Date(Date.now() + (48 * 60 * 60 * 1000)).toISOString() : null;
         const payloadOperario = {
             uid: userRecord.uid,
             nombre: nombre,
@@ -1292,44 +1287,43 @@ exports.crearOperarioComercio = onCall({ memory: '256MB', maxInstances: 10 }, as
             rol: rol || 'cajero',
             codigo_cajero: codigoCajero,
             almacen_habitual: almacenHabitual || "SALA_VENTAS",
-            requiere_cambio_password: true,
+            horario_laboral: horarioLaboral || null,
+            requiere_cambio_password: esCuentaNueva,
             expiracion_clave_temporal: expiracionTemporal,
             id_negocio_padre: idNegocio,
             fecha_creacion: admin.firestore.FieldValue.serverTimestamp()
         };
-
-        // 1. Guardar en la subcolección privada del negocio
+        // 1. Guardar en la subcoleccion privada del negocio
         await db.collection('Directorio').doc(idNegocio).collection('Equipo').doc(userRecord.uid).set(payloadOperario, { merge: true });
-
-        // 2. Índice global para enrutamiento rápido en Login
+        // 2. Indice global para enrutamiento en AuthGate (incluye horario y sede)
         await db.collection('Usuarios_Operadores').doc(userRecord.uid).set({
+            nombre: nombre,
             email: email,
             id_negocio: idNegocio,
             rol: rol || 'cajero',
             codigo_cajero: codigoCajero,
-            requiere_cambio_password: true,
+            almacen_habitual: almacenHabitual || "SALA_VENTAS",
+            horario_laboral: horarioLaboral || null,
+            requiere_cambio_password: esCuentaNueva,
             expiracion_clave_temporal: expiracionTemporal
         }, { merge: true });
-
-        // 🚀 Engrane Suizo: Mantiene el contador de equipo de la red en tiempo real
+        // Engrane Suizo: Mantiene el contador de equipo de la red en tiempo real
         try {
             await db.collection('sistema').doc('metricas_red').set({
                 total_operarios: admin.firestore.FieldValue.increment(1)
             }, { merge: true });
         } catch (eMet) {}
-
         return { 
             success: true, 
             uid: userRecord.uid, 
-            mensaje: `Operario ${nombre} creado con PIN ${codigoCajero}. Clave provisional válida por 48 horas.` 
+            mensaje: "Operario " + nombre + " registrado con PIN " + codigoCajero + "."
         };
-
-
     } catch (error) {
         console.error("[CREAR OPERARIO ERROR]", error);
         throw new HttpsError('internal', error.message || 'Error registrando operario.');
     }
 });
+
 
 // ============================================================================
 // 21. RESET DE CONTRASEÑA POR ADMINISTRADOR O RECUPERACIÓN POR EMAIL
@@ -1354,6 +1348,187 @@ exports.resetearPasswordOperario = onCall({ memory: '256MB', maxInstances: 10 },
     });
 
     return { success: true, mensaje: "Contraseña temporal restablecida por 48 horas." };
+});
+// ============================================================================
+// 22. COMPILADOR REACTIVO DE MATRIZ OFFLINE (CDN & STORAGE)
+// ============================================================================
+const CAMPOS_CARTOGRAFICOS = [
+    "estado_moderacion",
+    "nombre",
+    "slogan",
+    "nicho",
+    "categoria",
+    "Coordenadas",
+    "lat",
+    "lng",
+    "pin_pack",
+    "color_principal",
+    "color_acento",
+    "logo",
+    "whatsapp",
+    "whatsApp",
+    "pbx",
+    "es_24_horas",
+    "verificado_maps",
+    "verificado_geokatu",
+    "destacado_estrella"
+];
+
+async function compilarYPublicarMatrizStorage() {
+    const db = admin.firestore();
+    const snapshot = await db.collection("Directorio")
+        .where("estado_moderacion", "==", "aprobado")
+        .get();
+
+    if (snapshot.empty) {
+        console.log("[Compilador Matriz] No hay comercios aprobados para compilar.");
+        return { total: 0, bytes: 0 };
+    }
+
+    const payloadCompacto = [];
+
+    snapshot.forEach((docSnap) => {
+        const c = docSnap.data();
+
+        // 1. Extracción y normalización de coordenadas
+        let lat = 4.81333;
+        let lng = -75.69611;
+
+        if (c.Coordenadas && typeof c.Coordenadas.latitude === "number") {
+            lat = c.Coordenadas.latitude;
+            lng = c.Coordenadas.longitude;
+        } else if (typeof c.lat === "number" && !isNaN(c.lat)) {
+            lat = c.lat;
+            lng = c.lng;
+        }
+
+        // 2. Empaquetado binario de banderas (f)
+        let flags = 0;
+        const fonoWa = String(c.whatsapp || c.whatsApp || "").trim();
+        const fonoPbx = String(c.pbx || "").trim();
+
+        if (fonoWa.length > 5) flags |= 1;                                      // Bit 0: WhatsApp
+        if (fonoPbx.length > 4 && fonoWa.length <= 5) flags |= 2;               // Bit 1: Solo PBX
+        if (Boolean(c.es_24_horas)) flags |= 4;                                 // Bit 2: 24 Horas
+        if (c.verificado_maps === "SI" || c.verificado_geokatu === true) flags |= 8; // Bit 3: Verificado
+        if (Boolean(c.destacado_estrella)) flags |= 16;                         // Bit 4: Estrella
+
+        payloadCompacto.push({
+            id: String(docSnap.id),
+            n: String(c.nombre || "Comercio"),
+            s: String(c.slogan || "").substring(0, 70),
+            c: String(c.nicho || c.categoria || "General"),
+            g: [Number(lat.toFixed(6)), Number(lng.toFixed(6))],
+            p: String(c.pin_pack || "forma-gota|anim-salto"),
+            b: [c.color_principal || "#ff6b00", c.color_acento || "#8a909d"],
+            l: String(c.logo || ""),
+            f: flags
+        });
+    });
+
+    const jsonBuffer = Buffer.from(JSON.stringify(payloadCompacto));
+    const bucket = admin.storage().bucket();
+    const archivo = bucket.file("directorio_matriz.json");
+
+    // Guardado en Storage con cabecera de caché para CDN perimetral
+    await archivo.save(jsonBuffer, {
+        contentType: "application/json",
+        metadata: {
+            cacheControl: "public, max-age=86400, stale-while-revalidate=43200"
+        }
+    });
+
+    try {
+        await archivo.makePublic();
+    } catch (ePub) {
+        console.warn("[Compilador Matriz] Aviso de visibilidad pública:", ePub.message);
+    }
+
+    // Registro de telemetría y control de enfriamiento
+    await db.doc("Sistema/matriz_control").set({
+        ultima_compilacion: new Date().toISOString(),
+        total_comercios: payloadCompacto.length,
+        tamano_bytes: jsonBuffer.length
+    }, { merge: true });
+
+    console.log("[Compilador Matriz] Compilación exitosa: " + payloadCompacto.length + " comercios (" + jsonBuffer.length + " bytes).");
+    return { total: payloadCompacto.length, bytes: jsonBuffer.length };
+}
+
+exports.observadorDirectorioMatriz = functions.firestore
+    .document("Directorio/{id}")
+    .onWrite(async (change, context) => {
+        const dataAntes = change.before.exists ? change.before.data() : null;
+        const dataDespues = change.after.exists ? change.after.data() : null;
+
+        // A. Comercio eliminado: si estaba aprobado, reconstruir matriz
+        if (!change.after.exists) {
+            if (dataAntes && dataAntes.estado_moderacion === "aprobado") {
+                return compilarYPublicarMatrizStorage();
+            }
+            return null;
+        }
+
+        // B. Si nunca estuvo aprobado ni lo está ahora, no procesar
+        const modAntes = dataAntes ? dataAntes.estado_moderacion : null;
+        const modDespues = dataDespues ? dataDespues.estado_moderacion : null;
+
+        if (modAntes !== "aprobado" && modDespues !== "aprobado") {
+            return null;
+        }
+
+        // C. Filtro de cambios: si solo fue una venta del POS o métricas, omitir
+        if (dataAntes && dataDespues) {
+            let esCambioCartografico = false;
+            for (let i = 0; i < CAMPOS_CARTOGRAFICOS.length; i++) {
+                const k = CAMPOS_CARTOGRAFICOS[i];
+                if (JSON.stringify(dataAntes[k]) !== JSON.stringify(dataDespues[k])) {
+                    esCambioCartografico = true;
+                    break;
+                }
+            }
+
+            if (!esCambioCartografico) {
+                return null;
+            }
+        }
+
+        // D. Candado de enfriamiento (cooldown de 120 segundos para ráfagas)
+        const db = admin.firestore();
+        const refControl = db.doc("Sistema/matriz_control");
+        const snapControl = await refControl.get();
+        const ahora = Date.now();
+
+        if (snapControl.exists) {
+            const fechaUltima = new Date(snapControl.data().ultima_compilacion || 0).getTime();
+            const deltaSegundos = (ahora - fechaUltima) / 1000;
+
+            if (deltaSegundos < 120) {
+                console.log("[Compilador Matriz] Enfriamiento activo (" + Math.round(deltaSegundos) + "s / 120s). Novedad cubierta por Delta reactivo.");
+                return null;
+            }
+        }
+
+        return compilarYPublicarMatrizStorage();
+    });
+
+// ============================================================================
+// 23. COMPILACIÓN MANUAL DE MATRIZ (ON-CALL V2 SUPERADMIN)
+// ============================================================================
+exports.compilarMatrizDirectorioManual = onCall({ memory: "512MB", maxInstances: 5 }, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Se requiere sesión activa.");
+    }
+
+    const uidAdmin = request.auth.uid;
+    const db = admin.firestore();
+
+    const adminSnap = await db.collection("Usuarios_Admin").doc(uidAdmin).get();
+    if (!adminSnap.exists || (adminSnap.data().rol !== "superadmin" && adminSnap.data().rol !== "admin")) {
+        throw new HttpsError("permission-denied", "Privilegios insuficientes. Solo Superadmin.");
+    }
+
+    return await compilarYPublicarMatrizStorage();
 });
 
 

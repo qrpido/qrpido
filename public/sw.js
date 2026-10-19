@@ -1,11 +1,18 @@
-const CACHE_NAME = 'geokatu-cache-v6';
-const MAP_CACHE_NAME = 'geokatu-map-tiles-v1';
+/**
+ * GEOKATU SERVICE WORKER - ARQUITECTURA OFFLINE-FIRST Y VECTORIAL
+ * Versión: geokatu-cache-v7
+ * Soporte: PMTiles (Range Requests), Matriz Comercial y URLs Limpias
+ */
 
-// Módulos esenciales de la arquitectura GEOKATU
+const CACHE_NAME = 'geokatu-cache-v7';
+const MAP_CACHE_NAME = 'geokatu-map-tiles-v2';
+
+// 1. Módulos esenciales del ecosistema GEOKATU (Cero 404, precarga inmediata)
 const urlsToCache = [
     '/',
     '/oficina',
     '/oficina.html',
+    '/oficina.js',
     '/metricas',
     '/metricas.html',
     '/metricas.js',
@@ -22,10 +29,12 @@ const urlsToCache = [
     '/facturaven.html',
     '/cajon-motor.js',
     '/balanza-motor.js',
+    '/lector-motor.js',
     '/stock',
     '/stock.html',
     '/inventario',
     '/inventario.html',
+    '/inventario.js',
     '/mapatienda',
     '/mapatienda.html',
     '/negocio',
@@ -33,25 +42,28 @@ const urlsToCache = [
     '/manifest.json',
     '/estilo-fresco.json',
     '/catalogo_matriz.json',
+    '/directorio_matriz.json',
     '/maplibre-gl.css',
     '/maplibre-gl.js',
     '/pmtiles.js',
     '/html5-qrcode.min.js',
+    '/qrcode.min.js',
     '/admin-boveda.css',
     '/ui-estilos.css',
     '/pines.css',
     '/negocio.css',
+    '/mapatienda.css',
+    '/inventario.css',
     '/core-db.js',
+    '/auth-gate.js',
     '/firebase-config.js',
     '/billing-guard.js',
-    '/auth-mando.js',
     '/motor-mapa.js',
     '/motor-movilidad.js',
     '/profiler.js'
 ];
 
-
-// Instalación resiliente: no colapsa el caché si un recurso estático falla
+// Instalación atómica y tolerante a fallos
 self.addEventListener('install', event => {
     self.skipWaiting();
     event.waitUntil(
@@ -67,7 +79,7 @@ self.addEventListener('install', event => {
     );
 });
 
-// Activación y purga de versiones obsoletas
+// Activación y depuración de cachés antiguos
 self.addEventListener('activate', event => {
     event.waitUntil(
         caches.keys().then(cacheNames => {
@@ -83,26 +95,53 @@ self.addEventListener('activate', event => {
     );
 });
 
+// Interceptor de tráfico de red
 self.addEventListener('fetch', event => {
     const url = new URL(event.request.url);
 
-    // 1. Bypass para mapas vectoriales pesados (.pmtiles) y streaming de Firebase/Google APIs
+    // Bypass obligatorio para streaming en vivo de Firebase Firestore y Google APIs
     if (
-        url.pathname.endsWith('.pmtiles') ||
         url.hostname.includes('firestore.googleapis.com') ||
-        url.hostname.includes('firebase') ||
         url.hostname.includes('identitytoolkit') ||
-        url.hostname.includes('googleapis.com')
+        url.hostname.includes('securetoken.googleapis.com')
     ) {
         return;
     }
 
-    // 2. Estrategia Stale-While-Revalidate con Fallback de Navegación
+    // A. ESTRATEGIA PARA MAPAS VECTORIALES (PMTILES CON HTTP RANGE REQUESTS)
+    if (url.pathname.endsWith('.pmtiles')) {
+        event.respondWith(
+            caches.open(MAP_CACHE_NAME).then(async mapCache => {
+                // Generar clave de fragmento por rango de bytes
+                const rangeHeader = event.request.headers.get('range') || 'bytes=all';
+                const cacheKey = new Request(event.request.url + '&range=' + rangeHeader);
+
+                const cachedFragment = await mapCache.match(cacheKey);
+                if (cachedFragment) {
+                    return cachedFragment;
+                }
+
+                try {
+                    const networkResponse = await fetch(event.request);
+                    if (networkResponse && (networkResponse.status === 200 || networkResponse.status === 206)) {
+                        mapCache.put(cacheKey, networkResponse.clone());
+                    }
+                    return networkResponse;
+                } catch (err) {
+                    // Si está offline y no tiene ese cuadrante específico, retornar respuesta vacía sin romper el mapa
+                    return new Response(new ArrayBuffer(0), { status: 204, statusText: 'Tile Offline No Disponible' });
+                }
+            })
+        );
+        return;
+    }
+
+    // B. ESTRATEGIA STALE-WHILE-REVALIDATE PARA APP, SCRIPTS Y MATRICES JSON
     if (event.request.method === 'GET') {
         event.respondWith(
             caches.match(event.request, { ignoreSearch: true }).then(cachedResponse => {
                 const fetchPromise = fetch(event.request).then(networkResponse => {
-                    if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+                    if (networkResponse && networkResponse.status === 200 && (networkResponse.type === 'basic' || networkResponse.type === 'cors')) {
                         const responseToCache = networkResponse.clone();
                         caches.open(CACHE_NAME).then(cache => {
                             cache.put(event.request.url.split('?')[0], responseToCache);
@@ -110,18 +149,19 @@ self.addEventListener('fetch', event => {
                     }
                     return networkResponse;
                 }).catch(() => {
-                    // Fallback para APIs o peticiones de datos JSON fuera de línea
+                    // Fallback para datos JSON de catálogo/directorio fuera de línea
                     if (event.request.headers.get('accept')?.includes('application/json') || url.pathname.endsWith('.json')) {
-                        return new Response(JSON.stringify({ offline: true, data: [] }), { 
-                            headers: { 'Content-Type': 'application/json' } 
-                        });
+                        return caches.match('/catalogo_matriz.json')
+                            .then(matrizMatch => matrizMatch || new Response(JSON.stringify({ offline: true, data: [] }), { 
+                                headers: { 'Content-Type': 'application/json' } 
+                            }));
                     }
-
-                    // Fallback para navegación de páginas HTML
+                    // Fallback para navegación entre páginas HTML (URLs limpias sin .html)
                     if (event.request.mode === 'navigate') {
                         const cleanPath = url.pathname;
                         return caches.match(cleanPath, { ignoreSearch: true })
-                            .then(pageMatch => pageMatch || caches.match('/'));
+                            .then(pageMatch => pageMatch || caches.match(cleanPath + '.html', { ignoreSearch: true }))
+                            .then(extMatch => extMatch || caches.match('/'));
                     }
                 });
 

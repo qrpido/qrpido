@@ -1,7 +1,7 @@
 /**
  * GEOKATU B2B - Motor de Despiece Web & Estudio Canvas 2D en Cliente
  * Archivo: despiece-estudio.js
- * Cumplimiento: Vanilla JS puro, WebP 0.82 < 120 KB, cero dependencias pesadas, cero emojis
+ * Cumplimiento: Vanilla JS puro, WebP 0.82 < 120 KB, cero dependencias pesadas, cero sintaxis Docs-incompatible (${})
  */
 
 import { 
@@ -60,6 +60,7 @@ if (document.readyState === 'loading') {
 } else {
     inicializarEstudioDOM();
 }
+
 
 // =========================================================================
 // FILTROS CROMÁTICOS EN CLIENTE
@@ -147,17 +148,18 @@ function inicializarEventosPegado() {
         zonaPegadoDespiece.addEventListener('input', function() {
             const contenido = this.innerHTML || '';
             const texto = (this.innerText || '').replace(/Manten presionado aqui para pegar copia total/gi, '').trim();
-            this.innerHTML = '<div class="texto-pegado-instruccion" style="pointer-events:none;"><span>Mantén presionado aquí para pegar copia total</span></div>';
+            this.innerHTML = '<div class="texto-pegado-instruccion" style="pointer-events:none;"><span>Manten presionado aqui para pegar copia total</span></div>';
             if (texto || (contenido && contenido.indexOf('<img') !== -1)) {
                 procesarContenidoDespiece(contenido, texto);
             }
         });
+
     }
 }
 
 function procesarEventoPaste(e) {
     if (!AppState.comercioActivo) {
-        mostrarToast("Abre primero el catálogo de un comercio en el Drawer.", "error");
+        mostrarToast("Abre primero el catalogo de un comercio en el Drawer.", "error");
         return;
     }
 
@@ -178,7 +180,7 @@ function procesarEventoPaste(e) {
     const textoPlano = e.clipboardData.getData('text/plain');
 
     if (!html && !textoPlano) {
-        mostrarToast("No se detectó contenido válido.", "error");
+        mostrarToast("No se detecto contenido valido.", "error");
         return;
     }
 
@@ -187,7 +189,7 @@ function procesarEventoPaste(e) {
 
 window.pegarDesdePortapapelesDirecto = async function() {
     if (!AppState.comercioActivo) {
-        mostrarToast("Abre primero el catálogo de un comercio en el Drawer.", "error");
+        mostrarToast("Abre primero el catalogo de un comercio en el Drawer.", "error");
         return;
     }
 
@@ -248,11 +250,11 @@ window.pegarDesdePortapapelesDirecto = async function() {
             }
         }
 
-        mostrarToast("El portapapeles está vacío.", "info");
+        mostrarToast("El portapapeles esta vacio.", "info");
         if (progresoBox) progresoBox.style.display = 'none';
     } catch (err) {
         if (progresoBox) progresoBox.style.display = 'none';
-        mostrarToast("Mantén presionado dentro del recuadro para pegar.", "info", 3500);
+        mostrarToast("Manten presionado dentro del recuadro para pegar.", "info", 3500);
         if (zonaPegadoDespiece) zonaPegadoDespiece.focus();
     }
 };
@@ -289,7 +291,7 @@ function procesarContenidoDespiece(html, textoPlano) {
 
     emitirTono('EXITO');
     const totalTxt = textosClasificados.precios.length + textosClasificados.titulos.length;
-    mostrarToast('Despiece: ' + urlsExtraidas.length + ' imágenes y ' + totalTxt + ' textos.', 'exito');
+    mostrarToast('Despiece: ' + urlsExtraidas.length + ' imagenes y ' + totalTxt + ' textos.', 'exito');
 }
 
 function extraerUrlsPolimorficas(doc, rawHtml) {
@@ -467,7 +469,7 @@ function renderizarChipsDespiece(datos) {
             await navigator.clipboard.writeText(tituloStr);
             document.querySelectorAll('#grilla-chips-titulos .chip-despiece').forEach(function(c) { c.classList.remove('copiado'); });
             chip.classList.add('copiado');
-            mostrarToast('Título: "' + tituloStr + '"', 'info', 1500);
+            mostrarToast('Titulo: "' + tituloStr + '"', 'info', 1500);
         };
         grillaTitulos.appendChild(chip);
     });
@@ -485,7 +487,7 @@ function renderizarChipsDespiece(datos) {
                 await navigator.clipboard.writeText(descStr);
                 document.querySelectorAll('#grilla-chips-descripciones .chip-despiece').forEach(function(c) { c.classList.remove('copiado'); });
                 chip.classList.add('copiado');
-                mostrarToast('Descripción seleccionada.', 'info', 1500);
+                mostrarToast('Descripcion seleccionada.', 'info', 1500);
             };
             grillaDesc.appendChild(chip);
         });
@@ -513,6 +515,7 @@ function incorporarMiniaturasDespiece(urls) {
             '<div class="caja-img-recorte">' +
                 '<img id="thumb-extraida-' + id + '" src="' + url + '" loading="lazy" onerror="manejarFalloMiniaturaDespiece(this, \'' + encodeURIComponent(url).replace(/'/g, "%27") + '\')">' +
             '</div>' +
+
             '<div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:3px;">' +
                 '<button type="button" class="btn-submit" style="padding:4px 2px; font-size:9.5px; justify-content:center; background:var(--azul-link); color:#052e16; font-weight:800;" onclick="abrirEstudioCanvas(' + id + ')">' +
                     'Editar' +
@@ -571,6 +574,7 @@ window.manejarFalloMiniaturaDespiece = function(imgEl, urlOriginal) {
         if (imgEl.parentElement) imgEl.parentElement.style.opacity = '0.35';
     }
 };
+
 
 window.limpiarDespieceWeb = function() {
     coleccionImagenesDespiece = [];
@@ -659,15 +663,18 @@ async function descargarImagenComoBlobSeguro(urlFuente) {
         }
     }
 
+    // Limpieza de protocolo para túneles proxy
     const urlLimpia = urlFuente.trim();
     const encodedUrl = encodeURIComponent(urlLimpia);
 
+    // Cascada de túneles proxy con inyección forzada de CORS
     const listaProxies = [
         'https://images.weserv.nl/?url=' + encodedUrl + '&default=' + encodedUrl,
         'https://corsproxy.io/?' + encodedUrl,
         'https://api.allorigins.win/raw?url=' + encodedUrl
     ];
 
+    // Intento 1: Descarga directa si el servidor original lo permite
     try {
         const resDirecta = await fetch(urlLimpia, { mode: 'cors' });
         if (resDirecta.ok) {
@@ -676,6 +683,7 @@ async function descargarImagenComoBlobSeguro(urlFuente) {
         }
     } catch (eDirecto) {}
 
+    // Intento 2: Recorrido de cascada de proxies
     for (let i = 0; i < listaProxies.length; i++) {
         try {
             const resProxy = await fetch(listaProxies[i]);
@@ -698,6 +706,7 @@ async function cargarImagenEnLienzoEstudio(fuenteUrl) {
     let urlFinal = fuenteUrl;
     let esBlobLocal = false;
 
+    // Conversión forzosa a Blob en RAM para blindar el Canvas contra contaminación CORS
     if (fuenteUrl.indexOf('data:') !== 0 && fuenteUrl.indexOf('blob:') !== 0) {
         const blobSeguro = await descargarImagenComoBlobSeguro(fuenteUrl);
         if (blobSeguro) {
@@ -709,6 +718,8 @@ async function cargarImagenEnLienzoEstudio(fuenteUrl) {
     }
 
     const img = new Image();
+    
+    // Solo requerir crossOrigin si no pudimos convertir a blob local
     if (!esBlobLocal) {
         img.crossOrigin = "anonymous";
     }
@@ -738,9 +749,9 @@ async function cargarImagenEnLienzoEstudio(fuenteUrl) {
         guardarSnapshotEstudio();
     };
 
-    img.onerror = function() {
+        img.onerror = function() {
         if (badgeDim) badgeDim.innerText = "Error CORS";
-        mostrarToast("No fue posible cargar la imagen.", "error");
+        mostrarToast("No fue posible importar la imagen protegida por CORS.", "error");
     };
 
     img.src = urlFinal;
@@ -769,7 +780,7 @@ window.deshacerPasoEstudio = function() {
         if (badgeDim) badgeDim.innerText = canvasEstudio.width + ' x ' + canvasEstudio.height + ' px';
         emitirTono('EXITO');
     } else {
-        mostrarToast("No hay más cambios por deshacer.", "info");
+        mostrarToast("No hay mas cambios por deshacer.", "info");
     }
 };
 
@@ -784,8 +795,8 @@ window.restablecerImagenOriginalEstudio = function() {
 
 window.activarModoEstudio = function(modo) {
     modoHerramientaEstudio = modo;
-    const btnVarita = document.getElementById('btn-tool-varita');
-    const btnCrop = document.getElementById('btn-tool-recorte');
+    const btnVarita = document.getElementById('btn-herramienta-varita');
+    const btnCrop = document.getElementById('btn-herramienta-crop');
     const btnConfirmCrop = document.getElementById('btn-confirmar-crop-estudio');
 
     if (btnVarita) btnVarita.classList.toggle('activo', modo === 'varita');
@@ -813,8 +824,6 @@ function inicializarEventosCanvas() {
         hornearFiltrosEnPixels();
 
         const rect = canvasEstudio.getBoundingClientRect();
-        if (!rect.width || !rect.height) return;
-
         const escalaX = canvasEstudio.width / rect.width;
         const escalaY = canvasEstudio.height / rect.height;
 
@@ -1112,7 +1121,7 @@ window.ejecutarAutoRecorteTransparente = function() {
     }
 
     if (!pixelesDetectados) {
-        mostrarToast("La imagen está completamente transparente.", "error");
+        mostrarToast("La imagen esta completamente transparente.", "error");
         return;
     }
 
@@ -1134,13 +1143,11 @@ window.ejecutarAutoRecorteTransparente = function() {
 
     guardarSnapshotEstudio();
     emitirTono('EXITO');
-    mostrarToast("Márgenes recortados.", "info", 1500);
+    mostrarToast("Margenes recortados.", "info", 1500);
 };
 
 function coordsEnCanvasEstudio(clientX, clientY) {
-    if (!canvasEstudio) return { x: 0, y: 0 };
     const rect = canvasEstudio.getBoundingClientRect();
-    if (!rect.width || !rect.height) return { x: 0, y: 0 };
     const escalaX = canvasEstudio.width / rect.width;
     const escalaY = canvasEstudio.height / rect.height;
     return {
@@ -1150,7 +1157,7 @@ function coordsEnCanvasEstudio(clientX, clientY) {
 }
 
 function actualizarOverlayRecorteEstudio(clientX, clientY) {
-    if (!overlayCropEstudio || !viewportCanvas || !canvasEstudio) return;
+    if (!overlayCropEstudio || !viewportCanvas) return;
     const wrapRect = viewportCanvas.getBoundingClientRect();
     const canvasRect = canvasEstudio.getBoundingClientRect();
 
@@ -1308,17 +1315,23 @@ window.acoplarImagenEditadaAProducto = async function() {
         renderizarListaSkusDrawer();
         subirFotoAStorageEnSegundoPlano(nuevoSKU, AppState.comercioActivo.id);
 
-        mostrarToast('Producto "' + nombreFinal + '" acoplado al catálogo.', 'exito');
+        mostrarToast('Producto "' + nombreFinal + '" acoplado al catalogo.', 'exito');
     } else {
         const campo = rolSeleccionadoEstudio;
         AppState.comercioActivo[campo] = previewUrl;
         actualizarPreviewsIdentidadUI();
-        if (campo === 'link_pin' || campo === 'logo') {
+       if (campo === 'link_pin' || campo === 'logo') {
             actualizarPinDrawerLive();
         }
-        subirFotoIdentidadStorage(blobWebp, campo, AppState.comercioActivo.id);
+        subirFotoIdentidadStorage(blobWebp, campo, AppState.comercioActivo.id).then(function(urlSubida) {
+            if (urlSubida && AppState.comercioActivo) {
+                AppState.comercioActivo[campo] = urlSubida;
+                AppState.guardarColaLocal();
+            }
+        });
         AppState.guardarColaLocal();
         mostrarToast('Identidad "' + campo + '" actualizada con éxito.', 'exito');
+
     }
 
     if (indiceActualEstudio !== -1 && coleccionImagenesDespiece[indiceActualEstudio]) {
@@ -1330,3 +1343,7 @@ window.acoplarImagenEditadaAProducto = async function() {
     emitirTono('EXITO');
     cerrarEstudioCanvas();
 };
+
+
+
+

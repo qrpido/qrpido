@@ -1,28 +1,127 @@
-Mapa de Fragmentación: Proyecto QRpido (Frontend)
-​El archivo original index.html dejará de ser un "testamento" para convertirse en el Director de Orquesta (el esqueleto), y delegará el trabajo pesado en estos archivos secundarios:
-​1. Archivo: ui-estilos.css
-​¿Qué es?: La "Piel" y el "Maquillaje" de la app.
-​¿Para qué sirve?: Aquí vivirá todo lo que definimos hoy: la Proporción Áurea, los colores de los botones, las animaciones de los pines, el modo claro/oscuro y el Efecto Dron (Zoom Semántico).
-​Tu control de Arquitecto: Si quieres que los botones sean más redondeados o que el panel de inmuebles sea más pequeño, me dirás: "Cambiemos el diseño en ui-estilos.css".
-​2. Archivo: motor-mapa.js
-​¿Qué es?: El "Cerebro Geográfico".
-​¿Para qué sirve?: Controla la librería Leaflet. Aquí está la lógica de cómo se mueve el mapa, cómo se detecta el GPS y, lo más importante, el Barrido del Radar. Es el archivo que decide qué pines se ven y cuáles se ocultan.
-​Tu control de Arquitecto: Si decides que el radar ya no busque en 2km sino en 5km, o que los pines giren con el giroscopio, el cambio va en motor-mapa.js.
-​3. Archivo: interfaz-vistas.js
-​¿Qué es?: El "Constructor de Escenarios".
-​¿Para qué sirve?: Aquí vive la magia de las ventanas modales que te impresionaron. Es el código que "dibuja" el carrusel de inmuebles abajo, las etiquetas de categorías y el mensaje del "Fantasma Inteligente".
-​Tu control de Arquitecto: Si quieres que el carrusel de inmuebles ahora tenga una (X) para cerrar o que se deslice de otra forma, me dirás: "Ajustemos la vista en interfaz-vistas.js".
-​4. Archivo: auth-mando.js
-​¿Qué es?: El "Portero y Seguridad".
-​¿Para qué sirve?: Maneja el inicio de sesión, los permisos de Moderador y el acceso al Cerebro Central de SuperAdmin. Es el que decide quién puede ver qué botón.
-​Tu control de Arquitecto: Si decides crear un nuevo rango (ejemplo: "Agente VIP"), la lógica de sus permisos vivirá en auth-mando.js.
-​5. Archivo: index.html (El Orquestador)
-​¿Qué es?: El "Esqueleto Central".
-​¿Para qué sirve?: Quedará reducido a menos de 200 líneas. Solo contendrá la estructura básica (el buscador, el contenedor del mapa) y los enlaces para llamar a todos los archivos anteriores.
-​Tu control de Arquitecto: Es el archivo que "arma" todo el rompecabezas.
-​🛠️ ¿Cómo vamos a proceder?
-​Para que no te pierdas y la app no deje de funcionar ni un segundo, lo haremos en pasos quirúrgicos:
-​Paso 1: Crearemos el archivo CSS y mudaremos toda la piel. Probaremos que todo se vea igual.
-​Paso 2: Crearemos el archivo de Seguridad (auth-mando.js) y mudaremos los accesos. Probaremos tu botón de SuperAdmin.
-​Paso 3: Mudaremos el Cerebro del Mapa.
-​Mi sugerencia como colega: Guarda este mensaje en un documento de texto llamado INDICE_ARQUITECTURA.txt. Así, la próxima vez que te sientas frente a Acode, no verás un código indescifrable, sino un sistema de módulos organizados donde tú llevas el mando.
+================================================================================
+MAPA DE ARQUITECTURA MODULAR: ECOSISTEMA GEOKATU (FRONTEND, PWA & CLOUD)
+================================================================================
+Filosofía: Offline-First (0 ms), Vanilla JS ES6 Puro, Cero Dependencias Externas,
+URLs Limpias (sin .html) y Búnker de Seguridad Unificado.
+
+--------------------------------------------------------------------------------
+1. NÚCLEO TRANSVERSAL Y SERVICIOS COMPartidos
+--------------------------------------------------------------------------------
+• firebase-config.js
+  - Instancia única de conexión a Firebase v10 (Auth, Firestore, Storage, Functions).
+
+• core-db.js
+  - El "Cerebro de Datos". Agrupa los servicios:
+    * LocalService / DirectorioMatrizService: Hidratación en 0 ms desde IndexedDB
+      (`directorio_matriz.json`) y escucha de deltas en vivo.
+    * CatalogoMatrizService: Base local de 6.499 productos (`catalogo_matriz.json`)
+      para autocompletar nombres y categorías al escanear códigos EAN en 0 ms.
+    * AdminService: Gestión de negocios, subida WebP a Storage y catálogo.
+    * PosService: Caché local de catálogo, tickets y ruteo COL/VEN.
+    * InventarioService / RadarService: Kardex atómico, conteo cíclico, mermas,
+      planos espaciales de bodega y búsqueda por cercanía.
+    * SecurityService: Sellado criptográfico de terminales y estado de sesión.
+
+• auth-gate.js
+  - El "Búnker Universal de Acceso y Turnos". Protege `oficina`, `pos`, `stock`,
+    `inventario` y `mapatienda`.
+  - Gestiona: Login Híbrido (Correo/Clave + Google), Selector Multi-Tenant (Dueño
+    vs. Operario), control de horario laboral con captura obligatoria de GPS,
+    bloqueo automático a los 10 minutos de inactividad y Relevo en Caliente por
+    PIN de 4 dígitos.
+
+• estudio-imagen-universal.js
+  - El "Laboratorio Fotográfico 2D Offline". Se auto-inyecta al subir cualquier
+    imagen en `oficina`, `negocio` y `stock`.
+  - Permite: Borrar fondo con Varita Mágica (Flood-Fill/Global), Suavizado
+    Morfológico de bordes (Niveles 1-5), Auto-Margen transparente, Nitidez
+    Laplaciana, ajustes de color, recorte manual, giro y exportación a WebP.
+
+• geokatu-tour.js
+  - El "Instructor Táctico". Motor ligero auto-inyectable que guía paso a paso
+    al usuario la primera vez que pisa cada módulo operativo.
+
+• billing-guard.js
+  - El "Escudo Fiscal y de Revenue". Audita la cuota de 1.300 facturas mensuales
+    y dispara las alertas y recargas vía pasarela Wompi.
+
+• sw.js (Versión geokatu-cache-v7)
+  - El "Motor de Supervivencia Offline". Cachea el ecosistema completo, soporta
+    URLs limpias sin `.html` y gestiona peticiones fragmentadas (`HTTP Range
+    Requests`) para almacenar cuadrantes de `colombia.pmtiles` en `geokatu-map-tiles-v2`.
+
+--------------------------------------------------------------------------------
+2. MÓDULOS DE CARTOGRAFÍA CIUDADANA Y VITRINA PÚBLICA (B2C)
+--------------------------------------------------------------------------------
+• index.html + motor-mapa.js + motor-movilidad.js
+  - El "Radar Urbano". Renderiza la ciudad en MapLibre GL JS sobre `colombia.pmtiles`.
+  - Aplica el algoritmo de selección de 40 pines por pantalla (Aliados, Premium
+    y Freemium con proporción áurea), buscador de productos por código EAN con
+    cámara, filtros en cascada (Comercios, Inmuebles, Servicios) y rutas P2P.
+
+• negocio.html + negocio.css
+  - La "Vitrina Editorial del Comercio". Catálogo público anónimo con 4 formatos
+    visuales (Grid 1x1, Hero 2x1, Galería Split 4+1, Editorial), contraste YIQ
+    dinámico, carrito de pedidos por WhatsApp y modo de Edición In Situ para el
+    dueño del local.
+
+--------------------------------------------------------------------------------
+3. CONSOLA ADMINISTRATIVA Y ONBOARDING MASIVO (B2B)
+--------------------------------------------------------------------------------
+• oficina.html + oficina.js + admin-boveda.css + pines.css
+  - El "Centro de Mando del Comerciante".
+  - Contiene: Wizard de registro en 3 pasos (Identidad con privacidad de correo,
+    ADN del PIN con extractor mágico de colores y Sandbox GPS con Geohash nativo),
+    Tacómetros KPI interactivos en Bottom-Sheet (Ventas, Tickets, Artículos e
+    Incidencias en tiempo real), Catálogo Áureo, Configuración Fiscal DIAN/Siigo
+    y Nómina de Personal con horarios.
+
+• onboarding-geokatu.html + onboarding-core.js + despiece-estudio.js
+  - La "Fábrica Superadmin OneShot". Enjambre interactivo para levantamiento de
+    comercios en campo, despiece de páginas web desde el portapapeles, enlace con
+    Google Sheets Apps Script, cesión de negocios a sus dueños y exportación de
+    matrices JSON.
+
+--------------------------------------------------------------------------------
+4. SUITE LOGÍSTICA, POS Y SISTEMA DE INFORMACIÓN GEOGRÁFICA INTERNO (WMS / SIG)
+--------------------------------------------------------------------------------
+• pos.html + pos.js + estilos-pos.css (+ posven.html / posven.js)
+  - La "Caja Registradora de Combate". Opera en 0 ms con lectores láser USB/BT,
+    básculas (`balanza-motor.js`), cajón monedero (`cajon-motor.js`), tirillas
+    térmicas 58mm/80mm (`factura.html`), pagos divididos y arqueos Cierre Z.
+
+• mapatienda.html + mapatienda.css
+  - El "Arquitecto CAD de Tienda". Lienzo infinito para dibujar el perímetro del
+    local, muros, accesos y góndolas de 4 caras con matriz canónica de Bins
+    (`GEO-P-...`) e impresión de etiquetas QR.
+
+• inventario.html + inventario.js + inventario.css
+  - El "Radar de Piso y Gemelo 2.5D". Visor espacial con mapas de calor (Stock,
+    Precios, Vencimientos, Auditoría), ventana PiP con proyección oblicua 3D
+    del estante para reponer o reportar mermas al toque, y trazado vectorial de
+    rutas óptimas de picking.
+
+• stock.html + stock.css
+  - La "Terminal de Bodega WMS". Escaneo en modo ráfaga continua para entradas,
+    salidas, reubicaciones espaciales por cascada (`Mueble -> Bin`) y auditoría
+    de conteo cíclico con conciliación en Kardex.
+
+• metricas.html + metricas.js / topografia.html
+  - Módulos de telemetría financiera avanzada, costo promedio ponderado (CPP) y
+    levantamiento topográfico de polígonos.
+
+--------------------------------------------------------------------------------
+5. BACKEND SERVERLESS (Firebase Cloud Functions - index.js)
+--------------------------------------------------------------------------------
+• Secciones 1 a 6: Forja de Wallets SUI, trazabilidad Web3 y barrido de gas.
+• Secciones 8 a 13: Aduana OTP, KYC Biométrico (Vision AI + AES-256-GCM) y Salas
+  Legales P2P (Ley 527).
+• Secciones 14 a 16: Guardián de creación de bóvedas, bloqueo de correos basura
+  y validación de reCAPTCHA.
+• Secciones 17 a 19: Despachador de facturas electrónicas y Cierre Z hacia API
+  Siigo (`/v1/invoices` y `/v1/journals`) + Webhook seguro de Wompi.
+• Secciones 20 a 21: Creación segura de operarios (`crearOperarioComercio`) con
+  horarios laborales y protección multi-tenant sin sobrescribir claves ajenas.
+• Secciones 22 a 23: Compilador reactivo y manual de `directorio_matriz.json`
+  hacia Cloud Storage CDN.
+
