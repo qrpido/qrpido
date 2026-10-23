@@ -4,7 +4,7 @@
  * Soporte: PMTiles (Range Requests), Matriz Comercial y URLs Limpias
  */
 
-const CACHE_NAME = 'geokatu-cache-v7';
+const CACHE_NAME = 'geokatu-cache-v9';
 const MAP_CACHE_NAME = 'geokatu-map-tiles-v2';
 
 // 1. Módulos esenciales del ecosistema GEOKATU (Cero 404, precarga inmediata)
@@ -99,14 +99,16 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
     const url = new URL(event.request.url);
 
-    // Bypass obligatorio para streaming en vivo de Firebase Firestore y Google APIs
+    // Bypass obligatorio para Firestore, Auth y llamadas de metadatos de Firebase Storage (evita corromper imagenes con el JSON de getDownloadURL)
     if (
         url.hostname.includes('firestore.googleapis.com') ||
         url.hostname.includes('identitytoolkit') ||
-        url.hostname.includes('securetoken.googleapis.com')
+        url.hostname.includes('securetoken.googleapis.com') ||
+        url.hostname.includes('firebasestorage.googleapis.com')
     ) {
         return;
     }
+
 
     // A. ESTRATEGIA PARA MAPAS VECTORIALES (PMTILES CON HTTP RANGE REQUESTS)
     if (url.pathname.endsWith('.pmtiles')) {
@@ -149,13 +151,21 @@ self.addEventListener('fetch', event => {
                     }
                     return networkResponse;
                 }).catch(() => {
-                    // Fallback para datos JSON de catálogo/directorio fuera de línea
-                    if (event.request.headers.get('accept')?.includes('application/json') || url.pathname.endsWith('.json')) {
-                        return caches.match('/catalogo_matriz.json')
-                            .then(matrizMatch => matrizMatch || new Response(JSON.stringify({ offline: true, data: [] }), { 
-                                headers: { 'Content-Type': 'application/json' } 
-                            }));
+                    }).catch(() => {
+                    // Fallback exclusivo para catalogo_matriz.json (jamas mezclar con catalogo_base.json de tiendas)
+                    if (url.pathname.endsWith('/catalogo_matriz.json')) {
+                        return caches.match('/catalogo_matriz.json');
                     }
+                    if (url.pathname.endsWith('/directorio_matriz.json')) {
+                        return caches.match('/directorio_matriz.json');
+                    }
+                    if (event.request.headers.get('accept')?.includes('application/json') || url.pathname.endsWith('.json')) {
+                        return new Response(JSON.stringify({ offline: true, p: [], data: [] }), {
+                            status: 503,
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                    }
+
                     // Fallback para navegación entre páginas HTML (URLs limpias sin .html)
                     if (event.request.mode === 'navigate') {
                         const cleanPath = url.pathname;

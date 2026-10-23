@@ -339,48 +339,6 @@ export function dispararFlores(clienteX, clienteY) {
 }
 window.dispararFlores = dispararFlores;
 
-// =========================================================================
-// GESTIÓN DEL ENJAMBRE, HUD Y MATRIZ GLOBAL (EXPORTACIONES REQUERIDAS)
-// =========================================================================
-export function actualizarHUD() {
-    const elVuelo = document.getElementById('conteo-en-vuelo');
-    const elFlores = document.getElementById('kpi-flores');
-    const cielo = document.getElementById('cielo');
-    const vivas = cielo ? cielo.querySelectorAll('.abeja-wrapper:not(.salvada)').length : 0;
-    if (elVuelo) elVuelo.innerText = vivas;
-    if (elFlores) elFlores.innerText = floresRecolectadas;
-}
-window.actualizarHUD = actualizarHUD;
-
-function iniciarEnjambreSiAutorizado() {
-    const cielo = document.getElementById('cielo');
-    if (cielo) cielo.innerHTML = '';
-    abejasActivas = 0;
-    const pendientes = listaComercios.filter(function(c) {
-        return !c.capturado && !c.validado && !c.subido && !c.archivado && c.estado_flujo !== 'Cerrado';
-    });
-    pendientes.forEach(function(c, idx) {
-        lanzarEntidadVoladora(c, idx);
-    });
-    actualizarHUD();
-}
-
-export async function inicializarMatrizGlobalUI() {
-    try {
-        const el = document.getElementById('kpi-skus-matriz');
-        if (el) el.innerText = "Indexando...";
-        const res = await GeokatuDB.CatalogoMatrizService.inicializarMatriz();
-        if (el) {
-            el.innerText = (res && res.success) 
-                ? (Number(res.count || 0).toLocaleString('es-CO') + ' SKUs') 
-                : "Sin Matriz";
-        }
-    } catch (e) {
-        const el = document.getElementById('kpi-skus-matriz');
-        if (el) el.innerText = "Error Local";
-    }
-}
-window.inicializarMatrizGlobalUI = inicializarMatrizGlobalUI;
 
 function ejecutarCapturaComercio(wrapper, idComercio, clienteX, clienteY) {
 
@@ -1093,28 +1051,181 @@ window.cerrarModalColorManual = function() {
     if (modal) modal.style.display = 'none';
 };
 
+export const CATALOGO_CUARZOS_ONBOARDING = [
+    { id: 'carbon', nombre: 'Ónix Carbón', dot: '#181820', bg: 'linear-gradient(145deg, rgba(28,28,36,0.92), rgba(12,12,16,0.95))', border: 'rgba(255,255,255,0.16)', text: '#ffffff', claro: false },
+    { id: 'clasico', nombre: 'Cuarzo Clásico', dot: '#f8fafc', bg: 'linear-gradient(145deg, rgba(255,255,255,0.92), rgba(236,240,246,0.95))', border: 'rgba(0,0,0,0.18)', text: '#0f172a', claro: true },
+    { id: 'pantera', nombre: 'Pantera Rosa', dot: '#ff69b4', bg: 'linear-gradient(145deg, rgba(255,105,180,0.32), rgba(46,14,34,0.90))', border: 'rgba(255,130,195,0.50)', text: '#ffffff', claro: false },
+    { id: 'celeste', nombre: 'Azul Cielo', dot: '#38bdf8', bg: 'linear-gradient(145deg, rgba(56,189,248,0.32), rgba(12,34,58,0.90))', border: 'rgba(56,189,248,0.50)', text: '#ffffff', claro: false },
+    { id: 'ambar', nombre: 'Ámbar Geokatu', dot: '#ff6b00', bg: 'linear-gradient(145deg, rgba(255,107,0,0.32), rgba(46,20,6,0.90))', border: 'rgba(255,140,0,0.50)', text: '#ffffff', claro: false },
+    { id: 'esmeralda', nombre: 'Esmeralda', dot: '#10b981', bg: 'linear-gradient(145deg, rgba(16,185,129,0.32), rgba(8,40,30,0.90))', border: 'rgba(52,211,153,0.50)', text: '#ffffff', claro: false },
+    { id: 'topacio', nombre: 'Topacio Real', dot: '#facc15', bg: 'linear-gradient(145deg, rgba(250,204,21,0.30), rgba(48,38,8,0.90))', border: 'rgba(250,204,21,0.50)', text: '#ffffff', claro: false },
+    { id: 'rubi', nombre: 'Rubí Carmesí', dot: '#f43f5e', bg: 'linear-gradient(145deg, rgba(244,63,94,0.32), rgba(48,10,20,0.90))', border: 'rgba(251,113,133,0.50)', text: '#ffffff', claro: false },
+    { id: 'amatista', nombre: 'Amatista', dot: '#a855f7', bg: 'linear-gradient(145deg, rgba(168,85,247,0.32), rgba(32,12,52,0.90))', border: 'rgba(192,132,252,0.50)', text: '#ffffff', claro: false }
+];
+
+window.obtenerEstiloCuarzoOnboarding = function(temaRaw) {
+    const t = String(temaRaw || 'carbon').trim();
+    if (t.indexOf('custom:') === 0) {
+        const hex = t.replace('custom:', '').trim() || '#ff6b00';
+        const clean = hex.replace('#', '');
+        const r = parseInt(clean.substring(0, 2), 16) || 255;
+        const g = parseInt(clean.substring(2, 4), 16) || 107;
+        const b = parseInt(clean.substring(4, 6), 16) || 0;
+        return {
+            id: t,
+            nombre: 'Cuarzo Propio',
+            dot: hex,
+            bg: 'linear-gradient(145deg, rgba(' + r + ',' + g + ',' + b + ',0.34), rgba(' + Math.round(r * 0.16) + ',' + Math.round(g * 0.16) + ',' + Math.round(b * 0.16) + ',0.92))',
+            border: 'rgba(' + r + ',' + g + ',' + b + ',0.55)',
+            text: '#ffffff',
+            claro: false
+        };
+    }
+    return CATALOGO_CUARZOS_ONBOARDING.find(function(x) { return x.id === t; }) || CATALOGO_CUARZOS_ONBOARDING[0];
+};
+
+let sincronizandoScrollDrawerCuarzos = false;
+function vincularScrollCuarzosDrawer() {
+    const elTop = document.getElementById('carrusel-cuarzos-drawer');
+    const elBot = document.getElementById('sim-track-drawer-cuarzos');
+    if (!elTop || !elBot) return;
+    elTop.onscroll = function() {
+        if (sincronizandoScrollDrawerCuarzos) return;
+        sincronizandoScrollDrawerCuarzos = true;
+        const maxTop = Math.max(1, elTop.scrollWidth - elTop.clientWidth);
+        const maxBot = Math.max(0, elBot.scrollWidth - elBot.clientWidth);
+        elBot.scrollLeft = (elTop.scrollLeft / maxTop) * maxBot;
+        setTimeout(function() { sincronizandoScrollDrawerCuarzos = false; }, 25);
+    };
+    elBot.onscroll = function() {
+        if (sincronizandoScrollDrawerCuarzos) return;
+        sincronizandoScrollDrawerCuarzos = true;
+        const maxBot = Math.max(1, elBot.scrollWidth - elBot.clientWidth);
+        const maxTop = Math.max(0, elTop.scrollWidth - elTop.clientWidth);
+        elTop.scrollLeft = (elBot.scrollLeft / maxBot) * maxTop;
+        setTimeout(function() { sincronizandoScrollDrawerCuarzos = false; }, 25);
+    };
+}
+
+export function renderizarCarruselCuarzosDrawer() {
+    const track = document.getElementById('carrusel-cuarzos-drawer');
+    const input = document.getElementById('drawer-select-tema');
+    if (!track) return;
+    const valorActual = (comercioActivoParaCatalogo && comercioActivoParaCatalogo.tema_popup)
+        ? comercioActivoParaCatalogo.tema_popup
+        : (input && input.value ? input.value : 'carbon');
+    if (input) input.value = valorActual;
+    const esCustom = valorActual.indexOf('custom:') === 0;
+    const colorCustom = esCustom ? valorActual.replace('custom:', '') : '#00f5d4';
+
+    let html = '';
+    CATALOGO_CUARZOS_ONBOARDING.forEach(function(c) {
+        const activo = (valorActual === c.id) ? ' activo' : '';
+        html +=
+            '<button type="button" class="chip-cuarzo-item' + activo + '" data-tema="' + c.id + '" onclick="window.seleccionarCuarzoDrawer(\'' + c.id + '\')" style="background:' + c.bg + '; border-color:' + c.border + '; color:' + c.text + ';">' +
+                '<span style="width:9px; height:9px; border-radius:50%; background:' + c.dot + '; border:1px solid rgba(255,255,255,0.5);"></span>' +
+                '<span>' + c.nombre + '</span>' +
+            '</button>';
+    });
+    html +=
+        '<button type="button" class="chip-cuarzo-item' + (esCustom ? ' activo' : '') + '" data-tema="custom" onclick="window.abrirRuedaColorBoveda(\'CUARZO_CUSTOM\')" style="background:linear-gradient(145deg, rgba(255,107,0,0.25), rgba(0,245,212,0.25)); border-color:rgba(0,245,212,0.5); color:#ffffff;">' +
+            '<span style="width:9px; height:9px; border-radius:50%; background:' + colorCustom + '; border:1px solid #fff;"></span>' +
+            '<span>🎨 Personalizado</span>' +
+        '</button>';
+    track.innerHTML = html;
+    renderizarSimuladorNombreDrawer();
+}
+window.renderizarCarruselCuarzosDrawer = renderizarCarruselCuarzosDrawer;
+
+export function renderizarSimuladorNombreDrawer() {
+    const box = document.getElementById('drawer-simulador-nombre-png');
+    if (!box) return;
+    const urlLogoNombre = comercioActivoParaCatalogo
+        ? (comercioActivoParaCatalogo.logo_nombre || comercioActivoParaCatalogo.nombre_png || '')
+        : '';
+    if (!urlLogoNombre || urlLogoNombre.length < 5) {
+        box.style.display = 'none';
+        return;
+    }
+    const temaActivo = (comercioActivoParaCatalogo && comercioActivoParaCatalogo.tema_popup) || 'carbon';
+    const lista = CATALOGO_CUARZOS_ONBOARDING.slice();
+    if (temaActivo.indexOf('custom:') === 0) {
+        lista.push(window.obtenerEstiloCuarzoOnboarding(temaActivo));
+    }
+    const cardsHtml = lista.map(function(c) {
+        const sel = (temaActivo === c.id);
+        const halo = c.claro
+            ? 'filter:drop-shadow(0 0 1px rgba(0,0,0,0.45));'
+            : 'filter:drop-shadow(0 0 1.5px rgba(255,255,255,0.85)) drop-shadow(0 2px 4px rgba(0,0,0,0.9));';
+        const borde = sel ? '2px solid var(--naranja)' : ('1px solid ' + c.border);
+        return '<div data-sim-tema="' + c.id + '" onclick="window.seleccionarCuarzoDrawer(\'' + c.id + '\')" style="flex:0 0 144px; scroll-snap-align:center; background:' + c.bg + '; border:' + borde + '; border-radius:10px; padding:8px 6px; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:58px; cursor:pointer;">' +
+            '<span style="font-size:8px; color:' + (c.claro ? '#334155' : '#cbd5e1') + '; font-weight:800; text-transform:uppercase; margin-bottom:4px;">' + c.nombre + '</span>' +
+            '<img src="' + urlLogoNombre + '" style="max-height:30px; max-width:128px; object-fit:contain; ' + halo + '">' +
+        '</div>';
+    }).join('');
+
+    box.style.display = 'block';
+    box.innerHTML =
+        '<div style="background:rgba(0,0,0,0.5); border:1px dashed rgba(255,107,0,0.4); border-radius:10px; padding:8px; text-align:center;">' +
+            '<span style="font-size:9px; font-weight:900; color:var(--naranja-miel); text-transform:uppercase; display:block; margin-bottom:4px;">Simulador 1:1 Logo Nombre en Cuarzos (Desliza ➔)</span>' +
+            '<div id="sim-track-drawer-cuarzos" class="carrusel-cuarzos-track">' + cardsHtml + '</div>' +
+        '</div>';
+    vincularScrollCuarzosDrawer();
+}
+window.renderizarSimuladorNombreDrawer = renderizarSimuladorNombreDrawer;
+
+window.seleccionarCuarzoDrawer = function(tema) {
+    const t = String(tema || 'carbon').trim();
+    const input = document.getElementById('drawer-select-tema');
+    if (input) input.value = t;
+    if (comercioActivoParaCatalogo) {
+        comercioActivoParaCatalogo.tema_popup = t;
+        AppState.guardarColaLocal();
+    }
+    renderizarCarruselCuarzosDrawer();
+    setTimeout(function() {
+        const topTrack = document.getElementById('carrusel-cuarzos-drawer');
+        if (topTrack) {
+            const key = t.indexOf('custom:') === 0 ? 'custom' : t;
+            const chip = topTrack.querySelector('[data-tema="' + key + '"]');
+            if (chip) chip.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        }
+        const botTrack = document.getElementById('sim-track-drawer-cuarzos');
+        if (botTrack) {
+            const card = botTrack.querySelector('[data-sim-tema="' + t + '"]');
+            if (card) card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        }
+    }, 40);
+};
+
 window.confirmarColorSeleccionado = function() {
     const inputEl = document.getElementById('input-hex-manual');
     let hex = inputEl ? inputEl.value.replace('#', '').trim() : '';
     if (/^([0-9A-F]{3}|[0-9A-F]{6})$/i.test(hex)) {
-        aplicarColorASlot(window.slotColorActual, '#' + hex);
+        const hexFinal = '#' + hex.toUpperCase();
+        if (window.slotColorActual === 'CUARZO_CUSTOM') {
+            window.seleccionarCuarzoDrawer('custom:' + hexFinal);
+        } else {
+            aplicarColorASlot(window.slotColorActual, hexFinal);
+        }
         cerrarModalColorManual();
     } else {
         mostrarToast("Codigo cromatico hexadecimal invalido.", "error");
     }
 };
-
-
 window.sincronizarColorDesdeHex = function(valorIngresado) {
     const hexLimpio = (valorIngresado || '').replace('#', '').trim();
     const inputHex = document.getElementById('input-hex-manual');
     if (/^([0-9A-F]{3}|[0-9A-F]{6})$/i.test(hexLimpio)) {
         if (inputHex) inputHex.style.borderColor = '#00ff64';
-        aplicarColorASlot(window.slotColorActual, '#' + hexLimpio);
+        if (window.slotColorActual && window.slotColorActual !== 'CUARZO_CUSTOM') {
+            aplicarColorASlot(window.slotColorActual, '#' + hexLimpio.toUpperCase());
+        }
     } else {
         if (inputHex) inputHex.style.borderColor = '#ff4444';
     }
 };
+
 
 
 window.eliminarSlotColor = function(slot) {
@@ -1230,14 +1341,13 @@ export function inicializarEventosRueda() {
             puntero.style.top = (y + maxRadio) + 'px';
         }
 
-        let angle = Math.atan2(y, x) * (180 / Math.PI) + 90;
+        l// Calibracion exacta 1:1 con conic-gradient(from 90deg): 0 grados (Rojo) a las 3 en punto
+        let angle = Math.atan2(y, x) * (180 / Math.PI);
         if (angle < 0) angle += 360;
-
-        window.estadoColorCustom.h = angle;
-        window.estadoColorCustom.l_base = 100 - (radio / maxRadio * 50); 
+        window.estadoColorCustom.h = Math.round(angle);
+        window.estadoColorCustom.l_base = 100 - ((radio / maxRadio) * 50); 
         actualizarPreviewCustom();
     };
-
     const actualizarPreviewCustom = function() {
         const factorBrillo = sliderBrillo.value / 100;
         const l_final = window.estadoColorCustom.l_base * factorBrillo;
@@ -1249,8 +1359,11 @@ export function inicializarEventosRueda() {
         }
         const pureHex = hslToHex(window.estadoColorCustom.h, 100, window.estadoColorCustom.l_base);
         sliderBrillo.style.background = 'linear-gradient(to right, black, ' + pureHex + ')';
-        if (window.slotColorActual) aplicarColorASlot(window.slotColorActual, hex);
+        if (window.slotColorActual && window.slotColorActual !== 'CUARZO_CUSTOM') {
+            aplicarColorASlot(window.slotColorActual, hex);
+        }
     };
+
 
     rueda.addEventListener('mousedown', function(e) { draggingWheel = true; calcularColorRueda(e); });
     rueda.addEventListener('mousemove', function(e) { if (draggingWheel) calcularColorRueda(e); });
@@ -1875,9 +1988,11 @@ window.abrirDrawerCatalogo = function(index) {
         eliminarSlotColor(3);
     }
 
+    renderizarCarruselCuarzosDrawer();
     actualizarPinDrawerLive();
     renderizarListaSkusDrawer();
 };
+
 
 window.cerrarDrawerCatalogo = function(desdePopstate) {
     const esPopstate = Boolean(desdePopstate);
@@ -2071,7 +2186,9 @@ export function actualizarPreviewsIdentidadUI() {
             if (ph) ph.style.display = 'flex';
         }
     });
+    renderizarSimuladorNombreDrawer();
 }
+
 
 window.procesarFotoIdentidadIndividual = async function(file, campo) {
     if (!file || !comercioActivoParaCatalogo) return;
@@ -2217,8 +2334,8 @@ window.sincronizarCatalogoComercioNube = async function() {
 
         // 1. Subir fotos pendientes en formato Blob a Firebase Storage
         const storage = getStorage(db.app);
-        const storage = getStorage(db.app);
         for (let i = 0; i < prods.length; i++) {
+
             const p = prods[i];
 
             // 1. Si la foto ya está subida en Firebase Storage con URL remota válida, se omite
@@ -2321,6 +2438,7 @@ window.sincronizarCatalogoComercioNube = async function() {
             sitio_web: c.sitio_web || c.web || "",
 
             pin_pack: c.pin_pack || "forma-gota|anim-salto",
+            tema_popup: c.tema_popup || document.getElementById('drawer-select-tema')?.value || "carbon",
             color_principal: c.color_principal || "#ff6b00",
             color_acento: c.color_acento || GRIS_METALLIC_GEOKATU,
             color_terciario: c.color_terciario || BLANCO_GEOKATU,
@@ -2329,11 +2447,12 @@ window.sincronizarCatalogoComercioNube = async function() {
                 { color: GRIS_METALLIC_GEOKATU, porcentaje: 25 },
                 { color: BLANCO_GEOKATU, porcentaje: 12.5 }
             ],
-
             logo: (c.logo && c.logo.indexOf('http') === 0) ? c.logo : "",
             portada: (c.portada && c.portada.indexOf('http') === 0) ? c.portada : "",
             link_pin: (c.link_pin && c.link_pin.indexOf('http') === 0) ? c.link_pin : "",
             logo_nombre: (c.logo_nombre && c.logo_nombre.indexOf('http') === 0) ? c.logo_nombre : "",
+            nombre_png: (c.logo_nombre && c.logo_nombre.indexOf('http') === 0) ? c.logo_nombre : "",
+
 
             reclamado: Boolean(c.reclamado),
             dueno_registrado: Boolean(c.dueno_registrado),

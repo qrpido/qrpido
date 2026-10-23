@@ -1757,6 +1757,13 @@ AuthGate.inicializar({
         await cargarSedesDinamicas();
         await hidratarVisor();
         ejecutarZoomExtents(false);
+        var paramsInv = new URLSearchParams(window.location.search);
+        var skuBuscar = paramsInv.get('buscar');
+        if (skuBuscar && inputBusqueda) {
+            inputBusqueda.value = skuBuscar;
+            setTimeout(function() { ejecutarBusquedaYFiltros(); }, 250);
+        }
+
 
         // Iniciar explicación del visor de piso y radar
         if (window.GeokatuTour && typeof window.GeokatuTour.iniciar === 'function') {

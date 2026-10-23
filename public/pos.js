@@ -1,6 +1,6 @@
 import GeokatuDB from './core-db.js';
 import { BillingGuard } from './billing-guard.js';
-import { AuthGate } from './auth-gate.js'; 
+import { AuthGate } from './auth-gate.js';
 import './geokatu-tour.js';
 import { MotorLector } from './lector-motor.js';
 import { MotorBalanza } from './balanza-motor.js';
@@ -51,15 +51,15 @@ AuthGate.inicializar({
         idNegocio = contexto.idNegocio;
         localStorage.setItem('geokatu_active_uid', contexto.idNegocio);
 
-        // 1. Asignación de credencial de cajero (Soporta relevo en caliente Josefa / Pepito)
-        if (contexto.codigoCajero) {
+        // 1. Asignación de credencial numérica de 4 dígitos (Soporta relevo en caliente)
+        if (contexto.codigoCajero && /^\d{4}$/.test(String(contexto.codigoCajero).trim())) {
             cajeroCodigoActivo = String(contexto.codigoCajero).trim();
             localStorage.setItem('geokatu_cajero_pin', cajeroCodigoActivo);
-        } else if (contexto.esDueno) {
-            var sufijoDueno = String(contexto.idNegocio).slice(-4).toUpperCase();
-            cajeroCodigoActivo = 'D-' + sufijoDueno;
+        } else {
+            cajeroCodigoActivo = "0000";
             localStorage.setItem('geokatu_cajero_pin', cajeroCodigoActivo);
         }
+
 
         // 2. Sellado criptográfico de terminal
         await GeokatuDB.SecurityService.sellarSesionTerminalLocal(contexto.idNegocio);
@@ -162,27 +162,21 @@ AuthGate.inicializar({
 async function inicializarCaja() {
     actualizarIndicadorCola();
     cargarTicketsEnEsperaStorage();
+    // 1. Hidratación instantánea desde caché local (0 ms)
+    catalogoLocal = GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio);
+    if (catalogoLocal.length > 0) {
+        renderizarGridCatalogo();
+    }
     await verificarEstadoTurnoCaja();
+    // 2. Desactivar el efecto de carga (Halo Camilla) en cuanto la interfaz base está lista
+    document.body.classList.remove('pos-cargando');
 
-    // Sincronización inmediata al arrancar si hay conexión
+    // 3. Sincronización en segundo plano sin bloquear los botones del cajero
     if (navigator.onLine && idNegocio) {
         GeokatuDB.PosService.sincronizarVentasPendientes(idNegocio).then(res => {
             actualizarIndicadorCola();
         }).catch(err => console.warn("[POS AutoSync]:", err));
     }
-
-
-
-    // 🗺️ Precarga del mapa de ubicaciones WMS para descontar de estantes reales (GEO-P-...)
-    try {
-        const resUbis = await GeokatuDB.InventarioService.obtenerMapaStockTiendaCompleto(idNegocio);
-        if (resUbis.success && Array.isArray(resUbis.data)) {
-            localStorage.setItem(`geokatu_stock_ubis_${idNegocio}`, JSON.stringify(resUbis.data));
-        }
-    } catch (eUbi) {
-        console.warn("[POS WMS] Precarga espacial diferida:", eUbi);
-    }
-
     const res = await GeokatuDB.PosService.descargarCatalogoLocal(idNegocio);
     if (res.success) {
         catalogoLocal = res.data;
@@ -194,6 +188,32 @@ async function inicializarCaja() {
         document.getElementById('led-conexion').style.backgroundColor = "orange";
     }
     renderizarGridCatalogo();
+
+    // 4. Sincronización ligera por deltas de ubicaciones WMS en segundo plano
+    try {
+        const claveUbis = 'geokatu_stock_ubis_' + idNegocio;
+        const claveSyncUbis = 'geokatu_sync_ubis_time_' + idNegocio;
+        const ubisPrevias = JSON.parse(localStorage.getItem(claveUbis) || '[]');
+        const ultimoSyncUbis = ubisPrevias.length > 0 ? (localStorage.getItem(claveSyncUbis) || null) : null;
+        if (navigator.onLine) {
+            GeokatuDB.InventarioService.obtenerMapaStockTiendaCompleto(idNegocio, ultimoSyncUbis).then(resUbis => {
+                if (resUbis && resUbis.success && Array.isArray(resUbis.data)) {
+                    if (resUbis.esDelta && resUbis.data.length > 0) {
+                        resUbis.data.forEach(d => {
+                            const idx = ubisPrevias.findIndex(u => u.id_prod === d.id_prod && u.id_compartimiento === d.id_compartimiento);
+                            if (idx !== -1) ubisPrevias[idx] = d;
+                            else ubisPrevias.push(d);
+                        });
+                        localStorage.setItem(claveUbis, JSON.stringify(ubisPrevias));
+                    } else if (!resUbis.esDelta) {
+                        localStorage.setItem(claveUbis, JSON.stringify(resUbis.data));
+                    }
+                    if (resUbis.timestampCorte) localStorage.setItem(claveSyncUbis, resUbis.timestampCorte);
+                }
+            }).catch(() => {});
+        }
+    } catch (eUbi) {}
+
 
    // 🛡️ GESTIÓN DE CICLO DE VIDA ANTI-LEAK (KIOSK 16 HORAS):
     // 1. Si existía un semáforo previo suscrito, cancelarlo antes de instanciar uno nuevo
@@ -305,7 +325,8 @@ window.cerrarCamaraPOS = () => {
     const dock = document.getElementById('scanner-dock');
     const btnCam = document.getElementById('btn-toggle-camara');
     if (dock) dock.style.display = 'none';
-    if (btnCam) btnCam.innerHTML = `<span class="material-symbols-outlined">qr_code_scanner</span> Cámara`;
+    if (btnCam) btnCam.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" x2="17" y1="12" y2="12"/></svg><span style="font-size: 11px; font-weight: 900;">Cámara</span>';
+
 
     // Apagar linterna si quedó encendida al cerrar el visor
     if (linternaEncendida) {
@@ -340,7 +361,8 @@ window.escanearParaPOS = () => {
     }
 
     dock.style.display = "block";
-    if (btnCam) btnCam.innerHTML = `<span class="material-symbols-outlined">close</span> Cerrar`;
+    if (btnCam) btnCam.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg><span style="font-size: 11px; font-weight: 900;">Cerrar</span>';
+
 
     const configFormatos = {
         formatsToSupport: [
@@ -732,13 +754,16 @@ function renderizarGridCatalogo() {
     catalogoLocal.slice(0, 30).forEach(prod => {
         const item = document.createElement('div');
         item.className = 'product-row-item';
-        item.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <span class="material-symbols-outlined" style="color: var(--color-marca); font-size: 18px;">${prod.icono || (prod.es_pesable ? 'scale' : 'inventory_2')}</span>
-                <span class="item-title">${prod.nombre}</span>
-            </div>
-            <span class="item-price">$${Number(prod.precio).toLocaleString()}${prod.es_pesable ? '/kg' : ''}</span>
-        `;
+        const svgIco = prod.es_pesable
+            ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-marca)" stroke-width="2"><path d="M12 3v18"/><path d="M3 7h18"/></svg>'
+            : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-marca)" stroke-width="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/></svg>';
+        item.innerHTML =
+            '<div style="display: flex; align-items: center; gap: 8px;">' +
+                svgIco +
+                '<span class="item-title">' + prod.nombre + '</span>' +
+            '</div>' +
+            '<span class="item-price">$' + Number(prod.precio).toLocaleString() + (prod.es_pesable ? '/kg' : '') + '</span>';
+
 
         item.onclick = () => {
             const modalCat = document.getElementById('modal-catalogo-popup');

@@ -61,39 +61,160 @@
             </div>
         </div>
 
-        <!-- 📜 MITAD INFERIOR SCROLLABLE: CONTROLES, KARDEX Y TARJETA -->
+       <!-- 📜 MITAD INFERIOR SCROLLABLE: CONSULTA DIRECTA Y ACCIONES POST-ESCANEO -->
         <div class="consola-scrollable">
-            <div class="consola-controles" style="margin: 0;">
-                <label style="font-size: 10px; color: #aaa; text-transform: uppercase; font-weight: bold;">Operación de Stock</label>
-                <div class="ribbon-categorias" id="selector-operacion">
-                    <button class="ribbon-btn activo" data-op="ENTRADA">Entrada (+)</button>
-                    <button class="ribbon-btn" data-op="SALIDA">Salida (-)</button>
-                    <button class="ribbon-btn" data-op="REUBICAR">Reubicar</button>
-                    <button class="ribbon-btn" data-op="AUDITAR">Auditar</button>
-                    <button class="ribbon-btn" data-op="AUDITORIA">Consulta</button>
+            <!-- Buscador / Lector Manual de Respaldo y Acceso a Conteo Cíclico -->
+            <div class="consola-controles" style="margin: 0; padding: 10px 12px; display: flex; gap: 8px; align-items: center;">
+                <input type="text" id="input-busqueda-manual-stock" class="input-boveda" placeholder="Escribe o escanea código EAN / QR..." style="margin: 0; flex: 1; padding: 9px 12px; font-size: 12px; font-family: monospace;">
+                <button type="button" id="btn-buscar-manual-stock" class="btn-accion-boveda" style="margin: 0; width: auto; padding: 9px 14px; font-size: 11px;">🔍</button>
+                <button type="button" id="btn-modo-auditoria-anaquel" title="Conteo Cíclico de Góndola" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.18); color: #ccc; border-radius: 10px; padding: 9px 10px; font-size: 10.5px; font-weight: 800; cursor: pointer; white-space: nowrap;">
+                    📋 Auditar Bin
+                </button>
+            </div>
+
+            <!-- Estado Inicial Vacío (Guía para el Operario) -->
+            <div id="estado-espera-escaneo" style="background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.12); border-radius: 16px; padding: 26px 18px; text-align: center; color: #888;">
+                <div style="font-size: 28px; margin-bottom: 8px;">🏷️</div>
+                <strong style="color: #fff; font-size: 13px; display: block; text-transform: uppercase; letter-spacing: 0.5px;">Escanea cualquier Producto</strong>
+                <p style="font-size: 11.5px; color: #888; margin: 6px 0 0 0; line-height: 1.4;">
+                    Apunta la cámara o usa la pistola USB para ver al instante la foto, existencias, ubicación en góndola y elegir si deseas <strong>+ Añadir</strong>, <strong>- Quitar</strong> o <strong>Ubicar</strong>.
+                </p>
+            </div>
+
+            <!-- Banner Opcional cuando se está esperando escanear un QR de Mueble/Bin -->
+            <div id="banner-cascada" class="banner-cascada-wms" style="display: none;">
+                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                    <span style="color: #aaa; font-size: 11px;">Góndola fijada:</span>
+                    <span id="txt-mueble-activo" class="tag-coord">MUEBLE: ---</span>
+                    <span id="txt-comp-activo" class="tag-coord">BIN: ---</span>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button id="btn-abrir-selector-ubicacion" class="btn-cascada-manual">📋 Lista</button>
+                    <button id="btn-reset-cascada" style="background: transparent; border: none; color: #ff4444; font-weight: bold; cursor: pointer;">✕</button>
+                </div>
+            </div>
+            <input type="hidden" id="input-unidades-lote" value="1">
+
+            <!-- 🌟 VENTANA CONTEXTUAL DE CONSULTA Y OPERACIÓN DEL PRODUCTO -->
+            <div id="tarjeta-producto" class="ultimo-escaneo" style="position: static; transform: none; width: 100%; box-sizing: border-box; display: none; border-radius: 18px; padding: 15px; background: rgba(18, 18, 24, 0.98); border: 1px solid rgba(255, 107, 0, 0.4);">
+                <!-- 1. Cabecera: Imagen + Datos Principales + Stock Actual -->
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <img id="prod-img-ficha" src="" alt="Foto" style="width: 74px; height: 74px; border-radius: 12px; object-fit: contain; background: #0a0a0c; border: 1px solid rgba(255,255,255,0.12); flex-shrink: 0;">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 6px;">
+                            <span id="badge-estado" style="background: rgba(0,255,100,0.15); color: #00ff64; border: 1px solid rgba(0,255,100,0.35); font-size: 9px; padding: 2px 7px; border-radius: 6px; font-weight: 900; text-transform: uppercase;">FICHA ACTIVA</span>
+                            <span id="prod-codigo" style="font-family: monospace; font-size: 11px; color: var(--naranja); font-weight: bold;">---</span>
+                        </div>
+                        <h2 id="prod-nombre" style="margin: 5px 0 3px 0; font-size: 15px; color: #ffffff; line-height: 1.25; word-break: break-word;">Producto</h2>
+                        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                            <span id="prod-precio-ficha" style="font-size: 13px; font-weight: 900; color: #00ff64; font-family: monospace;">$0</span>
+                            <span id="prod-unidad-badge" style="font-size: 10px; background: rgba(255,255,255,0.08); color: #ccc; padding: 2px 6px; border-radius: 5px; font-weight: bold;">Unidades</span>
+                            <span id="prod-categoria-ficha" style="font-size: 10px; color: #888;">General</span>
+                        </div>
+                    </div>
                 </div>
 
-
-                <div id="banner-cascada" class="banner-cascada-wms" style="display: none;">
-                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                        <span style="color: #aaa; font-size: 11px;">Ubicación:</span>
-                        <span id="txt-mueble-activo" class="tag-coord">MUEBLE: ---</span>
-                        <span id="txt-comp-activo" class="tag-coord">BIN: ---</span>
+                <!-- 2. Resumen de Stock Consolidado -->
+                <div style="background: rgba(0,0,0,0.45); border-radius: 12px; padding: 10px 12px; margin-top: 12px; border: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <span style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold; display: block;">Existencia Total en Tienda</span>
+                        <span style="font-size: 10.5px; color: #aaa;">Última lectura: <strong id="res-operacion" style="color: #fff;">CONSULTA</strong> (<span id="res-hardware">---</span>)</span>
                     </div>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <button id="btn-abrir-selector-ubicacion" class="btn-cascada-manual">📋 Lista</button>
-                        <button id="btn-reset-cascada" style="background: transparent; border: none; color: #ff4444; font-weight: bold; cursor: pointer;">✕</button>
+                    <div style="text-align: right;">
+                        <span id="res-stock" style="font-size: 22px; color: #00ff64; font-weight: 900; font-family: monospace;">0</span>
+                        <span id="res-stock-unidad" style="font-size: 11px; color: #888; font-weight: bold; margin-left: 3px;">und</span>
                     </div>
                 </div>
 
+                <!-- 3. Apartado de Ubicación Física en Mueble / Góndola + Botón al Mapa (inventario) -->
+                <div style="background: rgba(96, 165, 250, 0.06); border: 1px solid rgba(96, 165, 250, 0.25); border-radius: 12px; padding: 10px 12px; margin-top: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <span style="font-size: 10px; color: #60a5fa; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px;">📍 Ubicación en Mueble / Góndola</span>
+                        <button type="button" id="btn-ir-mapa-producto" style="background: rgba(96, 165, 250, 0.18); border: 1px solid #60a5fa; color: #ffffff; border-radius: 7px; padding: 4px 9px; font-size: 10px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                            <span>🗺️</span> <span>Ver en Mapa</span>
+                        </button>
+                    </div>
+                    <div id="lista-ubicaciones-producto-ficha" style="display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: #ddd;">
+                        <span style="color: #888; font-style: italic;">Sin ubicación asignada en góndola.</span>
+                    </div>
+                </div>
 
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px;">
-                    <span style="font-size: 12px; color: #aaa;">Cantidad a aplicar por escaneo:</span>
-                    <input type="number" id="input-unidades-lote" value="1" min="1" style="width: 75px; background: rgba(0,0,0,0.5); border: 1px solid var(--naranja); color: white; text-align: center; border-radius: 8px; padding: 6px; font-weight: bold;">
+                <!-- 4. BARRA DE 3 BOTONES DE ACCIÓN (Se oculta al elegir una acción) -->
+                <div id="barra-acciones-ficha" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px;">
+                    <button type="button" id="btn-ficha-anadir" style="background: rgba(0, 255, 100, 0.15); border: 1.5px solid #00ff64; color: #00ff64; border-radius: 12px; padding: 12px 6px; font-size: 12px; font-weight: 900; cursor: pointer; text-transform: uppercase;">
+                        + Añadir
+                    </button>
+                    <button type="button" id="btn-ficha-quitar" style="background: rgba(255, 68, 68, 0.15); border: 1.5px solid #ff4444; color: #ff4444; border-radius: 12px; padding: 12px 6px; font-size: 12px; font-weight: 900; cursor: pointer; text-transform: uppercase;">
+                        - Quitar
+                    </button>
+                    <button type="button" id="btn-ficha-ubicar" style="background: rgba(255, 107, 0, 0.16); border: 1.5px solid var(--naranja); color: var(--naranja); border-radius: 12px; padding: 12px 6px; font-size: 12px; font-weight: 900; cursor: pointer; text-transform: uppercase;">
+                        📍 Ubicar
+                    </button>
+                </div>
+
+                <!-- 5. SUB-PANELES DINÁMICOS DE ACCIÓN (Aparecen en lugar de los 3 botones) -->
+                <div id="panel-accion-contextual" style="display: none; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); flex-direction: column; gap: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <strong id="titulo-accion-contextual" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--naranja);">Acción</strong>
+                        <button type="button" id="btn-cancelar-accion-contextual" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: #ccc; border-radius: 8px; padding: 4px 10px; font-size: 10.5px; font-weight: bold; cursor: pointer;">
+                            ← Volver
+                        </button>
+                    </div>
+
+                    <!-- Input de Cantidad / Peso Configurado Dinámicamente (> 0) -->
+                    <div id="bloque-cantidad-contextual" style="display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.4); padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);">
+                        <div>
+                            <label id="lbl-cantidad-contextual" style="font-size: 11px; color: #fff; font-weight: 800; display: block;">Cantidad a aplicar</label>
+                            <span id="sub-regla-unidad" style="font-size: 9.5px; color: #888;">Solo números enteros (> 0)</span>
+                        </div>
+                        <input type="number" id="input-cantidad-contextual" value="1" min="1" step="1" style="width: 95px; background: #0a0a0c; border: 1.5px solid var(--naranja); color: #fff; font-size: 16px; font-weight: 900; text-align: center; border-radius: 8px; padding: 7px; font-family: monospace;">
+                    </div>
+
+                    <!-- Opciones Exclusivas para - QUITAR (Motivo de Baja + Descripción máx 144 chars) -->
+                    <div id="bloque-motivo-quitar" style="display: none; flex-direction: column; gap: 8px;">
+                        <div>
+                            <label style="font-size: 10px; color: #ff4444; font-weight: 800; text-transform: uppercase; display: block; margin-bottom: 4px;">Causa del Retiro / Baja *</label>
+                            <select id="select-causa-quitar" class="select-wms" style="margin: 0; border-color: rgba(255,68,68,0.5);">
+                                <option value="CADUCADO">⏳ Caducado / Fecha de vencimiento</option>
+                                <option value="DEFECTO_FABRICA">🏭 Defecto de fábrica / Proveedor</option>
+                                <option value="MERMA_OPERATIVA">💔 Merma operativa / Avería en piso</option>
+                                <option value="ROBO">🚨 Robo / Faltante detectado</option>
+                                <option value="CONSUMO_INTERNO">🛠️ Consumo interno / Muestra</option>
+                                <option value="DESPACHO_EXTERNO">🚚 Salida / Despacho manual</option>
+                            </select>
+                        </div>
+                        <div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                                <label style="font-size: 10px; color: #aaa; text-transform: uppercase; font-weight: bold;">Descripción / Observación</label>
+                                <span id="contador-chars-quitar" style="font-size: 9.5px; color: #888; font-family: monospace;">0 / 144</span>
+                            </div>
+                            <textarea id="txt-detalle-quitar" maxlength="144" rows="2" class="input-boveda" placeholder="Describe brevemente el motivo (máx. 144 caracteres)..." style="margin: 0; width: 100%; box-sizing: border-box; font-size: 11.5px; resize: none; padding: 8px;"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Selector de Mueble / Góndola Integrado para Añadir, Quitar o Ubicar -->
+                    <div id="bloque-ubicacion-contextual" style="background: rgba(0,0,0,0.35); border: 1px dashed rgba(255,255,255,0.18); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span id="lbl-destino-ubicacion" style="font-size: 10px; color: #aaa; font-weight: 800; text-transform: uppercase;">Mueble / Góndola Objetivo:</span>
+                            <span id="badge-bin-seleccionado-accion" style="font-family: monospace; font-size: 10.5px; color: var(--naranja); font-weight: bold;">BODEGA GENERAL</span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                            <button type="button" id="btn-escanear-qr-gondola-accion" style="background: rgba(255,107,0,0.15); border: 1px solid var(--naranja); color: #fff; border-radius: 8px; padding: 8px; font-size: 10.5px; font-weight: 800; cursor: pointer;">
+                                📷 Escanear QR Góndola
+                            </button>
+                            <button type="button" id="btn-elegir-lista-gondola-accion" style="background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.2); color: #ddd; border-radius: 8px; padding: 8px; font-size: 10.5px; font-weight: 800; cursor: pointer;">
+                                📋 Elegir en Lista
+                            </button>
+                        </div>
+                    </div>
+
+                    <button type="button" id="btn-ejecutar-accion-contextual" class="btn-accion-boveda" style="margin: 0; padding: 13px; font-size: 12.5px; font-weight: 900; letter-spacing: 0.5px;">
+                        CONFIRMAR OPERACIÓN
+                    </button>
                 </div>
             </div>
 
-            <!-- CONSOLA DE AUDITORÍA Y CONTEO CÍCLICO -->
+            <!-- CONSOLA DE AUDITORÍA Y CONTEO CÍCLICO DE ANAQUEL COMPLETO -->
             <div id="panel-auditoria-ciclica" style="display: none; background: rgba(18, 18, 24, 0.95); border: 1px solid var(--naranja); border-radius: 16px; padding: 14px; box-sizing: border-box; flex-direction: column; gap: 10px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px;">
                     <div>
@@ -103,13 +224,14 @@
                             <span id="audit-mueble-tag" style="font-size: 11px; color: #fff; font-weight: 700;"></span>
                         </div>
                     </div>
-                    <button id="btn-cancelar-auditoria" style="background: transparent; border: 1px solid rgba(255,255,255,0.2); color: #888; border-radius: 8px; font-size: 10px; padding: 4px 8px; cursor: pointer; text-transform: uppercase;">Reiniciar</button>
+                    <div style="display: flex; gap: 6px;">
+                        <button id="btn-cancelar-auditoria" style="background: transparent; border: 1px solid rgba(255,255,255,0.2); color: #888; border-radius: 8px; font-size: 10px; padding: 4px 8px; cursor: pointer; text-transform: uppercase;">Reiniciar</button>
+                        <button id="btn-cerrar-panel-auditoria" style="background: rgba(255,68,68,0.15); border: 1px solid rgba(255,68,68,0.4); color: #ff4444; border-radius: 8px; font-size: 10px; padding: 4px 8px; cursor: pointer; font-weight: bold;">✕ Cerrar</button>
+                    </div>
                 </div>
-
                 <div id="audit-instruccion-espera" style="text-align: center; padding: 18px 10px; color: #888; font-size: 11px; line-height: 1.4;">
                     Escanea el código QR del compartimiento <strong style="color: var(--naranja);">(GEO-P-...)</strong> o selecciona la ubicación desde la lista para iniciar el conteo físico.
                 </div>
-
                 <div id="audit-cuerpo-conteo" style="display: none; flex-direction: column; gap: 10px;">
                     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; background: rgba(0,0,0,0.4); padding: 8px; border-radius: 10px; text-align: center;">
                         <div>
@@ -125,43 +247,14 @@
                             <span id="kpi-audit-delta" style="font-size: 15px; font-weight: 900; color: #00ff64; font-family: monospace;">0</span>
                         </div>
                     </div>
-
-                    <!-- MATRIZ DINÁMICA DE DISCREPANCIAS -->
                     <div id="tabla-discrepancias-auditoria" style="display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto;"></div>
-
                     <button id="btn-confirmar-auditoria" class="btn-accion-boveda" style="margin-top: 4px; padding: 12px; font-size: 12px; letter-spacing: 0.5px;">
                         CONFIRMAR AJUSTE DE AUDITORÍA
                     </button>
                 </div>
             </div>
-
-            <!-- TARJETA INFORMATIVA FLUIDA DEL ÚLTIMO ARTÍCULO -->
-            <div id="tarjeta-producto" class="ultimo-escaneo" style="position: static; transform: none; width: 100%; box-sizing: border-box; display: none; border-radius: 16px;">
-
-
-                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <div>
-                        <span id="badge-estado" style="background: #00ff64; color: black; font-size: 10px; padding: 3px 8px; border-radius: 8px; font-weight: bold; text-transform: uppercase;">ACTUALIZADO</span>
-                        <h2 id="prod-nombre" style="margin: 8px 0 0 0; font-size: 16px; color: white;">Producto</h2>
-                    </div>
-                    <div style="text-align: right;">
-                        <p style="margin: 0; font-size: 10px; color: #aaa;">CÓDIGO:</p>
-                        <p id="prod-codigo" style="margin: 0; font-family: monospace; font-size: 13px; color: var(--naranja); font-weight: bold;">---</p>
-                    </div>
-                </div>
-                
-                <div style="background: rgba(0,0,0,0.3); border-radius: 12px; padding: 12px; margin-top: 10px; border: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between;">
-                    <div>
-                        <p style="margin: 0; font-size: 11px; color: #888;">Operación: <strong id="res-operacion" style="color: white;">ENTRADA</strong></p>
-                        <p style="margin: 4px 0 0 0; font-size: 11px; color: #888;">Hardware: <span id="res-hardware" style="color: #aaa;">USB</span></p>
-                    </div>
-                    <div style="text-align: right;">
-                        <p style="margin: 0; font-size: 11px; color: #888;">Stock Resultante:</p>
-                        <p id="res-stock" style="margin: 2px 0 0 0; font-size: 20px; color: #00ff64; font-weight: 900;">0</p>
-                    </div>
-                </div>
-            </div>
         </div>
+
     </div>
 
     <!-- MODAL IN SITU: ALTA RÁPIDA -->
@@ -465,25 +558,44 @@
         document.getElementById('btn-cerrar-modal-ubi').addEventListener('click', cerrarModalUbi);
         document.getElementById('btn-cancelar-select-ubi').addEventListener('click', cerrarModalUbi);
 
+        let productoActivoFicha = null;
+        let modoAccionFicha = null; // 'ANADIR' | 'QUITAR' | 'UBICAR'
+        let esperandoQrUbicacionAccion = false;
+
+        const SVG_PLACEHOLDER_FICHA = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20120%20120'%3E%3Crect%20width='120'%20height='120'%20rx='14'%20fill='%230a0a0c'/%3E%3Ctext%20x='60'%20y='65'%20fill='%23ff6b00'%20font-family='sans-serif'%20font-size='11'%20font-weight='900'%20text-anchor='middle'%3ESIN%20FOTO%3C/text%3E%3C/svg%3E";
+
+        function sincronizarBadgeUbicacionAccion() {
+            const badge = document.getElementById('badge-bin-seleccionado-accion');
+            if (!badge) return;
+            if (ubicacionCascada.idCompartimiento) {
+                const corto = ubicacionCascada.idCompartimiento.split('-').slice(-3).join('-');
+                badge.innerText = (ubicacionCascada.idEstante || 'MUEBLE') + ' > ' + corto;
+                badge.style.color = '#00ff64';
+            } else if (ubicacionCascada.idEstante) {
+                badge.innerText = 'MUEBLE: ' + ubicacionCascada.idEstante;
+                badge.style.color = '#00ff64';
+            } else {
+                badge.innerText = 'BODEGA GENERAL';
+                badge.style.color = 'var(--naranja)';
+            }
+        }
+
         document.getElementById('btn-confirmar-select-ubi').addEventListener('click', () => {
             const optBinSel = selectBin.options[selectBin.selectedIndex];
             if (!optBinSel || !optBinSel.value) return;
-
-        ubicacionCascada.idEstante = optBinSel.dataset.estante;
-        ubicacionCascada.idCompartimiento = optBinSel.value;
-        ubicacionCascada.zona = optBinSel.dataset.zona;
-
-        document.getElementById('txt-mueble-activo').innerText = 'MUEBLE: ' + optBinSel.dataset.nombreMueble;
-        document.getElementById('txt-comp-activo').innerText = 'BIN: ' + optBinSel.value.split('-').slice(-3).join('-');
-        document.getElementById('banner-cascada').style.display = 'flex';
-
-        emitirTono('EXITO');
-        cerrarModalUbi();
-
-        if (operacionActual === 'AUDITAR') {
-            iniciarAuditoriaBin(optBinSel.value);
-             } 
+            ubicacionCascada.idEstante = optBinSel.dataset.estante;
+            ubicacionCascada.idCompartimiento = optBinSel.value;
+            ubicacionCascada.zona = optBinSel.dataset.zona;
+            document.getElementById('txt-mueble-activo').innerText = 'MUEBLE: ' + optBinSel.dataset.nombreMueble;
+            document.getElementById('txt-comp-activo').innerText = 'BIN: ' + optBinSel.value.split('-').slice(-3).join('-');
+            sincronizarBadgeUbicacionAccion();
+            emitirTono('EXITO');
+            cerrarModalUbi();
+            if (operacionActual === 'AUDITAR') {
+                iniciarAuditoriaBin(optBinSel.value);
+            }
         });
+
 
 
         // --- SINTETIZADOR DE TONOS WEB AUDIO API ---
@@ -672,20 +784,326 @@
         // =========================================================================
         // PROCESAMIENTO ATÓMICO Y KARDEX
         // =========================================================================
-async function procesarMovimientoStock(codigo, origenHardware) {
+function esProductoPesable(prod) {
+    if (!prod) return false;
+    const u = String((prod.metrica && prod.metrica.unidad) || prod.unidad_medida || '').toLowerCase().trim();
+    const m = String((prod.metrica && prod.metrica.magnitud) || '').toLowerCase().trim();
+    if (u === 'kg' || u === 'lb' || u === 'l' || u === 'gal') return true;
+    if (Boolean(prod.es_pesable) && (u === 'kg' || m === 'peso')) return true;
+    return false;
+}
+
+function obtenerEtiquetaUnidad(prod) {
+    if (!prod) return 'und';
+    if (prod.metrica && prod.metrica.unidad) return prod.metrica.unidad;
+    if (prod.unidad_medida) return prod.unidad_medida;
+    return esProductoPesable(prod) ? 'kg' : 'und';
+}
+
+function renderizarUbicacionesFichaProducto(prod) {
+    const cont = document.getElementById('lista-ubicaciones-producto-ficha');
+    if (!cont || !prod) return;
+    const ubisLocales = JSON.parse(localStorage.getItem('geokatu_stock_ubis_' + idNegocio) || '[]');
+    const misUbis = ubisLocales.filter(u =>
+        (u.id_prod === prod.id_prod || u.id_prod === prod.codigo_barras) && Number(u.cantidad) > 0
+    );
+    if (misUbis.length === 0) {
+        const almInicial = prod.almacen_id_inicial || 'BODEGA_GENERAL';
+        cont.innerHTML = '<span style="color:#aaa;">📦 Almacén base: <strong style="color:#fff;">' + almInicial + '</strong> (Sin góndola específica asignada)</span>';
+        return;
+    }
+    cont.innerHTML = misUbis.map(u => {
+        const mObj = mueblesPlanoTienda.find(m => m.id_mueble === u.id_estante || m.qr === u.id_estante);
+        const nombreMueble = mObj ? mObj.nombre : (u.id_estante || 'Estante');
+        let detalleBin = u.id_compartimiento || 'General';
+        if (detalleBin.indexOf('GEO-P-') === 0) {
+            const p = detalleBin.split('-');
+            if (p.length >= 6) {
+                detalleBin = 'Cara ' + p[p.length - 3] + ' · ' + p[p.length - 2] + ' · ' + p[p.length - 1];
+            }
+        }
+        return '<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.35); padding:6px 8px; border-radius:7px; border:1px solid rgba(255,255,255,0.06);">' +
+            '<span><strong>' + nombreMueble + '</strong> <span style="color:#60a5fa; font-family:monospace;">[' + detalleBin + ']</span></span>' +
+            '<strong style="color:#00ff64; font-family:monospace;">' + Number(u.cantidad) + ' ' + obtenerEtiquetaUnidad(prod) + '</strong>' +
+        '</div>';
+    }).join('');
+}
+
+function mostrarFichaProductoConsultado(prod, origenHardware, etiquetaEstado = 'CONSULTADO') {
+    productoActivoFicha = prod;
+    esperandoQrUbicacionAccion = false;
+    const estadoEspera = document.getElementById('estado-espera-escaneo');
+    if (estadoEspera) estadoEspera.style.display = 'none';
+
+    const imgEl = document.getElementById('prod-img-ficha');
+    if (imgEl) {
+        imgEl.onerror = function() { this.onerror = null; this.src = SVG_PLACEHOLDER_FICHA; };
+        imgEl.src = (prod.imagen && prod.imagen.trim().length > 10) ? prod.imagen : SVG_PLACEHOLDER_FICHA;
+    }
+    const badgeEstado = document.getElementById('badge-estado');
+    if (badgeEstado) badgeEstado.innerText = etiquetaEstado;
+
+    document.getElementById('prod-nombre').innerText = prod.nombre || 'Producto';
+    document.getElementById('prod-codigo').innerText = prod.codigo_barras || prod.id_prod || '---';
+    document.getElementById('prod-precio-ficha').innerText = '$' + (Number(prod.precio) || 0).toLocaleString('es-CO');
+    document.getElementById('prod-categoria-ficha').innerText = prod.categoria || 'General';
+
+    const pesable = esProductoPesable(prod);
+    const unidadStr = obtenerEtiquetaUnidad(prod);
+    const badgeUni = document.getElementById('prod-unidad-badge');
+    if (badgeUni) {
+        badgeUni.innerText = pesable ? ('⚖️ Peso (' + unidadStr + ')') : ('📦 Unidades (' + unidadStr + ')');
+        badgeUni.style.color = pesable ? '#ffaa00' : '#00e5ff';
+    }
+
+    const stockActual = prod.stock_actual !== undefined ? Number(prod.stock_actual) : 0;
+    document.getElementById('res-operacion').innerText = etiquetaEstado;
+    document.getElementById('res-hardware').innerText = origenHardware || 'LECTOR';
+    const elStock = document.getElementById('res-stock');
+    elStock.innerText = stockActual;
+    elStock.style.color = stockActual > 0 ? '#00ff64' : '#ff4444';
+    document.getElementById('res-stock-unidad').innerText = unidadStr;
+
+    renderizarUbicacionesFichaProducto(prod);
+
+    // Restaurar vista base de los 3 botones (+ Añadir, - Quitar, Ubicar)
+    document.getElementById('barra-acciones-ficha').style.display = 'grid';
+    document.getElementById('panel-accion-contextual').style.display = 'none';
+    modoAccionFicha = null;
+
+    document.getElementById('tarjeta-producto').style.display = 'block';
+}
+
+function abrirSubPanelAccionFicha(modo) {
+    if (!productoActivoFicha) return;
+    if (navigator.vibrate) navigator.vibrate(25);
+    modoAccionFicha = modo;
+    document.getElementById('barra-acciones-ficha').style.display = 'none';
+    const panel = document.getElementById('panel-accion-contextual');
+    panel.style.display = 'flex';
+
+    const titulo = document.getElementById('titulo-accion-contextual');
+    const bloqueCant = document.getElementById('bloque-cantidad-contextual');
+    const lblCant = document.getElementById('lbl-cantidad-contextual');
+    const subRegla = document.getElementById('sub-regla-unidad');
+    const inputCant = document.getElementById('input-cantidad-contextual');
+    const bloqueMotivo = document.getElementById('bloque-motivo-quitar');
+    const lblDestino = document.getElementById('lbl-destino-ubicacion');
+    const btnEjecutar = document.getElementById('btn-ejecutar-accion-contextual');
+
+    const pesable = esProductoPesable(productoActivoFicha);
+    const unidadStr = obtenerEtiquetaUnidad(productoActivoFicha);
+
+    if (pesable) {
+        inputCant.step = '0.001';
+        inputCant.min = '0.001';
+        inputCant.value = '1.000';
+        subRegla.innerText = 'Admite decimales en ' + unidadStr + ' (> 0)';
+    } else {
+        inputCant.step = '1';
+        inputCant.min = '1';
+        inputCant.value = '1';
+        subRegla.innerText = 'Solo unidades enteras (> 0)';
+    }
+
+    sincronizarBadgeUbicacionAccion();
+
+    if (modo === 'ANADIR') {
+        titulo.innerText = '➕ Añadir Stock (' + unidadStr + ')';
+        titulo.style.color = '#00ff64';
+        bloqueCant.style.display = 'flex';
+        lblCant.innerText = pesable ? ('Peso a ingresar (' + unidadStr + ')') : 'Unidades a ingresar (+)';
+        inputCant.style.borderColor = '#00ff64';
+        bloqueMotivo.style.display = 'none';
+        lblDestino.innerText = 'Mueble / Góndola donde ingresa:';
+        btnEjecutar.innerText = 'CONFIRMAR INGRESO (+)';
+        btnEjecutar.style.background = '#00ff64';
+        btnEjecutar.style.color = '#000000';
+    } else if (modo === 'QUITAR') {
+        titulo.innerText = '➖ Quitar / Dar de Baja (' + unidadStr + ')';
+        titulo.style.color = '#ff4444';
+        bloqueCant.style.display = 'flex';
+        lblCant.innerText = pesable ? ('Peso a retirar (' + unidadStr + ')') : 'Unidades a retirar (-)';
+        inputCant.style.borderColor = '#ff4444';
+        bloqueMotivo.style.display = 'flex';
+        lblDestino.innerText = 'Mueble / Góndola de donde sale:';
+        btnEjecutar.innerText = 'CONFIRMAR BAJA (-)';
+        btnEjecutar.style.background = '#ff4444';
+        btnEjecutar.style.color = '#ffffff';
+    } else if (modo === 'UBICAR') {
+        titulo.innerText = '📍 Ubicar / Mover a Góndola';
+        titulo.style.color = 'var(--naranja)';
+        bloqueCant.style.display = 'flex';
+        lblCant.innerText = 'Cantidad a ubicar en góndola';
+        inputCant.value = Math.max(1, Number(productoActivoFicha.stock_actual) || 1);
+        inputCant.style.borderColor = 'var(--naranja)';
+        bloqueMotivo.style.display = 'none';
+        lblDestino.innerText = 'Selecciona o escanea Góndola destino:';
+        btnEjecutar.innerText = 'FIJAR UBICACIÓN EN GÓNDOLA';
+        btnEjecutar.style.background = 'var(--naranja)';
+        btnEjecutar.style.color = '#ffffff';
+    }
+    setTimeout(() => { inputCant.focus(); inputCant.select(); }, 80);
+}
+
+// Guardián de input de cantidad (> 0 y entero si no es pesable)
+document.getElementById('input-cantidad-contextual').addEventListener('input', (e) => {
+    if (!productoActivoFicha) return;
+    if (!esProductoPesable(productoActivoFicha)) {
+        const limpio = String(e.target.value).replace(/[^0-9]/g, '');
+        e.target.value = limpio;
+    }
+});
+
+document.getElementById('txt-detalle-quitar').addEventListener('input', (e) => {
+    const len = (e.target.value || '').length;
+    const cont = document.getElementById('contador-chars-quitar');
+    if (cont) cont.innerText = len + ' / 144';
+});
+
+document.getElementById('btn-ficha-anadir').addEventListener('click', () => abrirSubPanelAccionFicha('ANADIR'));
+document.getElementById('btn-ficha-quitar').addEventListener('click', () => abrirSubPanelAccionFicha('QUITAR'));
+document.getElementById('btn-ficha-ubicar').addEventListener('click', () => abrirSubPanelAccionFicha('UBICAR'));
+
+document.getElementById('btn-cancelar-accion-contextual').addEventListener('click', () => {
+    esperandoQrUbicacionAccion = false;
+    modoAccionFicha = null;
+    document.getElementById('panel-accion-contextual').style.display = 'none';
+    document.getElementById('barra-acciones-ficha').style.display = 'grid';
+});
+
+document.getElementById('btn-ir-mapa-producto').addEventListener('click', () => {
+    if (!productoActivoFicha) return;
+    const cod = productoActivoFicha.codigo_barras || productoActivoFicha.id_prod || '';
+    window.location.href = 'inventario?buscar=' + encodeURIComponent(cod);
+});
+
+document.getElementById('btn-elegir-lista-gondola-accion').addEventListener('click', () => {
+    poblarSelectorMueblesModal();
+    modalUbi.style.display = 'flex';
+});
+
+document.getElementById('btn-escanear-qr-gondola-accion').addEventListener('click', () => {
+    esperandoQrUbicacionAccion = true;
+    if (!camaraEncendida) encenderCamara();
+    window.mostrarAlertaInApp("Apunta la cámara al código QR del Mueble (GEO-M-...) o Compartimiento (GEO-P-...) para asignarlo a esta operación.", "Escanear Góndola");
+});
+
+document.getElementById('btn-ejecutar-accion-contextual').addEventListener('click', async () => {
+    if (!productoActivoFicha || !modoAccionFicha) return;
+    const pesable = esProductoPesable(productoActivoFicha);
+    const rawCant = Number(document.getElementById('input-cantidad-contextual').value);
+    const cantidadAplicar = pesable ? Number(rawCant.toFixed(3)) : Math.floor(rawCant);
+
+    if (isNaN(cantidadAplicar) || cantidadAplicar <= 0) {
+        emitirTono('ERROR');
+        await window.mostrarAlertaInApp("La cantidad debe ser mayor a cero (> 0).", "Cantidad Inválida");
+        return;
+    }
+
+    if (modoAccionFicha === 'UBICAR' && !ubicacionCascada.idCompartimiento && !ubicacionCascada.idEstante) {
+        emitirTono('ERROR');
+        await window.mostrarAlertaInApp("Selecciona un Mueble/Góndola de la lista o escanea su código QR para ubicar el producto.", "Falta Góndola Destino");
+        return;
+    }
+
+    let motivoFinal = null;
+    if (modoAccionFicha === 'QUITAR') {
+        const causa = document.getElementById('select-causa-quitar').value;
+        const obs = (document.getElementById('txt-detalle-quitar').value || '').trim().substring(0, 144);
+        motivoFinal = '[' + causa + ']' + (obs ? (' ' + obs) : '');
+    }
+
+    const btn = document.getElementById('btn-ejecutar-accion-contextual');
+    btn.disabled = true;
+    btn.innerText = "PROCESANDO...";
+
+    try {
+        const prod = productoActivoFicha;
+        const stockPrevio = Number(prod.stock_actual) || 0;
+        let nuevoStock = stockPrevio;
+        let tipoKardex = 'TRASLADO_INTERNO';
+
+        if (modoAccionFicha === 'ANADIR') {
+            tipoKardex = 'ENTRADA';
+            nuevoStock = Number((stockPrevio + cantidadAplicar).toFixed(3));
+        } else if (modoAccionFicha === 'QUITAR') {
+            tipoKardex = 'AJUSTE_MERMA';
+            nuevoStock = Math.max(0, Number((stockPrevio - cantidadAplicar).toFixed(3)));
+        } else if (modoAccionFicha === 'UBICAR') {
+            tipoKardex = 'TRASLADO_INTERNO';
+        }
+
+        prod.stock_actual = nuevoStock;
+        prod.agotado = (nuevoStock <= 0);
+        localStorage.setItem('geokatu_catalogo_' + idNegocio, JSON.stringify(catalogoLocal));
+
+        await GeokatuDB.InventarioService.registrarMovimientoFisico(
+            prod.id_prod,
+            modoAccionFicha === 'ANADIR' ? 'PROVEEDOR' : (ubicacionCascada.idCompartimiento || 'BODEGA_GENERAL'),
+            modoAccionFicha === 'QUITAR' ? ('BAJA_' + document.getElementById('select-causa-quitar').value) : (ubicacionCascada.idCompartimiento || 'PISO_VENTA'),
+            tipoKardex,
+            cantidadAplicar,
+            {
+                idNegocio: idNegocio,
+                idEstanteOrigen: modoAccionFicha === 'QUITAR' ? ubicacionCascada.idEstante : null,
+                idCompOrigen: modoAccionFicha === 'QUITAR' ? ubicacionCascada.idCompartimiento : null,
+                idEstanteDestino: (modoAccionFicha === 'ANADIR' || modoAccionFicha === 'UBICAR') ? (ubicacionCascada.idEstante || 'GENERAL') : null,
+                idCompDestino: (modoAccionFicha === 'ANADIR' || modoAccionFicha === 'UBICAR') ? (ubicacionCascada.idCompartimiento || 'BIN_INICIAL') : null,
+                zona: ubicacionCascada.zona || 'PISO_VENTA',
+                motivo: motivoFinal
+            }
+        );
+
+        // Actualizar mapa local de ubicaciones en 0 ms para reflejar la góndola al instante
+        const claveUbis = 'geokatu_stock_ubis_' + idNegocio;
+        let ubisLocales = JSON.parse(localStorage.getItem(claveUbis) || '[]');
+        const idCompTarget = ubicacionCascada.idCompartimiento || (modoAccionFicha === 'UBICAR' ? 'BIN_INICIAL' : null);
+        if (idCompTarget) {
+            let regUbi = ubisLocales.find(u => u.id_prod === prod.id_prod && u.id_compartimiento === idCompTarget);
+            if (modoAccionFicha === 'ANADIR') {
+                if (regUbi) regUbi.cantidad = Number((Number(regUbi.cantidad) + cantidadAplicar).toFixed(3));
+                else ubisLocales.push({ id_prod: prod.id_prod, id_estante: ubicacionCascada.idEstante || 'GENERAL', id_compartimiento: idCompTarget, cantidad: cantidadAplicar, zona: ubicacionCascada.zona || 'PISO_VENTA', ultima_modificacion: new Date().toISOString() });
+            } else if (modoAccionFicha === 'QUITAR' && regUbi) {
+                regUbi.cantidad = Math.max(0, Number((Number(regUbi.cantidad) - cantidadAplicar).toFixed(3)));
+            } else if (modoAccionFicha === 'UBICAR') {
+                if (regUbi) regUbi.cantidad = cantidadAplicar;
+                else ubisLocales.push({ id_prod: prod.id_prod, id_estante: ubicacionCascada.idEstante || 'GENERAL', id_compartimiento: idCompTarget, cantidad: cantidadAplicar, zona: ubicacionCascada.zona || 'PISO_VENTA', ultima_modificacion: new Date().toISOString() });
+            }
+            localStorage.setItem(claveUbis, JSON.stringify(ubisLocales));
+        }
+
+        GeokatuDB.AdminService.compilarCatalogoJSON(idNegocio, true).catch(() => {});
+        emitirTono('EXITO');
+        document.getElementById('txt-detalle-quitar').value = '';
+        document.getElementById('contador-chars-quitar').innerText = '0 / 144';
+
+        const etiquetaFinal = modoAccionFicha === 'ANADIR' ? 'INGRESO APLICADO (+)' : (modoAccionFicha === 'QUITAR' ? 'BAJA APLICADA (-)' : 'UBICACIÓN FIJADA');
+        mostrarFichaProductoConsultado(prod, 'TERMINAL_WMS', etiquetaFinal);
+    } catch (err) {
+        emitirTono('ERROR');
+        await window.mostrarAlertaInApp("Error ejecutando operación: " + err.message, "Fallo Operativo");
+    } finally {
+        btn.disabled = false;
+    }
+});
+
+async function procesarMovimientoStock(codigoRaw, origenHardware) {
+    const codigo = String(codigoRaw || '').trim();
+    if (!codigo) return;
     if (navigator.vibrate) navigator.vibrate(50);
 
-    /// Caso A: QR Maestro de Mueble (GEO-M-)
+    // Caso A: QR Maestro de Mueble (GEO-M-)
     if (codigo.startsWith('GEO-M-')) {
         emitirTono('EXITO');
         const idMuebleEncontrado = codigo.replace('GEO-M-', '');
         const muebleMatch = mueblesPlanoTienda.find(m => m.qr === codigo || m.id_mueble === idMuebleEncontrado || codigo.endsWith(m.id_mueble));
-        
         ubicacionCascada.idEstante = muebleMatch ? muebleMatch.id_mueble : idMuebleEncontrado;
         ubicacionCascada.zona = muebleMatch ? (muebleMatch.zona || 'PISO_VENTA') : 'BODEGA';
-        
         document.getElementById('txt-mueble-activo').innerText = 'MUEBLE: ' + (muebleMatch ? muebleMatch.nombre : idMuebleEncontrado);
         document.getElementById('banner-cascada').style.display = 'flex';
+        sincronizarBadgeUbicacionAccion();
+        esperandoQrUbicacionAccion = false;
         return;
     }
 
@@ -693,7 +1111,6 @@ async function procesarMovimientoStock(codigo, origenHardware) {
     if (codigo.startsWith('GEO-P-')) {
         emitirTono('EXITO');
         ubicacionCascada.idCompartimiento = codigo;
-        
         const partes = codigo.split('-');
         const len = partes.length;
         if (len >= 6) {
@@ -701,146 +1118,86 @@ async function procesarMovimientoStock(codigo, origenHardware) {
             const niv = partes[len - 2];
             const cara = partes[len - 3];
             const idM = partes[len - 4];
-            
             ubicacionCascada.idEstante = idM;
             const muebleMatch = mueblesPlanoTienda.find(m => m.id_mueble === idM || codigo.includes('-' + m.id_mueble + '-'));
             if (muebleMatch) {
                 ubicacionCascada.idEstante = muebleMatch.id_mueble;
                 ubicacionCascada.zona = muebleMatch.zona || 'PISO_VENTA';
             }
-
             document.getElementById('txt-mueble-activo').innerText = 'MUEBLE: ' + (muebleMatch ? muebleMatch.nombre : idM);
             document.getElementById('txt-comp-activo').innerText = 'BIN: ' + cara + '-' + niv + '-' + bin;
         } else {
             document.getElementById('txt-comp-activo').innerText = 'BIN: ' + codigo.replace('GEO-P-', '');
         }
-
         document.getElementById('banner-cascada').style.display = 'flex';
+        sincronizarBadgeUbicacionAccion();
 
-        // Si estamos en modo AUDITAR, inicializa la sesión de conteo de inmediato
+        // Si el operario estaba dentro de +Añadir, -Quitar o Ubicar esperando fijar góndola, se queda en la ficha del producto
+        if (esperandoQrUbicacionAccion || modoAccionFicha) {
+            esperandoQrUbicacionAccion = false;
+            return;
+        }
+        // Si estaba en modo Auditoría de Anaquel, abre el conteo cíclico del bin
         if (operacionActual === 'AUDITAR') {
             await iniciarAuditoriaBin(codigo);
         }
         return;
     }
 
-
-    // Caso C: Producto (EAN-13 / SKU)
-    const unidadesLote = Math.max(1, Number(document.getElementById('input-unidades-lote').value) || 1);
-
-    // Si opera en modo AUDITAR, capturar el conteo físico incremental
+    // Caso C: Si el panel de Conteo Cíclico de Anaquel está abierto, sumar al conteo del bin
     if (operacionActual === 'AUDITAR') {
         if (!sesionAuditoria.idCompartimiento) {
             emitirTono('ERROR');
             window.mostrarAlertaInApp("Primero debes escanear el QR del compartimiento (GEO-P-...) a auditar.", "Anaquel no Fijado");
             return;
         }
-
         let itemAudit = sesionAuditoria.items.find(it => it.codigo_barras === codigo || it.id_prod === codigo);
-
         if (itemAudit) {
-            itemAudit.stock_fisico += unidadesLote;
+            itemAudit.stock_fisico += 1;
             emitirTono('EXITO');
         } else {
-            // Producto inesperado en este bin
             let prodLocal = catalogoLocal.find(p => p.codigo_barras === codigo || p.id_prod === codigo);
             let nombreProd = prodLocal ? prodLocal.nombre : "Producto Inesperado";
             let prodId = prodLocal ? prodLocal.id_prod : codigo;
-
             if (!prodLocal) {
                 const matchMatriz = await GeokatuDB.CatalogoMatrizService.obtenerProductoPorCodigo(codigo);
                 if (matchMatriz) nombreProd = matchMatriz.nombre;
             }
-
             sesionAuditoria.items.unshift({
                 id_prod: prodId,
                 codigo_barras: codigo,
                 nombre: nombreProd,
                 stock_teorico: 0,
-                stock_fisico: unidadesLote,
-                delta: unidadesLote,
+                stock_fisico: 1,
+                delta: 1,
                 inesperado: true,
                 lote: "S/L",
                 fecha_vencimiento: null
             });
-
             emitirTono('EXITO');
         }
-
         renderizarPanelAuditoria();
         return;
     }
-    
-    // 1. Buscar en inventario propio del negocio
+
+    // Caso D (FLUJO POR DEFECTO): Escaneo de Producto -> Consulta Instantánea de Ficha
     let prod = catalogoLocal.find(p => p.codigo_barras === codigo || p.id_prod === codigo);
-
-
-    // 2. Si no existe localmente, consultar la Matriz Global en IndexedDB (0 ms)
-    let autoCompletadoMatriz = null;
     if (!prod) {
-        autoCompletadoMatriz = await GeokatuDB.CatalogoMatrizService.obtenerProductoPorCodigo(codigo);
-        
+        const autoCompletadoMatriz = await GeokatuDB.CatalogoMatrizService.obtenerProductoPorCodigo(codigo);
         if (autoCompletadoMatriz) {
-            // Producto detectado en catálogo maestro: Abrir modal pre-completado con autocompletado
             emitirTono('EXITO');
-            abrirModalAltaRapida(codigo, unidadesLote, autoCompletadoMatriz);
+            abrirModalAltaRapida(codigo, 1, autoCompletadoMatriz);
             return;
         }
-    }
-
-    // 3. Si tampoco existe en la Matriz Global: Abrir modal completamente blanco
-    if (!prod) {
         emitirTono('ERROR');
-        abrirModalAltaRapida(codigo, unidadesLote, null);
+        abrirModalAltaRapida(codigo, 1, null);
         return;
     }
 
-    // Producto existente en el inventario propio del negocio
     emitirTono('EXITO');
-    let tipoKardex = operacionActual === 'REUBICAR' ? 'TRASLADO_INTERNO' : operacionActual;
-    let nuevoStock = prod.stock_actual !== undefined ? prod.stock_actual : 0;
-
-    if (tipoKardex === 'ENTRADA') nuevoStock += unidadesLote;
-    else if (tipoKardex === 'SALIDA') nuevoStock = Math.max(0, nuevoStock - unidadesLote);
-
-    if (operacionActual !== 'AUDITORIA') {
-        prod.stock_actual = nuevoStock;
-        localStorage.setItem('geokatu_catalogo_' + idNegocio, JSON.stringify(catalogoLocal));
-    }
-
-
-    // Proyección en la tarjeta inferior
-    const tarjeta = document.getElementById('tarjeta-producto');
-    document.getElementById('prod-nombre').innerText = prod.nombre;
-    document.getElementById('prod-codigo').innerText = codigo;
-    document.getElementById('res-operacion').innerText = operacionActual;
-    document.getElementById('res-hardware').innerText = origenHardware;
-    document.getElementById('res-stock').innerText = nuevoStock;
-    tarjeta.style.display = 'block';
-
-    if (operacionActual !== 'AUDITORIA') {
-        const esEntrada = operacionActual === 'ENTRADA';
-        const esSalida = operacionActual === 'SALIDA';
-        const esReubicar = operacionActual === 'REUBICAR';
-
-        await GeokatuDB.InventarioService.registrarMovimientoFisico(
-            prod.id_prod, 
-            esEntrada ? "PROVEEDOR" : (ubicacionCascada.idCompartimiento || "BODEGA"), 
-            esSalida ? "CLIENTE" : (ubicacionCascada.idCompartimiento || "BODEGA"), 
-            tipoKardex,
-            unidadesLote,
-            {
-                idEstanteOrigen: esSalida ? ubicacionCascada.idEstante : null,
-                idCompOrigen: esSalida ? ubicacionCascada.idCompartimiento : null,
-                idEstanteDestino: (esEntrada || esReubicar) ? ubicacionCascada.idEstante : null,
-                idCompDestino: (esEntrada || esReubicar) ? ubicacionCascada.idCompartimiento : null,
-                zona: ubicacionCascada.zona
-            }
-        );
-
-    }
-
+    mostrarFichaProductoConsultado(prod, origenHardware, 'CONSULTA DIRECTA');
 }
+
 
 // =========================================================================
         // SESIÓN Y CONTROL DE TERMINAL WMS MEDIANTE AUTH-GATE
@@ -962,36 +1319,52 @@ async function procesarMovimientoStock(codigo, origenHardware) {
         });
 
 
-        document.querySelectorAll('#selector-operacion .ribbon-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                document.querySelectorAll('#selector-operacion .ribbon-btn').forEach(b => b.classList.remove('activo'));
-                btn.classList.add('activo');
-                operacionActual = btn.getAttribute('data-op');
-
-                const panelAuditoria = document.getElementById('panel-auditoria-ciclica');
-                const tarjetaProd = document.getElementById('tarjeta-producto');
-
-                if (operacionActual === 'AUDITAR') {
-                    panelAuditoria.style.display = 'flex';
-                    tarjetaProd.style.display = 'none';
-                    document.getElementById('banner-cascada').style.display = 'flex';
-
-                    // Activación automática de modo óptico en ráfaga
-                    chkRafaga.checked = true;
-                    wrapperRafaga.classList.add('activo');
-                    if (!camaraEncendida) encenderCamara();
-
-                    if (ubicacionCascada.idCompartimiento) {
-                        await iniciarAuditoriaBin(ubicacionCascada.idCompartimiento);
-                    } else {
-                        renderizarPanelAuditoria();
-                    }
-                } else {
-                    panelAuditoria.style.display = 'none';
-                    document.getElementById('banner-cascada').style.display = (operacionActual === 'REUBICAR' || operacionActual === 'ENTRADA') ? 'flex' : 'none';
-                }
-            });
+        // Buscador manual por código o nombre
+        const ejecutarBusquedaManualInput = () => {
+            const val = (document.getElementById('input-busqueda-manual-stock').value || '').trim();
+            if (!val) return;
+            const matchNombre = catalogoLocal.find(p =>
+                (p.codigo_barras && p.codigo_barras.toLowerCase() === val.toLowerCase()) ||
+                (p.nombre && p.nombre.toLowerCase().indexOf(val.toLowerCase()) !== -1)
+            );
+            if (matchNombre) {
+                procesarMovimientoStock(matchNombre.codigo_barras || matchNombre.id_prod, 'MANUAL');
+            } else {
+                procesarMovimientoStock(val, 'MANUAL');
+            }
+        };
+        document.getElementById('btn-buscar-manual-stock').addEventListener('click', ejecutarBusquedaManualInput);
+        document.getElementById('input-busqueda-manual-stock').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                ejecutarBusquedaManualInput();
+            }
         });
+
+        // Conmutador opcional de Auditoría de Anaquel (Conteo Cíclico)
+        document.getElementById('btn-modo-auditoria-anaquel').addEventListener('click', async () => {
+            operacionActual = 'AUDITAR';
+            document.getElementById('estado-espera-escaneo').style.display = 'none';
+            document.getElementById('tarjeta-producto').style.display = 'none';
+            document.getElementById('panel-auditoria-ciclica').style.display = 'flex';
+            document.getElementById('banner-cascada').style.display = 'flex';
+            if (ubicacionCascada.idCompartimiento) {
+                await iniciarAuditoriaBin(ubicacionCascada.idCompartimiento);
+            } else {
+                renderizarPanelAuditoria();
+            }
+        });
+
+        document.getElementById('btn-cerrar-panel-auditoria').addEventListener('click', () => {
+            operacionActual = 'CONSULTA';
+            document.getElementById('panel-auditoria-ciclica').style.display = 'none';
+            if (productoActivoFicha) {
+                document.getElementById('tarjeta-producto').style.display = 'block';
+            } else {
+                document.getElementById('estado-espera-escaneo').style.display = 'block';
+            }
+        });
+
 
         // =========================================================================
         // MOTOR DE CONTEO CÍCLICO Y CONCILIACIÓN FÍSICA EN ANAQUEL
@@ -1260,30 +1633,29 @@ function abrirModalAltaRapida(codigo, cantSugerida, datosMatriz = null) {
                     }
                 }
 
-                // Se registra con stock 0 para que procesarMovimientoStock asiente el Kardex oficial
-                const nuevoProd = {
+               const nuevoProd = {
                     nombre: nom,
                     precio: pre,
                     codigo_barras: codigo,
-                    stock_actual: 0,
+                    stock_actual: cant,
                     categoria: document.getElementById('alta-categoria').value.trim() || "General",
                     imagen: imgUrl,
                     lote_inicial: loteVal,
                     fecha_vencimiento: vencVal,
                     almacen_id_inicial: ubicacionCascada.idEstante || "BODEGA_GENERAL",
                     fecha_creacion: new Date().toISOString(),
-                    agotado: false
+                    agotado: (cant <= 0)
                 };
                 const res = await GeokatuDB.AdminService.guardarProducto(idNegocio, null, nuevoProd);
                 if (!res.success) throw new Error(res.error);
                 nuevoProd.id_prod = res.id_generado;
-
                 const yaEnMemoria = catalogoLocal.findIndex(p => p.id_prod === nuevoProd.id_prod);
                 if (yaEnMemoria === -1) {
                     catalogoLocal.push(nuevoProd);
+                } else {
+                    catalogoLocal[yaEnMemoria] = nuevoProd;
                 }
                 localStorage.setItem('geokatu_catalogo_' + idNegocio, JSON.stringify(catalogoLocal));
-
                 // Limpieza completa del modal
                 fotoAltaBlob = null;
                 document.getElementById('alta-foto-input').value = '';
@@ -1294,11 +1666,13 @@ function abrirModalAltaRapida(codigo, cantSugerida, datosMatriz = null) {
                 if (document.getElementById('alta-lote')) document.getElementById('alta-lote').value = '';
                 if (document.getElementById('alta-vencimiento')) document.getElementById('alta-vencimiento').value = '';
                 document.getElementById('modal-alta-rapida').style.display = 'none';
+                emitirTono('EXITO');
+                emitirTono('EXITO');
+                mostrarFichaProductoConsultado(nuevoProd, 'ALTA_RÁPIDA', 'CREADO EN STOCK');
+                // Recompilar JSON y mapa_precios con el stock_actual e imagen definitivos
+                GeokatuDB.AdminService.compilarCatalogoJSON(idNegocio, false).catch(function() {});
 
-                // Asienta el ingreso unico real con las unidades indicadas
-                document.getElementById('input-unidades-lote').value = cant;
-                await procesarMovimientoStock(codigo, "ALTA_RÁPIDA");
-                document.getElementById('input-unidades-lote').value = 1;
+
             } catch (err) {
                 window.mostrarAlertaInApp("Error al registrar: " + err.message, "Fallo de Alta");
             } finally {

@@ -364,9 +364,17 @@ export const DirectorioMatrizService = {
                             c: data.nicho || data.categoria || "General",
                             g: [data.lat || 4.81333, data.lng || -75.69611],
                             p: data.pin_pack || "forma-gota|anim-salto",
-                            b: [data.color_principal || "#ff6b00", data.color_acento || "#8a909d"],
+                            b: [data.color_principal || "#ff6b00", data.color_acento || "#8a909d", data.color_terciario || "#ffffff", data.color_cuaternario || "#0a0a0c"],
                             l: data.logo || "",
-                            f: (data.whatsapp ? 1 : 0) | (data.es_24_horas ? 4 : 0)
+                            logo: data.logo || "",
+                            portada: data.portada || "",
+                            link_pin: data.link_pin || "",
+                            nombre_png: data.nombre_png || data.logo_nombre || "",
+                            tema_popup: data.tema_popup || "carbon",
+                            horario: data.horario || "",
+                            whatsapp: data.whatsapp || data.whatsApp || "",
+                            pbx: data.pbx || "",
+                            f: (data.whatsapp ? 1 : 0) | (data.pbx ? 2 : 0) | (data.es_24_horas ? 4 : 0)
                         };
                         abrirDBDirectorio().then((dbInstance) => {
                             const tx = dbInstance.transaction(STORE_DIR, 'readwrite');
@@ -1245,28 +1253,32 @@ const GeokatuDB = {
 obtenerContactoComercio: async (idNegocio) => {
             if (!idNegocio) return { success: false, error: "ID de comercio requerido." };
             const idLimpio = String(idNegocio).trim();
-
-            // 1. Caché de sesión en memoria (0 ms, 0 lecturas en Firestore)
+            // 1. Cache de sesion en memoria (0 ms, 0 lecturas en Firestore)
             if (_cacheContactos[idLimpio]) {
                 return { success: true, data: _cacheContactos[idLimpio] };
             }
-
+            // 2. Consulta aislada a Directorio_Contacto (tolerante a fallos de reglas o inexistencia)
             try {
-                // 2. Consulta puntual a la colección protegida (allow get: if true; allow list: if false)
                 const docRef = doc(db, "Directorio_Contacto", idLimpio);
                 const snap = await getDoc(docRef);
-
                 if (snap.exists()) {
-                    const data = snap.data();
-                    _cacheContactos[idLimpio] = data;
-                    return { success: true, data: data };
+                    const data = snap.data() || {};
+                    const tieneFono = Boolean(data.whatsapp || data.whatsApp || (data.telefonos && data.telefonos[0]) || data.pbx);
+                    if (tieneFono) {
+                        _cacheContactos[idLimpio] = data;
+                        return { success: true, data: data };
+                    }
                 }
-
-                // 3. Respaldo retrocompatible para registros previos a la migración
-                const docDirRef = doc(db, _SCHEMA.ColeccionDirectorio, idLimpio);
-                const snapDir = await getDoc(docDirRef);
-                if (snapDir.exists()) {
-                    const d = snapDir.data();
+            } catch (eContacto) {}
+            // 3. Respaldo inmediato desde _cacheLocales (0 ms) o documento raiz de Directorio
+            try {
+                let d = _cacheLocales[idLimpio] || null;
+                if (!d) {
+                    const docDirRef = doc(db, _SCHEMA.ColeccionDirectorio, idLimpio);
+                    const snapDir = await getDoc(docDirRef);
+                    if (snapDir.exists()) d = snapDir.data();
+                }
+                if (d) {
                     const dataRespaldo = {
                         whatsapp: d.whatsapp || d.whatsApp || (d.telefonos && d.telefonos[0]) || "",
                         telefonos: d.telefonos || [],
@@ -1278,7 +1290,6 @@ obtenerContactoComercio: async (idNegocio) => {
                     _cacheContactos[idLimpio] = dataRespaldo;
                     return { success: true, data: dataRespaldo };
                 }
-
                 return { success: false, error: "Contacto no disponible." };
             } catch (e) {
                 return { success: false, error: e.message };
@@ -1536,10 +1547,27 @@ obtenerContactoComercio: async (idNegocio) => {
                 return { success: true, data: { disponible: querySnapshot.empty } };
             } catch (e) { return { success: false, error: e.message }; }
         },
+        esProductoTiendaValido: (p) => {
+            if (!p || typeof p !== 'object' || Array.isArray(p)) return false;
+            if (p['0'] !== undefined && p['1'] !== undefined) return false;
+            const idP = String(p.id_prod || p.id || '').trim();
+            if (!idP || idP === 'undefined' || idP === 'null') return false;
+            if (!p.nombre || p.nombre === 'Sin nombre') return false;
+            return true;
+        },
         actualizarNegocio: async (idNegocio, dataObj) => {
             try {
-                await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, idNegocio), dataObj, { merge: true });
-                delete _cacheLocales[idNegocio]; 
+                const payload = Object.assign({}, dataObj, {
+                    fecha_actualizacion: new Date().toISOString()
+                });
+                await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, idNegocio), payload, { merge: true });
+                delete _cacheLocales[idNegocio];
+                delete _cacheContactos[idNegocio];
+                try {
+                    const claveNegCache = 'geokatu_cache_neg_' + idNegocio;
+                    const negPrevio = JSON.parse(localStorage.getItem(claveNegCache) || '{}');
+                    localStorage.setItem(claveNegCache, JSON.stringify(Object.assign({}, negPrevio, payload)));
+                } catch (eLoc) {}
                 return { success: true };
             } catch (e) { return { success: false, error: e.message }; }
         },
@@ -1573,8 +1601,10 @@ obtenerContactoComercio: async (idNegocio) => {
         compilarCatalogoJSON: async (idNegocio, soloActualizarPrecios = false) => {
             try {
                 const claveCache = 'geokatu_catalogo_' + idNegocio;
-                const listaLocal = JSON.parse(localStorage.getItem(claveCache) || '[]').filter(p => !p.eliminado);
+                const listaLocal = JSON.parse(localStorage.getItem(claveCache) || '[]')
+                    .filter(p => GeokatuDB.AdminService.esProductoTiendaValido(p) && !p.eliminado);
                 if (listaLocal.length === 0) return { success: false };
+
 
                // 1. Construir diccionario ultraligero mapa_precios: SOLO [precio, agotadoBit] para jamas pisar el stock_actual operativo
                 const mapaPrecios = {};
@@ -2194,34 +2224,38 @@ obtenerContactoComercio: async (idNegocio) => {
                 // CAPA 1: Si el esqueleto no ha cambiado (versionLocal === versionRemota), hidratar precios en 0 ms desde mapa_precios (0 lecturas Firestore / 0 descargas Storage)
                 if (cacheCruda && !(filtros && filtros.startAfterDoc) && !(filtros && filtros.forzarNube)) {
                     if (!navigator.onLine || (versionRemota && versionLocal === versionRemota)) {
-                        const prodsCache = JSON.parse(cacheCruda);
-                        if (Array.isArray(prodsCache) && prodsCache.length > 0) {
+                        const prodsCache = JSON.parse(cacheCruda).filter(p => GeokatuDB.AdminService.esProductoTiendaValido(p));
+                        if (prodsCache.length > 0) {
                             const prodsHidratados = GeokatuDB.RadarService.hidratarPreciosEnCatalogo(prodsCache, mapaPreciosRaiz);
                             localStorage.setItem(claveProdsPub, JSON.stringify(prodsHidratados));
                             return { success: true, data: prodsHidratados, ultimoDoc: null, desdeCache: true };
                         }
                     }
                 }
-
-                // CAPA 2: Descargar el esqueleto desde el JSON estatico en Cloud Storage CDN (0 lecturas a la subcoleccion productos en Firestore)
+                // CAPA 2: Descargar el esqueleto desde el JSON estatico en Cloud Storage CDN (validando que no sea catalogo_matriz.json)
                 if (urlJsonCatalogo && navigator.onLine && !(filtros && filtros.startAfterDoc)) {
                     try {
                         const sep = urlJsonCatalogo.indexOf('?') !== -1 ? '&' : '?';
                         const respJson = await fetch(urlJsonCatalogo + sep + 'v=' + (versionRemota || Date.now()));
                         if (respJson.ok) {
                             const paqueteJson = await respJson.json();
-                            const arrayBase = Array.isArray(paqueteJson) ? paqueteJson : (paqueteJson.p || []);
-                            const filtradosJson = arrayBase.filter(p => p && p.eliminado !== true);
-                            const prodsConPrecios = GeokatuDB.RadarService.hidratarPreciosEnCatalogo(filtradosJson, mapaPreciosRaiz);
-                            localStorage.setItem(claveProdsPub, JSON.stringify(prodsConPrecios));
-                            localStorage.setItem('geokatu_catalogo_' + idNegocio, JSON.stringify(prodsConPrecios));
-                            if (versionRemota) localStorage.setItem(claveVerPub, versionRemota);
-                            return { success: true, data: prodsConPrecios, ultimoDoc: null, desdeJsonCDN: true };
+                            if (!paqueteJson.n) {
+                                const arrayBase = Array.isArray(paqueteJson) ? paqueteJson : (paqueteJson.p || []);
+                                const filtradosJson = arrayBase.filter(p => GeokatuDB.AdminService.esProductoTiendaValido(p) && p.eliminado !== true);
+                                if (filtradosJson.length > 0) {
+                                    const prodsConPrecios = GeokatuDB.RadarService.hidratarPreciosEnCatalogo(filtradosJson, mapaPreciosRaiz);
+                                    localStorage.setItem(claveProdsPub, JSON.stringify(prodsConPrecios));
+                                    localStorage.setItem('geokatu_catalogo_' + idNegocio, JSON.stringify(prodsConPrecios));
+                                    if (versionRemota) localStorage.setItem(claveVerPub, versionRemota);
+                                    return { success: true, data: prodsConPrecios, ultimoDoc: null, desdeJsonCDN: true };
+                                }
+                            }
                         }
                     } catch (eCdn) {
                         console.warn("[Catalogo JSON CDN] Fallback a subcoleccion:", eCdn.message);
                     }
                 }
+
 
                 // CAPA 3: Fallback retrocompatible a Firestore solo para comercios antiguos que aun no tienen catalogo_base.json
                 const rutaCatalogo = dataNeg._meta.idParaProductos;
@@ -3091,18 +3125,22 @@ obtenerDestinoPOS: async (idNegocio) => {
             const cacheExistenteStr = localStorage.getItem(claveCache);
             let catalogoMemoria = [];
             try {
-                catalogoMemoria = cacheExistenteStr ? JSON.parse(cacheExistenteStr) : [];
+                const rawMem = cacheExistenteStr ? JSON.parse(cacheExistenteStr) : [];
+                catalogoMemoria = Array.isArray(rawMem) ? rawMem.filter(p => GeokatuDB.AdminService.esProductoTiendaValido(p)) : [];
+                // Si la cache local estaba contaminada con los 6499 items de la matriz, purgarla de inmediato
+                if (Array.isArray(rawMem) && rawMem.length > 0 && catalogoMemoria.length === 0) {
+                    localStorage.removeItem(claveCache);
+                    localStorage.removeItem(claveSync);
+                    localStorage.removeItem(claveVerCat);
+                }
             } catch (eP) {
                 catalogoMemoria = [];
             }
-
             if (!navigator.onLine && catalogoMemoria.length > 0) {
                 return { success: true, cantidad: catalogoMemoria.length, data: catalogoMemoria, offline: true, esDelta: true };
             }
-
             try {
                 const ahoraCorte = new Date().toISOString();
-
                 // 1. Consultar el documento raiz del comercio (en cache de sesion o 1 lectura) para revisar catalogo_version y mapa_precios
                 const infoRaiz = await GeokatuDB.LocalService.getDetails(idNegocio);
                 const dataRaiz = (infoRaiz && infoRaiz.success && infoRaiz.data) ? infoRaiz.data : {};
@@ -3110,11 +3148,9 @@ obtenerDestinoPOS: async (idNegocio) => {
                 const verPreciosRemota = dataRaiz.precios_version ? String(dataRaiz.precios_version) : null;
                 const urlJson = dataRaiz.catalogo_json_url || null;
                 const mapaPrecios = dataRaiz.mapa_precios || null;
-
                 const verCatLocal = localStorage.getItem(claveVerCat);
                 const verPreciosLocal = localStorage.getItem(claveVerPrecios);
-
-                // CASO A (ZERO-READS ABSOLUTO): Si ya tenemos el catalogo en cache y catalogo_version coincide, 0 consultas a la subcoleccion productos
+                // CASO A (ZERO-READS ABSOLUTO): Si ya tenemos el catalogo valido en cache y catalogo_version coincide, 0 consultas a la subcoleccion productos
                 if (!forzarCompleta && catalogoMemoria.length > 0 && verCatRemota && verCatLocal === verCatRemota) {
                     let deltasPrecio = 0;
                     if (mapaPrecios && verPreciosRemota !== verPreciosLocal) {
@@ -3131,29 +3167,33 @@ obtenerDestinoPOS: async (idNegocio) => {
                         deltasLeidos: deltasPrecio
                     };
                 }
-
-                // CASO B (DESCARGA DESDE JSON EN STORAGE CDN): Si la terminal no tiene el catalogo o cambio catalogo_version, bajar el JSON estatico (0 lecturas a la subcoleccion productos)
+                // CASO B (DESCARGA DESDE JSON EN STORAGE CDN): Validando que no sea catalogo_matriz.json
                 if (urlJson && !forzarCompleta) {
                     try {
                         const sep = urlJson.indexOf('?') !== -1 ? '&' : '?';
                         const resp = await fetch(urlJson + sep + 'v=' + (verCatRemota || Date.now()));
                         if (resp.ok) {
                             const paquete = await resp.json();
-                            const listaJson = Array.isArray(paquete) ? paquete : (paquete.p || []);
-                            let normalizados = listaJson
-                                .filter(p => p && p.eliminado !== true)
-                                .map(p => normalizarProd(p.id_prod || p.id, p));
-                            normalizados = GeokatuDB.RadarService.hidratarPreciosEnCatalogo(normalizados, mapaPrecios);
-                            localStorage.setItem(claveCache, JSON.stringify(normalizados));
-                            localStorage.setItem(claveSync, ahoraCorte);
-                            if (verCatRemota) localStorage.setItem(claveVerCat, verCatRemota);
-                            if (verPreciosRemota) localStorage.setItem(claveVerPrecios, verPreciosRemota);
-                            return { success: true, cantidad: normalizados.length, data: normalizados, esDelta: false, desdeJsonCDN: true };
+                            if (!paquete.n) {
+                                const listaJson = Array.isArray(paquete) ? paquete : (paquete.p || []);
+                                let normalizados = listaJson
+                                    .filter(p => GeokatuDB.AdminService.esProductoTiendaValido(p) && p.eliminado !== true)
+                                    .map(p => normalizarProd(p.id_prod || p.id, p));
+                                if (normalizados.length > 0) {
+                                    normalizados = GeokatuDB.RadarService.hidratarPreciosEnCatalogo(normalizados, mapaPrecios);
+                                    localStorage.setItem(claveCache, JSON.stringify(normalizados));
+                                    localStorage.setItem(claveSync, ahoraCorte);
+                                    if (verCatRemota) localStorage.setItem(claveVerCat, verCatRemota);
+                                    if (verPreciosRemota) localStorage.setItem(claveVerPrecios, verPreciosRemota);
+                                    return { success: true, cantidad: normalizados.length, data: normalizados, esDelta: false, desdeJsonCDN: true };
+                                }
+                            }
                         }
                     } catch (eJson) {
                         console.warn("[PosService JSON] Fallback a deltas Firestore:", eJson.message);
                     }
                 }
+
 
                 // CASO C: Fallback a deltas por fecha_actualizacion o primera compilacion automatica del JSON
                 const productosRef = collection(db, _SCHEMA.ColeccionDirectorio + '/' + idNegocio + '/' + _SCHEMA.SubColeccionProductos);

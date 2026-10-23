@@ -764,6 +764,31 @@
             document.documentElement.style.setProperty('--color-cuaternario', pal.c4);
             document.documentElement.style.setProperty('--color-texto-boton', textoBotonColor);
 
+            // Aplicar atmosfera de Cuarzo Traslucido al fondo del catalogo publico
+            var MAPA_CUARZOS_FONDO = {
+                carbon: 'radial-gradient(circle at 50% 0%, rgba(35,35,48,0.55), #0a0a0c 75%)',
+                clasico: 'radial-gradient(circle at 50% 0%, rgba(226,232,240,0.22), #111318 75%)',
+                pantera: 'radial-gradient(circle at 50% 0%, rgba(255,105,180,0.32), #140810 78%)',
+                celeste: 'radial-gradient(circle at 50% 0%, rgba(56,189,248,0.32), #071320 78%)',
+                ambar: 'radial-gradient(circle at 50% 0%, rgba(255,107,0,0.32), #160b04 78%)',
+                esmeralda: 'radial-gradient(circle at 50% 0%, rgba(16,185,129,0.32), #051611 78%)',
+                topacio: 'radial-gradient(circle at 50% 0%, rgba(250,204,21,0.28), #161204 78%)',
+                rubi: 'radial-gradient(circle at 50% 0%, rgba(244,63,94,0.32), #18060a 78%)',
+                amatista: 'radial-gradient(circle at 50% 0%, rgba(168,85,247,0.32), #11071a 78%)'
+            };
+            var temaCat = String(datosNegocio.tema_popup || 'carbon').trim();
+            var bgCuarzo = MAPA_CUARZOS_FONDO[temaCat] || MAPA_CUARZOS_FONDO.carbon;
+            if (temaCat.indexOf('custom:') === 0) {
+                var hexQ = temaCat.replace('custom:', '').replace('#', '').trim();
+                var rQ = parseInt(hexQ.substring(0, 2), 16) || 255;
+                var gQ = parseInt(hexQ.substring(2, 4), 16) || 107;
+                var bQ = parseInt(hexQ.substring(4, 6), 16) || 0;
+                bgCuarzo = 'radial-gradient(circle at 50% 0%, rgba(' + rQ + ',' + gQ + ',' + bQ + ',0.34), rgba(' + Math.round(rQ * 0.08) + ',' + Math.round(gQ * 0.08) + ',' + Math.round(bQ * 0.08) + ',0.98) 78%)';
+            }
+            document.body.style.background = bgCuarzo;
+            document.body.style.backgroundAttachment = 'fixed';
+
+
             // Portada, Logo y Fondo
             if (datosNegocio.portada) {
                 document.getElementById('portada-tienda').src = datosNegocio.portada;
@@ -1543,12 +1568,37 @@
             var coords = datosNegocio.Coordenadas || {};
             var lat = coords.latitude || coords._lat || datosNegocio.lat;
             var lng = coords.longitude || coords._long || datosNegocio.lng;
+            sessionStorage.setItem('geokatu_ram_warm', '1');
+            sessionStorage.setItem('geokatu_enfocar_ram', idNegocio);
             if (lat && lng) {
-                window.location.href = '/index?lat=' + lat + '&lng=' + lng + '&enfocar=' + encodeURIComponent(idNegocio);
+                sessionStorage.setItem('geokatu_last_cam', JSON.stringify({
+                    lat: Number(lat),
+                    lng: Number(lng),
+                    zoom: 17.5
+                }));
+            }
+            // Si venimos del radar en el historial, restaurar la instancia viva en RAM en 0 ms
+            if (window.history.length > 1 && document.referrer && document.referrer.indexOf(window.location.host) !== -1 && document.referrer.indexOf('oficina') === -1) {
+                window.history.back();
+                return;
+            }
+            if (lat && lng) {
+                window.location.href = '/?lat=' + lat + '&lng=' + lng + '&enfocar=' + encodeURIComponent(idNegocio);
             } else {
-                window.location.href = '/index';
+                window.location.href = '/';
             }
         };
+
+        window.addEventListener('pageshow', function(e) {
+            if (e.persisted) {
+                var cacheNeg = localStorage.getItem('geokatu_cache_neg_' + idNegocio);
+                if (cacheNeg) {
+                    try { aplicarDatosNegocioEnDOM(JSON.parse(cacheNeg)); } catch (err) {}
+                }
+                cargarCatalogoProductos(false);
+            }
+        });
+
 
 
         // 8. MODO EDICIÓN EN VIVO

@@ -313,17 +313,27 @@ window.abrirHubContactoDinamico = async function(codigoComercio, hubId, e) {
     hub.innerHTML = '<span style="font-size:10px; color:#aaa; padding:6px 10px; display:block;">Conectando... ⏳</span>';
     hub.classList.add('activo');
 
-    // Hidratación bajo demanda (1 lectura puntual)
-    var res = await GeokatuDB.LocalService.obtenerContactoComercio(codigoComercio);
-    if (!res.success || !res.data) {
+    // 1. Respaldo en memoria del radar (0 ms)
+    var localMem = dbDirectorioMap.get(String(codigoComercio)) || {};
+    var waMem = (localMem.whatsapp || localMem.whatsApp || (localMem.telefonos && localMem.telefonos[0]) || '').toString().replace(/\D/g, '');
+    var pbxMem = (localMem.pbx || '').toString().trim();
+
+    // 2. Hidratacion bajo demanda con fallback automatico a memoria local
+    var c = {};
+    try {
+        var res = await GeokatuDB.LocalService.obtenerContactoComercio(codigoComercio);
+        if (res && res.success && res.data) {
+            c = res.data;
+        }
+    } catch (eHub) {}
+
+    var fonoWa = (c.whatsapp || c.whatsApp || (c.telefonos && c.telefonos[0]) || waMem || '').toString().replace(/\D/g, '');
+    var fonoPbx = (c.pbx || pbxMem || '').toString().trim();
+    if (!fonoWa && !fonoPbx) {
         hub.innerHTML = '<span style="font-size:10px; color:#ffaa00; padding:6px 10px; display:block;">Sin canales activos</span>';
         setTimeout(function() { hub.classList.remove('activo'); }, 2200);
         return;
     }
-
-    var c = res.data;
-    var fonoWa = (c.whatsapp || c.whatsApp || (c.telefonos && c.telefonos[0]) || '').toString().replace(/\D/g, '');
-    var fonoPbx = (c.pbx || '').toString().trim();
     var htmlCanales = '';
 
     if (fonoWa && fonoWa.length >= 7) {
@@ -549,9 +559,11 @@ window.desempaquetarComercioMatriz = function(item) {
             c3: colores[2] || '#ffffff',
             c4: colores[3] || '#0a0a0c'
         },
-        logo: item.l || item.logo || '',
-        portada: item.l || item.portada || '',
-        link_pin: item.l || item.link_pin || '',
+        logo: item.logo || item.l || '',
+        portada: item.portada || item.l || '',
+        link_pin: item.link_pin || item.logo || item.l || '',
+        nombre_png: item.nombre_png || item.logo_nombre || '',
+        tema_popup: item.tema_popup || 'carbon',
         whatsapp: item.whatsapp || item.whatsApp || '',
         whatsApp: item.whatsapp || item.whatsApp || '',
         pbx: item.pbx || '',
@@ -640,25 +652,35 @@ window.arrancarMotor = async function() {
         if (typeof window.construirCarrusel === 'function') {
             window.construirCarrusel();
         }
+        const esArranqueCaliente = Boolean(sessionStorage.getItem('geokatu_ram_warm') === '1' || localStorage.getItem('geokatu_matriz_timestamp'));
+        sessionStorage.setItem('geokatu_ram_warm', '1');
+        const delayArranque = esArranqueCaliente ? 0 : 350;
 
         setTimeout(() => {
             const pantallaCarga = document.getElementById('pantalla-carga');
-            if (pantallaCarga) pantallaCarga.style.opacity = '0';
+            if (pantallaCarga) {
+                pantallaCarga.style.opacity = '0';
+                if (esArranqueCaliente) pantallaCarga.style.display = 'none';
+            }
             
             setTimeout(() => {
                 if (pantallaCarga) pantallaCarga.style.display = 'none';
                 
                 const buscador = document.getElementById('wrapper-buscador');
                 if (buscador) buscador.classList.remove('shimmer-box');
+
                 
                 const params = new URLSearchParams(window.location.search);
                 const idDron = params.get('enfocar');
                 const latDron = parseFloat(params.get('lat'));
                 const lngDron = parseFloat(params.get('lng'));
-
                 if (idDron && !isNaN(latDron) && !isNaN(lngDron)) {
-                    categoriaActivaGlobal = 'inmuebles';
-                    mapa.flyTo({ center: [lngDron, latDron], zoom: 18, duration: 2500 });
+                    if (params.get('tipo') === 'inmueble') {
+                        categoriaActivaGlobal = 'inmuebles';
+                    } else {
+                        categoriaActivaGlobal = 'negocios';
+                    }
+                    mapa.flyTo({ center: [lngDron, latDron], zoom: 17.5, duration: 1500 });
                     zonaNecesitaDescarga = true;
                     if (typeof window.descargarNegociosDeFirebase === 'function') {
                         window.descargarNegociosDeFirebase();
@@ -667,16 +689,16 @@ window.arrancarMotor = async function() {
                         if (window.marcadoresRadar && window.marcadoresRadar[idDron]) {
                             window.marcadoresRadar[idDron].togglePopup();
                         }
-                    }, 2600);
+                    }, 1600);
                     window.history.replaceState(null, '', window.location.pathname);
                 } else {
-                    // Lanzar tour si no existe registro previo, pero solicitar GPS de fondo
                     if (!localStorage.getItem('geokatu_tour_v1') && typeof window.iniciarTour === 'function') {
                         window.iniciarTour();
                     } else {
                         window.solicitarGPSInicial();
                     }
                 }
+
             }, 500);
         }, 800);
 
@@ -779,7 +801,15 @@ window.usarUbicacionPorDefectoPereira = function() {
 };
 
 window.solicitarGPSInicial = function() {
-    // Si ya existe una ciudad manual guardada previamente, usarla directamente sin forzar GPS
+    const pantallaCarga = document.getElementById('pantalla-carga');
+    if (pantallaCarga) {
+        pantallaCarga.style.opacity = '0';
+        setTimeout(() => { pantallaCarga.style.display = 'none'; }, 300);
+    }
+    // Renderizar de inmediato los comercios de la zona actual sin esperar al GPS
+    if (typeof window.descargarNegociosDeFirebase === 'function') {
+        window.descargarNegociosDeFirebase();
+    }
     const guardada = localStorage.getItem('geokatu_ciudad_manual');
     if (guardada) {
         try {
@@ -788,42 +818,31 @@ window.solicitarGPSInicial = function() {
             return;
         } catch (e) {}
     }
-
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 const lat = pos.coords.latitude;
                 const lng = pos.coords.longitude;
-                const pantallaCarga = document.getElementById('pantalla-carga');
-                if (pantallaCarga) {
-                    pantallaCarga.style.opacity = '0';
-                    setTimeout(() => pantallaCarga.style.display = 'none', 400);
-                }
                 if (window.mapa) {
-                    window.mapa.flyTo({ center: [lng, lat], zoom: 15, duration: 1500 });
+                    window.mapa.flyTo({ center: [lng, lat], zoom: 15, duration: 1200 });
                 }
                 setTimeout(() => {
                     if (typeof window.descargarNegociosDeFirebase === 'function') {
                         window.descargarNegociosDeFirebase();
                     }
-                }, 1200);
+                }, 1250);
             },
             (err) => {
-                // Si el usuario deniega el GPS, ocultar pantalla de carga y mostrar el modal selector binacional COL/VEN
-                const pantallaCarga = document.getElementById('pantalla-carga');
-                if (pantallaCarga) pantallaCarga.style.display = 'none';
-                const modalCiudad = document.getElementById('modal-selector-ciudad');
-                if (modalCiudad) modalCiudad.style.display = 'flex';
+                if (dbDirectorioMap.size === 0) {
+                    const modalCiudad = document.getElementById('modal-selector-ciudad');
+                    if (modalCiudad) modalCiudad.style.display = 'flex';
+                }
             },
-            { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 }
+            { enableHighAccuracy: false, timeout: 4500, maximumAge: 300000 }
         );
-    } else {
-        const pantallaCarga = document.getElementById('pantalla-carga');
-        if (pantallaCarga) pantallaCarga.style.display = 'none';
-        const modalCiudad = document.getElementById('modal-selector-ciudad');
-        if (modalCiudad) modalCiudad.style.display = 'flex';
     }
 };
+
 
 
 window.iniciarTour = function() {
@@ -1012,12 +1031,12 @@ window.descargarNegociosDeFirebase = async function() {
         radiusInM = Math.max(3000, radiusInM);
 
        let success, arrayNegocios, error;
-        if (categoriaActivaGlobal === 'inmuebles') {
+       if (categoriaActivaGlobal === 'inmuebles') {
             const res = await GeokatuDB.RadarService.buscarInmueblesEnRadar(center[0], center[1], radiusInM);
             success = res.success; arrayNegocios = res.data; error = res.error;
         } else {
-            // Si la matriz local ya está en memoria, no le pega a Firestore
-            if (dbDirectorioMap.size > 0) {
+            // Solo omitir lectura si ya se hidrato la ciudad completa (> 1 comercio) y no se pidio descarga de zona
+            if (window.radarCiudadHidratado === true && dbDirectorioMap.size > 1 && !zonaNecesitaDescarga) {
                 if (btn) btn.style.display = 'none';
                 if (typeof barridoRadar === "function") {
                     var buscador = document.getElementById('input-buscador');
@@ -1025,10 +1044,13 @@ window.descargarNegociosDeFirebase = async function() {
                 }
                 return;
             }
-            // Fallback de red solo si la base local estuviera completamente vacía
             const res = await GeokatuDB.RadarService.buscarEnRadar(center[0], center[1], radiusInM);
             success = res.success; arrayNegocios = res.data; error = res.error;
+            if (success && Array.isArray(arrayNegocios) && arrayNegocios.length > 0) {
+                window.radarCiudadHidratado = true;
+            }
         }
+
 
         if (!success) throw new Error(error);
         
@@ -1124,18 +1146,31 @@ window.descargarNegociosDeFirebase = async function() {
 };
 
 window.construirMapa = function() {
-    const PEREIRA_ZONA_CENTRO = [-75.6961, 4.8133]; 
+    let centroInicial = [-75.6961, 4.8133];
+    let zoomInicial = 15;
+    try {
+        const camRam = sessionStorage.getItem('geokatu_last_cam');
+        if (camRam) {
+            const parsedCam = JSON.parse(camRam);
+            if (parsedCam && !isNaN(parsedCam.lng) && !isNaN(parsedCam.lat)) {
+                centroInicial = [Number(parsedCam.lng), Number(parsedCam.lat)];
+                zoomInicial = Number(parsedCam.zoom) || 15;
+            }
+        }
+    } catch (eCam) {}
+
     window.mapa = new maplibregl.Map({
         container: 'mapa-qrpido', 
         style: './estilo-fresco.json', 
-        center: PEREIRA_ZONA_CENTRO,
-        zoom: 15,
+        center: centroInicial,
+        zoom: zoomInicial,
         minZoom: 13.5,
         maxZoom: 19,
         pitch: 0, 
         bearing: 0, 
         antialias: false 
     });
+
     mapa = window.mapa; 
     const geolocateControl = new maplibregl.GeolocateControl({
         positionOptions: { enableHighAccuracy: true },
@@ -1167,10 +1202,91 @@ window.construirMapa = function() {
     let timerMovimiento;
     const UMBRAL_DISTANCIA_METROS = 1500; 
     
+    // Hidratador reactivo instantaneo cuando el usuario regresa desde Oficina o Negocio (bfcache / RAM)
+    window.sincronizarComerciosEditadosEnRAM = function() {
+        let huboCambio = false;
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k && k.indexOf('geokatu_cache_neg_') === 0) {
+                    const idNeg = k.replace('geokatu_cache_neg_', '');
+                    const rawNeg = localStorage.getItem(k);
+                    if (rawNeg) {
+                        const datosNuevos = JSON.parse(rawNeg);
+                        const previo = dbDirectorioMap.get(idNeg) || {};
+                        const latN = (datosNuevos.Coordenadas && datosNuevos.Coordenadas.latitude) || datosNuevos.lat || (previo.Coordenadas && previo.Coordenadas.latitude);
+                        const lngN = (datosNuevos.Coordenadas && datosNuevos.Coordenadas.longitude) || datosNuevos.lng || (previo.Coordenadas && previo.Coordenadas.longitude);
+                        if (latN && lngN) {
+                            const fusionado = Object.assign({}, previo, datosNuevos, {
+                                id: idNeg,
+                                codigo: idNeg,
+                                Coordenadas: { latitude: Number(latN), longitude: Number(lngN) }
+                            });
+                            dbDirectorioMap.set(idNeg, fusionado);
+                            huboCambio = true;
+                        }
+                    }
+                }
+            }
+        } catch (eSync) {}
+
+        if (huboCambio) {
+            dbDirectorio = Array.from(dbDirectorioMap.values());
+            datosDescargados = true;
+        }
+        if (mapa) {
+            mapa.resize();
+            const idEnfocarRam = sessionStorage.getItem('geokatu_enfocar_ram');
+            if (idEnfocarRam) {
+                sessionStorage.removeItem('geokatu_enfocar_ram');
+                const comercioTarget = dbDirectorioMap.get(idEnfocarRam);
+                if (comercioTarget && comercioTarget.Coordenadas) {
+                    categoriaActivaGlobal = 'negocios';
+                    mapa.flyTo({
+                        center: [comercioTarget.Coordenadas.longitude, comercioTarget.Coordenadas.latitude],
+                        zoom: 17.5,
+                        duration: 900
+                    });
+                    setTimeout(function() {
+                        if (window.marcadoresRadar && window.marcadoresRadar[idEnfocarRam]) {
+                            const pop = window.marcadoresRadar[idEnfocarRam].getPopup();
+                            if (pop && !pop.isOpen()) window.marcadoresRadar[idEnfocarRam].togglePopup();
+                        }
+                    }, 950);
+                }
+            }
+            if (typeof window.barridoRadar === 'function' && datosDescargados) {
+                const buscador = document.getElementById('input-buscador');
+                window.barridoRadar(buscador ? buscador.value : '');
+            }
+        }
+    };
+
+    window.addEventListener('pageshow', function(evt) {
+        const pc = document.getElementById('pantalla-carga');
+        if (pc) pc.style.display = 'none';
+        window.sincronizarComerciosEditadosEnRAM();
+    });
+
+    window.addEventListener('storage', function(evt) {
+        if (evt.key && evt.key.indexOf('geokatu_cache_neg_') === 0) {
+            window.sincronizarComerciosEditadosEnRAM();
+        }
+    });
+
     mapa.on('moveend', () => {
         clearTimeout(timerMovimiento);
+        try {
+            const c = mapa.getCenter();
+            sessionStorage.setItem('geokatu_last_cam', JSON.stringify({
+                lat: Number(c.lat.toFixed(6)),
+                lng: Number(c.lng.toFixed(6)),
+                zoom: Number(mapa.getZoom().toFixed(2))
+            }));
+        } catch (eC) {}
         const mHtml = document.getElementById('mapa-qrpido');
         if (mHtml) mHtml.setAttribute('data-zoom', Math.round(mapa.getZoom()));
+
 
         const boundsActuales = mapa.getBounds();
         if (typeof dibujarPinesDesdeJSONCache === "function") {
@@ -1592,7 +1708,8 @@ window.barridoRadar = function(filtroTexto = "") {
         const pos = { lat: p.Coordenadas.latitude, lng: p.Coordenadas.longitude };
         const portadaUsada = p.es_inmueble_real ? p.imagen : (p.portada || dbSimbologia['wallpaper_generico']);
         const logoUsado = p.es_inmueble_real ? p.imagen : (p.logo || dbSimbologia['avatar_generico']);
-        const nombreLimpio = sanitizarTexto(p.nombre || 'Negocio').replace(/'/g, "\\'");
+        const nombreTextoHTML = sanitizarTexto(p.nombre || 'Negocio');
+        const nombreLimpio = nombreTextoHTML.replace(/'/g, "\\'");
         const escapeQuotes = (str) => (str || '').replace(/'/g, "%27").replace(/"/g, "%22");
         const logoSeguro = escapeQuotes(logoUsado);
         const portadaSegura = escapeQuotes(portadaUsada);
@@ -1673,8 +1790,6 @@ window.barridoRadar = function(filtroTexto = "") {
             : evalHorarioPre.abierto;
         if (!estaAbierto && p.tipo_modelo !== 'inmueble') {
             badgeCobertura += '<div class="badge-fuera-zona" style="background: #555; margin-left: 5px;">Cerrado ahora</div>';
-            c1 = '#555555';
-            c2 = '#333333';
         }
 
 
@@ -1728,12 +1843,13 @@ window.barridoRadar = function(filtroTexto = "") {
         if (urlSeguraPng && urlSeguraPng.trim() !== '') {
             tituloRenderizado = 
                 '<div class="popup-nombre-png-box">' +
-                    '<img src="' + urlSeguraPng + '" alt="' + nombreLimpio + '" class="popup-nombre-png" style="' + filtroHaloLogo + '" onerror="this.parentElement.style.display=\'none\'; this.parentElement.nextElementSibling.style.display=\'block\';">' +
+                    '<img src="' + urlSeguraPng + '" alt="' + nombreTextoHTML + '" class="popup-nombre-png" style="' + filtroHaloLogo + '" onerror="this.parentElement.style.display=\'none\'; this.parentElement.nextElementSibling.style.display=\'block\';">' +
                 '</div>' +
-                '<h3 class="popup-title" style="display:none; color: ' + (esTemaClasico ? '#0f172a' : '#ffffff') + ' !important; font-size: 13px; font-weight: 900; margin: 4px 0 2px 0; text-transform: uppercase; letter-spacing: 0.5px;">' + sanitizarTexto(p.nombre || 'Negocio') + '</h3>';
+                '<h3 class="popup-title" style="display:none; color: ' + (esTemaClasico ? '#0f172a' : '#ffffff') + ' !important; font-size: 13px; font-weight: 900; margin: 4px 0 2px 0; text-transform: uppercase; letter-spacing: 0.5px;">' + nombreTextoHTML + '</h3>';
         } else {
-            tituloRenderizado = '<h3 class="popup-title" style="color: ' + (esTemaClasico ? '#0f172a' : '#ffffff') + ' !important; font-size: 13px; font-weight: 900; margin: 4px 0 2px 0; text-transform: uppercase; letter-spacing: 0.5px;">' + sanitizarTexto(p.nombre || 'Negocio') + '</h3>';
+            tituloRenderizado = '<h3 class="popup-title" style="color: ' + (esTemaClasico ? '#0f172a' : '#ffffff') + ' !important; font-size: 13px; font-weight: 900; margin: 4px 0 2px 0; text-transform: uppercase; letter-spacing: 0.5px;">' + nombreTextoHTML + '</h3>';
         }
+
 
         var bloqueSlogan = '';
         if (p.slogan && String(p.slogan).trim() !== '') {
@@ -1870,8 +1986,8 @@ window.barridoRadar = function(filtroTexto = "") {
             else if (claseForma === 'forma-hongo') svgSilueta = '<path d="M 24 56 L 36 56 L 36 36 L 52 36 C 52 15 44 8 30 8 C 16 8 8 15 8 36 L 24 36 Z" stroke-linejoin="round" />';
             else if (claseForma === 'forma-paleta') svgSilueta = '<path d="M 28 56 L 32 56 L 32 37 A 16 16 0 1 0 28 37 Z" stroke-linejoin="round" />';
 
-            // 💉 REQ 8: Selector de imagen con prioridad y validación estricta
-            const urlCandidata = p.portada || p.imagen_perfil || p.foto_portada || p.link_pin || logoSeguro;
+            // 💉 REQ 8: Prioridad #1 estricta para la imagen exclusiva del PIN (link_pin) independiente de la portada
+            const urlCandidata = p.link_pin || p.logo || p.portada || p.imagen_perfil || p.foto_portada || logoSeguro;
             const tieneFotoValida = typeof urlCandidata === 'string' && urlCandidata.trim().length > 5 && urlCandidata !== 'null' && urlCandidata !== 'undefined';
 
             // SVG Fallback Corporativo (#111 de fondo con acento áureo #ff6b00)
@@ -1916,9 +2032,10 @@ window.barridoRadar = function(filtroTexto = "") {
                 imgPreload.src = urlCandidata;
             }
 
-                                   // Anclaje dinamico estrictamente vertical (arriba / abajo) alineado con el eje del pin
-            const temaElegido = p.tema_popup === 'clasico' ? 'popup-tema-clasico' : 'popup-tema-carbon';
-
+                                  // Anclaje dinamico vertical y soporte para toda la coleccion de Cuarzos Traslucidos
+            const rawTemaP = String(p.tema_popup || 'carbon').trim();
+            const esCustomTema = rawTemaP.indexOf('custom:') === 0;
+            const temaElegido = esCustomTema ? 'popup-tema-carbon' : ('popup-tema-' + rawTemaP);
             const popup = new maplibregl.Popup({ 
                 anchor: 'bottom',
                 offset: [0, -75],
@@ -1927,6 +2044,20 @@ window.barridoRadar = function(filtroTexto = "") {
                 maxWidth: '164px',
                 className: 'popup-boveda-estricto ' + temaElegido
             }).setHTML(htmlPopup);
+            if (esCustomTema) {
+                popup.on('open', () => {
+                    const hexC = rawTemaP.replace('custom:', '').replace('#', '').trim();
+                    const rC = parseInt(hexC.substring(0, 2), 16) || 255;
+                    const gC = parseInt(hexC.substring(2, 4), 16) || 107;
+                    const bC = parseInt(hexC.substring(4, 6), 16) || 0;
+                    const elContent = popup.getElement() ? popup.getElement().querySelector('.maplibregl-popup-content') : null;
+                    if (elContent) {
+                        elContent.style.setProperty('background', 'linear-gradient(145deg, rgba(' + rC + ',' + gC + ',' + bC + ',0.34), rgba(' + Math.round(rC * 0.16) + ',' + Math.round(gC * 0.16) + ',' + Math.round(bC * 0.16) + ',0.92))', 'important');
+                        elContent.style.setProperty('border-color', 'rgba(' + rC + ',' + gC + ',' + bC + ',0.55)', 'important');
+                    }
+                });
+            }
+
 
             // Ajuste de orientacion vertical previo a la apertura (solo top o bottom, centrado en X)
             const calibrarOrientacionVertical = () => {

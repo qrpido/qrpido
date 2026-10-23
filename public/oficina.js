@@ -315,33 +315,230 @@ window.mostrarTooltipEtiquetasRadar = function(btnElement) {
 window.blobNombrePngEditadoFase1 = null;
 window.blobNombrePngEditadoModal = null;
 
+// Recorta automaticamente el aire transparente sobrante alrededor del logo tipografico
+window.recortarAireTransparentePng = function(dataUrl) {
+    return new Promise(function(resolve) {
+        var img = new Image();
+        img.onload = function() {
+            var c = document.createElement('canvas');
+            c.width = img.width;
+            c.height = img.height;
+            var ctx = c.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            var imgData = ctx.getImageData(0, 0, c.width, c.height);
+            var d = imgData.data;
+            var top = c.height, left = c.width, right = 0, bottom = 0;
+            var hallado = false;
+            for (var y = 0; y < c.height; y++) {
+                for (var x = 0; x < c.width; x++) {
+                    var alpha = d[(y * c.width + x) * 4 + 3];
+                    if (alpha > 15) {
+                        if (x < left) left = x;
+                        if (x > right) right = x;
+                        if (y < top) top = y;
+                        if (y > bottom) bottom = y;
+                        hallado = true;
+                    }
+                }
+            }
+            if (!hallado || right <= left || bottom <= top) {
+                return resolve({ dataUrl: dataUrl, blob: window.dataUrlABlob(dataUrl), ratio: img.width / Math.max(1, img.height) });
+            }
+            var trimW = right - left + 1;
+            var trimH = bottom - top + 1;
+            var out = document.createElement('canvas');
+            out.width = trimW;
+            out.height = trimH;
+            out.getContext('2d').drawImage(c, left, top, trimW, trimH, 0, 0, trimW, trimH);
+            var nuevoDataUrl = out.toDataURL('image/webp', 0.92);
+            out.toBlob(function(b) {
+                resolve({ dataUrl: nuevoDataUrl, blob: b || window.dataUrlABlob(nuevoDataUrl), ratio: trimW / Math.max(1, trimH) });
+            }, 'image/webp', 0.92);
+        };
+        img.onerror = function() {
+            resolve({ dataUrl: dataUrl, blob: window.dataUrlABlob(dataUrl), ratio: 1 });
+        };
+        img.src = dataUrl;
+    });
+};
+
+window.CATALOGO_CUARZOS_GEOKATU = [
+    { id: 'carbon', nombre: 'Ónix Carbón', dot: '#181820', bg: 'linear-gradient(145deg, rgba(28,28,36,0.92), rgba(12,12,16,0.95))', border: 'rgba(255,255,255,0.16)', text: '#ffffff', claro: false },
+    { id: 'clasico', nombre: 'Cuarzo Clásico', dot: '#f8fafc', bg: 'linear-gradient(145deg, rgba(255,255,255,0.92), rgba(236,240,246,0.95))', border: 'rgba(0,0,0,0.18)', text: '#0f172a', claro: true },
+    { id: 'pantera', nombre: 'Pantera Rosa', dot: '#ff69b4', bg: 'linear-gradient(145deg, rgba(255,105,180,0.32), rgba(46,14,34,0.90))', border: 'rgba(255,130,195,0.50)', text: '#ffffff', claro: false },
+    { id: 'celeste', nombre: 'Azul Cielo', dot: '#38bdf8', bg: 'linear-gradient(145deg, rgba(56,189,248,0.32), rgba(12,34,58,0.90))', border: 'rgba(56,189,248,0.50)', text: '#ffffff', claro: false },
+    { id: 'ambar', nombre: 'Ámbar Geokatu', dot: '#ff6b00', bg: 'linear-gradient(145deg, rgba(255,107,0,0.32), rgba(46,20,6,0.90))', border: 'rgba(255,140,0,0.50)', text: '#ffffff', claro: false },
+    { id: 'esmeralda', nombre: 'Esmeralda', dot: '#10b981', bg: 'linear-gradient(145deg, rgba(16,185,129,0.32), rgba(8,40,30,0.90))', border: 'rgba(52,211,153,0.50)', text: '#ffffff', claro: false },
+    { id: 'topacio', nombre: 'Topacio Real', dot: '#facc15', bg: 'linear-gradient(145deg, rgba(250,204,21,0.30), rgba(48,38,8,0.90))', border: 'rgba(250,204,21,0.50)', text: '#ffffff', claro: false },
+    { id: 'rubi', nombre: 'Rubí Carmesí', dot: '#f43f5e', bg: 'linear-gradient(145deg, rgba(244,63,94,0.32), rgba(48,10,20,0.90))', border: 'rgba(251,113,133,0.50)', text: '#ffffff', claro: false },
+    { id: 'amatista', nombre: 'Amatista', dot: '#a855f7', bg: 'linear-gradient(145deg, rgba(168,85,247,0.32), rgba(32,12,52,0.90))', border: 'rgba(192,132,252,0.50)', text: '#ffffff', claro: false }
+];
+
+window.obtenerEstiloCuarzo = function(temaRaw) {
+    var t = String(temaRaw || 'carbon').trim();
+    if (t.indexOf('custom:') === 0) {
+        var hex = t.replace('custom:', '').trim() || '#ff6b00';
+        var clean = hex.replace('#', '');
+        var r = parseInt(clean.substring(0, 2), 16) || 255;
+        var g = parseInt(clean.substring(2, 4), 16) || 107;
+        var b = parseInt(clean.substring(4, 6), 16) || 0;
+        return {
+            id: t,
+            nombre: 'Cuarzo Propio',
+            dot: hex,
+            bg: 'linear-gradient(145deg, rgba(' + r + ',' + g + ',' + b + ',0.34), rgba(' + Math.round(r * 0.16) + ',' + Math.round(g * 0.16) + ',' + Math.round(b * 0.16) + ',0.92))',
+            border: 'rgba(' + r + ',' + g + ',' + b + ',0.55)',
+            text: '#ffffff',
+            claro: false
+        };
+    }
+    var encontrado = window.CATALOGO_CUARZOS_GEOKATU.find(function(x) { return x.id === t; });
+    return encontrado || window.CATALOGO_CUARZOS_GEOKATU[0];
+};
+
+window.sincronizandoScrollCuarzos = false;
+window.vincularScrollSincronizadoCuarzos = function(idArriba, idAbajo) {
+    var elTop = document.getElementById(idArriba);
+    var elBot = document.getElementById(idAbajo);
+    if (!elTop || !elBot) return;
+    elTop.onscroll = function() {
+        if (window.sincronizandoScrollCuarzos) return;
+        window.sincronizandoScrollCuarzos = true;
+        var maxTop = Math.max(1, elTop.scrollWidth - elTop.clientWidth);
+        var maxBot = Math.max(0, elBot.scrollWidth - elBot.clientWidth);
+        elBot.scrollLeft = (elTop.scrollLeft / maxTop) * maxBot;
+        setTimeout(function() { window.sincronizandoScrollCuarzos = false; }, 25);
+    };
+    elBot.onscroll = function() {
+        if (window.sincronizandoScrollCuarzos) return;
+        window.sincronizandoScrollCuarzos = true;
+        var maxBot = Math.max(1, elBot.scrollWidth - elBot.clientWidth);
+        var maxTop = Math.max(0, elTop.scrollWidth - elTop.clientWidth);
+        elTop.scrollLeft = (elBot.scrollLeft / maxBot) * maxTop;
+        setTimeout(function() { window.sincronizandoScrollCuarzos = false; }, 25);
+    };
+};
+
+window.renderizarCarruselesCuarzo = function() {
+    var configs = [
+        { trackId: 'carrusel-temas-onboarding', inputId: 'select-tema-onboarding', esModal: false, simTrackId: 'sim-track-fase1' },
+        { trackId: 'carrusel-temas-modal', inputId: 'edit-select-tema', esModal: true, simTrackId: 'sim-track-modal' }
+    ];
+    configs.forEach(function(cfg) {
+        var track = document.getElementById(cfg.trackId);
+        var input = document.getElementById(cfg.inputId);
+        if (!track) return;
+        var valorActual = (input && input.value) ? input.value : (window.datosTienda.tema_popup || 'carbon');
+        var esCustomActivo = valorActual.indexOf('custom:') === 0;
+        var colorCustom = esCustomActivo ? valorActual.replace('custom:', '') : '#00f5d4';
+
+        var html = '';
+        window.CATALOGO_CUARZOS_GEOKATU.forEach(function(c) {
+            var activo = (valorActual === c.id) ? ' activo' : '';
+            var fnCall = cfg.esModal
+                ? ('window.seleccionarTemaPopupModal(\'' + c.id + '\')')
+                : ('window.seleccionarTemaPopupOnboarding(\'' + c.id + '\')');
+            html +=
+                '<button type="button" class="chip-cuarzo-item' + activo + '" data-tema="' + c.id + '" onclick="' + fnCall + '" style="background:' + c.bg + '; border-color:' + c.border + '; color:' + c.text + ';">' +
+                    '<span style="width:10px; height:10px; border-radius:50%; background:' + c.dot + '; border:1px solid rgba(255,255,255,0.5); flex-shrink:0;"></span>' +
+                    '<span>' + c.nombre + '</span>' +
+                '</button>';
+        });
+        var fnCustom = cfg.esModal
+            ? 'window.abrirRuedaParaCuarzoPersonalizado(\'modal\')'
+            : 'window.abrirRuedaParaCuarzoPersonalizado(\'onboarding\')';
+        html +=
+            '<button type="button" class="chip-cuarzo-item' + (esCustomActivo ? ' activo' : '') + '" data-tema="custom" onclick="' + fnCustom + '" style="background:linear-gradient(145deg, rgba(255,107,0,0.25), rgba(0,245,212,0.25)); border-color:rgba(0,245,212,0.5); color:#ffffff;">' +
+                '<span style="width:10px; height:10px; border-radius:50%; background:' + colorCustom + '; border:1px solid #fff;"></span>' +
+                '<span>🎨 Personalizado</span>' +
+            '</button>';
+        track.innerHTML = html;
+        window.vincularScrollSincronizadoCuarzos(cfg.trackId, cfg.simTrackId);
+    });
+};
+
+window.renderizarSimuladorNombrePng = function(dataUrl, ratio, contenedorId) {
+    var box = document.getElementById(contenedorId);
+    if (!box) return;
+    if (!dataUrl) {
+        box.style.display = 'none';
+        return;
+    }
+    var esModal = (contenedorId === 'modal-simulador-nombre-png');
+    var simTrackId = esModal ? 'sim-track-modal' : 'sim-track-fase1';
+    var topTrackId = esModal ? 'carrusel-temas-modal' : 'carrusel-temas-onboarding';
+    var inputId = esModal ? 'edit-select-tema' : 'select-tema-onboarding';
+    var temaActivo = document.getElementById(inputId) ? document.getElementById(inputId).value : (window.datosTienda.tema_popup || 'carbon');
+
+    var listaSimular = window.CATALOGO_CUARZOS_GEOKATU.slice();
+    if (temaActivo.indexOf('custom:') === 0) {
+        listaSimular.push(window.obtenerEstiloCuarzo(temaActivo));
+    }
+
+    var tarjetasHtml = listaSimular.map(function(c) {
+        var seleccionado = (temaActivo === c.id);
+        var filtroHalo = c.claro
+            ? 'filter:drop-shadow(0 0 1px rgba(0,0,0,0.45));'
+            : 'filter:drop-shadow(0 0 1.5px rgba(255,255,255,0.85)) drop-shadow(0 2px 4px rgba(0,0,0,0.9));';
+        var fnSelect = esModal
+            ? ('window.seleccionarTemaPopupModal(\'' + c.id + '\')')
+            : ('window.seleccionarTemaPopupOnboarding(\'' + c.id + '\')');
+        var bordeSel = seleccionado ? '2px solid #ff6b00' : ('1px solid ' + c.border);
+        var sombraSel = seleccionado ? 'box-shadow: 0 0 14px rgba(255,107,0,0.45);' : '';
+        return '<div data-sim-tema="' + c.id + '" onclick="' + fnSelect + '" style="flex:0 0 148px; scroll-snap-align:center; background:' + c.bg + '; border:' + bordeSel + '; ' + sombraSel + ' border-radius:12px; padding:10px 8px; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:62px; cursor:pointer; transition:all 0.2s;">' +
+            '<span style="font-size:8.5px; color:' + (c.claro ? '#334155' : '#cbd5e1') + '; font-weight:800; text-transform:uppercase; margin-bottom:5px;">' + c.nombre + '</span>' +
+            '<img src="' + dataUrl + '" style="max-height:32px; max-width:132px; object-fit:contain; ' + filtroHalo + '">' +
+        '</div>';
+    }).join('');
+
+    var avisoProporcion = (ratio < 1.6)
+        ? '<div style="color:#ffaa00; font-size:9.5px; margin-bottom:6px; line-height:1.3;">⚠️ Imagen casi cuadrada. Para mayor tamaño, usa solo las letras horizontales sin fondo.</div>'
+        : '<div style="color:#00ff64; font-size:9.5px; margin-bottom:6px;">✓ Toca o desliza cualquier cuarzo para elegir el fondo de tu tarjeta y catálogo</div>';
+
+    box.style.display = 'block';
+    box.innerHTML =
+        '<div style="background:rgba(0,0,0,0.55); border:1px dashed rgba(255,107,0,0.45); border-radius:12px; padding:10px; text-align:center;">' +
+            '<span style="font-size:9.5px; font-weight:900; color:var(--naranja); text-transform:uppercase; letter-spacing:0.6px; display:block; margin-bottom:4px;">Simulador 1:1 en Cuarzos Traslúcidos (Desliza ➔)</span>' +
+            avisoProporcion +
+            '<div id="' + simTrackId + '" class="carrusel-cuarzos-track">' +
+                tarjetasHtml +
+            '</div>' +
+        '</div>';
+
+    window.vincularScrollSincronizadoCuarzos(topTrackId, simTrackId);
+};
+
+
 window.cargarPreviewNombrePng = async function(input, contexto) {
     if (!input.files || !input.files[0]) return;
     var f = input.files[0];
     var editada = await window.GeokatuEstudio.editarImagen(f, {
-        maxAncho: 500,
-        maxAlto: 140,
-        calidad: 0.90,
+        maxAncho: 600,
+        maxAlto: 180,
+        calidad: 0.92,
         titulo: 'Editar Logo Tipográfico (Sin Fondo)'
     });
     if (!editada) { input.value = ''; return; }
-
+    var optimizada = await window.recortarAireTransparentePng(editada.dataUrl);
     if (contexto === 'fase1') {
-        window.nombrePngTemporalPaso1 = editada.dataUrl;
-        window.blobNombrePngEditadoFase1 = editada.blob;
+        window.nombrePngTemporalPaso1 = optimizada.dataUrl;
+        window.blobNombrePngEditadoFase1 = optimizada.blob;
         var img1 = document.getElementById('fase1-img-nombre-preview');
         var ph1 = document.getElementById('fase1-placeholder-nombre');
-        if (img1) { img1.src = editada.dataUrl; img1.style.display = 'block'; }
+        if (img1) { img1.src = optimizada.dataUrl; img1.style.display = 'block'; }
         if (ph1) ph1.style.display = 'none';
+        window.renderizarSimuladorNombrePng(optimizada.dataUrl, optimizada.ratio, 'fase1-simulador-nombre-png');
     } else {
-        window.nombrePngTemporalModal = editada.dataUrl;
-        window.blobNombrePngEditadoModal = editada.blob;
+        window.nombrePngTemporalModal = optimizada.dataUrl;
+        window.blobNombrePngEditadoModal = optimizada.blob;
         var imgM = document.getElementById('modal-img-nombre-preview');
         var phM = document.getElementById('modal-placeholder-nombre');
-        if (imgM) { imgM.src = editada.dataUrl; imgM.style.display = 'block'; }
+        if (imgM) { imgM.src = optimizada.dataUrl; imgM.style.display = 'block'; }
         if (phM) phM.style.display = 'none';
+        window.renderizarSimuladorNombrePng(optimizada.dataUrl, optimizada.ratio, 'modal-simulador-nombre-png');
     }
 };
+
 
 window.subirImagenDirecta = async function(tipo, input) {
     if (!input.files || !input.files[0] || !window.idNegocioLogueado) return;
@@ -366,8 +563,9 @@ window.subirImagenDirecta = async function(tipo, input) {
         if (url) {
             var payload = {};
             payload[tipo] = url;
+            if (tipo === 'nombre_png') payload.logo_nombre = url;
             await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, payload);
-            window.datosTienda[tipo] = url;
+            Object.assign(window.datosTienda, payload);
             if (tipo === 'nombre_png') {
                 var elPng = document.getElementById('ui-nombre-png');
                 var elNom = document.getElementById('ui-nombre');
@@ -377,7 +575,11 @@ window.subirImagenDirecta = async function(tipo, input) {
                 var elLogo = document.getElementById('ui-logo');
                 if (elLogo) { elLogo.src = url; elLogo.style.display = 'block'; }
             }
-            if (window.miniMapaPerfil) window.abrirGemeloDigital();
+            if (window.miniMapaPerfil) {
+                var coords = window.datosTienda.Coordenadas || { latitude: 4.8133, longitude: -75.6961 };
+                window.inicializarMiniMapaPerfil(coords.latitude || 4.8133, coords.longitude || -75.6961);
+            }
+            alert("✅ Imagen de " + tipo + " actualizada correctamente.");
         }
     } catch (err) {
         console.error("Error subida directa " + tipo + ":", err);
@@ -500,10 +702,10 @@ window.cambiarTab = function(tabId) {
     if (targetBtn) targetBtn.classList.add('activo');
 
     if (tabId === 'ajustes') {
-        var coords = window.datosTienda.Coordenadas || { latitude: 4.8133, longitude: -75.6961 };
-        var lat = coords.latitude || coords._lat || 4.8133;
-        var lng = coords.longitude || coords._long || -75.6961;
-        setTimeout(function() { window.inicializarMiniMapaPerfil(lat, lng); }, 150);
+        window.hidratarFormularioCuentaDashboard();
+        window.montarBrandingEnSubTabCuenta();
+        if (!window.subTabCuentaActiva) window.subTabCuentaActiva = 'identidad';
+        window.cambiarSubTabCuenta(window.subTabCuentaActiva);
     } else if (tabId === 'inventario') {
         window.cargarMisProductos(true);
     } else if (tabId === 'operaciones') {
@@ -2227,41 +2429,55 @@ window.cerrarModalEdicionPinBranding = function() {
     }, 250);
 };
 
-window.seleccionarTemaPopupModal = function(tema) {
-    var t = tema === 'clasico' ? 'clasico' : 'carbon';
-    var input = document.getElementById('edit-select-tema');
-    if (input) input.value = t;
+window.aplicarSeleccionCuarzoSincronizada = function(tema, esModal) {
+    var t = String(tema || 'carbon').trim();
+    var inputId = esModal ? 'edit-select-tema' : 'select-tema-onboarding';
+    var topTrackId = esModal ? 'carrusel-temas-modal' : 'carrusel-temas-onboarding';
+    var simBoxId = esModal ? 'modal-simulador-nombre-png' : 'fase1-simulador-nombre-png';
+    var simTrackId = esModal ? 'sim-track-modal' : 'sim-track-fase1';
 
-    var btnCar = document.getElementById('btn-tema-carbon');
-    var btnCla = document.getElementById('btn-tema-clasico');
-    if (btnCar && btnCla) {
-        if (t === 'clasico') {
-            btnCla.classList.add('activo');
-            btnCar.classList.remove('activo');
-        } else {
-            btnCar.classList.add('activo');
-            btnCla.classList.remove('activo');
-        }
+    var input = document.getElementById(inputId);
+    if (input) input.value = t;
+    window.datosTienda.tema_popup = t;
+
+    window.renderizarCarruselesCuarzo();
+    var srcImg = esModal
+        ? (window.nombrePngTemporalModal || window.datosTienda.nombre_png || window.datosTienda.logo_nombre)
+        : (window.nombrePngTemporalPaso1 || window.datosTienda.nombre_png || window.datosTienda.logo_nombre);
+    if (srcImg) {
+        window.renderizarSimuladorNombrePng(srcImg, 2.5, simBoxId);
     }
+
+    // Centrar suavemente el chip arriba y la tarjeta abajo en sincronía
+    setTimeout(function() {
+        var topTrack = document.getElementById(topTrackId);
+        if (topTrack) {
+            var targetKey = t.indexOf('custom:') === 0 ? 'custom' : t;
+            var chip = topTrack.querySelector('[data-tema="' + targetKey + '"]');
+            if (chip) chip.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        }
+        var simTrack = document.getElementById(simTrackId);
+        if (simTrack) {
+            var card = simTrack.querySelector('[data-sim-tema="' + t + '"]');
+            if (card) card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        }
+    }, 40);
+};
+
+window.seleccionarTemaPopupModal = function(tema) {
+    window.aplicarSeleccionCuarzoSincronizada(tema, true);
 };
 
 window.seleccionarTemaPopupOnboarding = function(tema) {
-    var t = tema === 'clasico' ? 'clasico' : 'carbon';
-    var input = document.getElementById('select-tema-onboarding');
-    if (input) input.value = t;
-
-    var btnCar = document.getElementById('btn-tema-ob-carbon');
-    var btnCla = document.getElementById('btn-tema-ob-clasico');
-    if (btnCar && btnCla) {
-        if (t === 'clasico') {
-            btnCla.classList.add('activo');
-            btnCar.classList.remove('activo');
-        } else {
-            btnCar.classList.add('activo');
-            btnCla.classList.remove('activo');
-        }
-    }
+    window.aplicarSeleccionCuarzoSincronizada(tema, false);
 };
+
+window.contextoCuarzoPersonalizado = null;
+window.abrirRuedaParaCuarzoPersonalizado = function(origen) {
+    window.contextoCuarzoPersonalizado = origen;
+    window.abrirSelectorColor('CUARZO_CUSTOM');
+};
+
 
 window.abrirModalEdicionPinBranding = function() {
     var modal = document.getElementById('modal-diseno-pin-branding');
@@ -2329,19 +2545,21 @@ window.procesarGuardadoPinBrandingModal = async function() {
         palabras_clave: tagsVal
     };
 
-var blobPinSubir = window.blobPinEditadoModal || window.dataUrlABlob(window.imagenCargadaTemporalModal);
+var stamp = Date.now();
+    var blobPinSubir = window.blobPinEditadoModal || window.dataUrlABlob(window.imagenCargadaTemporalModal);
     if (blobPinSubir) {
-        var resPin = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/pin_mapa.webp', blobPinSubir, 'image/webp');
+        var resPin = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/pin_mapa_' + stamp + '.webp', blobPinSubir, 'image/webp');
         var urlPin = (typeof resPin === 'string') ? resPin : (resPin && resPin.data ? resPin.data : '');
         if (urlPin) payload.link_pin = urlPin;
         window.blobPinEditadoModal = null;
     }
     var blobNomModal = window.blobNombrePngEditadoModal || window.dataUrlABlob(window.nombrePngTemporalModal);
     if (blobNomModal) {
-        var resNomModal = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/nombre_png.webp', blobNomModal, 'image/webp');
+        var resNomModal = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/nombre_png_' + stamp + '.webp', blobNomModal, 'image/webp');
         var urlNomModal = (typeof resNomModal === 'string') ? resNomModal : (resNomModal && resNomModal.data ? resNomModal.data : '');
         if (urlNomModal) {
             payload.nombre_png = urlNomModal;
+            payload.logo_nombre = urlNomModal;
             var uiPng = document.getElementById('ui-nombre-png');
             var uiTxt = document.getElementById('ui-nombre');
             if (uiPng) { uiPng.src = urlNomModal; uiPng.style.display = 'block'; }
@@ -2350,24 +2568,21 @@ var blobPinSubir = window.blobPinEditadoModal || window.dataUrlABlob(window.imag
         window.blobNombrePngEditadoModal = null;
     }
     window.sincronizarEtiquetaBotonEmoji('edit-select-efecto');
-
-
-
     await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, payload);
-
-
+    Object.assign(window.datosTienda, payload);
+    if (navigator.vibrate) navigator.vibrate([40, 60]);
+    alert("✅ ADN y Branding actualizados correctamente.");
     var modal = document.getElementById('modal-diseno-pin-branding');
-    modal.classList.remove('activo');
-    setTimeout(function() { 
-        modal.style.display = 'none'; 
-        if (window.miniMapaPerfil) {
-            window.miniMapaPerfil.remove();
-            window.miniMapaPerfil = null;
-            var pos = window.datosTienda.Coordenadas || { latitude: 4.8133, longitude: -75.6961 };
-            window.inicializarMiniMapaPerfil(pos.latitude, pos.longitude);
-        }
-    }, 300);
+    if (modal) {
+        modal.classList.remove('activo');
+        modal.style.display = 'none';
+    }
+    if (window.miniMapaPerfil) {
+        window.miniMapaPerfil.remove();
+        window.miniMapaPerfil = null;
+    }
 };
+
 
 // ============================================================================
 // BLOQUE 7: RUEDA CROMÁTICA ESPECTRAL Y PALETA ÁUREA (ZERO ${})
@@ -2488,64 +2703,65 @@ window.confirmarColorSeleccionado = function() {
     var input = document.getElementById('input-hex-manual');
     var hex = input ? input.value.trim().replace('#', '') : '';
     var esHexValido = (hex.length === 6 || hex.length === 3) && !isNaN(parseInt(hex, 16));
-
     if (esHexValido) {
-        var colorFinal = '#' + hex;
-        window.setSlotColor(window.slotColorActual, colorFinal);
+        var colorFinal = '#' + hex.toUpperCase();
+        if (window.slotColorActual === 'CUARZO_CUSTOM') {
+            var esModal = (window.contextoCuarzoPersonalizado === 'modal');
+            window.aplicarSeleccionCuarzoSincronizada('custom:' + colorFinal, esModal);
+        } else {
+            window.setSlotColor(window.slotColorActual, colorFinal);
+        }
         window.cerrarModalColorManual();
     } else {
         alert("Código de color inválido.");
     }
 };
-
 window.sincronizarColorDesdeHex = function(valorIngresado) {
     var hexLimpio = valorIngresado.replace('#', '').trim();
     var input = document.getElementById('input-hex-manual');
     var esHexValido = (hexLimpio.length === 6 || hexLimpio.length === 3) && !isNaN(parseInt(hexLimpio, 16));
-
     if (esHexValido) {
-        var colorValido = '#' + hexLimpio;
+        var colorValido = '#' + hexLimpio.toUpperCase();
         if (input) input.style.borderColor = '#00ff64';
-        if (window.slotColorActual) window.setSlotColor(window.slotColorActual, colorValido);
+        if (window.slotColorActual && window.slotColorActual !== 'CUARZO_CUSTOM') {
+            window.setSlotColor(window.slotColorActual, colorValido);
+        }
     } else {
         if (input) input.style.borderColor = '#ff4444';
     }
 };
-
-// Controladores táctiles y de puntero para la rueda y el deslizador de brillo
+// Controladores táctiles y de puntero 100% calibrados con conic-gradient(from 90deg)
 var rueda = document.getElementById('rueda-colores');
 var sliderBrillo = document.getElementById('slider-brillo');
 var draggingWheel = false;
-
 var calcularColorRueda = function(e) {
     if (!rueda) return;
     var rect = rueda.getBoundingClientRect();
-    var clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    var clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    var x = clientX - rect.left - rect.width / 2;
-    var y = clientY - rect.top - rect.height / 2;
-
-    var radio = Math.sqrt(x * x + y * y);
+    var clientX = (e.touches && e.touches.length > 0) ? e.touches[0].clientX : e.clientX;
+    var clientY = (e.touches && e.touches.length > 0) ? e.touches[0].clientY : e.clientY;
     var maxRadio = rect.width / 2;
+    var x = clientX - rect.left - maxRadio;
+    var y = clientY - rect.top - maxRadio;
+    var radio = Math.sqrt(x * x + y * y);
     if (radio > maxRadio) {
         x = (x / radio) * maxRadio;
         y = (y / radio) * maxRadio;
         radio = maxRadio;
     }
-
     var puntero = document.getElementById('puntero-color');
     if (puntero) {
         puntero.style.left = (x + maxRadio) + 'px';
         puntero.style.top = (y + maxRadio) + 'px';
     }
-
-    var angle = Math.atan2(y, x) * (180 / Math.PI) + 90;
+    // En conic-gradient(from 90deg), 0° (Rojo) está a las 3 en punto (eje +X), idéntico a Math.atan2(y, x)
+    var angle = Math.atan2(y, x) * (180 / Math.PI);
     if (angle < 0) angle += 360;
-
-    window.estadoColorCustom.h = angle;
-    window.estadoColorCustom.l_base = 100 - (radio / maxRadio * 50);
+    window.estadoColorCustom.h = Math.round(angle);
+    window.estadoColorCustom.l_base = 100 - ((radio / maxRadio) * 50);
     actualizarPreviewCustom();
 };
+setTimeout(function() { window.renderizarCarruselesCuarzo(); }, 200);
+
 
 var actualizarPreviewCustom = function() {
     if (!sliderBrillo) return;
@@ -2707,73 +2923,256 @@ window.obtenerUbicacionActualPerfil = function() {
 };
 
 
-window.inicializarMiniMapaPerfil = function(latInicial, lngInicial) {
-    if (window.miniMapaPerfil) {
-        window.miniMapaPerfil.resize();
-        return;
-    }
+window.subTabCuentaActiva = 'identidad';
 
+window.montarBrandingEnSubTabCuenta = function() {
+    var slot = document.getElementById('ancla-subtab-branding-slot');
+    var modalBrand = document.getElementById('modal-diseno-pin-branding');
+    if (!slot || !modalBrand) return;
+    var cardInterna = modalBrand.querySelector('.foco-onboarding');
+    if (cardInterna && cardInterna.parentElement !== slot) {
+        var btnDiskette = document.getElementById('btn-guardar-edicion-branding');
+        if (btnDiskette) btnDiskette.style.display = 'none';
+        cardInterna.style.width = '100%';
+        cardInterna.style.maxWidth = '100%';
+        cardInterna.style.margin = '0';
+        cardInterna.style.border = 'none';
+        cardInterna.style.padding = '4px 0';
+        cardInterna.style.background = 'transparent';
+        slot.appendChild(cardInterna);
+    }
+    window.hidratarControlesBrandingCuenta();
+};
+
+window.hidratarControlesBrandingCuenta = function() {
+    if (window.datosTienda.pin_pack) {
+        var p = window.datosTienda.pin_pack.split('|');
+        if (document.getElementById('edit-select-forma')) document.getElementById('edit-select-forma').value = p[0] || 'forma-gota';
+        if (document.getElementById('edit-select-animacion')) document.getElementById('edit-select-animacion').value = p[1] || 'anim-salto';
+        if (document.getElementById('edit-select-efecto') && p.length > 2) {
+            document.getElementById('edit-select-efecto').value = p[2] + '|' + (p[3] || '');
+            window.sincronizarEtiquetaBotonEmoji('edit-select-efecto');
+        }
+        if (document.getElementById('edit-select-aura') && p.length > 4) document.getElementById('edit-select-aura').value = p[4] || '';
+    }
+    if (window.datosTienda.tema_popup) {
+        window.seleccionarTemaPopupModal(window.datosTienda.tema_popup);
+    }
+    if (window.datosTienda.color_principal) window.setSlotColor(1, window.datosTienda.color_principal);
+    if (window.datosTienda.color_acento) window.setSlotColor(2, window.datosTienda.color_acento);
+    if (window.datosTienda.color_terciario) window.setSlotColor(3, window.datosTienda.color_terciario);
+    if (window.datosTienda.color_cuaternario) window.setSlotColor(4, window.datosTienda.color_cuaternario);
+    var actualNombrePng = window.datosTienda.nombre_png || window.datosTienda.logo_nombre;
+    var imgM = document.getElementById('modal-img-nombre-preview');
+    var phM = document.getElementById('modal-placeholder-nombre');
+    if (actualNombrePng) {
+        if (imgM) { imgM.src = actualNombrePng; imgM.style.display = 'block'; }
+        if (phM) phM.style.display = 'none';
+        window.renderizarSimuladorNombrePng(actualNombrePng, 2.5, 'modal-simulador-nombre-png');
+    } else {
+        if (imgM) { imgM.src = ''; imgM.style.display = 'none'; }
+        if (phM) phM.style.display = 'flex';
+    }
+    var inTags = document.getElementById('edit-palabras-clave-branding');
+    if (inTags) inTags.value = window.datosTienda.palabras_clave || '';
+    window.actualizarPinLiveModal();
+};
+
+window.hidratarFormularioCuentaDashboard = function() {
+    var t = window.datosTienda || {};
+    var setVal = function(id, val) { var el = document.getElementById(id); if (el) el.value = val || ''; };
+    setVal('cta-nombre', t.nombre);
+    setVal('cta-slogan', t.slogan);
+    setVal('cta-nicho', t.nicho || t.categoria);
+    setVal('cta-whatsapp', t.whatsapp || t.whatsApp);
+    setVal('cta-pbx', t.pbx);
+    setVal('cta-correo', t.correo_interno || t.correo || t.email);
+    setVal('cta-instagram', String(t.instagram || '').replace(/^@/, ''));
+    setVal('cta-web', t.sitio_web || t.web);
+    setVal('cta-pin-titular', (t.pin_titular && /^\d{4}$/.test(String(t.pin_titular))) ? t.pin_titular : '0000');
+    var chkCor = document.getElementById('cta-check-correo-publico');
+    if (chkCor) chkCor.checked = Boolean(t.mostrar_correo_publico === true);
+    var chk24 = document.getElementById('cta-check-24h');
+    var es24 = Boolean(t.es_24_horas);
+    if (chk24) chk24.checked = es24;
+    var boxHoras = document.getElementById('cta-rango-horas');
+    if (boxHoras) {
+        boxHoras.style.opacity = es24 ? '0.35' : '1';
+        boxHoras.style.pointerEvents = es24 ? 'none' : 'auto';
+    }
+    if (!es24 && t.horario && t.horario.indexOf('-') !== -1) {
+        var ph = t.horario.split('-').map(function(s) { return s.trim(); });
+        setVal('cta-hora-inicio', ph[0] || '08:00');
+        setVal('cta-hora-fin', ph[1] || '20:00');
+    }
+};
+
+window.guardarCuentaIdentidadDashboard = async function() {
+    var btn = document.getElementById('btn-guardar-cta-identidad');
+    var nom = (document.getElementById('cta-nombre')?.value || '').trim();
+    var nic = (document.getElementById('cta-nicho')?.value || '').trim();
+    var wa = (document.getElementById('cta-whatsapp')?.value || '').trim().replace(/\D/g, '');
+    var pbx = (document.getElementById('cta-pbx')?.value || '').trim();
+    var pinTitular = (document.getElementById('cta-pin-titular')?.value || '0000').trim();
+    if (!nom) return alert("El nombre comercial es obligatorio.");
+    if (!/^\d{4}$/.test(pinTitular)) return alert("El PIN Titular debe ser de 4 dígitos numéricos.");
+    var es24 = Boolean(document.getElementById('cta-check-24h')?.checked);
+    var horarioStr = es24
+        ? "24 Horas"
+        : ((document.getElementById('cta-hora-inicio')?.value || '08:00') + " - " + (document.getElementById('cta-hora-fin')?.value || '20:00'));
+    var mostrarCor = Boolean(document.getElementById('cta-check-correo-publico')?.checked);
+    var correoIn = (document.getElementById('cta-correo')?.value || '').trim();
+    var igVal = (document.getElementById('cta-instagram')?.value || '').trim().replace(/^@/, '');
+    var webVal = (document.getElementById('cta-web')?.value || '').trim();
+    var payload = {
+        nombre: nom,
+        slogan: (document.getElementById('cta-slogan')?.value || '').trim(),
+        cuerpo_articulo: (document.getElementById('cta-slogan')?.value || '').trim(),
+        nicho: nic || "General",
+        categoria: nic || "General",
+        categoria_maestra: nic || "General",
+        whatsapp: wa,
+        whatsApp: wa,
+        telefonos: wa ? [wa] : [],
+        pbx: pbx,
+        correo_interno: correoIn,
+        correo: mostrarCor ? correoIn : "",
+        email: mostrarCor ? correoIn : "",
+        mostrar_correo_publico: mostrarCor,
+        instagram: igVal,
+        web: webVal,
+        sitio_web: webVal,
+        horario: horarioStr,
+        es_24_horas: es24,
+        pin_titular: pinTitular
+    };
+    if (btn) { btn.disabled = true; btn.innerText = "Guardando..."; }
+    try {
+        await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, payload);
+        try {
+            await setDoc(doc(db, "Directorio_Contacto", window.idNegocioLogueado), {
+                id: window.idNegocioLogueado,
+                whatsapp: wa,
+                telefonos: wa ? [wa] : [],
+                pbx: pbx,
+                correo: mostrarCor ? correoIn : "",
+                mostrar_correo_publico: mostrarCor,
+                instagram: igVal,
+                web: webVal,
+                fecha_actualizacion: new Date().toISOString()
+            }, { merge: true });
+        } catch (eC) {}
+        Object.assign(window.datosTienda, payload);
+        localStorage.setItem('geokatu_cajero_pin', pinTitular);
+        var elNom = document.getElementById('ui-nombre');
+        if (elNom) elNom.innerText = nom;
+        alert("✅ Identidad, canales y horarios actualizados.");
+    } catch (e) {
+        alert("Error al guardar: " + e.message);
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerText = "Guardar Identidad y Canales"; }
+    }
+};
+
+window.cambiarSubTabCuenta = function(subTab) {
+    if (navigator.vibrate) navigator.vibrate(20);
+    window.subTabCuentaActiva = subTab;
+    var mapIds = {
+        identidad: { panel: 'subtab-cuenta-identidad', btn: 'btn-subtab-identidad' },
+        branding: { panel: 'subtab-cuenta-branding', btn: 'btn-subtab-branding' },
+        mapa: { panel: 'subtab-cuenta-mapa', btn: 'btn-subtab-mapa' }
+    };
+    Object.keys(mapIds).forEach(function(k) {
+        var p = document.getElementById(mapIds[k].panel);
+        var b = document.getElementById(mapIds[k].btn);
+        if (p) p.style.display = (k === subTab) ? 'flex' : 'none';
+        if (b) b.classList.toggle('activo', k === subTab);
+    });
+    if (subTab === 'branding') {
+        window.montarBrandingEnSubTabCuenta();
+    } else if (subTab === 'mapa') {
+        var coords = window.datosTienda.Coordenadas || { latitude: 4.8133, longitude: -75.6961 };
+        var lat = coords.latitude || coords._lat || 4.8133;
+        var lng = coords.longitude || coords._long || -75.6961;
+        setTimeout(function() { window.inicializarMiniMapaPerfil(lat, lng); }, 120);
+    }
+};
+
+window.mostrarGuiaCuentaOficina = function() {
+    if (navigator.vibrate) navigator.vibrate(25);
+    var existente = document.getElementById('gk-guia-fase-modal');
+    if (existente) existente.remove();
+    var overlay = document.createElement('div');
+    overlay.id = 'gk-guia-fase-modal';
+    overlay.style.cssText = 'position:fixed; inset:0; z-index:200100; background:rgba(0,0,0,0.82); backdrop-filter:blur(10px); display:flex; align-items:center; justify-content:center; padding:18px; box-sizing:border-box;';
+    overlay.innerHTML =
+        '<div style="background:#14141a; border:1px solid rgba(255,107,0,0.45); border-radius:20px; width:100%; max-width:370px; padding:20px 18px; box-sizing:border-box; display:flex; flex-direction:column; gap:10px; text-align:center;">' +
+            '<div style="display:inline-flex; align-self:center; background:rgba(255,107,0,0.15); color:#ff6b00; border:1px solid rgba(255,107,0,0.4); border-radius:20px; padding:3px 10px; font-size:10px; font-weight:900; text-transform:uppercase;">Guia de Cuenta Comercial</div>' +
+            '<h3 style="margin:0; color:#fff; font-size:14.5px; font-weight:900; text-transform:uppercase;">Tus 3 Fases en un solo lugar</h3>' +
+            '<div style="display:flex; flex-direction:column; gap:8px; text-align:left; font-size:11.5px; color:#ddd; line-height:1.4;">' +
+                '<div style="background:rgba(255,255,255,0.04); border-left:3px solid #ff6b00; border-radius:8px; padding:8px 10px;"><strong>1. Identidad:</strong> Edita tu nombre, slogan, WhatsApp, PBX, horarios, foto de perfil, portada y tu PIN de 4 digitos.</div>' +
+                '<div style="background:rgba(255,255,255,0.04); border-left:3px solid #ff6b00; border-radius:8px; padding:8px 10px;"><strong>2. ADN & Pin:</strong> Personaliza la silueta de tu pin, emoticon en cuadricula, paleta de colores y previsualiza a escala real tu logotipo tipografico sin fondo.</div>' +
+                '<div style="background:rgba(255,255,255,0.04); border-left:3px solid #ff6b00; border-radius:8px; padding:8px 10px;"><strong>3. Ubicacion:</strong> Arrastra tu pin en el mapa para ajustar la coordenada exacta y tocalo para ver tu tarjeta Gemelo Digital identica al radar ciudadano.</div>' +
+            '</div>' +
+            '<button type="button" onclick="this.closest(\'#gk-guia-fase-modal\').remove()" style="width:100%; padding:11px; border-radius:12px; border:none; background:linear-gradient(135deg, #ff8c00, #ff6b00); color:#fff; font-size:12px; font-weight:900; text-transform:uppercase; cursor:pointer; margin-top:4px;">Entendido</button>' +
+        '</div>';
+    document.body.appendChild(overlay);
+};
+
+window.inicializarMiniMapaPerfil = function(latInicial, lngInicial) {
     var defaultLat = Number(latInicial) || 4.8133;
     var defaultLng = Number(lngInicial) || -75.6961;
-
-   window.miniMapaPerfil = new maplibregl.Map({
-        container: 'mini-mapa-perfil',
-        style: 'estilo-fresco.json',
-        center: [defaultLng, defaultLat],
-        zoom: 16,
-        attributionControl: false
-    });
-
-    // Desactivar navegación táctil por defecto para permitir scroll libre en la página
-    window.miniMapaPerfil.dragPan.disable();
-    window.miniMapaPerfil.scrollZoom.disable();
-    window.miniMapaPerfil.touchZoomRotate.disable();
-
+    if (!window.miniMapaPerfil) {
+        window.miniMapaPerfil = new maplibregl.Map({
+            container: 'mini-mapa-perfil',
+            style: 'estilo-fresco.json',
+            center: [defaultLng, defaultLat],
+            zoom: 16,
+            attributionControl: false
+        });
+    } else {
+        window.miniMapaPerfil.setCenter([defaultLng, defaultLat]);
+        window.miniMapaPerfil.resize();
+    }
+    if (window.pinMiniMapaPerfil) {
+        window.pinMiniMapaPerfil.remove();
+    }
+    var p = window.datosTienda || {};
+    var fClass = 'forma-gota', aClass = 'anim-salto', eEmoji = '', eAnclaje = '', auraClase = '';
+    if (p.pin_pack) {
+        var partes = p.pin_pack.split('|');
+        fClass = partes[0] || 'forma-gota';
+        aClass = partes[1] || 'anim-salto';
+        if (partes.length > 2) { eAnclaje = partes[2] || ''; eEmoji = partes[3] || ''; }
+        if (partes.length > 4) { auraClase = partes[4] || ''; }
+    }
+    var paleta = window.calcularPaletaAureaSilenciosa(p.color_principal, p.color_acento, p.color_terciario, p.color_cuaternario);
+    // Prioridad exclusiva a link_pin para que la foto de portada jamas pise la foto del PIN
+    var fotoPin = p.link_pin || p.logo || p.portada || '';
+    var emojiAttr = (eEmoji && eEmoji !== '|') ? 'data-emoji="' + eEmoji + '" data-anclaje="' + eAnclaje + '"' : '';
+    var cssVars = '--color-main: ' + paleta.c1 + '; --color-sec: ' + paleta.c2 + '; --color-ter: ' + paleta.c3 + '; --color-cuat: ' + paleta.c4 + ';';
 
     var elPunto = document.createElement('div');
-    elPunto.style.position = 'relative';
     elPunto.style.width = '60px';
     elPunto.style.height = '60px';
     elPunto.style.display = 'flex';
     elPunto.style.justifyContent = 'center';
     elPunto.style.alignItems = 'center';
-
-    var fClass = 'forma-gota', aClass = 'anim-salto', eEmoji = '', eAnclaje = '', auraClase = '';
-    if (window.datosTienda && window.datosTienda.pin_pack) {
-        var p = window.datosTienda.pin_pack.split('|');
-        fClass = p[0] || 'forma-gota';
-        aClass = p[1] || 'anim-salto';
-        if (p.length > 2) { eAnclaje = p[2] || ''; eEmoji = p[3] || ''; }
-        if (p.length > 4) { auraClase = p[4] || ''; }
-    }
-
-    var foto = (window.datosTienda && window.datosTienda.link_pin) ? window.datosTienda.link_pin : null;
-    var emojiAttr = (eEmoji && eEmoji !== '|') ? 'data-emoji="' + eEmoji + '" data-anclaje="' + eAnclaje + '"' : '';
-    
-    var color1 = (window.datosTienda && window.datosTienda.color_principal) ? window.datosTienda.color_principal : '#ff6b00';
-    var color2 = (window.datosTienda && window.datosTienda.color_acento) ? window.datosTienda.color_acento : '#ffffff';
-    var color3 = (window.datosTienda && window.datosTienda.color_terciario) ? window.datosTienda.color_terciario : '#0a0a0c';
-
-    var cssVars = '--color-main: ' + color1 + '; --color-sec: ' + color2 + '; --color-ter: ' + color3 + ';';
-
-    elPunto.innerHTML = 
-        '<div id="pin-render-perfil" class="pin-wrapper ' + aClass + ' ' + auraClase + '" data-forma="' + fClass + '" style="' + cssVars + ' cursor: pointer;" ' + emojiAttr + '>' +
-            '<div id="lapiz-pin-directo" class="pin-diskette-wrapper lapiz-transparente-contextual" onclick="event.stopPropagation(); window.abrirModalEdicionPinBranding();" title="Personalizar PIN">' +
-                '<div class="btn-diskette-biselado" style="background: ' + color1 + '26 !important; border-color: ' + color1 + '66 !important;">' +
-                    '<span class="icono-diskette-relieve">💾</span>' +
-                '</div>' +
-            '</div>' +
+    elPunto.style.cursor = 'pointer';
+    elPunto.innerHTML =
+        '<div id="pin-render-perfil" class="pin-wrapper ' + fClass + ' ' + aClass + ' ' + auraClase + '" data-forma="' + fClass + '" style="' + cssVars + '" ' + emojiAttr + '>' +
+            window.obtenerContenidoSVG(fClass, fotoPin, 'img-pin-perfil') +
         '</div>';
 
-    var wrapper = elPunto.querySelector('.pin-wrapper');
-    var svgContent = window.obtenerContenidoSVG(fClass, foto, 'img-pin-perfil');
-    wrapper.insertAdjacentHTML('beforeend', svgContent);
-
+    var popup = window.construirPopupIdenticoMotorMapa(p, paleta);
     window.pinMiniMapaPerfil = new maplibregl.Marker({
         element: elPunto,
-        draggable: false,
+        draggable: true,
         anchor: 'bottom'
-    }).setLngLat([defaultLng, defaultLat]).addTo(window.miniMapaPerfil);
+    })
+    .setLngLat([defaultLng, defaultLat])
+    .setPopup(popup)
+    .addTo(window.miniMapaPerfil);
 
     window.pinMiniMapaPerfil.on('dragend', async function() {
         var pos = window.pinMiniMapaPerfil.getLngLat();
@@ -2781,29 +3180,22 @@ window.inicializarMiniMapaPerfil = function(latInicial, lngInicial) {
         var inputLng = document.getElementById('perfilLng');
         if (inputLat) inputLat.value = pos.lat;
         if (inputLng) inputLng.value = pos.lng;
-
         window.obtenerDireccionGeocoding(pos.lat, pos.lng, 'perfilDireccion');
-
         var hash = window.generarGeohash(pos.lat, pos.lng);
         window.datosTienda.Coordenadas = { latitude: pos.lat, longitude: pos.lng };
         await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, {
             Coordenadas: window.datosTienda.Coordenadas,
+            lat: pos.lat,
+            lng: pos.lng,
             geohash: hash
         });
     });
-
-        elPunto.addEventListener('click', function(e) {
-        e.stopPropagation();
-        window.abrirGemeloDigital();
-    });
-
 
     var inLat = document.getElementById('perfilLat');
     var inLng = document.getElementById('perfilLng');
     if (inLat) inLat.value = defaultLat;
     if (inLng) inLng.value = defaultLng;
     window.obtenerDireccionGeocoding(defaultLat, defaultLng, 'perfilDireccion');
-
     [100, 300, 600].forEach(function(ms) {
         setTimeout(function() {
             if (window.miniMapaPerfil) window.miniMapaPerfil.resize();
@@ -2811,7 +3203,76 @@ window.inicializarMiniMapaPerfil = function(latInicial, lngInicial) {
     });
 };
 
+// Genera exactamente al milimetro el mismo Popup que motor-mapa.js
+window.construirPopupIdenticoMotorMapa = function(p, paleta) {
+    var esTemaClasico = (p.tema_popup === 'clasico');
+    var c1 = paleta.c1 || '#ff6b00';
+    var cBtn = paleta.c3 || paleta.c2 || c1;
+    var r = parseInt(cBtn.replace('#', '').substring(0, 2), 16) || 0;
+    var g = parseInt(cBtn.replace('#', '').substring(2, 4), 16) || 0;
+    var b = parseInt(cBtn.replace('#', '').substring(4, 6), 16) || 0;
+    var yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+    var colorTextoBtn = (yiq >= 145) ? '#0a0a0c' : '#ffffff';
+    var colorSlogan = paleta.c2 || '#8a909d';
+    var portadaUsada = p.portada || 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=1080';
+    var logoUsado = p.logo || 'https://via.placeholder.com/150/0a0a0c/ff6b00?text=GK';
+    var nombreTxt = p.nombre || 'Mi Comercio';
+    var urlPng = p.nombre_png || p.logo_nombre || '';
+    var filtroHalo = esTemaClasico
+        ? 'filter: drop-shadow(0 0 1px rgba(0,0,0,0.45));'
+        : 'filter: drop-shadow(0 0 1.5px rgba(255,255,255,0.85)) drop-shadow(0 2px 4px rgba(0,0,0,0.9));';
+    var tituloHtml = urlPng
+        ? '<div class="popup-nombre-png-box"><img src="' + urlPng + '" alt="' + nombreTxt + '" class="popup-nombre-png" style="max-height:32px; max-width:142px; object-fit:contain; ' + filtroHalo + '"></div>'
+        : '<h3 class="popup-title" style="color:' + (esTemaClasico ? '#0f172a' : '#ffffff') + ' !important; font-size:13px; font-weight:900; margin:4px 0 2px 0; text-transform:uppercase;">' + nombreTxt + '</h3>';
+    var sloganHtml = p.slogan ? '<p class="popup-slogan" style="color:' + colorSlogan + ' !important;">' + p.slogan + '</p>' : '';
+    var nichoTxt = (p.nicho || p.categoria || 'Comercio').toUpperCase();
+    var html =
+        '<div style="position:relative; width:100%; border-radius:15px; overflow:hidden;">' +
+            '<div style="position:relative;">' +
+                '<img src="' + portadaUsada + '" class="popup-portada" style="border-color:' + c1 + ';">' +
+            '</div>' +
+            '<div class="popup-info" style="padding:0 10px 10px 10px; position:relative; text-align:center;">' +
+                '<img src="' + logoUsado + '" class="popup-logo" style="border-color:' + c1 + ';">' +
+                tituloHtml +
+                sloganHtml +
+                '<div class="estrellas" style="margin-top:2px;">★★★★★</div>' +
+                '<p class="texto-piedra" style="margin:2px 0 8px 0; color:' + colorSlogan + ' !important;">' + nichoTxt + '</p>' +
+                '<div class="popup-acciones-fila" style="display:flex; gap:6px; align-items:center; justify-content:center;">' +
+                    '<a href="/negocio?id=' + encodeURIComponent(window.idNegocioLogueado || '') + '" target="_blank" class="btn-popup-catalogo" style="background:' + cBtn + ' !important; color:' + colorTextoBtn + ' !important; text-decoration:none; flex:1; padding:7px 10px; border-radius:10px; font-size:10.5px; font-weight:900;">CATÁLOGO</a>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+    var rawTema = String(p.tema_popup || 'carbon').trim();
+    var esCustom = rawTema.indexOf('custom:') === 0;
+    var claseTema = esCustom ? 'popup-tema-carbon' : ('popup-tema-' + rawTema);
+    var pop = new maplibregl.Popup({
+        anchor: 'top',
+        offset: [0, 8],
+        closeButton: false,
+        closeOnClick: true,
+        maxWidth: '164px',
+        className: 'popup-boveda-estricto ' + claseTema
+    }).setHTML(html);
+    if (esCustom) {
+        pop.on('open', function() {
+            var est = window.obtenerEstiloCuarzo(rawTema);
+            var elC = pop.getElement() ? pop.getElement().querySelector('.maplibregl-popup-content') : null;
+            if (elC && est) {
+                elC.style.setProperty('background', est.bg, 'important');
+                elC.style.setProperty('border-color', est.border, 'important');
+            }
+        });
+    }
+    return pop;
+};
+
+
 window.abrirGemeloDigital = function() {
+    if (window.pinMiniMapaPerfil) {
+        window.pinMiniMapaPerfil.togglePopup();
+        return;
+    }
+
     var p = window.datosTienda.portada || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=600&q=80';
     var l = window.datosTienda.logo || 'https://via.placeholder.com/150/0a0a0c/ff6b00?text=LOGO';
     var n = window.datosTienda.nombre || '';
@@ -3376,6 +3837,7 @@ window.registrarEmpleado = async function() {
             throw new Error((res.data && res.data.mensaje) ? res.data.mensaje : "Fallo en servidor.");
         }
 
+        localStorage.removeItem('geokatu_nomina_cache_' + window.idNegocioLogueado);
         alert("✅ Operario registrado correctamente.");
         document.getElementById('emp-nuevo-nombre').value = '';
         document.getElementById('emp-nuevo-email').value = '';
@@ -3384,12 +3846,39 @@ window.registrarEmpleado = async function() {
         document.getElementById('form-nuevo-colaborador').style.display = 'none';
         window.cargarEquipoOficina();
     } catch (err) {
-        alert("Error creando credenciales: " + err.message);
+        try {
+            // Respaldo directo en Firestore (100% operativo para relevo por PIN de 4 digitos sin Cloud Functions)
+            var idOpLocal = 'OP_' + codigo + '_' + Date.now().toString(36).toUpperCase();
+            var payloadOp = {
+                nombre: nombre || email.split('@')[0],
+                telefono: tel,
+                email: email,
+                codigo_cajero: codigo,
+                pin: codigo,
+                rol: rol,
+                almacen_habitual: almacen,
+                horario_laboral: horarioPayload,
+                fecha_creacion: new Date().toISOString()
+            };
+            await setDoc(doc(db, 'Directorio/' + window.idNegocioLogueado + '/Equipo', idOpLocal), payloadOp, { merge: true });
+            await setDoc(doc(db, 'Directorio/' + window.idNegocioLogueado + '/Colaboradores', idOpLocal), payloadOp, { merge: true });
+            localStorage.removeItem('geokatu_nomina_cache_' + window.idNegocioLogueado);
+            alert("✅ Operario registrado en nómina local con PIN " + codigo + " (Listo para Relevo por PIN).");
+            document.getElementById('emp-nuevo-nombre').value = '';
+            document.getElementById('emp-nuevo-email').value = '';
+            document.getElementById('emp-nuevo-pass').value = '';
+            document.getElementById('emp-nuevo-codigo').value = '';
+            document.getElementById('form-nuevo-colaborador').style.display = 'none';
+            window.cargarEquipoOficina();
+        } catch (errFallback) {
+            alert("Error creando credenciales: " + errFallback.message);
+        }
     } finally {
         btn.innerText = "Registrar Operario";
         btn.disabled = false;
     }
 };
+
 
 window.crearTareaInterna = async function() {
     var titulo = document.getElementById('tarea-titulo').value.trim();
@@ -3492,16 +3981,31 @@ window.history.pushState({ page: 'oficina_root' }, '');
 });
 
 
-
 window.cerrarModalSalida = function(confirmado) {
+    const modalSalida = document.getElementById('modal-confirmar-salida');
+    if (modalSalida) modalSalida.classList.remove('activo');
+    if (confirmado) {
+        sessionStorage.setItem('geokatu_ram_warm', '1');
+        if (window.idNegocioLogueado && window.datosTienda) {
+            try {
+                localStorage.setItem('geokatu_cache_neg_' + window.idNegocioLogueado, JSON.stringify(window.datosTienda));
+                sessionStorage.setItem('geokatu_enfocar_ram', window.idNegocioLogueado);
+                var c = window.datosTienda.Coordenadas || {};
+                var lat = c.latitude || c._lat || window.datosTienda.lat;
+                var lng = c.longitude || c._long || window.datosTienda.lng;
+                if (lat && lng) {
+                    sessionStorage.setItem('geokatu_last_cam', JSON.stringify({
+                        lat: Number(lat),
+                        lng: Number(lng),
+                        zoom: 17
+                    }));
+                }
+            } catch (eSal) {}
+        }
+        window.location.href = '/';
+    }
+};
 
-const modalSalida = document.getElementById('modal-confirmar-salida');
-
-if (modalSalida) modalSalida.classList.remove('activo');
-
-if (confirmado) window.location.href = '/';
-
-}; 
 // ============================================================================
 // FUNCIONES CONTROLADORAS DEL ONBOARDING (FASE 1 Y 2) - BLINDADAS
 // ============================================================================

@@ -531,18 +531,21 @@ export const AuthGate = {
                 }
             }
 
-            // 2. Solo consultar Firestore si no hay cache vigente y tenemos red
+         // 2. Solo consultar Firestore si no hay cache vigente y tenemos red
             if (contextos.length === 0 && navigator.onLine) {
                 const snapPropio = await getDoc(doc(db, "Directorio", user.uid));
                 if (snapPropio.exists()) {
                     const dataP = snapPropio.data();
+                    const pinTitularValido = (dataP.pin_titular && /^\d{4}$/.test(String(dataP.pin_titular).trim()))
+                        ? String(dataP.pin_titular).trim()
+                        : "0000";
                     contextos.push({
                         idNegocio: user.uid,
                         nombre: dataP.nombre || "Mi Comercio",
                         rol: 'dueño',
                         esDueno: true,
                         almacen: "SALA_VENTAS",
-                        codigoCajero: dataP.pin_titular || ('D-' + user.uid.slice(-4).toUpperCase()),
+                        codigoCajero: pinTitularValido,
                         horarioLaboral: null
                     });
                 }
@@ -570,13 +573,11 @@ export const AuthGate = {
                     }));
                 }
             }
-
             this._estado.contextosDetectados = contextos;
             if (contextos.length === 0) {
                 this._mostrarError("No tienes comercios asociados como titular ni como operario.");
                 return;
             }
-
             // Si ya habia un contexto o relevo activo en esta sesion, restaurarlo directamente
             const uidActivoPrevio = localStorage.getItem('geokatu_active_uid');
             if (uidActivoPrevio) {
@@ -596,7 +597,6 @@ export const AuthGate = {
                     return;
                 }
             }
-
             if (contextos.length === 1) {
                 this._iniciarProtocoloAperturaTurno(contextos[0]);
             } else {
@@ -606,49 +606,52 @@ export const AuthGate = {
             this._mostrarError("Fallo validando credenciales de terminal: " + e.message);
         }
     },
-
     _mostrarSelectorContextos(contextos) {
         this._ocultarTodasLasVistas();
         const cont = document.getElementById('gk-contenedor-contextos');
         cont.innerHTML = '';
-
         contextos.forEach(ctx => {
             const card = document.createElement('div');
             card.className = 'gk-contexto-card';
             const ico = ctx.esDueno ? SVG_ICONS.tienda : SVG_ICONS.maletin;
             const tituloCard = ctx.nombreComercio || ctx.nombre;
-
-            card.innerHTML = `
-                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
-                    <span style="color:#ff6b00; display:flex;">${ico}</span>
-                    <div style="overflow:hidden;">
-                        <strong style="display:block; font-size:12.5px; color:#fff; text-overflow:ellipsis; white-space:nowrap; overflow:hidden;">${tituloCard}</strong>
-                        <span style="font-size:10px; color:#888;">Sede: ${ctx.almacen} | Rol: ${ctx.rol}</span>
-                    </div>
-                </div>
-                <span style="color:#ff6b00; display:flex;">${SVG_ICONS.flechaDerecha}</span>
-            `;
-
+            card.innerHTML =
+                '<div style="display:flex; align-items:center; gap:10px; min-width:0;">' +
+                    '<span style="color:#ff6b00; display:flex;">' + ico + '</span>' +
+                    '<div style="overflow:hidden;">' +
+                        '<strong style="display:block; font-size:12.5px; color:#fff; text-overflow:ellipsis; white-space:nowrap; overflow:hidden;">' + tituloCard + '</strong>' +
+                        '<span style="font-size:10px; color:#888;">Sede: ' + ctx.almacen + ' | Rol: ' + ctx.rol + '</span>' +
+                    '</div>' +
+                '</div>' +
+                '<span style="color:#ff6b00; display:flex;">' + SVG_ICONS.flechaDerecha + '</span>';
             card.onclick = () => this._iniciarProtocoloAperturaTurno(ctx);
             cont.appendChild(card);
         });
-
         document.getElementById('gk-vista-selector').style.display = 'flex';
         this._abrirModal();
     },
-
     // =========================================================================
-    // PROTOCOLO APERTURA: VALIDA FECHA, HORARIOS Y EXIGE CAPTURA GPS
+    // PROTOCOLO APERTURA: EXIME AL DUENO Y A OFICINA; EXIGE GPS SOLO A EMPLEADOS
     // =========================================================================
     _iniciarProtocoloAperturaTurno(ctx) {
+        if (!ctx) return;
+        // Normalizar PIN para que jamas quede un codigo alfanumerico como D-KHI2 en el teclado numerico
+        if (!ctx.codigoCajero || !/^\d{4}$/.test(String(ctx.codigoCajero).trim())) {
+            ctx.codigoCajero = "0000";
+        }
         this._estado.datosTurnoPendiente = ctx;
-
+        const rutaActual = (window.location.pathname || '').toLowerCase();
+        const esPortalOficina = rutaActual.indexOf('oficina') !== -1;
+        const esTitularDueno = Boolean(ctx.esDueno === true || ctx.rol === 'dueño' || ctx.rol === 'owner');
+        // REGLA ESTRICTA: El dueno o cualquier acceso a Oficina entra en 0 ms sin pedir GPS
+        if (esTitularDueno || esPortalOficina) {
+            this._concederAccesoTerminal(ctx, null, false);
+            return;
+        }
         const hoyStr = new Date().toISOString().split('T')[0];
         const claveGpsDia = 'geokatu_gps_apertura_' + ctx.idNegocio + '_' + hoyStr;
         const gpsGuardadoHoy = localStorage.getItem(claveGpsDia);
-
         const evaluacionHorario = this._evaluarHorarioOperario(ctx.horarioLaboral);
-
         if (gpsGuardadoHoy && !evaluacionHorario.fueraDeHorario) {
             this._concederAccesoTerminal(ctx, JSON.parse(gpsGuardadoHoy), false);
             return;
@@ -836,9 +839,12 @@ export const AuthGate = {
         if (GeokatuDB && GeokatuDB.SecurityService && GeokatuDB.SecurityService.sellarSesionTerminalLocal) {
             GeokatuDB.SecurityService.sellarSesionTerminalLocal(ctx.idNegocio);
         }
-        // Pre-cachear la nomina de la sede una sola vez (TTL 12h) para relevos en 0 ms sin red
-        this._hidratarNominaLocal(ctx.idNegocio, false);
+        // Pre-cachear la nomina solo en terminales operativas (POS, Stock, Inventario, Mapatiena)
+        if ((window.location.pathname || '').toLowerCase().indexOf('oficina') === -1) {
+            this._hidratarNominaLocal(ctx.idNegocio, false);
+        }
         this._cerrarModal();
+
         if (typeof this._config.onSesionLista === 'function') {
             this._config.onSesionLista({
                 ...ctx,
