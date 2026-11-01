@@ -1,7 +1,6 @@
 import GeokatuDB from './core-db.js';
 import { MotorBalanza } from './balanza-motor.js';
 import { MotorCajonMonedero } from './cajon-motor.js';
-import { QRLocal } from './qrcode-local.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
 const auth = getAuth();
@@ -1029,7 +1028,16 @@ document.getElementById('btn-cerrar-vuelto')?.addEventListener('click', () => {
 // =========================================================================
 // 9. EJECUCIÓN DE VENTA DEFINITIVA Y TIRILLA 58mm VENEZUELA
 // =========================================================================
+let ventaEnProceso = false;
 async function ejecutarVentaFinalDefinitivaVen() {
+    if (ventaEnProceso) return;
+    ventaEnProceso = true;
+    try { return await ejecutarVentaFinalDefinitivaVenInterna(); }
+    catch (error) { alert('No se pudo completar la operación: ' + error.message); }
+    finally { ventaEnProceso = false; }
+}
+
+async function ejecutarVentaFinalDefinitivaVenInterna() {
     if (!turnoCajaActivo || turnoCajaActivo.estado !== 'ABIERTA') {
         alert("⚠️ La caja se encuentra cerrada. Abre turno antes de facturar.");
         abrirModalAperturaCaja();
@@ -1045,6 +1053,7 @@ async function ejecutarVentaFinalDefinitivaVen() {
             nombre: item.nombre,
             precio: Number(item.precio), // Mandatorio para la validación en core-db.js
             precio_usd: Number(item.precio),
+            precio_fijado_balanza: Boolean(item.precio_fijado_balanza),
             cantidad: item.cantidad,
             subtotal: sub, // Mandatorio para la validación en core-db.js
             subtotal_usd: sub,
@@ -1070,6 +1079,7 @@ async function ejecutarVentaFinalDefinitivaVen() {
     };
 
    const ticketPayload = {
+        id_sesion: turnoCajaActivo.id_sesion,
         total: totales.totalPagarUSD, // Exigido por regla Firestore
         metodo_pago: pagosAcumuladosTicket.length === 1 ? pagosAcumuladosTicket[0].metodo : "MIXTO", // Exigido por regla Firestore
         caja_numero: cajaNumeroActiva,
@@ -1679,24 +1689,23 @@ async function abrirModalFacturaDigitalQR(ticketId, telefonoPrevio = "") {
     const exp = Date.now() + (24 * 60 * 60 * 1000);
     const sig = await generarFirmaFactura24Horas(ticketId, exp);
 
-    window.urlFacturaActiva = `window.location.origin/facturaven?com={idNegocio}&tkt=ticketId&exp={exp}&sig=${sig}`;
+    window.urlFacturaActiva = `${window.location.origin}/facturaven?com=${idNegocio}&tkt=${ticketId}&exp=${exp}&sig=${sig}`;
 
     contenedor.innerHTML = '';
-    const canvas = document.createElement('canvas');
-    canvas.style.display = 'block';
-    canvas.style.margin = '0 auto';
-    contenedor.appendChild(canvas);
-
-    let renderExitoso = false;
-    if (typeof QRLocal !== 'undefined' && QRLocal.dibujarEnCanvas) {
+    contenedor.style.padding = '20px';
+    contenedor.style.backgroundColor = '#fff';
+    if (typeof window.QRCode === 'function') {
         try {
-            QRLocal.dibujarEnCanvas(canvas, window.urlFacturaActiva, { width: 240, margin: 4 });
-            renderExitoso = true;
-        } catch (_) {}
-    }
-
-    if (!renderExitoso) {
-        contenedor.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=15&data=${encodeURIComponent(window.urlFacturaActiva)}" style="display:block; width:220px; height:220px; margin:0 auto;" alt="QR Factura">`;
+            new window.QRCode(contenedor, {
+                text: window.urlFacturaActiva, width: 240, height: 240,
+                colorDark: '#000000', colorLight: '#ffffff',
+                correctLevel: window.QRCode.CorrectLevel.M
+            });
+        } catch (errorQR) {
+            contenedor.textContent = 'No se pudo generar el QR. Usa el enlace de WhatsApp.';
+        }
+    } else {
+        contenedor.textContent = 'Generador QR no disponible. Recarga la aplicación.';
     }
 
     if (inputWp) inputWp.value = telefonoPrevio || '';
@@ -1713,7 +1722,7 @@ window.enviarFacturaWhatsApp = function() {
     const numCompleto = rawTel.length === 10 ? `58${rawTel}` : rawTel;
     const nombreLocal = (document.getElementById('ticket-negocio-nombre')?.innerText || "el comercio").trim();
     const mensaje = `Hola. Adjuntamos tu comprobante de compra en ${nombreLocal}:\n\nComprobante: ${window.urlFacturaActiva}\nID Ticket: ${window.ticketIdFacturaActiva}\n\nValidez del enlace: 24 horas.`;
-    window.open(`https://wa.me/numCompleto?text={encodeURIComponent(mensaje)}`, '_blank');
+    window.open(`https://wa.me/${numCompleto}?text=${encodeURIComponent(mensaje)}`, '_blank');
 };
 
 window.abrirModalCopiaComprobante = function() {

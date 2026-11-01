@@ -2,10 +2,8 @@ import GeokatuDB from './core-db.js';
 import { BillingGuard } from './billing-guard.js';
 import { AuthGate } from './auth-gate.js';
 import './geokatu-tour.js';
-import { MotorLector } from './lector-motor.js';
 import { MotorBalanza } from './balanza-motor.js';
 import { MotorCajonMonedero } from './cajon-motor.js';
-import { QRLocal } from './qrcode-local.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
 const auth = getAuth();
@@ -63,6 +61,7 @@ AuthGate.inicializar({
 
         // 2. Sellado criptográfico de terminal
         await GeokatuDB.SecurityService.sellarSesionTerminalLocal(contexto.idNegocio);
+        GeokatuDB.sincronizarPendientesOperativos(contexto.idNegocio).catch(error => console.warn('[Sincronización pendiente]', error.message));
 
         // 3. Actualizar indicador visual del cajero en cabecera
         var elCajero = document.getElementById('t-cajero-cod');
@@ -1176,7 +1175,16 @@ function aplicarAbonoConfirmado(metodo, monto, referencia = null) {
     }
 }
 
+let ventaEnProceso = false;
 async function ejecutarVentaFinalDefinitiva() {
+    if (ventaEnProceso) return;
+    ventaEnProceso = true;
+    try { return await ejecutarVentaFinalDefinitivaInterna(); }
+    catch (error) { alert('No se pudo completar la operación: ' + error.message); }
+    finally { ventaEnProceso = false; }
+}
+
+async function ejecutarVentaFinalDefinitivaInterna() {
     if (!turnoCajaActivo || turnoCajaActivo.estado !== 'ABIERTA') {
         alert("⚠️ La caja está cerrada. Debes abrir el turno primero.");
         abrirModalAperturaCaja();
@@ -1186,6 +1194,8 @@ async function ejecutarVentaFinalDefinitiva() {
     // 🛡️ RECALCULO INMUTABLE DE PRODUCTOS CONTRA CATÁLOGO MAESTRO
     let totalVentaCalculado = 0;
     let productosAuditados = [];
+    const claveUbicacionesVenta = 'geokatu_stock_ubis_' + idNegocio;
+    const ubicacionesVenta = JSON.parse(localStorage.getItem(claveUbicacionesVenta) || '[]');
 
     for (const item of carrito) {
         // Si es un ítem libre creado en el momento, pasa directo con su precio validado
@@ -1227,7 +1237,7 @@ async function ejecutarVentaFinalDefinitiva() {
         let desgloseUbicaciones = [];
         try {
             const claveUbis = "geokatu_stock_ubis_" + idNegocio;
-            const stockUbisLocal = JSON.parse(localStorage.getItem(claveUbis) || "[]");
+            const stockUbisLocal = ubicacionesVenta;
             
             // 1. Filtrar compartimientos de Piso de Venta con stock positivo
             const candidatos = stockUbisLocal
@@ -1263,7 +1273,7 @@ async function ejecutarVentaFinalDefinitiva() {
             }
 
             idCompPrincipal = desgloseUbicaciones[0].id_compartimiento;
-            localStorage.setItem(claveUbis, JSON.stringify(stockUbisLocal));
+            // Se persiste después de aceptar la venta, nunca durante la validación.
         } catch (eUbi) {
             console.warn("[POS Cascada] Fallo en deducción espacial:", eUbi);
             desgloseUbicaciones = [{ id_compartimiento: "BIN_INICIAL", cantidad: item.cantidad }];
@@ -1309,6 +1319,7 @@ async function ejecutarVentaFinalDefinitiva() {
     }
 
     const ticketPayload = {
+        id_sesion: turnoCajaActivo.id_sesion,
         caja_numero: cajaNumeroActiva,
         codigo_cajero: cajeroCodigoActivo,
         cajero_email: auth.currentUser ? auth.currentUser.email : "CAJERO",
@@ -1324,6 +1335,7 @@ async function ejecutarVentaFinalDefinitiva() {
     const res = await GeokatuDB.PosService.procesarVentaLote(idNegocio, ticketPayload);
 
     if (res.success) {
+        localStorage.setItem(claveUbicacionesVenta, JSON.stringify(ubicacionesVenta));
         ultimoTicketIdVendido = res.ticketId || res.localId;
         
         if (typeof window.mostrarAvisoPos === 'function') {
@@ -2256,6 +2268,21 @@ document.getElementById('btn-ejecutar-anulacion').addEventListener('click', asyn
     if (res.success) {
         alert(res.mensaje);
 
+        const original = res.ventaOriginal;
+        if (original && original.id_sesion && original.id_sesion === turnoCajaActivo?.id_sesion) {
+            for (const pago of original.metodos_pago_split || []) {
+                const campo = { EFECTIVO: 'efectivo', TARJETA: 'tarjeta', NEQUI: 'nequi' }[pago.metodo];
+                if (campo) acumuladoTurno[campo] -= Number(pago.monto) || 0;
+            }
+            const fiscal = original.despacho_fiscal?.payload_canonico?.totales;
+            if (fiscal) {
+                acumuladoTurno.base_gravable -= Number(fiscal.base_gravable) || 0;
+                acumuladoTurno.iva_19 -= Number(fiscal.impuesto_iva) || 0;
+                acumuladoTurno.exento -= Number(fiscal.total_exento) || 0;
+            }
+            localStorage.setItem('geokatu_acumulado_' + idNegocio, JSON.stringify(acumuladoTurno));
+        }
+
         // 1. Rehidratar catálogo local en RAM tras el reingreso de stock
         catalogoLocal = GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio);
         renderizarGridCatalogo();
@@ -2599,7 +2626,7 @@ document.getElementById('btn-confirmar-cierre-z').addEventListener('click', asyn
             }, 1000);
         }, 300);
 
-        alert("Turno sellado y Cierre Z registrado exitosamente.");
+        alert(res.offline ? "Cierre Z guardado en este dispositivo. Pendiente de sincronizar con el servidor." : "Turno sellado y Cierre Z registrado exitosamente.");
     } else {
         alert("Error al cerrar caja: " + res.error);
     }
@@ -2905,23 +2932,20 @@ async function abrirModalFacturaDigitalQR(ticketId, telefonoPrevio = "") {
     window.urlFacturaActiva = `${window.location.origin}/factura?com=${idNegocio}&tkt=${ticketId}&exp=${exp}&sig=${sig}`;
 
     contenedor.innerHTML = '';
-    const canvas = document.createElement('canvas');
-    canvas.style.display = 'block';
-    canvas.style.margin = '0 auto';
-    contenedor.appendChild(canvas);
-
-    let renderExitoso = false;
-    if (typeof QRLocal !== 'undefined' && QRLocal.dibujarEnCanvas) {
+    contenedor.style.padding = '20px';
+    contenedor.style.backgroundColor = '#fff';
+    if (typeof window.QRCode === 'function') {
         try {
-            // quietZone: 4 módulos blancos mandatorios para lectura óptica en pantallas
-            QRLocal.dibujarEnCanvas(canvas, window.urlFacturaActiva, { width: 240, margin: 4 });
-            renderExitoso = true;
-        } catch (_) {}
-    }
-
-    if (!renderExitoso) {
-        // Fallback en alta resolución con margin 15px de zona muda
-        contenedor.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=15&data=${encodeURIComponent(window.urlFacturaActiva)}" style="display:block; width:220px; height:220px; margin:0 auto;" alt="QR Factura">`;
+            new window.QRCode(contenedor, {
+                text: window.urlFacturaActiva, width: 240, height: 240,
+                colorDark: '#000000', colorLight: '#ffffff',
+                correctLevel: window.QRCode.CorrectLevel.M
+            });
+        } catch (errorQR) {
+            contenedor.textContent = 'No se pudo generar el QR. Usa el enlace de WhatsApp.';
+        }
+    } else {
+        contenedor.textContent = 'Generador QR no disponible. Recarga la aplicación.';
     }
 
     const inputWp = document.getElementById('input-whatsapp-cliente');

@@ -1,3 +1,4 @@
+import { nuevoIdOperacion, quitarConfirmados, crearLoteIdempotente } from './operaciones-integridad.js';
 import { doc, getDoc, setDoc, collection, writeBatch, getDocs, query, where, limit, startAfter, orderBy, startAt, endAt, collectionGroup, deleteDoc, getCountFromServer, onSnapshot, increment, runTransaction } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, getAdditionalUserInfo, setPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { getAnalytics, logEvent } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js';
@@ -494,7 +495,10 @@ const GeokatuDB = {
             
             // Priorizar el UID del comercio dueño almacenado en la terminal sobre el del operario
             const idNegocio = metadata.idNegocio || localStorage.getItem('geokatu_active_uid') || (auth.currentUser ? auth.currentUser.uid : "ADMIN_LOCAL");
-            const cantNumerica = Math.abs(Number(cantidad)) || 1;
+            const cantNumerica = Number(cantidad);
+            if (!Number.isFinite(cantNumerica) || cantNumerica <= 0) {
+                return { success: false, error: 'La cantidad debe ser positiva y finita.' };
+            }
 
 
             // 1. Matriz de deltas según tipología ampliada de Kardex WMS
@@ -511,7 +515,7 @@ const GeokatuDB = {
                 deltaGlobal = 0; // Traslado interno o auditoría no alteran el total consolidado
             }
 
-            const movIdLocal = "MOV-" + Date.now().toString(16).toUpperCase();
+            const movIdLocal = nuevoIdOperacion('MOV');
             const payloadMovimiento = {
                 mov_id_local: movIdLocal,
                 codigo_producto: productoId,
@@ -529,26 +533,31 @@ const GeokatuDB = {
                 lote: metadata.lote || null,
                 fecha_vencimiento: metadata.fechaVencimiento || null,
                 motivo_ajuste: metadata.motivo || null,
+                zona: metadata.zona || 'PISO_VENTA',
                 estado_sincronizacion: "sincronizado"
             };
 
+            const claveColaMovimiento = `geokatu_movimientos_cola_${idNegocio}`;
+            const colaMovimiento = JSON.parse(localStorage.getItem(claveColaMovimiento) || '[]');
+            colaMovimiento.push(payloadMovimiento);
+            localStorage.setItem(claveColaMovimiento, JSON.stringify(colaMovimiento));
             // 2. Persistencia local inmediata en catálogo en memoria / caché
             const claveCache = `geokatu_catalogo_${idNegocio}`;
             let catalogoLocal = JSON.parse(localStorage.getItem(claveCache) || "[]");
             const prodRAM = catalogoLocal.find(p => p.id_prod === productoId || p.codigo_barras === productoId);
             if (prodRAM && deltaGlobal !== 0) {
-                prodRAM.stock_actual = Math.max(0, Number(((prodRAM.stock_actual || 0) + deltaGlobal).toFixed(3)));
+                prodRAM.stock_actual = Number((Number(prodRAM.stock_actual || 0) + deltaGlobal).toFixed(3));
                 localStorage.setItem(claveCache, JSON.stringify(catalogoLocal));
             }
 
-            // 3. Intento de asiento atómico en Firestore (Kardex + Producto + Ubicaciones)
+            // Kardex y efectos comparten un recibo estable para los reintentos.
             try {
                 if (!navigator.onLine) {
                     throw new Error("Terminal operando fuera de línea.");
                 }
 
-                const batch = writeBatch(db);
-                const movRef = doc(collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Movimientos_Kardex`));
+                const movRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Movimientos_Kardex`, movIdLocal);
+                const batch = crearLoteIdempotente(db, movRef, runTransaction);
                 batch.set(movRef, payloadMovimiento);
 
                 // Actualizar stock escalar raíz
@@ -556,6 +565,7 @@ const GeokatuDB = {
                     const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, productoId);
                     batch.update(prodRef, {
                         stock_actual: increment(deltaGlobal),
+                        fecha_actualizacion: new Date().toISOString(),
                         ultima_actualizacion_kardex: payloadMovimiento.timestamp
                     });
                 }
@@ -595,14 +605,11 @@ const GeokatuDB = {
                 }
 
                 await batch.commit();
+                quitarConfirmados(localStorage, claveColaMovimiento, [movIdLocal], 'mov_id_local');
                 return { success: true, data: { txID: movRef.id, localId: movIdLocal } };
             } catch (e) {
                 console.warn("[InventarioService] Sin conexión de red. Movimiento encolado localmente:", e.message);
-                const claveCola = `geokatu_movimientos_cola_${idNegocio}`;
-                const colaActual = JSON.parse(localStorage.getItem(claveCola) || "[]");
-                payloadMovimiento.estado_sincronizacion = "pendiente_offline";
-                colaActual.push(payloadMovimiento);
-                localStorage.setItem(claveCola, JSON.stringify(colaActual));
+                // Ya persistido antes del envío. Conservarlo para un reintento.
 
                 return { success: true, offline: true, data: { localId: movIdLocal } };
             }
@@ -630,8 +637,8 @@ const GeokatuDB = {
 
                 for (const mov of colaActual) {
                     try {
-                        const batch = writeBatch(db);
-                        const movRef = doc(collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Movimientos_Kardex`));
+                        const movRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Movimientos_Kardex`, mov.mov_id_local);
+                        const batch = crearLoteIdempotente(db, movRef, runTransaction);
 
                         batch.set(movRef, {
                             ...mov,
@@ -643,15 +650,17 @@ const GeokatuDB = {
                             const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, mov.codigo_producto);
                             batch.update(prodRef, {
                                 stock_actual: increment(mov.delta_global),
+                                fecha_actualizacion: new Date().toISOString(),
                                 ultima_actualizacion_kardex: new Date().toISOString()
                             });
                         }
 
-                        if (mov.id_compartimiento_destino) {
+                        if (mov.id_compartimiento_destino && ['ENTRADA', 'RECEPCION_COMPRA', 'AJUSTE_SOBRANTE', 'DEVOLUCION_CLIENTE', 'TRASLADO_INTERNO', 'AJUSTE_CONTEO_CICLICO'].includes(mov.tipo)) {
                             const ubiDestRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}/${mov.codigo_producto}/${_SCHEMA.SubColeccionUbicacionesStock}`, mov.id_compartimiento_destino);
                             const esConteoCiclico = mov.tipo === 'AJUSTE_CONTEO_CICLICO';
                             
                             const payloadSyncUbi = {
+                                zona: mov.zona || 'PISO_VENTA',
                                 id_negocio: idNegocio,
                                 id_estante: mov.id_estante_destino || "GENERAL",
                                 id_compartimiento: mov.id_compartimiento_destino,
@@ -663,11 +672,15 @@ const GeokatuDB = {
                             if (mov.lote) payloadSyncUbi.lote = mov.lote;
                             if (mov.fecha_vencimiento) payloadSyncUbi.fecha_vencimiento = mov.fecha_vencimiento;
 
+                            if (payloadSyncUbi.zona === 'PISO_VENTA') {
+                                const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, mov.codigo_producto);
+                                batch.update(prodRef, { en_piso_venta: true });
+                            }
                             batch.set(ubiDestRef, payloadSyncUbi, { merge: true });
                         }
 
 
-                        if (mov.id_compartimiento_origen && mov.tipo === 'TRASLADO_INTERNO') {
+                        if (mov.id_compartimiento_origen && ['SALIDA', 'PICKING_VENTA', 'AJUSTE_MERMA', 'DESPACHO', 'TRASLADO_INTERNO'].includes(mov.tipo)) {
                             const ubiOrigRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}/${mov.codigo_producto}/${_SCHEMA.SubColeccionUbicacionesStock}`, mov.id_compartimiento_origen);
                             batch.set(ubiOrigRef, {
                                 id_estante: mov.id_estante_origen || "GENERAL",
@@ -678,6 +691,7 @@ const GeokatuDB = {
                         }
 
                         await batch.commit();
+                        quitarConfirmados(localStorage, claveCola, [mov.mov_id_local], 'mov_id_local');
                         procesados++;
                     } catch (errMov) {
                         console.error("[GEOKATU Sync Bodega] Error procesando movimiento diferido:", errMov);
@@ -685,8 +699,7 @@ const GeokatuDB = {
                     }
                 }
 
-                localStorage.setItem(claveCola, JSON.stringify(colaRestante));
-                return { sincronizados: procesados, pendientes: colaRestante.length };
+                return { sincronizados: procesados, pendientes: JSON.parse(localStorage.getItem(claveCola) || '[]').length };
             } finally {
                 _sincronizandoMovimientosBodegaEnProgreso = false;
             }
@@ -3398,14 +3411,22 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                     ? Number(precioBase) 
                     : (prod ? Number(prod.precio) : Number(precioBase));
 
-                const subtotal = esVen 
-                    ? Number((precioValido * item.cantidad).toFixed(2))
-                    : Math.round(precioValido * item.cantidad);
+                if (!Number.isFinite(Number(item.cantidad)) || Number(item.cantidad) <= 0 || !Number.isFinite(precioValido) || precioValido < 0) {
+                    return { success: false, error: "Cantidad o precio inválido." };
+                }
+                const importeLinea = item.precio_fijado_balanza ? precioValido : precioValido * item.cantidad;
+                const subtotal = esVen ? Number(importeLinea.toFixed(2)) : Math.round(importeLinea);
                 sumaVerificacion += subtotal;
             }
 
+            // Conciliar el recargo ya calculado por POS VEN, sin cambiar su política fiscal.
+            if (esVen) {
+                const recargo = Number(ticketData.igtf_usd || 0);
+                if (!Number.isFinite(recargo) || recargo < 0) return { success: false, error: 'Recargo inválido.' };
+                sumaVerificacion = Number((sumaVerificacion + recargo).toFixed(2));
+            }
             const margenTolerancia = esVen ? 0.05 : 1;
-            if (Math.abs(sumaVerificacion - Number(ticketData.total)) > margenTolerancia) {
+            if (!Number.isFinite(Number(ticketData.total)) || Math.abs(sumaVerificacion - Number(ticketData.total)) > margenTolerancia) {
                 return { 
                     success: false, 
                     error: "Discrepancia crítica de integridad contable: el total no coincide con los precios de inventario." 
@@ -3446,7 +3467,7 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
             const seqStr = String(secuencia).padStart(4, '0');
 
             // Formato estándar limpio: TK-01-D9A4-0001
-           const ticketIdLocal = 'TK-' + cajaCod + '-' + cajeroCod + '-' + seqStr;
+           const ticketIdLocal = nuevoIdOperacion('TK-' + cajaCod + '-' + cajeroCod + '-' + seqStr);
 
             const payloadCanonico = GeokatuDB.PosService._construirPayloadFiscalCanonico({
                 ...ticketData,
@@ -3467,10 +3488,24 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                 }
             };
 
-            // Registro atómico en Firestore usando el ticketIdLocal como ID del documento
+            const claveCola = `geokatu_sync_cola_${tenantReal}`;
             try {
-                const batch = writeBatch(db);
+                const cola = JSON.parse(localStorage.getItem(claveCola) || '[]');
+                cola.push(payloadFinal);
+                localStorage.setItem(claveCola, JSON.stringify(cola));
+            } catch (errorLocal) {
+                // Restaurar el catálogo si no se pudo conservar la venta.
+                for (const item of ticketData.productos) {
+                    const prod = catalogoLocal.find(p => p.id_prod === item.id_prod);
+                    if (prod && prod.stock_actual !== undefined) prod.stock_actual += Number(item.cantidad);
+                }
+                localStorage.setItem(claveCache, JSON.stringify(catalogoLocal));
+                return { success: false, error: 'No se pudo guardar la venta en este dispositivo: ' + errorLocal.message };
+            }
+            try {
+                if (!navigator.onLine) throw new Error('Venta guardada pendiente de conexión.');
                 const ticketRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/Ventas_POS`, ticketIdLocal);
+                const batch = crearLoteIdempotente(db, ticketRef, runTransaction);
                 batch.set(ticketRef, payloadFinal);
 
 
@@ -3493,7 +3528,8 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                     if (item.id_prod && !item.id_prod.startsWith("GENERICO")) {
                         const prodRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + tenantReal + "/" + _SCHEMA.SubColeccionProductos, item.id_prod);
                         batch.set(prodRef, {
-                            stock_actual: increment(-item.cantidad)
+                            stock_actual: increment(-item.cantidad),
+                            fecha_actualizacion: new Date().toISOString()
                         }, { merge: true });
 
 
@@ -3536,14 +3572,12 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                 }
 
             await batch.commit();
-                return { success: true, ticketId: ticketIdLocal, localId: ticketIdLocal };
+                quitarConfirmados(localStorage, claveCola, [ticketIdLocal], 'ticketIdLocal');
+                return { success: true, ticketId: ticketIdLocal, localId: ticketIdLocal, payloadCanonico };
 
             } catch (e) {
                 console.error("[GEOKATU POS] Error al asentar en Firestore (desviado a cola):", e);
-                const claveCola = `geokatu_sync_cola_${tenantReal}`;
-                const colaActual = JSON.parse(localStorage.getItem(claveCola) || "[]");
-                colaActual.push(payloadFinal);
-                localStorage.setItem(claveCola, JSON.stringify(colaActual));
+                // La operación ya está guardada; el reintento conserva el mismo ID.
 
                 return { success: true, ticketId: ticketIdLocal, localId: ticketIdLocal, offline: true, errorFirestore: e.message };
             }
@@ -3570,8 +3604,8 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                 if (!snap.empty) {
                     duplicados++;
                 } else {
-                    const batch = writeBatch(db);
-                    const ticketRef = doc(colRef);
+                    const ticketRef = doc(colRef, idBuscar);
+                    const batch = crearLoteIdempotente(db, ticketRef, runTransaction);
                     batch.set(ticketRef, {
                         ...ticket,
                         id_firestore: ticketRef.id,
@@ -3592,8 +3626,13 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                         if (item.id_prod && !item.id_prod.startsWith("GENERICO")) {
                             const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/${_SCHEMA.SubColeccionProductos}`, item.id_prod);
                             batch.update(prodRef, {
-                                stock_actual: increment(-item.cantidad)
+                                stock_actual: increment(-item.cantidad), fecha_actualizacion: new Date().toISOString()
                             });
+                            const desglose = item.desglose_ubicaciones?.length ? item.desglose_ubicaciones : (item.id_compartimiento ? [{ id_compartimiento: item.id_compartimiento, cantidad: item.cantidad }] : []);
+                            for (const ubicacion of desglose) {
+                                const ref = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/${_SCHEMA.SubColeccionProductos}/${item.id_prod}/${_SCHEMA.SubColeccionUbicacionesStock}`, ubicacion.id_compartimiento);
+                                batch.set(ref, { cantidad: increment(-Number(ubicacion.cantidad)), ultima_modificacion: new Date().toISOString() }, { merge: true });
+                            }
                         }
                     });
 
@@ -3632,10 +3671,11 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                     if (ticket.estado_sincronizacion === "sincronizado_diferido") continue;
 
                                         try {
-                        const batch = writeBatch(db);
+                        if (!navigator.onLine) throw new Error('Sin conexión.');
                         const idDoc = ticket.ticketIdLocal || ticket.ticketId || `TK-OFF-${Date.now()}`;
                         const ticketRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/Ventas_POS`, idDoc);
 
+                        const batch = crearLoteIdempotente(db, ticketRef, runTransaction);
                         batch.set(ticketRef, {
                             ...ticket,
                             id_firestore: idDoc,
@@ -3652,7 +3692,10 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                         }, { merge: true });
 
 
-                                                      // 🛡️ REVISIÓN FORENSE DE PRODUCTOS ANTES DE SINCRONIZAR
+                                                      batch.set(doc(db, "sistema", "metricas_red"), {
+                            volumen_ventas_pos: increment(Number(ticket.total) || 0), tickets_emitidos: increment(1)
+                        }, { merge: true });
+                        // 🛡️ REVISIÓN FORENSE DE PRODUCTOS ANTES DE SINCRONIZAR
                         for (const item of ticket.productos) {
                             if (item.id_prod && !item.id_prod.startsWith("GENERICO")) {
                                 const prodRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + tenantReal + "/" + _SCHEMA.SubColeccionProductos, item.id_prod);
@@ -3729,7 +3772,7 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
 
 
                         await batch.commit();
-
+                        quitarConfirmados(localStorage, claveCola, [ticket.ticketIdLocal], 'ticketIdLocal');
                         procesados++;
                     } catch (err) {
                         console.error("[GEOKATU Sync] Error procesando ticket offline:", err);
@@ -3737,8 +3780,7 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                     }
                 }
 
-                localStorage.setItem(claveCola, JSON.stringify(colaRestante));
-                return { sincronizados: procesados, pendientes: colaRestante.length };
+                return { sincronizados: procesados, pendientes: JSON.parse(localStorage.getItem(claveCola) || '[]').length };
             } finally {
                 _sincronizandoColaEnProgreso = false;
             }
@@ -3920,123 +3962,57 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
             }
         },
 
-        anularVentaPOS: async (idNegocio, ticketId, motivoAnulacion = "Error de digitación en caja") => {
-            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
-
-            const claveCache = `geokatu_catalogo_${idNegocio}`;
-            let catalogoLocal = JSON.parse(localStorage.getItem(claveCache) || "[]");
-
+        anularVentaPOS: async (idNegocio, ticketId, motivoAnulacion) => {
+            if (!_verificarAcceso()) return { success: false, error: 'Sesión no autorizada.' };
+            if (!navigator.onLine) return { success: false, error: 'Conecta la terminal para confirmar la anulación sin duplicar devoluciones.' };
             try {
                 const ticketRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Ventas_POS`, ticketId);
-                const ticketSnap = await getDoc(ticketRef);
-
-                let productosARevertir = [];
-                let ventaData = null;
-
-                if (ticketSnap.exists()) {
-                    ventaData = ticketSnap.data();
-                    if (ventaData.anulado) {
-                        return { success: false, error: "Este ticket ya fue anulado previamente." };
-                    }
-                    productosARevertir = ventaData.productos || [];
-                } else {
-                    const claveCola = `geokatu_sync_cola_${idNegocio}`;
-                    const cola = JSON.parse(localStorage.getItem(claveCola) || "[]");
-                    const idx = cola.findIndex(t => t.ticketIdLocal === ticketId);
-                    if (idx !== -1) {
-                        ventaData = cola[idx];
-                        productosARevertir = ventaData.productos || [];
-                        cola.splice(idx, 1);
-                        localStorage.setItem(claveCola, JSON.stringify(cola));
-                    } else {
-                        return { success: false, error: "Ticket no encontrado en el sistema." };
-                    }
-                }
-
-               // Reversión en memoria local de catálogo
-                productosARevertir.forEach(itemRevertir => {
-                    const prod = catalogoLocal.find(p => p.id_prod === itemRevertir.id_prod || p.codigo_barras === itemRevertir.codigo_barras);
-                    if (prod && prod.stock_actual !== undefined) {
-                        prod.stock_actual = Number((prod.stock_actual + itemRevertir.cantidad).toFixed(3));
-                    }
-                });
-                localStorage.setItem(claveCache, JSON.stringify(catalogoLocal));
-
-                // Reversión en memoria local de estanterías WMS
-                const claveUbis = "geokatu_stock_ubis_" + idNegocio;
-                let ubisLocales = JSON.parse(localStorage.getItem(claveUbis) || "[]");
-
-                productosARevertir.forEach(item => {
-                    const desglose = Array.isArray(item.desglose_ubicaciones) && item.desglose_ubicaciones.length > 0
-                        ? item.desglose_ubicaciones
-                        : (item.id_compartimiento ? [{ id_compartimiento: item.id_compartimiento, cantidad: item.cantidad }] : []);
-
-                    desglose.forEach(des => {
-                        const targetUbi = ubisLocales.find(u => u.id_prod === item.id_prod && u.id_compartimiento === des.id_compartimiento);
-                        if (targetUbi) {
-                            targetUbi.cantidad = Number((Number(targetUbi.cantidad) + Number(des.cantidad)).toFixed(3));
-                        }
-                    });
-                });
-                localStorage.setItem(claveUbis, JSON.stringify(ubisLocales));
-                
-                // Reversión en Firestore si existe en nube
-                if (navigator.onLine && ticketSnap.exists()) {
-                    const batch = writeBatch(db);
-                    batch.update(ticketRef, {
-                        anulado: true,
-                        motivo_anulacion: motivoAnulacion,
+                const venta = await runTransaction(db, async tx => {
+                    const snapshot = await tx.get(ticketRef);
+                    if (!snapshot.exists()) throw new Error('Sincroniza primero el ticket pendiente antes de anularlo.');
+                    const data = snapshot.data();
+                    if (data.anulado) throw new Error('Este ticket ya fue anulado previamente.');
+                    tx.update(ticketRef, {
+                        anulado: true, motivo_anulacion: motivoAnulacion,
                         timestamp_anulacion: new Date().toISOString(),
-                        usuario_anulacion: auth.currentUser ? auth.currentUser.email : "CAJERO"
+                        usuario_anulacion: auth.currentUser.email || 'CAJERO'
                     });
-
-                    productosARevertir.forEach(item => {
-                        if (item.id_prod && !item.id_prod.startsWith("GENERICO")) {
-                            const prodRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + idNegocio + "/" + _SCHEMA.SubColeccionProductos, item.id_prod);
-                            batch.update(prodRef, {
-                                stock_actual: increment(item.cantidad)
-                            });
-
-                            // Reingreso atómico a cada anaquel físico registrado en el ticket
-                            const desglose = Array.isArray(item.desglose_ubicaciones) && item.desglose_ubicaciones.length > 0
-                                ? item.desglose_ubicaciones
-                                : (item.id_compartimiento ? [{ id_compartimiento: item.id_compartimiento, cantidad: item.cantidad }] : []);
-
-                            desglose.forEach(des => {
-                                const ubiRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + idNegocio + "/" + _SCHEMA.SubColeccionProductos + "/" + item.id_prod + "/" + _SCHEMA.SubColeccionUbicacionesStock, des.id_compartimiento);
-                                batch.set(ubiRef, {
-                                    cantidad: increment(des.cantidad),
-                                    zona: "PISO_VENTA",
-                                    ultima_modificacion: new Date().toISOString()
-                                }, { merge: true });
-                            });
+                    for (const item of data.productos || []) {
+                        if (!item.id_prod || item.id_prod.startsWith('GENERICO')) continue;
+                        const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, item.id_prod);
+                        tx.update(prodRef, { stock_actual: increment(Number(item.cantidad)), fecha_actualizacion: new Date().toISOString() });
+                        const ubicaciones = item.desglose_ubicaciones?.length ? item.desglose_ubicaciones : (item.id_compartimiento ? [{ id_compartimiento: item.id_compartimiento, cantidad: item.cantidad }] : []);
+                        for (const ubicacion of ubicaciones) {
+                            const ref = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}/${item.id_prod}/${_SCHEMA.SubColeccionUbicacionesStock}`, ubicacion.id_compartimiento);
+                            tx.set(ref, { cantidad: increment(Number(ubicacion.cantidad)), ultima_modificacion: new Date().toISOString() }, { merge: true });
                         }
+                    }
+                    tx.set(doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Notas_Credito_POS`, ticketId), {
+                        ticket_origen_id: ticketId, total_revertido: data.total,
+                        metodo_pago: data.metodo_pago, productos: data.productos,
+                        motivo: motivoAnulacion, fecha: new Date().toISOString(),
+                        estado_fiscal: data.factura_electronica ? 'PENDIENTE_GESTION_PROVEEDOR' : 'NO_APLICA'
                     });
-
-
-                    const notaRef = doc(collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Notas_Credito_POS`));
-                    batch.set(notaRef, {
-                        ticket_origen_id: ticketId,
-                        total_revertido: ventaData.total,
-                        metodo_pago: ventaData.metodo_pago,
-                        productos: productosARevertir,
-                        motivo: motivoAnulacion,
-                        fecha: new Date().toISOString()
-                    });
-
-                    await batch.commit();
+                    return data;
+                });
+                // Refrescar cachés solo después de confirmar la reversión en servidor.
+                const clave = `geokatu_catalogo_${idNegocio}`;
+                const catalogo = JSON.parse(localStorage.getItem(clave) || '[]');
+                const claveUbis = `geokatu_stock_ubis_${idNegocio}`;
+                const ubicaciones = JSON.parse(localStorage.getItem(claveUbis) || '[]');
+                for (const item of venta.productos || []) {
+                    const prod = catalogo.find(p => p.id_prod === item.id_prod);
+                    if (prod) prod.stock_actual = Number((Number(prod.stock_actual || 0) + Number(item.cantidad)).toFixed(3));
+                    const desglose = item.desglose_ubicaciones?.length ? item.desglose_ubicaciones : (item.id_compartimiento ? [{ id_compartimiento: item.id_compartimiento, cantidad: item.cantidad }] : []);
+                    for (const des of desglose) {
+                        const ub = ubicaciones.find(u => u.id_prod === item.id_prod && u.id_compartimiento === des.id_compartimiento);
+                        if (ub) ub.cantidad = Number((Number(ub.cantidad) + Number(des.cantidad)).toFixed(3));
+                    }
                 }
-
-                return { 
-                    success: true, 
-                    mensaje: `Ticket ${ticketId} anulado exitosamente. Se restituyó el inventario.`,
-                    productosRevertidos: productosARevertir,
-                    totalRevertido: ventaData ? ventaData.total : 0
-                };
-            } catch (e) {
-                console.error("[POS] Error al anular venta:", e);
-                return { success: false, error: e.message };
-            }
+                localStorage.setItem(clave, JSON.stringify(catalogo));
+                localStorage.setItem(claveUbis, JSON.stringify(ubicaciones));
+                return { success: true, mensaje: 'Venta anulada e inventario restituido.' + (venta.factura_electronica ? ' La nota fiscal debe gestionarse con el proveedor.' : ''), totalRevertido: venta.total, productosRevertidos: venta.productos, ventaOriginal: venta };
+            } catch (error) { return { success: false, error: error.message }; }
         },
 
         obtenerEstadoCajaActual: async (idNegocio, terminalId = "CAJA-01") => {
@@ -4290,12 +4266,20 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                 }
             };
 
+            const claveCierres = `geokatu_cierres_cola_${idNegocio}`;
+            const pendientes = JSON.parse(localStorage.getItem(claveCierres) || '[]');
+            if (!pendientes.some(c => c.id_sesion === payloadCierre.id_sesion)) pendientes.push(payloadCierre);
+            try {
+                localStorage.setItem(claveCierres, JSON.stringify(pendientes));
+            } catch (error) {
+                return { success: false, error: 'No se pudo conservar el cierre: ' + error.message };
+            }
             localStorage.removeItem(claveStorage);
 
             try {
                 if (navigator.onLine) {
-                    const batch = writeBatch(db);
-                    const arqueoRef = doc(collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Cierres_Z`));
+                    const arqueoRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Cierres_Z`, payloadCierre.id_sesion);
+                    const batch = crearLoteIdempotente(db, arqueoRef, runTransaction);
                     batch.set(arqueoRef, payloadCierre);
 
                     // Sellar específicamente la terminal activa sin tocar las demás cajas
@@ -4303,12 +4287,37 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                     batch.set(turnoActualRef, { estado: "CERRADA", ultimo_cierre: payloadCierre.fecha_cierre, terminal_id: terminalId });
 
                     await batch.commit();
+                    quitarConfirmados(localStorage, claveCierres, [payloadCierre.id_sesion], 'id_sesion');
                 }
-                return { success: true, cierre: payloadCierre };
+                return { success: true, cierre: payloadCierre, offline: !navigator.onLine };
             } catch (e) {
                 return { success: true, cierre: payloadCierre, offline: true };
             }
+        },
+        sincronizarCierresPendientes: async (idNegocio) => {
+            if (!navigator.onLine || !_verificarAcceso()) return { sincronizados: 0 };
+            const clave = `geokatu_cierres_cola_${idNegocio}`;
+            let sincronizados = 0;
+            for (const cierre of JSON.parse(localStorage.getItem(clave) || '[]')) {
+                try {
+                    const ref = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Cierres_Z`, cierre.id_sesion);
+                    const turnoRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Sesiones_Caja`, `Turno_${cierre.terminal_id}`);
+                    await runTransaction(db, async tx => {
+                        const previo = await tx.get(ref);
+                        const turno = await tx.get(turnoRef);
+                        if (previo.exists()) return;
+                        tx.set(ref, cierre);
+                        if (turno.exists() && turno.data().id_sesion === cierre.id_sesion) {
+                            tx.update(turnoRef, { estado: 'CERRADA', ultimo_cierre: cierre.fecha_cierre });
+                        }
+                    });
+                    quitarConfirmados(localStorage, clave, [cierre.id_sesion], 'id_sesion');
+                    sincronizados++;
+                } catch (error) { console.warn('[Cierre pendiente]', error.message); }
+            }
+            return { sincronizados };
         }
+
     },
 
     /**
@@ -4592,6 +4601,17 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
 // ==========================================
 // EXPORTACIÓN ESTRICTA (Singleton)
 // ==========================================
+// Las colas pertenecen al comercio activo. Cada recibo protege los reintentos.
+GeokatuDB.sincronizarPendientesOperativos = async (idNegocio) => {
+    if (!idNegocio || !navigator.onLine) return;
+    await GeokatuDB.InventarioService.sincronizarMovimientosPendientes(idNegocio);
+    await GeokatuDB.PosService.sincronizarVentasPendientes(idNegocio);
+    await GeokatuDB.PosService.sincronizarCierresPendientes(idNegocio);
+};
+window.addEventListener('online', () => {
+    GeokatuDB.sincronizarPendientesOperativos(localStorage.getItem('geokatu_active_uid'))
+        .catch(error => console.warn('[Sincronización pendiente]', error.message));
+});
 export default GeokatuDB;
 
 

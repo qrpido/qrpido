@@ -1034,11 +1034,7 @@ document.getElementById('btn-ejecutar-accion-contextual').addEventListener('clic
             tipoKardex = 'TRASLADO_INTERNO';
         }
 
-        prod.stock_actual = nuevoStock;
-        prod.agotado = (nuevoStock <= 0);
-        localStorage.setItem('geokatu_catalogo_' + idNegocio, JSON.stringify(catalogoLocal));
-
-        await GeokatuDB.InventarioService.registrarMovimientoFisico(
+        const resultadoMovimiento = await GeokatuDB.InventarioService.registrarMovimientoFisico(
             prod.id_prod,
             modoAccionFicha === 'ANADIR' ? 'PROVEEDOR' : (ubicacionCascada.idCompartimiento || 'BODEGA_GENERAL'),
             modoAccionFicha === 'QUITAR' ? ('BAJA_' + document.getElementById('select-causa-quitar').value) : (ubicacionCascada.idCompartimiento || 'PISO_VENTA'),
@@ -1055,7 +1051,12 @@ document.getElementById('btn-ejecutar-accion-contextual').addEventListener('clic
             }
         );
 
-        // Actualizar mapa local de ubicaciones en 0 ms para reflejar la góndola al instante
+        if (!resultadoMovimiento.success) throw new Error(resultadoMovimiento.error || 'Movimiento rechazado');
+        const actualizado = GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio).find(p => p.id_prod === prod.id_prod);
+        if (actualizado) Object.assign(prod, actualizado);
+        prod.agotado = Number(prod.stock_actual) <= 0;
+
+        // Actualizar mapa local de ubicaciones después de conservar el movimiento.
         const claveUbis = 'geokatu_stock_ubis_' + idNegocio;
         let ubisLocales = JSON.parse(localStorage.getItem(claveUbis) || '[]');
         const idCompTarget = ubicacionCascada.idCompartimiento || (modoAccionFicha === 'UBICAR' ? 'BIN_INICIAL' : null);
@@ -1065,9 +1066,9 @@ document.getElementById('btn-ejecutar-accion-contextual').addEventListener('clic
                 if (regUbi) regUbi.cantidad = Number((Number(regUbi.cantidad) + cantidadAplicar).toFixed(3));
                 else ubisLocales.push({ id_prod: prod.id_prod, id_estante: ubicacionCascada.idEstante || 'GENERAL', id_compartimiento: idCompTarget, cantidad: cantidadAplicar, zona: ubicacionCascada.zona || 'PISO_VENTA', ultima_modificacion: new Date().toISOString() });
             } else if (modoAccionFicha === 'QUITAR' && regUbi) {
-                regUbi.cantidad = Math.max(0, Number((Number(regUbi.cantidad) - cantidadAplicar).toFixed(3)));
+                regUbi.cantidad = Number((Number(regUbi.cantidad) - cantidadAplicar).toFixed(3));
             } else if (modoAccionFicha === 'UBICAR') {
-                if (regUbi) regUbi.cantidad = cantidadAplicar;
+                if (regUbi) regUbi.cantidad = Number((Number(regUbi.cantidad) + cantidadAplicar).toFixed(3));
                 else ubisLocales.push({ id_prod: prod.id_prod, id_estante: ubicacionCascada.idEstante || 'GENERAL', id_compartimiento: idCompTarget, cantidad: cantidadAplicar, zona: ubicacionCascada.zona || 'PISO_VENTA', ultima_modificacion: new Date().toISOString() });
             }
             localStorage.setItem(claveUbis, JSON.stringify(ubisLocales));
@@ -1214,6 +1215,7 @@ async function procesarMovimientoStock(codigoRaw, origenHardware) {
 
                 // Sellado criptografico de la terminal
                 await GeokatuDB.SecurityService.sellarSesionTerminalLocal(contexto.idNegocio);
+        GeokatuDB.sincronizarPendientesOperativos(contexto.idNegocio).catch(error => console.warn('[Sincronización pendiente]', error.message));
 
                 // Montar interfaz operativa
                 document.getElementById('app-terminal').style.display = 'flex';
