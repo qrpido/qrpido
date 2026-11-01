@@ -590,6 +590,69 @@ window.limpiarDespieceWeb = function() {
     mostrarToast("Bandejas vaciadas.", "info");
 };
 
+// Permite subir fotos de carteles de la calle o capturas de galería directamente a la bandeja de Despiece y Estudio 2D
+window.cargarArchivosLocalesEnDespiece = async function(files) {
+    if (!files || files.length === 0) return;
+    const urls = [];
+    for (let i = 0; i < files.length; i++) {
+        urls.push(URL.createObjectURL(files[i]));
+    }
+    incorporarMiniaturasDespiece(urls);
+    emitirTono('EXITO');
+    // Si subió una sola foto (ej. foto del cartel de la calle), la abre de inmediato en el Estudio 2D
+    if (urls.length === 1) {
+        const ultimoItem = coleccionImagenesDespiece[coleccionImagenesDespiece.length - 1];
+        if (ultimoItem) window.abrirEstudioCanvas(ultimoItem.id);
+    } else {
+        mostrarToast(urls.length + " fotos cargadas en la cola de Estudio 2D.", "exito");
+    }
+};
+
+// Abre un archivo recién elegido en cualquiera de los 4 slots superiores directamente en el Estudio 2D con su rol asignado
+window.abrirArchivoDirectoEnEstudioConRol = async function(file, rolDestino) {
+    if (!file) return;
+    const localUrl = URL.createObjectURL(file);
+    incorporarMiniaturasDespiece([localUrl]);
+    const item = coleccionImagenesDespiece.find(function(i) { return i.url === localUrl; });
+    if (item) {
+        window.abrirEstudioCanvas(item.id);
+        const selectRol = document.getElementById('estudio-destino-rol');
+        if (selectRol) selectRol.value = rolDestino;
+        window.cambiarRolDestinoEstudio(rolDestino);
+    }
+};
+
+// Permite re-abrir en el Estudio 2D la imagen que ya está cargada en cualquiera de los 4 slots superiores
+window.editarSlotIdentidadEnEstudio = function(campo) {
+    const comercio = AppState.comercioActivo;
+    if (!comercio) {
+        mostrarToast("Abre primero el comercio en el Drawer.", "error");
+        return;
+    }
+    const urlActual = comercio[campo] || (campo === 'logo_nombre' ? comercio.nombre_png : '');
+    if (!urlActual || urlActual.length < 5) {
+        // Si el slot está vacío, abre el selector de archivos de ese slot
+        const mapInput = {
+            logo: 'input-branding-logo',
+            portada: 'input-branding-portada',
+            link_pin: 'input-branding-pin',
+            logo_nombre: 'input-branding-logonombre'
+        };
+        const inEl = document.getElementById(mapInput[campo]);
+        if (inEl) inEl.click();
+        return;
+    }
+    incorporarMiniaturasDespiece([urlActual]);
+    const item = coleccionImagenesDespiece.find(function(i) { return i.url === urlActual || i.dataUrlActual === urlActual; });
+    if (item) {
+        window.abrirEstudioCanvas(item.id);
+        const selectRol = document.getElementById('estudio-destino-rol');
+        if (selectRol) selectRol.value = campo;
+        window.cambiarRolDestinoEstudio(campo);
+    }
+};
+
+
 // =========================================================================
 // ESTUDIO CANVAS 2D EN CLIENTE (VANILLA JS PURO)
 // =========================================================================
@@ -1316,33 +1379,36 @@ window.acoplarImagenEditadaAProducto = async function() {
         subirFotoAStorageEnSegundoPlano(nuevoSKU, AppState.comercioActivo.id);
 
         mostrarToast('Producto "' + nombreFinal + '" acoplado al catalogo.', 'exito');
-    } else {
+       } else {
         const campo = rolSeleccionadoEstudio;
-        AppState.comercioActivo[campo] = previewUrl;
+        const dataUrlSegura = window.blobADataURL ? await window.blobADataURL(blobWebp) : previewUrl;
+        AppState.comercioActivo[campo] = dataUrlSegura;
+        if (campo === 'logo_nombre') AppState.comercioActivo.nombre_png = dataUrlSegura;
         actualizarPreviewsIdentidadUI();
-       if (campo === 'link_pin' || campo === 'logo') {
+        if (campo === 'link_pin' || campo === 'logo') {
             actualizarPinDrawerLive();
         }
-        subirFotoIdentidadStorage(blobWebp, campo, AppState.comercioActivo.id).then(function(urlSubida) {
-            if (urlSubida && AppState.comercioActivo) {
-                AppState.comercioActivo[campo] = urlSubida;
-                AppState.guardarColaLocal();
-            }
-        });
-        AppState.guardarColaLocal();
-        mostrarToast('Identidad "' + campo + '" actualizada con éxito.', 'exito');
-
+        mostrarToast('Subiendo "' + campo + '" a Firebase Storage...', 'info', 2000);
+        const urlSubida = await subirFotoIdentidadStorage(blobWebp, campo, AppState.comercioActivo.id);
+        if (urlSubida && AppState.comercioActivo) {
+            AppState.comercioActivo[campo] = urlSubida;
+            if (campo === 'logo_nombre') AppState.comercioActivo.nombre_png = urlSubida;
+            AppState.guardarColaLocal();
+            mostrarToast('Identidad "' + campo + '" subida al servidor con éxito.', 'exito');
+        } else {
+            AppState.guardarColaLocal();
+            mostrarToast('Identidad "' + campo + '" guardada en cola local (se subirá al inyectar).', 'info');
+        }
     }
-
     if (indiceActualEstudio !== -1 && coleccionImagenesDespiece[indiceActualEstudio]) {
         coleccionImagenesDespiece[indiceActualEstudio].dataUrlActual = previewUrl;
         const thumb = document.getElementById('thumb-extraida-' + indiceActualEstudio);
         if (thumb) thumb.src = previewUrl;
     }
-
     emitirTono('EXITO');
     cerrarEstudioCanvas();
 };
+
 
 
 

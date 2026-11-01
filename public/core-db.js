@@ -337,8 +337,7 @@ export const DirectorioMatrizService = {
                 txWrite.oncomplete = () => res();
                 txWrite.onerror = (e) => rej(e.target.error);
             });
-            localStorage.setItem('geokatu_matriz_timestamp', new Date().toISOString());
-            return { success: true, count: comercios.length };
+                       return { success: true, count: comercios.length };
         } catch (err) {
             console.warn('[DirectorioMatriz] Error durante inicializacion:', err.message);
             return { success: false, error: err.message };
@@ -347,22 +346,20 @@ export const DirectorioMatrizService = {
     async sincronizarDeltaNube(timestampUltimoCorte, onNuevoComercioCallback) {
         if (!navigator.onLine) return;
         try {
-            const fechaCorteISO = timestampUltimoCorte || new Date(Date.now() - 86400000).toISOString();
-            const q = query(
-                collection(db, "Directorio"),
-                where("estado_moderacion", "==", "aprobado"),
-                where("fecha_actualizacion", ">", fechaCorteISO)
-            );
+            const q = query(collection(db, "Directorio"), limit(500));
             return onSnapshot(q, (snapshot) => {
                 snapshot.docChanges().forEach((change) => {
                     if (change.type === "added" || change.type === "modified") {
-                        const data = change.doc.data();
+                        const data = change.doc.data() || {};
+                        if (data.estado_moderacion === "rechazado") return;
+                        const lat = (data.Coordenadas && data.Coordenadas.latitude) ? Number(data.Coordenadas.latitude) : (Number(data.lat) || 4.81333);
+                        const lng = (data.Coordenadas && data.Coordenadas.longitude) ? Number(data.Coordenadas.longitude) : (Number(data.lng) || -75.69611);
                         const comercioFormateado = {
                             id: change.doc.id,
                             n: data.nombre || "Comercio Aliado",
                             s: (data.slogan || "").substring(0, 70),
                             c: data.nicho || data.categoria || "General",
-                            g: [data.lat || 4.81333, data.lng || -75.69611],
+                            g: [lat, lng],
                             p: data.pin_pack || "forma-gota|anim-salto",
                             b: [data.color_principal || "#ff6b00", data.color_acento || "#8a909d", data.color_terciario || "#ffffff", data.color_cuaternario || "#0a0a0c"],
                             l: data.logo || "",
@@ -379,17 +376,19 @@ export const DirectorioMatrizService = {
                         abrirDBDirectorio().then((dbInstance) => {
                             const tx = dbInstance.transaction(STORE_DIR, 'readwrite');
                             tx.objectStore(STORE_DIR).put(comercioFormateado);
-                        });
+                        }).catch(() => {});
                         if (typeof onNuevoComercioCallback === 'function') {
                             onNuevoComercioCallback(comercioFormateado);
                         }
                     }
                 });
+                localStorage.setItem('geokatu_matriz_timestamp', new Date().toISOString());
             });
         } catch (err) {
             console.warn("[Directorio Delta] Sincronizacion omitida:", err.message);
         }
     },
+
     async obtenerTodosComercios() {
         try {
             const dbInstance = await abrirDBDirectorio();
@@ -1436,10 +1435,10 @@ obtenerContactoComercio: async (idNegocio) => {
             }
         },
 
-        // =========================================================================
+                                // =========================================================================
         // PIPELINE DE COMPRESIÓN CLIENT-SIDE Y NOMENCLATURA CANÓNICA
         // =========================================================================
-        comprimirAWebP: function(archivo, maxDim = 800, calidad = 0.75, forzarCuadrado = true) {
+        comprimirAWebP: function(archivo, maxDim = 800, calidad = 0.75, forzarCuadrado = true, preservarTransparencia = false) {
             return new Promise((resolve, reject) => {
                 if (!archivo) return resolve(null);
                 const reader = new FileReader();
@@ -1449,7 +1448,6 @@ obtenerContactoComercio: async (idNegocio) => {
                         let w = img.width;
                         let h = img.height;
                         let sx = 0, sy = 0, sw = w, sh = h;
-
                         if (forzarCuadrado) {
                             const minSide = Math.min(w, h);
                             sx = (w - minSide) / 2;
@@ -1459,18 +1457,22 @@ obtenerContactoComercio: async (idNegocio) => {
                             w = minSide;
                             h = minSide;
                         }
-
                         if (w > maxDim) {
                             h = Math.round((h * maxDim) / w);
                             w = maxDim;
                         }
-
                         const canvas = document.createElement('canvas');
                         canvas.width = w;
                         canvas.height = h;
                         const ctx = canvas.getContext('2d');
+                        if (preservarTransparencia) {
+                            ctx.clearRect(0, 0, w, h);
+                        } else {
+                            ctx.fillStyle = '#FFFFFF';
+                            ctx.fillRect(0, 0, w, h);
+                        }
                         ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
-
+                        
                         canvas.toBlob((blob) => {
                             if (!blob) return resolve(archivo);
                             resolve(blob);
@@ -1483,13 +1485,14 @@ obtenerContactoComercio: async (idNegocio) => {
                 reader.readAsDataURL(archivo);
             });
         },
-
         subirFotoProductoCanonica: async function(idNegocio, codigoBarras, archivoOriginal, vista = 'frontal') {
             try {
                 if (!archivoOriginal) return { success: false, error: "No se proporciono archivo" };
-                const uidOwner = (auth.currentUser && auth.currentUser.uid) 
-                    ? auth.currentUser.uid 
-                    : (idNegocio || localStorage.getItem('geokatu_active_uid'));
+                const uidOwner = idNegocio 
+                    || localStorage.getItem('geokatu_active_uid') 
+                    || (auth.currentUser && auth.currentUser.uid);
+
+
                 if (!uidOwner) {
                     throw new Error("No hay una sesion de comercio valida para autenticar la subida.");
                 }
@@ -1996,9 +1999,17 @@ obtenerContactoComercio: async (idNegocio) => {
                             const temp = lat; lat = lng; lng = temp;
                         }
 
-                        // Respaldo de seguridad en centroide de Pereira si no hay coordenadas válidas
-                        lat = (typeof lat === 'number' && !isNaN(lat)) ? Number(lat.toFixed(6)) : 4.81333;
-                        lng = (typeof lng === 'number' && !isNaN(lng)) ? Number(lng.toFixed(6)) : -75.69611;
+                        if (typeof lat !== 'number' || isNaN(lat) || typeof lng !== 'number' || isNaN(lng)) {
+    console.warn("[OneShot] Comercio omitido por carecer de coordenadas reales:", item.id, item.nombre);
+    return;
+}
+if (Math.abs(lat - 4.81333) < 0.000015 && Math.abs(lng - (-75.69611)) < 0.000015) {
+    console.warn("[OneShot] Comercio omitido por tener coordenada por defecto sin posicionar:", item.id, item.nombre);
+    return;
+}
+lat = Number(lat.toFixed(6));
+lng = Number(lng.toFixed(6));
+
 
 
                         // Cálculo nativo del Geohash espacial mediante geofire
@@ -2151,27 +2162,87 @@ obtenerContactoComercio: async (idNegocio) => {
             }
         },
 
+                // =========================================================================
+        // 🔗 BÓVEDA PERSISTENTE DEL ENLACE APPSCRIPT (SOBREVIVE AL BORRADO DE CACHÉ)
         // =========================================================================
-        // 🔍 CONSULTA DIRECTA DE COMERCIOS EN FIRESTORE (CENTRAL DE ADMINISTRACIÓN)
+        guardarEnlaceAppScriptOnboarding: async (urlAppScript) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+            const urlLimpia = String(urlAppScript || "").trim();
+            if (!urlLimpia || urlLimpia.indexOf("https://script.google.com/") !== 0) {
+                return { success: false, error: "El enlace debe ser una URL válida de Google Apps Script." };
+            }
+            try {
+                localStorage.setItem("geokatu_apps_script_url", urlLimpia);
+                localStorage.setItem("geokatu_appscript_url", urlLimpia);
+                await setDoc(doc(db, "Sistema", "Configuracion"), {
+                    url_appscript_onboarding: urlLimpia,
+                    ultima_actualizacion_appscript: new Date().toISOString(),
+                    actualizado_por: auth.currentUser ? auth.currentUser.email : "SUPERADMIN"
+                }, { merge: true });
+                return { success: true, url: urlLimpia };
+            } catch (err) {
+                return { success: false, error: err.message };
+            }
+        },
+        obtenerEnlaceAppScriptOnboarding: async () => {
+            try {
+                if (navigator.onLine) {
+                    const docSnap = await getDoc(doc(db, "Sistema", "Configuracion"));
+                    if (docSnap.exists() && docSnap.data().url_appscript_onboarding) {
+                        const urlNube = String(docSnap.data().url_appscript_onboarding).trim();
+                        localStorage.setItem("geokatu_apps_script_url", urlNube);
+                        localStorage.setItem("geokatu_appscript_url", urlNube);
+                        return { success: true, url: urlNube, origen: "nube" };
+                    }
+                }
+                const urlLocal = localStorage.getItem("geokatu_apps_script_url") || localStorage.getItem("geokatu_appscript_url") || "";
+                return { success: true, url: urlLocal, origen: "local" };
+            } catch (err) {
+                const urlLocal = localStorage.getItem("geokatu_apps_script_url") || localStorage.getItem("geokatu_appscript_url") || "";
+                return { success: true, url: urlLocal, origen: "fallback_local", error: err.message };
+            }
+        },
         // =========================================================================
-        buscarComerciosDirectorio: async (criterioBusqueda = "", maxRegistros = 50) => {
+        // 🔍 CONSULTA DIRECTA DE COMERCIOS EN FIRESTORE (SEPARADOS EN LIBRES Y TOMADOS)
+        // =========================================================================
+        buscarComerciosDirectorio: async (criterioBusqueda = "", maxRegistros = 500) => {
             if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
             try {
                 const qSnap = await getDocs(query(collection(db, _SCHEMA.ColeccionDirectorio), limit(maxRegistros)));
-                const resultados = [];
+                const todos = [];
+                const libres = [];
+                const tomados = [];
                 const busquedaClean = String(criterioBusqueda).toLowerCase().trim();
-
                 qSnap.forEach(d => {
                     const data = d.data();
-                    const textoIndex = `${d.id} ${data.nombre || ''} ${data.direccion || ''} ${data.whatsapp || ''} ${data.owner_email || ''}`.toLowerCase();
-                    if (!busquedaClean || textoIndex.includes(busquedaClean)) {
-                        resultados.push({ id: d.id, ...data });
+                    const textoIndex = (d.id + " " + (data.nombre || "") + " " + (data.nicho || "") + " " + (data.direccion || "") + " " + (data.whatsapp || "") + " " + (data.owner_email || "")).toLowerCase();
+                    if (!busquedaClean || textoIndex.indexOf(busquedaClean) !== -1) {
+                        const tieneDueno = Boolean(
+                            data.reclamado === true ||
+                            data.dueno_registrado === true ||
+                            (data.uid_dueno && String(data.uid_dueno).trim().length > 5) ||
+                            (data.owner_email && String(data.owner_email).trim().indexOf("@") !== -1)
+                        );
+                        const itemNormalizado = {
+                            id: d.id,
+                            ...data,
+                            esta_tomado: tieneDueno,
+                            editable_en_onboarding: !tieneDueno
+                        };
+                        todos.push(itemNormalizado);
+                        if (tieneDueno) tomados.push(itemNormalizado);
+                        else libres.push(itemNormalizado);
                     }
                 });
-
-                return { success: true, data: resultados };
+                return {
+                    success: true,
+                    data: todos,
+                    libres: libres,
+                    tomados: tomados,
+                    totales: { todos: todos.length, libres: libres.length, tomados: tomados.length }
+                };
             } catch (err) {
-                return { success: false, error: err.message };
+                return { success: false, error: err.message, data: [], libres: [], tomados: [] };
             }
         }
     },
@@ -2454,11 +2525,10 @@ obtenerContactoComercio: async (idNegocio) => {
             };
         },
 
-                buscarEnRadar: async (lat, lng, radiusInM) => {
+                       buscarEnRadar: async (lat, lng, radiusInM) => {
             if (!db || typeof geofire === 'undefined') return { success: false, error: 'Firebase o GeofireX no listos' };
             try {
-                // geofire-common requiere el radio en METROS. Aseguramos minimo 3000 metros de radar
-                const radioEnMetros = Math.max(3000, Number(radiusInM) || 3000);
+                const radioEnMetros = Math.max(5000, Number(radiusInM) || 5000);
                 const bounds = geofire.geohashQueryBounds([lat, lng], radioEnMetros);
                 const promises = [];
                 for (const b of bounds) {
@@ -2470,16 +2540,22 @@ obtenerContactoComercio: async (idNegocio) => {
                     );
                     promises.push(getDocs(q));
                 }
+                // Consulta adicional directa para rescatar comercios de Onboarding que tengan geohash vacío
+                promises.push(getDocs(query(collection(db, _SCHEMA.ColeccionDirectorio), limit(300))));
+
                 const snapshots = await Promise.all(promises);
-                const matchingDocs = [];
+                const mapaUnico = new Map();
                 for (const snap of snapshots) {
-                    for (const doc of snap.docs) {
-                        matchingDocs.push({ id: doc.id, ...doc.data() });
+                    for (const d of snap.docs) {
+                        if (!mapaUnico.has(d.id)) {
+                            mapaUnico.set(d.id, { id: d.id, ...d.data() });
+                        }
                     }
                 }
-                return { success: true, data: matchingDocs };
+                return { success: true, data: Array.from(mapaUnico.values()) };
             } catch (e) { return { success: false, error: e.message }; }
         },
+
       buscarInmueblesEnRadar: async (lat, lng, radiusInM) => {
             if (!db || typeof geofire === 'undefined') return { success: false, error: 'Firebase o GeofireX no listos' };
             try {
@@ -4593,6 +4669,8 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
 // EXPORTACIÓN ESTRICTA (Singleton)
 // ==========================================
 export default GeokatuDB;
+
+
 
 
 

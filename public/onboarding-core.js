@@ -23,13 +23,39 @@ let vistaActualTablero = 'radar';
 let superadminAutorizado = false;
 
 export const AppState = {
-    get comercioActivo() { return comercioActivoParaCatalogo; },
-    set comercioActivo(val) { comercioActivoParaCatalogo = val; },
+    get comercioActivo() {
+        if (comercioActivoParaCatalogo) return comercioActivoParaCatalogo;
+        if (window.__gkComercioActivo) {
+            comercioActivoParaCatalogo = window.__gkComercioActivo;
+            return comercioActivoParaCatalogo;
+        }
+        // Auto-recuperacion desde el DOM si el Drawer esta visible en pantalla
+        const drawer = document.getElementById('drawer-catalogo-comercio');
+        const txtId = document.getElementById('drawer-comercio-id');
+        if (drawer && drawer.classList.contains('activo') && txtId) {
+            const idExtraido = (txtId.innerText || '').replace('ID:', '').trim();
+            if (idExtraido && idExtraido !== '---') {
+                const encontrado = listaComercios.find(function(c) { return String(c.id) === idExtraido; });
+                if (encontrado) {
+                    comercioActivoParaCatalogo = encontrado;
+                    window.__gkComercioActivo = encontrado;
+                    return encontrado;
+                }
+            }
+        }
+        return null;
+    },
+    set comercioActivo(val) {
+        comercioActivoParaCatalogo = val;
+        window.__gkComercioActivo = val;
+    },
     get listaComercios() { return listaComercios; },
     guardarColaLocal: function() {
         localStorage.setItem('geokatu_onboarding_cola', JSON.stringify(listaComercios));
     }
 };
+window.AppState = AppState;
+
 
 // =========================================================================
 // SINTETIZADOR DE AUDIO (WEB AUDIO API NATIVO - CERO LATENCIA)
@@ -183,25 +209,6 @@ export function iniciarEnjambreSiAutorizado() {
 }
 window.iniciarEnjambreSiAutorizado = iniciarEnjambreSiAutorizado;
 
-// =========================================================================
-// MATRIZ GLOBAL INDEXEDDB (KPI BARCODE DEL HUD)
-// =========================================================================
-export async function inicializarMatrizGlobalUI() {
-    const badge = document.getElementById('kpi-skus-matriz');
-    try {
-        if (GeokatuDB && GeokatuDB.CatalogoMatrizService) {
-            const res = await GeokatuDB.CatalogoMatrizService.inicializarMatriz();
-            if (res && res.success) {
-                if (badge) badge.innerText = (res.count || 0).toLocaleString('es-CO') + ' SKUs (0 ms)';
-                return;
-            }
-        }
-        if (badge) badge.innerText = 'Matriz Lista';
-    } catch (e) {
-        if (badge) badge.innerText = 'Modo Local';
-    }
-}
-window.inicializarMatrizGlobalUI = inicializarMatrizGlobalUI;
 
 // =========================================================================
 // SUBIDA MASIVA ONESHOT (BOTÓN DEL HEADER DEL HTML)
@@ -269,13 +276,15 @@ GeokatuDB.SecurityService.observarEstadoSesion(async function(user) {
                     badgeSuper.style.display = 'inline-flex';
                     badgeSuper.title = 'Operando como: ' + user.email;
                 }
-                if (btnLogout) btnLogout.style.display = 'inline-flex';
-
+                                if (btnLogout) btnLogout.style.display = 'inline-flex';
+                await window.hidratarComerciosDesdeServidor(false);
                 actualizarDatalistNichos();
                 renderizarTablero();
                 actualizarHUD();
                 iniciarEnjambreSiAutorizado();
+
             } else {
+
                 superadminAutorizado = false;
                 if (panelVerificando) panelVerificando.style.display = 'none';
                 if (gate) gate.style.display = 'flex';
@@ -1198,6 +1207,7 @@ window.seleccionarCuarzoDrawer = function(tema) {
     }, 40);
 };
 
+
 window.confirmarColorSeleccionado = function() {
     const inputEl = document.getElementById('input-hex-manual');
     let hex = inputEl ? inputEl.value.replace('#', '').trim() : '';
@@ -1225,6 +1235,7 @@ window.sincronizarColorDesdeHex = function(valorIngresado) {
         if (inputHex) inputHex.style.borderColor = '#ff4444';
     }
 };
+
 
 
 
@@ -1341,8 +1352,8 @@ export function inicializarEventosRueda() {
             puntero.style.top = (y + maxRadio) + 'px';
         }
 
-        l// Calibracion exacta 1:1 con conic-gradient(from 90deg): 0 grados (Rojo) a las 3 en punto
-        let angle = Math.atan2(y, x) * (180 / Math.PI);
+        // Calibracion exacta 1:1 con conic-gradient(from 90deg): 0 grados (Rojo) a las 3 en punto
+               let angle = Math.atan2(y, x) * (180 / Math.PI);
         if (angle < 0) angle += 360;
         window.estadoColorCustom.h = Math.round(angle);
         window.estadoColorCustom.l_base = 100 - ((radio / maxRadio) * 50); 
@@ -1363,6 +1374,7 @@ export function inicializarEventosRueda() {
             aplicarColorASlot(window.slotColorActual, hex);
         }
     };
+
 
 
     rueda.addEventListener('mousedown', function(e) { draggingWheel = true; calcularColorRueda(e); });
@@ -1432,15 +1444,199 @@ export function actualizarDatalistNichos() {
 window.actualizarDatalistNichos = actualizarDatalistNichos;
 
 // =========================================================================
-// RENDERIZADOR DEL TABLERO KANBAN
+// RENDERIZADOR DEL TABLERO KANBAN Y DESCARGA DIRECTA DEL SERVIDOR FIRESTORE
 // =========================================================================
-window.cambiarVistaTablero = function(vista) {
+let subVistaTodosActual = 'libres'; // 'libres' (No tomados, 100% editables) | 'tomados' (Gris, solo lectura)
+
+export function esComercioTomado(c) {
+    if (!c) return false;
+    return Boolean(
+        c.reclamado === true ||
+        c.dueno_registrado === true ||
+        (c.uid_dueno && String(c.uid_dueno).trim().length > 5) ||
+        (c.owner_email && String(c.owner_email).trim().indexOf('@') !== -1)
+    );
+}
+window.esComercioTomado = esComercioTomado;
+
+// Descarga directamente desde la coleccion Directorio de Firestore todos los comercios ya inscritos
+window.hidratarComerciosDesdeServidor = async function(mostrarAviso) {
+    if (!navigator.onLine) {
+        if (mostrarAviso) mostrarToast("Sin conexión a internet para consultar el servidor.", "error");
+        return;
+    }
+    try {
+        if (mostrarAviso) mostrarToast("Descargando comercios inscritos en Firestore...", "info", 2000);
+        const snapDir = await getDocs(collection(db, "Directorio"));
+        let totalServidor = 0;
+        let libresCount = 0;
+        let tomadosCount = 0;
+
+        snapDir.forEach(function(docSnap) {
+            const data = docSnap.data() || {};
+            const idDoc = docSnap.id;
+            totalServidor++;
+
+            const latR = (data.Coordenadas && data.Coordenadas.latitude) ? data.Coordenadas.latitude : (data.lat || 4.81333);
+            const lngR = (data.Coordenadas && data.Coordenadas.longitude) ? data.Coordenadas.longitude : (data.lng || -75.69611);
+            const tomado = esComercioTomado(data);
+            if (tomado) tomadosCount++;
+            else libresCount++;
+
+            const fonoWa = data.whatsapp || data.whatsApp || (Array.isArray(data.telefonos) ? data.telefonos.join(' | ') : '');
+            const idxLocal = listaComercios.findIndex(function(loc) { return String(loc.id) === String(idDoc); });
+
+            if (idxLocal === -1) {
+                listaComercios.push({
+                    ...data,
+                    id: idDoc,
+                    nombre: data.nombre || "Comercio " + idDoc,
+                    nicho: data.nicho || data.categoria || "General",
+                    categoria: data.nicho || data.categoria || "General",
+                    direccion: data.direccion || "",
+                    horario: data.horario || "",
+                    pbx: data.pbx || "",
+                    correo: data.correo || data.email || "",
+                    instagram: data.instagram || "",
+                    web: data.web || data.sitio_web || "",
+                    sitio_web: data.sitio_web || data.web || "",
+                    whatsapp: fonoWa,
+                    lat: latR,
+                    lng: lngR,
+                    coordenada_validada: latR + ', ' + lngR,
+                    logo: data.logo || "",
+                    portada: data.portada || "",
+                    link_pin: data.link_pin || "",
+                    logo_nombre: data.logo_nombre || data.nombre_png || "",
+                    nombre_png: data.nombre_png || data.logo_nombre || "",
+                    pin_pack: data.pin_pack || "forma-gota|anim-salto",
+                    tema_popup: data.tema_popup || "carbon",
+                    color_principal: data.color_principal || "#ff6b00",
+                    color_acento: data.color_acento || "#8a909d",
+                    color_terciario: data.color_terciario || "#ffffff",
+                    reclamado: tomado,
+                    esta_tomado: tomado,
+                    capturado: true,
+                    validado: true,
+                    subido: true,
+                    archivado: false,
+                    minimizado: false,
+                    catalogo: []
+                });
+            } else {
+                const loc = listaComercios[idxLocal];
+                loc.nombre = data.nombre || loc.nombre;
+                loc.nicho = data.nicho || data.categoria || loc.nicho || "General";
+                loc.categoria = loc.nicho;
+                loc.direccion = data.direccion || loc.direccion || "";
+                loc.horario = data.horario || loc.horario || "";
+                loc.pbx = data.pbx || loc.pbx || "";
+                loc.correo = data.correo || data.email || loc.correo || "";
+                loc.instagram = data.instagram || loc.instagram || "";
+                loc.web = data.web || data.sitio_web || loc.web || "";
+                loc.whatsapp = fonoWa || loc.whatsapp || "";
+                loc.lat = latR;
+                loc.lng = lngR;
+                loc.coordenada_validada = latR + ', ' + lngR;
+                if (data.logo) loc.logo = data.logo;
+                if (data.portada) loc.portada = data.portada;
+                if (data.link_pin) loc.link_pin = data.link_pin;
+                if (data.logo_nombre || data.nombre_png) {
+                    loc.logo_nombre = data.logo_nombre || data.nombre_png;
+                    loc.nombre_png = loc.logo_nombre;
+                }
+                if (data.pin_pack) loc.pin_pack = data.pin_pack;
+                if (data.tema_popup) loc.tema_popup = data.tema_popup;
+                if (data.color_principal) loc.color_principal = data.color_principal;
+                if (data.color_acento) loc.color_acento = data.color_acento;
+                if (data.color_terciario) loc.color_terciario = data.color_terciario;
+                loc.reclamado = tomado;
+                loc.dueno_registrado = Boolean(data.dueno_registrado);
+                loc.uid_dueno = data.uid_dueno || "";
+                loc.owner_email = data.owner_email || "";
+                loc.esta_tomado = tomado;
+                loc.capturado = true;
+                loc.validado = true;
+                loc.subido = true;
+                loc.archivado = false;
+            }
+        });
+
+        AppState.guardarColaLocal();
+        actualizarDatalistNichos();
+        renderizarTablero();
+        actualizarHUD();
+        actualizarConteoHistorial();
+
+        if (mostrarAviso) {
+            mostrarToast("Cargados " + totalServidor + " comercios del servidor (" + libresCount + " libres / " + tomadosCount + " tomados).", "exito");
+        }
+    } catch (err) {
+        console.error("[Onboarding Sync Servidor]", err);
+        if (mostrarAviso) {
+            mostrarToast("Error leyendo Directorio en Firestore: " + err.message, "error", 4500);
+        }
+    }
+};
+
+function asegurarSubBarraTodosDOM() {
+    let subBarra = document.getElementById('subbarra-todos-servidor');
+    const gridCont = document.getElementById('contenedor-grid-unico');
+    if (!subBarra && gridCont && gridCont.parentElement) {
+        subBarra = document.createElement('div');
+        subBarra.id = 'subbarra-todos-servidor';
+        subBarra.style.cssText = 'display:none; justify-content:space-between; align-items:center; gap:8px; background:rgba(0,0,0,0.45); border:1px solid var(--glass-border); border-radius:10px; padding:8px 12px; margin-bottom:12px; flex-wrap:wrap;';
+        subBarra.innerHTML =
+            '<div style="display:flex; gap:6px; flex-wrap:wrap;">' +
+                '<button type="button" id="btn-subtab-libres" class="btn-submit" style="background:rgba(0,230,118,0.18); border:1px solid var(--verde-hoja); color:var(--verde-hoja); padding:6px 12px; font-size:11px;" onclick="window.cambiarSubVistaTodos(\'libres\')">' +
+                    '🔓 Libres / Editables (<span id="conteo-todos-libres">0</span>)' +
+                '</button>' +
+                '<button type="button" id="btn-subtab-tomados" class="btn-submit" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:#94a3b8; padding:6px 12px; font-size:11px;" onclick="window.cambiarSubVistaTodos(\'tomados\')">' +
+                    '🔒 Tomados / Solo Lectura (<span id="conteo-todos-tomados">0</span>)' +
+                '</button>' +
+            '</div>' +
+            '<button type="button" class="btn-submit" style="padding:5px 10px; font-size:10.5px; background:rgba(41,182,246,0.18); border:1px solid var(--azul-link); color:var(--azul-link);" onclick="window.hidratarComerciosDesdeServidor(true)">' +
+                '🔄 Traer del Servidor' +
+            '</button>';
+        gridCont.parentElement.insertBefore(subBarra, gridCont);
+    }
+    return subBarra;
+}
+
+window.cambiarSubVistaTodos = function(subVista) {
+    subVistaTodosActual = (subVista === 'tomados') ? 'tomados' : 'libres';
+    const btnLib = document.getElementById('btn-subtab-libres');
+    const btnTom = document.getElementById('btn-subtab-tomados');
+    if (btnLib) {
+        btnLib.style.background = (subVistaTodosActual === 'libres') ? 'rgba(0,230,118,0.18)' : 'rgba(255,255,255,0.05)';
+        btnLib.style.borderColor = (subVistaTodosActual === 'libres') ? 'var(--verde-hoja)' : 'rgba(255,255,255,0.15)';
+        btnLib.style.color = (subVistaTodosActual === 'libres') ? 'var(--verde-hoja)' : '#94a3b8';
+    }
+    if (btnTom) {
+        btnTom.style.background = (subVistaTodosActual === 'tomados') ? 'rgba(148,163,184,0.22)' : 'rgba(255,255,255,0.05)';
+        btnTom.style.borderColor = (subVistaTodosActual === 'tomados') ? '#cbd5e1' : 'rgba(255,255,255,0.15)';
+        btnTom.style.color = (subVistaTodosActual === 'tomados') ? '#ffffff' : '#94a3b8';
+    }
+    renderizarTablero();
+};
+
+window.cambiarVistaTablero = async function(vista) {
     vistaActualTablero = vista;
     document.querySelectorAll('.tab-vista').forEach(function(b) { b.classList.remove('activa'); });
     const btnActivo = document.getElementById('tab-' + vista);
     if (btnActivo) btnActivo.classList.add('activa');
-    renderizarTablero();
+
+    const subBarra = asegurarSubBarraTodosDOM();
+    if (subBarra) {
+        subBarra.style.display = (vista === 'todos') ? 'flex' : 'none';
+    }
+    if (vista === 'todos') {
+        await window.hidratarComerciosDesdeServidor(true);
+    } else {
+        renderizarTablero();
+    }
 };
+
 
 window.toggleMinimizarTicket = function(index, event) {
     if (event.target.classList.contains('modo-edicion') || event.target.tagName === 'INPUT' || event.target.tagName === 'BUTTON') return;
@@ -1524,20 +1720,35 @@ export function renderizarTablero() {
         }
     });
 
+        let conteoTodosLibres = 0;
+    let conteoTodosTomados = 0;
+    listaComercios.forEach(function(c) {
+        if (!c.capturado && !c.subido) return;
+        if (esComercioTomado(c)) conteoTodosTomados++;
+        else conteoTodosLibres++;
+    });
+    const elContLibres = document.getElementById('conteo-todos-libres');
+    const elContTomados = document.getElementById('conteo-todos-tomados');
+    if (elContLibres) elContLibres.innerText = conteoTodosLibres;
+    if (elContTomados) elContTomados.innerText = conteoTodosTomados;
+
     listaComercios.forEach(function(c, index) {
         if (c.validado) validados++;
         if (c.subido) subidos++;
-        if (!c.capturado) return;
-
+        if (!c.capturado && !c.subido) return;
+        const tomado = esComercioTomado(c);
         if (vistaActualTablero === 'radar') {
             if (c.subido === true || c.archivado === true || c.estado_flujo === 'Seguimiento') return;
         } else if (vistaActualTablero === 'seguimiento') {
             if (c.estado_flujo !== 'Seguimiento') return;
         } else if (vistaActualTablero === 'listos') {
             if (!c.validado || c.subido) return;
+        } else if (vistaActualTablero === 'todos') {
+            if (subVistaTodosActual === 'libres' && tomado) return;
+            if (subVistaTodosActual === 'tomados' && !tomado) return;
         }
-
         visibles++;
+
 
         const coordsRaw = c.coordenada_validada || c.coordenadas_crudo || c.plus_code || (String(c.lat || '') + ', ' + String(c.lng || ''));
         const coords = parsearCoordenadasUniversales(coordsRaw);
@@ -1595,28 +1806,35 @@ export function renderizarTablero() {
                 '</div>';
         }
 
+                const badgeTomadoHTML = tomado
+            ? '<span class="badge-comercio-tomado" title="Comercio reclamado por su propietario (' + (c.owner_email || 'Dueño Activo') + ')">🔒 TOMADO (SOLO LECTURA)</span>'
+            : '<span style="background:rgba(0,230,118,0.14); border:1px solid var(--verde-hoja); color:var(--verde-hoja); font-size:9px; font-weight:900; padding:1px 6px; border-radius:5px;">🔓 LIBRE</span>';
+
+        const botonesEdicionSuperiores = tomado
+            ? '<span style="position:absolute; right:10px; top:10px; font-size:10px; color:#94a3b8; font-weight:bold;">🔒 Protegido</span>'
+            : ('<button type="button" class="btn-eliminar-inline" onclick="event.stopPropagation(); window.eliminarComercioTicket(' + index + ')" title="Eliminar fila">🗑️</button>' +
+               '<button type="button" class="btn-editar-inline" onclick="event.stopPropagation(); window.toggleEditarTicket(' + index + ', this)" title="Editar datos">✏️</button>' +
+               '<button type="button" class="btn-enviar-sheets-inline" onclick="event.stopPropagation(); enviarComercioASheets(' + index + ')" title="Enviar este ticket a la última fila de Sheets">📤</button>');
+
         const card = document.createElement('div');
-        card.className = 'cuadrito-actividad ' + (c.validado ? 'validado' : '') + ' ' + (c.minimizado ? 'minimizado' : '');
+        card.className = 'cuadrito-actividad ' + (tomado ? 'comercio-tomado-gris' : (c.validado ? 'validado' : '')) + ' ' + (c.minimizado ? 'minimizado' : '');
         card.setAttribute('data-id', c.id);
         card.setAttribute('data-index', index);
-
         card.innerHTML = 
             '<div class="ticket-cabecera" onclick="toggleMinimizarTicket(' + index + ', event)" title="Toca para colapsar o expandir este ticket">' +
                 '<div style="display:flex; align-items:center; gap:6px; flex:1; min-width:0;">' +
                     '<span class="btn-toggle-colapso">' + (c.minimizado ? '▶' : '▼') + '</span>' +
-                    '<span>🏪</span>' +
+                    '<span>' + (tomado ? '🔒' : '🏪') + '</span>' +
                     '<span class="dato-copiable dato-nombre-texto" data-key="nombre" style="font-weight:bold; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (c.nombre || "COMERCIO SIN NOMBRE") + '</span>' +
+                    badgeTomadoHTML +
                     badgeEstrella +
                 '</div>' +
-                '<span style="font-size: 10px; font-family: monospace; color: ' + (coords ? 'var(--verde-hoja)' : 'var(--rojo-fuego)') + '; flex-shrink:0;">' +
+                '<span style="font-size: 10px; font-family: monospace; color: ' + (tomado ? '#94a3b8' : (coords ? 'var(--verde-hoja)' : 'var(--rojo-fuego)')) + '; flex-shrink:0;">' +
                     coordsTexto +
                 '</span>' +
             '</div>' +
-
             '<div class="ticket-cuerpo">' +
-                '<button type="button" class="btn-eliminar-inline" onclick="event.stopPropagation(); window.eliminarComercioTicket(' + index + ')" title="Eliminar fila">🗑️</button>' +
-                '<button type="button" class="btn-editar-inline" onclick="event.stopPropagation(); window.toggleEditarTicket(' + index + ', this)" title="Editar datos">✏️</button>' +
-                '<button type="button" class="btn-enviar-sheets-inline" onclick="event.stopPropagation(); enviarComercioASheets(' + index + ')" title="Enviar este ticket a la última fila de Sheets">📤</button>' +
+                botonesEdicionSuperiores +
 
 
                 '<div class="cuadrito-datos">' +
@@ -1647,20 +1865,20 @@ sedesHTML +
                     resenaHTML +
                 '</div>' +
 
-                '<button class="btn-act btn-act-cat" onclick="abrirDrawerCatalogo(' + index + ')">' +
-                    '📦 Gestionar Catálogo (<strong id="badge-cat-' + index + '">' + totalCat + '</strong> SKUs)' +
+                                '<button class="btn-act btn-act-cat" style="' + (tomado ? 'background:rgba(148,163,184,0.12); border-color:#64748b; color:#cbd5e1;' : '') + '" onclick="abrirDrawerCatalogo(' + index + ')">' +
+                    (tomado ? '👁️ Ver Branding y Catálogo (Solo Lectura)' : ('📦 Gestionar Branding y Catálogo (<strong id="badge-cat-' + index + '">' + totalCat + '</strong> SKUs)')) +
                 '</button>' +
-
                 '<div class="cuadrito-acciones-comercio" style="grid-template-columns: 1fr 1fr 1fr 1.2fr;">' +
                     '<a class="btn-act btn-act-web" href="' + normalizarURL(c.sitio_web || c.web) + '" target="_blank">Web</a>' +
                     '<a class="btn-act btn-act-ig" href="' + igUrlFinal + '" target="_blank">Instagram</a>' +
-                    '<button type="button" class="btn-act" style="background: rgba(41,182,246,0.18); border-color: var(--azul-link); color: var(--azul-link);" onclick="event.stopPropagation(); window.abrirModalDefinirDueno(' + index + ')" title="Asignar correo del dueño">' +
-                        (c.reclamado ? 'Dueño: OK' : 'Ceder') +
+                    '<button type="button" class="btn-act" ' + (tomado ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : 'style="background: rgba(41,182,246,0.18); border-color: var(--azul-link); color: var(--azul-link);" onclick="event.stopPropagation(); window.abrirModalDefinirDueno(' + index + ')"') + ' title="Asignar correo del dueño">' +
+                        (tomado ? ('Dueño: ' + (c.owner_email ? c.owner_email.split('@')[0] : 'OK')) : 'Ceder') +
                     '</button>' +
-                    '<button class="btn-act btn-act-val ' + (c.validado ? 'activo' : '') + '" onclick="toggleValidado(' + index + ')">' +
-                        (c.validado ? 'Validado' : 'Validar') +
+                    '<button class="btn-act btn-act-val ' + (c.validado ? 'activo' : '') + '" ' + (tomado ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : 'onclick="toggleValidado(' + index + ')"') + '>' +
+                        (tomado ? 'Bloqueado' : (c.validado ? 'Validado' : 'Validar')) +
                     '</button>' +
                 '</div>' +
+
             '</div>';
 
         contenedor.appendChild(card);
@@ -1725,8 +1943,13 @@ window.eliminarComercioTicket = async function(index) {
 };
 
 window.toggleEditarTicket = function(index, btnElement) {
+    if (listaComercios[index] && esComercioTomado(listaComercios[index])) {
+        mostrarToast("Este comercio ya está tomado por su dueño y no puede editarse.", "error");
+        return;
+    }
     var btn = btnElement || document.querySelector('.cuadrito-actividad[data-index="' + index + '"] .btn-editar-inline');
     if (!btn) return;
+
     var card = btn.closest('.cuadrito-actividad');
     if (!card) return;
 
@@ -1945,18 +2168,40 @@ document.addEventListener('click', async function(event) {
 // =========================================================================
 // DRAWER LATERAL DE CATÁLOGO Y HARDWARE ÓPTICO
 // =========================================================================
-window.abrirDrawerCatalogo = function(index) {
-    comercioActivoParaCatalogo = listaComercios[index];
+window.abrirDrawerCatalogo = async function(index) {
+    AppState.comercioActivo = listaComercios[index];
     if (!comercioActivoParaCatalogo.catalogo) comercioActivoParaCatalogo.catalogo = [];
-
+    const tomado = esComercioTomado(comercioActivoParaCatalogo);
     const elNombre = document.getElementById('drawer-comercio-nombre');
     const elId = document.getElementById('drawer-comercio-id');
-    if (elNombre) elNombre.innerText = comercioActivoParaCatalogo.nombre || "Comercio Aliado";
+    if (elNombre) elNombre.innerText = (comercioActivoParaCatalogo.nombre || "Comercio Aliado") + (tomado ? " (SOLO LECTURA)" : "");
     if (elId) elId.innerText = 'ID: ' + comercioActivoParaCatalogo.id;
     
     const drawer = document.getElementById('drawer-catalogo-comercio');
-    if (drawer) drawer.classList.add('activo');
+    if (drawer) {
+        drawer.classList.add('activo');
+        drawer.classList.toggle('modo-solo-lectura', tomado);
+    }
 
+    // Si borramos cache y el comercio ya existia en Firestore, hidratar sus productos desde la subcoleccion productos
+    if (navigator.onLine && comercioActivoParaCatalogo.id && comercioActivoParaCatalogo.catalogo.length === 0) {
+        try {
+            const snapProds = await getDocs(collection(db, 'Directorio/' + comercioActivoParaCatalogo.id + '/productos'));
+            if (!snapProds.empty) {
+                const prodsRemotos = [];
+                snapProds.forEach(function(d) {
+                    const dp = d.data();
+                    if (dp.eliminado !== true) {
+                        prodsRemotos.push({ id: d.id, id_prod: d.id, ...dp });
+                    }
+                });
+                if (prodsRemotos.length > 0) {
+                    comercioActivoParaCatalogo.catalogo = prodsRemotos;
+                    AppState.guardarColaLocal();
+                }
+            }
+        } catch (ePr) {}
+    }
     window.history.pushState({ modal: 'drawer_catalogo' }, '');
 
     actualizarPreviewsIdentidadUI();
@@ -2167,13 +2412,25 @@ window.agregarProductoManualPrompt = function() {
     emitirTono('EXITO');
 };
 
+export function blobADataURL(blob) {
+    return new Promise(function(resolve) {
+        if (!blob) return resolve('');
+        const r = new FileReader();
+        r.onload = function(e) { resolve(e.target.result || ''); };
+        r.onerror = function() { resolve(''); };
+        r.readAsDataURL(blob);
+    });
+}
+window.blobADataURL = blobADataURL;
+
 export function actualizarPreviewsIdentidadUI() {
-    if (!comercioActivoParaCatalogo) return;
+    const comercio = AppState.comercioActivo;
+    if (!comercio) return;
     const campos = [
-        { id: 'logo', val: comercioActivoParaCatalogo.logo },
-        { id: 'portada', val: comercioActivoParaCatalogo.portada },
-        { id: 'pin', val: comercioActivoParaCatalogo.link_pin },
-        { id: 'logonombre', val: comercioActivoParaCatalogo.logo_nombre }
+        { id: 'logo', val: comercio.logo },
+        { id: 'portada', val: comercio.portada },
+        { id: 'pin', val: comercio.link_pin },
+        { id: 'logonombre', val: comercio.logo_nombre || comercio.nombre_png }
     ];
     campos.forEach(function(c) {
         const img = document.getElementById('preview-brand-' + c.id);
@@ -2186,23 +2443,44 @@ export function actualizarPreviewsIdentidadUI() {
             if (ph) ph.style.display = 'flex';
         }
     });
-    renderizarSimuladorNombreDrawer();
+    if (typeof renderizarSimuladorNombreDrawer === 'function') {
+        renderizarSimuladorNombreDrawer();
+    }
 }
-
+window.actualizarPreviewsIdentidadUI = actualizarPreviewsIdentidadUI;
 
 window.procesarFotoIdentidadIndividual = async function(file, campo) {
-    if (!file || !comercioActivoParaCatalogo) return;
+    const comercio = AppState.comercioActivo;
+    if (!file || !comercio) {
+        mostrarToast("Selecciona un comercio primero.", "error");
+        return;
+    }
     try {
-        const esCuadrado = campo !== 'portada';
+        // Si el check "Editar en Estudio 2D al subir" está activo, abre directo en el Estudio 2D con el rol preseleccionado
+        const chkEstudio = document.getElementById('chk-abrir-estudio-al-subir');
+        if (chkEstudio && chkEstudio.checked && typeof window.abrirArchivoDirectoEnEstudioConRol === 'function') {
+            await window.abrirArchivoDirectoEnEstudioConRol(file, campo);
+            return;
+        }
+        const esLogoNombre = (campo === 'logo_nombre' || campo === 'nombre_png');
+        const esCuadrado = (campo !== 'portada' && !esLogoNombre);
         const maxDim = campo === 'portada' ? 1200 : 600;
-        const blob = await GeokatuDB.AdminService.comprimirAWebP(file, maxDim, 0.8, esCuadrado);
-        const previewURL = URL.createObjectURL(blob);
-        comercioActivoParaCatalogo[campo] = previewURL;
+        const preservarAlfa = (esLogoNombre || campo === 'link_pin' || campo === 'logo');
+        const blob = await GeokatuDB.AdminService.comprimirAWebP(file, maxDim, 0.85, esCuadrado, preservarAlfa);
+        const dataUrlPersistente = await blobADataURL(blob);
+        comercio[campo] = dataUrlPersistente;
+        if (esLogoNombre) comercio.nombre_png = dataUrlPersistente;
         actualizarPreviewsIdentidadUI();
         if (campo === 'link_pin' || campo === 'logo') actualizarPinDrawerLive();
         emitirTono('EXITO');
-        subirFotoIdentidadStorage(blob, campo, comercioActivoParaCatalogo.id);
-    } catch (e) {}
+        mostrarToast('Subiendo "' + campo + '" al servidor...', 'info', 2000);
+        const urlRemota = await subirFotoIdentidadStorage(blob, campo, comercio.id);
+        if (urlRemota) {
+            mostrarToast('Imagen "' + campo + '" guardada en Storage.', 'exito', 2200);
+        }
+    } catch (e) {
+        mostrarToast("Error procesando imagen: " + e.message, "error");
+    }
 };
 
 export async function subirFotoIdentidadStorage(blob, campo, idComercio) {
@@ -2212,16 +2490,19 @@ export async function subirFotoIdentidadStorage(blob, campo, idComercio) {
         const storageRef = ref(storage, rutaStorage);
         const snapshot = await uploadBytes(storageRef, blob, { contentType: 'image/webp' });
         const downloadURL = await getDownloadURL(snapshot.ref);
-        if (comercioActivoParaCatalogo) {
-            comercioActivoParaCatalogo[campo] = downloadURL;
+        const comercio = AppState.comercioActivo;
+        if (comercio && String(comercio.id) === String(idComercio)) {
+            comercio[campo] = downloadURL;
+            if (campo === 'logo_nombre') comercio.nombre_png = downloadURL;
         }
         AppState.guardarColaLocal();
+        actualizarPreviewsIdentidadUI();
         return downloadURL;
     } catch (err) {
+        console.warn("[Storage Identidad]", err);
         return null;
     }
 }
-
 window.subirFotoIdentidadStorage = subirFotoIdentidadStorage;
 
 export async function subirFotoAStorageEnSegundoPlano(producto, idComercio) {
@@ -2234,19 +2515,19 @@ export async function subirFotoAStorageEnSegundoPlano(producto, idComercio) {
         const downloadURL = await getDownloadURL(snapshot.ref);
         producto.imagen = downloadURL;
         producto.subido_storage = true;
-        delete producto.archivoBlob; // Purga el binario para que no se convierta en objeto vacío {} al guardar en JSON
+        delete producto.archivoBlob;
         AppState.guardarColaLocal();
+        renderizarListaSkusDrawer();
     } catch (err) {
         console.warn("[Storage Background]", err);
     }
 }
 
-
 window.procesarLoteImagenes = async function(archivos) {
-    if (!archivos || archivos.length === 0 || !comercioActivoParaCatalogo) return;
+    const comercio = AppState.comercioActivo;
+    if (!archivos || archivos.length === 0 || !comercio) return;
     const listaFiles = Array.from(archivos);
     let brandingCount = 0, productCount = 0;
-
     for (let i = 0; i < listaFiles.length; i++) {
         const file = listaFiles[i];
         try {
@@ -2255,27 +2536,27 @@ window.procesarLoteImagenes = async function(archivos) {
             if (nombreLimpio === 'logo' || nombreLimpio.indexOf('perfil') === 0) campoIdentidad = 'logo';
             else if (nombreLimpio === 'portada' || nombreLimpio.indexOf('banner') === 0) campoIdentidad = 'portada';
             else if (nombreLimpio === 'pin' || nombreLimpio.indexOf('link_pin') === 0) campoIdentidad = 'link_pin';
-            else if (nombreLimpio === 'logo_nombre' || nombreLimpio === 'logonombre') campoIdentidad = 'logo_nombre';
-
+            else if (nombreLimpio === 'logo_nombre' || nombreLimpio === 'logonombre' || nombreLimpio === 'nombre_png') campoIdentidad = 'logo_nombre';
             if (campoIdentidad) {
-                const esCuadrado = campoIdentidad !== 'portada';
+                const esLogoNombre = (campoIdentidad === 'logo_nombre');
+                const esCuadrado = (campoIdentidad !== 'portada' && !esLogoNombre);
                 const maxDim = campoIdentidad === 'portada' ? 1200 : 600;
-                const blob = await GeokatuDB.AdminService.comprimirAWebP(file, maxDim, 0.8, esCuadrado);
-                comercioActivoParaCatalogo[campoIdentidad] = URL.createObjectURL(blob);
+                const preservarAlfa = (esLogoNombre || campoIdentidad === 'link_pin' || campoIdentidad === 'logo');
+                const blob = await GeokatuDB.AdminService.comprimirAWebP(file, maxDim, 0.85, esCuadrado, preservarAlfa);
+                const dataUrl = await blobADataURL(blob);
+                comercio[campoIdentidad] = dataUrl;
+                if (esLogoNombre) comercio.nombre_png = dataUrl;
                 actualizarPreviewsIdentidadUI();
-                subirFotoIdentidadStorage(blob, campoIdentidad, comercioActivoParaCatalogo.id);
+                await subirFotoIdentidadStorage(blob, campoIdentidad, comercio.id);
                 brandingCount++;
                 continue;
             }
-
             const partes = file.name.replace(/\.[^/.]+$/, "").split('_');
             const codigo = partes[0] ? partes[0].trim() : String(Date.now()).slice(-8);
             const nombre = partes[1] ? partes[1].replace(/-/g, ' ').trim() : "Producto Catalogo";
-            const categoria = partes[2] ? partes[2].replace(/-/g, ' ').trim() : (comercioActivoParaCatalogo.nicho || "General");
-
-            const blobWebp = await GeokatuDB.AdminService.comprimirAWebP(file, 800, 0.75, true);
-            const previewURL = URL.createObjectURL(blobWebp);
-
+            const categoria = partes[2] ? partes[2].replace(/-/g, ' ').trim() : (comercio.nicho || "General");
+            const blobWebp = await GeokatuDB.AdminService.comprimirAWebP(file, 800, 0.78, true, true);
+            const previewURL = await blobADataURL(blobWebp);
             const nuevo = {
                 codigo_barras: codigo,
                 nombre: nombre,
@@ -2288,19 +2569,18 @@ window.procesarLoteImagenes = async function(archivos) {
                 subido_storage: false,
                 fecha_creacion: new Date().toISOString()
             };
-            if (!comercioActivoParaCatalogo.catalogo) comercioActivoParaCatalogo.catalogo = [];
-            comercioActivoParaCatalogo.catalogo.unshift(nuevo);
+            if (!comercio.catalogo) comercio.catalogo = [];
+            comercio.catalogo.unshift(nuevo);
             productCount++;
-            subirFotoAStorageEnSegundoPlano(nuevo, comercioActivoParaCatalogo.id);
+            await subirFotoAStorageEnSegundoPlano(nuevo, comercio.id);
         } catch (e) {}
     }
-
     const inputLote = document.getElementById('input-fotos-lote');
     if (inputLote) inputLote.value = "";
     AppState.guardarColaLocal();
     renderizarListaSkusDrawer();
     emitirTono('EXITO');
-    mostrarToast('Lote completado: ' + brandingCount + ' activos de marca y ' + productCount + ' productos.', "exito");
+    mostrarToast('Lote subido: ' + brandingCount + ' activos de marca y ' + productCount + ' productos.', "exito");
 };
 
 // =========================================================================
@@ -2329,11 +2609,34 @@ window.sincronizarCatalogoComercioNube = async function() {
     }
 
     try {
-        const idSeguro = String(c.id || ('GEO-' + Date.now().toString().slice(-4))).trim();
+                const idSeguro = String(c.id || ('GEO-' + Date.now().toString().slice(-4))).trim();
         c.id = idSeguro;
-
-        // 1. Subir fotos pendientes en formato Blob a Firebase Storage
         const storage = getStorage(db.app);
+
+        // 0. Asegurar que las 4 imágenes de identidad (logo, portada, link_pin, logo_nombre) estén subidas en Firebase Storage con URL https://
+        const camposIdentidad = ['logo', 'portada', 'link_pin', 'logo_nombre'];
+        for (let k = 0; k < camposIdentidad.length; k++) {
+            const campoKey = camposIdentidad[k];
+            const valImg = c[campoKey] || (campoKey === 'logo_nombre' ? c.nombre_png : '');
+            if (valImg && valImg.indexOf('http') !== 0 && (valImg.indexOf('blob:') === 0 || valImg.indexOf('data:') === 0)) {
+                if (btn) btn.innerText = "Subiendo " + campoKey + "...";
+                try {
+                    const resB = await fetch(valImg);
+                    const blobId = await resB.blob();
+                    if (blobId && blobId.size > 150) {
+                        const urlSubida = await subirFotoIdentidadStorage(blobId, campoKey, idSeguro);
+                        if (urlSubida) {
+                            c[campoKey] = urlSubida;
+                            if (campoKey === 'logo_nombre') c.nombre_png = urlSubida;
+                        }
+                    }
+                } catch (eId) {
+                    console.warn("Aviso subiendo " + campoKey + ":", eId);
+                }
+            }
+        }
+
+        // 1. Subir fotos pendientes de productos a Firebase Storage
         for (let i = 0; i < prods.length; i++) {
 
             const p = prods[i];
@@ -2437,7 +2740,7 @@ window.sincronizarCatalogoComercioNube = async function() {
             web: c.sitio_web || c.web || "",
             sitio_web: c.sitio_web || c.web || "",
 
-            pin_pack: c.pin_pack || "forma-gota|anim-salto",
+                        pin_pack: c.pin_pack || "forma-gota|anim-salto",
             tema_popup: c.tema_popup || document.getElementById('drawer-select-tema')?.value || "carbon",
             color_principal: c.color_principal || "#ff6b00",
             color_acento: c.color_acento || GRIS_METALLIC_GEOKATU,
@@ -2451,9 +2754,7 @@ window.sincronizarCatalogoComercioNube = async function() {
             portada: (c.portada && c.portada.indexOf('http') === 0) ? c.portada : "",
             link_pin: (c.link_pin && c.link_pin.indexOf('http') === 0) ? c.link_pin : "",
             logo_nombre: (c.logo_nombre && c.logo_nombre.indexOf('http') === 0) ? c.logo_nombre : "",
-            nombre_png: (c.logo_nombre && c.logo_nombre.indexOf('http') === 0) ? c.logo_nombre : "",
-
-
+            nombre_png: (c.logo_nombre && c.logo_nombre.indexOf('http') === 0) ? c.logo_nombre : ((c.nombre_png && c.nombre_png.indexOf('http') === 0) ? c.nombre_png : ""),
             reclamado: Boolean(c.reclamado),
             dueno_registrado: Boolean(c.dueno_registrado),
             owner_email: c.owner_email || c.dueno_email || "",
@@ -2465,31 +2766,56 @@ window.sincronizarCatalogoComercioNube = async function() {
             fecha_actualizacion: new Date().toISOString(),
             origen_cuenta: "Onboarding_OneShot_Radar"
         };
-
         batch.set(docNegocioRef, payloadMaestro, { merge: true });
+
+        // 1.1 Sellar también en Directorio_Contacto para el Hub telefónico del mapa
+        const docContactoRef = doc(db, "Directorio_Contacto", idSeguro);
+        batch.set(docContactoRef, {
+            id: idSeguro,
+            whatsapp: primerFono,
+            telefonos: arrFonos,
+            pbx: String(c.pbx || '').trim(),
+            correo: c.correo || c.email || "",
+            instagram: String(c.instagram_handle || c.instagram || '').replace(/^@/, '').trim(),
+            web: c.sitio_web || c.web || "",
+            fecha_actualizacion: new Date().toISOString()
+        }, { merge: true });
 
         // 2. Inyección de subcolección de productos
         const coleccionProds = collection(db, 'Directorio/' + idSeguro + '/productos');
+        const listaProdsCache = [];
         prods.forEach(function(p) {
             const docRef = p.id ? doc(coleccionProds, String(p.id)) : doc(coleccionProds);
+            p.id = docRef.id;
             const payloadProd = {
+                id_prod: docRef.id,
                 nombre: p.nombre || "Sin nombre",
                 codigo_barras: String(p.codigo_barras || "").trim(),
                 precio: Number(p.precio) || 0,
                 categoria: p.categoria || c.nicho || "General",
-                stock_actual: Number(p.stock_actual) || 0,
+                stock_actual: Number(p.stock_actual) || 10,
                 cuerpo_texto: p.cuerpo_texto || "",
                 en_piso_venta: true,
                 eliminado: false,
+                agotado: false,
                 fecha_actualizacion: new Date().toISOString()
             };
             if (p.imagen && p.imagen.indexOf('http') === 0) {
                 payloadProd.imagen = p.imagen;
             }
             batch.set(docRef, payloadProd, { merge: true });
+            listaProdsCache.push(payloadProd);
         });
-
         await batch.commit();
+
+        // 3. Guardar en caché local y compilar JSON para que aparezca de inmediato en el Mapa y en su Catálogo
+        try {
+            localStorage.setItem('geokatu_cache_neg_' + idSeguro, JSON.stringify(Object.assign({ id: idSeguro }, payloadMaestro)));
+            if (listaProdsCache.length > 0) {
+                localStorage.setItem('geokatu_catalogo_' + idSeguro, JSON.stringify(listaProdsCache));
+                GeokatuDB.AdminService.compilarCatalogoJSON(idSeguro, false).catch(function() {});
+            }
+        } catch (eLoc) {}
 
         c.subido = true;
         c.validado = true;
@@ -2529,24 +2855,35 @@ window.sincronizarCatalogoComercioNube = async function() {
 
 
 // =========================================================================
-// GOOGLE SHEETS & APPS SCRIPT
+// GOOGLE SHEETS & APPS SCRIPT (PERSISTENTE EN FIRESTORE + LOCALSTORAGE)
 // =========================================================================
-window.configurarURLScript = function() {
-    const actual = localStorage.getItem('geokatu_apps_script_url') || '';
+window.configurarURLScript = async function() {
+    let actual = localStorage.getItem('geokatu_apps_script_url') || localStorage.getItem('geokatu_appscript_url') || '';
+    if (!actual && navigator.onLine) {
+        const resNube = await GeokatuDB.AdminService.obtenerEnlaceAppScriptOnboarding();
+        if (resNube && resNube.url) actual = resNube.url;
+    }
     const u = prompt("URL Web App de Google Apps Script (/exec):", actual);
     if (!u) return null;
     const limpia = u.trim();
     localStorage.setItem('geokatu_apps_script_url', limpia);
-    mostrarToast("URL de Apps Script almacenada.", "exito");
+    localStorage.setItem('geokatu_appscript_url', limpia);
+    await GeokatuDB.AdminService.guardarEnlaceAppScriptOnboarding(limpia);
+    mostrarToast("URL de Apps Script guardada en Firestore y en caché local.", "exito");
     return limpia;
 };
 
 window.sincronizarConAppsScript = async function() {
-    let u = localStorage.getItem('geokatu_apps_script_url');
+    let u = localStorage.getItem('geokatu_apps_script_url') || localStorage.getItem('geokatu_appscript_url');
+    if (!u && navigator.onLine) {
+        const resNube = await GeokatuDB.AdminService.obtenerEnlaceAppScriptOnboarding();
+        if (resNube && resNube.url) u = resNube.url;
+    }
     if (!u) {
-        u = window.configurarURLScript();
+        u = await window.configurarURLScript();
         if (!u) return;
     }
+
 
     try {
         const res = await fetch(u + (u.indexOf('?') !== -1 ? '&' : '?') + 't=' + Date.now());
@@ -2889,6 +3226,26 @@ window.exportarDirectorioMatrizJSON = function() {
 
     mostrarToast("Matriz exportada (" + payloadCompacto.length + " comercios).", "exito");
 };
+
+
+export async function inicializarMatrizGlobalUI() {
+    const elKpi = document.getElementById('kpi-skus-matriz');
+    try {
+        if (GeokatuDB && GeokatuDB.CatalogoMatrizService) {
+            const res = await GeokatuDB.CatalogoMatrizService.inicializarMatriz();
+            if (elKpi) {
+                elKpi.innerText = (res && res.success) ? (res.count + ' SKUs') : 'Lista';
+            }
+        } else if (elKpi) {
+            elKpi.innerText = 'Activa';
+        }
+    } catch (e) {
+        if (elKpi) elKpi.innerText = 'Offline';
+    }
+}
+window.inicializarMatrizGlobalUI = inicializarMatrizGlobalUI;
+
+
 
 
 

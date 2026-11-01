@@ -527,8 +527,9 @@ window.desempaquetarComercioMatriz = function(item) {
         lng = item.lng;
     }
 
-    lat = parseFloat(lat) || 4.81333;
-    lng = parseFloat(lng) || -75.69611;
+    lat = parseFloat(lat);
+lng = parseFloat(lng);
+if (isNaN(lat) || isNaN(lng)) return null;
 
     var colores = Array.isArray(item.b) ? item.b : [
         item.color_principal || '#ff6b00',
@@ -630,6 +631,34 @@ window.iniciarSincronizacionDelta = function() {
     }
 };
 
+window.apagarVeloTour = function() {
+    document.querySelectorAll('.tour-parent-lift').forEach(function(el) { el.classList.remove('tour-parent-lift'); });
+    document.querySelectorAll('.tour-highlight-z').forEach(function(el) { el.classList.remove('tour-highlight-z'); });
+    document.querySelectorAll('.tour-tooltip').forEach(function(el) { el.classList.remove('activo'); });
+    document.body.classList.remove('tour-active');
+    const tourOv = document.getElementById('tour-overlay');
+    if (tourOv) {
+        tourOv.classList.remove('activo');
+        tourOv.style.opacity = '0';
+        tourOv.style.pointerEvents = 'none';
+        tourOv.style.display = 'none';
+    }
+};
+
+window.apagarVeloTour = function() {
+    document.querySelectorAll('.tour-parent-lift').forEach(function(el) { el.classList.remove('tour-parent-lift'); });
+    document.querySelectorAll('.tour-highlight-z').forEach(function(el) { el.classList.remove('tour-highlight-z'); });
+    document.querySelectorAll('.tour-tooltip').forEach(function(el) { el.classList.remove('activo'); });
+    document.body.classList.remove('tour-active');
+    const tourOv = document.getElementById('tour-overlay');
+    if (tourOv) {
+        tourOv.classList.remove('activo');
+        tourOv.style.opacity = '0';
+        tourOv.style.pointerEvents = 'none';
+        tourOv.style.display = 'none';
+    }
+};
+
 window.arrancarMotor = async function() {
     try {
         if (typeof maplibregl === 'undefined') throw new Error("MapLibre no se descargó. Revisa la conexión o el index.html");
@@ -639,73 +668,77 @@ window.arrancarMotor = async function() {
             window.maplibregl.addProtocol("pmtiles", protocol.tile);
         }
 
-       construirMapa();
-        // 🚀 CARGA OFFLINE-FIRST A 0 MS + DELTA EN VIVO
-        mapa.once('load', async () => {
-            // 1. Pinta toda la ciudad en 0 ms desde la base local
-            await window.cargarDirectorioMatrizOffline();
-            // 2. Abre el canal reactivo en segundo plano para novedades
-            window.iniciarSincronizacionDelta();
-        });
+        // Limpiar cualquier residuo visual antes de evaluar si corresponde el tour
+        window.apagarVeloTour();
+        const modalCiudadInit = document.getElementById('modal-selector-ciudad');
+        if (modalCiudadInit) {
+            modalCiudadInit.classList.remove('activo');
+            modalCiudadInit.style.display = 'none';
+        }
 
+        construirMapa();
+
+        // CARGA ULTRA-RÁPIDA A 0 MS + SINCRONIZACIÓN DIRECTA CON FIRESTORE
+        mapa.once('load', async function() {
+            await window.cargarDirectorioMatrizOffline();
+            window.iniciarSincronizacionDelta();
+            if (typeof window.descargarNegociosDeFirebase === 'function') {
+                window.descargarNegociosDeFirebase();
+            }
+        });
 
         if (typeof window.construirCarrusel === 'function') {
             window.construirCarrusel();
         }
-        const esArranqueCaliente = Boolean(sessionStorage.getItem('geokatu_ram_warm') === '1' || localStorage.getItem('geokatu_matriz_timestamp'));
         sessionStorage.setItem('geokatu_ram_warm', '1');
-        const delayArranque = esArranqueCaliente ? 0 : 350;
 
-        setTimeout(() => {
+        setTimeout(function() {
             const pantallaCarga = document.getElementById('pantalla-carga');
             if (pantallaCarga) {
                 pantallaCarga.style.opacity = '0';
-                if (esArranqueCaliente) pantallaCarga.style.display = 'none';
+                pantallaCarga.style.pointerEvents = 'none';
+                pantallaCarga.style.display = 'none';
             }
-            
-            setTimeout(() => {
-                if (pantallaCarga) pantallaCarga.style.display = 'none';
-                
-                const buscador = document.getElementById('wrapper-buscador');
-                if (buscador) buscador.classList.remove('shimmer-box');
+            const buscador = document.getElementById('wrapper-buscador');
+            if (buscador) buscador.classList.remove('shimmer-box');
 
-                
-                const params = new URLSearchParams(window.location.search);
-                const idDron = params.get('enfocar');
-                const latDron = parseFloat(params.get('lat'));
-                const lngDron = parseFloat(params.get('lng'));
-                if (idDron && !isNaN(latDron) && !isNaN(lngDron)) {
-                    if (params.get('tipo') === 'inmueble') {
-                        categoriaActivaGlobal = 'inmuebles';
-                    } else {
-                        categoriaActivaGlobal = 'negocios';
+            const params = new URLSearchParams(window.location.search);
+            const idDron = params.get('enfocar');
+            const latDron = parseFloat(params.get('lat'));
+            const lngDron = parseFloat(params.get('lng'));
+
+            if (idDron && !isNaN(latDron) && !isNaN(lngDron)) {
+                categoriaActivaGlobal = (params.get('tipo') === 'inmueble') ? 'inmuebles' : 'negocios';
+                mapa.flyTo({ center: [lngDron, latDron], zoom: 17.5, duration: 1200 });
+                zonaNecesitaDescarga = true;
+                if (typeof window.descargarNegociosDeFirebase === 'function') {
+                    window.descargarNegociosDeFirebase();
+                }
+                setTimeout(function() {
+                    if (window.marcadoresRadar && window.marcadoresRadar[idDron]) {
+                        window.marcadoresRadar[idDron].togglePopup();
                     }
-                    mapa.flyTo({ center: [lngDron, latDron], zoom: 17.5, duration: 1500 });
-                    zonaNecesitaDescarga = true;
+                }, 1300);
+                window.history.replaceState(null, '', window.location.pathname);
+            } else {
+                // Si el usuario borró caché y entra desde cero, lanzar el Tour Inicial
+                const tourYaVisto = localStorage.getItem('geokatu_tour_v1') === 'true';
+                if (!tourYaVisto) {
                     if (typeof window.descargarNegociosDeFirebase === 'function') {
                         window.descargarNegociosDeFirebase();
                     }
-                    setTimeout(() => {
-                        if (window.marcadoresRadar && window.marcadoresRadar[idDron]) {
-                            window.marcadoresRadar[idDron].togglePopup();
-                        }
-                    }, 1600);
-                    window.history.replaceState(null, '', window.location.pathname);
-                } else {
-                    if (!localStorage.getItem('geokatu_tour_v1') && typeof window.iniciarTour === 'function') {
+                    setTimeout(function() {
                         window.iniciarTour();
-                    } else {
-                        window.solicitarGPSInicial();
-                    }
+                    }, 350);
+                } else {
+                    window.solicitarGPSInicial();
                 }
-
-            }, 500);
-        }, 800);
-
+            }
+        }, 120);
 
         try {
-            const { success, data } = await GeokatuDB.LocalService.obtenerCaballoTroya();
-            dbTroya = success && data ? data : [];
+            const resTroya = await GeokatuDB.LocalService.obtenerCaballoTroya();
+            dbTroya = (resTroya && resTroya.success && resTroya.data) ? resTroya.data : [];
             if (typeof window.cargarCaballoTroya === 'function') window.cargarCaballoTroya();
         } catch (firebaseError) {
             console.warn("Aviso: Iniciando en modo offline o sin banners.", firebaseError.message);
@@ -721,7 +754,6 @@ window.arrancarMotor = async function() {
 };
 
 window.validarGeocercaOperativa = function(lat, lng) {
-    // Cobertura combinada: Colombia (incluye islas) y Venezuela
     const dentroLat = lat >= -4.5 && lat <= 16.0;
     const dentroLng = lng >= -82.0 && lng <= -59.5;
     return dentroLat && dentroLng;
@@ -734,7 +766,7 @@ window.mostrarCartelFueraDeZona = function() {
         toast.style.background = "rgba(180, 20, 20, 0.95)";
         toast.style.borderColor = "#ff4444";
         toast.style.opacity = '1';
-        setTimeout(() => {
+        setTimeout(function() {
             toast.style.opacity = '0';
             toast.style.background = "";
             toast.style.borderColor = "";
@@ -742,7 +774,6 @@ window.mostrarCartelFueraDeZona = function() {
     }
 };
 
-// Base de datos local ligera de ciudades de referencia COL / VEN
 const CIUDADES_REFERENCIA_GEO = [
     { nombre: "Bogotá, Colombia", lat: 4.6097, lng: -74.0817 },
     { nombre: "Medellín, Colombia", lat: 6.2476, lng: -75.5658 },
@@ -776,20 +807,23 @@ window.filtrarCiudadesSugeridas = function(texto) {
     }).join('');
 };
 
-
 window.fijarCiudadManual = function(lat, lng, nombre) {
-    localStorage.setItem('geokatu_ciudad_manual', JSON.stringify({ lat, lng, nombre }));
+    localStorage.setItem('geokatu_ciudad_manual', JSON.stringify({ lat: lat, lng: lng, nombre: nombre }));
     const modal = document.getElementById('modal-selector-ciudad');
-    if (modal) modal.style.display = 'none';
+    if (modal) {
+        modal.classList.remove('activo');
+        modal.style.display = 'none';
+    }
     const pantallaCarga = document.getElementById('pantalla-carga');
     if (pantallaCarga) {
         pantallaCarga.style.opacity = '0';
-        setTimeout(() => pantallaCarga.style.display = 'none', 400);
+        pantallaCarga.style.pointerEvents = 'none';
+        setTimeout(function() { pantallaCarga.style.display = 'none'; }, 300);
     }
     if (window.mapa) {
         window.mapa.flyTo({ center: [lng, lat], zoom: 15, duration: 1500 });
     }
-    setTimeout(() => {
+    setTimeout(function() {
         if (typeof window.descargarNegociosDeFirebase === 'function') {
             window.descargarNegociosDeFirebase();
         }
@@ -804,51 +838,66 @@ window.solicitarGPSInicial = function() {
     const pantallaCarga = document.getElementById('pantalla-carga');
     if (pantallaCarga) {
         pantallaCarga.style.opacity = '0';
-        setTimeout(() => { pantallaCarga.style.display = 'none'; }, 300);
+        pantallaCarga.style.pointerEvents = 'none';
+        setTimeout(function() { pantallaCarga.style.display = 'none'; }, 300);
     }
-    // Renderizar de inmediato los comercios de la zona actual sin esperar al GPS
+
     if (typeof window.descargarNegociosDeFirebase === 'function') {
         window.descargarNegociosDeFirebase();
     }
+
     const guardada = localStorage.getItem('geokatu_ciudad_manual');
     if (guardada) {
         try {
             const parsed = JSON.parse(guardada);
-            window.fijarCiudadManual(parsed.lat, parsed.lng, parsed.nombre);
-            return;
+            if (parsed && !isNaN(parsed.lat) && !isNaN(parsed.lng)) {
+                if (window.mapa) {
+                    window.mapa.flyTo({ center: [parsed.lng, parsed.lat], zoom: 15, duration: 1200 });
+                }
+                return;
+            }
         } catch (e) {}
     }
+
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
-            (pos) => {
+            function(pos) {
                 const lat = pos.coords.latitude;
                 const lng = pos.coords.longitude;
                 if (window.mapa) {
                     window.mapa.flyTo({ center: [lng, lat], zoom: 15, duration: 1200 });
                 }
-                setTimeout(() => {
+                setTimeout(function() {
                     if (typeof window.descargarNegociosDeFirebase === 'function') {
                         window.descargarNegociosDeFirebase();
                     }
                 }, 1250);
             },
-            (err) => {
-                if (dbDirectorioMap.size === 0) {
-                    const modalCiudad = document.getElementById('modal-selector-ciudad');
-                    if (modalCiudad) modalCiudad.style.display = 'flex';
-                }
+            function() {
+                // Si el usuario rechaza o no tiene GPS activo, operamos fluidamente en Pereira por defecto sin bloquear la pantalla con overlays
+                localStorage.setItem('geokatu_ciudad_manual', JSON.stringify({ lat: 4.8133, lng: -75.6961, nombre: 'Pereira, Colombia' }));
             },
             { enableHighAccuracy: false, timeout: 4500, maximumAge: 300000 }
         );
     }
 };
 
-
-
 window.iniciarTour = function() {
-    document.body.classList.add('tour-active');
+    const modalCiudad = document.getElementById('modal-selector-ciudad');
+    if (modalCiudad) {
+        modalCiudad.classList.remove('activo');
+        modalCiudad.style.display = 'none';
+    }
 
-    // Paso 1: Elevar buscador y su contenedor padre para romper el stacking context
+    document.body.classList.add('tour-active');
+    const tourOv = document.getElementById('tour-overlay');
+    if (tourOv) {
+        tourOv.style.display = 'block';
+        tourOv.style.opacity = '1';
+        tourOv.style.pointerEvents = 'auto';
+        tourOv.classList.add('activo');
+    }
+
     const cajaTop = document.getElementById('caja-buscador');
     const wrapper = document.getElementById('wrapper-buscador');
     if (cajaTop) cajaTop.classList.add('tour-parent-lift');
@@ -865,9 +914,11 @@ window.siguienteTour1 = function() {
     if (wrapper) wrapper.classList.remove('tour-highlight-z');
     document.getElementById('tour-step-1')?.classList.remove('activo');
 
-    // Paso 2: Botón Tuerca de Herramientas
     const btnHerramientas = document.getElementById('btn-herramientas-contenedor');
-    if (btnHerramientas) btnHerramientas.classList.add('tour-highlight-z');
+    if (btnHerramientas) {
+        btnHerramientas.classList.add('tour-parent-lift');
+        btnHerramientas.classList.add('tour-highlight-z');
+    }
 
     const tooltipScan = document.getElementById('tour-step-escaner');
     if (tooltipScan) tooltipScan.classList.add('activo');
@@ -875,10 +926,12 @@ window.siguienteTour1 = function() {
 
 window.siguienteTourEscaner = function() {
     const btnHerramientas = document.getElementById('btn-herramientas-contenedor');
-    if (btnHerramientas) btnHerramientas.classList.remove('tour-highlight-z');
+    if (btnHerramientas) {
+        btnHerramientas.classList.remove('tour-parent-lift');
+        btnHerramientas.classList.remove('tour-highlight-z');
+    }
     document.getElementById('tour-step-escaner')?.classList.remove('activo');
 
-    // Paso 3: Boton GPS liberado y resaltado en dorado
     const parentCtrl = document.querySelector('.maplibregl-ctrl-bottom-right');
     if (parentCtrl && parentCtrl.parentElement !== document.body) {
         document.body.appendChild(parentCtrl);
@@ -891,7 +944,6 @@ window.siguienteTourEscaner = function() {
     if (tooltip2) tooltip2.classList.add('activo');
 };
 
-
 window.siguienteTour2 = function() {
     const parentCtrl = document.querySelector('.maplibregl-ctrl-bottom-right');
     const btnGps = document.querySelector('.maplibregl-ctrl-geolocate') || document.querySelector('.maplibregl-ctrl-group');
@@ -899,7 +951,6 @@ window.siguienteTour2 = function() {
     if (btnGps) btnGps.classList.remove('tour-highlight-z');
     document.getElementById('tour-step-2')?.classList.remove('activo');
 
-    // Paso 4: Llave Maestra (Portal de Mando)
     const cajaTop = document.getElementById('caja-buscador');
     const btnLlave = document.getElementById('btn-portal-mando-contenedor');
     if (cajaTop) cajaTop.classList.add('tour-parent-lift');
@@ -916,7 +967,6 @@ window.siguienteTour3 = function() {
     if (btnLlave) btnLlave.classList.remove('tour-highlight-z');
     document.getElementById('tour-step-3')?.classList.remove('activo');
 
-    // Paso 5: Brújula flotante
     const brujula = document.getElementById('btn-brujula-contenedor');
     if (brujula) {
         brujula.classList.add('tour-parent-lift');
@@ -929,15 +979,11 @@ window.siguienteTour3 = function() {
 };
 
 window.finalizarTour = function() {
-    // Apagar todos los posibles destacados y elevaciones
-    document.querySelectorAll('.tour-parent-lift').forEach(el => el.classList.remove('tour-parent-lift'));
-    document.querySelectorAll('.tour-highlight-z').forEach(el => el.classList.remove('tour-highlight-z'));
-    document.querySelectorAll('.tour-tooltip').forEach(el => el.classList.remove('activo'));
-    document.body.classList.remove('tour-active');
+    window.apagarVeloTour();
     localStorage.setItem('geokatu_tour_v1', 'true');
-    // Unica llamada centralizada: solicita GPS o ejecuta barrido local sin duplicar lecturas
     window.solicitarGPSInicial();
 };
+
 
 
 
@@ -1702,10 +1748,28 @@ window.barridoRadar = function(filtroTexto = "") {
         }
         return;
     }
-
-    
+    // Separador visual en espiral áurea por si en la base de datos existen comercios previos con coordenada idéntica
+    const conteoPorCoord = {};
     pinesEnPantalla.forEach(p => {
-        const pos = { lat: p.Coordenadas.latitude, lng: p.Coordenadas.longitude };
+        const latBase = Number(p.Coordenadas.latitude);
+        const lngBase = Number(p.Coordenadas.longitude);
+        const clavePos = latBase.toFixed(5) + ':' + lngBase.toFixed(5);
+        const repeticion = conteoPorCoord[clavePos] || 0;
+        conteoPorCoord[clavePos] = repeticion + 1;
+
+        if (repeticion > 0) {
+            const angulo = repeticion * 2.39996; // Ángulo áureo en radianes (137.5°)
+            const radioGrados = 0.000065 * Math.sqrt(repeticion); // ~7 metros de separación visual
+            p._latRender = Number((latBase + Math.sin(angulo) * radioGrados).toFixed(6));
+            p._lngRender = Number((lngBase + Math.cos(angulo) * radioGrados).toFixed(6));
+        } else {
+            p._latRender = latBase;
+            p._lngRender = lngBase;
+        }
+    });
+
+    pinesEnPantalla.forEach(p => {
+        const pos = { lat: p._latRender || p.Coordenadas.latitude, lng: p._lngRender || p.Coordenadas.longitude };
         const portadaUsada = p.es_inmueble_real ? p.imagen : (p.portada || dbSimbologia['wallpaper_generico']);
         const logoUsado = p.es_inmueble_real ? p.imagen : (p.logo || dbSimbologia['avatar_generico']);
         const nombreTextoHTML = sanitizarTexto(p.nombre || 'Negocio');
