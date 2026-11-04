@@ -892,7 +892,7 @@ export const AuthGate = {
         const titBloqueo = document.getElementById('gk-titulo-estado-bloqueo');
         if (titBloqueo) titBloqueo.innerText = 'Terminal en Pausa (10 Min)';
         document.getElementById('gk-lbl-operario-bloqueo').innerText = 'Turno actual: ' + ctx.nombre;
-        document.getElementById('gk-lbl-sede-bloqueo').innerText = 'Digita tu PIN (' + ctx.codigoCajero + ') o haz relevo abajo';
+        document.getElementById('gk-lbl-sede-bloqueo').innerText = 'Digita tu PIN personal o haz relevo abajo';
 
         this._actualizarPuntosPIN();
         document.getElementById('gk-vista-bloqueo').style.display = 'flex';

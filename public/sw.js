@@ -4,7 +4,7 @@
  * Soporte: PMTiles (Range Requests), Matriz Comercial y URLs Limpias
  */
 
-const CACHE_NAME = 'geokatu-cache-v9';
+const CACHE_NAME = 'geokatu-cache-v12-catalogo-pos';
 const MAP_CACHE_NAME = 'geokatu-map-tiles-v2';
 
 // 1. Módulos esenciales del ecosistema GEOKATU (Cero 404, precarga inmediata)
@@ -29,7 +29,6 @@ const urlsToCache = [
     '/facturaven.html',
     '/cajon-motor.js',
     '/balanza-motor.js',
-    '/lector-motor.js',
     '/stock',
     '/stock.html',
     '/inventario',
@@ -52,9 +51,11 @@ const urlsToCache = [
     '/ui-estilos.css',
     '/pines.css',
     '/negocio.css',
+    '/branding-cuarzos.js',
     '/mapatienda.css',
     '/inventario.css',
     '/core-db.js',
+    '/operaciones-integridad.js',
     '/auth-gate.js',
     '/firebase-config.js',
     '/billing-guard.js',

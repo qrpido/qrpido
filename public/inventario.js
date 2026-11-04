@@ -1746,6 +1746,7 @@ AuthGate.inicializar({
 
         // Sellado criptografico de la terminal
         await GeokatuDB.SecurityService.sellarSesionTerminalLocal(contexto.idNegocio);
+        GeokatuDB.sincronizarPendientesOperativos(contexto.idNegocio).catch(error => console.warn('[Sincronización pendiente]', error.message));
 
         // Regla RBAC: Boton "Editar Plano SIG" solo para roles arquitectos
         var rolesConEdicion = ['owner', 'dueño', 'administrador_delegado', 'visual_merchandising', 'admin', 'superadmin'];
