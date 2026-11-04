@@ -601,7 +601,7 @@ function renderizarCarrito() {
                 <div style="font-size: 10px; color: #60a5fa; font-weight: normal;">Bs. ${subtotalVES.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</div>
             </div>
             <button class="btn-remove-item" data-idx="${idx}">
-                <span class="material-symbols-outlined" style="font-size: 18px;">delete</span>
+                <svg class="icono-pos" style="font-size: 18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>
             </button>
         `;
         contenedor.appendChild(card);
@@ -654,7 +654,7 @@ function renderizarGridCatalogo() {
         item.className = 'product-row-item';
         item.innerHTML = `
             <div style="display: flex; align-items: center; gap: 8px;">
-                <span class="material-symbols-outlined" style="color: var(--color-marca); font-size: 18px;">${prod.icono || (prod.es_pesable ? 'scale' : 'inventory_2')}</span>
+                <svg class="icono-pos" style="color: var(--color-marca); font-size: 18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m3 7 9-5 9 5v11l-9 4-9-4V7zm0 0 9 5 9-5M12 12v10"/></svg>
                 <span class="item-title">${prod.nombre}</span>
             </div>
             <div style="text-align: right;">
@@ -1793,7 +1793,7 @@ window.cerrarCamaraPOS = () => {
     const dock = document.getElementById('scanner-dock');
     const btnCam = document.getElementById('btn-toggle-camara');
     if (dock) dock.style.display = 'none';
-    if (btnCam) btnCam.innerHTML = `<span class="material-symbols-outlined">qr_code_scanner</span> Cámara`;
+    if (btnCam) btnCam.innerHTML = `<svg class="icono-pos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m8 0h5v-5M8 8h3v3H8zM15 8h1v3M8 15h3v1m4-1h2v2"/></svg> Cámara`;
 
     if (linternaEncendida) {
         const videoElem = document.querySelector('#lector-camara video');
@@ -1826,7 +1826,7 @@ window.escanearParaPOS = () => {
     }
 
     dock.style.display = "block";
-    if (btnCam) btnCam.innerHTML = `<span class="material-symbols-outlined">close</span> Cerrar`;
+    if (btnCam) btnCam.innerHTML = `<svg class="icono-pos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m5 5 14 14M19 5 5 19"/></svg> Cerrar`;
 
     const configFormatos = {
         formatsToSupport: [

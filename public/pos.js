@@ -704,8 +704,8 @@ function renderizarCarrito() {
             <div class="cart-card-subtotal">
                 $${subtotal.toLocaleString('es-CO')}
             </div>
-            <button class="btn-remove-item" data-idx="${index}">
-                <span class="material-symbols-outlined" style="font-size: 18px;">delete</span>
+            <button class="btn-remove-item" data-idx="${index}" aria-label="Eliminar artículo del ticket" title="Eliminar artículo">
+                <svg class="icono-pos" style="font-size: 18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>
             </button>
         `;
         contenedor.appendChild(card);
