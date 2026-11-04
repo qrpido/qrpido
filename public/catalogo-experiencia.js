@@ -4,6 +4,7 @@
     const $ = id => document.getElementById(id);
     const paths = {
         plus:'M12 5v14M5 12h14', minus:'M5 12h14', close:'m6 6 12 12M18 6 6 18',
+        check:'m5 12 4 4L19 6',
         edit:'m4 16 12-12 4 4L8 20H4v-4M14 6l4 4',
         camera:'M3 6h4l2-3h6l2 3h4v15H3zM8 13a4 4 0 1 0 8 0 4 4 0 0 0-8 0',
         image:'M3 3h18v18H3zM3 17l6-7 5 5 3-3 4 5M15 7h1',
@@ -149,7 +150,7 @@
         requestAnimationFrame(()=>{
             if(!group.isConnected)return;
             const width=group.getBoundingClientRect().width;
-            if(width<=host.clientWidth+1)return;
+            host.classList.toggle('con-desborde',width>host.clientWidth+1);if(width<=host.clientWidth+1)return;
             const clone=()=>{const c=group.cloneNode(true);c.setAttribute('aria-hidden','true');c.querySelectorAll('[id]').forEach(n=>n.removeAttribute('id'));c.querySelectorAll('a,button').forEach((n,i)=>{n.tabIndex=-1;n.removeAttribute('onclick');n.addEventListener('click',e=>{e.preventDefault();group.querySelectorAll('a,button')[i].click();});});return c;};
             host.prepend(clone());host.append(clone());host.scrollLeft=width;
             let adjusting=false;host.onscroll=()=>{if(adjusting)return;adjusting=true;if(host.scrollLeft<width*.5)host.scrollLeft+=width;else if(host.scrollLeft>width*1.5)host.scrollLeft-=width;adjusting=false;};
@@ -165,13 +166,23 @@
         });
     }
     function actualizarIdentidad() {
-        if(!api)return;const d=api.datos();document.body.dataset.avatarMarco=String(d.avatar_marco===true);
+        if(!api)return;const d=api.datos();document.body.dataset.avatarMarco=String(d.avatar_marco!==false);
+        document.body.dataset.avatarPosicion=['izquierda','derecha'].includes(d.avatar_posicion)?d.avatar_posicion:'centro';
+        const raw=String(d.horario||'').trim();
+        const horario=d.es_24_horas?'Horario de Atención: 24 horas':(!raw||/^(no registra|no registrado|sin horario|n\/a|null|undefined)$/i.test(raw)?'':'Horario de Atención: '+raw.replace(/\s*[-–]\s*/g,' a '));
+        $('badge-horario-header').textContent=horario;
+        $('badge-horario-header').hidden=!horario;
+        $('resumen-contacto').replaceChildren(...[horario,d.direccion].filter(Boolean).map(v=>texto('span',v)));
+        originals.map.replaceChildren(icon('pin')); originals.map.title='Ver ubicación'; originals.map.setAttribute('aria-label','Ver ubicación');
+        originals.edit.replaceChildren(icon(window.modoEdicionActivo?'check':'edit'));
+        originals.edit.title=window.modoEdicionActivo?'Terminar edición':'Editar catálogo'; originals.edit.setAttribute('aria-label',originals.edit.title);
+        originals.edit.setAttribute('aria-pressed',String(!!window.modoEdicionActivo));
         const root=document.documentElement;let color=getComputedStyle(root).getPropertyValue('--color-terciario').trim();
         if(luminance(color)===null)color='#ff6b00';
         document.body.style.setProperty('--accion-fondo',color);document.body.style.setProperty('--accion-texto',foreground(color));
         // Text surfaces use semantic colours, independent from arbitrary brand accents.
-        const top=[originals.map,originals.heart,...contactButtons(d),originals.edit,originals.share].filter(Boolean);
-        loopRail($('contactos-portada'),top);loopRail($('contactos-pie'),contactButtons(d));
+        const top=[originals.map,originals.heart,...contactButtons(d),originals.share].filter(Boolean);
+        loopRail($('contactos-portada'),top);loopRail($('contactos-pie'),[...contactButtons(d),button('pin','Ver ubicación',()=>window.viajarAlMapa())]);
         $('avatar-tienda').alt=d.nombre?'Foto de perfil de '+d.nombre:'Foto de perfil';
     }
     function resumenCarrito() {
@@ -245,7 +256,8 @@
         Object.values(originals).forEach(b=>{b.classList.add('gk-boton-icono');b.setAttribute('aria-label',b.title);});
         const rail=document.createElement('nav');rail.id='contactos-portada';rail.className='contactos-carrusel';rail.setAttribute('aria-label','Acciones y contactos del negocio');header.prepend(rail);
         const footer=document.createElement('nav');footer.id='contactos-pie';footer.className='contactos-carrusel';footer.setAttribute('aria-label','Contactos del negocio');document.querySelector('.footer-negocio').prepend(footer);
-        const avatar=header.querySelector('.contenedor-avatar-aureo'),row=document.createElement('div');row.className='perfil-resumen';avatar.before(row);row.append(avatar);const meta=document.createElement('div');meta.className='perfil-meta';meta.append(header.querySelector('.contenedor-nicho'),$('badge-horario-header'));row.append(meta);
+        const avatar=header.querySelector('.contenedor-avatar-aureo'),row=document.createElement('div');row.className='perfil-resumen';avatar.before(row);row.append(avatar);const meta=document.createElement('div');meta.className='perfil-meta';meta.append(header.querySelector('.contenedor-nicho'),$('badge-horario-header'));row.append(meta);meta.prepend($('contenedor-nombre'));header.append(originals.edit);
+        const summary=document.createElement('div');summary.id='resumen-contacto';footer.after(summary);
         const owner=document.querySelector('.barra-dueno-catalogo');owner.replaceChildren();owner.classList.add('panel-editar-negocio');const edit=$('lapiz-nombre');edit.className='editar-datos-negocio';edit.replaceChildren(icon('edit'),texto('span','Editar datos del comercio'));owner.append(edit);const add=button('plus','Agregar artículo',()=>window.abrirModalProductoNuevo(),'agregar-articulo');add.append(texto('span','Agregar artículo'));owner.append(add);
         $('carrito-flotante').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();window.abrirCheckout();}});
         const decorate=(selector,name)=>document.querySelectorAll(selector).forEach(b=>{if(!b.querySelector('svg'))b.prepend(icon(name));});

@@ -15,7 +15,7 @@
     <script src="./catalogo-experiencia.js"></script>
     <script src="./branding-cuarzos.js"></script>
     <link rel="stylesheet" href="./maplibre-gl.css" />
-    <script src="./maplibre-gl.js"></script>
+    <!-- MapLibre se descarga solo cuando se abre el selector de ubicación. -->
 
     <!-- Estilos Contextuales para el Modo Edición en Vivo del Dueño -->
     <style id="estilos-edicion-vivo">
@@ -375,6 +375,9 @@
                         <label>Presentación del nombre<select id="edit-placa" class="input-edicion-perfil"><option value="ninguna">Sin placa</option><option value="clara">Placa clara</option><option value="oscura">Placa oscura</option></select></label>
                         <label>Enfoque vertical de portada<input type="range" id="edit-portada-posicion" min="0" max="100" value="50"></label>
                     </div>
+                    <label class="opcion-editor">Posición del perfil
+                        <select id="edit-avatar-posicion"><option value="centro">Centro</option><option value="izquierda">Izquierda</option><option value="derecha">Derecha</option></select>
+                    </label>
                     <label class="opcion-editor"><input type="checkbox" id="edit-avatar-marco"> Mostrar marco circular en la foto de perfil</label>
                     <label class="opcion-editor"><input type="checkbox" id="edit-mostrar-stock"> Mostrar cantidades exactas de inventario al público</label>
                     <div id="preview-identidad" class="preview-identidad" aria-label="Vista previa del branding">
@@ -614,7 +617,8 @@
          LÓGICA MODULAR (JS PURO + GeokatuDB)
          ========================================================================= -->
     <script type="module">
-        import GeokatuDB from './core-db.js';
+        let GeokatuDB;
+        const serviciosListos = import('./core-db.js').then(module => { GeokatuDB = module.default; });
        import './estudio-imagen-universal.js';
 
 
@@ -712,8 +716,18 @@
         window.usuarioEsDueno = false;
         window.modoEdicionActivo = false;
 
-        GeokatuDB.SecurityService.observarEstadoSesion((user) => {
+        let revisionSesionCatalogo = 0;
+        serviciosListos.then(() => GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
+            const revision = ++revisionSesionCatalogo;
             window.usuarioEsDueno = Boolean(user && user.uid === idNegocio);
+            if (user && !window.usuarioEsDueno && urlParams.get('editor') === 'onboarding') {
+                const [rol, comercio] = await Promise.all([
+                    GeokatuDB.SecurityService.obtenerRolAdmin(user.uid),
+                    GeokatuDB.RadarService.obtenerNegocio(idNegocio)
+                ]);
+                if (revision !== revisionSesionCatalogo) return;
+                window.usuarioEsDueno = Boolean(rol.success && rol.data?.rol === 'superadmin' && comercio.success && comercio.data && comercio.data.reclamado !== true);
+            }
             const btnEdit = document.getElementById('btn-modo-edicion');
             if (btnEdit) btnEdit.style.display = window.usuarioEsDueno ? 'flex' : 'none';
             if (!window.usuarioEsDueno) {
@@ -722,7 +736,7 @@
                 document.getElementById('modal-editar-perfil-negocio').classList.remove('activo');
             }
             if (window.CatalogoUI) window.CatalogoUI.actualizarIdentidad();
-        });
+        })).catch(error => console.warn('Servicios del catálogo no disponibles:', error));
 
        // =========================================================================
         // MOTOR DE CONTRASTE YIQ Y CÁLCULO DE PALETA ÁUREA POR PRIORIDAD
@@ -881,7 +895,8 @@
                     e.preventDefault();
                     if (navigator.vibrate) navigator.vibrate(25);
                     btnWa.style.opacity = '0.6';
-                    var res = await GeokatuDB.LocalService.obtenerContactoComercio(idNegocio);
+                    await serviciosListos;
+                var res = await GeokatuDB.LocalService.obtenerContactoComercio(idNegocio);
                     btnWa.style.opacity = '1';
                     var fono = (res.success && res.data) ? (res.data.whatsapp || res.data.whatsApp || (res.data.telefonos && res.data.telefonos[0]) || rawWa) : rawWa;
                     var fonoLimpio = String(fono).replace(/\D/g, '');
@@ -916,7 +931,8 @@
                     e.preventDefault();
                     if (navigator.vibrate) navigator.vibrate(25);
                     elPbx.style.opacity = '0.6';
-                    var res = await GeokatuDB.LocalService.obtenerContactoComercio(idNegocio);
+                    await serviciosListos;
+                var res = await GeokatuDB.LocalService.obtenerContactoComercio(idNegocio);
                     elPbx.style.opacity = '1';
                     var pbx = (res.success && res.data) ? (res.data.pbx || rawPbx) : rawPbx;
                     var pbxLimpio = String(pbx).replace(/\D/g, '');
@@ -966,7 +982,7 @@
                 if (cacheProds) {
                     try {
                         var prodsParseados = JSON.parse(cacheProds);
-                        if (Array.isArray(prodsParseados) && prodsParseados.length > 0) {
+                        if (Array.isArray(prodsParseados)) {
                             productosMemoria = prodsParseados;
                             tieneCacheProdsValida = true;
                             categoriasGlobales = Array.from(new Set(productosMemoria.map(function(p) { return p.categoria || "Destacados"; })));
@@ -982,11 +998,12 @@
                     return;
                 }
 
+                await serviciosListos;
                 // 2. Consultar primero el documento raiz del comercio (1 sola lectura) para verificar catalogo_version
                 var resNegocio = await GeokatuDB.RadarService.obtenerNegocio(idNegocio);
                 if (!resNegocio.success || !resNegocio.data) {
                     if (!cacheNegocio) {
-                        document.getElementById('catalogo-contenedor').innerHTML = "<h3 style='color:#ff4444; text-align:center; padding: 40px;'>Esta tienda no existe o fue cerrada temporalmente.</h3>";
+                        document.getElementById('catalogo-contenedor').innerHTML = "<h3 style='color:#ff4444; text-align:center; padding: 40px;'>No se pudo cargar este catálogo. Comprueba tu conexión e inténtalo de nuevo.</h3>";
                     }
                     return;
                 }
@@ -1487,10 +1504,11 @@
             var btnSubmit = document.getElementById('btn-enviar-pedido');
             if (btnSubmit) {
                 btnSubmit.disabled = true;
-                btnSubmit.innerText = "Conectando con el comercio... ⏳";
+                btnSubmit.innerText = "Conectando con el comercio…";
             }
 
             try {
+                await serviciosListos;
                 var res = await GeokatuDB.LocalService.obtenerContactoComercio(idNegocio);
                 var c = (res.success && res.data) ? res.data : {};
                 var numTel = (c.whatsapp || c.whatsApp || (c.telefonos && c.telefonos[0]) || '').toString().replace(/\D/g, '');
@@ -1536,7 +1554,17 @@
 
 
         // 6. MINIMAPA
-        window.abrirMiniMapa = function() {
+        window.abrirMiniMapa = async function() {
+            if (!window.maplibregl) {
+                try {
+                    if (!window.promesaMapaCatalogo) window.promesaMapaCatalogo = new Promise((resolve, reject) => {
+                        const script = document.createElement('script'); script.src = './maplibre-gl.js';
+                        script.onload = resolve; script.onerror = () => { script.remove(); window.promesaMapaCatalogo = null; reject(new Error('No se pudo cargar el mapa. Reintenta con conexión.')); };
+                        document.head.append(script);
+                    });
+                    await window.promesaMapaCatalogo;
+                } catch (e) { alert(e.message); return; }
+            }
             const cont = document.getElementById('contenedor-mapa-ubicacion');
             cont.style.display = 'block';
 
@@ -1643,6 +1671,7 @@
             window.modoEdicionActivo = !window.modoEdicionActivo;
             document.getElementById('btn-modo-edicion').setAttribute('aria-pressed', String(window.modoEdicionActivo));
             document.body.classList.toggle('modo-edicion', window.modoEdicionActivo);
+            window.CatalogoUI.actualizarIdentidad();
             renderizarCatalogo(filtroActual);
         };
 
@@ -1690,6 +1719,7 @@
                 tema_popup: tema === 'custom' ? 'custom:' + document.getElementById('edit-cuarzo-color').value : tema,
                 placa_nombre: document.getElementById('edit-placa').value || 'ninguna',
                 portada_posicion: Number(document.getElementById('edit-portada-posicion').value),
+                avatar_posicion: document.getElementById('edit-avatar-posicion').value,
                 avatar_marco: document.getElementById('edit-avatar-marco').checked,
                 mostrar_stock_publico: document.getElementById('edit-mostrar-stock').checked
             };
@@ -1698,6 +1728,7 @@
             var root = document.getElementById('preview-identidad');
             window.GeokatuBranding.aplicar(root, window.leerAparienciaCatalogo());
             root.dataset.avatarMarco = String(document.getElementById('edit-avatar-marco').checked);
+            root.dataset.avatarPosicion = document.getElementById('edit-avatar-posicion').value;
             document.getElementById('grupo-color-propio').hidden = document.getElementById('edit-cuarzo').value !== 'custom';
             var portada = document.getElementById('preview-identidad-portada');
             portada.src = document.getElementById('input-edit-portada-url').value || SVG_SIN_IMAGEN;
@@ -1775,7 +1806,8 @@
             document.getElementById('edit-placa').value = datosNegocio.placa_nombre || 'ninguna';
             document.getElementById('edit-portada-posicion').value = datosNegocio.portada_posicion ?? 50;
             document.getElementById('edit-mostrar-stock').checked = datosNegocio.mostrar_stock_publico === true;
-            document.getElementById('edit-avatar-marco').checked = datosNegocio.avatar_marco === true;
+            document.getElementById('edit-avatar-marco').checked = datosNegocio.avatar_marco !== false;
+            document.getElementById('edit-avatar-posicion').value = datosNegocio.avatar_posicion || 'centro';
             window.CatalogoUI.editarPerfil();
             document.getElementById('estado-edicion-perfil').textContent = 'Edita y revisa la vista previa antes de guardar.';
             window.actualizarPreviewIdentidad();
@@ -2185,7 +2217,12 @@
             carrito: function() { return carrito; },
             cambiar: function(id, cantidad) { window.actualizarCarrito(id, cantidad); }
         });
-        window.onload = construirTienda;
+        construirTienda();
+        if ('serviceWorker' in navigator) {
+            const registrarOffline = () => navigator.serviceWorker.register('/sw.js', {updateViaCache:'none'}).catch(error => console.warn('Modo offline no disponible:', error));
+            if (document.readyState === 'complete') registrarOffline();
+            else window.addEventListener('load', registrarOffline, {once:true});
+        }
     </script>
 </body>
 </html>

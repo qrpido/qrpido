@@ -1,81 +1,39 @@
 /**
  * GEOKATU SERVICE WORKER - ARQUITECTURA OFFLINE-FIRST Y VECTORIAL
- * Versión: geokatu-cache-v7
+ * Versión: geokatu-cache-v15-arranque
  * Soporte: PMTiles (Range Requests), Matriz Comercial y URLs Limpias
  */
 
-const CACHE_NAME = 'geokatu-cache-v12-catalogo-pos';
-const MAP_CACHE_NAME = 'geokatu-map-tiles-v2';
+const CACHE_NAME = 'geokatu-cache-v15-arranque';
+const MAP_CACHE_NAME = 'geokatu-map-tiles-v3';
 
 // 1. Módulos esenciales del ecosistema GEOKATU (Cero 404, precarga inmediata)
 const urlsToCache = [
-    '/',
-    '/oficina',
-    '/oficina.html',
-    '/oficina.js',
-    '/metricas',
-    '/metricas.html',
-    '/metricas.js',
-    '/pos',
-    '/pos.html',
-    '/pos.js',
-    '/posven',
-    '/posven.html',
-    '/posven.js',
-    '/estilos-pos.css',
-    '/factura',
-    '/factura.html',
-    '/facturaven',
-    '/facturaven.html',
-    '/cajon-motor.js',
-    '/balanza-motor.js',
-    '/stock',
-    '/stock.html',
-    '/inventario',
-    '/inventario.html',
-    '/inventario.js',
-    '/mapatienda',
-    '/mapatienda.html',
-    '/negocio',
-    '/negocio.html',
-    '/manifest.json',
-    '/estilo-fresco.json',
-    '/catalogo_matriz.json',
-    '/directorio_matriz.json',
-    '/maplibre-gl.css',
-    '/maplibre-gl.js',
-    '/pmtiles.js',
-    '/html5-qrcode.min.js',
-    '/qrcode.min.js',
-    '/admin-boveda.css',
-    '/ui-estilos.css',
-    '/pines.css',
-    '/negocio.css',
-    '/branding-cuarzos.js',
-    '/mapatienda.css',
-    '/inventario.css',
-    '/core-db.js',
-    '/operaciones-integridad.js',
-    '/auth-gate.js',
-    '/firebase-config.js',
-    '/billing-guard.js',
-    '/motor-mapa.js',
-    '/motor-movilidad.js',
-    '/profiler.js'
+    '/', '/negocio', '/negocio.html', '/negocio.css', '/catalogo-experiencia.css',
+    '/catalogo-experiencia.js', '/branding-cuarzos.js', '/arranque-geokatu.js',
+    '/marca-geokatu.svg', '/onboarding-core.js', '/estudio-imagen-universal.js', '/core-db.js', '/firebase-config.js', '/motor-mapa.js',
+    '/auth-mando.js', '/profiler.js', '/ui-estilos.css', '/pines.css', '/maplibre-gl.js', '/maplibre-gl.css', '/pmtiles.js', '/estilo-fresco.json', '/operaciones-integridad.js',
+    ...['app','firestore','auth','analytics','storage','database','functions','app-check'].map(name =>
+        'https://www.gstatic.com/firebasejs/10.8.0/firebase-' + name + '.js')
 ];
 
 // Instalación atómica y tolerante a fallos
 self.addEventListener('install', event => {
-    self.skipWaiting();
+    // La nueva versión toma el control en la próxima sesión sin pestañas de la versión anterior, sin mezclar módulos abiertos.
     event.waitUntil(
         caches.open(CACHE_NAME).then(async cache => {
-            for (const url of urlsToCache) {
+            // Cuatro descargas simultáneas: sin bloquear una detrás de otra.
+            const pendientes = urlsToCache.slice();
+            await Promise.all(Array.from({length: 4}, async () => {
+              while (pendientes.length) {
+                const url = pendientes.shift();
                 try {
                     await cache.add(url);
                 } catch (err) {
                     console.warn(`[SW Precache Omitido]: ${url} no se pudo precargar.`);
                 }
-            }
+              }
+            }));
         })
     );
 });
@@ -83,15 +41,19 @@ self.addEventListener('install', event => {
 // Activación y depuración de cachés antiguos
 self.addEventListener('activate', event => {
     event.waitUntil(
-        caches.keys().then(cacheNames => {
-            return Promise.all(
-                cacheNames.map(cacheName => {
-                    if (cacheName !== CACHE_NAME && cacheName !== MAP_CACHE_NAME) {
-                        console.log(`[SW] Purgando cache antiguo: ${cacheName}`);
-                        return caches.delete(cacheName);
+        caches.keys().then(async cacheNames => {
+            const actual = await caches.open(CACHE_NAME);
+            // Conserva recursos visitados. No toca IndexedDB, pedidos ni cachés ajenas.
+            for (const name of cacheNames.filter(n => n.startsWith('geokatu-cache-') && n !== CACHE_NAME)) {
+                const anterior = await caches.open(name);
+                for (const req of await anterior.keys()) {
+                    if (!(await actual.match(req))) {
+                        const response = await anterior.match(req);
+                        if (response) await actual.put(req, response);
                     }
-                })
-            );
+                }
+                await caches.delete(name);
+            }
         }).then(() => self.clients.claim())
     );
 });
@@ -105,7 +67,7 @@ self.addEventListener('fetch', event => {
         url.hostname.includes('firestore.googleapis.com') ||
         url.hostname.includes('identitytoolkit') ||
         url.hostname.includes('securetoken.googleapis.com') ||
-        url.hostname.includes('firebasestorage.googleapis.com')
+        (url.hostname.includes('firebasestorage.googleapis.com') && url.searchParams.get('alt') !== 'media')
     ) {
         return;
     }
@@ -117,69 +79,70 @@ self.addEventListener('fetch', event => {
             caches.open(MAP_CACHE_NAME).then(async mapCache => {
                 // Generar clave de fragmento por rango de bytes
                 const rangeHeader = event.request.headers.get('range') || 'bytes=all';
-                const cacheKey = new Request(event.request.url + '&range=' + rangeHeader);
-
+                const keyURL = new URL(event.request.url);
+                keyURL.searchParams.set('__gk_range', rangeHeader);
+                const cacheKey = new Request(keyURL.href);
                 const cachedFragment = await mapCache.match(cacheKey);
                 if (cachedFragment) {
-                    return cachedFragment;
+                    const headers = new Headers(cachedFragment.headers);
+                    const status = Number(headers.get('x-gk-range-status') || 200);
+                    headers.delete('x-gk-range-status');
+                    return new Response(cachedFragment.body, {status, headers});
                 }
-
                 try {
-                    const networkResponse = await fetch(event.request);
-                    if (networkResponse && (networkResponse.status === 200 || networkResponse.status === 206)) {
-                        mapCache.put(cacheKey, networkResponse.clone());
+                    const response = await fetch(event.request);
+                    if (response.status === 200 || response.status === 206) {
+                        const copy = response.clone();
+                        const save = (async () => {
+                            const headers = new Headers(copy.headers);
+                            headers.set('x-gk-range-status', String(copy.status));
+                            // Cache Storage rechaza 206; se reconstruye al leer, con Content-Range intacto.
+                            await mapCache.put(cacheKey, new Response(await copy.arrayBuffer(), {status:200, headers}));
+                            const keys = await mapCache.keys();
+                            if (keys.length > 1200) await mapCache.delete(keys[0]);
+                        })().catch(() => {});
+                        await save;
                     }
-                    return networkResponse;
+                    return response;
                 } catch (err) {
-                    // Si está offline y no tiene ese cuadrante específico, retornar respuesta vacía sin romper el mapa
-                    return new Response(new ArrayBuffer(0), { status: 204, statusText: 'Tile Offline No Disponible' });
+                    return new Response('Esta zona no está descargada', {status:503});
                 }
             })
         );
         return;
     }
 
-    // B. ESTRATEGIA STALE-WHILE-REVALIDATE PARA APP, SCRIPTS Y MATRICES JSON
-    if (event.request.method === 'GET') {
-        event.respondWith(
-            caches.match(event.request, { ignoreSearch: true }).then(cachedResponse => {
-                const fetchPromise = fetch(event.request).then(networkResponse => {
-                    if (networkResponse && networkResponse.status === 200 && (networkResponse.type === 'basic' || networkResponse.type === 'cors')) {
-                        const responseToCache = networkResponse.clone();
-                        caches.open(CACHE_NAME).then(cache => {
-                            cache.put(event.request.url.split('?')[0], responseToCache);
-                        });
-                    }
-                    return networkResponse;
-                }).catch(() => {
-                    }).catch(() => {
-                    // Fallback exclusivo para catalogo_matriz.json (jamas mezclar con catalogo_base.json de tiendas)
-                    if (url.pathname.endsWith('/catalogo_matriz.json')) {
-                        return caches.match('/catalogo_matriz.json');
-                    }
-                    if (url.pathname.endsWith('/directorio_matriz.json')) {
-                        return caches.match('/directorio_matriz.json');
-                    }
-                    if (event.request.headers.get('accept')?.includes('application/json') || url.pathname.endsWith('.json')) {
-                        return new Response(JSON.stringify({ offline: true, p: [], data: [] }), {
-                            status: 503,
-                            headers: { 'Content-Type': 'application/json' }
-                        });
-                    }
-
-                    // Fallback para navegación entre páginas HTML (URLs limpias sin .html)
-                    if (event.request.mode === 'navigate') {
-                        const cleanPath = url.pathname;
-                        return caches.match(cleanPath, { ignoreSearch: true })
-                            .then(pageMatch => pageMatch || caches.match(cleanPath + '.html', { ignoreSearch: true }))
-                            .then(extMatch => extMatch || caches.match('/'));
-                    }
-                });
-
-                return cachedResponse || fetchPromise;
-            })
-        );
-    }
+    // Solo recursos públicos conocidos. Las consultas conservan su identidad completa.
+    const publico = url.origin === self.location.origin ||
+        (['geokatu.com','www.geokatu.com'].includes(url.hostname) && /^\/(fonts|sprites)\//.test(url.pathname)) ||
+        (url.hostname === 'www.gstatic.com' && url.pathname.startsWith('/firebasejs/')) ||
+        url.hostname === 'storage.googleapis.com' ||
+        (url.hostname === 'firebasestorage.googleapis.com' && url.searchParams.get('alt') === 'media');
+    if (event.request.method !== 'GET' || !publico || event.request.headers.has('authorization')) return;
+    const key = event.request.mode === 'navigate'
+        ? new Request(url.origin + (url.pathname === '/index.html' ? '/' : url.pathname))
+        : event.request;
+    // Registrar waitUntil durante el evento mantiene vivas las actualizaciones de fondo.
+    const work = (async () => {
+        const cache = await caches.open(CACHE_NAME);
+        const cached = await cache.match(key);
+        const update = fetch(event.request).then(async response => {
+            if (response.ok && response.status === 200 && response.type !== 'opaque') {
+                try { await cache.put(key, response.clone()); } catch (_) {}
+            }
+            return response;
+        }).catch(async () => {
+            if (cached) return cached;
+            if (event.request.mode === 'navigate') {
+                const page = await cache.match(url.pathname + '.html');
+                if (page) return page;
+                return new Response('Esta página aún no está descargada. Conéctate para abrirla por primera vez.',
+                    {status:503, headers:{'Content-Type':'text/plain; charset=utf-8'}});
+            }
+            return new Response('Recurso no disponible sin conexión', {status:503});
+        });
+        return {response: cached || update, update};
+    })();
+    event.respondWith(work.then(result => result.response));
+    event.waitUntil(work.then(result => result.update).then(() => undefined));
 });
-
-

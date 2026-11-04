@@ -82,14 +82,15 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#ff6b00">
 <link rel="apple-touch-icon" href="https://via.placeholder.com/192/0a0a0c/ff6b00?text=GK">
+<link rel="modulepreload" href="motor-mapa.js">
 <link rel="stylesheet" href="maplibre-gl.css" />
-<script src="maplibre-gl.js"></script>
-<script src="pmtiles.js"></script>
-<script src="html5-qrcode.min.js"></script>
+<script src="maplibre-gl.js" defer></script>
+<script src="pmtiles.js" defer></script>
+<script src="html5-qrcode.min.js" async></script>
 <link rel="stylesheet" href="pines.css" />
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/openlocationcode@1.0.4/openlocationcode.min.js"></script>
-<script type="text/javascript" src="https://checkout.wompi.co/widget.js"></script>
+<script src="qrcode.min.js" async></script>
+<script src="https://cdn.jsdelivr.net/npm/openlocationcode@1.0.4/openlocationcode.min.js" async></script>
+<script type="text/javascript" src="https://checkout.wompi.co/widget.js" async></script>
 <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 <link rel="stylesheet" href="ui-estilos.css" />
 
@@ -166,36 +167,17 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
 
 
 <!-- MOTOR NATIVO DE PRE-RENDERIZADO EN RAM (SPECULATION RULES API) -->
-<script type="speculationrules">
-{
-  "prerender": [
-    {
-      "source": "list",
-      "urls": ["/oficina", "/negocio", "/stock", "/inventario"],
-      "eagerness": "moderate"
-    }
-  ]
-}
-</script>
+<!-- Se precarga el núcleo, no páginas privadas ni un catálogo sin identificar. -->
 <div id="pantalla-carga">
-<script>
-    // Si el radar ya se inicializo en esta sesion o existe matriz en cache, saltar pantalla de carga en 0 ms
-    if (sessionStorage.getItem('geokatu_ram_warm') === '1' || localStorage.getItem('geokatu_matriz_timestamp')) {
-        var pc = document.getElementById('pantalla-carga');
-        if (pc) pc.style.display = 'none';
-    }
-</script>
-<img id="logo-carga" class="logo-palpitante" src="" style="max-width: 220px; display: none; margin-bottom: 10px; filter: drop-shadow(0 0 15px var(--naranja));">
-
-<h1 id="texto-logo-fallback" class="logo-palpitante" style="font-size: 48px; margin: 0; letter-spacing: 6px; font-weight: 900; line-height: 1;">
-    <span style="color: #ff6b00; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">GEO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);">KATU</span>
-</h1>
-<p class="texto-palpitante" id="txt-estado-carga">Sincronizando ciudad...</p>
+<img src="./marca-geokatu.svg" width="300" height="76" alt="GEOKATU · Tu ciudad conectada" style="max-width:80vw">
+<p id="txt-estado-carga" role="status" aria-live="polite">Preparando tu ciudad…</p>
+<div id="acciones-carga" hidden><button onclick="location.reload()">Reintentar</button> <button onclick="GeokatuArranque.continuar()">Continuar</button></div>
+<script src="./arranque-geokatu.js"></script>
 </div>
 
 <!-- MODAL DE SELECCIÓN MANUAL DE CIUDAD (COL / VEN) CUANDO SE NIEGA EL GPS -->
-<div class="bottom-sheet-overlay" id="modal-selector-ciudad" onclick="cerrarModalFuera(event, 'modal-selector-ciudad')" style="display: none;">
-    <div class="bottom-sheet-contenido" style="text-align: center; max-width: 380px; transform: translateY(0);">
+<div class="bottom-sheet-overlay" id="modal-selector-ciudad" style="display: none; opacity: 1; pointer-events: all;">
+    <div class="bottom-sheet-contenido" style="text-align: center; max-width: 380px;">
         <div class="drag-handle"></div>
         <h3 style="color: var(--naranja); margin-top: 0; text-transform: uppercase; font-size: 16px; font-weight: 900;">Selecciona tu Ubicación</h3>
         <p style="color: #bbb; font-size: 12px; margin-bottom: 15px; line-height: 1.4;">No pudimos acceder a tu GPS. Elige o escribe la ciudad donde deseas operar:</p>
@@ -203,6 +185,7 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         <input type="text" id="input-selector-ciudad" class="input-login" placeholder="Escribe tu ciudad (Ej: Bogotá, Caracas, Medellín...)" style="margin-bottom: 12px; font-size: 13px;" oninput="window.filtrarCiudadesSugeridas(this.value)">
         
         <div id="lista-ciudades-sugeridas" style="display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto; margin-bottom: 15px; text-align: left;">
+            <!-- Sugerencias precargadas Colombia / Venezuela -->
             <div class="pill-ciudad-sugerida" onclick="window.fijarCiudadManual(4.6097, -74.0817, 'Bogotá, Colombia')" style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold;">🇨🇴 Bogotá D.C.</div>
             <div class="pill-ciudad-sugerida" onclick="window.fijarCiudadManual(10.4806, -66.9036, 'Caracas, Venezuela')" style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold;">🇻🇪 Caracas</div>
             <div class="pill-ciudad-sugerida" onclick="window.fijarCiudadManual(6.2476, -75.5658, 'Medellín, Colombia')" style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold;">🇨🇴 Medellín</div>
@@ -214,8 +197,8 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
     </div>
 </div>
 
-<div id="tour-overlay" style="display: none; opacity: 0; pointer-events: none;" onclick="window.finalizarTour()"></div>
 
+<div id="tour-overlay"></div>
 
 <!-- PASO 1: BUSCADOR -->
 <div id="tour-step-1" class="tour-tooltip" style="top: 85px; left: 20px; right: 20px; margin: 0 auto;">
@@ -705,14 +688,15 @@ window.registrarPaso = function(mensaje) {
 async function inicializarSistema() {
     try {
         window.registrarPaso("Iniciando inyección de módulos...");
-        await import('./auth-mando.js'); window.registrarPaso("Módulo Auth OK");
-        await import('./motor-mapa.js'); window.registrarPaso("Módulo Mapa OK");
-        await import('./motor-movilidad.js'); window.registrarPaso("Módulo Movilidad P2P OK");
+        window.GeokatuArranque.estado('Preparando mapa y servicios de la ciudad…');
+        await Promise.all([import('./auth-mando.js'), import('./motor-mapa.js')]);
+        import('./motor-movilidad.js').catch(error => console.warn('Movilidad no disponible:', error));
         window.registrarPaso("Todos los módulos inyectados. Arrancando motor principal...");
         if (typeof window.arrancarMotor === 'function') { window.arrancarMotor(); } 
         else { throw new Error("window.arrancarMotor no está definido."); }
     } catch (error) {
         console.error("Fallo crítico en el Bootloader:", error);
+        window.GeokatuArranque.error();
         if (typeof mostrarCartelErrorYDescargar === 'function') {
             mostrarCartelErrorYDescargar('FALLO DE COMPILACIÓN (MODULE PARSE ERROR)', `El motor falló al ensamblarse.\n\n${error.message}`);
         }
@@ -721,7 +705,7 @@ async function inicializarSistema() {
 
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => { 
-        navigator.serviceWorker.register('sw.js')
+        navigator.serviceWorker.register('sw.js', {updateViaCache:'none'})
             .then(reg => console.log('PWA lista y blindada.', reg.scope))
             .catch(err => console.log('PWA falló:', err)); 
     });
@@ -731,7 +715,8 @@ window.addEventListener('offline', () => document.getElementById('offline-banner
 window.addEventListener('online', () => document.getElementById('offline-banner').classList.remove('activo'));
 if (!navigator.onLine) document.getElementById('offline-banner').classList.add('activo');
 
-inicializarSistema();
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', inicializarSistema, {once:true});
+else inicializarSistema();
 
 document.body.addEventListener('click', (e) => {
     const elementoAccion = e.target.closest('[class*="js-action-"]');
