@@ -366,7 +366,7 @@ export const DirectorioMatrizService = {
                             n: data.nombre || "Comercio Aliado",
                             s: (data.slogan || "").substring(0, 70),
                             c: data.nicho || data.categoria || "General",
-                            g: [data.lat || 4.81333, data.lng || -75.69611],
+                            g: [Number(data.Coordenadas?.latitude ?? data.lat ?? 4.81333), Number(data.Coordenadas?.longitude ?? data.lng ?? -75.69611)],
                             p: data.pin_pack || "forma-gota|anim-salto",
                             b: [data.color_principal || "#ff6b00", data.color_acento || "#8a909d", data.color_terciario || "#ffffff", data.color_cuaternario || "#0a0a0c"],
                             l: data.logo || "",
@@ -383,12 +383,16 @@ export const DirectorioMatrizService = {
                         abrirDBDirectorio().then((dbInstance) => {
                             const tx = dbInstance.transaction(STORE_DIR, 'readwrite');
                             tx.objectStore(STORE_DIR).put(comercioFormateado);
-                        });
+                            tx.oncomplete = () => dbInstance.close();
+                            tx.onerror = () => console.warn('[Directorio Delta] Falló la persistencia local.');
+                        }).catch(err => console.warn('[Directorio Delta] Caché:', err.message));
                         if (typeof onNuevoComercioCallback === 'function') {
                             onNuevoComercioCallback(comercioFormateado);
                         }
                     }
                 });
+            }, (err) => {
+                console.warn('[Directorio Delta] Suscripción interrumpida; verificar índice y permisos:', err.message);
             });
         } catch (err) {
             console.warn("[Directorio Delta] Sincronizacion omitida:", err.message);
@@ -1455,7 +1459,7 @@ obtenerContactoComercio: async (idNegocio) => {
         // =========================================================================
         // PIPELINE DE COMPRESIÓN CLIENT-SIDE Y NOMENCLATURA CANÓNICA
         // =========================================================================
-        comprimirAWebP: function(archivo, maxDim = 800, calidad = 0.75, forzarCuadrado = true) {
+        comprimirAWebP: function(archivo, maxDim = 800, calidad = 0.75, forzarCuadrado = true, preservarTransparencia = true) {
             return new Promise((resolve, reject) => {
                 if (!archivo) return resolve(null);
                 const reader = new FileReader();
@@ -1476,19 +1480,28 @@ obtenerContactoComercio: async (idNegocio) => {
                             h = minSide;
                         }
 
-                        if (w > maxDim) {
-                            h = Math.round((h * maxDim) / w);
-                            w = maxDim;
+                        const dimension = Number(maxDim);
+                        if (!Number.isFinite(dimension) || dimension < 1 || !w || !h) {
+                            reject(new Error("Dimensiones de imagen inválidas"));
+                            return;
                         }
+                        const escala = Math.min(1, dimension / Math.max(w, h));
+                        w = Math.max(1, Math.round(w * escala));
+                        h = Math.max(1, Math.round(h * escala));
 
                         const canvas = document.createElement('canvas');
                         canvas.width = w;
                         canvas.height = h;
                         const ctx = canvas.getContext('2d');
+                        if (!ctx) { reject(new Error("Canvas no disponible")); return; }
+                        if (!preservarTransparencia) {
+                            ctx.fillStyle = '#FFFFFF';
+                            ctx.fillRect(0, 0, w, h);
+                        }
                         ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
 
                         canvas.toBlob((blob) => {
-                            if (!blob) return resolve(archivo);
+                            if (!blob || blob.type !== "image/webp") return reject(new Error("El navegador no pudo codificar WebP"));
                             resolve(blob);
                         }, 'image/webp', calidad);
                     };
@@ -1503,13 +1516,15 @@ obtenerContactoComercio: async (idNegocio) => {
         subirFotoProductoCanonica: async function(idNegocio, codigoBarras, archivoOriginal, vista = 'frontal') {
             try {
                 if (!archivoOriginal) return { success: false, error: "No se proporciono archivo" };
-                const uidOwner = (auth.currentUser && auth.currentUser.uid) 
-                    ? auth.currentUser.uid 
-                    : (idNegocio || localStorage.getItem('geokatu_active_uid'));
+                const uidOwner = String(idNegocio || localStorage.getItem('geokatu_active_uid') ||
+                    (auth.currentUser && auth.currentUser.uid) || '').trim();
+                if (uidOwner.includes('/') || !/^[a-zA-Z0-9_-]+$/.test(String(vista))) {
+                    throw new Error("Identificador de comercio o vista inválido.");
+                }
                 if (!uidOwner) {
                     throw new Error("No hay una sesion de comercio valida para autenticar la subida.");
                 }
-                const blobComprimido = await this.comprimirAWebP(archivoOriginal, 800, 0.75, true);
+                const blobComprimido = await this.comprimirAWebP(archivoOriginal, 800, 0.75, true, false);
                 const codigoLimpio = String(codigoBarras || Date.now()).trim().replace(/[^a-zA-Z0-9_-]/g, '');
                 const nombreArchivo = codigoLimpio + '-' + vista + '.webp';
                 const rutaStorage = 'productos/' + uidOwner + '/' + nombreArchivo;
@@ -2170,25 +2185,57 @@ obtenerContactoComercio: async (idNegocio) => {
         // =========================================================================
         // 🔍 CONSULTA DIRECTA DE COMERCIOS EN FIRESTORE (CENTRAL DE ADMINISTRACIÓN)
         // =========================================================================
-        buscarComerciosDirectorio: async (criterioBusqueda = "", maxRegistros = 50) => {
+        guardarEnlaceAppScriptOnboarding: async (urlAppScript) => {
+            try {
+                const url = new URL(String(urlAppScript || '').trim());
+                if (url.origin !== 'https://script.google.com' ||
+                    !/^\/macros\/s\/[^/]+\/exec$/.test(url.pathname) || url.username || url.password) {
+                    throw new Error('Usa la URL publicada de Apps Script terminada en /exec.');
+                }
+                await setDoc(doc(db, 'Sistema', 'Onboarding_Privado'), {
+                    url_appscript_onboarding: url.href,
+                    fecha_actualizacion: new Date().toISOString()
+                }, { merge: true });
+                try { localStorage.setItem('geokatu_apps_script_url', url.href); } catch (_) {}
+                return { success: true, url: url.href };
+            } catch (err) { return { success: false, error: err.message }; }
+        },
+        obtenerEnlaceAppScriptOnboarding: async () => {
+            try {
+                if (navigator.onLine) {
+                    const snap = await getDoc(doc(db, 'Sistema', 'Onboarding_Privado'));
+                    const url = snap.exists() ? snap.data().url_appscript_onboarding : '';
+                    if (url) {
+                        try { localStorage.setItem('geokatu_apps_script_url', url); } catch (_) {}
+                        return { success: true, url, origen: 'nube' };
+                    }
+                }
+                return { success: true, url: localStorage.getItem('geokatu_apps_script_url') || '', origen: 'local' };
+            } catch (err) {
+                return { success: true, url: localStorage.getItem('geokatu_apps_script_url') || '', origen: 'local', error: err.message };
+            }
+        },
+        buscarComerciosDirectorio: async (criterioBusqueda = "", maxRegistros = 50, ultimoDoc = null) => {
             if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
             try {
-                const qSnap = await getDocs(query(collection(db, _SCHEMA.ColeccionDirectorio), limit(maxRegistros)));
-                const resultados = [];
-                const busquedaClean = String(criterioBusqueda).toLowerCase().trim();
-
-                qSnap.forEach(d => {
-                    const data = d.data();
-                    const textoIndex = `${d.id} ${data.nombre || ''} ${data.direccion || ''} ${data.whatsapp || ''} ${data.owner_email || ''}`.toLowerCase();
-                    if (!busquedaClean || textoIndex.includes(busquedaClean)) {
-                        resultados.push({ id: d.id, ...data });
-                    }
-                });
-
-                return { success: true, data: resultados };
-            } catch (err) {
-                return { success: false, error: err.message };
-            }
+                const tamano = Math.max(1, Math.min(500, Math.floor(Number(maxRegistros) || 50)));
+                const restricciones = [orderBy('__name__')];
+                if (ultimoDoc) restricciones.push(startAfter(ultimoDoc));
+                restricciones.push(limit(tamano));
+                const snap = await getDocs(query(collection(db, _SCHEMA.ColeccionDirectorio), ...restricciones));
+                const busqueda = String(criterioBusqueda).toLowerCase().trim();
+                const data = snap.docs.map(d => {
+                    const v = d.data();
+                    const tomado = v.reclamado === true || v.dueno_registrado === true ||
+                        (v.uid_dueno != null && v.uid_dueno !== '') || (v.owner_email != null && v.owner_email !== '');
+                    return { ...v, id: d.id, esta_tomado: tomado, editable_en_onboarding: !tomado };
+                }).filter(v => [v.id, v.nombre, v.nicho, v.direccion, v.whatsapp, v.owner_email].join(' ').toLowerCase().includes(busqueda));
+                const libres = data.filter(v => !v.esta_tomado);
+                const tomados = data.filter(v => v.esta_tomado);
+                return { success: true, data, libres, tomados,
+                    totales: { todos: data.length, libres: libres.length, tomados: tomados.length },
+                    alcance: 'pagina', ultimoDoc: snap.docs.at(-1) || null, puedeHaberMas: snap.size === tamano };
+            } catch (err) { return { success: false, error: err.message, data: [], libres: [], tomados: [] }; }
         }
     },
 
@@ -3480,6 +3527,7 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
             const payloadFinal = {
                 ...ticketData,
                 ticketIdLocal: ticketIdLocal,
+                anulado: false,
                 estado_sincronizacion: "sincronizado",
                 timestamp_caja: new Date().toISOString(),
                 origen: "PWA_POS",
@@ -3516,7 +3564,8 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                 const negocioRef = doc(db, _SCHEMA.ColeccionDirectorio, tenantReal);
                 batch.set(negocioRef, {
                     facturacion_control: {
-                        facturas_emitidas_mes: increment(1)
+                        facturas_emitidas_mes: increment(1),
+                        ultima_venta_id: ticketRef.id
                     }
                 }, { merge: true });
 
@@ -3620,7 +3669,8 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                     const negocioRef = doc(db, _SCHEMA.ColeccionDirectorio, tenantReal);
                     batch.set(negocioRef, {
                         facturacion_control: {
-                            facturas_emitidas_mes: increment(1)
+                            facturas_emitidas_mes: increment(1),
+                            ultima_venta_id: ticketRef.id
                         }
                     }, { merge: true });
 
@@ -3690,7 +3740,8 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                         const negocioRef = doc(db, _SCHEMA.ColeccionDirectorio, tenantReal);
                         batch.set(negocioRef, {
                             facturacion_control: {
-                                facturas_emitidas_mes: increment(1)
+                                facturas_emitidas_mes: increment(1),
+                                ultima_venta_id: ticketRef.id
                             }
                         }, { merge: true });
 

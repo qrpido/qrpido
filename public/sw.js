@@ -1,10 +1,10 @@
 /**
  * GEOKATU SERVICE WORKER - ARQUITECTURA OFFLINE-FIRST Y VECTORIAL
- * Versión: geokatu-cache-v15-arranque
+ * Versión: geokatu-cache-v16-unificacion
  * Soporte: PMTiles (Range Requests), Matriz Comercial y URLs Limpias
  */
 
-const CACHE_NAME = 'geokatu-cache-v15-arranque';
+const CACHE_NAME = 'geokatu-cache-v16-unificacion';
 const MAP_CACHE_NAME = 'geokatu-map-tiles-v3';
 
 // 1. Módulos esenciales del ecosistema GEOKATU (Cero 404, precarga inmediata)
