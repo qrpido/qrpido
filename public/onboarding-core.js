@@ -1341,7 +1341,7 @@ export function inicializarEventosRueda() {
             puntero.style.top = (y + maxRadio) + 'px';
         }
 
-        l// Calibracion exacta 1:1 con conic-gradient(from 90deg): 0 grados (Rojo) a las 3 en punto
+        // Calibracion exacta 1:1 con conic-gradient(from 90deg): 0 grados (Rojo) a las 3 en punto
         let angle = Math.atan2(y, x) * (180 / Math.PI);
         if (angle < 0) angle += 360;
         window.estadoColorCustom.h = Math.round(angle);
@@ -2458,8 +2458,10 @@ window.sincronizarCatalogoComercioNube = async function() {
             dueno_registrado: Boolean(c.dueno_registrado),
             owner_email: c.owner_email || c.dueno_email || "",
             estado_moderacion: "aprobado",
-            premium: false,
+            plan_suscripcion: c.plan_suscripcion || (c.premium ? "PRO" : "FREEMIUM"),
+            premium: Boolean(c.premium || c.plan_suscripcion === "PRO" || c.plan_suscripcion === "ULTRA"),
             progreso_boveda: 100,
+
             tipo_modelo: "negocio",
             fecha_ingreso: c.fecha_ingreso || new Date().toISOString(),
             fecha_actualizacion: new Date().toISOString(),
@@ -2771,26 +2773,29 @@ window.confirmarEntregaDueno = async function() {
         c.password_temporal = passTemporal;
         AppState.guardarColaLocal();
 
-    // Si el comercio ya está en Firestore, impactar el documento raíz sin exponer contraseñas
+            // Si el comercio ya está en Firestore, impactar el documento raíz sin exponer contraseñas
         if (c.subido === true || c.id) {
             const idDocStr = String(c.id);
             const docRef = doc(db, "Directorio", idDocStr);
-            
+            const planElegido = prompt("Plan SaaS a activar para este comercio (FREEMIUM, PRO o ULTRA):", c.plan_suscripcion || "FREEMIUM");
+            const planNormalizado = (planElegido && ['FREEMIUM', 'PRO', 'ULTRA'].indexOf(planElegido.trim().toUpperCase()) !== -1)
+                ? planElegido.trim().toUpperCase()
+                : "FREEMIUM";
+
+            c.plan_suscripcion = planNormalizado;
+            c.premium = (planNormalizado === 'PRO' || planNormalizado === 'ULTRA');
+            AppState.guardarColaLocal();
+
             // 1. Datos públicos / administrativos en el documento raíz
             await setDoc(docRef, {
                 reclamado: true,
                 dueno_registrado: false,
                 owner_email: email,
+                plan_suscripcion: planNormalizado,
+                premium: c.premium,
                 fecha_entrega_dueno: new Date().toISOString()
             }, { merge: true });
 
-            // 2. Credencial aislada en subcolección protegida (invisible para scrapers y consultas públicas)
-            const bovedaRef = doc(db, "Directorio/" + idDocStr + "/Boveda_Seguridad", "Credenciales");
-            await setDoc(bovedaRef, {
-                password_temporal: passTemporal,
-                owner_email: email,
-                fecha_generacion: new Date().toISOString()
-            }, { merge: true });
         }
 
 

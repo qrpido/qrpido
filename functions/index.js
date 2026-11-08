@@ -107,7 +107,7 @@ const { Ed25519Keypair } = await import('@mysten/sui/keypairs/ed25519');
 const { Transaction } = await import('@mysten/sui/transactions');
 const suiClient = new SuiJsonRpcClient({ url: 'https://fullnode.mainnet.sui.io:443' });
 try {
-const datosCrudos = `PROD:${productoId}|ORIGEN:${ubicacionOrigen}|DESTINO:${ubicacionDestino}|OP:${tipoMovimiento}|USER:${uidBodeguero}`;
+const datosCrudos = `PROD:productoId|ORIGEN:{ubicacionOrigen}|DESTINO:ubicacionDestino|OP:{tipoMovimiento}|USER:${uidBodeguero}`;
 const huellaMovimiento = crypto.createHash('sha256').update(datosCrudos).digest('hex');
 const tx = new Transaction();
 tx.setGasPayment([{ objectId: monedaSuiGas.id, version: monedaSuiGas.version, digest: monedaSuiGas.digest }]);
@@ -606,9 +606,9 @@ const secretoMaestro = semillaMaestra.value();
 const pdfCifrado = encriptarBuffer(pdfBuffer, secretoMaestro, uid);
 const bucket = admin.storage().bucket();
 const nombreArchivo = wompi_ref.replace(/[^a-zA-Z0-9_-]/g, '');
-const fileEnc = bucket.file(`boveda_legal/${uid}/${nombreArchivo}.enc`);
+const fileEnc = bucket.file(`boveda_legal/uid/{nombreArchivo}.enc`);
 await fileEnc.save(pdfCifrado, { metadata: { contentType: 'application/octet-stream' }, private: true });
-const filePlano = bucket.file(`temporales_pdf/${uid}/${nombreArchivo}.pdf`);
+const filePlano = bucket.file(`temporales_pdf/uid/{nombreArchivo}.pdf`);
 await filePlano.save(pdfBuffer, { metadata: { contentType: 'application/pdf' }, private: true });
 const urlFriccionCero = await filePlano.getSignedUrl({
 action: 'read',
@@ -623,7 +623,7 @@ tx_sui: txIdGenerado,
 fecha_creacion: admin.firestore.FieldValue.serverTimestamp(),
 estado: "Sellado en SUI",
 wompi_ref: wompi_ref,
-ruta_storage_enc: `boveda_legal/${uid}/${nombreArchivo}.enc`
+ruta_storage_enc: `boveda_legal/uid/{nombreArchivo}.enc`
 });
 return {
 success: true,
@@ -847,7 +847,7 @@ throw new HttpsError('invalid-argument', 'Token de seguridad no proporcionado.')
 try {
 const secretKey = secretoRecaptchaV2.value();
 // Google requiere los parámetros en la URL para este endpoint
-const verifyUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${token}`;
+const verifyUrl = `https://www.google.com/recaptcha/api/siteverify?secret=secretKey&response={token}`;
 // fetch es nativo en Node 18+ (versión por defecto de Firebase Functions)
 const respuestaGoogle = await fetch(verifyUrl, { method: 'POST' });
 const dataGoogle = await respuestaGoogle.json();
@@ -1185,7 +1185,7 @@ exports.webhookWompiEventos = functions.runWith({ secrets: [secretoWebhooks] })
             const transaction = evento.data?.transaction;
             if (!transaction) return res.status(400).send('Estructura inválida');
 
-            const cadenaConcentrada = `${transaction.id}${transaction.status}${transaction.amount_in_cents}${evento.timestamp}${secreto}`;
+            const cadenaConcentrada = `transaction.id{transaction.status}transaction.amountincents{evento.timestamp}${secreto}`;
             const hashCalculado = crypto.createHash('sha256').update(cadenaConcentrada).digest('hex');
 
             if (hashCalculado !== checksumHeader) {
@@ -1207,6 +1207,15 @@ exports.webhookWompiEventos = functions.runWith({ secrets: [secretoWebhooks] })
                         monto_recibido_centavos: transaction.amount_in_cents,
                         wompi_transaccion_id: transaction.id,
                         fecha_confirmacion: admin.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+// === NUEVO: SELLO EN VIVO PARA CORNETA DIGITAL Y MODAL POS ULTRA ===
+                    const pagoPosRef = db.collection('Directorio').doc(idNegocio).collection('Pagos_POS_EnVivo').doc(tktId);
+                    await pagoPosRef.set({
+                        estado: 'APROBADO',
+                        monto_pesos: Math.round(Number(transaction.amount_in_cents || 0) / 100),
+                        transaccion_id: transaction.id,
+                        metodo: transaction.payment_method_type || 'PASARELA_ULTRA',
+                        timestamp: admin.firestore.FieldValue.serverTimestamp()
                     }, { merge: true });
 
                     // 🚀 Engrane Suizo: Registra el volumen cobrado en el acumulado de red
@@ -1530,6 +1539,7 @@ exports.compilarMatrizDirectorioManual = onCall({ memory: "512MB", maxInstances:
 
     return await compilarYPublicarMatrizStorage();
 });
+
 
 
 

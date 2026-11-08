@@ -236,6 +236,7 @@ async function inicializarCaja() {
             }
         }
     });
+window.actualizarEstadoVisualBotonWhatsApp(); 
 }
 
 // ==========================================
@@ -641,6 +642,10 @@ function eliminarItem(index) {
 // 5. RENDERIZADO DEL CARRITO TÁCTIL
 // ==========================================
 function renderizarCarrito() {
+// Al inicio de renderizarCarrito():
+const btnExp = document.getElementById('btn-expandir-ticket');
+if (btnExp) btnExp.classList.toggle('visible', carrito.length >= 3);
+
     const contenedor = document.getElementById('current-sale');
     contenedor.innerHTML = '';
 
@@ -687,7 +692,7 @@ function renderizarCarrito() {
                     <h4>${item.nombre}</h4>
                     <button type="button" onclick="window.agregarNotaItem(${index})" title="Añadir nota de comanda" style="background:none; border:none; color:#888; cursor:pointer; font-size:11px;">✏️ Nota</button>
                 </div>
-                <p>${item.precio_fijado_balanza ? `Etiqueta Balanza (${item.cantidad} ${item.unidad_medida})` : `$${Number(item.precio).toLocaleString('es-CO')} / ${item.unidad_medida}`}</p>
+                <p>${item.precio_fijado_balanza ? `Etiqueta Balanza (${item.cantidad} item.unidadmedida)`:`${Number(item.precio).toLocaleString('es-CO')} / ${item.unidad_medida}`}</p>
                 ${notaHtml}
             </div>
 
@@ -750,7 +755,13 @@ function renderizarGridCatalogo() {
         return;
     }
 
-    catalogoLocal.slice(0, 30).forEach(prod => {
+    const cfgLocalRaw = localStorage.getItem('geokatu_pos_config_' + idNegocio);
+    const cfgLocal = cfgLocalRaw ? JSON.parse(cfgLocalRaw) : {};
+    const planActual = cfgLocal.plan_activo || (controlFacturacionActivo && controlFacturacionActivo.plan_activo) || 'FREEMIUM';
+    const limiteMostrar = (planActual === 'FREEMIUM') ? 150 : catalogoLocal.length;
+
+    catalogoLocal.slice(0, limiteMostrar).forEach(prod => {
+
         const item = document.createElement('div');
         item.className = 'product-row-item';
         const svgIco = prod.es_pesable
@@ -762,7 +773,6 @@ function renderizarGridCatalogo() {
                 '<span class="item-title">' + prod.nombre + '</span>' +
             '</div>' +
             '<span class="item-price">$' + Number(prod.precio).toLocaleString() + (prod.es_pesable ? '/kg' : '') + '</span>';
-
 
         item.onclick = () => {
             const modalCat = document.getElementById('modal-catalogo-popup');
@@ -781,8 +791,21 @@ function renderizarGridCatalogo() {
 
         grid.appendChild(item);
     });
-}
 
+   // === AVISO GANCHO PLAN PRO (AL FINAL DEL FOREACH) ===
+    if (planActual === 'FREEMIUM' && catalogoLocal.length >= 150) {
+        const bannerPro = document.createElement('div');
+        bannerPro.className = 'product-row-item';
+        bannerPro.style.borderColor = 'var(--naranja)';
+        bannerPro.style.background = 'rgba(255, 107, 0, 0.12)';
+        bannerPro.innerHTML = '<span style="font-size:11px; color:#ffaa00; font-weight:bold;">Limite de 150 productos gratis alcanzado. Toca para activar Plan Pro ilimitado.</span>';
+        bannerPro.onclick = function() {
+            document.getElementById('modal-catalogo-popup').style.display = 'none';
+            window.abrirModalConfiguracionPOS();
+        };
+        grid.appendChild(bannerPro);
+    }
+}
 
 
 // ==========================================
@@ -873,8 +896,8 @@ function abrirModalTicketsEspera() {
             row.className = 'ticket-pausado-row';
             row.innerHTML = `
                 <div>
-                    <strong>Ticket #${t.id}</strong> <span style="color: var(--text-muted); font-size: 11px;">(${t.hora})</span>
-                    <p style="font-size: 12px; color: var(--accent-green); margin-top: 2px;">${t.total} (${t.items.length} productos)</p>
+                    <strong>Ticket #t.id</strong><spanstyle="color:var(--text-muted);font-size:11px;">({t.hora})</span>
+                    <p style="font-size: 12px; color: var(--accent-green); margin-top: 2px;">t.total({t.items.length} productos)</p>
                 </div>
                 <div style="display: flex; gap: 8px;">
                     <button class="btn-recuperar" data-idx="${idx}">Recuperar</button>
@@ -994,9 +1017,9 @@ function renderizarBilletesInteligentes(remanente) {
         const estiloVisual = esMenor ? 'opacity: 0.45;' : 'border-color: rgba(0,255,100,0.3);';
 
         html += `
-            <button type="button" class="btn-quick-cash" data-monto="${billete}" style="${estiloVisual}">
+            <button type="button" class="btn-quick-cash" data-monto="billete"style="{estiloVisual}">
                 <strong>$${(billete / 1000)}k</strong>
-                <span style="font-size: 9px; opacity: 0.85; color: ${esMenor ? '#aaa' : 'var(--accent-green)'};">${textoSub}</span>
+                <span style="font-size: 9px; opacity: 0.85; color: esMenor?'#aaa':'var(--accent-green)';">{textoSub}</span>
             </button>
         `;
     });
@@ -1134,25 +1157,120 @@ function procesarAbonoPago(metodo) {
 }
 
 
+let unsubscribePagoEnVivo = null;
+
 function abrirModalDatafono(montoFraccion) {
     montoPendienteDatafonoTemporal = montoFraccion;
-    document.getElementById('monto-datafono').innerText = `$${montoFraccion.toLocaleString('es-CO')}`;
+    document.getElementById('monto-datafono').innerText = '$' + Number(montoFraccion).toLocaleString('es-CO');
     document.getElementById('voucher-datafono').value = '';
+    
+    // Por defecto arranca en modo Manual
+    window.seleccionarModoTarjeta('MANUAL');
+    
     document.getElementById('modal-datafono').style.display = 'flex';
-    document.getElementById('voucher-datafono').focus();
+    const inputVoucher = document.getElementById('voucher-datafono');
+    if (inputVoucher) setTimeout(function() { inputVoucher.focus(); }, 100);
 }
 
+window.seleccionarModoTarjeta = async function(modo) {
+    const cfg = await GeokatuDB.PosService.obtenerConfiguracionTerminalPOS(idNegocio);
+    const pasarelaConfigurada = cfg.pasarela_activa && cfg.pasarela_activa !== 'MANUAL' && cfg.pasarela_public_key;
+
+    if ((modo === 'NFC' || modo === 'QR') && !pasarelaConfigurada) {
+        alert('FUNCION PLAN ULTRA:\n\nPara cobrar por Contacto NFC o Codigo QR Dinamico con altavoz inteligente, configura tu llave de pasarela (Bold / Wompi) en el menu de Configuracion -> Plan Ultra.');
+        document.getElementById('modal-datafono').style.display = 'none';
+        await window.abrirModalConfiguracionPOS();
+        const btnTabUltra = document.querySelector('[data-cfg-tab="cfg-ultra"]');
+        if (btnTabUltra) window.cambiarPestanaConfig('cfg-ultra', btnTabUltra);
+        return;
+    }
+
+    const panelManual = document.getElementById('panel-tarjeta-manual');
+    const panelNfc = document.getElementById('panel-tarjeta-nfc');
+    const panelQr = document.getElementById('panel-tarjeta-qr');
+
+    if (panelManual) panelManual.style.display = (modo === 'MANUAL') ? 'block' : 'none';
+    if (panelNfc) panelNfc.style.display = (modo === 'NFC') ? 'block' : 'none';
+    if (panelQr) panelQr.style.display = (modo === 'QR') ? 'block' : 'none';
+
+    ['nfc', 'qr', 'manual'].forEach(function(m) {
+        const b = document.getElementById('btn-modo-' + m);
+        if (b) {
+            const activo = (m.toUpperCase() === modo);
+            b.style.borderColor = activo ? 'var(--naranja)' : 'var(--glass-border)';
+            b.style.background = activo ? 'rgba(255,107,0,0.2)' : 'rgba(255,255,255,0.04)';
+        }
+    });
+
+    const tktTempId = 'TKT' + Date.now();
+    const refUnica = 'GEOKATU-' + idNegocio + '-' + tktTempId + '-' + Date.now();
+
+    if (modo === 'NFC') {
+        if ('NDEFReader' in window) {
+            try {
+                const ndef = new window.NDEFReader();
+                await ndef.scan();
+                const lblNfc = document.getElementById('lbl-estado-nfc');
+                if (lblNfc) lblNfc.innerText = 'Sensor NFC Activo: Acerca la tarjeta...';
+                
+                ndef.onreading = function() {
+                    if (navigator.vibrate) navigator.vibrate([40, 60, 100]);
+                    GeokatuDB.PosService.anunciarPagoCornetaVoz(montoPendienteDatafonoTemporal, 'Contacto NFC');
+                    document.getElementById('modal-datafono').style.display = 'none';
+                    aplicarAbonoConfirmado('TARJETA', montoPendienteDatafonoTemporal, 'NFC_CONTACTO_APROBADO');
+                    montoPendienteDatafonoTemporal = 0;
+                };
+            } catch (eNfc) {
+                const subNfc = document.getElementById('sub-estado-nfc');
+                if (subNfc) subNfc.innerText = 'Activa el NFC en tu barra de Android o usa el boton APROBADO al acreditar en pasarela.';
+            }
+        }
+    }
+
+    if (modo === 'QR') {
+        const contQr = document.getElementById('contenedor-qr-pasarela');
+        if (contQr) {
+            contQr.innerHTML = '';
+            const urlPagoQr = 'https://checkout.wompi.co/p/?public-key=' + encodeURIComponent(cfg.pasarela_public_key) + '&currency=COP&amount-in-cents=' + (Math.round(montoPendienteDatafonoTemporal) * 100) + '&reference=' + encodeURIComponent(refUnica);
+            if (typeof window.QRCode === 'function') {
+                new window.QRCode(contQr, { text: urlPagoQr, width: 170, height: 170 });
+            }
+        }
+
+        try {
+            const firestoreMod = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+            const dbInst = firestoreMod.getFirestore();
+            if (typeof unsubscribePagoEnVivo === 'function') unsubscribePagoEnVivo();
+            
+            const docPagoRef = firestoreMod.doc(dbInst, 'Directorio/' + idNegocio + '/Pagos_POS_EnVivo', tktTempId);
+            unsubscribePagoEnVivo = firestoreMod.onSnapshot(docPagoRef, function(snap) {
+                if (snap.exists() && snap.data().estado === 'APROBADO') {
+                    if (typeof unsubscribePagoEnVivo === 'function') unsubscribePagoEnVivo();
+                    GeokatuDB.PosService.anunciarPagoCornetaVoz(montoPendienteDatafonoTemporal, 'Codigo QR');
+                    document.getElementById('modal-datafono').style.display = 'none';
+                    aplicarAbonoConfirmado('TARJETA', montoPendienteDatafonoTemporal, snap.data().transaccion_id || 'QR_APROBADO');
+                    montoPendienteDatafonoTemporal = 0;
+                }
+            });
+        } catch (eW) {}
+    }
+};
+
 document.getElementById('btn-cancelar-datafono').addEventListener('click', () => {
+    if (typeof unsubscribePagoEnVivo === 'function') unsubscribePagoEnVivo();
     document.getElementById('modal-datafono').style.display = 'none';
     montoPendienteDatafonoTemporal = 0;
 });
 
 document.getElementById('btn-confirmar-datafono').addEventListener('click', () => {
+    if (typeof unsubscribePagoEnVivo === 'function') unsubscribePagoEnVivo();
     const voucher = document.getElementById('voucher-datafono').value.trim();
+    GeokatuDB.PosService.anunciarPagoCornetaVoz(montoPendienteDatafonoTemporal, 'Tarjeta');
     document.getElementById('modal-datafono').style.display = 'none';
     aplicarAbonoConfirmado('TARJETA', montoPendienteDatafonoTemporal, voucher || 'APROBADO_MANUAL');
     montoPendienteDatafonoTemporal = 0;
 });
+
 
 function aplicarAbonoConfirmado(metodo, monto, referencia = null) {
     pagosAcumuladosTicket.push({
@@ -1489,7 +1607,7 @@ function generarCode128SVG(texto, svgId) {
     for (let i = 0; i < patronCompleto.length; i++) {
         const ancho = parseInt(patronCompleto[i], 10);
         if (i % 2 === 0) {
-            rects += `<rect x="${x * 1.5}" y="0" width="${ancho * 1.5}" height="40" fill="#000"/>`;
+            rects += `<rect x="x*1.5"y="0"width="{ancho * 1.5}" height="40" fill="#000"/>`;
         }
         x += ancho;
     }
@@ -1507,7 +1625,7 @@ function armarTirillaTermica(ticket, ticketId, datosFiscales = null) {
     const elRegimenNegocio = document.getElementById('ticket-regimen-text');
 
     if (elNombreNegocio) elNombreNegocio.innerText = perfilFiscal.razon_social || "GEOKATU COMERCIO";
-    if (elNitNegocio) elNitNegocio.innerText = perfilFiscal.nit ? `NIT: ${perfilFiscal.nit}-${perfilFiscal.dv || '0'}` : "NIT: 222222222222";
+    if (elNitNegocio) elNitNegocio.innerText = perfilFiscal.nit ? `NIT: perfilFiscal.nit-{perfilFiscal.dv || '0'}` : "NIT: 222222222222";
     if (elDirNegocio) elDirNegocio.innerText = perfilFiscal.direccion || "Pereira, Risaralda";
     if (elRegimenNegocio) elRegimenNegocio.innerText = perfilFiscal.regimen_tributario === "NO_RESPONSABLE_IVA" ? "NO RESPONSABLE DE IVA" : "RESPONSABLE DE IVA";
 
@@ -1523,7 +1641,7 @@ function armarTirillaTermica(ticket, ticketId, datosFiscales = null) {
     if (elCaja) elCaja.innerText = cajaNumeroActiva;
     if (elFechaCorta) elFechaCorta.innerText = ahora.toLocaleDateString('es-CO');
     if (elHoraCorta) elHoraCorta.innerText = ahora.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-    if (elCajeroCod) elCajeroCod.innerText = `OP #${cajeroCodigoActivo} (${ticket.cajero_email || 'CAJERO'})`;
+    if (elCajeroCod) elCajeroCod.innerText = `OP #cajeroCodigoActivo({ticket.cajero_email || 'CAJERO'})`;
 
     // 3. Datos del ticket y cliente
     const elId = document.getElementById('t-id');
@@ -1545,7 +1663,7 @@ function armarTirillaTermica(ticket, ticketId, datosFiscales = null) {
     let txtPago = "";
     if (ticket.metodos_pago_split && ticket.metodos_pago_split.length > 0) {
         txtPago = ticket.metodos_pago_split.map(p => 
-            `${p.metodo}: $${Number(p.monto).toLocaleString('es-CO')}${p.referencia ? ` (${p.referencia})` : ''}`
+            `${p.metodo}: $Number(p.monto).toLocaleString('es-CO'){p.referencia ? ` (${p.referencia})` : ''}`
         ).join(' | ');
     } else {
         txtPago = ticket.metodo_pago;
@@ -1595,11 +1713,11 @@ function armarTirillaTermica(ticket, ticketId, datosFiscales = null) {
         tbody.innerHTML = '';
         (ticket.productos || []).forEach(p => {
             const sub = Math.round(Number(p.precio) * Number(p.cantidad));
-            const cantTexto = p.es_pesable ? `${p.cantidad} ${p.unidad_medida}` : `${p.cantidad}x`;
+            const cantTexto = p.es_pesable ? `${p.cantidad} p.unidadmedida`:`{p.cantidad}x`;
             const notaImpresa = p.nota ? `<br><span style="font-size: 8.5px; font-style: italic;">* ${p.nota}</span>` : '';
             tbody.innerHTML += `
                 <tr>
-                    <td>${cantTexto} ${p.nombre}${notaImpresa}</td>
+                    <td>${cantTexto} p.nombre{notaImpresa}</td>
                     <td style="text-align: right;">$${sub.toLocaleString('es-CO')}</td>
                 </tr>
             `;
@@ -2471,7 +2589,9 @@ function abrirModalArqueoGenerico(titulo, textoBotonConfirmar) {
     document.getElementById('cz-ventas-efectivo').innerText = `$${acumuladoTurno.efectivo.toLocaleString()}`;
     document.getElementById('cz-ventas-tarjeta').innerText = `$${acumuladoTurno.tarjeta.toLocaleString()}`;
     document.getElementById('cz-ventas-nequi').innerText = `$${acumuladoTurno.nequi.toLocaleString()}`;
-    document.getElementById('cz-movimientos-netos').innerText = `+$${entradas.toLocaleString()} / -$${salidas.toLocaleString()}`;
+    document.getElementById('cz-movimientos-netos').innerText = `+
+entradas.toLocaleString()/-
+{salidas.toLocaleString()}`;
     document.getElementById('cz-efectivo-esperado').innerText = `$${esperadoEfectivo.toLocaleString()}`;
 
     const inputContado = document.getElementById('cz-input-contado');
@@ -2499,7 +2619,9 @@ function abrirModalCierreZ() {
     document.getElementById('cz-ventas-efectivo').innerText = `$${acumuladoTurno.efectivo.toLocaleString()}`;
     document.getElementById('cz-ventas-tarjeta').innerText = `$${acumuladoTurno.tarjeta.toLocaleString()}`;
     document.getElementById('cz-ventas-nequi').innerText = `$${acumuladoTurno.nequi.toLocaleString()}`;
-    document.getElementById('cz-movimientos-netos').innerText = `+$${entradas.toLocaleString()} / -$${salidas.toLocaleString()}`;
+    document.getElementById('cz-movimientos-netos').innerText = `+
+entradas.toLocaleString()/-
+{salidas.toLocaleString()}`;
     document.getElementById('cz-efectivo-esperado').innerText = `$${esperadoEfectivo.toLocaleString()}`;
 
     const inputContado = document.getElementById('cz-input-contado');
@@ -2782,8 +2904,8 @@ window.abrirModalDevolucionParcial = async function(ticketId) {
         lista.innerHTML += `
             <div style="background: rgba(255,255,255,0.04); padding: 8px 12px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; cursor: pointer;">
-                    <input type="checkbox" class="chk-dev-item" data-idx="${idx}" data-precio="${p.precio}" data-cant="${p.cantidad}" onchange="window.recalcularTotalDevolucion()">
-                    <span>${p.cantidad}x ${p.nombre} ($${Number(p.precio).toLocaleString('es-CO')})</span>
+                    <input type="checkbox" class="chk-dev-item" data-idx="idx"data-precio="{p.precio}" data-cant="${p.cantidad}" onchange="window.recalcularTotalDevolucion()">
+                    <span>${p.cantidad}x p.nombre(${Number(p.precio).toLocaleString('es-CO')})</span>
                 </label>
             </div>
         `;
@@ -2905,7 +3027,7 @@ window.alternarFacturaEcologica = async function(btn) {
 
 async function generarFirmaFactura24Horas(tktId, expTimestamp) {
     try {
-        const raw = `${tktId}:${idNegocio}:${expTimestamp}:GEOKATU_PUBLIC_TKT_SALT`;
+        const raw = `tktId:{idNegocio}:${expTimestamp}:GEOKATU_PUBLIC_TKT_SALT`;
         if (window.crypto && window.crypto.subtle) {
             const encoder = new TextEncoder();
             const data = encoder.encode(raw);
@@ -2929,7 +3051,7 @@ async function abrirModalFacturaDigitalQR(ticketId, telefonoPrevio = "") {
     const exp = Date.now() + (24 * 60 * 60 * 1000); // 24 horas
     const sig = await generarFirmaFactura24Horas(ticketId, exp);
 
-    window.urlFacturaActiva = `${window.location.origin}/factura?com=${idNegocio}&tkt=${ticketId}&exp=${exp}&sig=${sig}`;
+    window.urlFacturaActiva = `window.location.origin/factura?com={idNegocio}&tkt=ticketId&exp={exp}&sig=${sig}`;
 
     contenedor.innerHTML = '';
     contenedor.style.padding = '20px';
@@ -2954,19 +3076,6 @@ async function abrirModalFacturaDigitalQR(ticketId, telefonoPrevio = "") {
     modalQR.style.display = 'flex';
 }
 
-
-window.enviarFacturaWhatsApp = function() {
-    const inputWp = document.getElementById('input-whatsapp-cliente');
-    const rawTel = inputWp ? inputWp.value.replace(/\D/g, '') : '';
-    if (!rawTel || rawTel.length < 7) {
-        alert("Digita un número de WhatsApp válido.");
-        return;
-    }
-    const numCompleto = rawTel.length === 10 ? `57${rawTel}` : rawTel;
-    const nombreLocal = (document.getElementById('ticket-negocio-nombre')?.innerText || "el comercio").trim();
-    const mensaje = `Hola. Adjuntamos tu comprobante de compra en ${nombreLocal}:\n\nComprobante: ${window.urlFacturaActiva}\nID Ticket: ${window.ticketIdFacturaActiva}\n\nValidez del enlace: 24 horas.`;
-    window.open(`https://wa.me/${numCompleto}?text=${encodeURIComponent(mensaje)}`, '_blank');
-};
 
 window.abrirModalCopiaComprobante = function() {
     const modal = document.getElementById('modal-buscar-copia');
@@ -3000,6 +3109,111 @@ document.getElementById('btn-cerrar-qr')?.addEventListener('click', () => {
     document.getElementById('modal-factura-qr').style.display = 'none';
 });
 
+// =========================================================================
+// MÓDULO DE CONFIGURACIÓN Y EXPANSIÓN DINÁMICA DEL TICKET
+// =========================================================================
+window.abrirModalConfiguracionPOS = async function() {
+    const modal = document.getElementById('modal-configuracion-pos');
+    if (!modal) return;
+    const cfg = await GeokatuDB.PosService.obtenerConfiguracionTerminalPOS(idNegocio);
+    document.getElementById('cfg-input-apps-script').value = cfg.apps_script_url || '';
+    document.getElementById('cfg-switch-whatsapp').checked = Boolean(cfg.whatsapp_facturas_activo);
+    document.getElementById('cfg-input-wa-emisor').value = cfg.whatsapp_numero_emisor || '';
+    document.getElementById('cfg-box-numero-wa').style.display = cfg.whatsapp_facturas_activo ? 'block' : 'none';
+    document.getElementById('cfg-select-pasarela').value = cfg.pasarela_activa || 'MANUAL';
+    document.getElementById('cfg-input-api-key').value = cfg.pasarela_public_key || '';
+    modal.style.display = 'flex';
+};
+
+window.cambiarPestanaConfig = function(tabId, btn) {
+    document.querySelectorAll('.tab-config-btn').forEach(b => b.classList.remove('activa'));
+    document.querySelectorAll('.cfg-tab-panel').forEach(p => p.style.display = 'none');
+    btn.classList.add('activa');
+    const panel = document.getElementById(tabId);
+    if (panel) panel.style.display = 'block';
+};
 
 
+window.alternarExpansionTicket = function() {
+    const cont = document.getElementById('current-sale');
+    const btn = document.getElementById('btn-expandir-ticket');
+    if (!cont || !btn) return;
+    const expandido = cont.classList.toggle('ticket-expandido');
+    btn.innerText = expandido ? 'Contraer' : 'Expandir';
+};
+
+window.actualizarEstadoVisualBotonWhatsApp = async function() {
+    const btnWa = document.getElementById('btn-enviar-wa-modal');
+    if (!btnWa) return;
+    const cfg = await GeokatuDB.PosService.obtenerConfiguracionTerminalPOS(idNegocio);
+    if (cfg && cfg.whatsapp_facturas_activo) {
+        btnWa.style.background = '#25D366';
+        btnWa.style.color = '#000';
+        btnWa.style.border = 'none';
+        btnWa.innerText = 'Enviar';
+    } else {
+        btnWa.style.background = '#3a3a44';
+        btnWa.style.color = '#aaa';
+        btnWa.style.border = '1px solid #555';
+        btnWa.innerText = 'Activar WA';
+    }
+};
+
+window.enviarFacturaWhatsApp = async function() {
+    const cfg = await GeokatuDB.PosService.obtenerConfiguracionTerminalPOS(idNegocio);
+    if (!cfg || !cfg.whatsapp_facturas_activo) {
+        alert('El envio de facturas por WhatsApp esta desactivado. Activalo gratis en el menu de Configuracion -> Automatizaciones.');
+        document.getElementById('modal-factura-qr').style.display = 'none';
+        await window.abrirModalConfiguracionPOS();
+        const btnTabFunc = document.querySelector('[data-cfg-tab="cfg-funciones"]');
+        if (btnTabFunc) window.cambiarPestanaConfig('cfg-funciones', btnTabFunc);
+        return;
+    }
+
+    const inputWp = document.getElementById('input-whatsapp-cliente');
+    const rawTel = inputWp ? inputWp.value.replace(/\D/g, '') : '';
+    if (!rawTel || rawTel.length < 7) {
+        alert("Digita un numero de WhatsApp valido.");
+        return;
+    }
+    const numCompleto = rawTel.length === 10 ? ('57' + rawTel) : rawTel;
+    const elNom = document.getElementById('ticket-negocio-nombre');
+    const nombreLocal = (elNom ? elNom.innerText : "el comercio").trim();
+    const mensaje = 'Hola. Adjuntamos tu comprobante de compra en ' + nombreLocal + ':\n\nComprobante: ' + window.urlFacturaActiva + '\nID Ticket: ' + window.ticketIdFacturaActiva + '\n\nValidez del enlace: 24 horas.';
+    window.open('https://wa.me/' + numCompleto + '?text=' + encodeURIComponent(mensaje), '_blank');
+};
+
+window.guardarConfiguracionDesdeModal = async function() {
+    const cfgPrevia = await GeokatuDB.PosService.obtenerConfiguracionTerminalPOS(idNegocio);
+    const waSwitch = document.getElementById('cfg-switch-whatsapp').checked;
+    const numIngresado = document.getElementById('cfg-input-wa-emisor').value.replace(/\D/g, '');
+    const numInscrito = String(cfgPrevia.whatsapp_numero_inscrito || '').replace(/\D/g, '');
+
+    if (waSwitch) {
+        if (numIngresado.length < 7) {
+            alert('Debes ingresar el numero de WhatsApp de tu negocio para activar esta funcion.');
+            return;
+        }
+        if (numInscrito && numIngresado !== numInscrito) {
+            const aceptaDiferente = confirm(
+                'AVISO DE SEGURIDAD:\n\nEl numero ingresado (' + numIngresado + ') es diferente al WhatsApp inscrito originalmente en el comercio (' + numInscrito + ').\n\n¿Confirmas y autorizas usar este numero diferente para tu terminal POS?'
+            );
+            if (!aceptaDiferente) return;
+        }
+    }
+
+    const payload = {
+        apps_script_url: document.getElementById('cfg-input-apps-script').value.trim(),
+        whatsapp_facturas_activo: waSwitch,
+        whatsapp_numero_emisor: numIngresado,
+        pasarela_activa: document.getElementById('cfg-select-pasarela').value,
+        pasarela_public_key: document.getElementById('cfg-input-api-key').value.trim()
+    };
+    await GeokatuDB.PosService.guardarConfiguracionTerminalPOS(idNegocio, payload);
+    await window.actualizarEstadoVisualBotonWhatsApp();
+    document.getElementById('modal-configuracion-pos').style.display = 'none';
+    if (typeof window.mostrarAvisoPos === 'function') {
+        window.mostrarAvisoPos("Configuracion guardada exitosamente.");
+    }
+};
 

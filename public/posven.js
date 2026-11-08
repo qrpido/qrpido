@@ -649,7 +649,7 @@ function renderizarGridCatalogo() {
         return;
     }
 
-    catalogoLocal.slice(0, 30).forEach(prod => {
+  catalogoLocal.slice(0, 150).forEach(prod => {
         const item = document.createElement('div');
         item.className = 'product-row-item';
         item.innerHTML = `
@@ -713,7 +713,7 @@ function actualizarVisorRemanente() {
     if (contenedorAbonos) {
         contenedorAbonos.innerHTML = pagosAcumuladosTicket.map(p => 
             `<span style="background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px;">
-                ${p.metodo}: ${p.moneda_original === 'USD' ? `$${p.monto_original.toFixed(2)}` : (p.moneda_original === 'VES' ? `Bs. p.montooriginal.toLocaleString('es-VE')`:`${p.monto_original.toLocaleString('es-CO')} COP`)}
+                ${p.metodo}: ${p.moneda_original === 'USD' ? `$p.montooriginal.toFixed(2)`:(p.monedaoriginal==='VES'?`Bs.p.montooriginal.toLocaleString('es-VE')`:`{p.monto_original.toLocaleString('es-CO')} COP`)}
                 <span style="opacity: 0.7;">(eq. $${p.monto_usd_equivalente.toFixed(2)})</span>
             </span>`
         ).join('');
@@ -1211,7 +1211,7 @@ function armarTirillaTermicaVen(ticket, ticketId) {
     document.getElementById('t-tasa-print').innerText = `Bs. ${ticket.tasa_aplicada.toFixed(2)} / $ (${ticket.tipo_tasa})`;
 
     const txtPagos = ticket.metodos_pago_split.map(p => 
-        `${p.metodo}: ${p.moneda_original === 'USD' ? `$${p.monto_original.toFixed(2)}` : (p.moneda_original === 'VES' ? `Bs. p.montooriginal.toLocaleString('es-VE')`:`${p.monto_original.toLocaleString('es-CO')} COP`)}`
+        `${p.metodo}: ${p.moneda_original === 'USD' ? `$p.montooriginal.toFixed(2)`:(p.monedaoriginal==='VES'?`Bs.p.montooriginal.toLocaleString('es-VE')`:`{p.monto_original.toLocaleString('es-CO')} COP`)}`
     ).join(' | ');
     document.getElementById('t-metodos-desglose').innerText = txtPagos;
 
@@ -1689,7 +1689,7 @@ async function abrirModalFacturaDigitalQR(ticketId, telefonoPrevio = "") {
     const exp = Date.now() + (24 * 60 * 60 * 1000);
     const sig = await generarFirmaFactura24Horas(ticketId, exp);
 
-    window.urlFacturaActiva = `${window.location.origin}/facturaven?com=${idNegocio}&tkt=${ticketId}&exp=${exp}&sig=${sig}`;
+    window.urlFacturaActiva = `window.location.origin/facturaven?com={idNegocio}&tkt=ticketId&exp={exp}&sig=${sig}`;
 
     contenedor.innerHTML = '';
     contenedor.style.padding = '20px';
@@ -1722,7 +1722,7 @@ window.enviarFacturaWhatsApp = function() {
     const numCompleto = rawTel.length === 10 ? `58${rawTel}` : rawTel;
     const nombreLocal = (document.getElementById('ticket-negocio-nombre')?.innerText || "el comercio").trim();
     const mensaje = `Hola. Adjuntamos tu comprobante de compra en ${nombreLocal}:\n\nComprobante: ${window.urlFacturaActiva}\nID Ticket: ${window.ticketIdFacturaActiva}\n\nValidez del enlace: 24 horas.`;
-    window.open(`https://wa.me/${numCompleto}?text=${encodeURIComponent(mensaje)}`, '_blank');
+    window.open(`https://wa.me/numCompleto?text={encodeURIComponent(mensaje)}`, '_blank');
 };
 
 window.abrirModalCopiaComprobante = function() {
@@ -1998,7 +1998,7 @@ window.abrirModalDevolucionParcial = async function(ticketId) {
             <div style="background: rgba(255,255,255,0.04); padding: 8px 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; cursor: pointer;">
                     <input type="checkbox" class="chk-dev-item" data-idx="idx"data-precio="{p.precio_usd || p.precio}" data-cant="${p.cantidad}" onchange="window.recalcularTotalDevolucion()">
-                    <span>${p.cantidad}x p.nombre(${Number(p.precio_usd || p.precio).toFixed(2)})</span>
+                    <span>p.cantidadxp.nombre({Number(p.precio_usd || p.precio).toFixed(2)})</span>
                 </label>
             </div>
         `;
@@ -2102,4 +2102,6 @@ document.getElementById('btn-establecer-nueva-pass')?.addEventListener('click', 
         alert("Error actualizando contraseña: " + err.message);
     }
 });
+
+
 
