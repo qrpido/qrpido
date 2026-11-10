@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="maplibre-gl.css" />
     <script src="maplibre-gl.js" defer></script>
     <script src="pmtiles.js" defer></script>
+    <script src="estudio-imagen-universal.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/openlocationcode@1.0.4/openlocationcode.min.js" defer></script>
 
    <link rel="stylesheet" href="estilos-onboarding.css?v=1.0.0">
@@ -340,6 +341,49 @@
             <input type="hidden" id="drawer-select-tema" value="carbon">
         </div>
         <div id="drawer-simulador-nombre-png" style="display: none; margin-top: 8px;"></div>
+            <div id="drawer-simulador-nombre-png" style="display: none; margin-top: 8px;"></div>
+
+        <!-- CONTROLES DE ORIENTACIÓN Y ESTILO DE CABECERA EN CATÁLOGO (PARIDAD CON NEGOCIO.HTML) -->
+        <div style="margin-top: 10px; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 10px;">
+            <span style="font-size: 10px; font-weight: 800; color: var(--naranja-miel); text-transform: uppercase; display: block; margin-bottom: 6px;">
+                Orientacion de Cabecera en Catalogo
+            </span>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
+                <div>
+                    <label style="font-size: 9.5px; color: #94a3b8; display: block; margin-bottom: 2px;">Posicion Foto Perfil</label>
+                    <select id="drawer-avatar-posicion" class="input-form-geo" style="padding: 5px 6px; font-size: 11px;" onchange="window.actualizarAparienciaCabeceraDrawer()">
+                        <option value="centro">Centro (Clasico)</option>
+                        <option value="izquierda">Izquierda</option>
+                        <option value="derecha">Derecha</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size: 9.5px; color: #94a3b8; display: block; margin-bottom: 2px;">Placa del Nombre</label>
+                    <select id="drawer-placa-nombre" class="input-form-geo" style="padding: 5px 6px; font-size: 11px;" onchange="window.actualizarAparienciaCabeceraDrawer()">
+                        <option value="ninguna">Sin placa</option>
+                        <option value="oscura">Placa oscura</option>
+                        <option value="clara">Placa clara</option>
+                    </select>
+                </div>
+            </div>
+            <div style="margin-bottom: 6px;">
+                <div style="display: flex; justify-content: space-between; font-size: 9.5px; color: #94a3b8; margin-bottom: 2px;">
+                    <span>Enfoque Vertical Portada</span>
+                    <b id="lbl-drawer-portada-pos" style="color: var(--naranja);">50%</b>
+                </div>
+                <input type="range" id="drawer-portada-posicion" min="0" max="100" value="50" style="width: 100%; accent-color: var(--naranja);" oninput="window.actualizarAparienciaCabeceraDrawer()">
+            </div>
+            <div style="display: flex; justify-content: space-between; gap: 8px; font-size: 10px; color: #cbd5e1;">
+                <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                    <input type="checkbox" id="drawer-avatar-marco" checked style="accent-color: var(--naranja);" onchange="window.actualizarAparienciaCabeceraDrawer()">
+                    <span>Marco circular logo</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                    <input type="checkbox" id="drawer-mostrar-stock" style="accent-color: var(--naranja);" onchange="window.actualizarAparienciaCabeceraDrawer()">
+                    <span>Stock exacto publico</span>
+                </label>
+            </div>
+        </div>
     </div>
     <!-- MOTOR DE DESPIECE WEB & INGESTA POLIMÓRFICA (ZERO EMOJIS - MICRO-SVG) -->
     <div class="caja-despiece-web">
@@ -972,98 +1016,6 @@
         }
     };
 
-
-    // =========================================================================
-    // PARCHE 2: EXTRACCIÓN AUTOMÁTICA DE COLORES BLINDADA CONTRA CORS
-    // =========================================================================
-    window.extraerColoresAutomaticosBranding = async function() {
-        if (!window.AppState || !window.AppState.comercioActivo) {
-            alert("Selecciona o abre primero un comercio en el Drawer.");
-            return;
-        }
-        
-        const comercio = window.AppState.comercioActivo;
-        const imgUrl = comercio.logo || comercio.portada || comercio.link_pin || comercio.logo_nombre;
-        
-        if (!imgUrl) {
-            alert("El comercio actual no tiene un logo, portada o pin subido para analizar.");
-            return;
-        }
-
-        try {
-            // Utilizamos el túnel proxy seguro (images.weserv.nl) tal como en el estudio para evitar CORS
-            const urlLimpia = imgUrl.trim();
-            const encodedUrl = encodeURIComponent(urlLimpia);
-            const proxyUrl = 'https://images.weserv.nl/?url=' + encodedUrl;
-
-            const res = await fetch(proxyUrl);
-            if (!res.ok) throw new Error("Fallo en descarga proxy");
-            const blob = await res.blob();
-            const localBlobUrl = URL.createObjectURL(blob);
-
-            const img = new Image();
-            img.crossOrigin = "anonymous";
-            img.onload = function() {
-                const canvas = document.createElement('canvas');
-                canvas.width = 60;
-                canvas.height = 60;
-                const ctx = canvas.getContext('2d', { willReadFrequently: true });
-                ctx.drawImage(img, 0, 0, 60, 60);
-
-                const imgData = ctx.getImageData(0, 0, 60, 60).data;
-                let dominantColors = [];
-
-                for (let i = 0; i < imgData.length; i += 16) {
-                    const r = imgData[i], g = imgData[i+1], b = imgData[i+2], a = imgData[i+3];
-                    // Filtrar transparencias extremas y blancos/negros puros para obtener colores de marca reales
-                    if (a > 128 && !(r > 240 && g > 240 && b > 240) && !(r < 15 && g < 15 && b < 15)) {
-                        const hex = '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-                        if (!dominantColors.includes(hex)) dominantColors.push(hex);
-                    }
-                }
-
-                let color1 = dominantColors[0] || '#ff6b00';
-                let color2 = dominantColors[1] || '#29b6f6';
-
-                // Asignar al comercio activo
-                if (!comercio.colores) comercio.colores = [];
-                comercio.colores[0] = color1;
-                comercio.colores[1] = color2;
-
-                if (typeof window.AppState.guardarColaLocal === 'function') {
-                    window.AppState.guardarColaLocal();
-                }
-                if (typeof window.actualizarPinDrawerLive === 'function') {
-                    window.actualizarPinDrawerLive();
-                }
-
-                // Sincronizar los swatches visuales y campos ocultos en el Drawer
-                const hex1Input = document.getElementById('hex-slot-1');
-                const hex2Input = document.getElementById('hex-slot-2');
-                const swatch1 = document.getElementById('swatch-color-1');
-                const swatch2 = document.getElementById('swatch-color-2');
-                if (hex1Input) hex1Input.value = color1;
-                if (hex2Input) hex2Input.value = color2;
-                if (swatch1) swatch1.style.background = color1;
-                if (swatch2) swatch2.style.background = color2;
-
-                URL.revokeObjectURL(localBlobUrl);
-                
-                if (typeof window.mostrarToast === 'function') {
-                    window.mostrarToast("¡Colores extraídos automáticamente con éxito!", "exito");
-                } else {
-                    alert("¡Colores extraídos automáticamente con éxito!");
-                }
-            };
-            img.onerror = function() {
-                alert("No se pudo procesar la imagen del comercio para el análisis automático.");
-            };
-            img.src = localBlobUrl;
-        } catch (err) {
-            console.error("Error en extracción automática CORS:", err);
-            alert("Error al procesar la imagen. Verifica que el comercio tenga una imagen de identidad cargada.");
-        }
-    };
 
 
     window.conmutarHerramientaEstudio = function(herramienta) {

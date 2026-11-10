@@ -331,7 +331,7 @@
         img.onload = function() {
             var w = img.naturalWidth || img.width;
             var h = img.naturalHeight || img.height;
-            var maxLado = Math.max(configActual.maxAncho || 1200, configActual.maxAlto || 1200);
+            var maxLado = Math.max(configActual.maxAncho || 1400, configActual.maxAlto || 1400);
             if (w > maxLado || h > maxLado) {
                 var ratio = Math.min(maxLado / w, maxLado / h);
                 w = Math.round(w * ratio);
@@ -343,6 +343,44 @@
             ctx.drawImage(img, 0, 0, w, h);
             historial = [];
             guardarSnapshot();
+
+            // Si viene desde un slot de Identidad (Portada, Logo, Pin o Nombre_PNG), activar Recorte y mostrar guía visual
+            if (configActual.rolSugerido) {
+                window.GeokatuEstudio.abrirPanel('crop');
+                setTimeout(function() {
+                    if (configActual.rolSugerido === 'portada') {
+                        cropStartX = Math.round(w * 0.03);
+                        cropStartY = Math.round(h * 0.06);
+                        cropEndX = Math.round(w * 0.97);
+                        cropEndY = Math.round(h * 0.52);
+                    } else if (configActual.rolSugerido === 'logo' || configActual.rolSugerido === 'link_pin') {
+                        cropStartX = Math.round(w * 0.04);
+                        cropStartY = Math.round(h * 0.56);
+                        cropEndX = Math.round(w * 0.42);
+                        cropEndY = Math.round(h * 0.95);
+                    } else if (configActual.rolSugerido === 'logo_nombre') {
+                        cropStartX = Math.round(w * 0.45);
+                        cropStartY = Math.round(h * 0.56);
+                        cropEndX = Math.round(w * 0.96);
+                        cropEndY = Math.round(h * 0.95);
+                    }
+                    var wrapRect = viewport.getBoundingClientRect();
+                    var cRect = canvas.getBoundingClientRect();
+                    if (cRect.width > 0 && cRect.height > 0) {
+                        var c1x = (cropStartX / canvas.width) * cRect.width + cRect.left;
+                        var c1y = (cropStartY / canvas.height) * cRect.height + cRect.top;
+                        var c2x = (cropEndX / canvas.width) * cRect.width + cRect.left;
+                        var c2y = (cropEndY / canvas.height) * cRect.height + cRect.top;
+                        overlayCrop.style.left = (Math.min(c1x, c2x) - wrapRect.left + viewport.scrollLeft) + 'px';
+                        overlayCrop.style.top = (Math.min(c1y, c2y) - wrapRect.top + viewport.scrollTop) + 'px';
+                        overlayCrop.style.width = Math.abs(c1x - c2x) + 'px';
+                        overlayCrop.style.height = Math.abs(c1y - c2y) + 'px';
+                        overlayCrop.style.display = 'block';
+                        var btnCrop = document.getElementById('gk-btn-aplicar-crop');
+                        if (btnCrop) btnCrop.style.display = 'inline-block';
+                    }
+                }, 80);
+            }
         };
         img.src = dataUrl;
     }
