@@ -1661,13 +1661,15 @@ function armarTirillaTermica(ticket, ticketId, datosFiscales = null) {
 
     // 4. Formateo limpio del medio de pago
     let txtPago = "";
+
     if (ticket.metodos_pago_split && ticket.metodos_pago_split.length > 0) {
-        txtPago = ticket.metodos_pago_split.map(p => 
-            `${p.metodo}: $Number(p.monto).toLocaleString('es-CO'){p.referencia ? ` (${p.referencia})` : ''}`
+        txtPago = ticket.metodos_pago_split.map(p =>
+            `${p.metodo}: $${Number(p.monto).toLocaleString('es-CO')}${p.referencia ? ` (${p.referencia})` : ''}`
         ).join(' | ');
     } else {
         txtPago = ticket.metodo_pago;
     }
+
     if (elMetodo) elMetodo.innerText = txtPago;
 
    if (elTotal) elTotal.innerText = `$${Number(ticket.total).toLocaleString('es-CO')}`;

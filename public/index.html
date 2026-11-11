@@ -6,26 +6,21 @@
     // 🩺 CRASH REPORTER UNIFICADO Y BLINDADO
     // =================================================================
     window.qrpidoErrorLog = []; 
-
     function mostrarCartelErrorYDescargar(titulo, detalle) {
         const timestamp = new Date().toISOString();
         const textoError = `[${timestamp}] ${titulo}\n${detalle}\n\n`;
         window.qrpidoErrorLog.push(textoError);
-
         if (!document.body) {
             window.addEventListener('DOMContentLoaded', () => renderizarCartel(titulo, detalle));
         } else {
             renderizarCartel(titulo, detalle);
         }
     }
-
     function renderizarCartel(titulo, detalle) {
         if (document.getElementById('cartel-error-critico')) return;
-
         const errDiv = document.createElement('div');
         errDiv.id = 'cartel-error-critico';
         errDiv.style.cssText = "position:fixed; top:10%; left:5%; width:90%; background:rgba(20,0,0,0.95); backdrop-filter:blur(10px); color:white; padding:20px; z-index:999999; font-family:monospace; border-radius:15px; border: 2px solid #ff4444; box-shadow: 0 10px 40px rgba(255,0,0,0.5); font-size: 12px; max-height: 80vh; overflow-y: auto;";
-
         errDiv.innerHTML = `
             <b style="color:#ff4444; font-size:16px;">🚨 ${titulo}</b>
             <hr style="border-color:#ff4444; margin:10px 0;">
@@ -34,10 +29,8 @@
             <button onclick="this.parentElement.remove()" style="background:transparent; color:#888; border:1px solid #888; padding:8px; width:100%; font-weight:bold; border-radius:8px; cursor:pointer; margin-top:10px;">CERRAR AVISO</button>
         `;
         document.body.appendChild(errDiv);
-
         document.getElementById('btn-bajar-error').onclick = () => window.descargarReporteTecnico();
     }
-
     // Descarga directa del Informe de Diagnóstico
     window.descargarReporteTecnico = function() {
         const contextData = window.qrpidoLog ? window.qrpidoLog.join('\n') : "Sin historial de rendimiento";
@@ -55,7 +48,6 @@
         const sub = document.getElementById('submenu-brujula');
         if (sub) sub.classList.remove('activo');
     };
-
     // 🛡️ ESCUDO 1: Errores de sintaxis y gráficos fantasma
     window.onerror = function(message, source, lineno, colno, error) {
         if (message.includes("Failed to execute 'removeChild'") || message.includes("lineAtlas")) return true; 
@@ -63,7 +55,6 @@
         mostrarCartelErrorYDescargar('ERROR DE SINTAXIS', detalle);
         return true; 
     };
-
     // 🛡️ ESCUDO 2: Promesas y red
     window.addEventListener('unhandledrejection', function(event) {
         const strReason = event.reason ? (event.reason.stack || event.reason.message || String(event.reason)) : '';
@@ -82,18 +73,162 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#ff6b00">
 <link rel="apple-touch-icon" href="https://via.placeholder.com/192/0a0a0c/ff6b00?text=GK">
-<link rel="modulepreload" href="motor-mapa.js">
 <link rel="stylesheet" href="maplibre-gl.css" />
-<script src="maplibre-gl.js" defer></script>
-<script src="pmtiles.js" defer></script>
-<script src="html5-qrcode.min.js" async></script>
+<script src="maplibre-gl.js"></script>
+<script src="pmtiles.js"></script>
+<script src="html5-qrcode.min.js"></script>
 <link rel="stylesheet" href="pines.css" />
-<script src="qrcode.min.js" async></script>
-<script src="https://cdn.jsdelivr.net/npm/openlocationcode@1.0.4/openlocationcode.min.js" async></script>
-<script type="text/javascript" src="https://checkout.wompi.co/widget.js" async></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/openlocationcode@1.0.4/openlocationcode.min.js"></script>
+<script type="text/javascript" src="https://checkout.wompi.co/widget.js"></script>
 <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 <link rel="stylesheet" href="ui-estilos.css" />
-
+<style id="geokatu-libro-tecnico-overrides">
+    /* === ESCALADO CONTINUO DE PINES Y LIBERACIÓN DE CLICS EN CUALQUIER ZOOM === */
+    #mapa-qrpido .pin-wrapper,
+    #mapa-qrpido[data-zoom="15"] .pin-wrapper,
+    #mapa-qrpido[data-zoom="16"] .pin-wrapper,
+    #mapa-qrpido[data-zoom="17"] .pin-wrapper,
+    #mapa-qrpido[data-zoom="18"] .pin-wrapper {
+        transform: scale(var(--pin-zoom-scale, 0.72)) !important;
+        opacity: var(--pin-zoom-opacity, 1) !important;
+        pointer-events: auto !important;
+        transform-origin: bottom center !important;
+    }
+    /* Wrapper externo conserva anclaje MapLibre; wrapper interno ejecuta caída lunar Z */
+    .pin-lunar-outer {
+        width: 60px;
+        height: 60px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        pointer-events: auto;
+        overflow: visible !important;
+    }
+    .pin-lunar-inner {
+        position: relative;
+        width: 60px;
+        height: 60px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        will-change: transform, opacity;
+        transform-origin: bottom center;
+    }
+    .pin-lunar-shadow {
+        position: absolute;
+        bottom: 2px;
+        left: 50%;
+        width: 18px;
+        height: 6px;
+        background: radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 75%);
+        transform: translateX(-50%) scale(0.4);
+        opacity: 0;
+        pointer-events: none;
+        transition: transform 0.25s ease-out, opacity 0.25s ease-out;
+    }
+    .pin-lunar-inner.en-contacto .pin-lunar-shadow {
+        transform: translateX(-50%) scale(1);
+        opacity: 0.85;
+    }
+    /* Barra inferior de 5 estilos + 6to botón de orientación (44x44px mínimo) */
+    .map-options {
+        position: fixed !important;
+        bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+        left: 0 !important;
+        width: 100% !important;
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        gap: 8px !important;
+        padding: 4px 12px !important;
+        overflow-x: auto !important;
+        scrollbar-width: none !important;
+        box-sizing: border-box !important;
+        z-index: 1500 !important;
+    }
+    .map-options::-webkit-scrollbar { display: none; }
+    @media (min-width: 640px) {
+        .map-options { justify-content: center !important; }
+    }
+    .map-tag {
+        flex: 0 0 auto !important;
+        min-height: 44px !important;
+        min-width: 44px !important;
+        padding: 0 14px !important;
+        border-radius: 22px !important;
+        font-size: 11.5px !important;
+        font-weight: 800 !important;
+        letter-spacing: 0.4px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 6px !important;
+        background: rgba(14, 14, 20, 0.88) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        border: 1.5px solid rgba(255, 255, 255, 0.14) !important;
+        color: #d1d5db !important;
+        cursor: pointer !important;
+        white-space: nowrap !important;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.45) !important;
+        transition: transform 0.18s ease, background 0.2s ease, border-color 0.2s ease !important;
+    }
+    .map-tag.active,
+    .map-tag[aria-pressed="true"] {
+        background: var(--naranja) !important;
+        border-color: #ffffff !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 16px rgba(255, 107, 0, 0.45) !important;
+    }
+    .map-tag.active::before,
+    .map-tag[aria-pressed="true"]::before {
+        content: "●";
+        font-size: 9px;
+        line-height: 1;
+    }
+    #btn-orientacion-real[data-estado="solicitando"] {
+        border-color: #ffcc00 !important;
+        color: #ffcc00 !important;
+    }
+    #btn-orientacion-real[data-estado="denegado"],
+    #btn-orientacion-real[data-estado="no_compatible"],
+    #btn-orientacion-real[data-estado="sin_señal"] {
+        border-color: #ff4444 !important;
+        color: #ff8888 !important;
+    }
+    /* Píldora explícita de estado de cobertura/consulta */
+    #radar-status-pill {
+        position: fixed;
+        top: 72px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 2500;
+        background: rgba(12, 12, 18, 0.9);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 107, 0, 0.45);
+        color: #f8fafc;
+        font-size: 11px;
+        font-weight: 800;
+        padding: 6px 14px;
+        border-radius: 20px;
+        display: none;
+        align-items: center;
+        gap: 6px;
+        pointer-events: none;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+        white-space: nowrap;
+    }
+    #radar-status-pill.visible { display: inline-flex; }
+    @media (prefers-reduced-motion: reduce) {
+        .pin-lunar-inner, .pin-wrapper, .pin-moneda-magica {
+            animation: none !important;
+            transition: opacity 0.15s linear !important;
+        }
+    }
+</style>
 <script>
 // 1. ESCUDO XSS ESTRICTO
 window.sanitizarTexto = function(texto) {
@@ -114,6 +249,11 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
 </script>
 </head>
 <body class="ui-light">
+<!-- =========================================================================
+     INDICADOR DE ESTADO EXPLÍCITO DEL RADAR (CONTRATO DE EXPERIENCIA)
+     ========================================================================= -->
+<div id="radar-status-pill" role="status" aria-live="polite"></div>
+
 <!-- =========================================================================
      BOTÓN HERRAMIENTAS (⚙️) CLON IDÉNTICO A LA BRÚJULA
      ========================================================================= -->
@@ -164,17 +304,32 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         </button>
     </div>
 </div>
-
-
 <!-- MOTOR NATIVO DE PRE-RENDERIZADO EN RAM (SPECULATION RULES API) -->
-<!-- Se precarga el núcleo, no páginas privadas ni un catálogo sin identificar. -->
+<script type="speculationrules">
+{
+  "prerender": [
+    {
+      "source": "list",
+      "urls": ["/oficina", "/negocio", "/stock", "/inventario", "/cabina"],
+      "eagerness": "moderate"
+    }
+  ]
+}
+</script>
 <div id="pantalla-carga">
-<img src="./marca-geokatu.svg" width="300" height="76" alt="GEOKATU · Tu ciudad conectada" style="max-width:80vw">
-<p id="txt-estado-carga" role="status" aria-live="polite">Preparando tu ciudad…</p>
-<div id="acciones-carga" hidden><button onclick="location.reload()">Reintentar</button> <button onclick="GeokatuArranque.continuar()">Continuar</button></div>
-<script src="./arranque-geokatu.js"></script>
+<script>
+    // Si el radar ya se inicializo en esta sesion o existe matriz en cache, saltar pantalla de carga en 0 ms
+    if (sessionStorage.getItem('geokatu_ram_warm') === '1' || localStorage.getItem('geokatu_matriz_timestamp')) {
+        var pc = document.getElementById('pantalla-carga');
+        if (pc) pc.style.display = 'none';
+    }
+</script>
+<img id="logo-carga" class="logo-palpitante" src="" style="max-width: 220px; display: none; margin-bottom: 10px; filter: drop-shadow(0 0 15px var(--naranja));">
+<h1 id="texto-logo-fallback" class="logo-palpitante" style="font-size: 48px; margin: 0; letter-spacing: 6px; font-weight: 900; line-height: 1;">
+    <span style="color: #ff6b00; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">GEO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);">KATU</span>
+</h1>
+<p class="texto-palpitante" id="txt-estado-carga">Sincronizando ciudad...</p>
 </div>
-
 <!-- MODAL DE SELECCIÓN MANUAL DE CIUDAD (COL / VEN) CUANDO SE NIEGA EL GPS -->
 <div class="bottom-sheet-overlay" id="modal-selector-ciudad" style="display: none; opacity: 1; pointer-events: all;">
     <div class="bottom-sheet-contenido" style="text-align: center; max-width: 380px;">
@@ -192,72 +347,56 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
             <div class="pill-ciudad-sugerida" onclick="window.fijarCiudadManual(4.8133, -75.6961, 'Pereira, Colombia')" style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold;">🇨🇴 Pereira</div>
             <div class="pill-ciudad-sugerida" onclick="window.fijarCiudadManual(7.7794, -72.2247, 'San Cristóbal / Táchira, Venezuela')" style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold;">🇻🇪 Táchira (Lobatera)</div>
         </div>
-
         <button class="btn-auth btn-ingresar" onclick="window.usarUbicacionPorDefectoPereira()">Continuar en Pereira (Predeterminado)</button>
     </div>
 </div>
-
-
 <div id="tour-overlay"></div>
-
 <!-- PASO 1: BUSCADOR -->
 <div id="tour-step-1" class="tour-tooltip" style="top: 85px; left: 20px; right: 20px; margin: 0 auto;">
     <h3 style="color: var(--naranja); font-weight: 900; font-size: 13px; text-transform: uppercase; margin: 0;">Buscador Radar</h3>
     <p style="font-size: 12px; color: #eee; margin: 0; line-height: 1.4;">Escribe aquí el nombre del comercio, producto o dirección que deseas localizar.</p>
     <button class="btn-tour" onclick="window.siguienteTour1()">Siguiente</button>
 </div>
-
 <!-- PASO 2: HERRAMIENTAS (⚙️) -->
 <div id="tour-step-escaner" class="tour-tooltip" style="top: 140px; left: 75px;">
     <h3 style="color: var(--naranja); font-weight: 900; font-size: 13px; text-transform: uppercase; margin: 0;">Herramientas</h3>
     <p style="font-size: 12px; color: #eee; margin: 0; line-height: 1.4;">Despliega utilidades tácticas: activa rutas de transporte, escanea códigos de barras, tramita firmas digitales P2P y consulta planos topográficos.</p>
     <button class="btn-tour" onclick="window.siguienteTourEscaner()">SIGUIENTE</button>
 </div>
-
-
 <!-- PASO 3: GPS MI UBICACIÓN -->
 <div id="tour-step-2" class="tour-tooltip" style="bottom: 140px; right: 15px;">
     <h3 style="color: var(--naranja); font-weight: 900; font-size: 13px; text-transform: uppercase; margin: 0;">Tu Ubicación GPS</h3>
     <p style="font-size: 12px; color: #eee; margin: 0; line-height: 1.4;">Toca este botón para centrar el mapa en tu posición exacta y rastrear lo que te rodea.</p>
     <button class="btn-tour" onclick="window.siguienteTour2()">Siguiente</button>
 </div>
-
 <!-- PASO 4: LLAVE MAESTRA -->
 <div id="tour-step-3" class="tour-tooltip" style="top: 85px; right: 15px;">
     <h3 style="color: var(--naranja); font-weight: 900; font-size: 13px; text-transform: uppercase; margin: 0;">Llave Maestra</h3>
     <p style="font-size: 12px; color: #eee; margin: 0; line-height: 1.4;">Si tienes un negocio o cuenta de explorador, ingresa a tu bóveda comercial desde aquí.</p>
     <button class="btn-tour" onclick="window.siguienteTour3()">Siguiente</button>
 </div>
-
 <!-- PASO 5: BRÚJULA DE EXPLORACIÓN (🧭) -->
 <div id="tour-step-4" class="tour-tooltip" style="top: 85px; left: 75px;">
     <h3 style="color: var(--naranja); font-weight: 900; font-size: 13px; text-transform: uppercase; margin: 0;">Explorar Radar</h3>
     <p style="font-size: 12px; color: #eee; margin: 0; line-height: 1.4;">Despliega pastillas horizontales para explorar la ciudad al instante entre comercios, inmuebles y servicios profesionales con filtros en tiempo real.</p>
     <button class="btn-tour" onclick="window.finalizarTour()">¡EMPEZAR!</button>
 </div>
-
 <div id="toast-fantasma" class="toast-fantasma">No encontramos negocios aquí 📍<br>Mueve el mapa o intenta otra búsqueda.</div>
 <div id="offline-banner" class="toast-fantasma" style="background: rgba(255, 68, 68, 0.9); border-color: #ff4444; top: 10%; box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 15px rgba(255,68,68,0.4);">⚠️ Sin conexión. Mostrando mapa guardado.</div>
-
 <!-- =========================================================================
      BOTÓN BRÚJULA Y PASTILLAS FLOTANTES
      ========================================================================= -->
 <div class="contenedor-brujula-flotante" id="btn-brujula-contenedor">
     <button class="btn-login" id="btn-brujula" onclick="window.toggleMenuBrujula()" title="Explorar">🧭</button>
-
     <!-- LAS 3 PASTILLAS MADRE AUTÓNOMAS (NACEN HORIZONTALES) -->
     <div id="pastillas-madre-fila" class="fila-pastillas-madre">
         <button type="button" class="pastilla-madre-btn" onclick="window.seleccionarPastillaCiudad('comercio')">Comercios</button>
         <button type="button" class="pastilla-madre-btn" onclick="window.seleccionarPastillaCiudad('inmueble')">Inmuebles</button>
         <button type="button" class="pastilla-madre-btn" onclick="window.seleccionarPastillaCiudad('servicio')">Servicios</button>
     </div>
-
     <!-- BANDEJA DE SUBFILTROS COMPACTOS MULTI-CATEGORÍA -->
     <div id="subfiltros-inmuebles-panel" class="panel-subfiltros-compacto"></div>
-
 </div>
-
-
 <!-- =========================================================================
      BLOQUE SUPERIOR: BUSCADOR [ TEXTO ] [ ⋮ ] [ 🔍 ] Y LLAVE (🔑)
      ========================================================================= -->
@@ -269,10 +408,8 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
             
             <!-- Botón 3 Puntos -->
             <button id="btn-tres-puntos" class="btn-opciones-tres-puntos" type="button" title="Tipo de búsqueda">⋮</button>
-
             <!-- Lupa a la derecha -->
             <button class="btn-lupa" id="btn-lupa" onclick="buscarCiudadGlobal()">🔍</button>
-
             <!-- Menú Popover de 3 Opciones de Texto -->
             <div id="menu-tipos" class="menu-seleccion-tipo">
                 <div class="opcion-tipo seleccionado" data-tipo="comercios">
@@ -286,15 +423,14 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
                 </div>
             </div>
         </div>
-
         <button id="btn-filtro-corazon" class="btn-login" style="background: rgba(255, 68, 68, 0.2); border-color: #ff4444; color: #ff4444;" onclick="toggleMapaFavoritos()" title="Filtrar Mis Guardados">🤍</button>
-
         <!-- LLAVE MAESTRA -->
             <div class="contenedor-llave" id="btn-portal-mando-contenedor" style="border-radius: 50%;">
                 <button class="btn-login" id="btn-portal-mando" onclick="toggleSubmenu()">🔑</button>
-                <div id="submenu-llave" class="submenu-llave" style="width: 130px;">
+                <div id="submenu-llave" class="submenu-llave" style="width: 140px;">
                     <button id="btn-login-submenu" class="btn-submenu" onclick="abrirModal('modal-login'); toggleSubmenu()" style="text-align: left; font-size: 11px;">Iniciar Sesion</button>
                     <button id="btn-oficina" class="btn-submenu" onclick="window.location.href='oficina'; toggleSubmenu()" style="display:none; text-align: left; font-size: 11px;">Oficina</button>
+                    <button id="btn-cabina" class="btn-submenu" onclick="window.location.href='cabina.html'; toggleSubmenu()" style="display:none; text-align: left; font-size: 11px;">Cabina Flota</button>
                     <button id="btn-bodega" class="btn-submenu" onclick="window.location.href='stock'; toggleSubmenu()" style="display:none; text-align: left; font-size: 11px;">Bodega</button>
                     <button id="btn-pos" class="btn-submenu" onclick="window.location.href='pos'; toggleSubmenu()" style="display:none; text-align: left; font-size: 11px;">POS</button>
                     <button id="btn-catalogo" class="btn-submenu" onclick="window.location.href='negocio'; toggleSubmenu()" style="display:none; text-align: left; font-size: 11px;">Catalogo</button>
@@ -305,22 +441,17 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
                     <button id="btn-salir" class="btn-submenu" onclick="if(window.cerrarSesion) window.cerrarSesion(); toggleSubmenu()" style="display:none; text-align: left; font-size: 11px; color: #ff4444; border-color: rgba(255,68,68,0.3);">Salir</button>
                 </div>
             </div>
-
     </div> 
 </div>
-
-<button id="btn-cargar-zona" onclick="if(window.descargarNegociosDeFirebase) window.descargarNegociosDeFirebase()">🔍 Buscar en esta zona</button>
-
+<button id="btn-cargar-zona" onclick="if(window.descargarNegociosDeFirebase) window.descargarNegociosDeFirebase(true)">🔍 Buscar en esta zona</button>
 <div id="contenedor-troya">
     <div class="btn-cerrar-troya" onclick="document.getElementById('contenedor-troya').style.display='none'">X</div>
     <a id="link-troya" href="#" target="_blank"><img id="img-troya" class="banner-troya" src=""></a>
 </div>
-
 <div id="burbuja-chat-p2p" onclick="abrirModal('modal-kill-switch')" style="display: none; position: fixed; top: 130px; right: 15px; z-index: 2000; width: 45px; height: 45px; background: var(--naranja); border-radius: 50%; box-shadow: 0 5px 15px rgba(255,107,0,0.5); align-items: center; justify-content: center; cursor: pointer; border: 2px solid white; transition: 0.3s;">
     <span style="font-size: 20px;">💬</span>
     <div style="position: absolute; top: -2px; right: -2px; background: #ff4444; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--bg-oscuro); animation: latidoNeon 1.5s infinite;"></div>
 </div>
-
 <div class="bottom-sheet-overlay" id="modal-kill-switch" onclick="cerrarModalFuera(event, 'modal-kill-switch')">
     <div class="bottom-sheet-contenido" style="text-align: center;">
         <div class="drag-handle"></div>
@@ -329,15 +460,21 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         <button class="btn-pedir" style="background: #ff4444; margin-bottom: 10px;" onclick="alert('GPS Desconectado. Orden Finalizada.'); document.getElementById('modal-kill-switch').classList.remove('activo'); document.getElementById('burbuja-chat-p2p').style.display='none';">🛑 FINALIZAR / APAGAR GPS</button>
     </div>
 </div>
-
 <div id="mapa-qrpido"></div>
+<div id="lista-inmuebles-sheet" class="bottom-sheet-hibrido"></div>
 
+<!-- =========================================================================
+     BARRA INFERIOR DE 5 ESTILOS CARTOGRÁFICOS + 6TO BOTÓN DE ORIENTACIÓN REAL
+     ========================================================================= -->
 <div class="map-options">
     <div class="map-tag active" onclick="if(window.cambiarMapa) window.cambiarMapa('satelite', this)">Satelital</div>
     <div class="map-tag" onclick="if(window.cambiarMapa) window.cambiarMapa('rayosx', this)">Rayos X</div>
+    <div class="map-tag" onclick="if(window.cambiarMapa) window.cambiarMapa('ambar', this)">Ámbar X</div>
+    <div class="map-tag" onclick="if(window.cambiarMapa) window.cambiarMapa('cobalto', this)">Cobalto X</div>
     <div class="map-tag" onclick="if(window.cambiarMapa) window.cambiarMapa('lite', this)">Bajo Gwai</div>
     <div id="btn-giro-toggle" class="map-tag" style="background: rgba(0, 255, 255, 0.1); border-color: #0ff; color: #0ff; display: none;" onclick="if(window.toggleRadarInmersivo) window.toggleRadarInmersivo(this)">🧭 Activar Radar 3D</div>
 </div>
+
 
 <!-- ================= MODALES DEL SISTEMA ================= -->
 <div class="bottom-sheet-overlay" id="modal-login" onclick="cerrarModalFuera(event, 'modal-login')">
@@ -390,7 +527,6 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         </div>
     </div>
 </div>
-
 <div class="bottom-sheet-overlay" id="modal-soporte" onclick="cerrarModalFuera(event, 'modal-soporte')">
     <div class="bottom-sheet-contenido" id="sheet-soporte">
         <div class="drag-handle"></div>
@@ -403,7 +539,6 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         <button class="btn-contacto" style="background: var(--naranja); box-shadow: 0 4px 10px rgba(255, 107, 0, 0.4);" onclick="window.location.href='mailto:soporte@tuqrpido.com'">✉️ Contactar a Soporte Técnico</button>
     </div>
 </div>
-
 <div class="bottom-sheet-overlay" id="overlay-compartir" onclick="cerrarModalFuera(event, 'overlay-compartir')">
     <div class="bottom-sheet-contenido" id="sheet-compartir" style="text-align: center;">
         <div class="drag-handle"></div>
@@ -418,7 +553,6 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         </div>
     </div>
 </div>
-
 <div class="bottom-sheet-overlay" id="modal-apreton">
     <div class="bottom-sheet-contenido">
         <div class="drag-handle"></div>
@@ -436,7 +570,6 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         <input type="text" id="miel-domi" style="position:absolute; left:-9999px; opacity:0;" tabindex="-1">
     </div>
 </div>
-
 <div class="bottom-sheet-overlay" id="modal-unidad-info">
     <div class="bottom-sheet-contenido">
         <div class="drag-handle"></div>
@@ -450,7 +583,6 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         <button class="pin-btn" style="width: 100%; background: transparent; border: none; color: #888; margin-top: 10px;" onclick="window.cerrarModal('modal-unidad-info')">Cerrar Monitor</button>
     </div>
 </div>
-
 <div class="bottom-sheet-overlay" id="modal-onboarding-biometrico">
     <div class="bottom-sheet-contenido" style="max-height: 90vh; overflow-y: auto;">
         <div class="drag-handle"></div>
@@ -465,7 +597,6 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         <button class="btn-cazar" style="width:100%; padding:14px; margin-top:25px;" id="btn-guardar-onboarding" onclick="if(window.finalizarGuardadoOnboardingCRM) window.finalizarGuardadoOnboardingCRM()">CONSOLIDAR E INICIAR SESIÓN</button>
     </div>
 </div>
-
 <div class="bottom-sheet-overlay" id="modal-cierre-legal">
     <div class="bottom-sheet-contenido">
         <div class="drag-handle"></div>
@@ -480,7 +611,6 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         <button class="pin-btn" style="width:100%; margin-top:10px; background:transparent; border:none; color:#777;" onclick="window.cerrarModal('modal-cierre-legal')">Volver al Turno</button>
     </div>
 </div>
-
 <!-- =========================================================
      CARRUSEL ÁUREO DE SELECCIÓN DE PERFILES (ONBOARDING)
      ========================================================= -->
@@ -544,7 +674,6 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         background: transparent; color: #aaa; font-weight: bold; cursor: pointer; text-transform: uppercase;
     }
 </style>
-
 <div id="carrusel-perfiles-ui" class="contenedor-carrusel-perfiles">
     <div class="titulo-onboarding">
         ¿Qué tipo de registro<br><span style="color: #ff6b00;">quieres realizar?</span>
@@ -564,7 +693,6 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         </div>
     </div>
 </div>
-
 <div id="hero-perfil-ui" class="hero-expansion">
     <div id="hero-img-bg" class="hero-top-38"></div>
     <div class="hero-bot-61">
@@ -578,7 +706,6 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         </div>
     </div>
 </div>
-
 <script>
     const dataPerfiles = {
         'comerciante': {
@@ -609,18 +736,15 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
             titulo: '<span style="color: #ff6b00; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.8));">SOCIO</span><span style="color: #ffffff; text-shadow: -1.5px -1.5px 0 #ff6b00, 1.5px -1.5px 0 #ff6b00, -1.5px 1.5px 0 #ff6b00, 1.5px 1.5px 0 #ff6b00, 3px 3px 5px rgba(0,0,0,0.8);"> CONDUCTOR</span>',
             desc: 'Conviértete en el motor de la ciudad. Recibe solicitudes de entrega y transporte en tiempo real con nuestra interfaz táctica. Visualiza tus ganancias, opera bajo tus propios horarios y liquida tus servicios a través de la red.',
             img: 'https://images.unsplash.com/photo-1551281622-7cc8a6316279?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-            destino: 'boveda-conductor',
+            destino: 'cabina.html',
             tipo_modelo: 'conductor',
             categoria_maestra: 'logistica'
         }
     };
-
     let perfilSeleccionado = null;
-
     window.dispararOnboardingPerfiles = function() {
         document.getElementById('carrusel-perfiles-ui').style.display = 'flex';
     };
-
     window.abrirHeroPerfil = function(idPerfil) {
         perfilSeleccionado = idPerfil;
         const data = dataPerfiles[idPerfil];
@@ -631,20 +755,17 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         heroUI.style.display = 'flex';
         setTimeout(() => { heroUI.classList.add('activo'); }, 10);
     };
-
     window.cerrarHeroPerfil = function() {
         const heroUI = document.getElementById('hero-perfil-ui');
         heroUI.classList.remove('activo');
         setTimeout(() => { heroUI.style.display = 'none'; }, 400); 
     };
-
     window.redirigirAlOnboarding = async function() {
         if (!perfilSeleccionado) return;
         const perfil = dataPerfiles[perfilSeleccionado];
         
         const btn = document.querySelector('.btn-hero-primario');
         if (btn) { btn.innerText = "Preparando Bóveda..."; btn.disabled = true; }
-
         if (window.idUsuarioActual && window.GeokatuDB_Global) {
             try {
                 await window.GeokatuDB_Global.AdminService.actualizarNegocio(window.idUsuarioActual, {
@@ -655,7 +776,6 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
                 console.error("Error sellando el ADN inicial:", error);
             }
         }
-
         document.body.style.transition = "opacity 0.5s ease";
         document.body.style.opacity = "0";
         
@@ -664,13 +784,11 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         }, 500);
     };
 </script>
-
 <script type="module">
 // --- MICRO-PROFILER Y BOOTLOADER MÓDULOS ---
 window.qrpidoLog = [];
 window.tiempoArranque = performance.now();
 window.qrpidoLog.push(`[0ms] 🚀 INICIO DE EJECUCIÓN (Motor Arrancado)`);
-
 window.cronometrar = function(nombreTarea, tareaFuncion) {
     return function(...args) {
         const t0 = performance.now();
@@ -680,44 +798,36 @@ window.cronometrar = function(nombreTarea, tareaFuncion) {
         return resultado;
     };
 };
-
 window.registrarPaso = function(mensaje) {
     window.qrpidoLog.push(`[${(performance.now() - window.tiempoArranque).toFixed(0)}ms] 📍 ${mensaje}`);
 };
-
 async function inicializarSistema() {
     try {
         window.registrarPaso("Iniciando inyección de módulos...");
-        window.GeokatuArranque.estado('Preparando mapa y servicios de la ciudad…');
-        await Promise.all([import('./auth-mando.js'), import('./motor-mapa.js')]);
-        import('./motor-movilidad.js').catch(error => console.warn('Movilidad no disponible:', error));
+        await import('./auth-mando.js'); window.registrarPaso("Módulo Auth OK");
+        await import('./motor-mapa.js'); window.registrarPaso("Módulo Mapa OK");
+        await import('./motor-movilidad.js'); window.registrarPaso("Módulo Movilidad P2P OK");
         window.registrarPaso("Todos los módulos inyectados. Arrancando motor principal...");
         if (typeof window.arrancarMotor === 'function') { window.arrancarMotor(); } 
         else { throw new Error("window.arrancarMotor no está definido."); }
     } catch (error) {
         console.error("Fallo crítico en el Bootloader:", error);
-        window.GeokatuArranque.error();
         if (typeof mostrarCartelErrorYDescargar === 'function') {
             mostrarCartelErrorYDescargar('FALLO DE COMPILACIÓN (MODULE PARSE ERROR)', `El motor falló al ensamblarse.\n\n${error.message}`);
         }
     }
 }
-
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => { 
-        navigator.serviceWorker.register('sw.js', {updateViaCache:'none'})
+        navigator.serviceWorker.register('sw.js')
             .then(reg => console.log('PWA lista y blindada.', reg.scope))
             .catch(err => console.log('PWA falló:', err)); 
     });
 }
-
 window.addEventListener('offline', () => document.getElementById('offline-banner').classList.add('activo'));
 window.addEventListener('online', () => document.getElementById('offline-banner').classList.remove('activo'));
 if (!navigator.onLine) document.getElementById('offline-banner').classList.add('activo');
-
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', inicializarSistema, {once:true});
-else inicializarSistema();
-
+inicializarSistema();
 document.body.addEventListener('click', (e) => {
     const elementoAccion = e.target.closest('[class*="js-action-"]');
     if (!elementoAccion) return;
@@ -739,9 +849,7 @@ document.body.addEventListener('click', (e) => {
         if (typeof window.registrarClicVerDetalles === 'function') window.registrarClicVerDetalles(codigo, nicho);
     }
 });
-
 import './profiler.js';
-
 import('./core-db.js').then(({ default: GeokatuDB }) => {
     window.GeokatuDB_Global = GeokatuDB;
     GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
@@ -764,14 +872,11 @@ import('./core-db.js').then(({ default: GeokatuDB }) => {
         }
     });
 }).catch(error => console.error("Error al iniciar Trampa Anti-Fantasmas:", error));
-
-
 window.cerrarSheetInmuebles = function() {
     const sheet = document.getElementById('lista-inmuebles-sheet');
     if(sheet) sheet.classList.remove('activo');
     if(navigator.vibrate) navigator.vibrate(20);
 };
-
 setTimeout(() => {
     const sheetInm = document.getElementById('lista-inmuebles-sheet');
     if(!sheetInm) return;
@@ -784,8 +889,6 @@ setTimeout(() => {
     });
 }, 1500); 
 </script>
-
-
 <!-- =========================================================================
      CONTROLADOR DE PASTILLAS FLOTANTES, HERRAMIENTAS Y TEMPORIZADORES (2 MIN)
      ========================================================================= -->
@@ -793,11 +896,9 @@ setTimeout(() => {
 window.timerBrujula = null;
 window.timerHerramientas = null;
 const TIEMPO_LIMITE_MS = 120000;
-
 window.filtrosInmueblesEstado = { operacion: 'todos', tipo: 'todos', atributo: 'todos' };
 window.filtrosComerciosEstado = { categoria: 'todos', subtipo: 'todos', domicilio: 'todos' };
 window.filtrosServiciosEstado = { categoria: 'todos', subtipo: 'todos', modalidad: 'todos' };
-
 // Generador dinámico del mensaje sin resultados adaptado gramaticalmente
 window.obtenerMensajeSinResultados = function() {
     if (window.categoriaActivaGlobal === 'inmuebles') {
@@ -820,7 +921,6 @@ window.obtenerMensajeSinResultados = function() {
         else if (fi.operacion === 'dias') sufijoOp = ' por días';
         return `No encontramos ${entidad}${sufijoOp} aquí`;
     }
-
     if (window.categoriaActivaGlobal === 'comercios' || window.categoriaActivaGlobal === 'negocios') {
         const cat = window.filtrosComerciosEstado.categoria;
         if (cat && cat !== 'todos') {
@@ -828,7 +928,6 @@ window.obtenerMensajeSinResultados = function() {
         }
         return 'No encontramos comercios aquí';
     }
-
     if (window.categoriaActivaGlobal === 'servicios') {
         const serv = window.filtrosServiciosEstado.categoria;
         if (serv && serv !== 'todos') {
@@ -836,21 +935,17 @@ window.obtenerMensajeSinResultados = function() {
         }
         return 'No encontramos servicios aquí';
     }
-
     return 'No encontramos resultados en esta zona';
 };
-
 window.toggleMenuBrujula = function() {
     if (navigator.vibrate) navigator.vibrate(20);
     const pastillas = document.getElementById('pastillas-madre-fila');
     const panelSub = document.getElementById('subfiltros-inmuebles-panel');
-
     if (panelSub && panelSub.classList.contains('activo')) {
         panelSub.classList.remove('activo');
         clearTimeout(window.timerBrujula);
         return;
     }
-
     if (pastillas) {
         const activo = pastillas.classList.toggle('activo');
         clearTimeout(window.timerBrujula);
@@ -859,21 +954,18 @@ window.toggleMenuBrujula = function() {
         }
     }
 };
-
 window.seleccionarPastillaCiudad = function(categoria) {
     if (navigator.vibrate) navigator.vibrate(25);
     clearTimeout(window.timerBrujula);
-
     const pastillas = document.getElementById('pastillas-madre-fila');
     const panelSub = document.getElementById('subfiltros-inmuebles-panel');
     if (pastillas) pastillas.classList.remove('activo');
-
     if (categoria === 'inmueble') {
         window.categoriaActivaGlobal = 'inmuebles';
         window.renderizarBandejaInmuebles();
         if (panelSub) panelSub.classList.add('activo');
         if (typeof window.descargarNegociosDeFirebase === 'function') {
-            window.descargarNegociosDeFirebase();
+            window.descargarNegociosDeFirebase(true);
         }
     } else if (categoria === 'comercio') {
         window.categoriaActivaGlobal = 'comercios';
@@ -887,17 +979,14 @@ window.seleccionarPastillaCiudad = function(categoria) {
         if (typeof window.barridoRadar === 'function') window.barridoRadar();
     }
 };
-
 // Renderizado de las 3 filas de Inmuebles con catálogo colombiano completo
 window.renderizarBandejaInmuebles = function() {
     const panel = document.getElementById('subfiltros-inmuebles-panel');
     if (!panel) return;
-
     const fi = window.filtrosInmueblesEstado;
     const esResidencial = ['apartamento', 'casa', 'apartaestudio', 'habitacion', 'todos'].includes(fi.tipo);
     const esComercial = ['local', 'oficina', 'bodega'].includes(fi.tipo);
     const esTierras = ['lote', 'finca'].includes(fi.tipo);
-
     let rotuloAtributo = 'Cuartos:';
     let chipsAtributoHTML = `
         <button class="chip-tactual ${fi.atributo === 'todos' ? 'activo' : ''}" onclick="window.cambiarAtributoInmueble('todos', this)">Cualquiera</button>
@@ -905,7 +994,6 @@ window.renderizarBandejaInmuebles = function() {
         <button class="chip-tactual ${fi.atributo === '2' ? 'activo' : ''}" onclick="window.cambiarAtributoInmueble('2', this)">2 Hab</button>
         <button class="chip-tactual ${fi.atributo === '3+' ? 'activo' : ''}" onclick="window.cambiarAtributoInmueble('3+', this)">3+ Hab</button>
     `;
-
     if (esComercial) {
         rotuloAtributo = 'Área:';
         chipsAtributoHTML = `
@@ -924,7 +1012,6 @@ window.renderizarBandejaInmuebles = function() {
             <button class="chip-tactual ${fi.atributo === 'limpio' ? 'activo' : ''}" onclick="window.cambiarAtributoInmueble('limpio', this)">Limpio</button>
         `;
     }
-
     panel.innerHTML = `
         <div class="chips-fila-scroll">
             <span class="chip-rotulo">Operación:</span>
@@ -933,7 +1020,6 @@ window.renderizarBandejaInmuebles = function() {
             <button class="chip-tactual ${fi.operacion === 'venta' ? 'activo' : ''}" onclick="window.cambiarOperacionInmueble('venta', this)">Venta</button>
             <button class="chip-tactual ${fi.operacion === 'dias' ? 'activo' : ''}" onclick="window.cambiarOperacionInmueble('dias', this)">Por Días</button>
         </div>
-
         <div class="chips-fila-scroll">
             <span class="chip-rotulo">Tipo:</span>
             <button class="chip-tactual ${fi.tipo === 'todos' ? 'activo' : ''}" onclick="window.cambiarTipoInmueble('todos', this)">Todos</button>
@@ -947,21 +1033,18 @@ window.renderizarBandejaInmuebles = function() {
             <button class="chip-tactual ${fi.tipo === 'lote' ? 'activo' : ''}" onclick="window.cambiarTipoInmueble('lote', this)">Lotes</button>
             <button class="chip-tactual ${fi.tipo === 'finca' ? 'activo' : ''}" onclick="window.cambiarTipoInmueble('finca', this)">Fincas</button>
         </div>
-
         <div class="chips-fila-scroll">
             <span class="chip-rotulo">${rotuloAtributo}</span>
             ${chipsAtributoHTML}
         </div>
     `;
 };
-
 window.cambiarOperacionInmueble = function(val, el) {
     if (navigator.vibrate) navigator.vibrate(15);
     window.filtrosInmueblesEstado.operacion = val;
     window.renderizarBandejaInmuebles();
     if (typeof window.barridoRadar === 'function') window.barridoRadar();
 };
-
 window.cambiarTipoInmueble = function(val, el) {
     if (navigator.vibrate) navigator.vibrate(15);
     window.filtrosInmueblesEstado.tipo = val;
@@ -969,20 +1052,16 @@ window.cambiarTipoInmueble = function(val, el) {
     window.renderizarBandejaInmuebles();
     if (typeof window.barridoRadar === 'function') window.barridoRadar();
 };
-
 window.cambiarAtributoInmueble = function(val, el) {
     if (navigator.vibrate) navigator.vibrate(15);
     window.filtrosInmueblesEstado.atributo = val;
     window.renderizarBandejaInmuebles();
     if (typeof window.barridoRadar === 'function') window.barridoRadar();
 };
-
 // Renderizado de las 3 filas de Comercios
 window.renderizarBandejaComercios = function() {
     const panel = document.getElementById('subfiltros-inmuebles-panel');
     if (!panel) return;
-
-    // Extracción dinámica de categorías activas en base de datos
     const categoriasDetectadas = new Set(['Comida Rápida', 'Droguería', 'Supermercado', 'Restaurante', 'Panadería', 'Tecnología', 'Moda']);
     if (window.dbDirectorio && Array.isArray(window.dbDirectorio)) {
         window.dbDirectorio.forEach(p => {
@@ -990,19 +1069,16 @@ window.renderizarBandejaComercios = function() {
             if (p.categoria && p.categoria !== 'General') categoriasDetectadas.add(p.categoria);
         });
     }
-
     const fc = window.filtrosComerciosEstado;
     const chipsCatHTML = Array.from(categoriasDetectadas).map(c => `
         <button class="chip-tactual ${fc.categoria === c ? 'activo' : ''}" onclick="window.cambiarCatComercio('${c}', this)">${c}</button>
     `).join('');
-
     panel.innerHTML = `
         <div class="chips-fila-scroll">
             <span class="chip-rotulo">Categoría:</span>
             <button class="chip-tactual ${fc.categoria === 'todos' ? 'activo' : ''}" onclick="window.cambiarCatComercio('todos', this)">Todas</button>
             ${chipsCatHTML}
         </div>
-
         <div class="chips-fila-scroll">
             <span class="chip-rotulo">Tipo:</span>
             <button class="chip-tactual ${fc.subtipo === 'todos' ? 'activo' : ''}" onclick="window.cambiarSubComercio('todos', this)">Todos</button>
@@ -1010,7 +1086,6 @@ window.renderizarBandejaComercios = function() {
             <button class="chip-tactual ${fc.subtipo === 'mayorista' ? 'activo' : ''}" onclick="window.cambiarSubComercio('mayorista', this)">Mayorista</button>
             <button class="chip-tactual ${fc.subtipo === '24horas' ? 'activo' : ''}" onclick="window.cambiarSubComercio('24horas', this)">24 Horas</button>
         </div>
-
         <div class="chips-fila-scroll">
             <span class="chip-rotulo">Entrega:</span>
             <button class="chip-tactual ${fc.domicilio === 'todos' ? 'activo' : ''}" onclick="window.cambiarDomComercio('todos', this)">Todos</button>
@@ -1019,7 +1094,6 @@ window.renderizarBandejaComercios = function() {
         </div>
     `;
 };
-
 window.cambiarCatComercio = function(val, el) {
     if (navigator.vibrate) navigator.vibrate(15);
     window.filtrosComerciosEstado.categoria = val;
@@ -1038,12 +1112,10 @@ window.cambiarDomComercio = function(val, el) {
     window.renderizarBandejaComercios();
     if (typeof window.barridoRadar === 'function') window.barridoRadar();
 };
-
 // Renderizado de las 3 filas de Servicios
 window.renderizarBandejaServicios = function() {
     const panel = document.getElementById('subfiltros-inmuebles-panel');
     if (!panel) return;
-
     const fs = window.filtrosServiciosEstado;
     panel.innerHTML = `
         <div class="chips-fila-scroll">
@@ -1054,14 +1126,12 @@ window.renderizarBandejaServicios = function() {
             <button class="chip-tactual ${fs.categoria === 'tecnico' ? 'activo' : ''}" onclick="window.cambiarCatServicio('tecnico', this)">Técnicos</button>
             <button class="chip-tactual ${fs.categoria === 'asesoria' ? 'activo' : ''}" onclick="window.cambiarCatServicio('asesoria', this)">Asesoría</button>
         </div>
-
         <div class="chips-fila-scroll">
             <span class="chip-rotulo">Especialidad:</span>
             <button class="chip-tactual ${fs.subtipo === 'todos' ? 'activo' : ''}" onclick="window.cambiarSubServicio('todos', this)">Todas</button>
             <button class="chip-tactual ${fs.subtipo === 'urgente' ? 'activo' : ''}" onclick="window.cambiarSubServicio('urgente', this)">Urgencias</button>
             <button class="chip-tactual ${fs.subtipo === 'cita' ? 'activo' : ''}" onclick="window.cambiarSubServicio('cita', this)">Con Cita</button>
         </div>
-
         <div class="chips-fila-scroll">
             <span class="chip-rotulo">Atención:</span>
             <button class="chip-tactual ${fs.modalidad === 'todos' ? 'activo' : ''}" onclick="window.cambiarModServicio('todos', this)">Todas</button>
@@ -1070,7 +1140,6 @@ window.renderizarBandejaServicios = function() {
         </div>
     `;
 };
-
 window.cambiarCatServicio = function(val, el) {
     if (navigator.vibrate) navigator.vibrate(15);
     window.filtrosServiciosEstado.categoria = val;
@@ -1089,29 +1158,24 @@ window.cambiarModServicio = function(val, el) {
     window.renderizarBandejaServicios();
     if (typeof window.barridoRadar === 'function') window.barridoRadar();
 };
-
 // --- CONTROLADOR HERRAMIENTAS (⚙️) ---
 window.toggleMenuHerramientas = function() {
     if (navigator.vibrate) navigator.vibrate(20);
     const columna = document.getElementById('columna-herramientas-hijas');
     if (!columna) return;
-
     const estaActivo = columna.classList.toggle('activo');
     clearTimeout(window.timerHerramientas);
-
     if (estaActivo) {
         window.timerHerramientas = setTimeout(() => {
             columna.classList.remove('activo');
         }, TIEMPO_LIMITE_MS);
     }
 };
-
 window.ejecutarAccionHerramienta = function(herramienta) {
     if (navigator.vibrate) navigator.vibrate(30);
     const columna = document.getElementById('columna-herramientas-hijas');
     if (columna) columna.classList.remove('activo');
     clearTimeout(window.timerHerramientas);
-
     if (herramienta === 'rutas') {
         if (typeof window.conmutarVistaEcosistema === 'function') {
             window.conmutarVistaEcosistema('transporte');
@@ -1127,16 +1191,14 @@ window.ejecutarAccionHerramienta = function(herramienta) {
     }
 };
 </script>
-
-
-
 <script>
-// Espía de sesión para Bóveda
+// Espía de sesión para Bóveda (Sin afectar el directorio público del mapa)
 window.addEventListener('DOMContentLoaded', () => {
     const observerAuth = new MutationObserver(() => {
         const panelActivo = document.getElementById('panel-usuario-activo');
         const btnLoginSub = document.getElementById('btn-login-submenu');
         const btnOficina = document.getElementById('btn-oficina');
+        const btnCabina = document.getElementById('btn-cabina');
         const btnBodega = document.getElementById('btn-bodega');
         const btnPos = document.getElementById('btn-pos');
         const btnCatalogo = document.getElementById('btn-catalogo');
@@ -1144,9 +1206,9 @@ window.addEventListener('DOMContentLoaded', () => {
         const btnSalir = document.getElementById('btn-salir');
         
         const usuarioLogueado = Boolean(window.idUsuarioActual || (panelActivo && panelActivo.style.display !== 'none'));
-
         if (btnLoginSub) btnLoginSub.style.display = usuarioLogueado ? 'none' : 'block';
         if (btnOficina) btnOficina.style.display = usuarioLogueado ? 'block' : 'none';
+        if (btnCabina) btnCabina.style.display = usuarioLogueado ? 'block' : 'none';
         if (btnBodega) btnBodega.style.display = usuarioLogueado ? 'block' : 'none';
         if (btnPos) btnPos.style.display = usuarioLogueado ? 'block' : 'none';
         if (btnCatalogo) btnCatalogo.style.display = usuarioLogueado ? 'block' : 'none';
@@ -1156,14 +1218,13 @@ window.addEventListener('DOMContentLoaded', () => {
     
     observerAuth.observe(document.body, { childList: true, subtree: true, attributes: true });
 });
-
 window.toggleSubmenu = () => document.getElementById('submenu-llave').classList.toggle('activo');
 window.abrirModal = (id) => document.getElementById(id).classList.add('activo');
 window.cerrarModalFuera = (e, id) => { if(e.target.id === id) document.getElementById(id).classList.remove('activo'); };
-
 function aplicarSwipeAbajo(modalId, contentId) {
     const modal = document.getElementById(modalId);
     const content = document.getElementById(contentId);
+    if (!modal || !content) return;
     let startY = 0, currentY = 0;
     content.addEventListener('touchstart', e => startY = e.touches[0].clientY, {passive: true});
     content.addEventListener('touchmove', e => { 
@@ -1175,12 +1236,10 @@ function aplicarSwipeAbajo(modalId, contentId) {
         content.style.transform = ''; 
     });
 }
-
 aplicarSwipeAbajo('modal-login', 'sheet-login'); 
 aplicarSwipeAbajo('overlay-compartir', 'sheet-compartir'); 
 aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
 </script>
-
 <!-- MODAL CÁMARA ESCÁNER CON BORDE NEÓN -->
 <dialog id="modal-camara-escaneo" class="modal-dialog-camara">
     <div class="modal-camara-inner">
@@ -1192,27 +1251,22 @@ aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
         <p style="font-size:11px; color:#aaa; text-align:center; margin:10px 0 0 0;">Coloca el código dentro del marco</p>
     </div>
 </dialog>
-
 <!-- CONTENEDOR FLOTANTE PARA MODALES Y BURBUJAS DE PRODUCTO -->
 <div id="contenedor-modales-productos"></div>
-
 <!-- LÓGICA DEL MOTOR DE ESCANEO, MODAL UNIFICADA Y BUSCADOR TEXTUAL -->
 <script type="module">
     import GeokatuDB from './core-db.js';
-
     // --- SINTETIZADOR DE AUDIO FEEDBACK ---
     let audioCtx = null;
     function emitirTono(tipo = 'EXITO') {
         try {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             if (audioCtx.state === 'suspended') audioCtx.resume();
-
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             osc.connect(gain);
             gain.connect(audioCtx.destination);
             const ahora = audioCtx.currentTime;
-
             if (tipo === 'EXITO') {
                 osc.type = 'sine';
                 osc.frequency.setValueAtTime(1850, ahora);
@@ -1230,24 +1284,20 @@ aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
             }
         } catch (e) {}
     }
-
     // --- 1. CONTROL DEL MENÚ DE 3 PUNTOS (100% TEXTO / SIN DISPARO DE CÁMARA) ---
     const btnTresPuntos = document.getElementById('btn-tres-puntos');
     const menuTipos = document.getElementById('menu-tipos');
     const opcionesTipos = document.querySelectorAll('.opcion-tipo');
     const inputBuscador = document.getElementById('input-buscador');
-
     btnTresPuntos.addEventListener('click', (e) => {
         e.stopPropagation();
         menuTipos.classList.toggle('activo');
     });
-
     document.addEventListener('click', (e) => {
         if (!e.target.closest('#wrapper-buscador')) {
             menuTipos.classList.remove('activo');
         }
     });
-
     opcionesTipos.forEach(opcion => {
         opcion.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1256,11 +1306,9 @@ aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
                 const check = o.querySelector('span:last-child');
                 if (check && check.innerText === '✓') check.remove();
             });
-
             opcion.classList.add('seleccionado');
             opcion.innerHTML += ' <span>✓</span>';
             menuTipos.classList.remove('activo');
-
             const tipo = opcion.dataset.tipo;
             if (tipo === 'articulos') {
                 inputBuscador.placeholder = "Escribe el nombre del artículo...";
@@ -1271,14 +1319,11 @@ aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
             }
         });
     });
-
     // --- 2. MOTOR DE ESCANEO DE CÁMARA (Html5Qrcode) ---
     let scannerInstancia = null;
-
     window.abrirEscanerCamara = function() {
         const modalCamara = document.getElementById('modal-camara-escaneo');
         modalCamara.showModal();
-
         if (!scannerInstancia) {
             scannerInstancia = new Html5Qrcode("lector-camara-modal", {
                 formatsToSupport: [
@@ -1290,7 +1335,6 @@ aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
                 verbose: false
             });
         }
-
         scannerInstancia.start(
             { facingMode: "environment" },
             {
@@ -1305,13 +1349,11 @@ aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
                 await window.cerrarCamaraModal();
                 emitirTono('EXITO');
                 if (navigator.vibrate) navigator.vibrate(50);
-
                 // Consulta de doble capa en core-db.js
                 const res = await GeokatuDB.RadarService.buscarComerciosPorCodigoEAN(codigoLeido);
                 
                 // Muestra modal unificada
                 window.crearModalProductoUnificado(res.producto, res.comerciosIDs);
-
                 // Filtra inmediatamente en el mapa
                 window.dispararFiltroComercios(codigoLeido, res.comerciosIDs);
             },
@@ -1322,15 +1364,13 @@ aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
             alert("No se pudo acceder a la cámara. Comprueba los permisos.");
         });
     };
-
     window.cerrarCamaraModal = async function() {
         if (scannerInstancia && scannerInstancia.isScanning) {
             try { await scannerInstancia.stop(); } catch (e) {}
         }
         document.getElementById('modal-camara-escaneo').close();
     };
-
-// =========================================================================
+    // =========================================================================
     // 3. FICHA INFORMATIVA DE PRODUCTO (DISEÑO REFINADO DE SOLO LECTURA)
     // =========================================================================
     window.crearModalProductoUnificado = function(datos, idsComerciosValidos = []) {
@@ -1356,7 +1396,6 @@ aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
         const textoBoton = cantidadTiendas > 0 
             ? ('VER ' + cantidadTiendas + ' TIENDA' + (cantidadTiendas > 1 ? 'S' : '') + ' EN EL MAPA') 
             : 'BUSCAR TIENDAS CERCANAS';
-
         const modalHTML = 
             '<div id="' + modalId + '" class="modal-producto-unificado modal-consumidor">' +
                 '<div class="modal-drag-indicator" onclick="window.minimizarABurbuja(\'' + modalId + '\', \'' + nombreJsSeguro + '\')" title="Minimizar a burbuja"></div>' +
@@ -1405,17 +1444,13 @@ aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
         }
         window.hacerElementoArrastrable(modalEl, document.getElementById('header-' + modalId));
     };
-
-
     // --- 4. MINIMIZACIÓN A BURBUJAS MAGNÉTICAS FLOTANTES ---
     window.minimizarABurbuja = function(modalId, nombreProd) {
         const modalEl = document.getElementById(modalId);
         if (!modalEl) return;
         modalEl.style.display = 'none';
-
         const burbujaId = `burbuja-${modalId}`;
         const iniciales = (nombreProd || 'Prod').substring(0, 7) + '..';
-
         const burbujaHTML = `
             <div id="${burbujaId}" class="burbuja-producto-flotante" style="top: 200px; left: 20px;">
                 <span class="burbuja-badge">🏷️</span>
@@ -1425,40 +1460,32 @@ aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
                 </div>
             </div>
         `;
-
         document.body.insertAdjacentHTML('beforeend', burbujaHTML);
         const burbujaEl = document.getElementById(burbujaId);
-
         burbujaEl.addEventListener('click', () => {
             if (burbujaEl.dataset.dragging === 'true') return;
             modalEl.style.display = 'block';
             burbujaEl.remove();
         });
-
         window.hacerElementoArrastrable(burbujaEl, burbujaEl);
     };
-
     // --- 5. FÍSICA DE ARRASTRE DE MODALES Y BURBUJAS ---
     window.hacerElementoArrastrable = function(contenedor, trigger) {
         let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
         const handle = trigger || contenedor;
-
         handle.onmousedown = arrastreIniciar;
         handle.ontouchstart = arrastreIniciar;
-
         function arrastreIniciar(e) {
             contenedor.dataset.dragging = 'false';
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
             pos3 = clientX;
             pos4 = clientY;
-
             document.onmouseup = arrastreDetener;
             document.ontouchend = arrastreDetener;
             document.onmousemove = arrastreMover;
             document.ontouchmove = arrastreMover;
         }
-
         function arrastreMover(e) {
             contenedor.dataset.dragging = 'true';
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -1467,12 +1494,10 @@ aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
             pos2 = pos4 - clientY;
             pos3 = clientX;
             pos4 = clientY;
-
             contenedor.style.top = (contenedor.offsetTop - pos2) + "px";
             contenedor.style.left = (contenedor.offsetLeft - pos1) + "px";
             contenedor.style.transform = 'none';
         }
-
         function arrastreDetener() {
             document.onmouseup = null;
             document.onmousemove = null;
@@ -1480,14 +1505,12 @@ aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
             document.ontouchmove = null;
         }
     };
-
     // --- 6. COMUNICACIÓN DIRECTA CON MAPLIBRE GL JS ---
     window.dispararFiltroComercios = function(barcode, idsComercios) {
         window.dispatchEvent(new CustomEvent('ejecutar-filtro-mapa-producto', {
             detail: { barcode, idsComercios }
         }));
     };
-
     // --- INTEGRACIÓN DE PERFORMANCE DENTRO DE 🧭 ---
     window.abrirMenuPerformance = function() {
         if (typeof window.toggleSubmenuBrujula === 'function') {
@@ -1503,7 +1526,6 @@ aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
             trigger.click();
         }
     };
-
     // Asegurar ocultamiento del botón verde flotante cuando profiler.js lo inyecte
     const neutralizarBotonVerde = () => {
         document.querySelectorAll('div, button').forEach(el => {
@@ -1518,14 +1540,6 @@ aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
     window.addEventListener('DOMContentLoaded', neutralizarBotonVerde);
     setTimeout(neutralizarBotonVerde, 300);
     setTimeout(neutralizarBotonVerde, 1200);
-
 </script>
-
 </body>
 </html>
-
-
-
-
-
-

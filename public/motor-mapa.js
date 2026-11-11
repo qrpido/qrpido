@@ -2,13 +2,13 @@ import GeokatuDB from './core-db.js';
 import { db } from './firebase-config.js'; 
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// === VARIABLES Y LÓGICA DEL MAPA ===
-let mapa, capaBase, capaRadar;
-// === TORNIQUETE FINANCIERO FIREBASE ===
+// === ARQUITECTURA DE ESTADO COORDINADO (SECCIÓN 5 LIBRO TÉCNICO) ===
+let mapa;
 let ultimoCentroFetch = null;
 let debounceFirebase = null;
-let marcadoresActivos = {}; // Para no duplicar pines
+let marcadoresActivos = {};
 let dbDirectorio = [], dbDirectorioMap = new Map();
+window.dbDirectorio = dbDirectorio;
 let dbTroya = [];
 let datosDescargados = false;
 let cajaFuerteEspacial = null;
@@ -16,37 +16,180 @@ let zonaNecesitaDescarga = false;
 let miUbicacionMarker = null;
 window.marcadoresRadar = {};
 
-// === ESPIA DE SESION PARA REGLA DEL DUENO ===
+// Puente reactivo para categoriaActivaGlobal entre index.html, movilidad y motor-mapa.js
+let _categoriaActivaGlobal = 'negocios';
+Object.defineProperty(window, 'categoriaActivaGlobal', {
+    get: () => _categoriaActivaGlobal,
+    set: (val) => { _categoriaActivaGlobal = val || 'negocios'; },
+    configurable: true
+});
+
+export const EstadoMapa = {
+    vista: {
+        estiloActual: 'clasico',
+        interaccionUsuario: false,
+        vueloCancelableId: null,
+        modoZoomActual: 'barrio',
+        ultimoCentroRotacion: null,
+        ultimoZoomRotacion: null
+    },
+    cobertura: {
+        celdas: new Map(), // claveCelda -> { centro, radioM, categoria, fecha, completo, truncado }
+        ordenLRU: []       // Control de presupuesto de memoria (máx 1500 registros por uso reciente)
+    },
+    consulta: {
+        generacionActual: 0,
+        promesasEnVuelo: new Map(),
+        estadoUI: 'iniciando'
+    },
+    sesion: {
+        uid: null,
+        comercioPropio: null
+    },
+    seleccion: {
+        pinAbiertoId: null,
+        colaExposicion: [],
+        ultimaExposicionTs: new Map(),
+        semillaSesion: Math.floor(Math.random() * 2147483647)
+    }
+};
+window.EstadoMapaGeokatu = EstadoMapa;
+
+// Indicador explícito de estados del contrato de experiencia (Sección 4)
+window.actualizarEstadoRadar = function(estado, textoManual = null) {
+    EstadoMapa.consulta.estadoUI = estado;
+    const pill = document.getElementById('radar-status-pill');
+    if (!pill) return;
+    const mapaTextos = {
+        'iniciando': '⏳ Iniciando mapa...',
+        'mostrando_cache': '⚡ Mostrando caché local • Actualizando...',
+        'consultando': '🛰️ Actualizando esta zona...',
+        'cobertura_parcial': '⚠️ Cobertura parcial en esta vista',
+        'sin_conexion': '📴 Sin conexión • Mostrando datos guardados',
+        'error': '⚠️ Fallo temporal de consulta • Datos previos conservados',
+        'listo': ''
+    };
+    const msg = textoManual !== null ? textoManual : (mapaTextos[estado] || '');
+    if (!msg || estado === 'listo') {
+        pill.classList.remove('visible');
+    } else {
+        pill.textContent = msg;
+        pill.classList.add('visible');
+    }
+};
+
+// Validación estricta de coordenadas finitas (0 es coordenada válida)
+window.esCoordenadaValida = function(lat, lng) {
+    const nLat = Number(lat), nLng = Number(lng);
+    return Number.isFinite(nLat) && Number.isFinite(nLng) && nLat >= -90 && nLat <= 90 && nLng >= -180 && nLng <= 180;
+};
+
+// Registro en directorio público con evacuación LRU (Sección 7)
+window.registrarEntidadDirectorio = function(id, obj) {
+    if (!id || !obj) return;
+    const idStr = String(id);
+    dbDirectorioMap.set(idStr, obj);
+    const idxPrev = EstadoMapa.cobertura.ordenLRU.indexOf(idStr);
+    if (idxPrev !== -1) EstadoMapa.cobertura.ordenLRU.splice(idxPrev, 1);
+    EstadoMapa.cobertura.ordenLRU.push(idStr);
+
+    if (dbDirectorioMap.size > 1500) {
+        const excedente = dbDirectorioMap.size - 1500;
+        let eliminados = 0;
+        for (let i = 0; i < EstadoMapa.cobertura.ordenLRU.length && eliminados < excedente; i++) {
+            const candidatoId = EstadoMapa.cobertura.ordenLRU[i];
+            if (candidatoId !== EstadoMapa.seleccion.pinAbiertoId && candidatoId !== EstadoMapa.sesion.uid) {
+                dbDirectorioMap.delete(candidatoId);
+                EstadoMapa.cobertura.ordenLRU.splice(i, 1);
+                i--;
+                eliminados++;
+            }
+        }
+    }
+};
+
+// Curva Quintic E(u) = 6u^5 - 15u^4 + 10u^3 cancelable por gesto (Sección 6)
+window.volarCamaraHonesta = function(lngDestino, latDestino, zoomDestino = 15, duracionMs = 950) {
+    if (!mapa || !window.esCoordenadaValida(latDestino, lngDestino)) return;
+    if (EstadoMapa.vista.vueloCancelableId) {
+        cancelAnimationFrame(EstadoMapa.vista.vueloCancelableId);
+        EstadoMapa.vista.vueloCancelableId = null;
+    }
+    const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) {
+        mapa.jumpTo({ center: [lngDestino, latDestino], zoom: zoomDestino });
+        return;
+    }
+    const c0 = mapa.getCenter();
+    const distMetros = calcularDistanciaKm(c0.lat, c0.lng, latDestino, lngDestino) * 1000;
+    if (distMetros > 18000) {
+        mapa.flyTo({ center: [lngDestino, latDestino], zoom: zoomDestino, duration: Math.min(1100, duracionMs) });
+        return;
+    }
+    const z0 = mapa.getZoom();
+    const t0 = performance.now();
+    const T = Math.max(700, Math.min(1100, duracionMs));
+    function stepCamara(now) {
+        if (EstadoMapa.vista.interaccionUsuario) {
+            EstadoMapa.vista.vueloCancelableId = null;
+            return;
+        }
+        const u = Math.max(0, Math.min(1, (now - t0) / T));
+        const E = 6 * Math.pow(u, 5) - 15 * Math.pow(u, 4) + 10 * Math.pow(u, 3);
+        let dLng = lngDestino - c0.lng;
+        if (dLng > 180) dLng -= 360;
+        if (dLng < -180) dLng += 360;
+        const lngActual = c0.lng + dLng * E;
+        const latActual = c0.lat + (latDestino - c0.lat) * E;
+        const zoomActual = z0 + (zoomDestino - z0) * E;
+        mapa.jumpTo({ center: [lngActual, latActual], zoom: zoomActual });
+        if (u < 1) {
+            EstadoMapa.vista.vueloCancelableId = requestAnimationFrame(stepCamara);
+        } else {
+            EstadoMapa.vista.vueloCancelableId = null;
+        }
+    }
+    EstadoMapa.vista.vueloCancelableId = requestAnimationFrame(stepCamara);
+};
+
+// === ESPÍA DE SESIÓN DESACOPLADO DEL DIRECTORIO PÚBLICO (SECCIÓN 3.1 Y 5) ===
 window.idUsuarioActual = null;
 GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
     if (user) {
         window.idUsuarioActual = user.uid;
+        EstadoMapa.sesion.uid = user.uid;
         try {
             const resDetalles = await GeokatuDB.LocalService.getDetails(user.uid);
             if (resDetalles.success && resDetalles.data && resDetalles.data.Coordenadas) {
                 const c = resDetalles.data.Coordenadas;
-                const latPropia = c.latitude || c._lat || c.lat;
-                const lngPropia = c.longitude || c._long || c.lng;
-                if (latPropia && lngPropia) {
+                const latPropia = c.latitude ?? c._lat ?? c.lat;
+                const lngPropia = c.longitude ?? c._long ?? c.lng;
+                if (window.esCoordenadaValida(latPropia, lngPropia)) {
                     const docPropio = {
                         ...resDetalles.data,
                         codigo: user.uid,
                         Coordenadas: { latitude: Number(latPropia), longitude: Number(lngPropia) }
                     };
-                    dbDirectorioMap.set(user.uid, docPropio);
+                    EstadoMapa.sesion.comercioPropio = docPropio;
+                    window.registrarEntidadDirectorio(user.uid, docPropio);
                     dbDirectorio = Array.from(dbDirectorioMap.values());
-                    datosDescargados = true;
+                    window.dbDirectorio = dbDirectorio;
                 }
             }
         } catch (e) {
-            console.warn("[Radar] Precarga directa del comercio propio no completada:", e.message);
+            console.warn("[Radar] Precarga del comercio propio omitida:", e.message);
         }
-
+        // Jamás marcar el directorio público como completado solo por el perfil propio
         if (typeof window.barridoRadar === 'function' && datosDescargados) {
-            window.barridoRadar();
+            window.barridoRadar(document.getElementById('input-buscador')?.value || '', { conservarRotacion: true });
         }
     } else {
         window.idUsuarioActual = null;
+        EstadoMapa.sesion.uid = null;
+        EstadoMapa.sesion.comercioPropio = null;
+        if (typeof window.barridoRadar === 'function' && datosDescargados) {
+            window.barridoRadar(document.getElementById('input-buscador')?.value || '', { conservarRotacion: true });
+        }
     }
 });
 
@@ -477,13 +620,136 @@ const dbSimbologia = {
     banner_noticias_generico: 'https://via.placeholder.com/600x300/0a0a0c/ff6b00?text=Promo'
 };
 
+
+// === DISTANCIA HAVERSINE NUMÉRICAMENTE ESTABLE (SECCIÓN 7 LIBRO TÉCNICO) ===
 function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
-    const R = 6371;
+    if (!window.esCoordenadaValida(lat1, lon1) || !window.esCoordenadaValida(lat2, lon2)) return Infinity;
+    const R = 6371; // Radio terrestre en km (6.371.000 m)
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const rawA = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                 Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                 Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const a = Math.min(1, Math.max(0, rawA)); // Acotado a [0,1] por estabilidad numérica
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
+
+// === CUADRÍCULA ESPACIAL DE COBERTURA Y CÍRCULO DE PRECISIÓN GPS ===
+function obtenerClaveCeldaEspacial(lat, lng, categoria = 'negocios') {
+    // Celdas de ~1.6 km para reutilizar consultas entre vistas próximas
+    const step = 0.015;
+    const cLat = Math.floor(Number(lat) / step);
+    const cLng = Math.floor(Number(lng) / step);
+    const catNorm = (categoria === 'comercios' || categoria === 'negocios') ? 'comercios' : categoria;
+    return `${catNorm}:${cLat}:${cLng}`;
+}
+
+function viewportCubiertoPorCeldas(bounds, categoria) {
+    if (!bounds) return false;
+    const sw = bounds.getSouthWest();
+    const ne = bounds.getNorthEast();
+    const c = bounds.getCenter();
+    const puntosMuestra = [
+        [c.lat, c.lng],
+        [sw.lat, sw.lng],
+        [ne.lat, ne.lng],
+        [sw.lat, ne.lng],
+        [ne.lat, sw.lng]
+    ];
+    const ahora = Date.now();
+    const TTL_CELDA_MS = 10 * 60 * 1000; // 10 minutos de vigencia de caché espacial
+    for (let i = 0; i < puntosMuestra.length; i++) {
+        const [pLat, pLng] = puntosMuestra[i];
+        const clave = obtenerClaveCeldaEspacial(pLat, pLng, categoria);
+        const infoCelda = EstadoMapa.cobertura.celdas.get(clave);
+        if (!infoCelda || (ahora - infoCelda.fecha) > TTL_CELDA_MS) {
+            return false;
+        }
+    }
+    return true;
+}
+
+window.dibujarCirculoPrecisionGPS = function(lat, lng, accuracyM = 30) {
+    if (!mapa || !window.esCoordenadaValida(lat, lng)) return;
+    const radioM = Math.max(15, Math.min(2500, Number(accuracyM) || 30));
+    const pasos = 48;
+    const coords = [];
+    const latRad = (lat * Math.PI) / 180;
+    for (let i = 0; i <= pasos; i++) {
+        const ang = (i / pasos) * 2 * Math.PI;
+        const dLat = (radioM * Math.cos(ang)) / 110574;
+        const dLng = (radioM * Math.sin(ang)) / (111320 * Math.max(0.1, Math.cos(latRad)));
+        coords.push([lng + dLng, lat + dLat]);
+    }
+    const geojson = {
+        type: 'FeatureCollection',
+        features: [{
+            type: 'Feature',
+            properties: { accuracy: radioM },
+            geometry: { type: 'Polygon', coordinates: [coords] }
+        }]
+    };
+    const aplicarCapa = () => {
+        try {
+            if (mapa.getSource('gps-precision-source')) {
+                mapa.getSource('gps-precision-source').setData(geojson);
+            } else {
+                mapa.addSource('gps-precision-source', { type: 'geojson', data: geojson });
+                mapa.addLayer({
+                    id: 'gps-precision-fill',
+                    type: 'fill',
+                    source: 'gps-precision-source',
+                    paint: {
+                        'fill-color': radioM > 250 ? '#ffaa00' : '#ff6b00',
+                        'fill-opacity': 0.12
+                    }
+                });
+                mapa.addLayer({
+                    id: 'gps-precision-stroke',
+                    type: 'line',
+                    source: 'gps-precision-source',
+                    paint: {
+                        'line-color': radioM > 250 ? '#ffaa00' : '#ff6b00',
+                        'line-width': 1.5,
+                        'line-dasharray': [2, 2]
+                    }
+                });
+            }
+        } catch (eGpsLayer) {}
+    };
+    if (mapa.isStyleLoaded()) aplicarCapa();
+    else mapa.once('load', aplicarCapa);
+};
+
+// Escalado continuo e histéresis de 0.2 niveles (Sección 8 Libro Técnico)
+window.actualizarEscalaContinuaZoom = function() {
+    if (!mapa) return;
+    const z = mapa.getZoom();
+    const mHtml = document.getElementById('mapa-qrpido');
+    if (!mHtml) return;
+
+    mHtml.setAttribute('data-zoom', Math.round(z));
+
+    // Histéresis de 0.2 niveles alrededor de fronteras 12, 14 y 16
+    const modoPrevio = EstadoMapa.vista.modoZoomActual || 'barrio';
+    let nuevoModo = modoPrevio;
+    if (z >= 16.2 || (modoPrevio === 'cercano' && z >= 15.8)) {
+        nuevoModo = 'cercano';
+    } else if (z >= 14.2 || (modoPrevio === 'barrio' && z >= 13.8 && z < 16.2)) {
+        nuevoModo = 'barrio';
+    } else if (z >= 12.2 || (modoPrevio === 'penultima' && z >= 11.8 && z < 14.2)) {
+        nuevoModo = 'penultima';
+    } else {
+        nuevoModo = 'ultima';
+    }
+    EstadoMapa.vista.modoZoomActual = nuevoModo;
+    mHtml.setAttribute('data-modo-zoom', nuevoModo);
+
+    // Cálculo continuo de escala entre z=12 (0.22) y z=18 (1.0)
+    const t = Math.max(0, Math.min(1, (z - 12) / 6));
+    const escalaContinua = Number((0.22 + 0.78 * Math.pow(t, 1.35)).toFixed(3));
+    mHtml.style.setProperty('--pin-zoom-scale', String(escalaContinua));
+};
 
 window.obtenerDatosSemaforo = function(fechaIso) {
     let color = '#FFD700'; let texto = '🟡 En mercado';
@@ -501,13 +767,15 @@ window.obtenerDatosSemaforo = function(fechaIso) {
 };
 
 window.enfocarInmueble = function(codigo, lat, lng) {
-    mapa.flyTo({ center: [lng, lat], zoom: 16, duration: 1500 });
+    EstadoMapa.vista.interaccionUsuario = false;
+    window.volarCamaraHonesta(lng, lat, 16.5, 950);
     setTimeout(() => {
         if (window.marcadoresRadar && window.marcadoresRadar[codigo]) {
             window.marcadoresRadar[codigo].togglePopup();
         }
-    }, 1500);
+    }, 1000);
 };
+
 // =========================================================================
 // 🚀 CONECTORES DE MATRIZ OFFLINE (0 MS) Y DELTA REACTIVO
 // =========================================================================
@@ -520,15 +788,19 @@ window.desempaquetarComercioMatriz = function(item) {
         lat = item.g[0];
         lng = item.g[1];
     } else if (item.Coordenadas) {
-        lat = item.Coordenadas.latitude || item.Coordenadas._lat || item.Coordenadas.lat;
-        lng = item.Coordenadas.longitude || item.Coordenadas._long || item.Coordenadas.lng;
+        lat = item.Coordenadas.latitude ?? item.Coordenadas._lat ?? item.Coordenadas.lat;
+        lng = item.Coordenadas.longitude ?? item.Coordenadas._long ?? item.Coordenadas.lng;
     } else {
         lat = item.lat;
         lng = item.lng;
     }
 
-    lat = parseFloat(lat) || 4.81333;
-    lng = parseFloat(lng) || -75.69611;
+    lat = parseFloat(lat);
+    lng = parseFloat(lng);
+    if (!window.esCoordenadaValida(lat, lng)) {
+        lat = 4.81333;
+        lng = -75.69611;
+    }
 
     var colores = Array.isArray(item.b) ? item.b : [
         item.color_principal || '#ff6b00',
@@ -578,25 +850,26 @@ window.desempaquetarComercioMatriz = function(item) {
 window.cargarDirectorioMatrizOffline = async function() {
     try {
         if (!GeokatuDB || !GeokatuDB.DirectorioMatrizService) return;
+        window.actualizarEstadoRadar('mostrando_cache');
 
-        // 1. Hidratación en IndexedDB desde directorio_matriz.json (0 ms)
         await GeokatuDB.DirectorioMatrizService.inicializarDirectorio();
         var comerciosMatriz = await GeokatuDB.DirectorioMatrizService.obtenerTodosComercios();
 
         if (comerciosMatriz && comerciosMatriz.length > 0) {
             comerciosMatriz.forEach(function(item) {
                 var seguro = window.desempaquetarComercioMatriz(item);
-                if (seguro) dbDirectorioMap.set(seguro.codigo, seguro);
+                if (seguro) window.registrarEntidadDirectorio(seguro.codigo, seguro);
             });
 
             dbDirectorio = Array.from(dbDirectorioMap.values());
+            window.dbDirectorio = dbDirectorio;
             datosDescargados = true;
 
-            // 2. Renderizado instantáneo de pines en el canvas
             if (typeof window.barridoRadar === 'function') {
                 window.barridoRadar();
             }
-            console.log('[Radar 0ms] ' + comerciosMatriz.length + ' comercios renderizados desde almacenamiento local.');
+            window.actualizarEstadoRadar('listo');
+            console.log('[Radar 0ms] ' + comerciosMatriz.length + ' comercios renderizados desde caché local.');
         }
     } catch (err) {
         console.warn('[Radar] Fallo inicializando matriz offline:', err.message);
@@ -606,31 +879,33 @@ window.cargarDirectorioMatrizOffline = async function() {
 window.iniciarSincronizacionDelta = function() {
     try {
         if (!GeokatuDB || !GeokatuDB.DirectorioMatrizService) return;
-
-        // Corte temporal de las últimas 24 horas por defecto
         var timestampCorte = localStorage.getItem('geokatu_matriz_timestamp') || new Date(Date.now() - 86400000).toISOString();
 
         GeokatuDB.DirectorioMatrizService.sincronizarDeltaNube(timestampCorte, function(nuevoComercio) {
             var seguro = window.desempaquetarComercioMatriz(nuevoComercio);
             if (!seguro) return;
 
-            // Inyección atómica en memoria viva
-            dbDirectorioMap.set(seguro.codigo, seguro);
+            window.registrarEntidadDirectorio(seguro.codigo, seguro);
             dbDirectorio = Array.from(dbDirectorioMap.values());
+            window.dbDirectorio = dbDirectorio;
             datosDescargados = true;
 
-            if (!window.frameDeltaRadar) window.frameDeltaRadar = requestAnimationFrame(() => {
-                window.frameDeltaRadar = null;
-                var buscador = document.getElementById('input-buscador');
-                if (typeof window.barridoRadar === 'function') window.barridoRadar(buscador ? buscador.value : '');
-            });
-            console.log('[Delta Vivo] Comercio integrado al radar: ' + seguro.nombre);
+            if (!window.frameDeltaRadar) {
+                window.frameDeltaRadar = requestAnimationFrame(() => {
+                    window.frameDeltaRadar = null;
+                    var buscador = document.getElementById('input-buscador');
+                    if (typeof window.barridoRadar === 'function') {
+                        window.barridoRadar(buscador ? buscador.value : '', { conservarRotacion: true });
+                    }
+                });
+            }
         });
     } catch (err) {
         console.warn('[Radar] Fallo iniciando sincronización delta:', err.message);
     }
 };
 
+// === ARRANQUE PARALELO HONESTO SIN BLOQUEO DE TOUR NI DE GPS (SECCIÓN 6) ===
 window.arrancarMotor = async function() {
     try {
         if (typeof maplibregl === 'undefined') throw new Error("MapLibre no se descargó. Revisa la conexión o el index.html");
@@ -640,92 +915,79 @@ window.arrancarMotor = async function() {
             window.maplibregl.addProtocol("pmtiles", protocol.tile);
         }
 
-       construirMapa();
-        // 🚀 CARGA OFFLINE-FIRST A 0 MS + DELTA EN VIVO
-        // IndexedDB y mapa cargan en paralelo: los pines no esperan a todas las teselas.
+        window.actualizarEstadoRadar('iniciando');
+        construirMapa();
+
+        // Liberar pantalla de carga pronto sin ocultar averías ni esperar al GPS
+        const liberarPantallaCarga = () => {
+            const pantallaCarga = document.getElementById('pantalla-carga');
+            if (pantallaCarga && pantallaCarga.style.display !== 'none') {
+                pantallaCarga.style.opacity = '0';
+                setTimeout(() => { pantallaCarga.style.display = 'none'; }, 280);
+            }
+            const buscador = document.getElementById('wrapper-buscador');
+            if (buscador) buscador.classList.remove('shimmer-box');
+        };
+
+        const esArranqueCaliente = Boolean(sessionStorage.getItem('geokatu_ram_warm') === '1' || localStorage.getItem('geokatu_matriz_timestamp'));
+        sessionStorage.setItem('geokatu_ram_warm', '1');
+        if (esArranqueCaliente) liberarPantallaCarga();
+        else setTimeout(liberarPantallaCarga, 350);
+
+        // 1. Hidratación local e inicio de delta en paralelo a las teselas
         window.GeokatuArranque?.estado('Recuperando comercios descargados…');
         window.cargarDirectorioMatrizOffline().then(() => {
             window.GeokatuArranque?.directorio(dbDirectorioMap.size);
+            liberarPantallaCarga();
             window.iniciarSincronizacionDelta();
         });
+
         mapa.once('load', () => {
             window.GeokatuArranque?.mapa();
+            liberarPantallaCarga();
+            window.actualizarEscalaContinuaZoom();
             if (datosDescargados) window.barridoRadar();
         });
         mapa.on('error', () => window.GeokatuArranque?.error());
-        window.addEventListener('pageshow', () => mapa.resize());
 
+        // 2. Resolver foco por URL o lanzar consulta pública + GPS no bloqueante
+        const params = new URLSearchParams(window.location.search);
+        const idDron = params.get('enfocar');
+        const latDron = parseFloat(params.get('lat'));
+        const lngDron = parseFloat(params.get('lng'));
 
-        if (typeof window.construirCarrusel === 'function') {
-            window.construirCarrusel();
-        }
-        const esArranqueCaliente = Boolean(sessionStorage.getItem('geokatu_ram_warm') === '1' || localStorage.getItem('geokatu_matriz_timestamp'));
-        sessionStorage.setItem('geokatu_ram_warm', '1');
-        const delayArranque = esArranqueCaliente ? 0 : 350;
-
-        setTimeout(() => {
-            const pantallaCarga = document.getElementById('pantalla-carga');
-            // La portada se cierra al preparar mapa y directorio, no por tiempo transcurrido.
-            
+        if (idDron && window.esCoordenadaValida(latDron, lngDron)) {
+            window.categoriaActivaGlobal = (params.get('tipo') === 'inmueble') ? 'inmuebles' : 'negocios';
+            window.volarCamaraHonesta(lngDron, latDron, 17.5, 950);
+            zonaNecesitaDescarga = true;
+            window.descargarNegociosDeFirebase({ forzar: true });
             setTimeout(() => {
-                // GeokatuArranque controla la visibilidad de la portada.
-                
-                const buscador = document.getElementById('wrapper-buscador');
-                if (buscador) buscador.classList.remove('shimmer-box');
-
-                
-                const params = new URLSearchParams(window.location.search);
-                const idDron = params.get('enfocar');
-                const latDron = parseFloat(params.get('lat'));
-                const lngDron = parseFloat(params.get('lng'));
-                if (idDron && !isNaN(latDron) && !isNaN(lngDron)) {
-                    if (params.get('tipo') === 'inmueble') {
-                        categoriaActivaGlobal = 'inmuebles';
-                    } else {
-                        categoriaActivaGlobal = 'negocios';
-                    }
-                    mapa.flyTo({ center: [lngDron, latDron], zoom: 17.5, duration: 1500 });
-                    zonaNecesitaDescarga = true;
-                    if (typeof window.descargarNegociosDeFirebase === 'function') {
-                        window.descargarNegociosDeFirebase();
-                    }
-                    setTimeout(() => {
-                        if (window.marcadoresRadar && window.marcadoresRadar[idDron]) {
-                            window.marcadoresRadar[idDron].togglePopup();
-                        }
-                    }, 1600);
-                    window.history.replaceState(null, '', window.location.pathname);
-                } else {
-                    if (!localStorage.getItem('geokatu_tour_v1') && typeof window.iniciarTour === 'function') {
-                        window.iniciarTour();
-                    } else {
-                        window.solicitarGPSInicial();
-                    }
+                if (window.marcadoresRadar && window.marcadoresRadar[idDron]) {
+                    window.marcadoresRadar[idDron].togglePopup();
                 }
+            }, 1050);
+            window.history.replaceState(null, '', window.location.pathname);
+        } else {
+            // Jamás bloquear la primera visita con el tour oculto en CSS
+            localStorage.setItem('geokatu_tour_v1', 'true');
+            window.solicitarGPSInicial();
+        }
 
-            }, 500);
-        }, 800);
-
-
-        try {
-            const { success, data } = await GeokatuDB.LocalService.obtenerCaballoTroya();
+        // 3. Banners informativos en segundo plano
+        GeokatuDB.LocalService.obtenerCaballoTroya().then(({ success, data }) => {
             dbTroya = success && data ? data : [];
             if (typeof window.cargarCaballoTroya === 'function') window.cargarCaballoTroya();
-        } catch (firebaseError) {
-            console.warn("Aviso: Iniciando en modo offline o sin banners.", firebaseError.message);
-        }
+        }).catch(() => {});
+
     } catch (e) {
         console.error("Error Crítico Motor:", e);
         if (typeof mostrarCartelErrorYDescargar === 'function') {
             mostrarCartelErrorYDescargar('CRASH EN EL NÚCLEO DEL MAPA', e.message + '\n\n' + (e.stack || ''));
-        } else {
-            alert("ERROR FATAL AL ARRANCAR: " + e.message);
         }
     }
 };
 
 window.validarGeocercaOperativa = function(lat, lng) {
-    // Cobertura combinada: Colombia (incluye islas) y Venezuela
     const dentroLat = lat >= -4.5 && lat <= 16.0;
     const dentroLng = lng >= -82.0 && lng <= -59.5;
     return dentroLat && dentroLng;
@@ -746,7 +1008,6 @@ window.mostrarCartelFueraDeZona = function() {
     }
 };
 
-// Base de datos local ligera de ciudades de referencia COL / VEN
 const CIUDADES_REFERENCIA_GEO = [
     { nombre: "Bogotá, Colombia", lat: 4.6097, lng: -74.0817 },
     { nombre: "Medellín, Colombia", lat: 6.2476, lng: -75.5658 },
@@ -780,24 +1041,19 @@ window.filtrarCiudadesSugeridas = function(texto) {
     }).join('');
 };
 
-
 window.fijarCiudadManual = function(lat, lng, nombre) {
+    if (!window.esCoordenadaValida(lat, lng)) return;
     localStorage.setItem('geokatu_ciudad_manual', JSON.stringify({ lat, lng, nombre }));
     const modal = document.getElementById('modal-selector-ciudad');
     if (modal) modal.style.display = 'none';
     const pantallaCarga = document.getElementById('pantalla-carga');
     if (pantallaCarga) {
         pantallaCarga.style.opacity = '0';
-        setTimeout(() => pantallaCarga.style.display = 'none', 400);
+        setTimeout(() => { pantallaCarga.style.display = 'none'; }, 280);
     }
-    if (window.mapa) {
-        window.mapa.flyTo({ center: [lng, lat], zoom: 15, duration: 1500 });
-    }
-    setTimeout(() => {
-        if (typeof window.descargarNegociosDeFirebase === 'function') {
-            window.descargarNegociosDeFirebase();
-        }
-    }, 1200);
+    EstadoMapa.vista.interaccionUsuario = false;
+    window.volarCamaraHonesta(lng, lat, 15, 950);
+    window.descargarNegociosDeFirebase({ centroExplicito: [lat, lng], forzar: true });
 };
 
 window.usarUbicacionPorDefectoPereira = function() {
@@ -805,41 +1061,41 @@ window.usarUbicacionPorDefectoPereira = function() {
 };
 
 window.solicitarGPSInicial = function() {
-    const pantallaCarga = document.getElementById('pantalla-carga');
-    if (pantallaCarga) {
-        pantallaCarga.style.opacity = '0';
-        setTimeout(() => { pantallaCarga.style.display = 'none'; }, 300);
-    }
-    // Renderizar de inmediato los comercios de la zona actual sin esperar al GPS
-    if (typeof window.descargarNegociosDeFirebase === 'function') {
-        window.descargarNegociosDeFirebase();
-    }
+    // 1. Consultar de inmediato la zona actual (Pereira o última cámara) sin esperar permiso GPS
+    window.descargarNegociosDeFirebase();
+
     const guardada = localStorage.getItem('geokatu_ciudad_manual');
-    if (guardada) {
+    if (guardada && !sessionStorage.getItem('geokatu_last_cam')) {
         try {
             const parsed = JSON.parse(guardada);
-            window.fijarCiudadManual(parsed.lat, parsed.lng, parsed.nombre);
-            return;
+            if (window.esCoordenadaValida(parsed.lat, parsed.lng)) {
+                window.volarCamaraHonesta(parsed.lng, parsed.lat, 15, 900);
+                window.descargarNegociosDeFirebase({ centroExplicito: [parsed.lat, parsed.lng] });
+            }
         } catch (e) {}
     }
+
+    // 2. Solicitar GPS en paralelo; si el usuario ya movió el mapa manualmente, no arrastrarlo
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 const lat = pos.coords.latitude;
                 const lng = pos.coords.longitude;
-                if (window.mapa) {
-                    window.mapa.flyTo({ center: [lng, lat], zoom: 15, duration: 1200 });
+                const acc = pos.coords.accuracy || 40;
+                if (!window.esCoordenadaValida(lat, lng)) return;
+
+                window.dibujarCirculoPrecisionGPS(lat, lng, acc);
+
+                if (!EstadoMapa.vista.interaccionUsuario) {
+                    const zoomGps = acc > 300 ? 14.2 : 15.2;
+                    window.volarCamaraHonesta(lng, lat, zoomGps, 950);
+                    window.descargarNegociosDeFirebase({ centroExplicito: [lat, lng] });
                 }
-                setTimeout(() => {
-                    if (typeof window.descargarNegociosDeFirebase === 'function') {
-                        window.descargarNegociosDeFirebase();
-                    }
-                }, 1250);
             },
-            (err) => {
+            () => {
+                // Si se rechaza el GPS, se conserva la vista inicial en Pereira y la búsqueda manual
                 if (dbDirectorioMap.size === 0) {
-                    const modalCiudad = document.getElementById('modal-selector-ciudad');
-                    if (modalCiudad) modalCiudad.style.display = 'flex';
+                    window.descargarNegociosDeFirebase({ centroExplicito: [4.8133, -75.6961], forzar: true });
                 }
             },
             { enableHighAccuracy: false, timeout: 4500, maximumAge: 300000 }
@@ -847,103 +1103,17 @@ window.solicitarGPSInicial = function() {
     }
 };
 
-
-
 window.iniciarTour = function() {
-    document.body.classList.add('tour-active');
-
-    // Paso 1: Elevar buscador y su contenedor padre para romper el stacking context
-    const cajaTop = document.getElementById('caja-buscador');
-    const wrapper = document.getElementById('wrapper-buscador');
-    if (cajaTop) cajaTop.classList.add('tour-parent-lift');
-    if (wrapper) wrapper.classList.add('tour-highlight-z');
-
-    const tooltip1 = document.getElementById('tour-step-1');
-    if (tooltip1) tooltip1.classList.add('activo');
-};
-
-window.siguienteTour1 = function() {
-    const cajaTop = document.getElementById('caja-buscador');
-    const wrapper = document.getElementById('wrapper-buscador');
-    if (cajaTop) cajaTop.classList.remove('tour-parent-lift');
-    if (wrapper) wrapper.classList.remove('tour-highlight-z');
-    document.getElementById('tour-step-1')?.classList.remove('activo');
-
-    // Paso 2: Botón Tuerca de Herramientas
-    const btnHerramientas = document.getElementById('btn-herramientas-contenedor');
-    if (btnHerramientas) btnHerramientas.classList.add('tour-highlight-z');
-
-    const tooltipScan = document.getElementById('tour-step-escaner');
-    if (tooltipScan) tooltipScan.classList.add('activo');
-};
-
-window.siguienteTourEscaner = function() {
-    const btnHerramientas = document.getElementById('btn-herramientas-contenedor');
-    if (btnHerramientas) btnHerramientas.classList.remove('tour-highlight-z');
-    document.getElementById('tour-step-escaner')?.classList.remove('activo');
-
-    // Paso 3: Boton GPS liberado y resaltado en dorado
-    const parentCtrl = document.querySelector('.maplibregl-ctrl-bottom-right');
-    if (parentCtrl && parentCtrl.parentElement !== document.body) {
-        document.body.appendChild(parentCtrl);
-    }
-    const btnGps = document.querySelector('.maplibregl-ctrl-group') || document.querySelector('.maplibregl-ctrl-geolocate');
-    if (parentCtrl) parentCtrl.classList.add('tour-parent-lift');
-    if (btnGps) btnGps.classList.add('tour-highlight-z');
-
-    const tooltip2 = document.getElementById('tour-step-2');
-    if (tooltip2) tooltip2.classList.add('activo');
-};
-
-
-window.siguienteTour2 = function() {
-    const parentCtrl = document.querySelector('.maplibregl-ctrl-bottom-right');
-    const btnGps = document.querySelector('.maplibregl-ctrl-geolocate') || document.querySelector('.maplibregl-ctrl-group');
-    if (parentCtrl) parentCtrl.classList.remove('tour-parent-lift');
-    if (btnGps) btnGps.classList.remove('tour-highlight-z');
-    document.getElementById('tour-step-2')?.classList.remove('activo');
-
-    // Paso 4: Llave Maestra (Portal de Mando)
-    const cajaTop = document.getElementById('caja-buscador');
-    const btnLlave = document.getElementById('btn-portal-mando-contenedor');
-    if (cajaTop) cajaTop.classList.add('tour-parent-lift');
-    if (btnLlave) btnLlave.classList.add('tour-highlight-z');
-
-    const tooltip3 = document.getElementById('tour-step-3');
-    if (tooltip3) tooltip3.classList.add('activo');
-};
-
-window.siguienteTour3 = function() {
-    const cajaTop = document.getElementById('caja-buscador');
-    const btnLlave = document.getElementById('btn-portal-mando-contenedor');
-    if (cajaTop) cajaTop.classList.remove('tour-parent-lift');
-    if (btnLlave) btnLlave.classList.remove('tour-highlight-z');
-    document.getElementById('tour-step-3')?.classList.remove('activo');
-
-    // Paso 5: Brújula flotante
-    const brujula = document.getElementById('btn-brujula-contenedor');
-    if (brujula) {
-        brujula.classList.add('tour-parent-lift');
-        const btnB = document.getElementById('btn-brujula');
-        if (btnB) btnB.classList.add('tour-highlight-z');
-    }
-
-    const tooltip4 = document.getElementById('tour-step-4');
-    if (tooltip4) tooltip4.classList.add('activo');
-};
-
-window.finalizarTour = function() {
-    // Apagar todos los posibles destacados y elevaciones
-    document.querySelectorAll('.tour-parent-lift').forEach(el => el.classList.remove('tour-parent-lift'));
-    document.querySelectorAll('.tour-highlight-z').forEach(el => el.classList.remove('tour-highlight-z'));
-    document.querySelectorAll('.tour-tooltip').forEach(el => el.classList.remove('activo'));
-    document.body.classList.remove('tour-active');
     localStorage.setItem('geokatu_tour_v1', 'true');
-    // Unica llamada centralizada: solicita GPS o ejecuta barrido local sin duplicar lecturas
+};
+window.siguienteTour1 = function() {};
+window.siguienteTourEscaner = function() {};
+window.siguienteTour2 = function() {};
+window.siguienteTour3 = function() {};
+window.finalizarTour = function() {
+    localStorage.setItem('geokatu_tour_v1', 'true');
     window.solicitarGPSInicial();
 };
-
-
 
 window.cerrarPanelCristal = function(event) {
     if (event) {
@@ -951,49 +1121,35 @@ window.cerrarPanelCristal = function(event) {
         event.stopPropagation();
     }
     if (navigator.vibrate) navigator.vibrate(30);
-    
     const panel = document.getElementById('panel-cristal');
     if (panel) panel.style.display = 'none';
 };
 
 window.centrarMapaHardware = function(esArranque = false) {
     if (navigator.vibrate) navigator.vibrate(30);
+    EstadoMapa.vista.interaccionUsuario = false;
 
     const btnNativo = document.querySelector('.maplibregl-ctrl-geolocate');
     if (btnNativo) {
-        // Disparar el control oficial de MapLibre para activar el punto y halo del usuario
         btnNativo.click();
     } else if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition((pos) => {
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
-
-            if (mapa) {
-                mapa.flyTo({ center: [lng, lat], zoom: 16, duration: 2000 });
-            }
+            const acc = pos.coords.accuracy || 25;
+            window.dibujarCirculoPrecisionGPS(lat, lng, acc);
+            window.volarCamaraHonesta(lng, lat, acc > 300 ? 14.5 : 16, 950);
 
             if (typeof window.validarGeocercaOperativa === 'function' && !window.validarGeocercaOperativa(lat, lng)) {
                 window.mostrarCartelFueraDeZona();
             }
-
-            setTimeout(() => {
-                if (window.descargarNegociosDeFirebase) {
-                    window.descargarNegociosDeFirebase();
-                }
-            }, 1200);
+            window.descargarNegociosDeFirebase({ centroExplicito: [lat, lng], forzar: true });
         }, (err) => {
             console.warn("[GPS] Permiso no concedido o error:", err.message);
-            zonaNecesitaDescarga = true;
-            const btnCargar = document.getElementById('btn-cargar-zona');
-            if (btnCargar) btnCargar.style.display = 'block';
-            if (esArranque && window.descargarNegociosDeFirebase) {
-                window.descargarNegociosDeFirebase();
-            }
+            if (esArranque) window.descargarNegociosDeFirebase();
         }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 });
     }
 };
-
-
 
 window.dibujarPinesDesdeJSONCache = function(boundsActuales) {
     if (!window.DICCIONARIO_UNIVERSAL || window.DICCIONARIO_UNIVERSAL.length === 0) return;
@@ -1003,7 +1159,7 @@ window.dibujarPinesDesdeJSONCache = function(boundsActuales) {
         for (let i = 0; i < window.DICCIONARIO_UNIVERSAL.length; i++) {
             if (pinesDibujadosEnEsteFrame >= LIMITE_PINES_PANTALLA) break;
             const negocio = window.DICCIONARIO_UNIVERSAL[i];
-            if (negocio.lat && negocio.lng && boundsActuales.contains([negocio.lng, negocio.lat])) {
+            if (window.esCoordenadaValida(negocio.lat, negocio.lng) && boundsActuales.contains([negocio.lng, negocio.lat])) {
                 if (!marcadoresActivos[negocio.id_prod]) {
                     const popupInfo = new maplibregl.Popup({ offset: 25, closeButton: false })
                         .setHTML(`<b>${sanitizarTexto(negocio.nombre)}</b><br><span id="precio-${sanitizarTexto(negocio.id_prod)}">Verificando...</span>`);
@@ -1019,134 +1175,173 @@ window.dibujarPinesDesdeJSONCache = function(boundsActuales) {
     });
 };
 
-window.descargarNegociosDeFirebase = async function() {
+// === CONSULTAS POR CELDA CON GENERACIÓN Y PROMESAS COMPARTIDAS (SECCIÓN 5 Y 7) ===
+window.descargarNegociosDeFirebase = async function(opciones = {}) {
+    if (!mapa) return;
     const btn = document.getElementById('btn-cargar-zona');
+    const centroMapa = mapa.getCenter();
+    const center = Array.isArray(opciones.centroExplicito)
+        ? opciones.centroExplicito
+        : [centroMapa.lat, centroMapa.lng];
+
+    if (!window.esCoordenadaValida(center[0], center[1])) return;
+
+    const categoriaConsulta = window.categoriaActivaGlobal || 'negocios';
+    const claveCelda = obtenerClaveCeldaEspacial(center[0], center[1], categoriaConsulta);
+
+    // Si la celda ya fue consultada recientemente y no se fuerza recarga, reutilizar cobertura
+    const infoPrevia = EstadoMapa.cobertura.celdas.get(claveCelda);
+    if (!opciones.forzar && !zonaNecesitaDescarga && infoPrevia && (Date.now() - infoPrevia.fecha) < 600000) {
+        if (btn) btn.style.display = 'none';
+        if (typeof window.barridoRadar === 'function' && datosDescargados) {
+            const buscador = document.getElementById('input-buscador');
+            window.barridoRadar(buscador ? buscador.value : '', { conservarRotacion: true });
+        }
+        return;
+    }
+
+    // Si ya existe la misma consulta en vuelo, compartir la promesa pendiente
+    if (EstadoMapa.consulta.promesasEnVuelo.has(claveCelda)) {
+        return EstadoMapa.consulta.promesasEnVuelo.get(claveCelda);
+    }
+
+    if (!navigator.onLine) {
+        window.actualizarEstadoRadar('sin_conexion');
+        return;
+    }
+
+    const miGeneracion = ++EstadoMapa.consulta.generacionActual;
+    window.actualizarEstadoRadar('consultando');
+
     if (btn) {
         btn.innerText = "⏳ Rastreando...";
         btn.style.background = "#ffcc00";
     }
-    try {
-        const centroActual = mapa.getCenter();
-        const center = [centroActual.lat, centroActual.lng];
-        const limites = mapa.getBounds();
-        const ne = limites.getNorthEast();
 
-        let radiusInM = calcularDistanciaKm(centroActual.lat, centroActual.lng, ne.lat, ne.lng) * 1000;
-        radiusInM = Math.max(3000, radiusInM);
+    const limites = mapa.getBounds();
+    const ne = limites.getNorthEast();
+    let radiusInM = calcularDistanciaKm(center[0], center[1], ne.lat, ne.lng) * 1000;
+    radiusInM = Math.max(2500, Math.min(8000, radiusInM));
 
-       let success, arrayNegocios, error;
-       if (categoriaActivaGlobal === 'inmuebles') {
-            const res = await GeokatuDB.RadarService.buscarInmueblesEnRadar(center[0], center[1], radiusInM);
-            success = res.success; arrayNegocios = res.data; error = res.error;
-        } else {
-            // Solo omitir lectura si ya se hidrato la ciudad completa (> 1 comercio) y no se pidio descarga de zona
-            if (window.radarCiudadHidratado === true && dbDirectorioMap.size > 1 && !zonaNecesitaDescarga) {
-                if (btn) btn.style.display = 'none';
-                if (typeof barridoRadar === "function") {
-                    var buscador = document.getElementById('input-buscador');
-                    barridoRadar(buscador ? buscador.value : '');
+    const promesaActual = (async () => {
+        try {
+            let res;
+            if (categoriaConsulta === 'inmuebles') {
+                res = await GeokatuDB.RadarService.buscarInmueblesEnRadar(center[0], center[1], radiusInM);
+            } else {
+                res = await GeokatuDB.RadarService.buscarEnRadar(center[0], center[1], radiusInM);
+            }
+
+            if (!res || !res.success) {
+                throw new Error((res && res.error) || 'Error en consulta espacial');
+            }
+
+            const arrayNegocios = Array.isArray(res.data) ? res.data : [];
+            let integrados = 0;
+
+            arrayNegocios.forEach(data => {
+                const docId = data.id || data.codigo || data.uid;
+                if (!docId) return;
+
+                let lat = null, lng = null;
+                const coordsObj = data.Coordenadas || data.coordenadas || data.ubicacion;
+                if (coordsObj) {
+                    if (typeof coordsObj.latitude === 'function') lat = coordsObj.latitude();
+                    else lat = coordsObj.latitude ?? coordsObj.lat ?? coordsObj._lat;
+
+                    if (typeof coordsObj.longitude === 'function') lng = coordsObj.longitude();
+                    else lng = coordsObj.longitude ?? coordsObj.lng ?? coordsObj._long;
+                } else if (data.lat !== undefined && data.lng !== undefined) {
+                    lat = data.lat;
+                    lng = data.lng;
+                } else if (data.latitude !== undefined && data.longitude !== undefined) {
+                    lat = data.latitude;
+                    lng = data.longitude;
+                } else if (data.plusCode && typeof OpenLocationCode !== 'undefined') {
+                    try {
+                        const decoded = OpenLocationCode.decode(data.plusCode);
+                        lat = decoded.latitudeCenter;
+                        lng = decoded.longitudeCenter;
+                    } catch (e) {}
                 }
-                return;
-            }
-            const res = await GeokatuDB.RadarService.buscarEnRadar(center[0], center[1], radiusInM);
-            success = res.success; arrayNegocios = res.data; error = res.error;
-            if (success && Array.isArray(arrayNegocios) && arrayNegocios.length > 0) {
-                window.radarCiudadHidratado = true;
-            }
-        }
 
+                lat = parseFloat(lat);
+                lng = parseFloat(lng);
+                if (!window.esCoordenadaValida(lat, lng)) return;
 
-        if (!success) throw new Error(error);
-        
-        if (dbDirectorioMap.size > 1500) {
-            const llaves = Array.from(dbDirectorioMap.keys());
-            for(let i = 0; i < 500; i++) {
-                dbDirectorioMap.delete(llaves[i]);
-            }
-        }
-        arrayNegocios.forEach(data => {
-            // ==================== REEMPLAZO QUIRÚRGICO PASO 1 ====================
-            const docId = data.id || data.codigo || data.uid;
-            if (!docId) return;
-
-            let lat = null, lng = null;
-
-            // 1. Extracción polimórfica (GeoPoint, Coordenadas, minúsculas o plano)
-            const coordsObj = data.Coordenadas || data.coordenadas || data.ubicacion;
-            if (coordsObj) {
-                if (typeof coordsObj.latitude === 'function') lat = coordsObj.latitude();
-                else if (coordsObj.latitude !== undefined) lat = coordsObj.latitude;
-                else if (coordsObj.lat !== undefined) lat = coordsObj.lat;
-                else if (coordsObj._lat !== undefined) lat = coordsObj._lat;
-
-                if (typeof coordsObj.longitude === 'function') lng = coordsObj.longitude();
-                else if (coordsObj.longitude !== undefined) lng = coordsObj.longitude;
-                else if (coordsObj.lng !== undefined) lng = coordsObj.lng;
-                else if (coordsObj._long !== undefined) lng = coordsObj._long;
-            } else if (data.lat !== undefined && data.lng !== undefined) {
-                lat = data.lat;
-                lng = data.lng;
-            } else if (data.latitude !== undefined && data.longitude !== undefined) {
-                lat = data.latitude;
-                lng = data.longitude;
-            } else if (data.plusCode && typeof OpenLocationCode !== 'undefined') {
-                try {
-                    const decoded = OpenLocationCode.decode(data.plusCode);
-                    lat = decoded.latitudeCenter;
-                    lng = decoded.longitudeCenter;
-                } catch (e) {}
-            }
-
-            lat = parseFloat(lat);
-            lng = parseFloat(lng);
-            if (isNaN(lat) || isNaN(lng)) return;
-
-            // 2. Validación de distancia sin descartar por ausencia de geohash
-            const distanceInM = calcularDistanciaKm(lat, lng, center[0], center[1]) * 1000;
-            if (distanceInM <= (radiusInM * 1.5)) { // Margen de seguridad visual
-                const safeData = { 
-                    ...data, 
-                    codigo: docId,
-                    Coordenadas: { latitude: lat, longitude: lng } 
-                };
-                dbDirectorioMap.set(docId, safeData);
-            }
-
-        });
-        dbDirectorio = Array.from(dbDirectorioMap.values());
-        datosDescargados = true;
-        zonaNecesitaDescarga = false;
-        cajaFuerteEspacial = mapa.getBounds();
-
-        if (typeof marcadoresActivos !== 'undefined') {
-            for (let idClon in marcadoresActivos) {
-                if (marcadoresActivos[idClon] && typeof marcadoresActivos[idClon].remove === 'function') {
-                    marcadoresActivos[idClon].remove(); 
+                // Filtro exacto de distancia Haversine sobre candidatos geohash
+                const distanceInM = calcularDistanciaKm(lat, lng, center[0], center[1]) * 1000;
+                if (distanceInM <= (radiusInM * 1.15)) {
+                    const existente = dbDirectorioMap.get(String(docId)) || {};
+                    const safeData = Object.assign({}, existente, data, {
+                        id: String(docId),
+                        codigo: String(docId),
+                        Coordenadas: { latitude: lat, longitude: lng },
+                        lat: lat,
+                        lng: lng
+                    });
+                    window.registrarEntidadDirectorio(docId, safeData);
+                    integrados++;
                 }
-                delete marcadoresActivos[idClon];
-            }
-        }
+            });
 
-        if (btn) {
-            btn.style.display = 'none';
-            btn.innerText = "🔍 Buscar en esta zona";
-            btn.style.background = "linear-gradient(45deg, var(--naranja), #ffcc00)";
+            // Guardar metadatos honestos de la celda consultada (incluso si fue generación anterior)
+            EstadoMapa.cobertura.celdas.set(claveCelda, {
+                centro: center,
+                radioM: radiusInM,
+                categoria: categoriaConsulta,
+                fecha: Date.now(),
+                completo: true,
+                truncado: arrayNegocios.length >= 450,
+                registros: integrados
+            });
+
+            dbDirectorio = Array.from(dbDirectorioMap.values());
+            window.dbDirectorio = dbDirectorio;
+            datosDescargados = true;
+
+            // Solo la generación vigente actualiza el estado visual de la vista
+            if (miGeneracion !== EstadoMapa.consulta.generacionActual) return;
+
+            zonaNecesitaDescarga = false;
+            cajaFuerteEspacial = mapa.getBounds();
+
+            if (btn) {
+                btn.style.display = 'none';
+                btn.innerText = "🔍 Buscar en esta zona";
+                btn.style.background = "linear-gradient(45deg, var(--naranja), #ffcc00)";
+            }
+
+            const infoVista = EstadoMapa.cobertura.celdas.get(claveCelda);
+            if (infoVista && infoVista.truncado) {
+                window.actualizarEstadoRadar('cobertura_parcial');
+            } else {
+                window.actualizarEstadoRadar('listo');
+            }
+
+            if (typeof window.barridoRadar === "function") {
+                const buscador = document.getElementById('input-buscador');
+                window.barridoRadar(buscador ? buscador.value : '', { conservarRotacion: true });
+            }
+        } catch (error) {
+            console.warn("[Radar] Fallo en consulta espacial, conservando datos previos:", error.message);
+            if (miGeneracion === EstadoMapa.consulta.generacionActual) {
+                window.actualizarEstadoRadar('error');
+                setTimeout(() => {
+                    if (EstadoMapa.consulta.estadoUI === 'error') window.actualizarEstadoRadar('listo');
+                }, 3500);
+            }
+            if (btn) {
+                btn.innerText = "🔍 Reintentar en esta zona";
+                btn.style.display = 'block';
+            }
+        } finally {
+            EstadoMapa.consulta.promesasEnVuelo.delete(claveCelda);
         }
-        const catActualObj = window.categoriasEstaticas ? window.categoriasEstaticas.find(c => c.id === window.categoriaActivaGlobal) : null;
-        if (catActualObj && window.renderizarPanel) {
-            window.renderizarPanel(catActualObj);
-        }
-        if (typeof barridoRadar === "function") {
-            const buscador = document.getElementById('input-buscador');
-            barridoRadar(buscador ? buscador.value : '');
-        }
-    } catch (error) {
-        if (btn) {
-            btn.innerText = "🔍 Buscar en esta zona";
-            btn.style.display = 'block';
-        }
-        console.error("Error en la descarga:", error);
-    }
+    })();
+
+    EstadoMapa.consulta.promesasEnVuelo.set(claveCelda, promesaActual);
+    return promesaActual;
 };
 
 window.construirMapa = function() {
@@ -1156,7 +1351,7 @@ window.construirMapa = function() {
         const camRam = sessionStorage.getItem('geokatu_last_cam');
         if (camRam) {
             const parsedCam = JSON.parse(camRam);
-            if (parsedCam && !isNaN(parsedCam.lng) && !isNaN(parsedCam.lat)) {
+            if (parsedCam && window.esCoordenadaValida(parsedCam.lat, parsedCam.lng)) {
                 centroInicial = [Number(parsedCam.lng), Number(parsedCam.lat)];
                 zoomInicial = Number(parsedCam.zoom) || 15;
             }
@@ -1168,7 +1363,7 @@ window.construirMapa = function() {
         style: './estilo-fresco.json', 
         center: centroInicial,
         zoom: zoomInicial,
-        minZoom: 13.5,
+        minZoom: 9,
         maxZoom: 19,
         pitch: 0, 
         bearing: 0, 
@@ -1176,6 +1371,22 @@ window.construirMapa = function() {
     });
 
     mapa = window.mapa; 
+
+    // Cancelar cualquier vuelo automático en cuanto el usuario toque o arrastre el mapa
+    const marcarInteraccionHumana = (e) => {
+        if (e && e.originalEvent) {
+            EstadoMapa.vista.interaccionUsuario = true;
+            if (EstadoMapa.vista.vueloCancelableId) {
+                cancelAnimationFrame(EstadoMapa.vista.vueloCancelableId);
+                EstadoMapa.vista.vueloCancelableId = null;
+            }
+        }
+    };
+    mapa.on('dragstart', marcarInteraccionHumana);
+    mapa.on('zoomstart', marcarInteraccionHumana);
+    mapa.on('pitchstart', marcarInteraccionHumana);
+    mapa.on('rotatestart', marcarInteraccionHumana);
+
     const geolocateControl = new maplibregl.GeolocateControl({
         positionOptions: { enableHighAccuracy: true },
         trackUserLocation: true,       
@@ -1186,12 +1397,12 @@ window.construirMapa = function() {
         if (e && e.coords) {
             const lat = e.coords.latitude;
             const lng = e.coords.longitude;
+            const acc = e.coords.accuracy || 25;
+            window.dibujarCirculoPrecisionGPS(lat, lng, acc);
             if (!window.validarGeocercaOperativa(lat, lng)) {
                 window.mostrarCartelFueraDeZona();
             }
-        }
-        if (window.descargarNegociosDeFirebase) {
-            window.descargarNegociosDeFirebase();
+            window.descargarNegociosDeFirebase({ centroExplicito: [lat, lng] });
         }
     });
     mapa.addControl(geolocateControl, 'bottom-right');
@@ -1199,14 +1410,16 @@ window.construirMapa = function() {
     if (ctrlGps && ctrlGps.parentElement !== document.body) {
         document.body.appendChild(ctrlGps);
     }
+
+    mapa.on('zoom', window.actualizarEscalaContinuaZoom);
+
     window.mapa.on('load', () => {
-        console.log("🟢 [WebGL Engine] Mapa base cargado con techo 13.5 - 19.");
+        window.actualizarEscalaContinuaZoom();
+        console.log("🟢 [WebGL Engine] Mapa base cargado con niveles 9 - 19.");
     });
     
     let timerMovimiento;
-    const UMBRAL_DISTANCIA_METROS = 1500; 
     
-    // Hidratador reactivo instantaneo cuando el usuario regresa desde Oficina o Negocio (bfcache / RAM)
     window.sincronizarComerciosEditadosEnRAM = function() {
         let huboCambio = false;
         try {
@@ -1218,15 +1431,15 @@ window.construirMapa = function() {
                     if (rawNeg) {
                         const datosNuevos = JSON.parse(rawNeg);
                         const previo = dbDirectorioMap.get(idNeg) || {};
-                        const latN = (datosNuevos.Coordenadas && datosNuevos.Coordenadas.latitude) || datosNuevos.lat || (previo.Coordenadas && previo.Coordenadas.latitude);
-                        const lngN = (datosNuevos.Coordenadas && datosNuevos.Coordenadas.longitude) || datosNuevos.lng || (previo.Coordenadas && previo.Coordenadas.longitude);
-                        if (latN && lngN) {
+                        const latN = (datosNuevos.Coordenadas && datosNuevos.Coordenadas.latitude) ?? datosNuevos.lat ?? (previo.Coordenadas && previo.Coordenadas.latitude);
+                        const lngN = (datosNuevos.Coordenadas && datosNuevos.Coordenadas.longitude) ?? datosNuevos.lng ?? (previo.Coordenadas && previo.Coordenadas.longitude);
+                        if (window.esCoordenadaValida(latN, lngN)) {
                             const fusionado = Object.assign({}, previo, datosNuevos, {
                                 id: idNeg,
                                 codigo: idNeg,
                                 Coordenadas: { latitude: Number(latN), longitude: Number(lngN) }
                             });
-                            dbDirectorioMap.set(idNeg, fusionado);
+                            window.registrarEntidadDirectorio(idNeg, fusionado);
                             huboCambio = true;
                         }
                     }
@@ -1236,6 +1449,7 @@ window.construirMapa = function() {
 
         if (huboCambio) {
             dbDirectorio = Array.from(dbDirectorioMap.values());
+            window.dbDirectorio = dbDirectorio;
             datosDescargados = true;
         }
         if (mapa) {
@@ -1245,12 +1459,8 @@ window.construirMapa = function() {
                 sessionStorage.removeItem('geokatu_enfocar_ram');
                 const comercioTarget = dbDirectorioMap.get(idEnfocarRam);
                 if (comercioTarget && comercioTarget.Coordenadas) {
-                    categoriaActivaGlobal = 'negocios';
-                    mapa.flyTo({
-                        center: [comercioTarget.Coordenadas.longitude, comercioTarget.Coordenadas.latitude],
-                        zoom: 17.5,
-                        duration: 900
-                    });
+                    window.categoriaActivaGlobal = 'negocios';
+                    window.volarCamaraHonesta(comercioTarget.Coordenadas.longitude, comercioTarget.Coordenadas.latitude, 17.5, 900);
                     setTimeout(function() {
                         if (window.marcadoresRadar && window.marcadoresRadar[idEnfocarRam]) {
                             const pop = window.marcadoresRadar[idEnfocarRam].getPopup();
@@ -1261,12 +1471,12 @@ window.construirMapa = function() {
             }
             if (typeof window.barridoRadar === 'function' && datosDescargados) {
                 const buscador = document.getElementById('input-buscador');
-                window.barridoRadar(buscador ? buscador.value : '');
+                window.barridoRadar(buscador ? buscador.value : '', { conservarRotacion: true });
             }
         }
     };
 
-    window.addEventListener('pageshow', function(evt) {
+    window.addEventListener('pageshow', function() {
         const pc = document.getElementById('pantalla-carga');
         if (pc) pc.style.display = 'none';
         window.sincronizarComerciosEditadosEnRAM();
@@ -1278,8 +1488,10 @@ window.construirMapa = function() {
         }
     });
 
+    // Debounce de 240 ms tras finalizar gesto con verificación de cobertura por celdas
     mapa.on('moveend', () => {
         clearTimeout(timerMovimiento);
+        window.actualizarEscalaContinuaZoom();
         try {
             const c = mapa.getCenter();
             sessionStorage.setItem('geokatu_last_cam', JSON.stringify({
@@ -1288,54 +1500,38 @@ window.construirMapa = function() {
                 zoom: Number(mapa.getZoom().toFixed(2))
             }));
         } catch (eC) {}
-        const mHtml = document.getElementById('mapa-qrpido');
-        if (mHtml) mHtml.setAttribute('data-zoom', Math.round(mapa.getZoom()));
-
 
         const boundsActuales = mapa.getBounds();
         if (typeof dibujarPinesDesdeJSONCache === "function") {
             dibujarPinesDesdeJSONCache(boundsActuales);
         }
         
-        if (mapa.getZoom() < 13.5) return; 
-        
         timerMovimiento = setTimeout(() => {
             const currentCenter = mapa.getCenter();
-            if (ultimoCentroFetch && currentCenter.distanceTo(ultimoCentroFetch) < UMBRAL_DISTANCIA_METROS) {
-                if (datosDescargados && !zonaNecesitaDescarga && !document.querySelector('.maplibregl-popup')) {
-                    const buscador = document.getElementById('input-buscador');
-                    if (typeof barridoRadar === "function") barridoRadar(buscador ? buscador.value : '');
+            const catActiva = window.categoriaActivaGlobal || 'negocios';
+            const cubierto = viewportCubiertoPorCeldas(mapa.getBounds(), catActiva);
+
+            if (!cubierto && mapa.getZoom() >= 11.5) {
+                zonaNecesitaDescarga = true;
+                window.descargarNegociosDeFirebase({ centroExplicito: [currentCenter.lat, currentCenter.lng] });
+            } else if (datosDescargados) {
+                const buscador = document.getElementById('input-buscador');
+                if (typeof window.barridoRadar === "function") {
+                    window.barridoRadar(buscador ? buscador.value : '');
                 }
-                return;
             }
             ultimoCentroFetch = currentCenter;
-            
-            if (datosDescargados && cajaFuerteEspacial && categoriaActivaGlobal === 'inmuebles') {
-                const b = mapa.getBounds();
-                if (!cajaFuerteEspacial.contains(b.getSouthWest()) || !cajaFuerteEspacial.contains(b.getNorthEast())) {
-                    zonaNecesitaDescarga = true;
-                }
-            }
-            
-            if (zonaNecesitaDescarga) {
-                const btnCargar = document.getElementById('btn-cargar-zona');
-                if (btnCargar) btnCargar.style.display = 'block';
-                if (window.descargarNegociosDeFirebase) window.descargarNegociosDeFirebase();
-            } else if (datosDescargados && !document.querySelector('.maplibregl-popup')) {
-                const buscador = document.getElementById('input-buscador');
-                if (typeof barridoRadar === "function") barridoRadar(buscador ? buscador.value : '');
-            }
-        }, 220);
+        }, 240);
     });
     
-    const mHtmlInit = document.getElementById('mapa-qrpido');
-    if (mHtmlInit) mHtmlInit.setAttribute('data-zoom', Math.round(mapa.getZoom()));
+    window.actualizarEscalaContinuaZoom();
     
     mapa.on('click', () => {
         const panelCristal = document.getElementById('panel-cristal');
         if (panelCristal) panelCristal.classList.add('colapsado');
     });
 };
+
 window.resolverUbicacionLocalOffline = function(textoCrudo) {
     const input = String(textoCrudo || '').trim();
     if (!input) return null;
@@ -1360,13 +1556,13 @@ window.resolverUbicacionLocalOffline = function(textoCrudo) {
     if (ciudadMatch) {
         return { lat: ciudadMatch.lat, lng: ciudadMatch.lng, zoom: 14.5, tipo: 'ciudad' };
     }
-    // 4. Busqueda en el directorio local indexado (direcciones, barrios o comercios en RAM)
+    // 4. Búsqueda en el directorio local indexado (direcciones, barrios o comercios en RAM)
     if (Array.isArray(dbDirectorio) && dbDirectorio.length > 0) {
         const localMatch = dbDirectorio.find(function(p) {
             const bolsa = ((p.nombre || '') + ' ' + (p.direccion || '') + ' ' + (p.nicho || '') + ' ' + (p.categoria || '')).toLowerCase();
             return bolsa.includes(txtLower);
         });
-        if (localMatch && localMatch.Coordenadas && localMatch.Coordenadas.latitude && localMatch.Coordenadas.longitude) {
+        if (localMatch && localMatch.Coordenadas && window.esCoordenadaValida(localMatch.Coordenadas.latitude, localMatch.Coordenadas.longitude)) {
             return {
                 lat: Number(localMatch.Coordenadas.latitude),
                 lng: Number(localMatch.Coordenadas.longitude),
@@ -1385,21 +1581,21 @@ window.buscarCiudadGlobal = function() {
     GeokatuDB.LocalService.registrarEventoAnalytics('busqueda_radar', { termino: texto });
     const destino = window.resolverUbicacionLocalOffline(texto);
     if (destino && window.mapa) {
-        window.mapa.flyTo({ center: [destino.lng, destino.lat], zoom: destino.zoom, duration: 1500 });
+        EstadoMapa.vista.interaccionUsuario = false;
+        window.volarCamaraHonesta(destino.lng, destino.lat, destino.zoom, 1000);
         if (destino.tipo === 'ciudad') {
             inputEl.value = '';
+            window.descargarNegociosDeFirebase({ centroExplicito: [destino.lat, destino.lng], forzar: true });
         }
         setTimeout(function() {
             if (typeof window.barridoRadar === 'function') {
                 window.barridoRadar(destino.tipo === 'ciudad' ? '' : texto);
             }
-        }, 1550);
+        }, 1050);
     } else if (typeof window.barridoRadar === 'function') {
         window.barridoRadar(texto);
     }
 };
-
-
 
 window.compartirTienda = function(event, codigo, nombre, username) {
     if (event) { event.preventDefault(); event.stopPropagation(); }
@@ -1453,8 +1649,10 @@ window.descargarQR = async function() {
     } catch(e) { console.error(e); } finally { setTimeout(() => { btn.innerText = textoOriginal; btn.style.opacity = "1"; }, 1000); }
 };
 
-let categoriaActivaGlobal = 'negocios';
 let filtrandoFavoritos = false;
+
+
+
 
 window.toggleMapaFavoritos = function() {
     if (navigator.vibrate) navigator.vibrate(30);
@@ -1487,18 +1685,397 @@ window.construirCarrusel = function() {
     return; 
 };
 
-window.barridoRadar = function(filtroTexto = "") {
-    if(!datosDescargados) return;
+                            
+// =========================================================================
+// 🎲 BARAJADO FISHER-YATES, CAPACIDAD DINÁMICA Y COLISIONES (SECCIONES 8 Y 9)
+// =========================================================================
+function hashDeterminista(str) {
+    let h = 2166136261 >>> 0;
+    const s = String(str || '');
+    for (let i = 0; i < s.length; i++) {
+        h ^= s.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+}
 
-    // 💉 ESCUDO DE VISIBILIDAD: Dejamos pasar todo para que veas tu pin sin importar la moderación
-    let filtrados = (dbDirectorio || []).filter(p => true); 
+function barajarFisherYates(arreglo, semillaBase = 1) {
+    const copia = arreglo.slice();
+    let seed = (Number(semillaBase) || 1) >>> 0;
+    const rand = () => {
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        return seed / 4294967296;
+    };
+    for (let i = copia.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        const tmp = copia[i];
+        copia[i] = copia[j];
+        copia[j] = tmp;
+    }
+    return copia;
+}
 
-    const catActualObj = categoriasEstaticas.find(c => c.id === categoriaActivaGlobal);
+function calcularCapacidadPantalla() {
+    const w = Math.max(280, window.innerWidth || 360);
+    // Descontar controles superiores (~72px) e inferiores (~64px)
+    const h = Math.max(240, (window.innerHeight || 640) - 136);
+    const q = 0.5;
+    const s = 52;
+    const cCalc = Math.floor((q * w * h) / (s * s));
+    return Math.max(12, Math.min(40, cCalc));
+}
+
+function esGestoSignificativo() {
+    if (!mapa) return false;
+    const centro = mapa.getCenter();
+    const zoom = mapa.getZoom();
+    const prevCentro = EstadoMapa.vista.ultimoCentroRotacion;
+    const prevZoom = EstadoMapa.vista.ultimoZoomRotacion;
+
+    if (!prevCentro || prevZoom === null) {
+        EstadoMapa.vista.ultimoCentroRotacion = { lat: centro.lat, lng: centro.lng };
+        EstadoMapa.vista.ultimoZoomRotacion = zoom;
+        return true;
+    }
+    if (Math.abs(zoom - prevZoom) >= 0.35) {
+        EstadoMapa.vista.ultimoCentroRotacion = { lat: centro.lat, lng: centro.lng };
+        EstadoMapa.vista.ultimoZoomRotacion = zoom;
+        return true;
+    }
+    const pActual = mapa.project([centro.lng, centro.lat]);
+    const pPrevio = mapa.project([prevCentro.lng, prevCentro.lat]);
+    const distPx = Math.hypot(pActual.x - pPrevio.x, pActual.y - pPrevio.y);
+    const umbralPx = Math.max(75, (window.innerWidth || 360) * 0.25);
+
+    if (distPx >= umbralPx) {
+        EstadoMapa.vista.ultimoCentroRotacion = { lat: centro.lat, lng: centro.lng };
+        EstadoMapa.vista.ultimoZoomRotacion = zoom;
+        return true;
+    }
+    return false;
+}
+
+// Inyección de estilos base para caída lunar, micropines y lista de agrupaciones
+(function inyectarEstilosDinamicosMapa() {
+    if (document.getElementById('geokatu-lunar-styles')) return;
+    const st = document.createElement('style');
+    st.id = 'geokatu-lunar-styles';
+    st.textContent = `
+        #mapa-qrpido .pin-wrapper {
+            transform: scale(var(--pin-zoom-scale, 0.75)) !important;
+            pointer-events: auto !important;
+        }
+        .pin-lunar-drop {
+            position: relative;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transform: translate3d(var(--spider-dx, 0px), var(--spider-dy, 0px), 0);
+            will-change: transform, opacity;
+        }
+        @keyframes caidaLunarGeokatu {
+            0% { transform: translate3d(var(--spider-dx, 0px), calc(var(--spider-dy, 0px) - 24px), 0); opacity: 0; }
+            32% { opacity: 1; }
+            78% { transform: translate3d(var(--spider-dx, 0px), var(--spider-dy, 0px), 0); opacity: 1; }
+            100% { transform: translate3d(var(--spider-dx, 0px), calc(var(--spider-dy, 0px) - 4px), 0); opacity: 1; }
+        }
+        .pin-lunar-drop.anim-entrada-lunar {
+            animation: caidaLunarGeokatu 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+            animation-delay: var(--lunar-delay, 0ms);
+        }
+        .pin-lunar-drop.aterrizado-fijo {
+            transform: translate3d(var(--spider-dx, 0px), calc(var(--spider-dy, 0px) - 4px), 0);
+            filter: drop-shadow(0 3px 5px rgba(0,0,0,0.45));
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .pin-lunar-drop.anim-entrada-lunar {
+                animation: none !important;
+                opacity: 1 !important;
+                transform: translate3d(var(--spider-dx, 0px), var(--spider-dy, 0px), 0) !important;
+            }
+        }
+        #radar-status-pill {
+            position: fixed;
+            top: 72px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(12, 12, 18, 0.9);
+            border: 1px solid rgba(255, 107, 0, 0.45);
+            color: #f8fafc;
+            font-size: 11px;
+            font-weight: 800;
+            padding: 5px 14px;
+            border-radius: 20px;
+            z-index: 3200;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.25s ease;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+            white-space: nowrap;
+        }
+        #radar-status-pill.visible { opacity: 1; }
+        #modal-agrupacion-lista {
+            position: fixed;
+            bottom: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 92vw;
+            max-width: 390px;
+            max-height: 52vh;
+            background: rgba(16, 16, 22, 0.96);
+            backdrop-filter: blur(16px);
+            border: 1.5px solid var(--naranja, #ff6b00);
+            border-radius: 20px;
+            padding: 14px;
+            z-index: 4500;
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.85);
+            box-sizing: border-box;
+        }
+        #modal-agrupacion-lista.activo { display: flex; }
+    `;
+    document.head.appendChild(st);
+
+    window.addEventListener('DOMContentLoaded', () => {
+        if (!document.getElementById('radar-status-pill')) {
+            const pill = document.createElement('div');
+            pill.id = 'radar-status-pill';
+            document.body.appendChild(pill);
+        }
+        if (!document.getElementById('modal-agrupacion-lista')) {
+            const modalAgrup = document.createElement('div');
+            modalAgrup.id = 'modal-agrupacion-lista';
+            document.body.appendChild(modalAgrup);
+        }
+    });
+})();
+
+// =========================================================================
+// 🌌 CAPAS WEBGL DE ÚLTIMA Y PENÚLTIMA ALTURA + LISTA PAGINADA (SECCIÓN 8)
+// =========================================================================
+window.abrirListaAgrupacion = function(listaComercios, pagina = 0) {
+    const contenedor = document.getElementById('modal-agrupacion-lista');
+    if (!contenedor || !Array.isArray(listaComercios) || listaComercios.length === 0) return;
+
+    const POR_PAGINA = 8;
+    const totalPaginas = Math.ceil(listaComercios.length / POR_PAGINA);
+    const pagActual = Math.max(0, Math.min(pagina, totalPaginas - 1));
+    const lote = listaComercios.slice(pagActual * POR_PAGINA, (pagActual + 1) * POR_PAGINA);
+
+    window._listaAgrupacionActiva = listaComercios;
+
+    const itemsHtml = lote.map(p => {
+        const nombreSeg = window.sanitizarTexto(p.nombre || 'Comercio');
+        const nichoSeg = window.sanitizarTexto(p.nicho || p.categoria || 'Local');
+        const codSeg = String(p.codigo || p.id || '').replace(/'/g, "\\'");
+        const lat = Number(p.Coordenadas?.latitude ?? p.lat ?? 4.8133);
+        const lng = Number(p.Coordenadas?.longitude ?? p.lng ?? -75.6961);
+        return `
+            <div onclick="window.seleccionarComercioDesdeAgrupacion('${codSeg}', ${lat}, ${lng})" style="display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); border-radius:10px; cursor:pointer;">
+                <div style="overflow:hidden;">
+                    <div style="font-size:12px; font-weight:800; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${nombreSeg}</div>
+                    <div style="font-size:10px; color:#ff6b00; font-weight:700; text-transform:uppercase;">${nichoSeg}</div>
+                </div>
+                <span style="font-size:11px; color:#cbd5e1; font-weight:900; padding-left:8px;">Ver 📍</span>
+            </div>
+        `;
+    }).join('');
+
+    const navHtml = totalPaginas > 1 ? `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding-top:4px;">
+            <button onclick="window.abrirListaAgrupacion(window._listaAgrupacionActiva, ${pagActual - 1})" ${pagActual === 0 ? 'disabled style="opacity:0.35; background:transparent; border:none; color:#fff;"' : 'style="background:rgba(255,107,0,0.2); border:1px solid #ff6b00; color:#fff; border-radius:8px; padding:4px 10px; font-size:11px; font-weight:800; cursor:pointer;"'}>◀ Anterior</button>
+            <span style="font-size:10px; color:#94a3b8; font-weight:700;">Pág ${pagActual + 1} de ${totalPaginas}</span>
+            <button onclick="window.abrirListaAgrupacion(window._listaAgrupacionActiva, ${pagActual + 1})" ${pagActual >= totalPaginas - 1 ? 'disabled style="opacity:0.35; background:transparent; border:none; color:#fff;"' : 'style="background:rgba(255,107,0,0.2); border:1px solid #ff6b00; color:#fff; border-radius:8px; padding:4px 10px; font-size:11px; font-weight:800; cursor:pointer;"'}>Siguiente ▶</button>
+        </div>
+    ` : '';
+
+    contenedor.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:6px;">
+            <span style="font-size:12px; font-weight:900; color:#ff6b00; text-transform:uppercase;">📍 ${listaComercios.length} ubicaciones en este punto</span>
+            <button onclick="document.getElementById('modal-agrupacion-lista').classList.remove('activo')" style="background:transparent; border:none; color:#94a3b8; font-size:16px; font-weight:900; cursor:pointer;">✕</button>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px; overflow-y:auto; max-height:34vh; padding-right:2px;">
+            ${itemsHtml}
+        </div>
+        ${navHtml}
+    `;
+    contenedor.classList.add('activo');
+};
+
+window.seleccionarComercioDesdeAgrupacion = function(codigo, lat, lng) {
+    const contenedor = document.getElementById('modal-agrupacion-lista');
+    if (contenedor) contenedor.classList.remove('activo');
+    EstadoMapa.seleccion.pinAbiertoId = String(codigo);
+    EstadoMapa.vista.interaccionUsuario = false;
+    window.volarCamaraHonesta(lng, lat, Math.max(mapa.getZoom(), 16.8), 850);
+    setTimeout(() => {
+        const buscador = document.getElementById('input-buscador');
+        window.barridoRadar(buscador ? buscador.value : '', { conservarRotacion: true });
+        if (window.marcadoresRadar && window.marcadoresRadar[codigo]) {
+            const pop = window.marcadoresRadar[codigo].getPopup();
+            if (pop && !pop.isOpen()) window.marcadoresRadar[codigo].togglePopup();
+        }
+    }, 900);
+};
+
+function actualizarCapasLejanasWebGL(elegibles, modoZoom) {
+    if (!mapa || !mapa.isStyleLoaded()) return;
+
+    // Deduplicar por ID para jamás sumar documentos repetidos
+    const vistos = new Set();
+    const features = [];
+    for (let i = 0; i < elegibles.length; i++) {
+        const p = elegibles[i];
+        const idUnico = String(p.codigo || p.id || '');
+        if (!idUnico || vistos.has(idUnico)) continue;
+        const lat = Number(p.Coordenadas?.latitude ?? p.lat);
+        const lng = Number(p.Coordenadas?.longitude ?? p.lng);
+        if (!window.esCoordenadaValida(lat, lng)) continue;
+        vistos.add(idUnico);
+
+        const colorCat = p.tipo_modelo === 'inmueble' ? '#00f5d4' : (p.tipo_modelo === 'servicio' ? '#38bdf8' : (p.color_principal || '#ff6b00'));
+        features.push({
+            type: 'Feature',
+            properties: {
+                id: idUnico,
+                nombre: p.nombre || 'Comercio',
+                color: colorCat
+            },
+            geometry: { type: 'Point', coordinates: [lng, lat] }
+        });
+    }
+
+    const geojsonData = { type: 'FeatureCollection', features };
+    const mostrarWebGL = (modoZoom === 'ultima' || modoZoom === 'penultima');
+
+    try {
+        if (mapa.getSource('geokatu-constelacion-source')) {
+            mapa.getSource('geokatu-constelacion-source').setData(geojsonData);
+        } else {
+            mapa.addSource('geokatu-constelacion-source', {
+                type: 'geojson',
+                data: geojsonData,
+                cluster: true,
+                clusterMaxZoom: 15,
+                clusterRadius: 42
+            });
+
+            // Círculos de agregados con r = clamp(r0 + k*sqrt(n), rmin, rmax)
+            mapa.addLayer({
+                id: 'geokatu-clusters-layer',
+                type: 'circle',
+                source: 'geokatu-constelacion-source',
+                filter: ['has', 'point_count'],
+                paint: {
+                    'circle-color': '#ff6b00',
+                    'circle-radius': [
+                        'min', 26,
+                        ['max', 11, ['+', 8, ['*', 2.2, ['sqrt', ['get', 'point_count']]]]]
+                    ],
+                    'circle-opacity': 0.88,
+                    'circle-stroke-width': 1.5,
+                    'circle-stroke-color': '#ffffff'
+                }
+            });
+
+            // Conteo exacto sobre cada agregado
+            mapa.addLayer({
+                id: 'geokatu-clusters-count',
+                type: 'symbol',
+                source: 'geokatu-constelacion-source',
+                filter: ['has', 'point_count'],
+                layout: {
+                    'text-field': '{point_count_abbreviated}',
+                    'text-size': 11,
+                    'text-allow-overlap': true
+                },
+                paint: {
+                    'text-color': '#ffffff'
+                }
+            });
+
+            // Micropines de 5-9 px con borde fino de contraste y sin animación permanente
+            mapa.addLayer({
+                id: 'geokatu-micropines-layer',
+                type: 'circle',
+                source: 'geokatu-constelacion-source',
+                filter: ['!', ['has', 'point_count']],
+                paint: {
+                    'circle-color': ['get', 'color'],
+                    'circle-radius': [
+                        'interpolate', ['linear'], ['zoom'],
+                        10, 3.2,
+                        13.8, 4.5
+                    ],
+                    'circle-stroke-width': 1,
+                    'circle-stroke-color': '#0a0a0c',
+                    'circle-opacity': 0.92
+                }
+            });
+
+            mapa.on('click', 'geokatu-clusters-layer', (e) => {
+                const feats = mapa.queryRenderedFeatures(e.point, { layers: ['geokatu-clusters-layer'] });
+                if (!feats || !feats.length) return;
+                const clusterId = feats[0].properties.cluster_id;
+                const coords = feats[0].geometry.coordinates;
+                const src = mapa.getSource('geokatu-constelacion-source');
+                if (src && typeof src.getClusterLeaves === 'function') {
+                    src.getClusterLeaves(clusterId, 100, 0, (err, leaves) => {
+                        if (!err && leaves && leaves.length > 0) {
+                            const comerciosCluster = leaves
+                                .map(f => dbDirectorioMap.get(String(f.properties.id)))
+                                .filter(Boolean);
+                            if (mapa.getZoom() < 13.2) {
+                                window.volarCamaraHonesta(coords[0], coords[1], Math.min(15.2, mapa.getZoom() + 2.2), 800);
+                            } else {
+                                window.abrirListaAgrupacion(comerciosCluster, 0);
+                            }
+                        }
+                    });
+                }
+            });
+
+            mapa.on('click', 'geokatu-micropines-layer', (e) => {
+                const feat = e.features && e.features[0];
+                if (!feat) return;
+                const idCom = String(feat.properties.id);
+                const coords = feat.geometry.coordinates;
+                window.seleccionarComercioDesdeAgrupacion(idCom, coords[1], coords[0]);
+            });
+        }
+
+        const vis = mostrarWebGL ? 'visible' : 'none';
+        ['geokatu-clusters-layer', 'geokatu-clusters-count', 'geokatu-micropines-layer'].forEach(idL => {
+            if (mapa.getLayer(idL)) mapa.setLayoutProperty(idL, 'visibility', vis);
+        });
+    } catch (eWebGL) {
+        console.warn('[Radar WebGL] Aviso en capas lejanas:', eWebGL.message);
+    }
+}
+
+// =========================================================================
+// 🛰️ MOTOR PRINCIPAL DE BARRIDO DIFERENCIAL, ROTACIÓN Y COLISIONES
+// =========================================================================
+window.barridoRadar = function(filtroTexto = "", opciones = {}) {
+    if (!datosDescargados || !mapa) return;
+
+    window.actualizarEscalaContinuaZoom();
+    const modoZoom = EstadoMapa.vista.modoZoomActual || 'barrio';
+    const catActiva = window.categoriaActivaGlobal || 'negocios';
     const favsStorage = JSON.parse(localStorage.getItem('geokatu_favoritos_anon')) || [];
     const favsIds = favsStorage.map(f => f.id);
-    
-    filtrados = filtrados.filter(p => {
-                if (categoriaActivaGlobal === 'inmuebles') {
+    const filtroEanIds = Array.isArray(window._filtroEanIdsActivo) ? window._filtroEanIdsActivo : null;
+
+    // 1. Filtrar universo elegible del directorio público
+    let filtrados = (dbDirectorio || []).filter(p => {
+        if (!p) return false;
+        if (filtroEanIds && !filtroEanIds.includes(String(p.codigo || p.id))) return false;
+
+        if (catActiva === 'inmuebles') {
             const esInm = p.tipo_modelo === 'inmueble' || p.es_inmueble_real === true;
             if (!esInm) return false;
 
@@ -1521,7 +2098,7 @@ window.barridoRadar = function(filtroTexto = "") {
                     return false;
                 }
             }
-        } else if (categoriaActivaGlobal === 'comercios' || categoriaActivaGlobal === 'negocios') {
+        } else if (catActiva === 'comercios' || catActiva === 'negocios') {
             const esCom = ['negocio', 'comercio', 'tienda'].includes(p.tipo_modelo) || p.categoria_maestra === 'comercio' || Boolean(p.nombre && !p.es_inmueble_real && p.tipo_modelo !== 'conductor');
             if (!esCom) return false;
 
@@ -1532,7 +2109,7 @@ window.barridoRadar = function(filtroTexto = "") {
             if (fc.subtipo && fc.subtipo !== 'todos' && !strCom.includes(fc.subtipo.toLowerCase())) return false;
             if (fc.domicilio === 'si' && p.domicilio_activo === false) return false;
             if (fc.domicilio === 'local' && p.solo_recogida !== true) return false;
-        } else if (categoriaActivaGlobal === 'servicios') {
+        } else if (catActiva === 'servicios') {
             const esServ = p.tipo_modelo === 'servicio' || p.categoria_maestra === 'servicio';
             if (!esServ) return false;
 
@@ -1545,11 +2122,11 @@ window.barridoRadar = function(filtroTexto = "") {
             if (fs.modalidad === 'sede' && !strServ.includes('local') && !strServ.includes('sede')) return false;
         }
 
-        if (filtroTexto && typeof filtroTexto === 'string') {
+        if (filtroTexto && typeof filtroTexto === 'string' && !filtroTexto.startsWith('Stock:')) {
             const txt = filtroTexto.toLowerCase().trim();
             const tagsStr = Array.isArray(p.tags_busqueda) ? p.tags_busqueda.join(' ') : (p.tags_busqueda || '');
             const strCompleto = `${p.nombre || ''} ${p.niche || ''} ${p.categoria || ''} ${p.palabras_clave || ''} ${tagsStr} ${p.slogan || ''}`.toLowerCase();
-            if(!strCompleto.includes(txt)) return false;
+            if (!strCompleto.includes(txt)) return false;
         }
 
         if (filtrandoFavoritos && !favsIds.includes(encodeURIComponent(p.codigo))) {
@@ -1557,114 +2134,176 @@ window.barridoRadar = function(filtroTexto = "") {
         }
         return true;
     });
-    
-    filtrados.sort((a, b) => {
-        const aVip = (a.premium === 'SI' || a.premium === true || a.promo === 'SI') ? 1 : 0;
-        const bVip = (b.premium === 'SI' || b.premium === true || b.promo === 'SI') ? 1 : 0;
-        return bVip - aVip;
-    });
-    
+
+    // 2. Actualizar siempre la representación WebGL para modos lejanos (Última y Penúltima altura)
+    actualizarCapasLejanasWebGL(filtrados, modoZoom);
+
+    // En Última y Penúltima altura (z < 14), todos se representan en WebGL; ocultar DOM salvo el seleccionado
+    if (modoZoom === 'ultima' || modoZoom === 'penultima') {
+        for (let idClon in window.marcadoresRadar) {
+            if (idClon !== EstadoMapa.seleccion.pinAbiertoId) {
+                try { window.marcadoresRadar[idClon].remove(); } catch (e) {}
+                delete window.marcadoresRadar[idClon];
+            }
+        }
+        return;
+    }
+
     const limiteMapa = mapa.getBounds();
     const userCenter = mapa.getCenter();
     window.marcadoresRadar = window.marcadoresRadar || {};
     let tarjetasHibridasHtml = '';
     const favs = favsIds;
-    
-    let pinesEnPantalla = filtrados.filter(p => {
-        if(!p.Coordenadas || p.Coordenadas.latitude === undefined || p.Coordenadas.longitude === undefined) return false;
+
+    // 3. Candidatos dentro del viewport actual
+    let candidatosViewport = filtrados.filter(p => {
+        if (!p.Coordenadas) return false;
         const latSegura = Number(p.Coordenadas.latitude);
         const lngSegura = Number(p.Coordenadas.longitude);
-        if (isNaN(latSegura) || isNaN(lngSegura)) return false;
+        if (!window.esCoordenadaValida(latSegura, lngSegura)) return false;
         return limiteMapa.contains([lngSegura, latSegura]);
     });
 
-    const zoomActual = mapa ? mapa.getZoom() : 15;
-    const UMBRAL_ZOOM_MAX_DETALLE = 17.5;
+    // 4. Selección equitativa con capacidad dinámica C, mínimo 40% general y máx 20% rotación por gesto significativo
+    const capacidadC = calcularCapacidadPantalla();
+    const gestoSignificativo = opciones.conservarRotacion ? false : esGestoSignificativo();
+    const pinAbierto = EstadoMapa.seleccion.pinAbiertoId;
 
-    // REGIMEN 1: En maximo Zoom In (>= 17.5) se muestran TODOS los comercios inscritos en el encuadre sin restriccion artificial
-    // REGIMEN 2: Al hacer Zoom Out (< 17.5) se activa el tope de 62 pines dispersos (15 Aliados + 25 Premium + resto Freemium) con rotacion del 38.2%
-    if (zoomActual < UMBRAL_ZOOM_MAX_DETALLE && pinesEnPantalla.length > 62) {
-        const limiteAliados = 15;
-        const limitePremium = 25;
-        const limiteTotal = 62;
-        const TASA_ROTACION_DESVANECIDO = 0.382; // 38.2% se desvanece y rota por nuevos en cada movimiento/zoom
-        const TASA_SUPERVIVENCIA = 1 - TASA_ROTACION_DESVANECIDO; // 61.8% permanece estable
+    let pinesSeleccionados = [];
+    if (candidatosViewport.length <= capacidadC) {
+        pinesSeleccionados = candidatosViewport.slice();
+        window.memoriaRadar = pinesSeleccionados.map(p => p.codigo);
+    } else {
+        window.memoriaRadar = window.memoriaRadar || [];
+        const setMemoriaPrevia = new Set(window.memoriaRadar);
 
-        const pinesAliados = pinesEnPantalla.filter(p => p.red_afiliados === true || p.red_afiliados === 'SI');
-        const pinesPremium = pinesEnPantalla.filter(p => (p.premium === 'SI' || p.premium === true || p.promo === 'SI') && !(p.red_afiliados === true || p.red_afiliados === 'SI'));
-        const pinesFreemium = pinesEnPantalla.filter(p => !(p.red_afiliados === true || p.red_afiliados === 'SI') && !(p.premium === 'SI' || p.premium === true || p.promo === 'SI'));
+        // Si NO hubo gesto significativo, conservar intactos los que siguen en pantalla
+        const tasaSupervivencia = gestoSignificativo ? 0.80 : 1.0;
+        const maxSobrevivientes = Math.floor(capacidadC * tasaSupervivencia);
 
-        pinesAliados.sort(() => 0.5 - Math.random());
-        pinesPremium.sort(() => 0.5 - Math.random());
-        const seleccionAliados = pinesAliados.slice(0, limiteAliados);
-        const seleccionPremium = pinesPremium.slice(0, limitePremium);
+        const enPantallaPrevios = candidatosViewport.filter(p => setMemoriaPrevia.has(p.codigo));
+        // Asegurar que el pin abierto jamás se descarte
+        enPantallaPrevios.sort((a, b) => {
+            if (a.codigo === pinAbierto) return -1;
+            if (b.codigo === pinAbierto) return 1;
+            return 0;
+        });
 
-        const asientosLibres = limiteTotal - (seleccionAliados.length + seleccionPremium.length);
-        let seleccionFreemium = [];
+        const sobrevivientes = enPantallaPrevios.slice(0, maxSobrevivientes);
+        const setSobrevivientes = new Set(sobrevivientes.map(p => p.codigo));
+        const plazasRestantes = Math.max(0, capacidadC - sobrevivientes.length);
 
-        if (asientosLibres > 0) {
-            window.memoriaRadar = window.memoriaRadar || [];
-            const freemiumViejos = pinesFreemium.filter(p => window.memoriaRadar.includes(p.codigo));
-            const freemiumNuevos = pinesFreemium.filter(p => !window.memoriaRadar.includes(p.codigo));
+        if (plazasRestantes > 0) {
+            const restantes = candidatosViewport.filter(p => !setSobrevivientes.has(p.codigo));
 
-            freemiumViejos.sort(() => 0.5 - Math.random());
-
-            // Dispersion espacial por celdas del encuadre para evitar que los nuevos se tapen entre si
-            const sw = limiteMapa.getSouthWest();
-            const ne = limiteMapa.getNorthEast();
-            const spanLat = Math.max(0.0001, ne.lat - sw.lat);
-            const spanLng = Math.max(0.0001, ne.lng - sw.lng);
-            const celdasOcupadas = new Set();
-
-            const cantidadSobrevivientes = Math.floor(Math.min(freemiumViejos.length, asientosLibres) * TASA_SUPERVIVENCIA);
-            const sobrevivientes = freemiumViejos.slice(0, cantidadSobrevivientes);
-            sobrevivientes.forEach(p => {
-                const cX = Math.floor(((p.Coordenadas.longitude - sw.lng) / spanLng) * 8);
-                const cY = Math.floor(((p.Coordenadas.latitude - sw.lat) / spanLat) * 8);
-                celdasOcupadas.add(cX + ':' + cY);
+            // Barajado sin reemplazo Fisher-Yates + prioridad a los que llevan más tiempo sin exponerse
+            const barajados = barajarFisherYates(restantes, EstadoMapa.seleccion.semillaSesion + EstadoMapa.consulta.generacionActual);
+            barajados.sort((a, b) => {
+                const tA = EstadoMapa.seleccion.ultimaExposicionTs.get(a.codigo) || 0;
+                const tB = EstadoMapa.seleccion.ultimaExposicionTs.get(b.codigo) || 0;
+                return tA - tB;
             });
 
-            freemiumNuevos.sort(() => 0.5 - Math.random());
-            const candidatosPrioritarios = [];
-            const candidatosSecundarios = [];
-            freemiumNuevos.forEach(p => {
-                const cX = Math.floor(((p.Coordenadas.longitude - sw.lng) / spanLng) * 8);
-                const cY = Math.floor(((p.Coordenadas.latitude - sw.lat) / spanLat) * 8);
-                const claveCelda = cX + ':' + cY;
-                if (!celdasOcupadas.has(claveCelda)) {
-                    celdasOcupadas.add(claveCelda);
-                    candidatosPrioritarios.push(p);
-                } else {
-                    candidatosSecundarios.push(p);
-                }
-            });
+            // Garantizar al menos 40% del total C para exposición general/gratuita
+            const esPromocionado = (p) => Boolean(p.red_afiliados === true || p.red_afiliados === 'SI' || p.premium === true || p.premium === 'SI' || p.promo === 'SI');
+            const generalesSobrevivientes = sobrevivientes.filter(p => !esPromocionado(p)).length;
+            const minimoGeneralTotal = Math.ceil(capacidadC * 0.40);
+            const cuotaGeneralNueva = Math.max(0, Math.min(plazasRestantes, minimoGeneralTotal - generalesSobrevivientes));
 
-            const poolOrdenadoNuevos = candidatosPrioritarios.concat(candidatosSecundarios);
-            const cantidadNuevos = asientosLibres - sobrevivientes.length;
-            let reemplazos = poolOrdenadoNuevos.slice(0, cantidadNuevos);
+            const colaGeneral = barajados.filter(p => !esPromocionado(p));
+            const colaPromo = barajados.filter(p => esPromocionado(p));
 
-            if (reemplazos.length < cantidadNuevos) {
-                const viejosSobrantes = freemiumViejos.slice(cantidadSobrevivientes);
-                reemplazos = reemplazos.concat(viejosSobrantes.slice(0, cantidadNuevos - reemplazos.length));
+            const nuevosElegidos = [];
+            for (let i = 0; i < colaGeneral.length && nuevosElegidos.length < cuotaGeneralNueva; i++) {
+                nuevosElegidos.push(colaGeneral[i]);
             }
-            seleccionFreemium = sobrevivientes.concat(reemplazos);
-            window.memoriaRadar = seleccionFreemium.map(p => p.codigo);
+            const setNuevos = new Set(nuevosElegidos.map(p => p.codigo));
+            const poolCombinado = colaPromo.concat(colaGeneral).filter(p => !setNuevos.has(p.codigo));
+
+            for (let i = 0; i < poolCombinado.length && nuevosElegidos.length < plazasRestantes; i++) {
+                nuevosElegidos.push(poolCombinado[i]);
+            }
+
+            pinesSeleccionados = sobrevivientes.concat(nuevosElegidos);
+        } else {
+            pinesSeleccionados = sobrevivientes;
         }
 
-        pinesEnPantalla = seleccionAliados.concat(seleccionPremium, seleccionFreemium);
-    } else {
-        window.memoriaRadar = pinesEnPantalla.map(p => p.codigo);
+        const ahoraTs = Date.now();
+        pinesSeleccionados.forEach(p => EstadoMapa.seleccion.ultimaExposicionTs.set(p.codigo, ahoraTs));
+        window.memoriaRadar = pinesSeleccionados.map(p => p.codigo);
     }
 
+    // 5. Cuadrícula de colisiones en pantalla y expansión radial (Spiderfy) para coordenadas idénticas
+    const gruposCoordenada = new Map();
+    pinesSeleccionados.forEach(p => {
+        const claveCoord = `${Number(p.Coordenadas.latitude).toFixed(5)}:${Number(p.Coordenadas.longitude).toFixed(5)}`;
+        if (!gruposCoordenada.has(claveCoord)) gruposCoordenada.set(claveCoord, []);
+        gruposCoordenada.get(claveCoord).push(p);
+    });
+
+    const celdaColisionPx = modoZoom === 'cercano' ? 42 : 48;
+    const celdasPantallaOcupadas = new Set();
+    const pinesEnPantalla = [];
+    const desplazamientosSpider = new Map();
+
+    // Priorizar el pin abierto para que jamás pierda su celda de pantalla
+    pinesSeleccionados.sort((a, b) => {
+        if (a.codigo === pinAbierto) return -1;
+        if (b.codigo === pinAbierto) return 1;
+        return 0;
+    });
+
+    pinesSeleccionados.forEach(p => {
+        const claveCoord = `${Number(p.Coordenadas.latitude).toFixed(5)}:${Number(p.Coordenadas.longitude).toFixed(5)}`;
+        const hermanos = gruposCoordenada.get(claveCoord) || [p];
+        const idxHermano = hermanos.indexOf(p);
+
+        if (hermanos.length > 1 && idxHermano > 0) {
+            if (modoZoom === 'cercano' && idxHermano < 6) {
+                // Expansión radial visual en píxeles sin alterar coordenadas geográficas
+                const angulo = (idxHermano / Math.min(6, hermanos.length)) * 2 * Math.PI;
+                const radioPx = 28;
+                desplazamientosSpider.set(p.codigo, {
+                    dx: Math.round(Math.cos(angulo) * radioPx),
+                    dy: Math.round(Math.sin(angulo) * radioPx),
+                    totalCoincidentes: hermanos.length,
+                    grupo: hermanos
+                });
+                pinesEnPantalla.push(p);
+            }
+            return;
+        }
+
+        const pt = mapa.project([p.Coordenadas.longitude, p.Coordenadas.latitude]);
+        const gx = Math.floor(pt.x / celdaColisionPx);
+        const gy = Math.floor(pt.y / celdaColisionPx);
+        const claveGrid = `${gx}:${gy}`;
+
+        if (p.codigo === pinAbierto || !celdasPantallaOcupadas.has(claveGrid)) {
+            celdasPantallaOcupadas.add(claveGrid);
+            if (hermanos.length > 1) {
+                desplazamientosSpider.set(p.codigo, {
+                    dx: 0,
+                    dy: 0,
+                    totalCoincidentes: hermanos.length,
+                    grupo: hermanos
+                });
+            }
+            pinesEnPantalla.push(p);
+        }
+    });
+
+    // 6. Retirada diferencial suave de marcadores que ya no están en la selección
     const codigosEnPantalla = new Set(pinesEnPantalla.map(p => p.codigo));
     for (let idClon in window.marcadoresRadar) {
-        if (!codigosEnPantalla.has(idClon)) {
+        if (!codigosEnPantalla.has(idClon) && idClon !== pinAbierto) {
             const markerSaliente = window.marcadoresRadar[idClon];
             if (markerSaliente && !markerSaliente._desvaneciendo) {
                 markerSaliente._desvaneciendo = true;
                 const elPinOut = markerSaliente.getElement ? markerSaliente.getElement() : null;
                 if (elPinOut) {
-                    elPinOut.style.transition = 'opacity 0.26s ease-out';
+                    elPinOut.style.transition = 'opacity 0.24s ease-out';
                     elPinOut.style.opacity = '0';
                     elPinOut.style.pointerEvents = 'none';
                 }
@@ -1673,10 +2312,9 @@ window.barridoRadar = function(filtroTexto = "") {
                     if (window.marcadoresRadar[idClon] === markerSaliente) {
                         delete window.marcadoresRadar[idClon];
                     }
-                }, 260);
+                }, 240);
             }
         } else {
-            // Si el pin estaba desvaneciendose pero volvio a entrar al encuadre, rescatarlo suavemente
             const markerActivo = window.marcadoresRadar[idClon];
             if (markerActivo && markerActivo._desvaneciendo) {
                 clearTimeout(markerActivo._timerFadeOut);
@@ -1690,24 +2328,26 @@ window.barridoRadar = function(filtroTexto = "") {
         }
     }
 
-    
-        if (pinesEnPantalla.length === 0) {
-        const toast = document.getElementById('toast-fantasma');
-        if (toast) {
-            let mensajeToast = "No encontramos resultados en esta zona";
-            if (filtrandoFavoritos) {
-                mensajeToast = "No tienes guardados en esta zona";
-            } else if (typeof window.obtenerMensajeSinResultados === 'function') {
-                mensajeToast = window.obtenerMensajeSinResultados();
+    // No confundir fallo de red con cero negocios
+    if (pinesEnPantalla.length === 0) {
+        if (EstadoMapa.consulta.estadoUI !== 'error' && EstadoMapa.consulta.estadoUI !== 'consultando') {
+            const toast = document.getElementById('toast-fantasma');
+            if (toast) {
+                let mensajeToast = "No encontramos resultados confirmados en esta zona";
+                if (filtrandoFavoritos) {
+                    mensajeToast = "No tienes guardados en esta zona";
+                } else if (typeof window.obtenerMensajeSinResultados === 'function') {
+                    mensajeToast = window.obtenerMensajeSinResultados();
+                }
+                toast.innerText = mensajeToast;
+                toast.style.opacity = '1';
+                setTimeout(() => { toast.style.opacity = '0'; }, 3000);
             }
-            toast.innerText = mensajeToast;
-            toast.style.opacity = '1';
-            setTimeout(() => { toast.style.opacity = '0'; }, 3200);
         }
         return;
     }
 
-    
+    // 7. Renderizado diferencial de pines con física de caída lunar
     pinesEnPantalla.forEach(p => {
         const pos = { lat: p.Coordenadas.latitude, lng: p.Coordenadas.longitude };
         const portadaUsada = p.es_inmueble_real ? p.imagen : (p.portada || dbSimbologia['wallpaper_generico']);
@@ -1727,7 +2367,6 @@ window.barridoRadar = function(filtroTexto = "") {
         let claseAnclaje = '';
         let emojiGorra = '';
 
-        // 💉 EXTRACCIÓN DEL PIN EMPAQUETADO CON GORRA
         if (p.pin_pack) {
             const partes = p.pin_pack.split('|');
             claseForma = partes[0] || 'forma-gota';
@@ -1751,7 +2390,7 @@ window.barridoRadar = function(filtroTexto = "") {
             }
         }
 
-       var paleta = null;
+        var paleta = null;
         if (p.paleta_aurea && typeof p.paleta_aurea === 'object') {
             paleta = window.calcularPaletaAureaSilenciosa(p.paleta_aurea.c1, p.paleta_aurea.c2, p.paleta_aurea.c3, p.paleta_aurea.c4);
         } else if (p.color_principal) {
@@ -1769,7 +2408,7 @@ window.barridoRadar = function(filtroTexto = "") {
         c1 = paleta.c1;
         c2 = paleta.c2;
 
-        if (categoriaActivaGlobal === 'inmuebles') {
+        if (catActiva === 'inmuebles') {
             var datosSemaforo = obtenerDatosSemaforo(p.fecha_registro);
             paleta = window.calcularPaletaAureaSilenciosa(datosSemaforo.color, datosSemaforo.color);
             c1 = paleta.c1;
@@ -1778,7 +2417,6 @@ window.barridoRadar = function(filtroTexto = "") {
             claseForma = 'forma-esfera'; 
         }
 
-        
         let badgeCobertura = '';
         const radKm = parseFloat(p.cobertura_km) || 0;
         if (radKm > 0 && radKm < 0.1) {
@@ -1796,7 +2434,6 @@ window.barridoRadar = function(filtroTexto = "") {
             badgeCobertura += '<div class="badge-fuera-zona" style="background: #555; margin-left: 5px;">Cerrado ahora</div>';
         }
 
-
         let claseFuego = '';
         let badgeRemate = '';
         if (p.merma_activa === true || p.flash_sale === true) {
@@ -1812,18 +2449,15 @@ window.barridoRadar = function(filtroTexto = "") {
         const favStyleBtn = esFav ? 'color: #ff4444; border-color: #ff4444; background: rgba(255,68,68,0.2);' : '';
         const esAliado = (p.red_afiliados === true || p.red_afiliados === 'SI');
         
-        // 💉 APLICACIÓN DE LA GORRA EN EL HTML
         let htmlAtributosGorras = '';
         if (emojiGorra) {
             htmlAtributosGorras = `data-emoji="${emojiGorra}" data-anclaje="${claseAnclaje}"`;
         }
 
-      
-       var esTemaClasico = (p.tema_popup === 'clasico');
+        var esTemaClasico = (p.tema_popup === 'clasico');
         var colorBotonRaw = (paleta && paleta.c3) ? paleta.c3 : (c2 || '#ff6b00');
         var estiloBoton = window.resolverEstiloBotonAccion(colorBotonRaw, esTemaClasico);
 
-        // Contraste dinámico del eslogan según el tema del popup
         var colorSlogan = (paleta && paleta.c2) ? paleta.c2 : '#8a909d';
         if (esTemaClasico && window.obtenerLuminanciaYIQ(colorSlogan) > 170) {
             colorSlogan = '#334155';
@@ -1831,14 +2465,12 @@ window.barridoRadar = function(filtroTexto = "") {
             colorSlogan = '#cbd5e1';
         }
 
-        // Selección polimórfica del logotipo evitando duplicar el avatar circular
         var candidataPng = p.nombre_png || p.logo_pin || p.logo_nombre || '';
         var urlSeguraPng = '';
         if (candidataPng && candidataPng !== p.logo && candidataPng !== p.portada && candidataPng !== logoSeguro) {
             urlSeguraPng = escapeQuotes(candidataPng);
         }
 
-        // Micro-halo adaptativo: permite que letras oscuras (ej: Éxito) resalten sobre fondo negro
         var filtroHaloLogo = esTemaClasico
             ? 'filter: drop-shadow(0 0 1px rgba(0,0,0,0.45));'
             : 'filter: drop-shadow(0 0 1.5px rgba(255,255,255,0.85)) drop-shadow(0 2px 4px rgba(0,0,0,0.9));';
@@ -1854,13 +2486,11 @@ window.barridoRadar = function(filtroTexto = "") {
             tituloRenderizado = '<h3 class="popup-title" style="color: ' + (esTemaClasico ? '#0f172a' : '#ffffff') + ' !important; font-size: 13px; font-weight: 900; margin: 4px 0 2px 0; text-transform: uppercase; letter-spacing: 0.5px;">' + nombreTextoHTML + '</h3>';
         }
 
-
         var bloqueSlogan = '';
         if (p.slogan && String(p.slogan).trim() !== '') {
             bloqueSlogan = '<p class="popup-slogan" style="color: ' + colorSlogan + ' !important;">' + sanitizarTexto(String(p.slogan).trim()) + '</p>';
         }
 
-       // Determinar existencia de canales según flags binarios o datos mínimos
         var flagsP = Number(p.f || p.flags || 0);
         var tieneCanales = Boolean((flagsP & 1) || (flagsP & 2) || p.whatsapp || p.pbx);
         var hubId = 'hub-contacto-' + String(p.codigo).replace(/[^a-zA-Z0-9_-]/g, '');
@@ -1874,10 +2504,8 @@ window.barridoRadar = function(filtroTexto = "") {
                 '</button>';
         }
 
-
         var usaPublicidadPropia = p.publicidad_propia === true;
         var bloquePublicidad = '';
-
         if (usaPublicidadPropia) {
             var troyasActivos = dbTroya.filter(function(t) { return t.activo === true || t.activo === "SI"; });
             var anuncio = troyasActivos.length > 0 ? troyasActivos[Math.floor(Math.random() * troyasActivos.length)] : null;
@@ -1912,11 +2540,19 @@ window.barridoRadar = function(filtroTexto = "") {
         window.sanitizarURL = fnSanitizarUrl;
         var semaforoOverlayId = 'sem-modal-' + p.codigo;
         var horarioOverlayId = 'horario-modal-' + p.codigo;
+
+        var infoSpider = desplazamientosSpider.get(p.codigo);
+        var btnCoincidentesPopup = '';
+        if (infoSpider && infoSpider.totalCoincidentes > 1) {
+            btnCoincidentesPopup = `<button type="button" onclick="window.abrirListaAgrupacion(window._gruposCoincidentesMap['${String(p.codigo).replace(/'/g, "\\'")}'], 0)" style="width:100%; margin-top:6px; background:rgba(255,107,0,0.18); border:1px solid #ff6b00; color:#fff; border-radius:8px; padding:5px; font-size:9.5px; font-weight:800; cursor:pointer;">📍 Ver ${infoSpider.totalCoincidentes} negocios en esta dirección</button>`;
+            window._gruposCoincidentesMap = window._gruposCoincidentesMap || {};
+            window._gruposCoincidentesMap[p.codigo] = infoSpider.grupo;
+        }
+
         var htmlPopup = 
             '<div style="position: relative; width: 100%; border-radius: 15px; overflow: hidden;" onclick="window.cerrarHubContactoPopup(event)">' +
                 '<div style="position: relative;">' +
                     '<button class="btn-fav-popup js-action-favorito" style="' + favStyleBtn + '" data-codigo="' + fnSanitizarAttr(encodeURIComponent(p.codigo)) + '" data-nombre="' + fnSanitizarAttr(nombreLimpio) + '" data-precio="' + fnSanitizarAttr(p.precio || 0) + '" data-portada="' + fnSanitizarAttr(portadaSegura) + '" data-whatsapp="' + fnSanitizarAttr(telWhatsapp) + '">' + corazon + '</button>' +
-
                     '<button class="btn-compartir js-action-compartir" data-codigo="' + window.sanitizarAtributo(encodeURIComponent(p.codigo)) + '" data-nombre="' + window.sanitizarAtributo(nombreLimpio) + '" data-username="' + window.sanitizarAtributo(usernameParaCompartir) + '"><svg style="pointer-events: none;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg></button>' +
                     '<img src="' + portadaUsada + '" class="popup-portada" style="border-color: ' + c1 + '" onerror="window.imagenRotaToGlass(this, \'' + nombreLimpio + '\')">' +
                 '</div>' +
@@ -1934,8 +2570,7 @@ window.barridoRadar = function(filtroTexto = "") {
                         botonHubTrigger +
                         bloqueHubContacto +
                     '</div>' +
-
-                    // FILA DE INDICADORES MINIMALISTAS CENTRADOS (VERIFICACIÓN & HORARIO)
+                    btnCoincidentesPopup +
                     '<div class="popup-micro-fila-status">' +
                         '<button type="button" class="btn-micro-status" onclick="window.mostrarAvisoVerificacionModal(\'' + semaforoOverlayId + '\', \'' + horarioOverlayId + '\')" title="' + semaforoTexto + '">' +
                             '<span class="dot-status" style="background: ' + semaforoColor + '; box-shadow: 0 0 6px ' + semaforoColor + ';"></span>' +
@@ -1944,34 +2579,41 @@ window.barridoRadar = function(filtroTexto = "") {
                             '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="' + evalHorario.color + '" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 0 4px ' + evalHorario.color + ');"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>' +
                         '</button>' +
                     '</div>' +
-
-                    // BANNER FLOTANTE 1: ESTADO DE VERIFICACIÓN (3.5s)
                     '<div id="' + semaforoOverlayId + '" class="popup-aviso-verificacion" style="display: none; border-color: ' + semaforoColor + ';">' +
                         '<span style="color: ' + semaforoColor + '; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.2;">' + semaforoTexto + '</span>' +
                     '</div>' +
-
-                    // BANNER FLOTANTE 2: HORARIO OPERATIVO (4.5s)
                     '<div id="' + horarioOverlayId + '" class="popup-aviso-verificacion" style="display: none; border-color: ' + evalHorario.color + ';">' +
                         '<span style="color: ' + evalHorario.color + '; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.2;">' + evalHorario.texto + '</span>' +
                     '</div>' +
-
                     bloquePublicidad +
                 '</div>' +
             '</div>';
 
+        const firmaVisualActual = (p.pin_pack || '') + '|' + c1 + '|' + c2 + '|' + (p.link_pin || p.portada || '') + '|' + (infoSpider ? infoSpider.totalCoincidentes : 1);
 
+        // Si el marcador ya existe y conserva su firma visual, actualizar popup y offset spider sin destruir ni repetir caída lunar
+        if (window.marcadoresRadar[p.codigo] && window.marcadoresRadar[p.codigo]._firmaVisual === firmaVisualActual) {
+            const mExistente = window.marcadoresRadar[p.codigo];
+            const popExistente = mExistente.getPopup ? mExistente.getPopup() : null;
+            if (popExistente) popExistente.setHTML(htmlPopup);
+            const elExistente = mExistente.getElement ? mExistente.getElement() : null;
+            const dropWrapper = elExistente ? elExistente.querySelector('.pin-lunar-drop') : null;
+            if (dropWrapper) {
+                dropWrapper.style.setProperty('--spider-dx', `${infoSpider ? infoSpider.dx : 0}px`);
+                dropWrapper.style.setProperty('--spider-dy', `${infoSpider ? infoSpider.dy : 0}px`);
+            }
+        } else {
+            const teniaPopupAbierto = Boolean(
+                window.marcadoresRadar[p.codigo] &&
+                window.marcadoresRadar[p.codigo].getPopup() &&
+                window.marcadoresRadar[p.codigo].getPopup().isOpen()
+            );
+            if (window.marcadoresRadar[p.codigo]) {
+                try { window.marcadoresRadar[p.codigo].remove(); } catch (eRem) {}
+                delete window.marcadoresRadar[p.codigo];
+            }
 
-
-
-
-        const firmaVisualActual = (p.pin_pack || '') + '|' + c1 + '|' + c2 + '|' + (p.link_pin || p.portada || '');
-        if (window.marcadoresRadar[p.codigo] && window.marcadoresRadar[p.codigo]._firmaVisual !== firmaVisualActual) {
-            try { window.marcadoresRadar[p.codigo].remove(); } catch (eRem) {}
-            delete window.marcadoresRadar[p.codigo];
-        }
-        if (!window.marcadoresRadar[p.codigo]) {
             const elDOM = document.createElement('div');
-
             elDOM.style.width = '60px';
             elDOM.style.height = '60px';
             elDOM.style.display = 'flex';
@@ -1979,7 +2621,6 @@ window.barridoRadar = function(filtroTexto = "") {
             elDOM.style.alignItems = 'center';
             elDOM.style.cursor = 'pointer';
 
-            // Fábrica SVG de silueta idéntica a la de boveda-comercio.html
             let svgSilueta = '<path d="M 30,57 C 30,57 10,38 10,20 C 10,9 19,3 30,3 C 41,3 50,9 50,20 C 50,38 30,57 30,57 Z" />';
             if (claseForma === 'forma-esfera') svgSilueta = '<circle cx="30" cy="30" r="26" />';
             else if (claseForma === 'forma-triangulo') svgSilueta = '<polygon points="6,8 54,8 30,54" stroke-linejoin="round" />';
@@ -1990,11 +2631,9 @@ window.barridoRadar = function(filtroTexto = "") {
             else if (claseForma === 'forma-hongo') svgSilueta = '<path d="M 24 56 L 36 56 L 36 36 L 52 36 C 52 15 44 8 30 8 C 16 8 8 15 8 36 L 24 36 Z" stroke-linejoin="round" />';
             else if (claseForma === 'forma-paleta') svgSilueta = '<path d="M 28 56 L 32 56 L 32 37 A 16 16 0 1 0 28 37 Z" stroke-linejoin="round" />';
 
-            // 💉 REQ 8: Prioridad #1 estricta para la imagen exclusiva del PIN (link_pin) independiente de la portada
             const urlCandidata = p.link_pin || p.logo || p.portada || p.imagen_perfil || p.foto_portada || logoSeguro;
             const tieneFotoValida = typeof urlCandidata === 'string' && urlCandidata.trim().length > 5 && urlCandidata !== 'null' && urlCandidata !== 'undefined';
 
-            // SVG Fallback Corporativo (#111 de fondo con acento áureo #ff6b00)
             const inicialesFallback = (sanitizarTexto(p.nombre) || 'GK').substring(0, 2).toUpperCase();
             const fallbackSVGAureo = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60"><rect width="60" height="60" rx="30" fill="%23111111"/><text x="30" y="36" font-size="20" font-weight="900" font-family="system-ui, sans-serif" fill="%23ff6b00" text-anchor="middle" dominant-baseline="middle">${inicialesFallback}</text><circle cx="30" cy="30" r="27" stroke="%23ff6b00" stroke-width="2" fill="none" opacity="0.6"/></svg>`;
 
@@ -2018,25 +2657,39 @@ window.barridoRadar = function(filtroTexto = "") {
 
             var cssVarsPin = '--color-main: ' + colorPinMain + '; --color-sec: ' + colorPinSec + '; --color-ter: ' + paleta.c3 + '; --color-cuat: ' + paleta.c4 + ';';
 
+            // Desfase determinista 0-120 ms para caída lunar sin efecto cortina
+            const delayLunarMs = hashDeterminista(p.codigo) % 121;
+            const dxSpider = infoSpider ? infoSpider.dx : 0;
+            const dySpider = infoSpider ? infoSpider.dy : 0;
+            const badgeClusterHtml = (infoSpider && infoSpider.totalCoincidentes > 1 && dxSpider === 0 && dySpider === 0)
+                ? `<span style="position:absolute; top:-4px; right:-4px; background:#ff6b00; color:#fff; border:1.5px solid #fff; border-radius:10px; font-size:9px; font-weight:900; padding:1px 5px; z-index:20;">+${infoSpider.totalCoincidentes - 1}</span>`
+                : '';
+
             elDOM.innerHTML = 
-                '<div class="pin-wrapper ' + claseVisualPin + '" data-forma="' + claseForma + '" style="' + cssVarsPin + '" ' + htmlAtributosGorras + '>' +
-                    svgSiluetaCompleta +
-                '</div>';
+                `<div class="pin-lunar-drop anim-entrada-lunar" style="--lunar-delay:${delayLunarMs}ms; --spider-dx:${dxSpider}px; --spider-dy:${dySpider}px;">` +
+                    `<div class="pin-wrapper ${claseVisualPin}" data-forma="${claseForma}" style="${cssVarsPin}" ${htmlAtributosGorras}>` +
+                        svgSiluetaCompleta +
+                        badgeClusterHtml +
+                    `</div>` +
+                `</div>`;
 
+            const dropEl = elDOM.querySelector('.pin-lunar-drop');
+            if (dropEl) {
+                dropEl.addEventListener('animationend', () => {
+                    dropEl.classList.remove('anim-entrada-lunar');
+                    dropEl.classList.add('aterrizado-fijo');
+                }, { once: true });
+            }
 
-            // Respaldo asíncrono si el servidor arroja error 404 o falla de red
             if (tieneFotoValida) {
                 const imgPreload = new Image();
                 imgPreload.onerror = () => {
-                    const contenedorImg = elDOM.querySelector('.img-pin-interior');
-                    if (contenedorImg) {
-                        contenedorImg.style.backgroundImage = `url('${fallbackSVGAureo}')`;
-                    }
+                    const svgImg = elDOM.querySelector('image');
+                    if (svgImg) svgImg.setAttribute('href', fallbackSVGAureo);
                 };
                 imgPreload.src = urlCandidata;
             }
 
-                                  // Anclaje dinamico vertical y soporte para toda la coleccion de Cuarzos Traslucidos
             const rawTemaP = String(p.tema_popup || 'carbon').trim();
             const esCustomTema = rawTemaP.indexOf('custom:') === 0;
             const temaElegido = esCustomTema ? 'popup-tema-carbon' : ('popup-tema-' + rawTemaP);
@@ -2048,8 +2701,10 @@ window.barridoRadar = function(filtroTexto = "") {
                 maxWidth: '164px',
                 className: 'popup-boveda-estricto ' + temaElegido
             }).setHTML(htmlPopup);
-            if (esCustomTema) {
-                popup.on('open', () => {
+
+            popup.on('open', () => {
+                EstadoMapa.seleccion.pinAbiertoId = String(p.codigo);
+                if (esCustomTema) {
                     const hexC = rawTemaP.replace('custom:', '').replace('#', '').trim();
                     const rC = parseInt(hexC.substring(0, 2), 16) || 255;
                     const gC = parseInt(hexC.substring(2, 4), 16) || 107;
@@ -2059,15 +2714,18 @@ window.barridoRadar = function(filtroTexto = "") {
                         elContent.style.setProperty('background', 'linear-gradient(145deg, rgba(' + rC + ',' + gC + ',' + bC + ',0.34), rgba(' + Math.round(rC * 0.16) + ',' + Math.round(gC * 0.16) + ',' + Math.round(bC * 0.16) + ',0.92))', 'important');
                         elContent.style.setProperty('border-color', 'rgba(' + rC + ',' + gC + ',' + bC + ',0.55)', 'important');
                     }
-                });
-            }
+                }
+            });
 
+            popup.on('close', () => {
+                if (EstadoMapa.seleccion.pinAbiertoId === String(p.codigo)) {
+                    EstadoMapa.seleccion.pinAbiertoId = null;
+                }
+            });
 
-            // Ajuste de orientacion vertical previo a la apertura (solo top o bottom, centrado en X)
             const calibrarOrientacionVertical = () => {
                 if (!mapa) return;
                 const posPixel = mapa.project([pos.lng, pos.lat]);
-                // Si el pin esta en los primeros 330px de la pantalla, nace hacia abajo desde la punta
                 if (posPixel.y < 330) {
                     popup.options.anchor = 'top';
                     popup.setOffset([0, 8]);
@@ -2080,47 +2738,27 @@ window.barridoRadar = function(filtroTexto = "") {
             elDOM.addEventListener('click', calibrarOrientacionVertical, true);
             popup.on('open', calibrarOrientacionVertical);
 
-            // Entrada con desvanecido elegante (Fade-In)
-            elDOM.style.opacity = '0';
-            elDOM.style.transition = 'opacity 0.28s ease-out';
-
             const marker = new maplibregl.Marker({ element: elDOM, anchor: 'bottom' })
                 .setLngLat([pos.lng, pos.lat])
                 .setPopup(popup)
                 .addTo(mapa);
 
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    elDOM.style.opacity = '1';
-                });
-            });
-
-            if (esAliado) {
-                elDOM.addEventListener('click', function(e) {
-                    if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
-                    elDOM.style.animation = 'none';
-                    requestAnimationFrame(() => {
-                        requestAnimationFrame(() => {
-                            elDOM.style.animation = 'saltoMoneda 0.6s ease-out forwards';
-                        });
-                    });
-                    setTimeout(() => { elDOM.style.animation = 'flotarMoneda 2.5s infinite ease-in-out'; }, 600);
-                });
+            if (teniaPopupAbierto || EstadoMapa.seleccion.pinAbiertoId === String(p.codigo)) {
+                setTimeout(() => {
+                    if (!popup.isOpen()) marker.togglePopup();
+                }, 40);
             }
+
             marker._firmaVisual = firmaVisualActual;
             window.marcadoresRadar[p.codigo] = marker;
         }
-
-
-
 
         window.cerrarTarjetaInmueble = function(event, elemento) {
             event.stopPropagation(); 
             elemento.closest('.tarjeta-hibrida').style.display = 'none';
         };
 
-
-       if (categoriaActivaGlobal === 'inmuebles') {
+        if (catActiva === 'inmuebles') {
             var titularInmueble = (urlSeguraPng && urlSeguraPng.trim() !== '')
                 ? ('<img src="' + urlSeguraPng + '" alt="' + nombreLimpio + '" style="max-height: 22px; max-width: 140px; object-fit: contain; margin-bottom: 2px; display: block;">')
                 : ('<h4 class="tarjeta-hibrida-titulo">' + sanitizarTexto(p.nombre || 'Inmueble') + '</h4>');
@@ -2136,12 +2774,11 @@ window.barridoRadar = function(filtroTexto = "") {
                     '</div>' +
                 '</div>';
         }
-
     });
     
-        const sheetHibrido = document.getElementById('lista-inmuebles-sheet');
+    const sheetHibrido = document.getElementById('lista-inmuebles-sheet');
     if (sheetHibrido) {
-        if (categoriaActivaGlobal === 'inmuebles' && tarjetasHibridasHtml !== '') {
+        if (catActiva === 'inmuebles' && tarjetasHibridasHtml !== '') {
             sheetHibrido.innerHTML = tarjetasHibridasHtml;
             sheetHibrido.classList.add('activo');
         } else {
@@ -2151,10 +2788,8 @@ window.barridoRadar = function(filtroTexto = "") {
     }
 };
 
-
-
 window.cargarCaballoTroya = function() {
-    if(!dbTroya || dbTroya.length === 0) return;
+    if (!dbTroya || dbTroya.length === 0) return;
     const troyasActivos = dbTroya.filter(t => t.activo === true || t.activo === "SI");
     if (troyasActivos.length > 0) {
         document.getElementById('img-troya').src = troyasActivos[0].imagen_16_9 || dbSimbologia['banner_noticias_generico'];
@@ -2163,24 +2798,30 @@ window.cargarCaballoTroya = function() {
     }
 };
 
-document.getElementById('input-buscador').addEventListener('input', (e) => {
+document.getElementById('input-buscador')?.addEventListener('input', (e) => {
     clearTimeout(window.timerBusqueda);
-    window.timerBusqueda = setTimeout(() => { if(datosDescargados) barridoRadar(e.target.value); }, 400);
+    if (!e.target.value.startsWith('Stock:')) {
+        window._filtroEanIdsActivo = null;
+    }
+    window.timerBusqueda = setTimeout(() => {
+        if (datosDescargados) window.barridoRadar(e.target.value, { conservarRotacion: true });
+    }, 320);
 });
 
-window.toggleSubmenu = () => document.getElementById('submenu-llave').classList.toggle('activo');
-window.abrirModal = (id) => document.getElementById(id).classList.add('activo');
-window.cerrarModalFuera = (e, id) => { if(e.target.id === id) document.getElementById(id).classList.remove('activo'); };
+window.toggleSubmenu = () => document.getElementById('submenu-llave')?.classList.toggle('activo');
+window.abrirModal = (id) => document.getElementById(id)?.classList.add('activo');
+window.cerrarModalFuera = (e, id) => { if (e.target.id === id) document.getElementById(id)?.classList.remove('activo'); };
 
 function aplicarSwipeAbajo(modalId, contentId) {
     const modal = document.getElementById(modalId);
     const content = document.getElementById(contentId);
+    if (!modal || !content) return;
     let startY = 0, currentY = 0;
-    content.addEventListener('touchstart', e => startY = e.touches[0].clientY, {passive: true});
+    content.addEventListener('touchstart', e => startY = e.touches[0].clientY, { passive: true });
     content.addEventListener('touchmove', e => { 
         currentY = e.touches[0].clientY; 
-        if(currentY > startY && content.scrollTop === 0) content.style.transform = `translateY(${currentY - startY}px)`; 
-    }, {passive: true});
+        if (currentY > startY && content.scrollTop === 0) content.style.transform = `translateY(${currentY - startY}px)`; 
+    }, { passive: true });
     content.addEventListener('touchend', () => { 
         if (currentY - startY > 100 && content.scrollTop === 0) modal.classList.remove('activo'); 
         content.style.transform = ''; 
@@ -2191,7 +2832,7 @@ aplicarSwipeAbajo('modal-login', 'sheet-login');
 aplicarSwipeAbajo('overlay-compartir', 'sheet-compartir'); 
 aplicarSwipeAbajo('modal-soporte', 'sheet-soporte');
 
-// ========================================================================
+ // ========================================================================
 // 🧭 MÓDULO DE BRÚJULA Y GIROSCOPIO NATIVO (MapLibre Bearing)
 // ========================================================================
 window.orientacionActiva = false;
@@ -2271,20 +2912,25 @@ window.toggleRadarInmersivo = function(btnElement) {
 };
 
 window.cambiarMapa = function(tipo, el) {
-    const styles = {
-        'satelite': './estilo-fresco.json',
-        'rayosx': './estilo-fresco.json',
-        'lite': './estilo-fresco.json'
-    };
-    if (window.mapa) window.mapa.setStyle(styles[tipo]);
-    
+    // CORRECCIÓN DEL BUG: No llamamos a window.mapa.setStyle('./estilo-fresco.json') 
+    // porque ya está cargado en memoria local y reiniciarlo borraba el filtro CSS del canvas.
     const panel = document.querySelector('.maplibregl-canvas');
+    if (!panel) return;
     
     if (tipo === 'satelite') {
+        // Tu Satelital original intacto
         panel.style.filter = "invert(95%) hue-rotate(180deg) brightness(125%) contrast(80%)";
     } else if (tipo === 'rayosx') {
+        // Tu Rayos X rojizo original IDÉNTICO
         panel.style.filter = "invert(100%) sepia(100%) hue-rotate(355deg) saturate(1500%) contrast(1.3) brightness(1.1)";
+    } else if (tipo === 'ambar') {
+        // Variación 1 sobre la base de tu Rayos X (virado a Naranja/Oro Geokatu)
+        panel.style.filter = "invert(100%) sepia(100%) hue-rotate(18deg) saturate(1100%) contrast(1.28) brightness(1.05)";
+    } else if (tipo === 'cobalto') {
+        // Variación 2 sobre la base de tu Rayos X (virado a Cian/Azul profundo)
+        panel.style.filter = "invert(100%) sepia(100%) hue-rotate(165deg) saturate(950%) contrast(1.25) brightness(1.05)";
     } else {
+        // Tu Bajo Gwai ('lite') original sin filtro
         panel.style.filter = "none";
     }
     
@@ -2295,17 +2941,20 @@ window.cambiarMapa = function(tipo, el) {
     }
     
     document.querySelectorAll('.map-tag:not(#btn-giro-toggle)').forEach(t => t.classList.remove('active'));
-    el.classList.add('active');
+    if (el) el.classList.add('active');
     
     const btnGiro = document.getElementById('btn-giro-toggle');
-    if (tipo === 'rayosx') {
-        btnGiro.style.display = 'block';
-    } else {
-        btnGiro.style.display = 'none';
-        if(window.isRadar3DActivo) window.toggleRadarInmersivo(btnGiro);
+    if (btnGiro) {
+        if (['rayosx', 'ambar', 'cobalto'].includes(tipo)) {
+            btnGiro.style.display = 'block';
+        } else {
+            btnGiro.style.display = 'none';
+            if (window.isRadar3DActivo) window.toggleRadarInmersivo(btnGiro);
+        }
     }
 };
 
+            
 // =================================================================
 // 🌸 PROTOCOLO NIEVES: MATRIZ LEGIBLE + VISOR FOTOS + MENSAJE MEJORADO
 // =================================================================
@@ -2383,7 +3032,7 @@ window.activarProtocoloNieves = async function() {
             }
         }
         
-       mapa.flyTo({ center: [centroLng, centroLat], zoom: 16, duration: 2500 });
+        mapa.flyTo({ center: [centroLng, centroLat], zoom: 16, duration: 2500 });
         setTimeout(window.detonarCelebracionNieves, 2600);
 
     } catch (error) {
@@ -2487,11 +3136,10 @@ window.instanciarMinimapaBoveda = function(contenedorId, lat = 4.8133, lng = -75
         style: './estilo-fresco.json',
         center: [lng, lat],
         zoom: 16,
-        minZoom: 13.5,
+        minZoom: 11,
         maxZoom: 19,
         attributionControl: false
     });
-
     
     const elPunto = document.createElement('div');
     elPunto.innerHTML = '<div class="pin-wrapper pin-1" style="--color-main: var(--naranja); --color-sec: #000; width: 34px; height: 34px;"><div class="pin-img" style="background: var(--naranja);"></div></div>';
@@ -2522,55 +3170,38 @@ window.instanciarMinimapaBoveda = function(contenedorId, lat = 4.8133, lng = -75
                 marker.setLngLat([destino.lng, destino.lat]);
             }
         }
-
     };
 };
+
 /* =========================================================================
    PUENTE DE FILTRADO DE PINES POR CÓDIGO DE BARRAS (motor-mapa.js)
    ========================================================================= */
 window.addEventListener('ejecutar-filtro-mapa-producto', (e) => {
-    const { barcode, idsComercios } = e.detail;
-
+    const { barcode, idsComercios } = e.detail || {};
     if (!window.mapa) return;
 
     if (!idsComercios || idsComercios.length === 0) {
+        window._filtroEanIdsActivo = null;
         const toast = document.getElementById('toast-fantasma');
         if (toast) {
             toast.innerText = "No hay comercios locales con stock activo de este artículo.";
-            toast.classList.add('activo');
-            setTimeout(() => toast.classList.remove('activo'), 3500);
+            toast.style.opacity = '1';
+            setTimeout(() => { toast.style.opacity = '0'; }, 3500);
         }
         return;
     }
 
-    // Filtrar capa de pines vectoriales en MapLibre GL JS
-    if (window.mapa.getLayer('pines-comercios-layer')) {
-        window.mapa.setFilter('pines-comercios-layer', [
-            'in',
-            ['get', 'id_comercio'],
-            ['literal', idsComercios]
-        ]);
-    } else if (window.mapa.getLayer('capa-comercios-pines')) {
-        window.mapa.setFilter('capa-comercios-pines', [
-            'in',
-            ['get', 'id_comercio'],
-            ['literal', idsComercios]
-        ]);
-    }
+    window._filtroEanIdsActivo = idsComercios.map(id => String(id));
 
-    // Actualizar input del buscador principal con el resultado
     const inputBuscador = document.getElementById('input-buscador');
     if (inputBuscador) {
         inputBuscador.value = `Stock: ${barcode} (${idsComercios.length} tiendas)`;
     }
 
+    if (typeof window.barridoRadar === 'function') {
+        window.barridoRadar('', { conservarRotacion: true });
+    }
     if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
 });
 
-
-
-
-
-
-
-
+        
