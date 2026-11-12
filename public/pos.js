@@ -1213,12 +1213,13 @@ window.seleccionarModoTarjeta = async function(modo) {
                 const lblNfc = document.getElementById('lbl-estado-nfc');
                 if (lblNfc) lblNfc.innerText = 'Sensor NFC Activo: Acerca la tarjeta...';
                 
-                ndef.onreading = function() {
-                    if (navigator.vibrate) navigator.vibrate([40, 60, 100]);
-                    GeokatuDB.PosService.anunciarPagoCornetaVoz(montoPendienteDatafonoTemporal, 'Contacto NFC');
-                    document.getElementById('modal-datafono').style.display = 'none';
-                    aplicarAbonoConfirmado('TARJETA', montoPendienteDatafonoTemporal, 'NFC_CONTACTO_APROBADO');
-                    montoPendienteDatafonoTemporal = 0;
+                                ndef.onreading = function() {
+                    const estado = document.getElementById('lbl-estado-nfc');
+
+                    if (estado) {
+                        estado.innerText =
+                            'Etiqueta detectada. Confirma el cobro en la pasarela antes de registrar el pago.';
+                    }
                 };
             } catch (eNfc) {
                 const subNfc = document.getElementById('sub-estado-nfc');
@@ -2964,17 +2965,53 @@ document.getElementById('btn-establecer-nueva-pass')?.addEventListener('click', 
     if (p1 !== p2) return alert("Las contraseñas no coinciden.");
 
     try {
-        const { getAuth, updatePassword } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js');
-        const { getFirestore, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
-        
+                const { getAuth, updatePassword } = await import(
+            'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js'
+        );
+
+        const { getFirestore, doc, getDoc, updateDoc } = await import(
+            'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'
+        );
+
         const auth = getAuth();
-        await updatePassword(auth.currentUser, p1);
+
+        if (!auth.currentUser) {
+            throw new Error('La sesión caducó. Inicia sesión nuevamente.');
+        }
 
         const db = getFirestore();
+
+        let referenciaOperario = doc(
+            db,
+            'Directorio',
+            idNegocio,
+            'Equipo',
+            auth.currentUser.uid
+        );
+
+        let documentoOperario = await getDoc(referenciaOperario);
+
+        if (!documentoOperario.exists()) {
+            referenciaOperario = doc(
+                db,
+                'Directorio',
+                idNegocio,
+                'Colaboradores',
+                auth.currentUser.uid
+            );
+
+            documentoOperario = await getDoc(referenciaOperario);
+        }
+
+        if (!documentoOperario.exists()) {
+            throw new Error('No se encontró tu perfil de operario.');
+        }
+
+        await updatePassword(auth.currentUser, p1);
+
         const fechaActualIso = new Date().toISOString();
 
-        // Actualizar subcolección del comercio y limpiar la expiración provisional
-        await updateDoc(doc(db, `Directorio/${idNegocio}/Equipo`, auth.currentUser.uid), {
+        await updateDoc(referenciaOperario, {
             requiere_cambio_password: false,
             expiracion_clave_temporal: null,
             fecha_ultimo_cambio_password: fechaActualIso

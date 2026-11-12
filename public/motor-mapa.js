@@ -669,58 +669,6 @@ function viewportCubiertoPorCeldas(bounds, categoria) {
     return true;
 }
 
-window.dibujarCirculoPrecisionGPS = function(lat, lng, accuracyM = 30) {
-    if (!mapa || !window.esCoordenadaValida(lat, lng)) return;
-    const radioM = Math.max(15, Math.min(2500, Number(accuracyM) || 30));
-    const pasos = 48;
-    const coords = [];
-    const latRad = (lat * Math.PI) / 180;
-    for (let i = 0; i <= pasos; i++) {
-        const ang = (i / pasos) * 2 * Math.PI;
-        const dLat = (radioM * Math.cos(ang)) / 110574;
-        const dLng = (radioM * Math.sin(ang)) / (111320 * Math.max(0.1, Math.cos(latRad)));
-        coords.push([lng + dLng, lat + dLat]);
-    }
-    const geojson = {
-        type: 'FeatureCollection',
-        features: [{
-            type: 'Feature',
-            properties: { accuracy: radioM },
-            geometry: { type: 'Polygon', coordinates: [coords] }
-        }]
-    };
-    const aplicarCapa = () => {
-        try {
-            if (mapa.getSource('gps-precision-source')) {
-                mapa.getSource('gps-precision-source').setData(geojson);
-            } else {
-                mapa.addSource('gps-precision-source', { type: 'geojson', data: geojson });
-                mapa.addLayer({
-                    id: 'gps-precision-fill',
-                    type: 'fill',
-                    source: 'gps-precision-source',
-                    paint: {
-                        'fill-color': radioM > 250 ? '#ffaa00' : '#ff6b00',
-                        'fill-opacity': 0.12
-                    }
-                });
-                mapa.addLayer({
-                    id: 'gps-precision-stroke',
-                    type: 'line',
-                    source: 'gps-precision-source',
-                    paint: {
-                        'line-color': radioM > 250 ? '#ffaa00' : '#ff6b00',
-                        'line-width': 1.5,
-                        'line-dasharray': [2, 2]
-                    }
-                });
-            }
-        } catch (eGpsLayer) {}
-    };
-    if (mapa.isStyleLoaded()) aplicarCapa();
-    else mapa.once('load', aplicarCapa);
-};
-
 // Escalado continuo e histéresis de 0.2 niveles (Sección 8 Libro Técnico)
 window.actualizarEscalaContinuaZoom = function() {
     if (!mapa) return;
@@ -1061,8 +1009,16 @@ window.usarUbicacionPorDefectoPereira = function() {
 };
 
 window.solicitarGPSInicial = function() {
-    // 1. Consultar de inmediato la zona actual (Pereira o última cámara) sin esperar permiso GPS
-    window.descargarNegociosDeFirebase();
+    const pantallaCarga = document.getElementById('pantalla-carga');
+    if (pantallaCarga) {
+        pantallaCarga.style.opacity = '0';
+        setTimeout(() => { pantallaCarga.style.display = 'none'; }, 280);
+    }
+    
+    // Descarga inicial de la zona actual sin esperas
+    if (typeof window.descargarNegociosDeFirebase === 'function') {
+        window.descargarNegociosDeFirebase();
+    }
 
     const guardada = localStorage.getItem('geokatu_ciudad_manual');
     if (guardada && !sessionStorage.getItem('geokatu_last_cam')) {
@@ -1075,33 +1031,15 @@ window.solicitarGPSInicial = function() {
         } catch (e) {}
     }
 
-    // 2. Solicitar GPS en paralelo; si el usuario ya movió el mapa manualmente, no arrastrarlo
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                const lat = pos.coords.latitude;
-                const lng = pos.coords.longitude;
-                const acc = pos.coords.accuracy || 40;
-                if (!window.esCoordenadaValida(lat, lng)) return;
-
-                window.dibujarCirculoPrecisionGPS(lat, lng, acc);
-
-                if (!EstadoMapa.vista.interaccionUsuario) {
-                    const zoomGps = acc > 300 ? 14.2 : 15.2;
-                    window.volarCamaraHonesta(lng, lat, zoomGps, 950);
-                    window.descargarNegociosDeFirebase({ centroExplicito: [lat, lng] });
-                }
-            },
-            () => {
-                // Si se rechaza el GPS, se conserva la vista inicial en Pereira y la búsqueda manual
-                if (dbDirectorioMap.size === 0) {
-                    window.descargarNegociosDeFirebase({ centroExplicito: [4.8133, -75.6961], forzar: true });
-                }
-            },
-            { enableHighAccuracy: false, timeout: 4500, maximumAge: 300000 }
-        );
+    // Activa directamente el punto y halo palpitante nativo de MapLibre
+    if (window.geolocateControl) {
+        window.geolocateControl.trigger();
+    } else {
+        const btnNativo = document.querySelector('.maplibregl-ctrl-geolocate');
+        if (btnNativo) btnNativo.click();
     }
 };
+
 
 window.iniciarTour = function() {
     localStorage.setItem('geokatu_tour_v1', 'true');
@@ -1129,27 +1067,14 @@ window.centrarMapaHardware = function(esArranque = false) {
     if (navigator.vibrate) navigator.vibrate(30);
     EstadoMapa.vista.interaccionUsuario = false;
 
-    const btnNativo = document.querySelector('.maplibregl-ctrl-geolocate');
-    if (btnNativo) {
-        btnNativo.click();
-    } else if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition((pos) => {
-            const lat = pos.coords.latitude;
-            const lng = pos.coords.longitude;
-            const acc = pos.coords.accuracy || 25;
-            window.dibujarCirculoPrecisionGPS(lat, lng, acc);
-            window.volarCamaraHonesta(lng, lat, acc > 300 ? 14.5 : 16, 950);
-
-            if (typeof window.validarGeocercaOperativa === 'function' && !window.validarGeocercaOperativa(lat, lng)) {
-                window.mostrarCartelFueraDeZona();
-            }
-            window.descargarNegociosDeFirebase({ centroExplicito: [lat, lng], forzar: true });
-        }, (err) => {
-            console.warn("[GPS] Permiso no concedido o error:", err.message);
-            if (esArranque) window.descargarNegociosDeFirebase();
-        }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 });
+    if (window.geolocateControl) {
+        window.geolocateControl.trigger();
+    } else {
+        const btnNativo = document.querySelector('.maplibregl-ctrl-geolocate');
+        if (btnNativo) btnNativo.click();
     }
 };
+
 
 window.dibujarPinesDesdeJSONCache = function(boundsActuales) {
     if (!window.DICCIONARIO_UNIVERSAL || window.DICCIONARIO_UNIVERSAL.length === 0) return;
@@ -1393,19 +1318,23 @@ window.construirMapa = function() {
         showUserHeading: true,         
         fitBoundsOptions: { maxZoom: 16 } 
     });
+    window.geolocateControl = geolocateControl;
+
     geolocateControl.on('geolocate', (e) => {
         if (e && e.coords) {
             const lat = e.coords.latitude;
             const lng = e.coords.longitude;
-            const acc = e.coords.accuracy || 25;
-            window.dibujarCirculoPrecisionGPS(lat, lng, acc);
             if (!window.validarGeocercaOperativa(lat, lng)) {
                 window.mostrarCartelFueraDeZona();
             }
-            window.descargarNegociosDeFirebase({ centroExplicito: [lat, lng] });
+        }
+        if (window.descargarNegociosDeFirebase) {
+            window.descargarNegociosDeFirebase();
         }
     });
     mapa.addControl(geolocateControl, 'bottom-right');
+
+
     const ctrlGps = document.querySelector('.maplibregl-ctrl-bottom-right');
     if (ctrlGps && ctrlGps.parentElement !== document.body) {
         document.body.appendChild(ctrlGps);
@@ -2911,41 +2840,31 @@ window.toggleRadarInmersivo = function(btnElement) {
     }
 };
 
-window.cambiarMapa = function(tipo, el) {
-    // CORRECCIÓN DEL BUG: No llamamos a window.mapa.setStyle('./estilo-fresco.json') 
-    // porque ya está cargado en memoria local y reiniciarlo borraba el filtro CSS del canvas.
+
+    window.cambiarMapa = function(tipo, el) {
     const panel = document.querySelector('.maplibregl-canvas');
     if (!panel) return;
-    
+
     if (tipo === 'satelite') {
-        // Tu Satelital original intacto
+        // Fondo negro
         panel.style.filter = "invert(95%) hue-rotate(180deg) brightness(125%) contrast(80%)";
-    } else if (tipo === 'rayosx') {
-        // Tu Rayos X rojizo original IDÉNTICO
-        panel.style.filter = "invert(100%) sepia(100%) hue-rotate(355deg) saturate(1500%) contrast(1.3) brightness(1.1)";
-    } else if (tipo === 'ambar') {
-        // Variación 1 sobre la base de tu Rayos X (virado a Naranja/Oro Geokatu)
-        panel.style.filter = "invert(100%) sepia(100%) hue-rotate(18deg) saturate(1100%) contrast(1.28) brightness(1.05)";
-    } else if (tipo === 'cobalto') {
-        // Variación 2 sobre la base de tu Rayos X (virado a Cian/Azul profundo)
-        panel.style.filter = "invert(100%) sepia(100%) hue-rotate(165deg) saturate(950%) contrast(1.25) brightness(1.05)";
-    } else {
-        // Tu Bajo Gwai ('lite') original sin filtro
-        panel.style.filter = "none";
-    }
-    
-    if (['satelite'].includes(tipo)) {
-        document.body.classList.add('ui-light');
-    } else {
         document.body.classList.remove('ui-light');
+    } else if (tipo === 'rayosx') {
+        // Rojizo original
+        panel.style.filter = "invert(100%) sepia(100%) hue-rotate(355deg) saturate(1500%) contrast(1.3) brightness(1.1)";
+        document.body.classList.remove('ui-light');
+    } else {
+        // 'lite' (Bajo Gwai): claro original con el que arranca el mapa
+        panel.style.filter = "none";
+        document.body.classList.add('ui-light');
     }
-    
+
     document.querySelectorAll('.map-tag:not(#btn-giro-toggle)').forEach(t => t.classList.remove('active'));
     if (el) el.classList.add('active');
-    
+
     const btnGiro = document.getElementById('btn-giro-toggle');
     if (btnGiro) {
-        if (['rayosx', 'ambar', 'cobalto'].includes(tipo)) {
+        if (tipo === 'rayosx') {
             btnGiro.style.display = 'block';
         } else {
             btnGiro.style.display = 'none';
@@ -3204,4 +3123,5 @@ window.addEventListener('ejecutar-filtro-mapa-producto', (e) => {
     if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
 });
 
-        
+       
+

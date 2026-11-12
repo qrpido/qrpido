@@ -9,6 +9,123 @@
     <script src="html5-qrcode.min.js" type="text/javascript"></script>
     <script src="qrcode.min.js"></script>
     <script type="text/javascript" src="https://checkout.wompi.co/widget.js"></script>
+
+<style>
+    #btn-expandir-ticket {
+        display: none;
+        align-self: flex-end;
+        margin: 4px 10px;
+        padding: 8px 12px;
+        border: 1px solid var(--border-soft, #444);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.06);
+        color: inherit;
+        cursor: pointer;
+    }
+
+    #btn-expandir-ticket.visible {
+        display: inline-block;
+    }
+
+    #current-sale.ticket-expandido {
+        position: fixed;
+        inset: 60px 12px 76px;
+        z-index: 9000;
+        background: #15151c;
+        border: 1px solid var(--border-soft, #444);
+        border-radius: 12px;
+        padding: 14px;
+        overflow-y: auto;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    body:has(#current-sale.ticket-expandido) #btn-expandir-ticket {
+        display: block;
+        position: fixed;
+        right: 12px;
+        bottom: 20px;
+        z-index: 9001;
+        background: #242430;
+    }
+
+    #modal-configuracion-pos {
+        z-index: 100060;
+    }
+
+    #modal-configuracion-pos .modal-datafono-card,
+    #modal-datafono .modal-datafono-card {
+        width: min(440px, 94vw);
+        max-height: 88vh;
+        overflow-y: auto;
+        box-sizing: border-box;
+        text-align: left;
+    }
+
+    .pos-controles-fila {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 14px;
+    }
+
+    .pos-controles-fila button {
+        flex: 1 1 100px;
+        min-height: 44px;
+        padding: 10px;
+        border: 1px solid var(--border-soft, #444);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.06);
+        color: inherit;
+        cursor: pointer;
+    }
+
+    #modal-configuracion-pos .tab-config-btn.activa {
+        border-color: var(--color-marca, #ff6b00);
+        background: rgba(255, 107, 0, 0.15);
+    }
+
+    #modal-configuracion-pos label,
+    #modal-datafono label {
+        display: block;
+        margin: 14px 0 6px;
+        font-size: 13px;
+    }
+
+    #modal-configuracion-pos input:not([type="checkbox"]),
+    #modal-configuracion-pos select,
+    #voucher-datafono {
+        width: 100%;
+        min-height: 44px;
+        box-sizing: border-box;
+        padding: 10px;
+        border: 1px solid var(--border-soft, #444);
+        border-radius: 8px;
+        background: #202028;
+        color: #fff;
+        font: inherit;
+    }
+
+    #modal-configuracion-pos .pos-config-switch {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 44px;
+    }
+
+    #contenedor-qr-pasarela {
+        width: fit-content;
+        margin: 12px auto;
+        padding: 12px;
+        background: #fff;
+    }
+
+    @media print {
+        #btn-expandir-ticket,
+        #modal-configuracion-pos {
+            display: none !important;
+        }
+    }
+</style>
 </head>
 <body class="pos-cargando">
 
@@ -36,7 +153,12 @@
                     </button>
 
                     <div id="dropdown-menu-pos" class="dropdown-pos-flotante">
-                        <button type="button" onclick="window.descargarRespaldoOfflineTxt()" class="item-dropdown-pos">
+                       <button type="button"
+        class="item-dropdown-pos"
+        onclick="window.cerrarMenuOpcionesPOS(); window.abrirModalConfiguracionPOS();">
+    Configuración del POS
+                       </button>
+                      <button type="button" onclick="window.descargarRespaldoOfflineTxt()" class="item-dropdown-pos">
                             <svg class="icono-pos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg>
                             Descargar Respaldo (.txt)
                         </button>
@@ -161,6 +283,11 @@
                     </button>
                 </div>
             </div>
+          <button type="button"
+        id="btn-expandir-ticket"
+        onclick="window.alternarExpansionTicket()">
+    Expandir
+          </button>
 
             <!-- Contenedor táctil scrolleable del carrito -->
             <div id="current-sale">
@@ -241,26 +368,68 @@
         </section>
 
             </main>
+<div id="modal-datafono" class="modal-datafono-overlay">
+    <div class="modal-datafono-card">
+        <h3>Cobro con tarjeta</h3>
 
-    <!-- MODAL DE ESPERA / CONFIRMACIÓN DE DATÁFONO -->
-    <div id="modal-datafono" class="modal-datafono-overlay">
-        <div class="modal-datafono-card">
-            <svg class="icono-pos" style="font-size: 48px; color: #60a5fa; margin-bottom: 10px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 5h18v14H3zM3 10h18M6 15h4"/></svg>
-            <h3 style="margin: 0 0 6px 0; font-size: 18px;">Cobro con Datáfono</h3>
-            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 15px;">Pasa la tarjeta por el datáfono físico por el valor de:</p>
-            
-            <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(96,165,250,0.3); border-radius: 10px; padding: 12px; margin-bottom: 15px;">
-                <span style="font-size: 26px; font-weight: 900; color: #60a5fa; font-family: monospace;" id="monto-datafono">$0</span>
-            </div>
+        <div id="monto-datafono"
+             style="font-size: 26px; font-weight: 900; margin: 16px 0;">
+            $0
+        </div>
 
-            <input type="text" id="voucher-datafono" placeholder="N° Aprobación / Voucher (Opcional)" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.05); border: 1px solid var(--border-soft); border-radius: 8px; padding: 10px; color: white; text-align: center; font-family: monospace; font-size: 13px; margin-bottom: 15px; outline: none;">
+        <div class="pos-controles-fila">
+            <button type="button"
+                    id="btn-modo-manual"
+                    onclick="window.seleccionarModoTarjeta('MANUAL')">
+                Manual
+            </button>
 
-            <div style="display: flex; gap: 10px;">
-                <button id="btn-cancelar-datafono" style="flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #aaa; font-weight: bold; cursor: pointer;">CANCELAR</button>
-                <button id="btn-confirmar-datafono" style="flex: 1; padding: 12px; border-radius: 8px; border: none; background: #2563eb; color: white; font-weight: bold; cursor: pointer;">APROBADO ✔️</button>
-            </div>
+            <button type="button"
+                    id="btn-modo-nfc"
+                    onclick="window.seleccionarModoTarjeta('NFC')">
+                NFC
+            </button>
+
+            <button type="button"
+                    id="btn-modo-qr"
+                    onclick="window.seleccionarModoTarjeta('QR')">
+                QR
+            </button>
+        </div>
+
+        <div id="panel-tarjeta-manual">
+            <p>Realiza el cobro en el datáfono y comprueba su aprobación.</p>
+        </div>
+
+        <div id="panel-tarjeta-nfc" style="display: none;">
+            <p id="lbl-estado-nfc">Esperando activación del sensor.</p>
+            <p id="sub-estado-nfc">
+                Confirma el cobro en la pasarela antes de registrarlo.
+            </p>
+        </div>
+
+        <div id="panel-tarjeta-qr" style="display: none;">
+            <p>Escanea el código para realizar el pago.</p>
+            <div id="contenedor-qr-pasarela"></div>
+        </div>
+
+        <label for="voucher-datafono">Número de aprobación o voucher</label>
+        <input type="text"
+               id="voucher-datafono"
+               placeholder="Opcional"
+               autocomplete="off">
+
+        <div class="pos-controles-fila" style="margin-top: 16px;">
+            <button type="button" id="btn-cancelar-datafono">
+                Cancelar
+            </button>
+
+            <button type="button" id="btn-confirmar-datafono">
+                Confirmar cobro aprobado
+            </button>
         </div>
     </div>
+</div>
 
     <!-- PLANTILLAS DE TIRILLAS TÉRMICAS (WINDOW.PRINT) -->
     <section id="ticket-impresion">
@@ -893,7 +1062,7 @@
             <label style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 4px;">Enviar a WhatsApp del Cliente</label>
             <div style="display: flex; gap: 6px;">
                 <input type="tel" id="input-whatsapp-cliente" placeholder="3001234567" style="flex: 1; background: rgba(255,255,255,0.06); border: 1px solid var(--border-soft); border-radius: 8px; padding: 8px; color: #fff; font-size: 13px; font-family: monospace; outline: none;">
-                <button type="button" onclick="window.enviarFacturaWhatsApp()" style="background: #25D366; color: #000; border: none; border-radius: 8px; padding: 8px 12px; font-weight: 900; font-size: 11px; cursor: pointer; text-transform: uppercase;">Enviar</button>
+                <button type="button" id="btn-enviar-wa-modal" onclick="window.enviarFacturaWhatsApp()" style="background: #25D366; color: #000; border: none; border-radius: 8px; padding: 8px 12px; font-weight: 900; font-size: 11px; cursor: pointer; text-transform: uppercase;">Enviar</button>
             </div>
         </div>
         <p style="font-size: 10px; color: #ffaa00; margin: 0 0 10px 0;">Enlace seguro con validez de 24 horas.</p>
@@ -948,6 +1117,92 @@ window.mostrarAvisoPos = function(mensaje) {
     }, 3000);
 };
 </script>
+  <div id="modal-configuracion-pos"
+     class="modal-datafono-overlay"
+     style="display: none;"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="titulo-configuracion-pos">
+
+    <div class="modal-datafono-card">
+        <h3 id="titulo-configuracion-pos">Configuración del POS</h3>
+
+        <div class="pos-controles-fila">
+            <button type="button"
+                    class="tab-config-btn activa"
+                    data-cfg-tab="cfg-funciones"
+                    onclick="window.cambiarPestanaConfig('cfg-funciones', this)">
+                Automatizaciones
+            </button>
+
+            <button type="button"
+                    class="tab-config-btn"
+                    data-cfg-tab="cfg-ultra"
+                    onclick="window.cambiarPestanaConfig('cfg-ultra', this)">
+                Plan Ultra
+            </button>
+        </div>
+
+        <div id="cfg-funciones" class="cfg-tab-panel">
+            <label for="cfg-input-apps-script">
+                URL de Google Apps Script
+            </label>
+            <input type="url"
+                   id="cfg-input-apps-script"
+                   placeholder="https://script.google.com/..."
+                   autocomplete="off">
+
+            <label class="pos-config-switch">
+                <input type="checkbox"
+                       id="cfg-switch-whatsapp"
+                       onchange="document.getElementById('cfg-box-numero-wa').style.display = this.checked ? 'block' : 'none';">
+                Activar envío de comprobantes por WhatsApp
+            </label>
+
+            <div id="cfg-box-numero-wa" style="display: none;">
+                <label for="cfg-input-wa-emisor">
+                    WhatsApp del comercio, con código de país
+                </label>
+                <input type="tel"
+                       id="cfg-input-wa-emisor"
+                       inputmode="tel"
+                       placeholder="573001234567"
+                       autocomplete="tel">
+            </div>
+        </div>
+
+        <div id="cfg-ultra"
+             class="cfg-tab-panel"
+             style="display: none;">
+
+            <label for="cfg-select-pasarela">Pasarela de cobro</label>
+            <select id="cfg-select-pasarela">
+                <option value="MANUAL">Confirmación manual</option>
+                <option value="WOMPI">Wompi</option>
+            </select>
+
+            <label for="cfg-input-api-key">Clave pública de la pasarela</label>
+            <input type="text"
+                   id="cfg-input-api-key"
+                   placeholder="Clave pública"
+                   autocomplete="off"
+                   autocapitalize="none"
+                   spellcheck="false">
+        </div>
+
+        <div class="pos-controles-fila" style="margin-top: 20px;">
+            <button type="button"
+                    onclick="document.getElementById('modal-configuracion-pos').style.display = 'none';">
+                Cerrar
+            </button>
+
+            <button type="button"
+                    onclick="window.guardarConfiguracionDesdeModal()">
+                Guardar configuración
+            </button>
+        </div>
+    </div>
+  </div>
 <script type="module" src="./pos.js"></script> 
 </body>
 </html>
