@@ -331,9 +331,9 @@
         var pasarelaElegida = 'BOLD';
         var evidenciaSubidaUrl = '';
 
-        function obtenerUrlWebhook(proveedor) {
-            var projId = (db && db.app && db.app.options && db.app.options.projectId) ? db.app.options.projectId : 'geo-katu';
-            return 'https://us-central1-' + projId + '.cloudfunctions.net/webhookPasarelasPOS?comercio=' + encodeURIComponent(idNegocio || 'TU_ID') + '&proveedor=' + encodeURIComponent(proveedor);
+                function obtenerUrlWebhook(proveedor) {
+            var origen = window.location.origin || 'https://geokatu.com';
+            return origen + '/api/webhook-pasarelas?comercio=' + encodeURIComponent(idNegocio || 'TU_ID') + '&proveedor=' + encodeURIComponent(proveedor);
         }
 
         window.seleccionarProveedorUI = function(prov) {
@@ -387,24 +387,35 @@
             el.type = (el.type === 'password') ? 'text' : 'password';
         };
 
-        window.procesarEvidenciaPasarela = async function(ev) {
+                window.procesarEvidenciaPasarela = async function(ev) {
             var file = ev.target.files && ev.target.files[0];
             if (!file || !idNegocio) return;
             var lbl = document.getElementById('lbl-evidencia-estado');
             var img = document.getElementById('img-preview-evidencia');
+            var tiposPermitidos = ['image/jpeg', 'image/png', 'image/webp'];
+            if (tiposPermitidos.indexOf(file.type) === -1) {
+                alert('Formato no permitido. Usa una imagen JPG, PNG o WebP.');
+                ev.target.value = '';
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                alert('El archivo supera el limite de 5 MB.');
+                ev.target.value = '';
+                return;
+            }
             try {
-                if (lbl) lbl.innerText = 'Comprimiendo y subiendo evidencia...';
+                if (lbl) lbl.innerText = 'Cifrando y resguardando evidencia privada...';
                 var blob = await GeokatuDB.AdminService.comprimirAWebP(file, 1000, 0.8, false, false);
-                var ruta = 'tiendas/' + idNegocio + '/evidencia_pasarela_' + Date.now() + '.webp';
-                var resSubida = await GeokatuDB.AdminService.subirArchivo(ruta, blob, 'image/webp');
-                evidenciaSubidaUrl = resSubida.url || String(resSubida);
+                var rutaPrivada = 'boveda_pasarelas_evidencia/' + idNegocio + '/evidencia_' + Date.now() + '.webp';
+                await GeokatuDB.AdminService.subirArchivo(rutaPrivada, blob, 'image/webp');
+                evidenciaSubidaUrl = rutaPrivada;
                 if (img) {
-                    img.src = evidenciaSubidaUrl;
+                    img.src = URL.createObjectURL(blob);
                     img.style.display = 'block';
                 }
-                if (lbl) lbl.innerText = 'Evidencia cargada correctamente';
+                if (lbl) lbl.innerText = 'Evidencia privada resguardada (' + rutaPrivada.split('/').pop() + ')';
             } catch (eUp) {
-                if (lbl) lbl.innerText = 'No se pudo subir la imagen (' + eUp.message + ')';
+                if (lbl) lbl.innerText = 'No se pudo resguardar la evidencia (' + eUp.message + ')';
             }
         };
 
@@ -448,21 +459,24 @@
                     evidenciaUrl: evidenciaSubidaUrl
                 });
 
+                                document.getElementById('input-secret-key').value = '';
+                document.getElementById('input-events-secret').value = '';
                 var data = (resp && resp.data) ? resp.data : {};
                 if (data.success) {
                     await GeokatuDB.PosService.obtenerConfiguracionTerminalPOS(idNegocio);
+                    var esProd = (data.ambiente === 'PRODUCCION');
                     var badge = document.getElementById('badge-verificacion-top');
                     if (badge) {
-                        badge.style.background = 'rgba(0,230,118,0.18)';
-                        badge.style.color = '#00e676';
-                        badge.innerText = pasarelaElegida + ' VERIFICADO (' + (data.mascara || 'OK') + ')';
+                        badge.style.background = esProd ? 'rgba(0,230,118,0.18)' : 'rgba(56,189,248,0.18)';
+                        badge.style.color = esProd ? '#00e676' : '#38bdf8';
+                        badge.innerText = pasarelaElegida + ' • ' + (data.ambiente || 'ACTIVO') + ' (' + (data.mascara || 'OK') + ')';
                     }
                     if (boxRes) {
                         boxRes.style.display = 'block';
-                        boxRes.style.background = 'rgba(0,230,118,0.12)';
-                        boxRes.style.border = '1px solid #00e676';
-                        boxRes.style.color = '#00e676';
-                        boxRes.innerText = 'Bóveda sellada: ' + (data.mensaje || 'Pasarela lista para cobrar en el POS.');
+                        boxRes.style.background = esProd ? 'rgba(0,230,118,0.12)' : 'rgba(56,189,248,0.12)';
+                        boxRes.style.border = esProd ? '1px solid #00e676' : '1px solid #38bdf8';
+                        boxRes.style.color = esProd ? '#00e676' : '#38bdf8';
+                        boxRes.innerText = 'CONECTADO (' + (data.ambiente || 'OK') + '): ' + (data.mensaje || 'Pasarela verificada.');
                     }
                     GeokatuDB.PosService.anunciarPagoCornetaVoz(0, pasarelaElegida);
                 }
