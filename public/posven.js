@@ -118,6 +118,8 @@ GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
 });
 
 async function inicializarCajaVen() {
+    document.body.classList.remove('pos-cargando');
+    inicializarModulosHomologadosVen_();
     actualizarIndicadorCola();
     cargarTicketsEnEsperaStorage();
     await verificarEstadoTurnoCaja();
@@ -624,14 +626,9 @@ function renderizarCarrito() {
     document.getElementById('txt-total-cop').innerText = `$${convertirUSDaCOP(tot.totalPagarUSD).toLocaleString('es-CO')} COP`;
     document.getElementById('txt-total').innerText = `$${tot.totalPagarUSD.toFixed(2)}`;
 
+        actualizarBotonExpandirTicket_();
     actualizarVisorRemanente();
 }
-
-// Abrir modal de catálogo en lista vertical
-document.getElementById('btn-abrir-catalogo-modal')?.addEventListener('click', () => {
-    const modalCat = document.getElementById('modal-catalogo-popup');
-    if (modalCat) modalCat.style.display = 'flex';
-});
 
 // Abrir modal de catálogo en lista vertical
 document.getElementById('btn-abrir-catalogo-modal')?.addEventListener('click', () => {
@@ -644,12 +641,14 @@ function renderizarGridCatalogo() {
     if (!grid) return;
     grid.innerHTML = '';
 
-    if (catalogoLocal.length === 0) {
+        if (catalogoLocal.length === 0) {
         grid.innerHTML = '<p style="text-align: center; color: #666; padding: 20px 0; font-size: 12px;">No hay productos registrados en el inventario.</p>';
         return;
     }
 
-  catalogoLocal.slice(0, 150).forEach(prod => {
+    const planActualCat = (localStorage.getItem('geokatu_plan_activo_' + idNegocio) || 'FREEMIUM').toUpperCase();
+    const limiteCat = planActualCat === 'FREEMIUM' ? 150 : catalogoLocal.length;
+    catalogoLocal.slice(0, limiteCat).forEach(prod => {
         const item = document.createElement('div');
         item.className = 'product-row-item';
         item.innerHTML = `
@@ -811,6 +810,8 @@ document.querySelectorAll('.btn-pay').forEach(btn => {
 
 function procesarIntentoPago(metodo) {
     if (carrito.length === 0) return alert("El carrito está vacío.");
+    const turnoAbiertoHoy = Boolean(turnoCajaActivo && turnoCajaActivo.estado === 'ABIERTA');
+    if (!verificarCupoFacturacionPOS_(idNegocio, turnoAbiertoHoy)) return;
 
     const { totalPagarUSD } = calcularTotalesCarrito();
     const pagadoUSD = calcularTotalPagadoHastaAhoraUSD();
@@ -1139,10 +1140,13 @@ async function ejecutarVentaFinalDefinitivaVenInterna() {
         if (kpiUSD) kpiUSD.innerText = `$${acumuladoTurnoVen.total_usd_consolidado.toFixed(2)}`;
         if (kpiVES) kpiVES.innerText = `(Bs. ${convertirUSDaVES(acumuladoTurnoVen.total_usd_consolidado).toFixed(0)})`;
 
-        armarTirillaTermicaVen(ticketPayload, ultimoTicketIdVendido);
+                armarTirillaTermicaVen(ticketPayload, ultimoTicketIdVendido);
+        descontarStockCascadaWMS_(idNegocio, carrito);
+        registrarConsumoCuotaFactura_(idNegocio);
 
         // Limpiar estado para el siguiente cliente
         carrito = [];
+        actualizarBotonExpandirTicket_();
         pagosAcumuladosTicket = [];
         catalogoLocal = GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio);
         renderizarCarrito();
@@ -1222,6 +1226,7 @@ function armarTirillaTermicaVen(ticket, ticketId) {
 function generarCode128SVG(texto, svgId) {
     const svg = document.getElementById(svgId);
     if (!svg || !texto) return;
+    return generarCode128BCompletoSVG_(svg, texto);
 
     const patrones = [
         "212222","222122","222221","121223","121322","131222","122213","122312","132212","221213",
@@ -2095,13 +2100,278 @@ document.getElementById('btn-establecer-nueva-pass')?.addEventListener('click', 
             });
         } catch (eDocGlobal) {}
 
-        alert("Contraseña personalizada actualizada correctamente. ¡Bienvenido!");
+                alert("Contraseña personalizada actualizada correctamente. ¡Bienvenido!");
         document.getElementById('modal-cambio-password-obligatorio').style.display = 'none';
         await inicializarCajaVen();
     } catch (err) {
         alert("Error actualizando contraseña: " + err.message);
     }
 });
+
+// =========================================================================
+// 14. MODULOS HOMOLOGADOS (AUTHGATE, BILLINGGUARD, WMS, CODE-128B Y CONFIG)
+// =========================================================================
+setTimeout(function() {
+    document.body.classList.remove('pos-cargando');
+}, 3200);
+
+let timerInactividadVen = null;
+
+function inicializarModulosHomologadosVen_() {
+    import('./geokatu-tour.js').catch(function() {});
+    import('./auth-gate.js').then(function(mod) {
+        if (mod && mod.AuthGate) window.AuthGate = mod.AuthGate;
+    }).catch(function() {});
+    import('./billing-guard.js').then(function(mod) {
+        if (mod && mod.BillingGuard) {
+            window.BillingGuard = mod.BillingGuard;
+            if (typeof mod.BillingGuard.pintarSemaforoPOS === 'function') {
+                mod.BillingGuard.pintarSemaforoPOS(idNegocio, 'pos-alerta-facturas');
+            }
+        }
+    }).catch(function() {});
+
+    if (!window.AuthGate) {
+        window.AuthGate = {
+            bloquearTerminalPorInactividad: function() {
+                const pinEsperado = localStorage.getItem('geokatu_cajero_pin') || cajeroCodigoActivo || '0000';
+                const intento = prompt('🔒 Terminal bloqueada. Ingresa tu PIN de cajero (4 dígitos) para continuar:', '');
+                if (intento === null || intento.trim() !== String(pinEsperado)) {
+                    alert('PIN incorrecto. Debes ingresar el PIN del cajero activo.');
+                    return window.AuthGate.bloquearTerminalPorInactividad();
+                }
+            }
+        };
+    }
+
+    const reiniciarTimerInactividad = function() {
+        if (timerInactividadVen) clearTimeout(timerInactividadVen);
+        timerInactividadVen = setTimeout(function() {
+            if (window.AuthGate && typeof window.AuthGate.bloquearTerminalPorInactividad === 'function') {
+                window.AuthGate.bloquearTerminalPorInactividad();
+            }
+        }, 10 * 60 * 1000);
+    };
+    ['click', 'keydown', 'touchstart'].forEach(function(ev) {
+        document.addEventListener(ev, reiniciarTimerInactividad, { passive: true });
+    });
+    reiniciarTimerInactividad();
+
+    actualizarSemaforoFacturasVen_(idNegocio);
+    actualizarEstadoVisualBotonWhatsApp();
+
+    if (navigator.onLine && idNegocio && GeokatuDB.PosService && typeof GeokatuDB.PosService.sincronizarUbicacionesLocal === 'function') {
+        GeokatuDB.PosService.sincronizarUbicacionesLocal(idNegocio).catch(function() {});
+    }
+}
+
+function actualizarSemaforoFacturasVen_(idTenant) {
+    const el = document.getElementById('pos-alerta-facturas');
+    if (!el || !idTenant) return;
+    const usadas = parseInt(localStorage.getItem('geokatu_facturas_emitidas_' + idTenant) || '0', 10);
+    const tope = parseInt(localStorage.getItem('geokatu_cupo_facturas_' + idTenant) || '1300', 10);
+    const restantes = Math.max(0, tope - usadas);
+    if (usadas >= tope) {
+        el.innerText = 'CUPO AGOTADO (' + usadas + '/' + tope + ')';
+        el.style.color = 'var(--accent-red)';
+    } else if (usadas >= 1250) {
+        el.innerText = 'QUEDAN ' + restantes + ' FACT.';
+        el.style.color = 'var(--accent-red)';
+    } else if (usadas >= 1000) {
+        el.innerText = 'QUEDAN ' + restantes + ' FACT.';
+        el.style.color = '#f59e0b';
+    } else {
+        el.innerText = '';
+    }
+}
+
+function verificarCupoFacturacionPOS_(idTenant, permitirSiTurnoAbierto) {
+    if (!idTenant) return true;
+    const usadas = parseInt(localStorage.getItem('geokatu_facturas_emitidas_' + idTenant) || '0', 10);
+    const tope = parseInt(localStorage.getItem('geokatu_cupo_facturas_' + idTenant) || '1300', 10);
+    if (usadas >= tope) {
+        if (permitirSiTurnoAbierto) {
+            return true;
+        }
+        if (window.BillingGuard && typeof window.BillingGuard.mostrarModalRecarga === 'function') {
+            window.BillingGuard.mostrarModalRecarga(idTenant);
+        } else {
+            alert('Has alcanzado el límite de ' + tope + ' facturas gratuitas. Recarga tu cupo para abrir un nuevo turno.');
+        }
+        return false;
+    }
+    return true;
+}
+
+function registrarConsumoCuotaFactura_(idTenant) {
+    if (!idTenant) return;
+    const actual = parseInt(localStorage.getItem('geokatu_facturas_emitidas_' + idTenant) || '0', 10);
+    localStorage.setItem('geokatu_facturas_emitidas_' + idTenant, String(actual + 1));
+    actualizarSemaforoFacturasVen_(idTenant);
+}
+
+function descontarStockCascadaWMS_(idTenant, itemsVendidos) {
+    if (!idTenant || !Array.isArray(itemsVendidos) || itemsVendidos.length === 0) return;
+    try {
+        const claveUbis = 'geokatu_stock_ubis_' + idTenant;
+        const mapaUbis = JSON.parse(localStorage.getItem(claveUbis) || '{}');
+        let huboCambios = false;
+        itemsVendidos.forEach(function(item) {
+            const lista = mapaUbis[item.id_prod];
+            if (!Array.isArray(lista) || lista.length === 0) return;
+            let porDescontar = Number(item.cantidad) || 0;
+            lista.sort(function(a, b) {
+                const aPiso = String(a.zona || '').toUpperCase() === 'PISO_VENTA' ? 0 : 1;
+                const bPiso = String(b.zona || '').toUpperCase() === 'PISO_VENTA' ? 0 : 1;
+                return aPiso - bPiso;
+            });
+            for (let i = 0; i < lista.length && porDescontar > 0; i++) {
+                const disp = Number(lista[i].cantidad) || 0;
+                if (disp > 0) {
+                    const quita = Math.min(disp, porDescontar);
+                    lista[i].cantidad = Number((disp - quita).toFixed(3));
+                    porDescontar = Number((porDescontar - quita).toFixed(3));
+                    huboCambios = true;
+                }
+            }
+        });
+        if (huboCambios) {
+            localStorage.setItem(claveUbis, JSON.stringify(mapaUbis));
+        }
+    } catch (eWms) {
+        console.warn('[POSVen WMS]:', eWms.message);
+    }
+}
+
+function actualizarBotonExpandirTicket_() {
+    const btn = document.getElementById('btn-expandir-ticket');
+    const cont = document.getElementById('current-sale');
+    if (!btn || !cont) return;
+    if (carrito.length >= 3) {
+        btn.classList.add('visible');
+    } else {
+        btn.classList.remove('visible');
+        cont.classList.remove('ticket-expandido');
+        btn.innerText = 'Expandir';
+    }
+}
+
+window.alternarExpansionTicket = function() {
+    const cont = document.getElementById('current-sale');
+    const btn = document.getElementById('btn-expandir-ticket');
+    if (!cont || !btn) return;
+    const expandido = cont.classList.toggle('ticket-expandido');
+    btn.innerText = expandido ? 'Contraer' : 'Expandir';
+};
+
+function generarCode128BCompletoSVG_(svg, texto) {
+    const patrones = [
+        '212222','222122','222221','121223','121322','131222','122213','122312','132212','221213',
+        '221312','231212','112232','122132','122231','113222','123122','123221','223211','221132',
+        '221231','213212','223112','312131','311222','321122','321221','312212','322112','322211',
+        '212123','212321','232121','111323','131123','131321','112313','132113','132311','211313',
+        '231113','231311','112133','112331','132131','113123','113321','133121','313121','211331',
+        '231131','213113','213311','213131','311123','311321','331121','312113','312311','332111',
+        '314111','221411','431111','111224','111422','121124','121421','141122','141221','112214',
+        '112412','122114','122411','142112','142211','241211','221114','413111','241112','134111',
+        '111242','121142','121241','114212','124112','124211','411212','421112','421211','212141',
+        '214121','412121','111143','111341','131141','114113','114311','411113','411311','113141',
+        '114131','311141','411131','211412','211214','211232','2331112'
+    ];
+    const codigos = [104];
+    let suma = 104;
+    const limpio = String(texto).trim();
+    for (let i = 0; i < limpio.length; i++) {
+        const code = limpio.charCodeAt(i) - 32;
+        const val = (code >= 0 && code < 95) ? code : 0;
+        codigos.push(val);
+        suma += val * (i + 1);
+    }
+    codigos.push(suma % 103);
+    codigos.push(106);
+
+    let x = 0;
+    let rects = '';
+    for (let c = 0; c < codigos.length; c++) {
+        const pat = patrones[codigos[c]] || patrones[0];
+        for (let p = 0; p < pat.length; p++) {
+            const w = parseInt(pat.charAt(p), 10) * 2;
+            if (p % 2 === 0) {
+                rects += '<rect x="' + x + '" y="0" width="' + w + '" height="38" fill="#000"/>';
+            }
+            x += w;
+        }
+    }
+    svg.setAttribute('viewBox', '0 0 ' + x + ' 38');
+    svg.innerHTML = rects;
+}
+
+window.abrirModalConfiguracionPOS = function() {
+    const modal = document.getElementById('modal-configuracion-pos');
+    if (!modal) return;
+    const cfg = JSON.parse(localStorage.getItem('geokatu_pos_config_' + idNegocio) || '{}');
+    const inpUrl = document.getElementById('cfg-input-apps-script');
+    const swWa = document.getElementById('cfg-switch-whatsapp');
+    const boxWa = document.getElementById('cfg-box-numero-wa');
+    const inpWa = document.getElementById('cfg-input-wa-emisor');
+    const selPas = document.getElementById('cfg-select-pasarela');
+    const inpKey = document.getElementById('cfg-input-api-key');
+
+    if (inpUrl) inpUrl.value = cfg.apps_script_url || '';
+    if (swWa) swWa.checked = Boolean(cfg.whatsapp_activo);
+    if (boxWa) boxWa.style.display = cfg.whatsapp_activo ? 'block' : 'none';
+    if (inpWa) inpWa.value = cfg.whatsapp_emisor || '';
+    if (selPas) selPas.value = cfg.pasarela || 'MANUAL';
+    if (inpKey) inpKey.value = cfg.pasarela_public_key || '';
+    modal.style.display = 'flex';
+};
+
+window.cambiarPestanaConfig = function(tabId, btnElem) {
+    document.querySelectorAll('#modal-configuracion-pos .cfg-tab-panel').forEach(function(p) {
+        p.style.display = 'none';
+    });
+    document.querySelectorAll('#modal-configuracion-pos .tab-config-btn').forEach(function(b) {
+        b.classList.remove('activa');
+    });
+    const panel = document.getElementById(tabId);
+    if (panel) panel.style.display = 'block';
+    if (btnElem) btnElem.classList.add('activa');
+};
+
+window.guardarConfiguracionDesdeModal = function() {
+    const inpUrl = document.getElementById('cfg-input-apps-script');
+    const swWa = document.getElementById('cfg-switch-whatsapp');
+    const inpWa = document.getElementById('cfg-input-wa-emisor');
+    const selPas = document.getElementById('cfg-select-pasarela');
+    const inpKey = document.getElementById('cfg-input-api-key');
+
+    let numWa = inpWa ? inpWa.value.replace(/\D/g, '') : '';
+    if (numWa.length === 10) numWa = '58' + numWa;
+    if (numWa.length === 11 && numWa.indexOf('0') === 0) numWa = '58' + numWa.substring(1);
+
+    const nuevaCfg = {
+        apps_script_url: inpUrl ? inpUrl.value.trim() : '',
+        whatsapp_activo: Boolean(swWa && swWa.checked),
+        whatsapp_emisor: numWa,
+        pasarela: selPas ? selPas.value : 'MANUAL',
+        pasarela_public_key: inpKey ? inpKey.value.trim() : ''
+    };
+    localStorage.setItem('geokatu_pos_config_' + idNegocio, JSON.stringify(nuevaCfg));
+    actualizarEstadoVisualBotonWhatsApp();
+    const modal = document.getElementById('modal-configuracion-pos');
+    if (modal) modal.style.display = 'none';
+    if (typeof window.mostrarAvisoPos === 'function') {
+        window.mostrarAvisoPos('Configuración del POS guardada correctamente.');
+    }
+};
+
+function actualizarEstadoVisualBotonWhatsApp() {
+    const cfg = JSON.parse(localStorage.getItem('geokatu_pos_config_' + idNegocio) || '{}');
+    const btnWa = document.getElementById('btn-enviar-wa-modal');
+    if (btnWa) {
+        btnWa.style.opacity = cfg.whatsapp_activo === false ? '0.6' : '1';
+    }
+}
 
 
 
