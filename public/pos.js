@@ -1228,13 +1228,47 @@ window.seleccionarModoTarjeta = async function(modo) {
         }
     }
 
-    if (modo === 'QR') {
+        if (modo === 'QR') {
         const contQr = document.getElementById('contenedor-qr-pasarela');
+        const lblQr = document.getElementById('lbl-estado-qr-pasarela');
+        const montoEntero = Math.round(montoPendienteDatafonoTemporal);
+        if (lblQr) {
+            lblQr.style.color = '#ffaa00';
+            lblQr.innerText = 'Firmando orden segura en ' + cfg.pasarela_activa + '...';
+        }
         if (contQr) {
             contQr.innerHTML = '';
-            const urlPagoQr = 'https://checkout.wompi.co/p/?public-key=' + encodeURIComponent(cfg.pasarela_public_key) + '&currency=COP&amount-in-cents=' + (Math.round(montoPendienteDatafonoTemporal) * 100) + '&reference=' + encodeURIComponent(refUnica);
+            let urlPagoQr = '';
+            try {
+                const fnMod = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js');
+                const fns = fnMod.getFunctions();
+                const crearOrden = fnMod.httpsCallable(fns, 'crearOrdenCobroPasarelaPOS');
+                const resOrden = await crearOrden({
+                    idNegocio: idNegocio,
+                    ticketTempId: tktTempId,
+                    referencia: refUnica,
+                    montoPesos: montoEntero,
+                    pasarela: cfg.pasarela_activa
+                });
+                if (resOrden && resOrden.data && resOrden.data.urlCheckout) {
+                    urlPagoQr = resOrden.data.urlCheckout;
+                }
+            } catch (eFirma) {
+                console.warn('[POS Pasarela] Fallback local QR:', eFirma.message);
+            }
+            if (!urlPagoQr) {
+                if (cfg.pasarela_activa === 'BOLD') {
+                    urlPagoQr = 'https://checkout.bold.co/payment/' + encodeURIComponent(cfg.pasarela_public_key) + '?order_id=' + encodeURIComponent(refUnica) + '&amount=' + montoEntero + '&currency=COP';
+                } else {
+                    urlPagoQr = 'https://checkout.wompi.co/p/?public-key=' + encodeURIComponent(cfg.pasarela_public_key) + '&currency=COP&amount-in-cents=' + (montoEntero * 100) + '&reference=' + encodeURIComponent(refUnica);
+                }
+            }
             if (typeof window.QRCode === 'function') {
                 new window.QRCode(contQr, { text: urlPagoQr, width: 170, height: 170 });
+            }
+            if (lblQr) {
+                lblQr.style.color = '#00ff64';
+                lblQr.innerText = 'Escanea con ' + cfg.pasarela_activa + ' • Esperando pago en vivo...';
             }
         }
 
@@ -3151,6 +3185,11 @@ document.getElementById('btn-cerrar-qr')?.addEventListener('click', () => {
 // =========================================================================
 // MÓDULO DE CONFIGURACIÓN Y EXPANSIÓN DINÁMICA DEL TICKET
 // =========================================================================
+window.abrirAsistentePasarelas = function() {
+    const uidDestino = idNegocio || localStorage.getItem('geokatu_active_uid') || '';
+    window.location.href = '/pasarelas' + (uidDestino ? ('?id=' + encodeURIComponent(uidDestino)) : '');
+};
+
 window.abrirModalConfiguracionPOS = async function() {
     const modal = document.getElementById('modal-configuracion-pos');
     if (!modal) return;
@@ -3161,6 +3200,19 @@ window.abrirModalConfiguracionPOS = async function() {
     document.getElementById('cfg-box-numero-wa').style.display = cfg.whatsapp_facturas_activo ? 'block' : 'none';
     document.getElementById('cfg-select-pasarela').value = cfg.pasarela_activa || 'MANUAL';
     document.getElementById('cfg-input-api-key').value = cfg.pasarela_public_key || '';
+    const txtBoveda = document.getElementById('txt-estado-boveda-pasarela');
+    if (txtBoveda) {
+        if (cfg.pasarela_verificada === true && cfg.pasarela_activa && cfg.pasarela_activa !== 'MANUAL') {
+            txtBoveda.style.color = '#00ff64';
+            txtBoveda.innerText = 'Verificada en Boveda (' + cfg.pasarela_activa + ' ' + (cfg.llave_secreta_mascara || 'OK') + ')';
+        } else if (cfg.pasarela_public_key) {
+            txtBoveda.style.color = '#ffaa00';
+            txtBoveda.innerText = 'Llave publica cargada (Falta sellar secreto en Asistente)';
+        } else {
+            txtBoveda.style.color = '#888';
+            txtBoveda.innerText = 'Sin configurar';
+        }
+    }
     modal.style.display = 'flex';
 };
 
