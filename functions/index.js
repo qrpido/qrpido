@@ -1550,21 +1550,39 @@ exports.observadorDirectorioMatriz = functions.firestore
     });
 
 // ============================================================================
-// 23. COMPILACIÓN MANUAL DE MATRIZ (ON-CALL V2 SUPERADMIN)
+// 23. COMPILACIÓN DE MATRIZ CDN (ON-CALL V2 ADMIN / ONBOARDING CON THROTTLE)
 // ============================================================================
 exports.compilarMatrizDirectorioManual = onCall({ memory: "512MB", maxInstances: 5 }, async (request) => {
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Se requiere sesión activa.");
     }
 
-    const uidAdmin = request.auth.uid;
+    const uidCaller = request.auth.uid;
     const db = admin.firestore();
+    const [adminSnap, dirSnap] = await Promise.all([
+        db.collection("Usuarios_Admin").doc(uidCaller).get(),
+        db.collection("Directorio").doc(uidCaller).get()
+    ]);
 
-    const adminSnap = await db.collection("Usuarios_Admin").doc(uidAdmin).get();
-    if (!adminSnap.exists || (adminSnap.data().rol !== "superadmin" && adminSnap.data().rol !== "admin")) {
-        throw new HttpsError("permission-denied", "Privilegios insuficientes. Solo Superadmin.");
+    const rolAdmin = adminSnap.exists ? String(adminSnap.data().rol || "") : "";
+    const esStaff = (rolAdmin === "superadmin" || rolAdmin === "admin" || rolAdmin === "moderador");
+    const esComercioActivo = dirSnap.exists;
+
+    if (!esStaff && !esComercioActivo) {
+        throw new HttpsError("permission-denied", "Sin permisos para actualizar el CDN de matriz.");
     }
 
+    // Freno anti-rafaga de 45s para llamadas automaticas de comercios/moderadores (Superadmin pasa directo)
+    const ctrlRef = db.collection("Sistema").doc("Control_Matriz_CDN");
+    if (rolAdmin !== "superadmin") {
+        const ctrlSnap = await ctrlRef.get();
+        const ultimoMs = (ctrlSnap.exists && ctrlSnap.data().ultimo_compilado_ms) ? Number(ctrlSnap.data().ultimo_compilado_ms) : 0;
+        if (Date.now() - ultimoMs < 45000) {
+            return { success: true, omitido_por_rafaga: true };
+        }
+    }
+
+    await ctrlRef.set({ ultimo_compilado_ms: Date.now(), disparado_por: uidCaller }, { merge: true });
     return await compilarYPublicarMatrizStorage();
 });
 
