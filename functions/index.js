@@ -1185,11 +1185,16 @@ exports.webhookWompiEventos = functions.runWith({ secrets: [secretoWebhooks] })
             const transaction = evento.data?.transaction;
             if (!transaction) return res.status(400).send('Estructura inválida');
 
-            const cadenaConcentrada = `transaction.id{transaction.status}transaction.amountincents{evento.timestamp}${secreto}`;
+                        if (!checksumHeader || !secreto) {
+                return res.status(401).send('Firma o secreto ausente');
+            }
+            const cadenaConcentrada = String(transaction.id) + String(transaction.status) + String(transaction.amount_in_cents) + String(evento.timestamp) + String(secreto);
             const hashCalculado = crypto.createHash('sha256').update(cadenaConcentrada).digest('hex');
+            const bufCalc = Buffer.from(hashCalculado, 'utf8');
+            const bufHead = Buffer.from(String(checksumHeader), 'utf8');
 
-            if (hashCalculado !== checksumHeader) {
-                console.error("🚨 Violación de Integridad: Checksum de Wompi adulterado.");
+            if (bufCalc.length !== bufHead.length || !crypto.timingSafeEqual(bufCalc, bufHead)) {
+                console.error("Violacion de Integridad: Checksum de Wompi adulterado.");
                 return res.status(401).send('Firma inválida');
             }
 
@@ -1279,10 +1284,17 @@ exports.crearOperarioComercio = onCall({ memory: '256MB', maxInstances: 10 }, as
                 throw authError;
             }
         }
-        // Preservar Custom Claims existentes sin destruir permisos previos del usuario
+                const rolesPermitidos = ['cajero', 'bodeguero', 'asesor', 'supervisor'];
+        const rolSanitizado = rolesPermitidos.indexOf(String(rol || '').toLowerCase()) !== -1 ? String(rol).toLowerCase() : 'cajero';
+        if (!esCuentaNueva && userRecord.uid !== uidAdmin) {
+            const opPrevioSnap = await db.collection('Directorio').doc(idNegocio).collection('Equipo').doc(userRecord.uid).get();
+            if (!opPrevioSnap.exists) {
+                throw new HttpsError('failed-precondition', 'El correo ya pertenece a una cuenta personal registrada. Usa un correo exclusivo de operario.');
+            }
+        }
         const claimsPrevios = userRecord.customClaims || {};
         await admin.auth().setCustomUserClaims(userRecord.uid, Object.assign({}, claimsPrevios, {
-            rol: rol || 'cajero',
+            rol: rolSanitizado,
             id_negocio_padre: idNegocio,
             codigo_cajero: codigoCajero
         }));
@@ -1339,9 +1351,25 @@ exports.crearOperarioComercio = onCall({ memory: '256MB', maxInstances: 10 }, as
 // ============================================================================
 exports.resetearPasswordOperario = onCall({ memory: '256MB', maxInstances: 10 }, async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Acceso denegado.');
-    const { idNegocio, operarioUid, nuevaPasswordTemporal } = request.data;
+    const uidSolicitante = request.auth.uid;
+    const { idNegocio, operarioUid, nuevaPasswordTemporal } = request.data || {};
+    if (!idNegocio || !operarioUid || !nuevaPasswordTemporal || String(nuevaPasswordTemporal).length < 6) {
+        throw new HttpsError('invalid-argument', 'Parametros invalidos o clave menor a 6 caracteres.');
+    }
+    if (operarioUid === idNegocio) {
+        throw new HttpsError('permission-denied', 'No se permite resetear la cuenta propietaria desde este endpoint.');
+    }
     const db = admin.firestore();
-
+    if (uidSolicitante !== idNegocio) {
+        const adminSnap = await db.collection('Usuarios_Admin').doc(uidSolicitante).get();
+        if (!adminSnap.exists || (adminSnap.data().rol !== 'superadmin' && adminSnap.data().rol !== 'administrador_delegado')) {
+            throw new HttpsError('permission-denied', 'No eres titular de este comercio.');
+        }
+    }
+    const opDoc = await db.collection('Directorio').doc(idNegocio).collection('Equipo').doc(operarioUid).get();
+    if (!opDoc.exists || opDoc.data().id_negocio_padre !== idNegocio) {
+        throw new HttpsError('not-found', 'El operario no pertenece a la nomina de este comercio.');
+    }
     const expiracionTemporal = new Date(Date.now() + (48 * 60 * 60 * 1000)).toISOString();
 
     await admin.auth().updateUser(operarioUid, { password: nuevaPasswordTemporal });
@@ -1764,26 +1792,73 @@ exports.webhookPasarelasPOS = functions.https.onRequest(async (req, res) => {
             return res.status(200).json({ received: true, ignored: "sin_id_negocio" });
         }
 
-        // 2. Verificar firma contra la boveda privada del comercio si tiene secreto configurado
+                // 2. Exigir boveda privada y validar firma en tiempo constante (C01 / C12)
         const bovedaSnap = await db.collection("Directorio").doc(idNegocio).collection("Boveda_Pasarelas_Privada").doc("Credenciales").get();
-        if (bovedaSnap.exists) {
-            const boveda = bovedaSnap.data() || {};
-            const secEventos = String(boveda.events_secret || boveda.secret_key || "").trim();
-            if (!esBold && secEventos && body.data && body.data.transaction) {
-                const txW = body.data.transaction;
-                const checksumHeader = req.headers["x-event-checksum"] || body.signature?.checksum || "";
-                const cadenaW = String(txW.id) + String(txW.status) + String(txW.amount_in_cents) + String(body.timestamp) + secEventos;
-                const hashCalc = crypto.createHash("sha256").update(cadenaW).digest("hex");
-                if (checksumHeader && hashCalc !== checksumHeader) {
-                    console.error("[WEBHOOK POS] Firma Wompi invalida para negocio: " + idNegocio);
-                    return res.status(401).send("Firma invalida");
-                }
+        if (!bovedaSnap.exists) {
+            return res.status(401).send("Comercio sin boveda activa");
+        }
+        const boveda = bovedaSnap.data() || {};
+        const secEventos = String(boveda.events_secret || boveda.secret_key || "").trim();
+        if (!secEventos) {
+            return res.status(401).send("Secreto no configurado");
+        }
+
+        if (esBold) {
+            const sigBold = String(req.headers["x-bold-signature"] || "").trim();
+            if (!sigBold) {
+                return res.status(401).send("Firma Bold requerida");
+            }
+            const rawBuffer = req.rawBody ? Buffer.from(req.rawBody) : Buffer.from(JSON.stringify(body));
+            const payloadB64 = rawBuffer.toString("base64");
+            const hmacCalc = crypto.createHmac("sha256", secEventos).update(payloadB64).digest("hex");
+            const bCalc = Buffer.from(hmacCalc, "utf8");
+            const bRec = Buffer.from(sigBold, "utf8");
+            if (bCalc.length !== bRec.length || !crypto.timingSafeEqual(bCalc, bRec)) {
+                console.error("[WEBHOOK POS] Firma HMAC Bold invalida para negocio: " + idNegocio);
+                return res.status(401).send("Firma Bold invalida");
+            }
+        } else {
+            const txW = (body.data && body.data.transaction) ? body.data.transaction : null;
+            const checksumHeader = String(req.headers["x-event-checksum"] || (body.signature && body.signature.checksum) || "").trim();
+            if (!txW || !checksumHeader) {
+                return res.status(401).send("Checksum Wompi requerido");
+            }
+            const cadenaW = String(txW.id) + String(txW.status) + String(txW.amount_in_cents) + String(body.timestamp) + secEventos;
+            const hashCalc = crypto.createHash("sha256").update(cadenaW).digest("hex");
+            const bCalc = Buffer.from(hashCalc, "utf8");
+            const bRec = Buffer.from(checksumHeader, "utf8");
+            if (bCalc.length !== bRec.length || !crypto.timingSafeEqual(bCalc, bRec)) {
+                console.error("[WEBHOOK POS] Firma Wompi invalida para negocio: " + idNegocio);
+                return res.status(401).send("Firma Wompi invalida");
             }
         }
 
         if (estadoAprobado && tktId) {
             const negRef = db.collection("Directorio").doc(idNegocio);
-            await negRef.collection("Pagos_POS_EnVivo").doc(tktId).set({
+            const intentoRef = negRef.collection("Pagos_POS_EnVivo").doc(tktId);
+            const intentoSnap = await intentoRef.get();
+            if (!intentoSnap.exists) {
+                await negRef.collection("Eventos_Pago_Revision").doc(String(txIdExterno)).set({
+                    tktId: tktId,
+                    referencia: referencia,
+                    monto_recibido: montoPesos,
+                    motivo: "ORDEN_NO_ENCONTRADA",
+                    timestamp: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+                return res.status(200).json({ received: true, status: "revision_orden_inexistente" });
+            }
+            const datosIntento = intentoSnap.data() || {};
+            const montoEsperado = Math.round(Number(datosIntento.monto_pesos) || 0);
+            if (montoEsperado > 0 && montoPesos !== montoEsperado) {
+                await intentoRef.set({
+                    estado: "REVISION_REQUERIDA",
+                    monto_recibido: montoPesos,
+                    transaccion_id: txIdExterno,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+                return res.status(200).json({ received: true, status: "revision_monto_distinto" });
+            }
+            await intentoRef.set({
                 estado: "APROBADO",
                 pasarela: esBold ? "BOLD" : "WOMPI",
                 monto_pesos: montoPesos,
