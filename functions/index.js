@@ -1706,11 +1706,38 @@ exports.crearOrdenCobroPasarelaPOS = onCall({ memory: "256MB", maxInstances: 20 
     const hashRef = crypto.createHash("sha256").update(idNegocio + "|" + ticketTempId + "|" + String(montoEntero)).digest("hex").slice(0, 20).toUpperCase();
     const referencia = "GK_" + ticketTempId.slice(0, 14) + "_" + hashRef;
 
-    const db = admin.firestore();
+        const db = admin.firestore();
     const negRef = db.collection("Directorio").doc(idNegocio);
-    const bovedaSnap = await negRef.collection("Boveda_Pasarelas_Privada").doc("Credenciales").get();
     const negSnap = await negRef.get();
-    const cfgPub = (negSnap.exists && negSnap.data().configuracion_pos) ? negSnap.data().configuracion_pos : {};
+    if (!negSnap.exists) {
+        throw new HttpsError("not-found", "Comercio no encontrado.");
+    }
+    const negData = negSnap.data() || {};
+    const uidCaller = request.auth.uid;
+    const emailCaller = String(request.auth.token.email || "").toLowerCase();
+    let permisoCobro = (uidCaller === idNegocio) ||
+        (negData.uid_dueno && negData.uid_dueno === uidCaller) ||
+        (negData.owner_email && String(negData.owner_email).toLowerCase() === emailCaller);
+
+    if (!permisoCobro) {
+        const [eqSnap, colSnap, admSnap] = await Promise.all([
+            negRef.collection("Equipo").doc(uidCaller).get(),
+            negRef.collection("Colaboradores").doc(uidCaller).get(),
+            db.collection("Usuarios_Admin").doc(uidCaller).get()
+        ]);
+        const opData = eqSnap.exists ? eqSnap.data() : (colSnap.exists ? colSnap.data() : null);
+        if (opData && opData.suspendido !== true && opData.activo !== false) {
+            permisoCobro = true;
+        } else if (admSnap.exists && (admSnap.data().rol === "superadmin" || admSnap.data().rol === "admin")) {
+            permisoCobro = true;
+        }
+    }
+    if (!permisoCobro) {
+        throw new HttpsError("permission-denied", "No tienes membresia activa para iniciar cobros en este comercio.");
+    }
+
+    const bovedaSnap = await negRef.collection("Boveda_Pasarelas_Privada").doc("Credenciales").get();
+    const cfgPub = negData.configuracion_pos || {};
     const boveda = bovedaSnap.exists ? bovedaSnap.data() : {};
 
     const pasarela = String(data.pasarela || boveda.pasarela || cfgPub.pasarela_activa || "WOMPI").toUpperCase();
@@ -1759,12 +1786,26 @@ exports.crearOrdenCobroPasarelaPOS = onCall({ memory: "256MB", maxInstances: 20 
         monto_pesos: montoEntero,
         creado_en: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
+        await negRef.collection("Ordenes_POS").doc(ticketTempId).set({
+        orden_id: ticketTempId,
+        referencia_activa: referencia,
+        total_minor: montoEntero * 100,
+        monto_pesos: montoEntero,
+        currency: "COP",
+        operador_uid: uidCaller,
+        pasarela: pasarela,
+        ambiente: boveda.ambiente || "PRODUCCION",
+        estado_orden: "EN_COBRO",
+        creado_en: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
     await intentoRef.set({
         estado: "PENDIENTE",
         pasarela: pasarela,
         ambiente: boveda.ambiente || "PRODUCCION",
         referencia: referencia,
         monto_pesos: montoEntero,
+        operador_uid: uidCaller,
         creado_en: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 
@@ -1893,14 +1934,54 @@ exports.webhookPasarelasPOS = functions.https.onRequest(async (req, res) => {
                 }, { merge: true });
                 return res.status(200).json({ received: true, status: "revision_monto_distinto" });
             }
-            await intentoRef.set({
-                estado: "APROBADO",
-                pasarela: esBold ? "BOLD" : "WOMPI",
-                monto_pesos: montoPesos,
-                transaccion_id: txIdExterno,
-                metodo: esBold ? "BOLD_POS" : "WOMPI_POS",
-                timestamp: admin.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
+                        const eventoId = (esBold ? "BOLD_" : "WOMPI_") + String(txIdExterno).replace(/[^a-zA-Z0-9_-]/g, "_");
+            const eventoRef = negRef.collection("Eventos_Pago").doc(eventoId);
+            const pagoConfRef = negRef.collection("Pagos_Confirmados").doc(eventoId);
+            const ordenPosRef = negRef.collection("Ordenes_POS").doc(tktId);
+
+            await db.runTransaction(async (tx) => {
+                const evSnap = await tx.get(eventoRef);
+                if (evSnap.exists && evSnap.data().procesado === true) {
+                    return;
+                }
+                tx.set(eventoRef, {
+                    evento_id: eventoId,
+                    transaccion_id: txIdExterno,
+                    tktId: tktId,
+                    referencia: referencia,
+                    pasarela: esBold ? "BOLD" : "WOMPI",
+                    monto_pesos: montoPesos,
+                    procesado: true,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+
+                tx.set(pagoConfRef, {
+                    pago_id: eventoId,
+                    transaccion_externa: txIdExterno,
+                    orden_id: tktId,
+                    referencia: referencia,
+                    pasarela: esBold ? "BOLD" : "WOMPI",
+                    ambiente: datosIntento.ambiente || "PRODUCCION",
+                    monto_pesos: montoPesos,
+                    estado: "APROBADO_CONCILIADO",
+                    timestamp: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+
+                tx.set(ordenPosRef, {
+                    estado_orden: "SALDO_CUBIERTO",
+                    pago_confirmado_id: eventoId,
+                    actualizado_en: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+
+                tx.set(intentoRef, {
+                    estado: "APROBADO",
+                    pasarela: esBold ? "BOLD" : "WOMPI",
+                    monto_pesos: montoPesos,
+                    transaccion_id: txIdExterno,
+                    metodo: esBold ? "BOLD_POS" : "WOMPI_POS",
+                    timestamp: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+            });
 
             await negRef.collection("pedidos_entrantes").doc(tktId).set({
                 estado_pago: "PAGADO_CONFIRMADO",
