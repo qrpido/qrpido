@@ -312,10 +312,11 @@ export const DirectorioMatrizService = {
             if (total > 0 && !forzarRecarga) {
                 return { success: true, count: total };
             }
-            const bucketName = (db.app.options && db.app.options.storageBucket) 
+                        const bucketName = (db.app.options && db.app.options.storageBucket) 
                 ? db.app.options.storageBucket 
                 : 'geo-katu.appspot.com';
-            const urlStorage = 'https://storage.googleapis.com/' + bucketName + '/directorio_matriz.json';
+            const selloVentana = Math.floor(Date.now() / 300000);
+            const urlStorage = 'https://storage.googleapis.com/' + bucketName + '/directorio_matriz.json?v=' + selloVentana;
             
             let resp = null;
             try {
@@ -325,7 +326,7 @@ export const DirectorioMatrizService = {
                 finally { clearTimeout(timeout); }
                 if (!resp.ok) throw new Error('HTTP Storage ' + resp.status);
             } catch (errStorage) {
-                resp = await fetch('/directorio_matriz.json');
+                resp = await fetch('/directorio_matriz.json?v=' + selloVentana);
             }
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const comercios = await resp.json();
@@ -335,7 +336,16 @@ export const DirectorioMatrizService = {
                 storeWrite.clear();
             }
             for (let i = 0; i < comercios.length; i++) {
-                storeWrite.put(comercios[i]);
+                const item = Object.assign({}, comercios[i]);
+                const imgPrincipal = item.logo || item.l || item.link_pin || item.lp || '';
+                const imgPin = item.link_pin || item.lp || item.logo || item.l || '';
+                item.l = imgPrincipal;
+                item.logo = imgPrincipal;
+                item.link_pin = imgPin;
+                if (item.direccion && !item.direccion_normalizada) {
+                    item.direccion_normalizada = normalizarDireccionCartesiana(item.direccion);
+                }
+                storeWrite.put(item);
             }
             await new Promise((res, rej) => {
                 txWrite.oncomplete = () => res();
@@ -369,10 +379,10 @@ export const DirectorioMatrizService = {
                             g: [Number(data.Coordenadas?.latitude ?? data.lat ?? 4.81333), Number(data.Coordenadas?.longitude ?? data.lng ?? -75.69611)],
                             p: data.pin_pack || "forma-gota|anim-salto",
                             b: [data.color_principal || "#ff6b00", data.color_acento || "#8a909d", data.color_terciario || "#ffffff", data.color_cuaternario || "#0a0a0c"],
-                            l: data.logo || "",
-                            logo: data.logo || "",
+                                                        l: data.logo || data.link_pin || "",
+                            logo: data.logo || data.link_pin || "",
                             portada: data.portada || "",
-                            link_pin: data.link_pin || "",
+                            link_pin: data.link_pin || data.logo || "",
                             nombre_png: data.nombre_png || data.logo_nombre || "",
                                                         tema_popup: data.tema_popup || "carbon",
                             direccion: data.direccion || "",
@@ -1657,11 +1667,25 @@ obtenerContactoComercio: async (idNegocio) => {
             if (!p.nombre || p.nombre === 'Sin nombre') return false;
             return true;
         },
+                compilarMatrizGlobalCDN: async () => {
+            if (!navigator.onLine || !functions) return { success: false };
+            try {
+                const fnCompilar = httpsCallable(functions, 'compilarMatrizDirectorioManual');
+                const res = await fnCompilar({});
+                await DirectorioMatrizService.inicializarDirectorio(true);
+                return { success: true, data: res.data };
+            } catch (eComp) {
+                return { success: false, error: eComp.message };
+            }
+        },
         actualizarNegocio: async (idNegocio, dataObj) => {
             try {
                 const payload = Object.assign({}, dataObj, {
                     fecha_actualizacion: new Date().toISOString()
                 });
+                if (typeof payload.direccion === 'string') {
+                    payload.direccion_normalizada = normalizarDireccionCartesiana(payload.direccion);
+                }
                 await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, idNegocio), payload, { merge: true });
                 delete _cacheLocales[idNegocio];
                 delete _cacheContactos[idNegocio];
@@ -1670,6 +1694,9 @@ obtenerContactoComercio: async (idNegocio) => {
                     const negPrevio = JSON.parse(localStorage.getItem(claveNegCache) || '{}');
                     localStorage.setItem(claveNegCache, JSON.stringify(Object.assign({}, negPrevio, payload)));
                 } catch (eLoc) {}
+                if (dataObj && (dataObj.logo || dataObj.link_pin || dataObj.nombre || dataObj.pin_pack || dataObj.estado_moderacion)) {
+                    GeokatuDB.AdminService.compilarMatrizGlobalCDN().catch(function() {});
+                }
                 return { success: true };
             } catch (e) { return { success: false, error: e.message }; }
         },
@@ -2223,9 +2250,10 @@ obtenerContactoComercio: async (idNegocio) => {
                         subidosTotal++;
                     });
 
-                    await batch.commit();
+                                        await batch.commit();
                 }
 
+                GeokatuDB.AdminService.compilarMatrizGlobalCDN().catch(function() {});
                 return { success: true, totalSubidos: subidosTotal };
             } catch (err) {
                 console.error("[AdminService] Error en subida masiva de comercios:", err);
