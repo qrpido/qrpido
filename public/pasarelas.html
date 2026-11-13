@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bóveda de Pasarelas POS (Bold & Wompi) | GEOKATU B2B</title>
+    <style>
+        :root {
+            --bg-dark: #0a0a0e;
+            --card-bg: #14141c;
+            --border-soft: rgba(255, 255, 255, 0.1);
+            --naranja: #ff6b00;
+            --verde: #00e676;
+            --azul: #38bdf8;
+            --rojo: #ff4444;
+            --texto: #f8fafc;
+            --muted: #94a3b8;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg-dark);
+            color: var(--texto);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
+        }
+        .topbar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: rgba(14, 14, 20, 0.95);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-soft);
+        }
+        .btn-volver {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--border-soft);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .contenedor {
+            max-width: 640px;
+            margin: 0 auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .paso-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-soft);
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+        }
+        .paso-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .paso-num {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: rgba(255, 107, 0, 0.2);
+            border: 1px solid var(--naranja);
+            color: var(--naranja);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 900;
+            flex-shrink: 0;
+        }
+        .paso-titulo {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        .grid-pasarelas {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .card-selector {
+            border: 1.5px solid var(--border-soft);
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            text-align: left;
+        }
+        .card-selector.activa {
+            border-color: var(--naranja);
+            background: rgba(255, 107, 0, 0.14);
+            box-shadow: 0 0 18px rgba(255, 107, 0, 0.2);
+        }
+        .guia-box {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.4);
+            border-left: 3px solid var(--naranja);
+            font-size: 12px;
+            color: #cbd5e1;
+            line-height: 1.5;
+        }
+        .webhook-box {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            background: #09090d;
+            border: 1px solid var(--border-soft);
+            padding: 10px;
+            border-radius: 10px;
+            margin-top: 8px;
+        }
+        .webhook-url {
+            flex: 1;
+            font-family: monospace;
+            font-size: 11px;
+            color: var(--verde);
+            word-break: break-all;
+        }
+        .campo-grupo {
+            margin-top: 12px;
+        }
+        .campo-grupo label {
+            display: block;
+            font-size: 11.5px;
+            font-weight: 800;
+            color: var(--muted);
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        .input-boveda {
+            width: 100%;
+            min-height: 44px;
+            background: #0d0d12;
+            border: 1px solid var(--border-soft);
+            border-radius: 10px;
+            padding: 10px 12px;
+            color: #fff;
+            font-family: monospace;
+            font-size: 13px;
+            outline: none;
+        }
+        .input-boveda:focus {
+            border-color: var(--naranja);
+        }
+        .btn-primario {
+            width: 100%;
+            min-height: 48px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #ff6b00, #ff9100);
+            color: #000;
+            font-weight: 900;
+            font-size: 13px;
+            text-transform: uppercase;
+            cursor: pointer;
+            margin-top: 14px;
+        }
+        .btn-secundario {
+            background: rgba(56, 189, 248, 0.15);
+            border: 1px solid var(--azul);
+            color: var(--azul);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 800;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .evidencia-drop {
+            border: 1.5px dashed var(--border-soft);
+            border-radius: 12px;
+            padding: 14px;
+            text-align: center;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.02);
+            margin-top: 8px;
+        }
+        .badge-estado {
+            font-size: 11px;
+            font-weight: 900;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <a href="/pos" class="btn-volver">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m15 18-6-6 6-6"/></svg>
+            Volver al POS
+        </a>
+        <span id="badge-verificacion-top" class="badge-estado" style="background: rgba(255,170,0,0.15); color: #ffaa00;">SIN VERIFICAR</span>
+    </header>
+
+    <main class="contenedor">
+        <div>
+            <h1 style="margin: 0; font-size: 18px; font-weight: 900;">Asistente de Pasarelas & Bóveda POS</h1>
+            <p id="subtitulo-comercio" style="margin: 4px 0 0; font-size: 12px; color: var(--muted); font-family: monospace;">Cargando comercio...</p>
+        </div>
+
+        <!-- PASO 1: SELECCIÓN DE PASARELA -->
+        <section class="paso-card">
+            <div class="paso-header">
+                <span class="paso-num">1</span>
+                <h2 class="paso-titulo">Elige tu Pasarela de Cobro</h2>
+            </div>
+            <div class="grid-pasarelas">
+                <div id="card-pasarela-BOLD" class="card-selector activa" onclick="window.seleccionarProveedorUI('BOLD')">
+                    <strong style="display: block; font-size: 14px; color: #fff;">BOLD.CO</strong>
+                    <span style="font-size: 11px; color: var(--muted);">QR Dinámico, Link y Datáfono Smart</span>
+                </div>
+                <div id="card-pasarela-WOMPI" class="card-selector" onclick="window.seleccionarProveedorUI('WOMPI')">
+                    <strong style="display: block; font-size: 14px; color: #fff;">WOMPI</strong>
+                    <span style="font-size: 11px; color: var(--muted);">Bancolombia, Nequi, PSE y QR</span>
+                </div>
+            </div>
+            <div id="guia-pasarela-dinamica" class="guia-box"></div>
+        </section>
+
+        <!-- PASO 2: WEBHOOK EN TIEMPO REAL -->
+        <section class="paso-card">
+            <div class="paso-header">
+                <span class="paso-num">2</span>
+                <h2 class="paso-titulo">Conecta el Altavoz y Confirmación Automática</h2>
+            </div>
+            <p style="margin: 0; font-size: 12px; color: var(--muted);">
+                Copia esta URL única de tu comercio y pégala en la sección de <strong>Webhooks / Eventos</strong> de tu pasarela para que la caja marque el pago como aprobado en vivo:
+            </p>
+            <div class="webhook-box">
+                <span id="txt-webhook-url" class="webhook-url">Generando endpoint...</span>
+                <button type="button" class="btn-secundario" onclick="window.copiarWebhookUrl()">Copiar URL</button>
+            </div>
+            <label style="display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 12px; cursor: pointer;">
+                <input type="checkbox" id="chk-webhook-confirmado" style="width: 18px; height: 18px; accent-color: var(--naranja);">
+                <span>Ya pegué y guardé esta URL de notificaciones en mi cuenta de la pasarela.</span>
+            </label>
+        </section>
+
+        <!-- PASO 3: EVIDENCIA DEL PANEL -->
+        <section class="paso-card">
+            <div class="paso-header">
+                <span class="paso-num">3</span>
+                <h2 class="paso-titulo">Respaldo Visual de Configuración (Opcional)</h2>
+            </div>
+            <p style="margin: 0; font-size: 12px; color: var(--muted);">
+                Sube una captura de pantalla donde se vea el Webhook o las llaves activas en tu panel de Bold / Wompi para soporte técnico:
+            </p>
+            <input type="file" id="input-evidencia-pasarela" accept="image/*" style="display: none;" onchange="window.procesarEvidenciaPasarela(event)">
+            <div class="evidencia-drop" onclick="document.getElementById('input-evidencia-pasarela').click()">
+                <span id="lbl-evidencia-estado" style="font-size: 12px; color: var(--azul); font-weight: 800;">Toca aquí para adjuntar captura de pantalla</span>
+                <img id="img-preview-evidencia" alt="Evidencia" style="display: none; max-width: 100%; max-height: 160px; margin: 10px auto 0; border-radius: 8px;">
+            </div>
+        </section>
+
+        <!-- PASO 4: BÓVEDA DE LLAVES Y PRUEBA DE SERVIDOR -->
+        <section class="paso-card">
+            <div class="paso-header">
+                <span class="paso-num">4</span>
+                <h2 class="paso-titulo">Sellar Llaves en Bóveda Cloud Functions</h2>
+            </div>
+            <p style="margin: 0; font-size: 12px; color: var(--muted);">
+                Tus llaves secretas se guardan cifradas en el servidor y jamás quedan expuestas en el navegador:
+            </p>
+
+            <div class="campo-grupo">
+                <label id="lbl-public-key" for="input-public-key">Llave de Identidad (Pública)</label>
+                <input type="text" id="input-public-key" class="input-boveda" placeholder="Pega aquí tu llave pública" autocomplete="off" spellcheck="false">
+            </div>
+
+            <div class="campo-grupo">
+                <label id="lbl-secret-key" for="input-secret-key">Llave Secreta / Secreto de Integridad (SHA-256)</label>
+                <div style="display: flex; gap: 6px;">
+                    <input type="password" id="input-secret-key" class="input-boveda" placeholder="Pega aquí tu llave secreta" autocomplete="off" spellcheck="false">
+                    <button type="button" class="btn-secundario" onclick="window.alternarVistaSecreto('input-secret-key')">Ver</button>
+                </div>
+            </div>
+
+            <div class="campo-grupo">
+                <label id="lbl-events-secret" for="input-events-secret">Secreto de Eventos / Webhook (Opcional en Bold)</label>
+                <div style="display: flex; gap: 6px;">
+                    <input type="password" id="input-events-secret" class="input-boveda" placeholder="Secreto de webhook (si es distinto al de integridad)" autocomplete="off" spellcheck="false">
+                    <button type="button" class="btn-secundario" onclick="window.alternarVistaSecreto('input-events-secret')">Ver</button>
+                </div>
+            </div>
+
+            <div class="campo-grupo" id="grupo-terminal-bold">
+                <label for="input-terminal-id">Serial / ID de Datáfono Bold Smart (Opcional)</label>
+                <input type="text" id="input-terminal-id" class="input-boveda" placeholder="Ej: N86-00012345 (Solo si vinculas datáfono físico)" autocomplete="off">
+            </div>
+
+            <div id="caja-resultado-handshake" style="display: none; margin-top: 14px; padding: 12px; border-radius: 10px; font-size: 12px; font-weight: 700;"></div>
+
+            <button type="button" id="btn-sellar-boveda" class="btn-primario" onclick="window.validarYSellarPasarela()">
+                Validar con el Servidor y Sellar en Bóveda
+            </button>
+        </section>
+    </main>
+
+    <script type="module">
+        import GeokatuDB from './core-db.js';
+        import { db } from './firebase-config.js';
+        import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js';
+
+        var params = new URLSearchParams(window.location.search);
+        var idNegocio = params.get('id') || localStorage.getItem('geokatu_active_uid') || '';
+        var pasarelaElegida = 'BOLD';
+        var evidenciaSubidaUrl = '';
+
+        function obtenerUrlWebhook(proveedor) {
+            var projId = (db && db.app && db.app.options && db.app.options.projectId) ? db.app.options.projectId : 'geo-katu';
+            return 'https://us-central1-' + projId + '.cloudfunctions.net/webhookPasarelasPOS?comercio=' + encodeURIComponent(idNegocio || 'TU_ID') + '&proveedor=' + encodeURIComponent(proveedor);
+        }
+
+        window.seleccionarProveedorUI = function(prov) {
+            pasarelaElegida = (prov === 'WOMPI') ? 'WOMPI' : 'BOLD';
+            var cBold = document.getElementById('card-pasarela-BOLD');
+            var cWompi = document.getElementById('card-pasarela-WOMPI');
+            if (cBold) cBold.classList.toggle('activa', pasarelaElegida === 'BOLD');
+            if (cWompi) cWompi.classList.toggle('activa', pasarelaElegida === 'WOMPI');
+
+            var guia = document.getElementById('guia-pasarela-dinamica');
+            var lblPub = document.getElementById('lbl-public-key');
+            var lblSec = document.getElementById('lbl-secret-key');
+            var grpTerm = document.getElementById('grupo-terminal-bold');
+
+            if (pasarelaElegida === 'BOLD') {
+                if (guia) {
+                    guia.innerHTML = '<strong>Ruta en Bold.co:</strong><br>' +
+                        '1. Ingresa a tu panel en <strong>bold.co</strong> e inicia sesión.<br>' +
+                        '2. Ve al menú <strong>Integraciones -> Botón de pagos / API</strong>.<br>' +
+                        '3. En <strong>Llaves de integración</strong> copia tu <strong>Llave de Identidad</strong> y tu <strong>Llave Secreta</strong>.';
+                }
+                if (lblPub) lblPub.innerText = 'Llave de Identidad Bold (Identity Key)';
+                if (lblSec) lblSec.innerText = 'Llave Secreta Bold (Secret Key SHA-256)';
+                if (grpTerm) grpTerm.style.display = 'block';
+            } else {
+                if (guia) {
+                    guia.innerHTML = '<strong>Ruta en Wompi Bancolombia:</strong><br>' +
+                        '1. Ingresa a <strong>comercios.wompi.co</strong>.<br>' +
+                        '2. En el menú lateral entra a <strong>Desarrolladores</strong>.<br>' +
+                        '3. Copia tu <strong>Llave Pública (pub_prod_...)</strong>, tu <strong>Secreto de Integridad (prod_integrity_...)</strong> y el <strong>Secreto de Eventos</strong>.';
+                }
+                if (lblPub) lblPub.innerText = 'Llave Pública Wompi (pub_prod_... o pub_test_...)';
+                if (lblSec) lblSec.innerText = 'Secreto de Integridad Wompi (prod_integrity_...)';
+                if (grpTerm) grpTerm.style.display = 'none';
+            }
+
+            var txtWeb = document.getElementById('txt-webhook-url');
+            if (txtWeb) txtWeb.innerText = obtenerUrlWebhook(pasarelaElegida);
+        };
+
+        window.copiarWebhookUrl = function() {
+            var txt = document.getElementById('txt-webhook-url').innerText;
+            navigator.clipboard.writeText(txt).then(function() {
+                alert('URL de Webhook copiada al portapapeles. Pégala en tu panel de ' + pasarelaElegida + '.');
+            });
+        };
+
+        window.alternarVistaSecreto = function(idInput) {
+            var el = document.getElementById(idInput);
+            if (!el) return;
+            el.type = (el.type === 'password') ? 'text' : 'password';
+        };
+
+        window.procesarEvidenciaPasarela = async function(ev) {
+            var file = ev.target.files && ev.target.files[0];
+            if (!file || !idNegocio) return;
+            var lbl = document.getElementById('lbl-evidencia-estado');
+            var img = document.getElementById('img-preview-evidencia');
+            try {
+                if (lbl) lbl.innerText = 'Comprimiendo y subiendo evidencia...';
+                var blob = await GeokatuDB.AdminService.comprimirAWebP(file, 1000, 0.8, false, false);
+                var ruta = 'tiendas/' + idNegocio + '/evidencia_pasarela_' + Date.now() + '.webp';
+                var resSubida = await GeokatuDB.AdminService.subirArchivo(ruta, blob, 'image/webp');
+                evidenciaSubidaUrl = resSubida.url || String(resSubida);
+                if (img) {
+                    img.src = evidenciaSubidaUrl;
+                    img.style.display = 'block';
+                }
+                if (lbl) lbl.innerText = 'Evidencia cargada correctamente';
+            } catch (eUp) {
+                if (lbl) lbl.innerText = 'No se pudo subir la imagen (' + eUp.message + ')';
+            }
+        };
+
+        window.validarYSellarPasarela = async function() {
+            if (!idNegocio) {
+                alert('No se detectó una sesión activa de comercio. Abre primero el POS.');
+                return;
+            }
+            var pubKey = document.getElementById('input-public-key').value.trim();
+            var secKey = document.getElementById('input-secret-key').value.trim();
+            var evtSec = document.getElementById('input-events-secret').value.trim();
+            var termId = document.getElementById('input-terminal-id').value.trim();
+            var chkWeb = document.getElementById('chk-webhook-confirmado').checked;
+            var btn = document.getElementById('btn-sellar-boveda');
+            var boxRes = document.getElementById('caja-resultado-handshake');
+
+            if (!pubKey || !secKey) {
+                alert('Debes ingresar tanto la Llave Pública como la Llave Secreta / Integridad.');
+                return;
+            }
+            if (!chkWeb) {
+                if (!confirm('¿Confirmas que ya copiaste la URL de Webhook del Paso 2 para recibir notificaciones de pago en vivo?')) {
+                    return;
+                }
+            }
+
+            btn.disabled = true;
+            btn.innerText = 'Verificando llaves en Cloud Functions...';
+            if (boxRes) boxRes.style.display = 'none';
+
+            try {
+                var fns = getFunctions(db.app);
+                var guardarCredenciales = httpsCallable(fns, 'guardarCredencialesPasarelaPOS');
+                var resp = await guardarCredenciales({
+                    idNegocio: idNegocio,
+                    pasarela: pasarelaElegida,
+                    publicKey: pubKey,
+                    secretKey: secKey,
+                    eventsSecret: evtSec || secKey,
+                    terminalId: termId,
+                    evidenciaUrl: evidenciaSubidaUrl
+                });
+
+                var data = (resp && resp.data) ? resp.data : {};
+                if (data.success) {
+                    await GeokatuDB.PosService.obtenerConfiguracionTerminalPOS(idNegocio);
+                    var badge = document.getElementById('badge-verificacion-top');
+                    if (badge) {
+                        badge.style.background = 'rgba(0,230,118,0.18)';
+                        badge.style.color = '#00e676';
+                        badge.innerText = pasarelaElegida + ' VERIFICADO (' + (data.mascara || 'OK') + ')';
+                    }
+                    if (boxRes) {
+                        boxRes.style.display = 'block';
+                        boxRes.style.background = 'rgba(0,230,118,0.12)';
+                        boxRes.style.border = '1px solid #00e676';
+                        boxRes.style.color = '#00e676';
+                        boxRes.innerText = 'Bóveda sellada: ' + (data.mensaje || 'Pasarela lista para cobrar en el POS.');
+                    }
+                    GeokatuDB.PosService.anunciarPagoCornetaVoz(0, pasarelaElegida);
+                }
+            } catch (err) {
+                if (boxRes) {
+                    boxRes.style.display = 'block';
+                    boxRes.style.background = 'rgba(255,68,68,0.15)';
+                    boxRes.style.border = '1px solid #ff4444';
+                    boxRes.style.color = '#ff6b6b';
+                    boxRes.innerText = 'Error validando llaves: ' + (err.message || 'Verifica las credenciales.');
+                }
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Validar con el Servidor y Sellar en Bóveda';
+            }
+        };
+
+        async function hidratarEstadoInicial() {
+            window.seleccionarProveedorUI('BOLD');
+            if (!idNegocio) {
+                document.getElementById('subtitulo-comercio').innerText = 'Inicia sesión en el POS para vincular tu comercio';
+                return;
+            }
+            document.getElementById('subtitulo-comercio').innerText = 'Comercio ID: ' + idNegocio;
+            var cfg = await GeokatuDB.PosService.obtenerConfiguracionTerminalPOS(idNegocio);
+            if (cfg) {
+                if (cfg.pasarela_activa === 'WOMPI' || cfg.pasarela_activa === 'BOLD') {
+                    window.seleccionarProveedorUI(cfg.pasarela_activa);
+                }
+                if (cfg.pasarela_public_key) {
+                    document.getElementById('input-public-key').value = cfg.pasarela_public_key;
+                }
+                if (cfg.bold_terminal_id) {
+                    document.getElementById('input-terminal-id').value = cfg.bold_terminal_id;
+                }
+                if (cfg.evidencia_pasarela_url) {
+                    evidenciaSubidaUrl = cfg.evidencia_pasarela_url;
+                    var img = document.getElementById('img-preview-evidencia');
+                    if (img) { img.src = evidenciaSubidaUrl; img.style.display = 'block'; }
+                }
+                if (cfg.pasarela_verificada === true) {
+                    var badge = document.getElementById('badge-verificacion-top');
+                    if (badge) {
+                        badge.style.background = 'rgba(0,230,118,0.18)';
+                        badge.style.color = '#00e676';
+                        badge.innerText = (cfg.pasarela_activa || 'PASARELA') + ' VERIFICADA (' + (cfg.llave_secreta_mascara || 'OK') + ')';
+                    }
+                }
+            }
+        }
+
+        GeokatuDB.SecurityService.observarEstadoSesion(function(user) {
+            if (user && !idNegocio) {
+                idNegocio = localStorage.getItem('geokatu_active_uid') || user.uid;
+            }
+            hidratarEstadoInicial();
+        });
+    </script>
+</body>
+</html>
