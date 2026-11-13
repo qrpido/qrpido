@@ -1256,19 +1256,19 @@ window.seleccionarModoTarjeta = async function(modo) {
             } catch (eFirma) {
                 console.warn('[POS Pasarela] Fallback local QR:', eFirma.message);
             }
-            if (!urlPagoQr) {
-                if (cfg.pasarela_activa === 'BOLD') {
-                    urlPagoQr = 'https://checkout.bold.co/payment/' + encodeURIComponent(cfg.pasarela_public_key) + '?order_id=' + encodeURIComponent(refUnica) + '&amount=' + montoEntero + '&currency=COP';
-                } else {
-                    urlPagoQr = 'https://checkout.wompi.co/p/?public-key=' + encodeURIComponent(cfg.pasarela_public_key) + '&currency=COP&amount-in-cents=' + (montoEntero * 100) + '&reference=' + encodeURIComponent(refUnica);
+                        if (!urlPagoQr) {
+                if (lblQr) {
+                    lblQr.style.color = '#ff4444';
+                    lblQr.innerText = 'No se pudo firmar la orden con la boveda. Verifica tu conexion o tus llaves en /pasarelas.';
                 }
+                return;
             }
             if (typeof window.QRCode === 'function') {
                 new window.QRCode(contQr, { text: urlPagoQr, width: 170, height: 170 });
             }
             if (lblQr) {
                 lblQr.style.color = '#00ff64';
-                lblQr.innerText = 'Escanea con ' + cfg.pasarela_activa + ' • Esperando pago en vivo...';
+                lblQr.innerText = 'Escanea con ' + cfg.pasarela_activa + ' • Esperando confirmacion bancaria...';
             }
         }
 
@@ -1276,15 +1276,32 @@ window.seleccionarModoTarjeta = async function(modo) {
             const firestoreMod = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
             const dbInst = firestoreMod.getFirestore();
             if (typeof unsubscribePagoEnVivo === 'function') unsubscribePagoEnVivo();
-            
+            let intentoConsumidoLocal = false;
             const docPagoRef = firestoreMod.doc(dbInst, 'Directorio/' + idNegocio + '/Pagos_POS_EnVivo', tktTempId);
             unsubscribePagoEnVivo = firestoreMod.onSnapshot(docPagoRef, function(snap) {
-                if (snap.exists() && snap.data().estado === 'APROBADO') {
-                    if (typeof unsubscribePagoEnVivo === 'function') unsubscribePagoEnVivo();
-                    GeokatuDB.PosService.anunciarPagoCornetaVoz(montoPendienteDatafonoTemporal, 'Codigo QR');
+                if (!snap.exists() || intentoConsumidoLocal) return;
+                const dPago = snap.data() || {};
+                if (dPago.estado === 'APROBADO') {
+                    intentoConsumidoLocal = true;
+                    if (typeof unsubscribePagoEnVivo === 'function') {
+                        unsubscribePagoEnVivo();
+                        unsubscribePagoEnVivo = null;
+                    }
+                    const montoConfirmado = Math.round(Number(dPago.monto_pesos) || montoEntero);
+                    GeokatuDB.PosService.anunciarPagoCornetaVoz(montoConfirmado, dPago.pasarela || 'Codigo QR');
                     document.getElementById('modal-datafono').style.display = 'none';
-                    aplicarAbonoConfirmado('TARJETA', montoPendienteDatafonoTemporal, snap.data().transaccion_id || 'QR_APROBADO');
+                    aplicarAbonoConfirmado('TARJETA', montoConfirmado, dPago.transaccion_id || 'QR_APROBADO');
                     montoPendienteDatafonoTemporal = 0;
+                } else if (dPago.estado === 'REVISION_REQUERIDA') {
+                    if (lblQr) {
+                        lblQr.style.color = '#ff4444';
+                        lblQr.innerText = 'Alerta: El monto pagado no coincide con la orden. Requiere revision.';
+                    }
+                }
+            }, function(errSnap) {
+                if (lblQr) {
+                    lblQr.style.color = '#ff4444';
+                    lblQr.innerText = 'Error escuchando confirmacion: ' + errSnap.message;
                 }
             });
         } catch (eW) {}
