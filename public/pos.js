@@ -241,8 +241,18 @@ window.recuperarIntentoPagoPendientePOS();
 }
 
 // ==========================================
-// SANITIZADOR NUMÉRICO DEFENSIVO POS
+// SANITIZADOR NUMÉRICO Y ANTI-XSS DEFENSIVO POS (C21)
 // ==========================================
+function escaparHtmlPos(texto) {
+    if (texto === null || texto === undefined) return '';
+    return String(texto)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 function sanitizarCantidadSegura(valor, esPesable = false, maximoPermitido = 9999.999) {
     if (valor === null || valor === undefined) return null;
     const num = Number(valor);
@@ -568,17 +578,17 @@ function agregarAlCarrito(producto, cantidadASumar = 1, forzarReemplazo = false,
 
 
     // Si viene con precio fijado por balanza (prefijos 22/23) o con cantidad forzada
-    if (itemExistente && !precioForzado) {
+        if (itemExistente && !precioForzado) {
         itemExistente.cantidad = esPesable ? parseFloat(nuevaCantidad.toFixed(3)) : Math.round(nuevaCantidad);
     } else {
         carrito.push({
             id_prod: producto.id_prod,
             codigo_barras: producto.codigo_barras || "",
-            nombre: producto.nombre,
+            nombre: escaparHtmlPos(producto.nombre),
             precio: precioForzado !== null ? precioForzado : (Number(producto.precio) || 0),
             impuesto: producto.impuesto || "19",
             es_pesable: esPesable,
-            unidad_medida: producto.unidad_medida || (esPesable ? "kg" : "und"),
+            unidad_medida: escaparHtmlPos(producto.unidad_medida || (esPesable ? "kg" : "und")),
             cantidad: esPesable ? parseFloat(nuevaCantidad.toFixed(3)) : Math.round(nuevaCantidad),
             precio_fijado_balanza: precioForzado !== null
         });
@@ -2944,7 +2954,7 @@ window.agregarNotaItem = function(index) {
     const notaActual = carrito[index].nota || "";
     const nuevaNota = prompt("Instrucción o nota de preparación para este ítem:", notaActual);
     if (nuevaNota !== null) {
-        carrito[index].nota = nuevaNota.trim();
+        carrito[index].nota = escaparHtmlPos(nuevaNota.trim().substring(0, 120));
         renderizarCarrito();
     }
 };
