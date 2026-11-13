@@ -374,7 +374,9 @@ export const DirectorioMatrizService = {
                             portada: data.portada || "",
                             link_pin: data.link_pin || "",
                             nombre_png: data.nombre_png || data.logo_nombre || "",
-                            tema_popup: data.tema_popup || "carbon",
+                                                        tema_popup: data.tema_popup || "carbon",
+                            direccion: data.direccion || "",
+                            direccion_normalizada: data.direccion_normalizada || normalizarDireccionCartesiana(data.direccion || ""),
                             horario: data.horario || "",
                             whatsapp: data.whatsapp || data.whatsApp || "",
                             pbx: data.pbx || "",
@@ -429,7 +431,76 @@ export const DirectorioMatrizService = {
 };
 
 
+export function normalizarDireccionCartesiana(dirRaw) {
+    const baseVacia = { eje: '', cruce: '', placa: '', cuadra: '', exacta: '', sector: '', tokens: [] };
+    if (!dirRaw || typeof dirRaw !== 'string') return baseVacia;
+
+    let txt = dirRaw
+        .toUpperCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[,;|()]/g, ' ')
+        .replace(/\b(NO\.?|NUM\.?|NUMERO|NRO\.?)\b/g, ' ')
+        .replace(/#/g, ' # ')
+        .replace(/-/g, ' - ')
+        .replace(/\b(CARRERAS?|CRAS?\.?|CRS?\.?|KRS?\.?|K)\b/g, 'CRA')
+        .replace(/\b(CALLES?|CLLS?\.?|CLS?\.?|CL\.?)\b/g, 'CLL')
+        .replace(/\b(AVENIDAS?|AVDAS?\.?|AVS?\.?|AV\.?)\b/g, 'AV')
+        .replace(/\b(DIAGONALES?|DIAGS?\.?|DGS?\.?|DG\.?)\b/g, 'DIAG')
+        .replace(/\b(TRANSVERSALES?|TRANSV\.?|TVS?\.?|TV\.?)\b/g, 'TV')
+        .replace(/\b(MANZANAS?|MZS?\.?|MZ\.?)\b/g, 'MZ')
+        .replace(/\b(CASAS?|CS\.?)\b/g, 'CASA')
+        .replace(/\b(LOCAL|LOC\.?|APTO\.?|OFICINA|OF\.?|PISO|INT\.?|BARRIO|BRR\.?|SECTOR|URB\.?)\b/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    let eje = '';
+    let cruce = '';
+    let placa = '';
+    let restoSector = txt;
+
+    const regexUrbana = /\b(CRA|CLL|AV|DIAG|TV|MZ)\s+([0-9]+[A-Z]?(?:\s+(?:BIS|SUR|NORTE|ESTE|OESTE))?|[0-9]+\s+DE\s+[A-Z]+)(?:\s*(?:#|CON|CASA|-)\s*([0-9]+[A-Z]?)(?:\s*(?:-|\s)\s*([0-9]+))?|\s+([0-9]{1,3})\s+([0-9]{1,3}))?/;
+    const m = txt.match(regexUrbana);
+
+    if (m) {
+        eje = (m[1] + ' ' + m[2]).replace(/\s+/g, ' ').trim();
+        let rawCruce = m[3] || m[5] || '';
+        let rawPlaca = m[4] || m[6] || '';
+
+        if (rawCruce && !rawPlaca && /^[0-9]{4}$/.test(rawCruce)) {
+            rawPlaca = rawCruce.slice(2);
+            rawCruce = rawCruce.slice(0, 2);
+        } else if (rawCruce && !rawPlaca && /^[0-9]{3}$/.test(rawCruce) && Number(rawCruce) > 150) {
+            rawPlaca = rawCruce.slice(1);
+            rawCruce = rawCruce.slice(0, 1);
+        }
+
+        cruce = rawCruce.trim();
+        placa = rawPlaca.trim();
+        restoSector = txt.replace(m[0], ' ').replace(/[#-]/g, ' ').replace(/\s+/g, ' ').trim();
+    } else {
+        restoSector = txt.replace(/[#-]/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
+    const cuadra = (eje && cruce) ? (eje + ' ' + cruce) : eje;
+    const exacta = (cuadra && placa) ? (cuadra + ' ' + placa) : cuadra;
+    const tokens = restoSector
+        ? restoSector.split(' ').filter(function(w) { return w.length >= 3 && !/^[0-9]+$/.test(w); })
+        : [];
+
+    return {
+        eje: eje,
+        cruce: cruce,
+        placa: placa,
+        cuadra: cuadra,
+        exacta: exacta,
+        sector: restoSector,
+        tokens: tokens
+    };
+}
+
 const GeokatuDB = {
+    normalizarDireccionCartesiana,
     CatalogoMatrizService,
     DirectorioMatrizService, 
     /**
@@ -2084,8 +2155,9 @@ obtenerContactoComercio: async (idNegocio) => {
                             tags_busqueda: tagsArray,
                             informacion_adicional: item.informacion_adicional || "",
 
-                            // Cartografía y Ubicación Geoespacial
+                                                        // Cartografía y Ubicación Geoespacial
                             direccion: item.direccion || "",
+                            direccion_normalizada: normalizarDireccionCartesiana(item.direccion || ""),
                             plus_code: item.plus_code || "",
                             Coordenadas: { latitude: lat, longitude: lng },
                             lat: lat,
@@ -3102,6 +3174,7 @@ obtenerDestinoPOS: async (idNegocio) => {
             });
 
             localStorage.setItem(claveCfgLocal, JSON.stringify(configFusionada));
+            delete _cacheLocales[tenantReal];
 
             try {
                 if (navigator.onLine) {
@@ -3125,6 +3198,7 @@ obtenerDestinoPOS: async (idNegocio) => {
             }
 
             try {
+                delete _cacheLocales[tenantReal];
                 const info = await GeokatuDB.LocalService.getDetails(tenantReal);
                 const dNeg = (info && info.success && info.data) ? info.data : {};
                 const cfgRemota = dNeg.configuracion_pos || {};
@@ -3138,8 +3212,11 @@ obtenerDestinoPOS: async (idNegocio) => {
                     corneta_voz_activa: true,
                     pasarela_activa: "MANUAL",
                     pasarela_public_key: "",
+                    pasarela_verificada: false,
+                    llave_secreta_mascara: "",
+                    bold_terminal_id: "",
                     plan_activo: dNeg.plan_suscripcion || (dNeg.premium ? "PRO" : "FREEMIUM")
-                }, cfgRemota, cfgLocal);
+                }, cfgLocal, cfgRemota);
 
                 localStorage.setItem(claveCfgLocal, JSON.stringify(finalCfg));
                 return finalCfg;
@@ -3148,6 +3225,7 @@ obtenerDestinoPOS: async (idNegocio) => {
                     apps_script_url: "",
                     whatsapp_facturas_activo: false,
                     pasarela_activa: "MANUAL",
+                    pasarela_verificada: false,
                     plan_activo: "FREEMIUM"
                 };
             }
