@@ -1983,7 +1983,7 @@ exports.webhookPasarelasPOS = functions.https.onRequest(async (req, res) => {
                 }, { merge: true });
             });
 
-            await negRef.collection("pedidos_entrantes").doc(tktId).set({
+                        await negRef.collection("pedidos_entrantes").doc(tktId).set({
                 estado_pago: "PAGADO_CONFIRMADO",
                 monto_recibido_centavos: montoPesos * 100,
                 transaccion_id: txIdExterno,
@@ -1997,6 +1997,210 @@ exports.webhookPasarelasPOS = functions.https.onRequest(async (req, res) => {
         console.error("[WEBHOOK PASARELAS ERROR]", errW);
         return res.status(500).send("Error interno");
     }
+});
+
+exports.consultarEstadoOrdenPasarelaPOS = onCall({ memory: "256MB", maxInstances: 20 }, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Sesion requerida en terminal POS.");
+    }
+    const data = request.data || {};
+    const idNegocio = String(data.idNegocio || "").trim();
+    const ticketTempId = String(data.ticketTempId || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32);
+    if (!idNegocio || !ticketTempId) {
+        throw new HttpsError("invalid-argument", "Faltan identificadores de comercio o intento.");
+    }
+
+    const db = admin.firestore();
+    const negRef = db.collection("Directorio").doc(idNegocio);
+    const negSnap = await negRef.get();
+    if (!negSnap.exists) {
+        throw new HttpsError("not-found", "Comercio no encontrado.");
+    }
+    const negData = negSnap.data() || {};
+    const uidCaller = request.auth.uid;
+    const emailCaller = String(request.auth.token.email || "").toLowerCase();
+    let autorizado = (uidCaller === idNegocio) ||
+        (negData.uid_dueno && negData.uid_dueno === uidCaller) ||
+        (negData.owner_email && String(negData.owner_email).toLowerCase() === emailCaller);
+
+    if (!autorizado) {
+        const [eqSnap, colSnap, admSnap] = await Promise.all([
+            negRef.collection("Equipo").doc(uidCaller).get(),
+            negRef.collection("Colaboradores").doc(uidCaller).get(),
+            db.collection("Usuarios_Admin").doc(uidCaller).get()
+        ]);
+        const opData = eqSnap.exists ? eqSnap.data() : (colSnap.exists ? colSnap.data() : null);
+        if (opData && opData.suspendido !== true && opData.activo !== false) {
+            autorizado = true;
+        } else if (admSnap.exists && (admSnap.data().rol === "superadmin" || admSnap.data().rol === "admin")) {
+            autorizado = true;
+        }
+    }
+    if (!autorizado) {
+        throw new HttpsError("permission-denied", "Sin permiso para consultar pagos de este comercio.");
+    }
+
+    const intentoRef = negRef.collection("Pagos_POS_EnVivo").doc(ticketTempId);
+    const intentoSnap = await intentoRef.get();
+    if (!intentoSnap.exists) {
+        return { success: true, aprobado: false, estado: "NO_ENCONTRADO", mensaje: "No existe orden activa." };
+    }
+    const datosIntento = intentoSnap.data() || {};
+    if (datosIntento.estado === "APROBADO") {
+        return {
+            success: true,
+            aprobado: true,
+            estado: "APROBADO",
+            pasarela: datosIntento.pasarela || "PASARELA",
+            monto_pesos: Number(datosIntento.monto_pesos) || 0,
+            transaccion_id: datosIntento.transaccion_id || ticketTempId,
+            mensaje: "Pago ya confirmado en boveda."
+        };
+    }
+
+    const referencia = String(data.referencia || datosIntento.referencia || "").trim();
+    const montoEsperado = Math.round(Number(datosIntento.monto_pesos) || 0);
+    const bovedaSnap = await negRef.collection("Boveda_Pasarelas_Privada").doc("Credenciales").get();
+    const boveda = bovedaSnap.exists ? (bovedaSnap.data() || {}) : {};
+    const cfgPub = negData.configuracion_pos || {};
+    const pasarela = String(datosIntento.pasarela || boveda.pasarela || cfgPub.pasarela_activa || "WOMPI").toUpperCase();
+    const pubKey = String(boveda.public_key || cfgPub.pasarela_public_key || "").trim();
+    const secKey = String(boveda.secret_key || "").trim();
+
+    let estadoRemoto = "PENDIENTE";
+    let montoRecibido = 0;
+    let txIdExterno = "";
+
+    if (pasarela === "WOMPI" && referencia && pubKey) {
+        const esSandbox = (datosIntento.ambiente === "SANDBOX") || (pubKey.indexOf("pub_test_") === 0);
+        const baseWompi = esSandbox ? "https://sandbox.wompi.co" : "https://production.wompi.co";
+        const urlConsultaW = baseWompi + "/v1/transactions?reference=" + encodeURIComponent(referencia);
+        try {
+            const respW = await fetch(urlConsultaW, {
+                method: "GET",
+                headers: { "Authorization": "Bearer " + pubKey }
+            });
+            if (respW.ok) {
+                const jsonW = await respW.json();
+                const listaTx = (jsonW && Array.isArray(jsonW.data)) ? jsonW.data : [];
+                const txAprobada = listaTx.find(function(t) {
+                    return String(t.reference) === referencia && String(t.status).toUpperCase() === "APPROVED" && String(t.currency || "COP") === "COP";
+                });
+                const txRechazada = listaTx.find(function(t) {
+                    return String(t.reference) === referencia && (String(t.status).toUpperCase() === "DECLINED" || String(t.status).toUpperCase() === "ERROR" || String(t.status).toUpperCase() === "VOIDED");
+                });
+                if (txAprobada) {
+                    estadoRemoto = "APROBADO";
+                    montoRecibido = Math.round(Number(txAprobada.amount_in_cents || 0) / 100);
+                    txIdExterno = String(txAprobada.id || "WOMPI_PULL_OK");
+                } else if (txRechazada) {
+                    estadoRemoto = "RECHAZADO";
+                }
+            }
+        } catch (errPullW) {}
+    } else if (pasarela === "BOLD" && referencia && secKey) {
+        try {
+            const urlBold = "https://integrations.api.bold.co/online/link/v1/" + encodeURIComponent(referencia);
+            const respB = await fetch(urlBold, {
+                method: "GET",
+                headers: { "Authorization": "x-api-key " + secKey }
+            });
+            if (respB.ok) {
+                const jsonB = await respB.json();
+                const payloadB = (jsonB && jsonB.payload) ? jsonB.payload : (jsonB || {});
+                const stBold = String(payloadB.status || payloadB.state || "").toUpperCase();
+                if (stBold === "PAID" || stBold === "APPROVED" || stBold === "ACTIVE_PAID" || stBold === "SALE_APPROVED") {
+                    estadoRemoto = "APROBADO";
+                    montoRecibido = Math.round(Number(payloadB.total || (payloadB.amount && payloadB.amount.total) || payloadB.amount || montoEsperado));
+                    txIdExterno = String(payloadB.transaction_id || payloadB.payment_id || payloadB.id || "BOLD_PULL_OK");
+                } else if (stBold === "REJECTED" || stBold === "FAILED" || stBold === "CANCELLED" || stBold === "EXPIRED") {
+                    estadoRemoto = "RECHAZADO";
+                }
+            }
+        } catch (errPullB) {}
+    }
+
+    if (estadoRemoto === "APROBADO") {
+        if (montoEsperado > 0 && montoRecibido !== montoEsperado) {
+            await intentoRef.set({
+                estado: "REVISION_REQUERIDA",
+                monto_recibido: montoRecibido,
+                transaccion_id: txIdExterno,
+                timestamp: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            return {
+                success: true,
+                aprobado: false,
+                estado: "REVISION_REQUERIDA",
+                mensaje: "El monto reportado por el banco no coincide con la orden."
+            };
+        }
+
+        const eventoId = (pasarela === "BOLD" ? "BOLD_" : "WOMPI_") + String(txIdExterno).replace(/[^a-zA-Z0-9_-]/g, "_");
+        const eventoRef = negRef.collection("Eventos_Pago").doc(eventoId);
+        const pagoConfRef = negRef.collection("Pagos_Confirmados").doc(eventoId);
+        const ordenPosRef = negRef.collection("Ordenes_POS").doc(ticketTempId);
+
+        await db.runTransaction(async (tx) => {
+            const evSnap = await tx.get(eventoRef);
+            if (!evSnap.exists || evSnap.data().procesado !== true) {
+                tx.set(eventoRef, {
+                    evento_id: eventoId,
+                    transaccion_id: txIdExterno,
+                    tktId: ticketTempId,
+                    referencia: referencia,
+                    pasarela: pasarela,
+                    monto_pesos: montoRecibido,
+                    origen: "PULL_SERVIDOR",
+                    procesado: true,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+                tx.set(pagoConfRef, {
+                    pago_id: eventoId,
+                    transaccion_externa: txIdExterno,
+                    orden_id: ticketTempId,
+                    referencia: referencia,
+                    pasarela: pasarela,
+                    ambiente: datosIntento.ambiente || "PRODUCCION",
+                    monto_pesos: montoRecibido,
+                    estado: "APROBADO_CONCILIADO",
+                    timestamp: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+                tx.set(ordenPosRef, {
+                    estado_orden: "SALDO_CUBIERTO",
+                    pago_confirmado_id: eventoId,
+                    actualizado_en: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+            }
+            tx.set(intentoRef, {
+                estado: "APROBADO",
+                pasarela: pasarela,
+                monto_pesos: montoRecibido,
+                transaccion_id: txIdExterno,
+                metodo: pasarela + "_POS_PULL",
+                timestamp: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+        });
+
+        return {
+            success: true,
+            aprobado: true,
+            estado: "APROBADO",
+            pasarela: pasarela,
+            monto_pesos: montoRecibido,
+            transaccion_id: txIdExterno,
+            mensaje: "Pago verificado y aprobado directamente con el banco."
+        };
+    }
+
+    return {
+        success: true,
+        aprobado: false,
+        estado: estadoRemoto,
+        mensaje: estadoRemoto === "RECHAZADO"
+            ? "El banco reporta la transaccion como rechazada o expirada."
+            : "Aun figura pendiente de confirmacion en el banco. Intenta en unos segundos."
+    };
 });
 
 
