@@ -4,12 +4,13 @@
  * Soporte: PMTiles (Range Requests), Matriz Comercial y URLs Limpias
  */
 
-const CACHE_NAME = 'geokatu-cache-v16-unificacion';
+const CACHE_NAME = 'geokatu-cache-v17-pasarelas-pos';
 const MAP_CACHE_NAME = 'geokatu-map-tiles-v3';
 
 // 1. Módulos esenciales del ecosistema GEOKATU (Cero 404, precarga inmediata)
 const urlsToCache = [
     '/', '/negocio', '/negocio.html', '/negocio.css', '/catalogo-experiencia.css',
+    '/pos', '/pos.html', '/pos.js', '/estilos-pos.css',
     '/catalogo-experiencia.js', '/branding-cuarzos.js', '/arranque-geokatu.js',
     '/marca-geokatu.svg', '/onboarding-core.js', '/estudio-imagen-universal.js', '/core-db.js', '/firebase-config.js', '/motor-mapa.js',
     '/auth-mando.js', '/profiler.js', '/ui-estilos.css', '/pines.css', '/maplibre-gl.js', '/maplibre-gl.css', '/pmtiles.js', '/estilo-fresco.json', '/operaciones-integridad.js',
@@ -43,11 +44,14 @@ self.addEventListener('activate', event => {
     event.waitUntil(
         caches.keys().then(async cacheNames => {
             const actual = await caches.open(CACHE_NAME);
-            // Conserva recursos visitados. No toca IndexedDB, pedidos ni cachés ajenas.
+                        // Conserva solo recursos multimedia visitados; nunca arrastra JS/HTML/CSS antiguos ni evidencias privadas (C07/C22).
             for (const name of cacheNames.filter(n => n.startsWith('geokatu-cache-') && n !== CACHE_NAME)) {
                 const anterior = await caches.open(name);
                 for (const req of await anterior.keys()) {
-                    if (!(await actual.match(req))) {
+                    const reqUrl = new URL(req.url);
+                    const esCodigoApp = reqUrl.origin === self.location.origin && (reqUrl.pathname === '/' || /\.(html|js|css|json)$/i.test(reqUrl.pathname) || !reqUrl.pathname.includes('.'));
+                    const esEvidenciaPrivada = reqUrl.href.includes('boveda_pasarelas_evidencia');
+                    if (!esCodigoApp && !esEvidenciaPrivada && !(await actual.match(req))) {
                         const response = await anterior.match(req);
                         if (response) await actual.put(req, response);
                     }
@@ -62,11 +66,17 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
     const url = new URL(event.request.url);
 
-    // Bypass obligatorio para Firestore, Auth y llamadas de metadatos de Firebase Storage (evita corromper imagenes con el JSON de getDownloadURL)
+        // Bypass obligatorio para Firestore, Auth, Functions, Pasarelas (Bold/Wompi) y Evidencias Privadas (C07/C17)
     if (
         url.hostname.includes('firestore.googleapis.com') ||
         url.hostname.includes('identitytoolkit') ||
         url.hostname.includes('securetoken.googleapis.com') ||
+        url.hostname.includes('cloudfunctions.net') ||
+        url.hostname.includes('wompi.co') ||
+        url.hostname.includes('bold.co') ||
+        url.pathname.startsWith('/api/') ||
+        url.pathname.startsWith('/pasarelas') ||
+        url.href.includes('boveda_pasarelas_evidencia') ||
         (url.hostname.includes('firebasestorage.googleapis.com') && url.searchParams.get('alt') !== 'media')
     ) {
         return;
