@@ -308,15 +308,22 @@
                 </div>
             </div>
 
-            <div class="campo-grupo" id="grupo-terminal-bold">
-                <label for="input-terminal-id">Serial / ID de Datáfono Bold Smart (Opcional)</label>
-                <input type="text" id="input-terminal-id" class="input-boveda" placeholder="Ej: N86-00012345 (Solo si vinculas datáfono físico)" autocomplete="off">
+                        <div class="campo-grupo" id="grupo-terminal-bold">
+                <label for="input-terminal-id">Serial / ID de Datáfono Bold Smart (Opcional - C23)</label>
+                <input type="text" id="input-terminal-id" class="input-boveda" placeholder="Ej: N86-00012345 (Requiere habilitacion API presencial Bold)" autocomplete="off">
+                <small style="display: block; margin-top: 4px; font-size: 10.5px; color: var(--muted);">
+                    Nota técnica: El cobro QR funciona de inmediato. El envío a datáfono físico requiere habilitación del producto API Integraciones POS en Bold. El lector NFC del teléfono (Web NFC) no sustituye un datáfono certificado PCI/MPOC.
+                </small>
             </div>
 
             <div id="caja-resultado-handshake" style="display: none; margin-top: 14px; padding: 12px; border-radius: 10px; font-size: 12px; font-weight: 700;"></div>
 
             <button type="button" id="btn-sellar-boveda" class="btn-primario" onclick="window.validarYSellarPasarela()">
                 Validar con el Servidor y Sellar en Bóveda
+            </button>
+
+            <button type="button" id="btn-smoke-test-orden" class="btn-secundario" style="width: 100%; margin-top: 10px; min-height: 42px;" onclick="window.ejecutarSmokeTestOrdenPOS()">
+                Probar Generación de Orden Firmada ($1.000 COP - Sin Cobro)
             </button>
         </section>
     </main>
@@ -527,6 +534,51 @@
                 }
             }
         }
+
+                window.ejecutarSmokeTestOrdenPOS = async function() {
+            if (!idNegocio) {
+                alert('Abre primero el POS con tu cuenta de comercio.');
+                return;
+            }
+            var boxRes = document.getElementById('caja-resultado-handshake');
+            var btnTest = document.getElementById('btn-smoke-test-orden');
+            btnTest.disabled = true;
+            btnTest.innerText = 'Generando orden firmada de prueba en servidor...';
+            try {
+                var fns = getFunctions(db.app);
+                var crearOrden = httpsCallable(fns, 'crearOrdenCobroPasarelaPOS');
+                var tktPrueba = 'SMOKE' + Date.now();
+                var res = await crearOrden({
+                    idNegocio: idNegocio,
+                    ticketTempId: tktPrueba,
+                    montoPesos: 1000,
+                    pasarela: pasarelaElegida
+                });
+                var d = (res && res.data) ? res.data : {};
+                if (d.success && d.firma && d.urlCheckout) {
+                    if (boxRes) {
+                        boxRes.style.display = 'block';
+                        boxRes.style.background = 'rgba(0,230,118,0.12)';
+                        boxRes.style.border = '1px solid #00e676';
+                        boxRes.style.color = '#00e676';
+                        boxRes.innerText = 'PRUEBA SUPERADA (' + d.pasarela + '): Referencia ' + d.referencia + ' firmada con SHA-256 (' + d.firma.slice(0, 12) + '...). Listo para cobrar en caja.';
+                    }
+                } else {
+                    throw new Error('La orden no devolvio firma SHA-256. Sella primero tu Llave Secreta en el boton naranja.');
+                }
+            } catch (eTest) {
+                if (boxRes) {
+                    boxRes.style.display = 'block';
+                    boxRes.style.background = 'rgba(255,68,68,0.15)';
+                    boxRes.style.border = '1px solid #ff4444';
+                    boxRes.style.color = '#ff6b6b';
+                    boxRes.innerText = 'Fallo en prueba de orden: ' + (eTest.message || 'Verifica tus llaves.');
+                }
+            } finally {
+                btnTest.disabled = false;
+                btnTest.innerText = 'Probar Generación de Orden Firmada ($1.000 COP - Sin Cobro)';
+            }
+        };
 
         GeokatuDB.SecurityService.observarEstadoSesion(function(user) {
             if (user && !idNegocio) {
