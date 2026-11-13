@@ -236,7 +236,8 @@ async function inicializarCaja() {
             }
         }
     });
-window.actualizarEstadoVisualBotonWhatsApp(); 
+window.actualizarEstadoVisualBotonWhatsApp();
+window.recuperarIntentoPagoPendientePOS();
 }
 
 // ==========================================
@@ -1250,8 +1251,15 @@ window.seleccionarModoTarjeta = async function(modo) {
                     montoPesos: montoEntero,
                     pasarela: cfg.pasarela_activa
                 });
-                if (resOrden && resOrden.data && resOrden.data.urlCheckout) {
+                                if (resOrden && resOrden.data && resOrden.data.urlCheckout) {
                     urlPagoQr = resOrden.data.urlCheckout;
+                    localStorage.setItem('geokatu_intento_pos_' + idNegocio, JSON.stringify({
+                        tktTempId: tktTempId,
+                        referencia: resOrden.data.referencia || refUnica,
+                        monto: montoEntero,
+                        pasarela: cfg.pasarela_activa,
+                        ts: Date.now()
+                    }));
                 }
             } catch (eFirma) {
                 console.warn('[POS Pasarela] Fallback local QR:', eFirma.message);
@@ -1287,10 +1295,12 @@ window.seleccionarModoTarjeta = async function(modo) {
                         unsubscribePagoEnVivo();
                         unsubscribePagoEnVivo = null;
                     }
+                                        localStorage.removeItem('geokatu_intento_pos_' + idNegocio);
                     const montoConfirmado = Math.round(Number(dPago.monto_pesos) || montoEntero);
+                    const refConfirmada = (dPago.pasarela || 'PASARELA') + ':' + (dPago.transaccion_id || tktTempId);
                     GeokatuDB.PosService.anunciarPagoCornetaVoz(montoConfirmado, dPago.pasarela || 'Codigo QR');
                     document.getElementById('modal-datafono').style.display = 'none';
-                    aplicarAbonoConfirmado('TARJETA', montoConfirmado, dPago.transaccion_id || 'QR_APROBADO');
+                    aplicarAbonoConfirmado('TARJETA', montoConfirmado, refConfirmada);
                     montoPendienteDatafonoTemporal = 0;
                 } else if (dPago.estado === 'REVISION_REQUERIDA') {
                     if (lblQr) {
@@ -1315,13 +1325,51 @@ document.getElementById('btn-cancelar-datafono').addEventListener('click', () =>
 });
 
 document.getElementById('btn-confirmar-datafono').addEventListener('click', () => {
-    if (typeof unsubscribePagoEnVivo === 'function') unsubscribePagoEnVivo();
+    const panelQr = document.getElementById('panel-tarjeta-qr');
+    if (panelQr && panelQr.style.display === 'block') {
+        if (!confirm('El cobro QR aun no ha sido confirmado por el banco. ¿Deseas asentar este pago bajo tu responsabilidad como DECLARADO MANUAL?')) {
+            return;
+        }
+    }
+    if (typeof unsubscribePagoEnVivo === 'function') {
+        unsubscribePagoEnVivo();
+        unsubscribePagoEnVivo = null;
+    }
+    localStorage.removeItem('geokatu_intento_pos_' + idNegocio);
     const voucher = document.getElementById('voucher-datafono').value.trim();
-    GeokatuDB.PosService.anunciarPagoCornetaVoz(montoPendienteDatafonoTemporal, 'Tarjeta');
+    const refManual = 'DECLARADO_MANUAL:' + (voucher || 'SIN_VOUCHER');
+    GeokatuDB.PosService.anunciarPagoCornetaVoz(montoPendienteDatafonoTemporal, 'Tarjeta Manual');
     document.getElementById('modal-datafono').style.display = 'none';
-    aplicarAbonoConfirmado('TARJETA', montoPendienteDatafonoTemporal, voucher || 'APROBADO_MANUAL');
+    aplicarAbonoConfirmado('TARJETA', montoPendienteDatafonoTemporal, refManual);
     montoPendienteDatafonoTemporal = 0;
 });
+
+window.recuperarIntentoPagoPendientePOS = async function() {
+    if (!navigator.onLine || !idNegocio) return;
+    const rawIntento = localStorage.getItem('geokatu_intento_pos_' + idNegocio);
+    if (!rawIntento) return;
+    try {
+        const info = JSON.parse(rawIntento);
+        if (!info || !info.tktTempId || (Date.now() - Number(info.ts || 0) > 3600000)) {
+            localStorage.removeItem('geokatu_intento_pos_' + idNegocio);
+            return;
+        }
+        const firestoreMod = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+        const dbInst = firestoreMod.getFirestore();
+        const snap = await firestoreMod.getDoc(firestoreMod.doc(dbInst, 'Directorio/' + idNegocio + '/Pagos_POS_EnVivo', info.tktTempId));
+        if (snap.exists() && snap.data().estado === 'APROBADO') {
+            const dPago = snap.data();
+            localStorage.removeItem('geokatu_intento_pos_' + idNegocio);
+            const refRec = (dPago.pasarela || 'PASARELA') + ':' + (dPago.transaccion_id || info.tktTempId);
+            const yaAplicado = pagosAcumuladosTicket.some(function(p) { return p.referencia === refRec; });
+            if (!yaAplicado && carrito.length > 0) {
+                const montoRec = Math.round(Number(dPago.monto_pesos) || Number(info.monto) || 0);
+                GeokatuDB.PosService.anunciarPagoCornetaVoz(montoRec, dPago.pasarela || 'Pasarela');
+                aplicarAbonoConfirmado('TARJETA', montoRec, refRec);
+            }
+        }
+    } catch (eRec) {}
+};
 
 
 function aplicarAbonoConfirmado(metodo, monto, referencia = null) {
