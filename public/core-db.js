@@ -4258,21 +4258,45 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
 
                 // 3. Registrar comprobante oficial de Nota de Crédito Parcial
                 const notaRef = doc(collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Notas_Credito_POS`));
+                                const dataOrig = ticketSnap.data() || {};
+                const pagosOrig = dataOrig.metodos_pago_split || [];
+                const tienePagoPasarela = dataOrig.metodo_pago === "TARJETA" || pagosOrig.some(function(p) {
+                    const r = String(p.referencia || "");
+                    return p.metodo === "TARJETA" || r.indexOf("BOLD:") === 0 || r.indexOf("WOMPI:") === 0;
+                });
+
                 batch.set(notaRef, {
                     ticket_origen_id: ticketId,
                     tipo: "PARCIAL",
                     total_reembolsado: totalReembolso,
                     items_devueltos: itemsDevueltos,
                     motivo: motivo,
+                    requiere_reembolso_bancario: tienePagoPasarela,
+                    estado_reembolso_bancario: tienePagoPasarela ? "PENDIENTE_GESTION_PROVEEDOR" : "NO_APLICA_EFECTIVO",
                     fecha: new Date().toISOString(),
                     usuario: auth.currentUser ? auth.currentUser.email : "CAJERO"
                 });
+
+                if (tienePagoPasarela) {
+                    const idSolicitudReembolso = "REEMB_PARC_" + ticketId + "_" + notaRef.id;
+                    const reembRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + idNegocio + "/Solicitudes_Reembolso_POS", idSolicitudReembolso);
+                    batch.set(reembRef, {
+                        solicitud_id: idSolicitudReembolso,
+                        ticket_origen_id: ticketId,
+                        nota_credito_id: notaRef.id,
+                        tipo: "PARCIAL",
+                        monto_solicitado: totalReembolso,
+                        estado: "PENDIENTE_GESTION_PROVEEDOR",
+                        fecha: new Date().toISOString()
+                    });
+                }
 
                 await batch.commit();
 
                 return {
                     success: true,
                     totalReembolsado: totalReembolso,
+                    requiereGestionPasarela: tienePagoPasarela,
                     notaCreditoId: notaRef.id
                 };
             } catch (err) {
@@ -4307,11 +4331,25 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                         }
                     }
                     tx.set(doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Notas_Credito_POS`, ticketId), {
-                        ticket_origen_id: ticketId, total_revertido: data.total,
+                                                ticket_origen_id: ticketId, total_revertido: data.total,
                         metodo_pago: data.metodo_pago, productos: data.productos,
                         motivo: motivoAnulacion, fecha: new Date().toISOString(),
+                        estado_reembolso_bancario: (data.metodo_pago === 'TARJETA' || data.metodo_pago === 'MIXTO') ? 'PENDIENTE_GESTION_PROVEEDOR' : 'NO_APLICA_EFECTIVO',
                         estado_fiscal: data.factura_electronica ? 'PENDIENTE_GESTION_PROVEEDOR' : 'NO_APLICA'
                     });
+                    if (data.metodo_pago === 'TARJETA' || data.metodo_pago === 'MIXTO') {
+                        const reembTotalRef = doc(db, _SCHEMA.ColeccionDirectorio + '/' + idNegocio + '/Solicitudes_Reembolso_POS', 'REEMB_TOT_' + ticketId);
+                        tx.set(reembTotalRef, {
+                            solicitud_id: 'REEMB_TOT_' + ticketId,
+                            ticket_origen_id: ticketId,
+                            tipo: 'TOTAL',
+                            monto_solicitado: data.total,
+                            metodo_pago_original: data.metodo_pago,
+                            estado: 'PENDIENTE_GESTION_PROVEEDOR',
+                            motivo: motivoAnulacion,
+                            fecha: new Date().toISOString()
+                        });
+                    }
                     return data;
                 });
                 // Refrescar cachés solo después de confirmar la reversión en servidor.
@@ -4330,7 +4368,8 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                 }
                 localStorage.setItem(clave, JSON.stringify(catalogo));
                 localStorage.setItem(claveUbis, JSON.stringify(ubicaciones));
-                return { success: true, mensaje: 'Venta anulada e inventario restituido.' + (venta.factura_electronica ? ' La nota fiscal debe gestionarse con el proveedor.' : ''), totalRevertido: venta.total, productosRevertidos: venta.productos, ventaOriginal: venta };
+                                const avisoPasarela = (venta.metodo_pago === 'TARJETA' || venta.metodo_pago === 'MIXTO') ? ' El reembolso bancario de pasarela quedo registrado como pendiente de confirmacion con el proveedor.' : '';
+                return { success: true, mensaje: 'Venta anulada e inventario restituido.' + avisoPasarela + (venta.factura_electronica ? ' La nota fiscal debe gestionarse con el proveedor.' : ''), totalRevertido: venta.total, productosRevertidos: venta.productos, ventaOriginal: venta };
             } catch (error) { return { success: false, error: error.message }; }
         },
 
