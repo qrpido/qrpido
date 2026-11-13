@@ -1611,14 +1611,20 @@ exports.guardarCredencialesPasarelaPOS = onCall({ memory: "256MB", maxInstances:
         throw new HttpsError("invalid-argument", "Pasarela no soportada. Elige BOLD o WOMPI.");
     }
 
-    let comercioVerificadoApi = false;
+        let comercioVerificadoApi = false;
+    let ambienteDetectado = "PRODUCCION";
     let detalleVerificacion = "Modo manual activado";
 
     if (pasarela === "WOMPI") {
-        if (publicKey.indexOf("pub_") !== 0 || secretKey.length < 12) {
-            throw new HttpsError("invalid-argument", "En Wompi la llave publica debe iniciar con pub_prod_ o pub_test_ y debes incluir el Secreto de Integridad.");
+        if (publicKey.indexOf("pub_") !== 0 || secretKey.length < 12 || !eventsSecret || eventsSecret.length < 12) {
+            throw new HttpsError("invalid-argument", "En Wompi debes ingresar Llave Publica (pub_...), Secreto de Integridad y Secreto de Eventos por separado.");
         }
         const esTest = publicKey.indexOf("pub_test_") === 0;
+        const secEsTest = secretKey.indexOf("test_") === 0;
+        if (esTest !== secEsTest && (secretKey.indexOf("prod_") === 0 || secretKey.indexOf("test_") === 0)) {
+            throw new HttpsError("invalid-argument", "No puedes mezclar llaves de pruebas (test) con llaves de produccion (prod).");
+        }
+        ambienteDetectado = esTest ? "SANDBOX" : "PRODUCCION";
         const urlMerchant = (esTest ? "https://sandbox.wompi.co/v1/merchants/" : "https://production.wompi.co/v1/merchants/") + encodeURIComponent(publicKey);
         try {
             const respW = await fetch(urlMerchant, { method: "GET" });
@@ -1626,21 +1632,22 @@ exports.guardarCredencialesPasarelaPOS = onCall({ memory: "256MB", maxInstances:
                 const jsonW = await respW.json();
                 if (jsonW && jsonW.data && jsonW.data.id) {
                     comercioVerificadoApi = true;
-                    detalleVerificacion = "Wompi verificado: " + (jsonW.data.name || "Comercio Activo");
+                    detalleVerificacion = "Wompi " + ambienteDetectado + " activo: " + (jsonW.data.name || "Comercio Verificado");
                 }
             }
         } catch (eW) {}
         if (!comercioVerificadoApi) {
-            throw new HttpsError("failed-precondition", "Wompi rechazo la llave publica proporcionada. Verifica que este bien copiada.");
+            throw new HttpsError("failed-precondition", "Wompi rechazo la llave publica proporcionada. Verifica que pertenezca al ambiente correcto.");
         }
     } else if (pasarela === "BOLD") {
         if (publicKey.length < 10 || secretKey.length < 10) {
-            throw new HttpsError("invalid-argument", "En Bold debes ingresar tanto la Llave de Identidad (Publica) como la Llave Secreta.");
+            throw new HttpsError("invalid-argument", "En Bold debes ingresar tanto la Llave de Identidad como la Llave Secreta.");
         }
+        ambienteDetectado = (publicKey.toLowerCase().indexOf("test") !== -1 || publicKey.toLowerCase().indexOf("sandbox") !== -1) ? "SANDBOX" : "PRODUCCION";
         const hashPrueba = crypto.createHash("sha256").update("TEST_ORDEN" + "1000" + "COP" + secretKey).digest("hex");
         if (hashPrueba && hashPrueba.length === 64) {
             comercioVerificadoApi = true;
-            detalleVerificacion = "Bold verificado (Firma SHA-256 lista)";
+            detalleVerificacion = "Bold " + ambienteDetectado + " verificado (Firma SHA-256 lista)";
         }
     }
 
@@ -1648,11 +1655,12 @@ exports.guardarCredencialesPasarelaPOS = onCall({ memory: "256MB", maxInstances:
     const bovedaRef = negRef.collection("Boveda_Pasarelas_Privada").doc("Credenciales");
     await bovedaRef.set({
         pasarela: pasarela,
+        ambiente: ambienteDetectado,
         public_key: publicKey,
         secret_key: secretKey,
         events_secret: eventsSecret || secretKey,
         terminal_id: terminalId,
-        evidencia_url: evidenciaUrl,
+        evidencia_ruta_privada: evidenciaUrl,
         verificado_api: comercioVerificadoApi,
         detalle_verificacion: detalleVerificacion,
         actualizado_por: uidSolicitante,
@@ -1660,13 +1668,14 @@ exports.guardarCredencialesPasarelaPOS = onCall({ memory: "256MB", maxInstances:
     }, { merge: true });
 
     const cfgPrevia = negData.configuracion_pos || {};
+    delete cfgPrevia.evidencia_pasarela_url;
     const nuevaCfgPublica = Object.assign({}, cfgPrevia, {
         pasarela_activa: pasarela,
+        pasarela_ambiente: ambienteDetectado,
         pasarela_public_key: publicKey,
         pasarela_verificada: comercioVerificadoApi,
         llave_secreta_mascara: mascaraSecreto,
         bold_terminal_id: terminalId,
-        evidencia_pasarela_url: evidenciaUrl,
         detalle_verificacion_pasarela: detalleVerificacion,
         fecha_verificacion_pasarela: new Date().toISOString()
     });
@@ -1676,6 +1685,7 @@ exports.guardarCredencialesPasarelaPOS = onCall({ memory: "256MB", maxInstances:
     return {
         success: true,
         verificado: comercioVerificadoApi,
+        ambiente: ambienteDetectado,
         pasarela: pasarela,
         mascara: mascaraSecreto,
         mensaje: detalleVerificacion
@@ -1686,14 +1696,15 @@ exports.crearOrdenCobroPasarelaPOS = onCall({ memory: "256MB", maxInstances: 20 
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Sesion requerida en terminal POS.");
     }
-    const data = request.data || {};
+        const data = request.data || {};
     const idNegocio = String(data.idNegocio || "").trim();
-    const ticketTempId = String(data.ticketTempId || ("TKT" + Date.now())).trim();
-    const referencia = String(data.referencia || ("GEOKATU-" + idNegocio + "-" + ticketTempId + "-" + Date.now())).trim();
+    const ticketTempId = String(data.ticketTempId || ("TKT" + Date.now())).replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32);
     const montoEntero = Math.round(Number(data.montoPesos) || 0);
-    if (!idNegocio || montoEntero <= 0) {
-        throw new HttpsError("invalid-argument", "Datos de orden incompletos.");
+    if (!idNegocio || !Number.isFinite(montoEntero) || montoEntero <= 0) {
+        throw new HttpsError("invalid-argument", "Datos de orden o monto invalidos.");
     }
+    const hashRef = crypto.createHash("sha256").update(idNegocio + "|" + ticketTempId + "|" + String(montoEntero)).digest("hex").slice(0, 20).toUpperCase();
+    const referencia = "GK_" + ticketTempId.slice(0, 14) + "_" + hashRef;
 
     const db = admin.firestore();
     const negRef = db.collection("Directorio").doc(idNegocio);
@@ -1735,9 +1746,23 @@ exports.crearOrdenCobroPasarelaPOS = onCall({ memory: "256MB", maxInstances: 20 
             (firmaIntegridad ? ("&signature:integrity=" + encodeURIComponent(firmaIntegridad)) : "");
     }
 
-    await negRef.collection("Pagos_POS_EnVivo").doc(ticketTempId).set({
+        const intentoRef = negRef.collection("Pagos_POS_EnVivo").doc(ticketTempId);
+    const intentoPrevio = await intentoRef.get();
+    if (intentoPrevio.exists && intentoPrevio.data().estado === "APROBADO") {
+        throw new HttpsError("already-exists", "Este intento de cobro ya fue aprobado previamente.");
+    }
+    await db.collection("Indices_Pasarela_POS").doc(referencia).set({
+        idNegocio: idNegocio,
+        tktId: ticketTempId,
+        pasarela: pasarela,
+        ambiente: boveda.ambiente || "PRODUCCION",
+        monto_pesos: montoEntero,
+        creado_en: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    await intentoRef.set({
         estado: "PENDIENTE",
         pasarela: pasarela,
+        ambiente: boveda.ambiente || "PRODUCCION",
         referencia: referencia,
         monto_pesos: montoEntero,
         creado_en: admin.firestore.FieldValue.serverTimestamp()
@@ -1784,10 +1809,20 @@ exports.webhookPasarelasPOS = functions.https.onRequest(async (req, res) => {
             txIdExterno = String(txW.id || "WOMPI_OK");
         }
 
-        const partesRef = referencia.split("-");
-        const idNegocio = comercioQuery || (partesRef[0] === "GEOKATU" ? partesRef[1] : "");
-        const tktId = (partesRef[0] === "GEOKATU" && partesRef[2]) ? partesRef[2] : referencia;
-
+                let idNegocio = comercioQuery;
+        let tktId = "";
+        if (referencia) {
+            const idxSnap = await db.collection("Indices_Pasarela_POS").doc(referencia).get();
+            if (idxSnap.exists) {
+                idNegocio = idxSnap.data().idNegocio || idNegocio;
+                tktId = idxSnap.data().tktId || "";
+            }
+        }
+        if (!tktId && referencia.indexOf("GEOKATU-") === 0) {
+            const partesRef = referencia.split("-");
+            idNegocio = idNegocio || partesRef[1] || "";
+            tktId = partesRef[2] || "";
+        }
         if (!idNegocio) {
             return res.status(200).json({ received: true, ignored: "sin_id_negocio" });
         }
