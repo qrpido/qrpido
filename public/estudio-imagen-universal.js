@@ -1,9 +1,7 @@
 /**
  * GEOKATU - ESTUDIO UNIVERSAL DE IMAGEN 2D OFFLINE (AUTO-INYECTABLE)
  * Archivo: estudio-imagen-universal.js
- * Soporta: Varita Mágica (Flood-Fill & Global), Suavizado Morfológico de Bordes,
- * Nitidez Laplaciana, Auto-Margen Transparente, Recorte Manual, Giro y Filtros de Color.
- * Cumplimiento: 100% Local/Offline, Cero Dependencias, Exportación WebP con Canal Alfa.
+ * Cumplimiento: 100% Local/Offline, Cero Dependencias, Cero sintaxis ${}
  */
 
 (function(window) {
@@ -29,9 +27,14 @@
     var cropStartX = 0, cropStartY = 0, cropEndX = 0, cropEndY = 0;
 
     var resolverPromesaActiva = null;
-    var configActual = { maxAncho: 1000, maxAlto: 1000, calidad: 0.86, titulo: 'Estudio Fotográfico 2D' };
+    var configActual = {
+        maxAncho: 1400,
+        maxAlto: 1400,
+        calidad: 0.88,
+        titulo: 'Estudio Fotografico 2D',
+        rolSugerido: ''
+    };
 
-    // Sintetizador acústico ligero
     var audioCtx = null;
     function emitirBeep() {
         try {
@@ -58,25 +61,26 @@
         style.id = 'gk-estudio-universal-css';
         style.textContent =
             '.gk-est-overlay { position:fixed; inset:0; background:rgba(8,8,12,0.96); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); z-index:1000100; display:none; flex-direction:column; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; color:#fff; user-select:none; }' +
-            '.gk-est-topbar { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; background:rgba(18,18,24,0.95); border-bottom:1px solid rgba(255,255,255,0.08); flex-shrink:0; }' +
-            '.gk-est-titulo { font-size:13px; font-weight:900; text-transform:uppercase; color:#ff6b00; letter-spacing:0.6px; }' +
-            '.gk-est-badge { font-size:10px; font-family:monospace; color:#94a3b8; background:rgba(255,255,255,0.06); padding:2px 6px; border-radius:4px; margin-left:6px; }' +
-            '.gk-est-viewport { flex:1; position:relative; overflow:auto; display:flex; align-items:center; justify-content:center; padding:16px; background-color:#0a0a0e; background-image:linear-gradient(45deg, #16161d 25%, transparent 25%), linear-gradient(-45deg, #16161d 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #16161d 75%), linear-gradient(-45deg, transparent 75%, #16161d 75%); background-size:16px 16px; background-position:0 0, 0 8px, 8px -8px, -8px 0; }' +
-            '#gk-est-canvas { max-width:100%; max-height:100%; object-fit:contain; box-shadow:0 12px 35px rgba(0,0,0,0.85); border:1px solid rgba(255,255,255,0.12); touch-action:none; }' +
-            '#gk-est-crop-box { position:absolute; border:2px dashed #00ff64; background:rgba(0,255,100,0.15); pointer-events:none; display:none; z-index:20; }' +
+            '.gk-est-topbar { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; background:rgba(18,18,24,0.95); border-bottom:1px solid rgba(255,255,255,0.08); flex-shrink:0; gap:8px; }' +
+            '.gk-est-titulo { font-size:12.5px; font-weight:900; text-transform:uppercase; color:#ff6b00; letter-spacing:0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }' +
+            '.gk-est-badge { font-size:10px; font-family:monospace; color:#94a3b8; background:rgba(255,255,255,0.06); padding:2px 6px; border-radius:4px; margin-left:6px; flex-shrink:0; }' +
+            '.gk-est-viewport { flex:1; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; padding:14px; background-color:#0a0a0e; background-image:linear-gradient(45deg, #16161d 25%, transparent 25%), linear-gradient(-45deg, #16161d 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #16161d 75%), linear-gradient(-45deg, transparent 75%, #16161d 75%); background-size:16px 16px; background-position:0 0, 0 8px, 8px -8px, -8px 0; }' +
+            '#gk-est-canvas { max-width:100%; max-height:100%; width:auto; height:auto; object-fit:contain; box-shadow:0 12px 35px rgba(0,0,0,0.85); border:1px solid rgba(255,255,255,0.15); touch-action:none; }' +
+            '#gk-est-crop-box { position:absolute; border:2px dashed #00ff64; background:rgba(0,255,100,0.06); box-shadow:0 0 0 9999px rgba(0, 0, 0, 0.72); pointer-events:none; display:none; z-index:20; }' +
+            '#gk-est-crop-info { position:absolute; top:-22px; left:0; background:#00ff64; color:#042f1a; font-size:9.5px; font-weight:900; font-family:monospace; padding:2px 6px; border-radius:4px; white-space:nowrap; }' +
             '.gk-est-ribbon { display:flex; gap:6px; overflow-x:auto; padding:10px 12px; background:rgba(18,18,24,0.98); border-top:1px solid rgba(255,255,255,0.08); flex-shrink:0; scrollbar-width:none; }' +
             '.gk-est-ribbon::-webkit-scrollbar { display:none; }' +
             '.gk-est-btn-tool { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#ddd; padding:8px 12px; border-radius:10px; font-size:11px; font-weight:800; white-space:nowrap; cursor:pointer; transition:all 0.15s; }' +
-            '.gk-est-btn-tool.activo { background:rgba(255,107,0,0.2); border-color:#ff6b00; color:#fff; box-shadow:0 0 12px rgba(255,107,0,0.3); }' +
+            '.gk-est-btn-tool.activo { background:rgba(255,107,0,0.22); border-color:#ff6b00; color:#fff; box-shadow:0 0 12px rgba(255,107,0,0.3); }' +
             '.gk-est-btn-tool:active { transform:scale(0.95); }' +
-            '.gk-est-bandeja { background:rgba(14,14,18,0.98); border-top:1px solid rgba(255,107,0,0.3); padding:12px 16px; display:none; flex-direction:column; gap:10px; flex-shrink:0; }' +
+            '.gk-est-bandeja { background:rgba(14,14,18,0.98); border-top:1px solid rgba(255,107,0,0.3); padding:12px 16px; display:flex; flex-direction:column; gap:10px; flex-shrink:0; }' +
             '.gk-est-slider-row { display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:11px; color:#ccc; }' +
             '.gk-est-slider { flex:1; accent-color:#ff6b00; cursor:pointer; }' +
             '.gk-est-niveles { display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; }' +
             '.gk-est-btn-nivel { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); color:#fff; padding:8px; border-radius:8px; font-weight:900; font-size:12px; cursor:pointer; }' +
             '.gk-est-btn-nivel:active { background:#ff6b00; border-color:#ff6b00; }' +
-            '.gk-est-btn-ok { background:linear-gradient(135deg, #00e676 0%, #00c853 100%); color:#042f1a; border:none; padding:7px 14px; border-radius:10px; font-size:11.5px; font-weight:900; text-transform:uppercase; cursor:pointer; box-shadow:0 4px 12px rgba(0,230,118,0.35); }' +
-            '.gk-est-btn-cancel { background:rgba(255,68,68,0.18); border:1px solid rgba(255,68,68,0.4); color:#ff6b6b; padding:7px 10px; border-radius:10px; font-size:11.5px; font-weight:800; cursor:pointer; }';
+            '.gk-est-btn-ok { background:linear-gradient(135deg, #00e676 0%, #00c853 100%); color:#042f1a; border:none; padding:8px 14px; border-radius:10px; font-size:11.5px; font-weight:900; text-transform:uppercase; cursor:pointer; box-shadow:0 4px 12px rgba(0,230,118,0.35); flex-shrink:0; }' +
+            '.gk-est-btn-cancel { background:rgba(255,68,68,0.18); border:1px solid rgba(255,68,68,0.4); color:#ff6b6b; padding:7px 10px; border-radius:10px; font-size:11.5px; font-weight:800; cursor:pointer; flex-shrink:0; }';
         document.head.appendChild(style);
 
         modalRoot = document.createElement('div');
@@ -88,42 +92,61 @@
                     '<span class="gk-est-titulo" id="gk-est-lbl-titulo">Estudio 2D</span>' +
                     '<span class="gk-est-badge" id="gk-est-lbl-dim">0x0 px</span>' +
                 '</div>' +
-                '<div style="display:flex; gap:8px; align-items:center;">' +
-                    '<button type="button" class="gk-est-btn-ok" id="gk-est-btn-confirmar">✓ Usar Imagen</button>' +
+                '<div style="display:flex; gap:6px; align-items:center;">' +
+                    '<select id="gk-est-select-rol" style="display:none; background:#16161c; color:#ffaa00; border:1px solid rgba(255,107,0,0.4); border-radius:8px; padding:6px 8px; font-size:10.5px; font-weight:800; outline:none;">' +
+                        '<option value="portada">Destino: Portada</option>' +
+                        '<option value="logo">Destino: Logo</option>' +
+                        '<option value="link_pin">Destino: Pin Mapa</option>' +
+                        '<option value="logo_nombre">Destino: Nombre PNG</option>' +
+                        '<option value="producto">Destino: Producto</option>' +
+                    '</select>' +
+                    '<button type="button" class="gk-est-btn-ok" id="gk-est-btn-confirmar">✓ Guardar</button>' +
                     '<button type="button" class="gk-est-btn-cancel" id="gk-est-btn-cerrar">✕</button>' +
                 '</div>' +
             '</div>' +
             '<div class="gk-est-viewport" id="gk-est-viewport">' +
-                '<div id="gk-est-crop-box"></div>' +
+                '<div id="gk-est-crop-box"><span id="gk-est-crop-info">Area Visible</span></div>' +
                 '<canvas id="gk-est-canvas"></canvas>' +
             '</div>' +
             '<div class="gk-est-ribbon">' +
-                '<button type="button" class="gk-est-btn-tool activo" data-panel="varita" onclick="window.GeokatuEstudio.abrirPanel(\'varita\')">✨ Borrar Fondo (Varita)</button>' +
-                '<button type="button" class="gk-est-btn-tool" data-panel="suavizado" onclick="window.GeokatuEstudio.abrirPanel(\'suavizado\')">💧 Suavizar Bordes</button>' +
+                '<button type="button" class="gk-est-btn-tool" data-panel="crop" onclick="window.GeokatuEstudio.abrirPanel(\'crop\')">📐 Encuadrar / Recortar</button>' +
+                '<button type="button" class="gk-est-btn-tool activo" data-panel="varita" onclick="window.GeokatuEstudio.abrirPanel(\'varita\')">✨ Varita (Fondo)</button>' +
+                '<button type="button" class="gk-est-btn-tool" data-panel="suavizado" onclick="window.GeokatuEstudio.abrirPanel(\'suavizado\')">💧 Suavizado</button>' +
                 '<button type="button" class="gk-est-btn-tool" onclick="window.GeokatuEstudio.autoRecorteTransparente()">✂️ Auto-Margen</button>' +
-                '<button type="button" class="gk-est-btn-tool" data-panel="color" onclick="window.GeokatuEstudio.abrirPanel(\'color\')">🎨 Color y Brillo</button>' +
+                '<button type="button" class="gk-est-btn-tool" data-panel="color" onclick="window.GeokatuEstudio.abrirPanel(\'color\')">🎨 Color</button>' +
                 '<button type="button" class="gk-est-btn-tool" data-panel="nitidez" onclick="window.GeokatuEstudio.abrirPanel(\'nitidez\')">🔍 Nitidez</button>' +
-                '<button type="button" class="gk-est-btn-tool" data-panel="crop" onclick="window.GeokatuEstudio.abrirPanel(\'crop\')">📐 Recortar</button>' +
-                '<button type="button" class="gk-est-btn-tool" onclick="window.GeokatuEstudio.rotar(90)">↻ Girar 90°</button>' +
+                '<button type="button" class="gk-est-btn-tool" onclick="window.GeokatuEstudio.rotar(-90)">↺ -90°</button>' +
+                '<button type="button" class="gk-est-btn-tool" onclick="window.GeokatuEstudio.rotar(90)">↻ +90°</button>' +
                 '<button type="button" class="gk-est-btn-tool" onclick="window.GeokatuEstudio.deshacer()">↩ Deshacer</button>' +
                 '<button type="button" class="gk-est-btn-tool" onclick="window.GeokatuEstudio.restaurarOriginal()">🔄 Original</button>' +
+                '<button type="button" class="gk-est-btn-tool" onclick="window.GeokatuEstudio.descargarWebP()">⬇️ WebP</button>' +
             '</div>' +
-            '<div class="gk-est-bandeja" id="gk-est-bandeja" style="display:flex;">' +
-                '<!-- PANEL VARITA -->' +
+            '<div class="gk-est-bandeja" id="gk-est-bandeja">' +
+                '<div id="gk-subpanel-crop" style="display:none; flex-direction:column; gap:8px;">' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">' +
+                        '<span style="font-size:11px; color:#00ff64; font-weight:700;">La zona iluminada es lo que se mostrara. Dibuja con el dedo o usa un preajuste:</span>' +
+                        '<button type="button" class="gk-est-btn-ok" id="gk-btn-aplicar-crop" style="display:none; padding:6px 12px;" onclick="window.GeokatuEstudio.confirmarRecorteManual()">✂️ Aplicar Recorte</button>' +
+                    '</div>' +
+                    '<div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:6px;">' +
+                        '<button type="button" class="gk-est-btn-tool" style="padding:6px; font-size:10px; text-align:center;" onclick="window.GeokatuEstudio.preencuadrarPlantilla(\'portada\')">Franja Portada</button>' +
+                        '<button type="button" class="gk-est-btn-tool" style="padding:6px; font-size:10px; text-align:center;" onclick="window.GeokatuEstudio.preencuadrarPlantilla(\'logo\')">Cuadro Logo</button>' +
+                        '<button type="button" class="gk-est-btn-tool" style="padding:6px; font-size:10px; text-align:center;" onclick="window.GeokatuEstudio.preencuadrarPlantilla(\'logo_nombre\')">Cuadro Nombre</button>' +
+                        '<button type="button" class="gk-est-btn-tool" style="padding:6px; font-size:10px; text-align:center;" onclick="window.GeokatuEstudio.preencuadrarPlantilla(\'todo\')">Toda la Imagen</button>' +
+                    '</div>' +
+                '</div>' +
                 '<div id="gk-subpanel-varita" style="display:flex; flex-direction:column; gap:8px;">' +
-                    '<div style="font-size:11px; color:#ffaa00; font-weight:700;">Toca cualquier color del fondo en la imagen de arriba para volverlo transparente:</div>' +
+                    '<div style="font-size:11px; color:#ffaa00; font-weight:700;">Toca el color de fondo en la imagen para volverlo transparente:</div>' +
                     '<div class="gk-est-slider-row">' +
                         '<span>Tolerancia: <b id="gk-val-tol" style="color:#ff6b00;">35%</b></span>' +
                         '<input type="range" id="gk-slider-tol" class="gk-est-slider" min="1" max="100" value="35" oninput="document.getElementById(\'gk-val-tol\').innerText=this.value+\'%\'">' +
                     '</div>' +
                     '<label style="display:flex; align-items:center; gap:8px; font-size:11px; color:#cbd5e1; cursor:pointer;">' +
                         '<input type="checkbox" id="gk-chk-varita-global" style="accent-color:#ff6b00; width:16px; height:16px;">' +
-                        '<span>Borrar ese color en toda la imagen (incluye huecos internos de letras)</span>' +
+                        '<span>Borrar ese color en toda la imagen (incluye interior de letras)</span>' +
                     '</label>' +
                 '</div>' +
-                '<!-- PANEL SUAVIZADO -->' +
                 '<div id="gk-subpanel-suavizado" style="display:none; flex-direction:column; gap:8px;">' +
-                    '<span style="font-size:11px; color:#94a3b8;">Elimina bordes blancos o dentados tras borrar el fondo:</span>' +
+                    '<span style="font-size:11px; color:#94a3b8;">Suaviza bordes blancos o dentados tras usar la varita:</span>' +
                     '<div class="gk-est-niveles">' +
                         '<button type="button" class="gk-est-btn-nivel" onclick="window.GeokatuEstudio.suavizarBordes(1)">Nivel 1</button>' +
                         '<button type="button" class="gk-est-btn-nivel" onclick="window.GeokatuEstudio.suavizarBordes(2)">Nivel 2</button>' +
@@ -132,7 +155,6 @@
                         '<button type="button" class="gk-est-btn-nivel" onclick="window.GeokatuEstudio.suavizarBordes(5)">Nivel 5</button>' +
                     '</div>' +
                 '</div>' +
-                '<!-- PANEL COLOR -->' +
                 '<div id="gk-subpanel-color" style="display:none; flex-direction:column; gap:8px;">' +
                     '<div class="gk-est-slider-row">' +
                         '<span style="width:95px;">Brillo: <b id="gk-val-brillo">100%</b></span>' +
@@ -143,21 +165,15 @@
                         '<input type="range" id="gk-slider-contraste" class="gk-est-slider" min="30" max="180" value="100" oninput="window.GeokatuEstudio.actualizarColorLive()">' +
                     '</div>' +
                     '<div class="gk-est-slider-row">' +
-                        '<span style="width:95px;">Saturación: <b id="gk-val-sat">100%</b></span>' +
+                        '<span style="width:95px;">Saturacion: <b id="gk-val-sat">100%</b></span>' +
                         '<input type="range" id="gk-slider-sat" class="gk-est-slider" min="0" max="200" value="100" oninput="window.GeokatuEstudio.actualizarColorLive()">' +
                     '</div>' +
                 '</div>' +
-                '<!-- PANEL NITIDEZ -->' +
                 '<div id="gk-subpanel-nitidez" style="display:none; flex-direction:column; gap:8px;">' +
                     '<div class="gk-est-slider-row">' +
                         '<span>Realce Laplaciano: <b id="gk-val-nitidez" style="color:#00e5ff;">0%</b></span>' +
                         '<input type="range" id="gk-slider-nitidez" class="gk-est-slider" min="0" max="100" value="0" oninput="window.GeokatuEstudio.aplicarNitidez(this.value)">' +
                     '</div>' +
-                '</div>' +
-                '<!-- PANEL CROP -->' +
-                '<div id="gk-subpanel-crop" style="display:none; justify-content:space-between; align-items:center;">' +
-                    '<span style="font-size:11px; color:#94a3b8;">Dibuja un recuadro con el dedo sobre la imagen para encuadrar.</span>' +
-                    '<button type="button" class="gk-est-btn-ok" id="gk-btn-aplicar-crop" style="display:none;" onclick="window.GeokatuEstudio.confirmarRecorteManual()">Recortar Área</button>' +
                 '</div>' +
             '</div>';
 
@@ -171,7 +187,49 @@
         document.getElementById('gk-est-btn-confirmar').onclick = finalizarYExportar;
         document.getElementById('gk-est-btn-cerrar').onclick = cancelarEdicion;
 
+        var selRol = document.getElementById('gk-est-select-rol');
+        if (selRol) {
+            selRol.onchange = function() {
+                configActual.rolSugerido = this.value;
+                if (modoActivo === 'crop') {
+                    window.GeokatuEstudio.preencuadrarPlantilla(this.value);
+                }
+            };
+        }
+
         vincularEventosLienzo();
+    }
+
+    function pintarCajaCropVisual() {
+        if (!canvas || !viewport || !overlayCrop) return;
+        var wrapRect = viewport.getBoundingClientRect();
+        var cRect = canvas.getBoundingClientRect();
+        if (cRect.width <= 0 || cRect.height <= 0) return;
+
+        var c1x = (cropStartX / canvas.width) * cRect.width + cRect.left;
+        var c1y = (cropStartY / canvas.height) * cRect.height + cRect.top;
+        var c2x = (cropEndX / canvas.width) * cRect.width + cRect.left;
+        var c2y = (cropEndY / canvas.height) * cRect.height + cRect.top;
+
+        var minX = Math.min(c1x, c2x) - wrapRect.left + viewport.scrollLeft;
+        var minY = Math.min(c1y, c2y) - wrapRect.top + viewport.scrollTop;
+        var w = Math.abs(c1x - c2x);
+        var h = Math.abs(c1y - c2y);
+
+        overlayCrop.style.left = Math.round(minX) + 'px';
+        overlayCrop.style.top = Math.round(minY) + 'px';
+        overlayCrop.style.width = Math.round(w) + 'px';
+        overlayCrop.style.height = Math.round(h) + 'px';
+
+        var realW = Math.abs(cropEndX - cropStartX);
+        var realH = Math.abs(cropEndY - cropStartY);
+        var lblInfo = document.getElementById('gk-est-crop-info');
+        if (lblInfo) lblInfo.innerText = realW + ' x ' + realH + ' px';
+
+        var visible = (w > 8 && h > 8);
+        overlayCrop.style.display = visible ? 'block' : 'none';
+        var btn = document.getElementById('gk-btn-aplicar-crop');
+        if (btn) btn.style.display = visible ? 'inline-block' : 'none';
     }
 
     function guardarSnapshot() {
@@ -283,24 +341,6 @@
             };
         };
 
-        var pintarCajaCrop = function() {
-            var wrapRect = viewport.getBoundingClientRect();
-            var cRect = canvas.getBoundingClientRect();
-            var c1x = (cropStartX / canvas.width) * cRect.width + cRect.left;
-            var c1y = (cropStartY / canvas.height) * cRect.height + cRect.top;
-            var c2x = (cropEndX / canvas.width) * cRect.width + cRect.left;
-            var c2y = (cropEndY / canvas.height) * cRect.height + cRect.top;
-            var minX = Math.min(c1x, c2x) - wrapRect.left + viewport.scrollLeft;
-            var minY = Math.min(c1y, c2y) - wrapRect.top + viewport.scrollTop;
-            var w = Math.abs(c1x - c2x);
-            var h = Math.abs(c1y - c2y);
-            overlayCrop.style.left = minX + 'px';
-            overlayCrop.style.top = minY + 'px';
-            overlayCrop.style.width = w + 'px';
-            overlayCrop.style.height = h + 'px';
-            overlayCrop.style.display = (w > 6 && h > 6) ? 'block' : 'none';
-        };
-
         viewport.addEventListener('pointerdown', function(e) {
             if (modoActivo !== 'crop') return;
             arrastrandoCrop = true;
@@ -313,16 +353,13 @@
             if (!arrastrandoCrop || modoActivo !== 'crop') return;
             var pt = obtenerPt(e.clientX, e.clientY);
             cropEndX = pt.x; cropEndY = pt.y;
-            pintarCajaCrop();
+            pintarCajaCropVisual();
         });
 
         window.addEventListener('pointerup', function() {
             if (!arrastrandoCrop || modoActivo !== 'crop') return;
             arrastrandoCrop = false;
-            var w = Math.abs(cropEndX - cropStartX);
-            var h = Math.abs(cropEndY - cropStartY);
-            var btn = document.getElementById('gk-btn-aplicar-crop');
-            if (btn) btn.style.display = (w > 10 && h > 10) ? 'inline-block' : 'none';
+            pintarCajaCropVisual();
         });
     }
 
@@ -331,7 +368,7 @@
         img.onload = function() {
             var w = img.naturalWidth || img.width;
             var h = img.naturalHeight || img.height;
-            var maxLado = Math.max(configActual.maxAncho || 1400, configActual.maxAlto || 1400);
+            var maxLado = Math.max(configActual.maxAncho || 1600, configActual.maxAlto || 1600, 1400);
             if (w > maxLado || h > maxLado) {
                 var ratio = Math.min(maxLado / w, maxLado / h);
                 w = Math.round(w * ratio);
@@ -344,53 +381,34 @@
             historial = [];
             guardarSnapshot();
 
-            // Si viene desde un slot de Identidad (Portada, Logo, Pin o Nombre_PNG), activar Recorte y mostrar guía visual
             if (configActual.rolSugerido) {
                 window.GeokatuEstudio.abrirPanel('crop');
                 setTimeout(function() {
-                    if (configActual.rolSugerido === 'portada') {
-                        cropStartX = Math.round(w * 0.03);
-                        cropStartY = Math.round(h * 0.06);
-                        cropEndX = Math.round(w * 0.97);
-                        cropEndY = Math.round(h * 0.52);
-                    } else if (configActual.rolSugerido === 'logo' || configActual.rolSugerido === 'link_pin') {
-                        cropStartX = Math.round(w * 0.04);
-                        cropStartY = Math.round(h * 0.56);
-                        cropEndX = Math.round(w * 0.42);
-                        cropEndY = Math.round(h * 0.95);
-                    } else if (configActual.rolSugerido === 'logo_nombre') {
-                        cropStartX = Math.round(w * 0.45);
-                        cropStartY = Math.round(h * 0.56);
-                        cropEndX = Math.round(w * 0.96);
-                        cropEndY = Math.round(h * 0.95);
-                    }
-                    var wrapRect = viewport.getBoundingClientRect();
-                    var cRect = canvas.getBoundingClientRect();
-                    if (cRect.width > 0 && cRect.height > 0) {
-                        var c1x = (cropStartX / canvas.width) * cRect.width + cRect.left;
-                        var c1y = (cropStartY / canvas.height) * cRect.height + cRect.top;
-                        var c2x = (cropEndX / canvas.width) * cRect.width + cRect.left;
-                        var c2y = (cropEndY / canvas.height) * cRect.height + cRect.top;
-                        overlayCrop.style.left = (Math.min(c1x, c2x) - wrapRect.left + viewport.scrollLeft) + 'px';
-                        overlayCrop.style.top = (Math.min(c1y, c2y) - wrapRect.top + viewport.scrollTop) + 'px';
-                        overlayCrop.style.width = Math.abs(c1x - c2x) + 'px';
-                        overlayCrop.style.height = Math.abs(c1y - c2y) + 'px';
-                        overlayCrop.style.display = 'block';
-                        var btnCrop = document.getElementById('gk-btn-aplicar-crop');
-                        if (btnCrop) btnCrop.style.display = 'inline-block';
-                    }
-                }, 80);
+                    window.GeokatuEstudio.preencuadrarPlantilla(configActual.rolSugerido);
+                }, 90);
+            } else {
+                window.GeokatuEstudio.abrirPanel('varita');
             }
         };
         img.src = dataUrl;
     }
 
     async function finalizarYExportar() {
+        // Si el usuario tiene un recuadro de recorte activo en pantalla y pulsa Guardar directamente,
+        // aplicar ese recorte automáticamente para que se guarde justo el área señalada.
+        if (modoActivo === 'crop' && overlayCrop && overlayCrop.style.display === 'block') {
+            var wCrop = Math.abs(cropEndX - cropStartX);
+            var hCrop = Math.abs(cropEndY - cropStartY);
+            if (wCrop > 15 && hCrop > 15 && (wCrop < canvas.width - 4 || hCrop < canvas.height - 4)) {
+                window.GeokatuEstudio.confirmarRecorteManual();
+            }
+        }
+
         hornearFiltrosColor();
         var w = canvas.width;
         var h = canvas.height;
-        var maxW = configActual.maxAncho || 1000;
-        var maxH = configActual.maxAlto || 1000;
+        var maxW = configActual.maxAncho || 1400;
+        var maxH = configActual.maxAlto || 1400;
 
         var outCanvas = canvas;
         if (w > maxW || h > maxH) {
@@ -403,16 +421,25 @@
             outCanvas.getContext('2d').drawImage(canvas, 0, 0, nW, nH);
         }
 
-        var dataUrlFinal = outCanvas.toDataURL('image/webp', configActual.calidad || 0.86);
+        var selRol = document.getElementById('gk-est-select-rol');
+        var rolElegido = (selRol && selRol.style.display !== 'none') ? selRol.value : (configActual.rolSugerido || '');
+
+        var dataUrlFinal = outCanvas.toDataURL('image/webp', configActual.calidad || 0.88);
         outCanvas.toBlob(function(blob) {
             modalRoot.style.display = 'none';
             emitirBeep();
             if (resolverPromesaActiva) {
                 var cb = resolverPromesaActiva;
                 resolverPromesaActiva = null;
-                cb({ blob: blob, dataUrl: dataUrlFinal, width: outCanvas.width, height: outCanvas.height });
+                cb({
+                    blob: blob,
+                    dataUrl: dataUrlFinal,
+                    width: outCanvas.width,
+                    height: outCanvas.height,
+                    rol: rolElegido
+                });
             }
-        }, 'image/webp', configActual.calidad || 0.86);
+        }, 'image/webp', configActual.calidad || 0.88);
     }
 
     function cancelarEdicion() {
@@ -427,9 +454,25 @@
     window.GeokatuEstudio = {
         editarImagen: function(fileOrDataUrl, opciones) {
             inyectarEstilosYDOM();
-            configActual = Object.assign({ maxAncho: 1000, maxAlto: 1000, calidad: 0.86, titulo: 'Estudio Fotográfico 2D' }, opciones || {});
+            configActual = Object.assign({
+                maxAncho: 1400,
+                maxAlto: 1400,
+                calidad: 0.88,
+                titulo: 'Estudio Fotografico 2D',
+                rolSugerido: '',
+                mostrarSelectorRol: false
+            }, opciones || {});
+
             document.getElementById('gk-est-lbl-titulo').innerText = configActual.titulo;
-            this.abrirPanel('varita');
+            var selRol = document.getElementById('gk-est-select-rol');
+            if (selRol) {
+                if (configActual.rolSugerido || configActual.mostrarSelectorRol) {
+                    selRol.style.display = 'inline-block';
+                    selRol.value = configActual.rolSugerido || 'portada';
+                } else {
+                    selRol.style.display = 'none';
+                }
+            }
 
             return new Promise(function(resolve) {
                 resolverPromesaActiva = resolve;
@@ -452,6 +495,34 @@
             });
         },
 
+        preencuadrarPlantilla: function(tipo) {
+            if (!canvas) return;
+            var w = canvas.width;
+            var h = canvas.height;
+            if (tipo === 'portada') {
+                cropStartX = Math.round(w * 0.04);
+                cropStartY = Math.round(h * 0.08);
+                cropEndX = Math.round(w * 0.96);
+                cropEndY = Math.round(h * 0.50);
+            } else if (tipo === 'logo' || tipo === 'link_pin') {
+                cropStartX = Math.round(w * 0.04);
+                cropStartY = Math.round(h * 0.58);
+                cropEndX = Math.round(w * 0.40);
+                cropEndY = Math.round(h * 0.94);
+            } else if (tipo === 'logo_nombre') {
+                cropStartX = Math.round(w * 0.46);
+                cropStartY = Math.round(h * 0.58);
+                cropEndX = Math.round(w * 0.96);
+                cropEndY = Math.round(h * 0.94);
+            } else {
+                cropStartX = 0;
+                cropStartY = 0;
+                cropEndX = w;
+                cropEndY = h;
+            }
+            pintarCajaCropVisual();
+        },
+
         abrirPanel: function(panelId) {
             var paneles = ['varita', 'suavizado', 'color', 'nitidez', 'crop'];
             paneles.forEach(function(p) {
@@ -462,9 +533,11 @@
                 btn.classList.toggle('activo', btn.getAttribute('data-panel') === panelId);
             });
             modoActivo = (panelId === 'crop') ? 'crop' : 'varita';
-            if (overlayCrop) overlayCrop.style.display = 'none';
-            var btnCrop = document.getElementById('gk-btn-aplicar-crop');
-            if (btnCrop) btnCrop.style.display = 'none';
+            if (panelId !== 'crop') {
+                if (overlayCrop) overlayCrop.style.display = 'none';
+                var btnCrop = document.getElementById('gk-btn-aplicar-crop');
+                if (btnCrop) btnCrop.style.display = 'none';
+            }
         },
 
         suavizarBordes: function(nivel) {
@@ -650,6 +723,17 @@
             emitirBeep();
         },
 
+        descargarWebP: function() {
+            if (!canvas) return;
+            hornearFiltrosColor();
+            var a = document.createElement('a');
+            a.href = canvas.toDataURL('image/webp', 0.90);
+            a.download = 'geokatu_edit_' + Date.now() + '.webp';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        },
+
         deshacer: function() {
             if (historial.length > 1) {
                 historial.pop();
@@ -669,4 +753,5 @@
     };
 
 })(window);
+
 

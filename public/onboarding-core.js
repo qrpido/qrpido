@@ -1465,12 +1465,88 @@ window.actualizarDatalistNichos = actualizarDatalistNichos;
 // =========================================================================
 // RENDERIZADOR DEL TABLERO KANBAN
 // =========================================================================
+let subVistaTodosActual = 'libres';
+let comerciosServidorCache = [];
+let servidorYaConsultado = false;
+
 window.cambiarVistaTablero = function(vista) {
     vistaActualTablero = vista;
     document.querySelectorAll('.tab-vista').forEach(function(b) { b.classList.remove('activa'); });
     const btnActivo = document.getElementById('tab-' + vista);
     if (btnActivo) btnActivo.classList.add('activa');
+
+    const subBarraTodos = document.getElementById('subbarra-todos-servidor');
+    if (subBarraTodos) {
+        subBarraTodos.style.display = (vista === 'todos') ? 'flex' : 'none';
+        subBarraTodos.classList.toggle('activo', vista === 'todos');
+    }
+
+    if (vista === 'todos' && !servidorYaConsultado) {
+        window.hidratarComerciosDesdeServidor(false);
+        return;
+    }
     renderizarTablero();
+};
+
+window.cambiarSubVistaTodos = function(subVista) {
+    subVistaTodosActual = subVista || 'libres';
+    const btnLibres = document.getElementById('btn-subtab-libres');
+    const btnTomados = document.getElementById('btn-subtab-tomados');
+    if (btnLibres) btnLibres.classList.toggle('activo-libres', subVistaTodosActual === 'libres');
+    if (btnTomados) btnTomados.classList.toggle('activo-tomados', subVistaTodosActual === 'tomados');
+    renderizarTablero();
+};
+
+window.hidratarComerciosDesdeServidor = async function(forzarRefresco) {
+    const contenedor = document.getElementById('contenedor-grid-unico');
+    if (contenedor && vistaActualTablero === 'todos') {
+        contenedor.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 30px; color: #94a3b8; font-size: 12px;">Consultando comercios en Firestore...</div>';
+    }
+    try {
+        const res = await GeokatuDB.AdminService.buscarComerciosDirectorio('', 250);
+        if (!res || !res.success) {
+            throw new Error((res && res.error) || 'No se pudo consultar el directorio.');
+        }
+        servidorYaConsultado = true;
+        comerciosServidorCache = (res.data || []).map(function(item) {
+            const idxLocal = listaComercios.findIndex(function(c) { return String(c.id) === String(item.id); });
+            if (idxLocal !== -1) {
+                listaComercios[idxLocal] = Object.assign({}, listaComercios[idxLocal], item, {
+                    subido: true,
+                    capturado: true
+                });
+                return listaComercios[idxLocal];
+            } else {
+                const nuevoReg = Object.assign({}, item, {
+                    capturado: true,
+                    validado: true,
+                    subido: true,
+                    catalogo: item.catalogo || []
+                });
+                listaComercios.push(nuevoReg);
+                return nuevoReg;
+            }
+        });
+
+        const libresCount = comerciosServidorCache.filter(function(c) { return !c.esta_tomado && !c.reclamado; }).length;
+        const tomadosCount = comerciosServidorCache.filter(function(c) { return Boolean(c.esta_tomado || c.reclamado); }).length;
+
+        const elLibres = document.getElementById('conteo-todos-libres');
+        const elTomados = document.getElementById('conteo-todos-tomados');
+        if (elLibres) elLibres.innerText = libresCount;
+        if (elTomados) elTomados.innerText = tomadosCount;
+
+        AppState.guardarColaLocal();
+        renderizarTablero();
+        if (forzarRefresco) {
+            mostrarToast('Servidor sincronizado: ' + comerciosServidorCache.length + ' comercios.', 'exito');
+        }
+    } catch (err) {
+        mostrarToast('Error consultando servidor: ' + err.message, 'error');
+        if (contenedor) {
+            contenedor.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 30px; color: #ff6b6b; font-size: 12px;">Error al cargar comercios del servidor: ' + err.message + '</div>';
+        }
+    }
 };
 
 window.toggleMinimizarTicket = function(index, event) {
@@ -1555,17 +1631,29 @@ export function renderizarTablero() {
         }
     });
 
-    listaComercios.forEach(function(c, index) {
+    const fuenteDatos = (vistaActualTablero === 'todos') ? comerciosServidorCache : listaComercios;
+
+    fuenteDatos.forEach(function(c) {
+        const index = listaComercios.findIndex(function(item) { return String(item.id) === String(c.id); });
+        if (index === -1) return;
+
         if (c.validado) validados++;
         if (c.subido) subidos++;
-        if (!c.capturado) return;
 
-        if (vistaActualTablero === 'radar') {
-            if (c.subido === true || c.archivado === true || c.estado_flujo === 'Seguimiento') return;
-        } else if (vistaActualTablero === 'seguimiento') {
-            if (c.estado_flujo !== 'Seguimiento') return;
-        } else if (vistaActualTablero === 'listos') {
-            if (!c.validado || c.subido) return;
+        const esTomadoSrv = Boolean(c.esta_tomado || c.reclamado);
+
+        if (vistaActualTablero === 'todos') {
+            if (subVistaTodosActual === 'libres' && esTomadoSrv) return;
+            if (subVistaTodosActual === 'tomados' && !esTomadoSrv) return;
+        } else {
+            if (!c.capturado) return;
+            if (vistaActualTablero === 'radar') {
+                if (c.subido === true || c.archivado === true || c.estado_flujo === 'Seguimiento') return;
+            } else if (vistaActualTablero === 'seguimiento') {
+                if (c.estado_flujo !== 'Seguimiento') return;
+            } else if (vistaActualTablero === 'listos') {
+                if (!c.validado || c.subido) return;
+            }
         }
 
         visibles++;
@@ -1627,15 +1715,19 @@ export function renderizarTablero() {
         }
 
         const card = document.createElement('div');
-        card.className = 'cuadrito-actividad ' + (c.validado ? 'validado' : '') + ' ' + (c.minimizado ? 'minimizado' : '');
+        card.className = 'cuadrito-actividad ' + (c.validado ? 'validado' : '') + ' ' + (c.minimizado ? 'minimizado' : '') + (esTomadoSrv && vistaActualTablero === 'todos' ? ' comercio-tomado-solo-lectura' : '');
         card.setAttribute('data-id', c.id);
         card.setAttribute('data-index', index);
+        if (esTomadoSrv && vistaActualTablero === 'todos') {
+            card.style.opacity = '0.78';
+            card.style.borderColor = 'rgba(255,255,255,0.12)';
+        }
 
         card.innerHTML = 
             '<div class="ticket-cabecera" onclick="toggleMinimizarTicket(' + index + ', event)" title="Toca para colapsar o expandir este ticket">' +
                 '<div style="display:flex; align-items:center; gap:6px; flex:1; min-width:0;">' +
                     '<span class="btn-toggle-colapso">' + (c.minimizado ? '▶' : '▼') + '</span>' +
-                    '<span>🏪</span>' +
+                    '<span>' + (esTomadoSrv ? '🔒' : '🏪') + '</span>' +
                     '<span class="dato-copiable dato-nombre-texto" data-key="nombre" style="font-weight:bold; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (c.nombre || "COMERCIO SIN NOMBRE") + '</span>' +
                     badgeEstrella +
                 '</div>' +
@@ -1648,7 +1740,6 @@ export function renderizarTablero() {
                 '<button type="button" class="btn-eliminar-inline" onclick="event.stopPropagation(); window.eliminarComercioTicket(' + index + ')" title="Eliminar fila">🗑️</button>' +
                 '<button type="button" class="btn-editar-inline" onclick="event.stopPropagation(); window.toggleEditarTicket(' + index + ', this)" title="Editar datos">✏️</button>' +
                 '<button type="button" class="btn-enviar-sheets-inline" onclick="event.stopPropagation(); enviarComercioASheets(' + index + ')" title="Enviar este ticket a la última fila de Sheets">📤</button>' +
-
 
                 '<div class="cuadrito-datos">' +
                     sloganHTML +
@@ -1679,7 +1770,7 @@ sedesHTML +
                 '</div>' +
 
                 '<button class="btn-act btn-act-cat" onclick="abrirDrawerCatalogo(' + index + ')">' +
-                    '📦 Gestionar Catálogo (<strong id="badge-cat-' + index + '">' + totalCat + '</strong> SKUs)' +
+                    (esTomadoSrv ? '👁️ Ver Ficha / Catálogo' : '📦 Gestionar Catálogo (<strong id="badge-cat-' + index + '">' + totalCat + '</strong> SKUs)') +
                 '</button>' +
 
                 '<div class="cuadrito-acciones-comercio" style="grid-template-columns: 1fr 1fr 1fr 1.2fr;">' +
@@ -1697,16 +1788,19 @@ sedesHTML +
         contenedor.appendChild(card);
     });
 
-    if (visibles === 0 && listaComercios.length > 0) {
-        contenedor.innerHTML = 
-            '<div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px; color: #888; font-size: 13px;">' +
-                '🐝 <strong>Tienes comercios volando en el enjambre.</strong><br>' +
-                'Toca una abeja o mariposa en el cielo para capturarla y bajar su ticket al tablero.' +
-            '</div>';
+    if (visibles === 0) {
+        if (vistaActualTablero === 'todos') {
+            contenedor.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px; color: #888; font-size: 13px;">No hay comercios en esta sub-vista del servidor.</div>';
+        } else if (listaComercios.length > 0) {
+            contenedor.innerHTML = 
+                '<div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px; color: #888; font-size: 13px;">' +
+                    '🐝 <strong>Tienes comercios volando en el enjambre.</strong><br>' +
+                    'Toca una abeja o mariposa en el cielo para capturarla y bajar su ticket al tablero.' +
+                '</div>';
+        }
     }
 
     const elValidados = document.getElementById('kpi-validados');
-
     const elTotal = document.getElementById('kpi-total');
     const elListos = document.getElementById('conteo-listos');
     const elSubidos = document.getElementById('conteo-subidos');
@@ -1720,6 +1814,7 @@ sedesHTML +
     AppState.guardarColaLocal();
 }
 window.renderizarTablero = renderizarTablero;
+
 
 window.agregarFonoDinamico = function(index) {
     const nuevoFono = prompt("Ingresa el numero de WhatsApp:");
@@ -2224,7 +2319,7 @@ export function actualizarPreviewsIdentidadUI() {
         { id: 'logo', val: comercioActivoParaCatalogo.logo },
         { id: 'portada', val: comercioActivoParaCatalogo.portada },
         { id: 'pin', val: comercioActivoParaCatalogo.link_pin },
-        { id: 'logonombre', val: comercioActivoParaCatalogo.logo_nombre }
+        { id: 'logonombre', val: comercioActivoParaCatalogo.logo_nombre || comercioActivoParaCatalogo.nombre_png }
     ];
     campos.forEach(function(c) {
         const img = document.getElementById('preview-brand-' + c.id);
@@ -2238,22 +2333,95 @@ export function actualizarPreviewsIdentidadUI() {
         }
     });
     renderizarSimuladorNombreDrawer();
+    if (typeof window.actualizarAparienciaCabeceraDrawer === 'function') {
+        window.actualizarAparienciaCabeceraDrawer();
+    }
 }
-
+window.actualizarPreviewsIdentidadUI = actualizarPreviewsIdentidadUI;
 
 window.actualizarAparienciaCabeceraDrawer = function() {
     if (!comercioActivoParaCatalogo) return;
-    comercioActivoParaCatalogo.avatar_posicion = document.getElementById('drawer-avatar-posicion')?.value || 'centro';
-    comercioActivoParaCatalogo.placa_nombre = document.getElementById('drawer-placa-nombre')?.value || 'ninguna';
-    comercioActivoParaCatalogo.portada_posicion = Number(document.getElementById('drawer-portada-posicion')?.value ?? 50);
-    comercioActivoParaCatalogo.avatar_marco = Boolean(document.getElementById('drawer-avatar-marco')?.checked);
-    comercioActivoParaCatalogo.mostrar_stock_publico = Boolean(document.getElementById('drawer-mostrar-stock')?.checked);
+    const posAvatar = document.getElementById('drawer-avatar-posicion')?.value || 'centro';
+    const placaNom = document.getElementById('drawer-placa-nombre')?.value || 'ninguna';
+    const posPortada = Number(document.getElementById('drawer-portada-posicion')?.value ?? 50);
+    const conMarco = Boolean(document.getElementById('drawer-avatar-marco')?.checked);
+    const stockPub = Boolean(document.getElementById('drawer-mostrar-stock')?.checked);
+
+    comercioActivoParaCatalogo.avatar_posicion = posAvatar;
+    comercioActivoParaCatalogo.placa_nombre = placaNom;
+    comercioActivoParaCatalogo.portada_posicion = posPortada;
+    comercioActivoParaCatalogo.avatar_marco = conMarco;
+    comercioActivoParaCatalogo.mostrar_stock_publico = stockPub;
+
     const lblP = document.getElementById('lbl-drawer-portada-pos');
-    if (lblP) lblP.innerText = comercioActivoParaCatalogo.portada_posicion + '%';
+    if (lblP) lblP.innerText = posPortada + '%';
+
+    // Simulador en vivo de orientación (Centro, Izquierda, Derecha)
+    const imgPort = document.getElementById('drawer-prev-portada-img');
+    if (imgPort) {
+        if (comercioActivoParaCatalogo.portada) {
+            imgPort.src = comercioActivoParaCatalogo.portada;
+            imgPort.style.display = 'block';
+            imgPort.style.objectPosition = '50% ' + posPortada + '%';
+        } else {
+            imgPort.style.display = 'none';
+        }
+    }
+
+    const rowAvatar = document.getElementById('drawer-prev-avatar-row');
+    if (rowAvatar) {
+        rowAvatar.style.justifyContent = (posAvatar === 'izquierda') ? 'flex-start' : ((posAvatar === 'derecha') ? 'flex-end' : 'center');
+    }
+
+    const imgLogo = document.getElementById('drawer-prev-logo-img');
+    if (imgLogo) {
+        if (comercioActivoParaCatalogo.logo) {
+            imgLogo.src = comercioActivoParaCatalogo.logo;
+            imgLogo.style.display = 'block';
+            imgLogo.style.borderRadius = conMarco ? '50%' : '10px';
+            imgLogo.style.border = conMarco ? ('2px solid ' + (comercioActivoParaCatalogo.color_principal || '#ff6b00')) : 'none';
+        } else {
+            imgLogo.style.display = 'none';
+        }
+    }
+
+    const rowNom = document.getElementById('drawer-prev-nombre-row');
+    if (rowNom) {
+        rowNom.style.textAlign = (posAvatar === 'izquierda') ? 'left' : ((posAvatar === 'derecha') ? 'right' : 'center');
+    }
+
+    const wrapPlaca = document.getElementById('drawer-prev-placa-wrap');
+    if (wrapPlaca) {
+        if (placaNom === 'oscura') {
+            wrapPlaca.style.background = 'rgba(10, 10, 14, 0.82)';
+            wrapPlaca.style.border = '1px solid rgba(255,255,255,0.12)';
+        } else if (placaNom === 'clara') {
+            wrapPlaca.style.background = 'rgba(255, 255, 255, 0.88)';
+            wrapPlaca.style.border = '1px solid rgba(0,0,0,0.15)';
+        } else {
+            wrapPlaca.style.background = 'transparent';
+            wrapPlaca.style.border = 'none';
+        }
+    }
+
+    const imgNom = document.getElementById('drawer-prev-nombre-img');
+    const txtNom = document.getElementById('drawer-prev-nombre-txt');
+    const urlPng = comercioActivoParaCatalogo.logo_nombre || comercioActivoParaCatalogo.nombre_png || '';
+    if (urlPng && urlPng.length > 5) {
+        if (imgNom) { imgNom.src = urlPng; imgNom.style.display = 'block'; }
+        if (txtNom) txtNom.style.display = 'none';
+    } else {
+        if (imgNom) imgNom.style.display = 'none';
+        if (txtNom) {
+            txtNom.style.display = 'inline';
+            txtNom.innerText = comercioActivoParaCatalogo.nombre || 'Comercio';
+            txtNom.style.color = (placaNom === 'clara') ? '#0f172a' : '#ffffff';
+        }
+    }
+
     AppState.guardarColaLocal();
 };
 
-// Lee un File a DataURL íntegro sin recortar ni deformar nada
 function leerArchivoIntegroDataURL(file) {
     return new Promise(function(resolve, reject) {
         const reader = new FileReader();
@@ -2263,7 +2431,6 @@ function leerArchivoIntegroDataURL(file) {
     });
 }
 
-// Abre el Estudio 2D Universal a resolución completa con guía visual sugerida según el slot
 window.abrirEstudioIdentidadIntegro = async function(dataUrlOrigen, campo) {
     if (!comercioActivoParaCatalogo || !dataUrlOrigen) return;
 
@@ -2276,27 +2443,53 @@ window.abrirEstudioIdentidadIntegro = async function(dataUrlOrigen, campo) {
 
     if (window.GeokatuEstudio && typeof window.GeokatuEstudio.editarImagen === 'function') {
         const resultado = await window.GeokatuEstudio.editarImagen(dataUrlOrigen, {
-            maxAncho: campo === 'portada' ? 1400 : 900,
-            maxAlto: campo === 'portada' ? 900 : 900,
+            maxAncho: 1500,
+            maxAlto: 1500,
             calidad: 0.88,
             titulo: titulosSlot[campo] || 'Editar Identidad',
-            rolSugerido: campo
+            rolSugerido: campo,
+            mostrarSelectorRol: true
         });
 
         if (!resultado) return;
 
+        const destinoFinal = resultado.rol || campo;
+
+        if (destinoFinal === 'producto') {
+            const nomProd = prompt("Nombre del producto:", "Producto Destacado");
+            if (!nomProd) return;
+            const preProd = parseFloat(prompt("Precio COP:", "10000")) || 0;
+            if (!comercioActivoParaCatalogo.catalogo) comercioActivoParaCatalogo.catalogo = [];
+            comercioActivoParaCatalogo.catalogo.unshift({
+                codigo_barras: String(Date.now()).slice(-8),
+                nombre: nomProd.trim(),
+                categoria: comercioActivoParaCatalogo.nicho || "General",
+                precio: preProd,
+                stock_actual: 10,
+                imagen: resultado.dataUrl,
+                archivoBlob: resultado.blob,
+                en_piso_venta: true,
+                subido_storage: false,
+                fecha_creacion: new Date().toISOString()
+            });
+            renderizarListaSkusDrawer();
+            AppState.guardarColaLocal();
+            mostrarToast("Producto agregado al catalogo local.", "exito");
+            return;
+        }
+
         if (!comercioActivoParaCatalogo._blobsIdentidad) comercioActivoParaCatalogo._blobsIdentidad = {};
-        comercioActivoParaCatalogo._blobsIdentidad[campo] = resultado.blob;
-        comercioActivoParaCatalogo[campo] = resultado.dataUrl;
-        if (campo === 'logo_nombre') {
+        comercioActivoParaCatalogo._blobsIdentidad[destinoFinal] = resultado.blob;
+        comercioActivoParaCatalogo[destinoFinal] = resultado.dataUrl;
+        if (destinoFinal === 'logo_nombre') {
             comercioActivoParaCatalogo.nombre_png = resultado.dataUrl;
         }
 
         actualizarPreviewsIdentidadUI();
-        if (campo === 'link_pin' || campo === 'logo') actualizarPinDrawerLive();
+        if (destinoFinal === 'link_pin' || destinoFinal === 'logo') actualizarPinDrawerLive();
         AppState.guardarColaLocal();
         emitirTono('EXITO');
-        mostrarToast('Imagen de ' + campo + ' lista en memoria local (se subira al inyectar).', 'exito');
+        mostrarToast('Imagen de ' + destinoFinal + ' guardada en memoria local (se subira al inyectar).', 'exito');
     }
 };
 
@@ -2306,7 +2499,6 @@ window.procesarFotoIdentidadIndividual = async function(file, campo) {
         const dataUrlIntegra = await leerArchivoIntegroDataURL(file);
         if (!comercioActivoParaCatalogo._originalesIdentidad) comercioActivoParaCatalogo._originalesIdentidad = {};
         comercioActivoParaCatalogo._originalesIdentidad[campo] = dataUrlIntegra;
-        // Guardar también como lámina maestra por si quiere sacar de esta misma foto los otros 3 slots
         comercioActivoParaCatalogo._laminaMaestraDataUrl = dataUrlIntegra;
 
         const abrirEstudio = document.getElementById('chk-abrir-estudio-al-subir')?.checked !== false;
@@ -2336,7 +2528,6 @@ window.editarSlotIdentidadEnEstudio = async function(campo) {
         || comercioActivoParaCatalogo[campo];
 
     if (!orig) {
-        // Si aún no ha subido archivo, abre el selector de archivos de ese slot
         const mapInput = {
             logo: 'input-branding-logo',
             portada: 'input-branding-portada',
@@ -2350,7 +2541,17 @@ window.editarSlotIdentidadEnEstudio = async function(campo) {
     await window.abrirEstudioIdentidadIntegro(orig, campo);
 };
 
-// Si despiece-estudio.js llama a subirFotoIdentidadStorage, lo retenemos en memoria local sin subir aún a Firebase
+// Conectar el botón "Subir Foto / Cartel" (#input-foto-cartel-despiece) directo a estudio-imagen-universal.js
+window.cargarArchivosLocalesEnDespiece = async function(files) {
+    if (!files || !files[0] || !comercioActivoParaCatalogo) {
+        mostrarToast("Abre primero un comercio en el Drawer.", "error");
+        return;
+    }
+    const dataUrl = await leerArchivoIntegroDataURL(files[0]);
+    comercioActivoParaCatalogo._laminaMaestraDataUrl = dataUrl;
+    await window.abrirEstudioIdentidadIntegro(dataUrl, 'portada');
+};
+
 export async function subirFotoIdentidadStorage(blob, campo, idComercio) {
     if (comercioActivoParaCatalogo && blob) {
         if (!comercioActivoParaCatalogo._blobsIdentidad) comercioActivoParaCatalogo._blobsIdentidad = {};
@@ -2361,12 +2562,12 @@ export async function subirFotoIdentidadStorage(blob, campo, idComercio) {
         actualizarPreviewsIdentidadUI();
         if (campo === 'link_pin' || campo === 'logo') actualizarPinDrawerLive();
         AppState.guardarColaLocal();
-        mostrarToast('Guardado en memoria local. Se subira al pulsar INYECTAR CATALOGO.', 'exito');
         return localUrl;
     }
     return null;
 }
 window.subirFotoIdentidadStorage = subirFotoIdentidadStorage;
+
 
 // Función interna que sube a Storage únicamente cuando se presiona "INYECTAR CATALOGO A FIRESTORE"
 async function subirActivoIdentidadDefinitivo(c, campo, idSeguro, storage) {
@@ -2677,6 +2878,9 @@ window.sincronizarCatalogoComercioNube = async function() {
         });
 
         await batch.commit();
+        localStorage.removeItem('geokatu_cache_neg_' + idSeguro);
+        localStorage.removeItem('geokatu_cache_prods_' + idSeguro);
+
 
         c.subido = true;
         c.validado = true;
@@ -2716,26 +2920,45 @@ window.sincronizarCatalogoComercioNube = async function() {
 
 
 // =========================================================================
-// GOOGLE SHEETS & APPS SCRIPT
+// GOOGLE SHEETS & APPS SCRIPT (PERSISTENCIA EN SERVIDOR: Sistema/Onboarding_Privado)
 // =========================================================================
-window.configurarURLScript = function() {
-    const actual = localStorage.getItem('geokatu_apps_script_url') || '';
+window.configurarURLScript = async function() {
+    let actual = localStorage.getItem('geokatu_apps_script_url') || '';
+    try {
+        const resNube = await GeokatuDB.AdminService.obtenerEnlaceAppScriptOnboarding();
+        if (resNube && resNube.url) actual = resNube.url;
+    } catch (e) {}
+
     const u = prompt("URL Web App de Google Apps Script (/exec):", actual);
     if (!u) return null;
     const limpia = u.trim();
-    localStorage.setItem('geokatu_apps_script_url', limpia);
-    mostrarToast("URL de Apps Script almacenada.", "exito");
-    return limpia;
+
+    const resGuardar = await GeokatuDB.AdminService.guardarEnlaceAppScriptOnboarding(limpia);
+    if (!resGuardar || !resGuardar.success) {
+        mostrarToast((resGuardar && resGuardar.error) || "URL invalida.", "error");
+        return null;
+    }
+    mostrarToast("URL de Apps Script guardada en el servidor.", "exito");
+    return resGuardar.url;
 };
 
 window.sincronizarConAppsScript = async function() {
-    let u = localStorage.getItem('geokatu_apps_script_url');
+    let u = '';
+    try {
+        const resNube = await GeokatuDB.AdminService.obtenerEnlaceAppScriptOnboarding();
+        if (resNube && resNube.url) u = resNube.url;
+    } catch (e) {}
+
     if (!u) {
-        u = window.configurarURLScript();
+        u = localStorage.getItem('geokatu_apps_script_url') || '';
+    }
+    if (!u) {
+        u = await window.configurarURLScript();
         if (!u) return;
     }
 
     try {
+        mostrarToast("Consultando hoja de Google Sheets...", "info", 2000);
         const res = await fetch(u + (u.indexOf('?') !== -1 ? '&' : '?') + 't=' + Date.now());
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
@@ -2743,43 +2966,42 @@ window.sincronizarConAppsScript = async function() {
 
         let nuevos = 0;
 
-            data.forEach(function(item) {
-                const idx = listaComercios.findIndex(function(c) { return c.id === item.id; });
+        data.forEach(function(item) {
+            const idx = listaComercios.findIndex(function(c) { return c.id === item.id; });
 
-                if (idx === -1) {
-                    const yaAuditado = (item.estado === 'Auditado' || item.estado === 'SUBIDO_FIREBASE' || item.estado_flujo === 'Cerrado');
-                    const nuevoItem = {
-                        ...item,
-                        capturado: yaAuditado,
-                        validado: (item.estado === 'Auditado' || item.estado === 'SUBIDO_FIREBASE'),
-                        subido: (item.estado === 'SUBIDO_FIREBASE'),
-                        catalogo: []
-                    };
+            if (idx === -1) {
+                const yaAuditado = (item.estado === 'Auditado' || item.estado === 'SUBIDO_FIREBASE' || item.estado_flujo === 'Cerrado');
+                const nuevoItem = {
+                    ...item,
+                    capturado: yaAuditado,
+                    validado: (item.estado === 'Auditado' || item.estado === 'SUBIDO_FIREBASE'),
+                    subido: (item.estado === 'SUBIDO_FIREBASE'),
+                    catalogo: []
+                };
 
-                    listaComercios.push(nuevoItem);
+                listaComercios.push(nuevoItem);
 
-                    if (!nuevoItem.capturado && !nuevoItem.archivado) {
-                        lanzarEntidadVoladora(nuevoItem, nuevos);
-                    }
-                    nuevos++;
-                } else {
-                    listaComercios[idx].nombre = item.nombre;
-                    listaComercios[idx].direccion = item.direccion;
-                    listaComercios[idx].whatsapp = item.whatsapp;
-                    listaComercios[idx].horario = item.horario;
-                    listaComercios[idx].pbx = item.pbx;
-                    listaComercios[idx].correo = item.correo;
-                    listaComercios[idx].coordenadas_crudo = item.coordenadas_crudo || item.coordenada_validada;
+                if (!nuevoItem.capturado && !nuevoItem.archivado) {
+                    lanzarEntidadVoladora(nuevoItem, nuevos);
                 }
-            });
+                nuevos++;
+            } else {
+                listaComercios[idx].nombre = item.nombre;
+                listaComercios[idx].direccion = item.direccion;
+                listaComercios[idx].whatsapp = item.whatsapp;
+                listaComercios[idx].horario = item.horario;
+                listaComercios[idx].pbx = item.pbx;
+                listaComercios[idx].correo = item.correo;
+                listaComercios[idx].coordenadas_crudo = item.coordenadas_crudo || item.coordenada_validada;
+            }
+        });
 
-            AppState.guardarColaLocal();
-            actualizarDatalistNichos();
-            actualizarHUD();
-            renderizarTablero();
-            emitirTono('EXITO');
-            mostrarToast('Sincronización: ' + nuevos + ' comercios lanzados al enjambre.', "exito");
-
+        AppState.guardarColaLocal();
+        actualizarDatalistNichos();
+        actualizarHUD();
+        renderizarTablero();
+        emitirTono('EXITO');
+        mostrarToast('Sincronización: ' + nuevos + ' comercios lanzados al enjambre.', "exito");
     } catch (e) {
         mostrarToast("Error conectando con Google Sheets: " + e.message, "error");
     }
@@ -3083,6 +3305,8 @@ window.exportarDirectorioMatrizJSON = function() {
 
     mostrarToast("Matriz exportada (" + payloadCompacto.length + " comercios).", "exito");
 };
+
+
 
 
 
