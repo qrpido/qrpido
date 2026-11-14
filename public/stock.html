@@ -809,29 +809,64 @@ function obtenerEtiquetaUnidad(prod) {
     return esProductoPesable(prod) ? 'kg' : 'und';
 }
 
+function proyectarSaldosProducto(prod, ubicacionesBase = null) {
+ const ubisLocales = JSON.parse(localStorage.getItem('geokatu_stock_ubis_' + idNegocio) || '[]');
+ const base = Array.isArray(ubicacionesBase) ? ubicacionesBase : ubisLocales.filter(u => u.id_prod === prod.id_prod);
+ const mapaBins = new Map();
+ base.forEach(u => {
+  const idEsp = u.id_compartimiento || u.id;
+  if (idEsp) mapaBins.set(idEsp, Object.assign({}, u, { id_compartimiento: idEsp, cantidad: Number(u.cantidad) || 0 }));
+ });
+ const cola = JSON.parse(localStorage.getItem('geokatu_movimientos_cola_' + idNegocio) || '[]');
+ let deltaTotalPendiente = 0;
+ cola.forEach(m => {
+  if (m.estado_sincronizacion === 'rechazado' || m.codigo_producto !== prod.id_prod) return;
+  deltaTotalPendiente += Number(m.delta_global) || 0;
+  if (m.id_compartimiento_origen) {
+   const prevOrig = mapaBins.get(m.id_compartimiento_origen) || { id_prod: prod.id_prod, id_compartimiento: m.id_compartimiento_origen, cantidad: 0 };
+   prevOrig.cantidad = Number((Number(prevOrig.cantidad) - (Number(m.cantidad) || 0)).toFixed(3));
+   mapaBins.set(m.id_compartimiento_origen, prevOrig);
+  }
+  if (m.id_compartimiento_destino) {
+   const prevDest = mapaBins.get(m.id_compartimiento_destino) || { id_prod: prod.id_prod, id_compartimiento: m.id_compartimiento_destino, cantidad: 0 };
+   prevDest.cantidad = m.tipo === 'AJUSTE_CONTEO_CICLICO'
+    ? Number(m.stock_fisico_contado) || 0
+    : Number((Number(prevDest.cantidad) + (Number(m.cantidad) || 0)).toFixed(3));
+   mapaBins.set(m.id_compartimiento_destino, prevDest);
+  }
+ });
+ const stockBase = prod.stock_actual !== undefined ? Number(prod.stock_actual) : 0;
+ return {
+  stockProyectado: Number((stockBase + deltaTotalPendiente).toFixed(3)),
+  ubicaciones: Array.from(mapaBins.values()).filter(u => Number(u.cantidad) > 0)
+ };
+}
+
 function renderizarUbicacionesFichaProducto(prod, ubicaciones = null) {
-    const cont = document.getElementById('lista-ubicaciones-producto-ficha');
-    if (!cont || !prod) return;
-    const ubisLocales = JSON.parse(localStorage.getItem('geokatu_stock_ubis_' + idNegocio) || '[]');
-    const misUbis = (ubicaciones || ubisLocales.filter(u => u.id_prod === prod.id_prod)).filter(u => Number(u.cantidad) > 0);
-    cont.replaceChildren();
-    if (misUbis.length === 0) {
-        cont.textContent = ubicaciones ? 'Sin existencias por ubicación.' : 'Sin ubicaciones en la caché de este terminal.';
-        return;
-    }
-    for (const ubi of misUbis) {
-        const fila = document.createElement('div');
-        fila.className = 'wms-ubicacion-ficha';
-        const espacioId = ubi.id_compartimiento || ubi.id;
-        const ubicacion = buscarEspacio(espacioId);
-        const descripcion = document.createElement('span');
-        descripcion.textContent = ubicacion ? ubicacion.mueble.nombre + ' · ' + etiquetaEspacio(ubicacion.espacio)
-            : espacioId === 'BIN_INICIAL' ? 'Almacén inicial' : espacioId;
-        const cantidad = document.createElement('strong');
-        cantidad.textContent = Number(ubi.cantidad) + ' ' + obtenerEtiquetaUnidad(prod);
-        fila.append(descripcion, cantidad);
-        cont.append(fila);
-    }
+ const cont = document.getElementById('lista-ubicaciones-producto-ficha');
+ if (!cont || !prod) return;
+ const proyeccion = proyectarSaldosProducto(prod, ubicaciones);
+ const misUbis = proyeccion.ubicaciones;
+ const mapaSync = JSON.parse(localStorage.getItem('geokatu_ubis_sku_sync_' + idNegocio) || '{}');
+ const yaConsultado = Boolean(ubicaciones || mapaSync[prod.id_prod]);
+ cont.replaceChildren();
+ if (misUbis.length === 0) {
+  cont.textContent = yaConsultado ? 'Sin existencias por ubicación.' : 'Sin ubicaciones en la caché de este terminal.';
+  return;
+ }
+ for (const ubi of misUbis) {
+  const fila = document.createElement('div');
+  fila.className = 'wms-ubicacion-ficha';
+  const espacioId = ubi.id_compartimiento || ubi.id;
+  const ubicacion = buscarEspacio(espacioId);
+  const descripcion = document.createElement('span');
+  descripcion.textContent = ubicacion ? ubicacion.mueble.nombre + ' · ' + etiquetaEspacio(ubicacion.espacio)
+   : espacioId === 'BIN_INICIAL' ? 'Almacén inicial' : espacioId;
+  const cantidad = document.createElement('strong');
+  cantidad.textContent = Number(ubi.cantidad) + ' ' + obtenerEtiquetaUnidad(prod);
+  fila.append(descripcion, cantidad);
+  cont.append(fila);
+ }
 }
 
 function mostrarFichaProductoConsultado(prod, origenHardware, etiquetaEstado = 'CONSULTADO') {
@@ -861,12 +896,12 @@ function mostrarFichaProductoConsultado(prod, origenHardware, etiquetaEstado = '
         badgeUni.style.color = pesable ? '#ffaa00' : '#00e5ff';
     }
 
-    const stockActual = prod.stock_actual !== undefined ? Number(prod.stock_actual) : 0;
-    document.getElementById('res-operacion').innerText = etiquetaEstado;
-    document.getElementById('res-hardware').innerText = origenHardware || 'LECTOR';
-    const elStock = document.getElementById('res-stock');
-    elStock.innerText = stockActual;
-    elStock.style.color = stockActual > 0 ? '#00ff64' : '#ff4444';
+     const stockActual = proyectarSaldosProducto(prod).stockProyectado;
+ document.getElementById('res-operacion').innerText = etiquetaEstado;
+ document.getElementById('res-hardware').innerText = origenHardware || 'LECTOR';
+ const elStock = document.getElementById('res-stock');
+ elStock.innerText = stockActual;
+ elStock.style.color = stockActual > 0 ? '#00ff64' : '#ff4444';
     document.getElementById('res-stock-unidad').innerText = unidadStr;
 
     renderizarUbicacionesFichaProducto(prod);
@@ -918,34 +953,40 @@ function abrirSubPanelAccionFicha(modo) {
         subRegla.innerText = 'Solo unidades enteras (> 0)';
     }
 
-    sincronizarBadgeUbicacionAccion();
-    document.getElementById('wms-origen').hidden = modo !== 'UBICAR';
-    if (modo === 'UBICAR') {
-        const select = document.getElementById('wms-origen-select');
-        select.replaceChildren(new Option('Selecciona el espacio de origen', ''));
-        const cache = JSON.parse(localStorage.getItem('geokatu_stock_ubis_' + idNegocio) || '[]');
-        const producto = productoActivoFicha;
-        const sesion = sesionWms;
-        const mostrarOrigenes = (ubicaciones) => {
-            select.replaceChildren(new Option('Selecciona el espacio de origen', ''));
-            ubicaciones.filter(u => Number(u.cantidad) > 0).forEach(u => {
-                const id = u.id_compartimiento || u.id;
-                const ubicacion = buscarEspacio(id);
-                if (!ubicacion && id !== 'BIN_INICIAL') return;
-                const texto = ubicacion ? ubicacion.mueble.nombre + ' · ' + etiquetaEspacio(ubicacion.espacio) : 'Almacén inicial';
-                select.add(new Option(texto + ' (' + u.cantidad + ' ' + unidadStr + ')', id));
-            });
-        };
-        mostrarOrigenes(cache.filter(u => u.id_prod === producto.id_prod));
-        if (navigator.onLine) {
-            consultarUbicacionesFicha(producto).then(res => {
-                if (sesion !== sesionWms || producto !== productoActivoFicha || modoAccionFicha !== 'UBICAR' || !res.success) return;
-                const seleccion = select.value;
-                mostrarOrigenes(res.data);
-                if (Array.from(select.options).some(opt => opt.value === seleccion)) select.value = seleccion;
-            });
-        }
-    }
+     sincronizarBadgeUbicacionAccion();
+ const usaSelectorOrigen = (modo === 'UBICAR' || modo === 'QUITAR');
+ document.getElementById('wms-origen').hidden = !usaSelectorOrigen;
+ if (usaSelectorOrigen) {
+ const select = document.getElementById('wms-origen-select');
+ select.replaceChildren(new Option('Selecciona el espacio de origen', ''));
+ const producto = productoActivoFicha;
+ const sesion = sesionWms;
+ const mostrarOrigenes = (ubicacionesRaw) => {
+  const proy = proyectarSaldosProducto(producto, ubicacionesRaw).ubicaciones;
+  select.replaceChildren(new Option('Selecciona el espacio de origen', ''));
+  proy.forEach(u => {
+   const id = u.id_compartimiento || u.id;
+   const ubicacion = buscarEspacio(id);
+   if (!ubicacion && id !== 'BIN_INICIAL') return;
+   const texto = ubicacion ? ubicacion.mueble.nombre + ' · ' + etiquetaEspacio(ubicacion.espacio) : 'Almacén inicial';
+   select.add(new Option(texto + ' (' + u.cantidad + ' ' + unidadStr + ')', id));
+  });
+  if (ubicacionCascada.idCompartimiento && Array.from(select.options).some(opt => opt.value === ubicacionCascada.idCompartimiento)) {
+   select.value = ubicacionCascada.idCompartimiento;
+  } else if (select.options.length === 2) {
+   select.selectedIndex = 1;
+  }
+ };
+ mostrarOrigenes(null);
+ if (navigator.onLine) {
+  consultarUbicacionesFicha(producto).then(res => {
+   if (sesion !== sesionWms || producto !== productoActivoFicha || !usaSelectorOrigen || !res.success) return;
+   const seleccion = select.value;
+   mostrarOrigenes(res.data);
+   if (seleccion && Array.from(select.options).some(opt => opt.value === seleccion)) select.value = seleccion;
+  });
+ }
+ }
 
     if (modo === 'ANADIR') {
         titulo.innerText = 'Ingresar (' + unidadStr + ')';
@@ -1038,10 +1079,11 @@ function consultarUbicacionesFicha(prod) {
 }
 
 function mostrarEstadoColaWms() {
-    if (!sesionWms) return;
-    const estado = document.getElementById('wms-estado-sync');
-    const cola = JSON.parse(localStorage.getItem('geokatu_movimientos_cola_' + idNegocio) || '[]');
-    const relacionados = cola.filter(m => m.modo_validado ? m.operador_uid === AuthGate._estado.usuarioAuth?.uid : sesionWms.esDueno && m.estado_sincronizacion === 'rechazado');
+ if (!sesionWms) return;
+ const estado = document.getElementById('wms-estado-sync');
+ const cola = JSON.parse(localStorage.getItem('geokatu_movimientos_cola_' + idNegocio) || '[]');
+ const uidActivo = AuthGate._estado.usuarioAuth?.uid || localStorage.getItem('geokatu_auth_uid');
+ const relacionados = cola.filter(m => m.modo_validado ? (!m.operador_uid || m.operador_uid === 'TERMINAL_LOCAL' || m.operador_uid === uidActivo) : sesionWms.esDueno && m.estado_sincronizacion === 'rechazado');
     const rechazados = relacionados.filter(m => m.estado_sincronizacion === 'rechazado');
     const pendientes = relacionados.length - rechazados.length;
     estado.hidden = !relacionados.length;
@@ -1057,18 +1099,19 @@ document.getElementById('btn-ejecutar-accion-contextual').addEventListener('clic
     const modo = modoAccionFicha;
     const sesion = sesionWms;
     const cantidad = Number(document.getElementById('input-cantidad-contextual').value);
-    const destino = buscarEspacio(ubicacionCascada.idCompartimiento);
-    const origenId = modo === 'UBICAR' ? document.getElementById('wms-origen-select').value : ubicacionCascada.idCompartimiento;
-    const origen = buscarEspacio(origenId);
-    const causa = document.getElementById('select-causa-quitar').value;
-    if (!Number.isFinite(cantidad) || cantidad <= 0 || (!esProductoPesable(prod) && !Number.isInteger(cantidad))) {
-        await window.mostrarAlertaInApp('Revisa la cantidad y la unidad del producto.', 'Cantidad inválida');
-        return;
-    }
-    if (!destino || (modo === 'UBICAR' && (!origenId || origenId === destino.espacio.id_comp))) {
-        await window.mostrarAlertaInApp('Selecciona un espacio del plano. Para mover, elige también un origen distinto.', 'Falta ubicación');
-        return;
-    }
+     const destino = buscarEspacio(ubicacionCascada.idCompartimiento);
+ const origenId = (modo === 'UBICAR' || modo === 'QUITAR') ? (document.getElementById('wms-origen-select').value || ubicacionCascada.idCompartimiento) : ubicacionCascada.idCompartimiento;
+ const origen = buscarEspacio(origenId);
+ const origenValido = Boolean(origen || origenId === 'BIN_INICIAL');
+ const causa = document.getElementById('select-causa-quitar').value;
+ if (!Number.isFinite(cantidad) || cantidad <= 0 || (!esProductoPesable(prod) && !Number.isInteger(cantidad))) {
+ await window.mostrarAlertaInApp('Revisa la cantidad y la unidad del producto.', 'Cantidad inválida');
+ return;
+ }
+ if ((modo === 'ANADIR' && !destino) || (modo === 'QUITAR' && !origenValido) || (modo === 'UBICAR' && (!destino || !origenValido || origenId === destino.espacio.id_comp))) {
+ await window.mostrarAlertaInApp('Selecciona un espacio válido para la operación. Para mover, elige origen y destino distintos.', 'Falta ubicación');
+ return;
+ }
     const tipo = modo === 'ANADIR' ? 'ENTRADA' : modo === 'UBICAR' ? 'TRASLADO_INTERNO' :
         causa === 'DESPACHO_EXTERNO' || causa === 'CONSUMO_INTERNO' ? 'SALIDA' : 'AJUSTE_MERMA';
     const btn = document.getElementById('btn-ejecutar-accion-contextual');
@@ -1664,8 +1707,10 @@ function abrirModalAltaRapida(codigo, cantSugerida, datosMatriz = null) {
                     imagen: imgUrl,
                     lote_inicial: loteVal,
                     fecha_vencimiento: vencVal,
-                    almacen_id_inicial: ubicacionCascada.idEstante || "BODEGA_GENERAL",
-                    fecha_creacion: new Date().toISOString(),
+                     almacen_id_inicial: ubicacionCascada.idEstante || "BODEGA_GENERAL",
+ compartimiento_id_inicial: ubicacionCascada.idCompartimiento || "BIN_INICIAL",
+ zona_inicial: ubicacionCascada.zona || "PISO_VENTA",
+ fecha_creacion: new Date().toISOString(),
                     agotado: (cant <= 0)
                 };
                 const res = await GeokatuDB.AdminService.guardarProducto(idNegocio, null, nuevoProd);
