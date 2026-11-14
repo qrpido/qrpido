@@ -706,6 +706,7 @@ const GeokatuDB = {
                 return { success: false, error: "Selecciona las ubicaciones correspondientes al movimiento." };
             }
 
+                        const uidSesionVerificable = auth.currentUser?.uid || localStorage.getItem('geokatu_auth_uid') || null;
             const mov = {
                 mov_id_local: nuevoIdOperacion('MOV'),
                 modo_validado: true,
@@ -716,8 +717,8 @@ const GeokatuDB = {
                 cantidad: cantidadReal,
                 delta_global: entrada ? cantidadReal : salida ? -cantidadReal : 0,
                 usuario: auth.currentUser?.email || null,
-                operador_uid: auth.currentUser?.uid || null,
-                operador_relevo_uid: metadata.operadorUid && metadata.operadorUid !== auth.currentUser?.uid ? metadata.operadorUid : null,
+                operador_uid: uidSesionVerificable,
+                operador_relevo_uid: metadata.operadorUid && metadata.operadorUid !== uidSesionVerificable ? metadata.operadorUid : null,
                 sede: metadata.sede || null,
                 timestamp: new Date().toISOString(),
                 id_estante_origen: metadata.idEstanteOrigen || null,
@@ -766,9 +767,14 @@ const GeokatuDB = {
                 }
 
                 let procesados = 0;
-                for (const mov of colaActual) {
+                                for (const mov of colaActual) {
                     if (mov.estado_sincronizacion === 'rechazado') continue;
-                    if (mov.modo_validado && mov.operador_uid !== auth.currentUser?.uid) continue;
+                    const uidActualSync = auth.currentUser?.uid || null;
+                    const uidMovValido = !mov.operador_uid || mov.operador_uid === 'TERMINAL_LOCAL' || mov.operador_uid === uidActualSync;
+                    if (mov.modo_validado && !uidMovValido) continue;
+                    if (mov.modo_validado && uidActualSync && (!mov.operador_uid || mov.operador_uid === 'TERMINAL_LOCAL')) {
+                        mov.operador_uid = uidActualSync;
+                    }
                     try {
                         if (mov.modo_validado) {
                             await aplicarMovimientoWms(idNegocio, mov);
@@ -864,17 +870,52 @@ const GeokatuDB = {
             }
         },
 
-        obtenerStockUbicacionesProducto: async (idNegocio, productoId) => {
+                obtenerStockUbicacionesProducto: async (idNegocio, productoId) => {
             if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+            const tenantReal = idNegocio || localStorage.getItem('geokatu_active_uid');
+            const claveUbis = 'geokatu_stock_ubis_' + tenantReal;
+            const claveSyncSku = 'geokatu_ubis_sku_sync_' + tenantReal;
+            const leerCacheSku = () => {
+                try {
+                    const ubisLocal = JSON.parse(localStorage.getItem(claveUbis) || '[]');
+                    const mapaSync = JSON.parse(localStorage.getItem(claveSyncSku) || '{}');
+                    return {
+                        success: true,
+                        data: ubisLocal.filter(u => u.id_prod === productoId),
+                        desdeCache: true,
+                        sincronizadoPreviamente: Boolean(mapaSync[productoId])
+                    };
+                } catch (errC) {
+                    return { success: true, data: [], desdeCache: true, sincronizadoPreviamente: false };
+                }
+            };
+            if (!navigator.onLine) return leerCacheSku();
             try {
-                const ubiRef = collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}/${productoId}/${_SCHEMA.SubColeccionUbicacionesStock}`);
+                const rutaSub = _SCHEMA.ColeccionDirectorio + '/' + tenantReal + '/' + _SCHEMA.SubColeccionProductos + '/' + productoId + '/' + _SCHEMA.SubColeccionUbicacionesStock;
+                const ubiRef = collection(db, rutaSub);
                 const snap = await getDocsFromServer(ubiRef);
                 const ubicaciones = [];
                 snap.forEach(d => {
-                    ubicaciones.push({ id: d.id, ...d.data() });
+                    const dataU = d.data();
+                    ubicaciones.push(Object.assign({}, dataU, {
+                        id: d.id,
+                        id_prod: productoId,
+                        id_compartimiento: dataU.id_compartimiento || d.id,
+                        cantidad: Number(dataU.cantidad) || 0
+                    }));
                 });
-                return { success: true, data: ubicaciones };
+                try {
+                    const ubisLocal = JSON.parse(localStorage.getItem(claveUbis) || '[]').filter(u => u.id_prod !== productoId);
+                    ubicaciones.forEach(u => ubisLocal.push(u));
+                    localStorage.setItem(claveUbis, JSON.stringify(ubisLocal));
+                    const mapaSync = JSON.parse(localStorage.getItem(claveSyncSku) || '{}');
+                    mapaSync[productoId] = new Date().toISOString();
+                    localStorage.setItem(claveSyncSku, JSON.stringify(mapaSync));
+                } catch (errW) {}
+                return { success: true, data: ubicaciones, sincronizadoPreviamente: true };
             } catch (e) {
+                const respaldo = leerCacheSku();
+                if (respaldo.sincronizadoPreviamente || respaldo.data.length > 0) return respaldo;
                 return { success: false, error: e.message };
             }
         },
@@ -1178,7 +1219,7 @@ const GeokatuDB = {
             const tenantReal = idNegocio || metadata.idNegocio || localStorage.getItem('geokatu_active_uid') || (auth.currentUser ? auth.currentUser.uid : "ADMIN_LOCAL");
             const timestampActual = new Date().toISOString();
             const operadorEmail = auth.currentUser ? auth.currentUser.email : (metadata.operador || "OPERADOR_AUDITORIA");
-            const operadorUid = auth.currentUser ? auth.currentUser.uid : (metadata.operador_uid || "TERMINAL_LOCAL");
+                        const operadorUid = (auth.currentUser && auth.currentUser.uid) || localStorage.getItem('geokatu_auth_uid') || metadata.operador_uid || metadata.operadorUid || "TERMINAL_LOCAL";
             const idMueble = metadata.idEstante || (idCompartimiento.startsWith('GEO-P-') ? (idCompartimiento.split('-')[idCompartimiento.split('-').length - 4] || "GENERAL") : "GENERAL");
             const zonaOperacion = metadata.zona || "PISO_VENTA";
 
@@ -1854,7 +1895,9 @@ obtenerContactoComercio: async (idNegocio) => {
                     ? doc(db, rutaProds, idProducto)
                     : doc(collection(db, rutaProds));
                 
-                const almacenInicial = dataObj.almacen_id_inicial || "BODEGA_GENERAL";
+                                const almacenInicial = dataObj.almacen_id_inicial || "BODEGA_GENERAL";
+                const compInicial = dataObj.compartimiento_id_inicial || "BIN_INICIAL";
+                const zonaInicial = dataObj.zona_inicial || "PISO_VENTA";
                 const ahoraISO = new Date().toISOString();
                 
                 let imagenNormalizada = null;
@@ -1873,7 +1916,24 @@ obtenerContactoComercio: async (idNegocio) => {
                 } else {
                     delete payloadFinal.imagen;
                 }
-                await setDoc(docRef, payloadFinal, { merge: true });
+                const batchAlta = writeBatch(db);
+                batchAlta.set(docRef, payloadFinal, { merge: true });
+                let payloadUbiInicial = null;
+                if (!idProducto && Number(dataObj.stock_actual) > 0) {
+                    const ubiInicialRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + idNegocio + "/" + _SCHEMA.SubColeccionProductos + "/" + docRef.id + "/" + _SCHEMA.SubColeccionUbicacionesStock, compInicial);
+                    payloadUbiInicial = {
+                        id_negocio: idNegocio,
+                        id_estante: almacenInicial,
+                        id_compartimiento: compInicial,
+                        cantidad: Number(dataObj.stock_actual),
+                        lote: dataObj.lote_inicial || dataObj.lote || "L-INICIAL",
+                        fecha_vencimiento: dataObj.fecha_vencimiento || null,
+                        zona: zonaInicial,
+                        ultima_modificacion: ahoraISO
+                    };
+                    batchAlta.set(ubiInicialRef, payloadUbiInicial, { merge: true });
+                }
+                await batchAlta.commit();
 
                 // Actualizar en caliente la cache local unificada y compilar JSON + mapa_precios
                 try {
@@ -1900,23 +1960,15 @@ obtenerContactoComercio: async (idNegocio) => {
                     }
                     localStorage.setItem(claveCache, JSON.stringify(listaLocal));
                     localStorage.setItem('geokatu_catalogo_sync_' + idNegocio, ahoraISO);
+                    if (payloadUbiInicial) {
+                        const claveUbis = 'geokatu_stock_ubis_' + idNegocio;
+                        const ubisLocal = JSON.parse(localStorage.getItem(claveUbis) || '[]').filter(u => !(u.id_prod === docRef.id && u.id_compartimiento === compInicial));
+                        ubisLocal.push(Object.assign({ id: compInicial, id_prod: docRef.id }, payloadUbiInicial));
+                        localStorage.setItem(claveUbis, JSON.stringify(ubisLocal));
+                    }
                 } catch (eCache) {}
 
                 GeokatuDB.AdminService.compilarCatalogoJSON(idNegocio, false).catch(() => {});
-
-                if (!idProducto && Number(dataObj.stock_actual) > 0) {
-                    const ubiInicialRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + idNegocio + "/" + _SCHEMA.SubColeccionProductos + "/" + docRef.id + "/" + _SCHEMA.SubColeccionUbicacionesStock, "BIN_INICIAL");
-                    await setDoc(ubiInicialRef, {
-                        id_negocio: idNegocio,
-                        id_estante: almacenInicial,
-                        id_compartimiento: "BIN_INICIAL",
-                        cantidad: Number(dataObj.stock_actual),
-                        lote: dataObj.lote_inicial || dataObj.lote || "L-INICIAL",
-                        fecha_vencimiento: dataObj.fecha_vencimiento || null,
-                        zona: "PISO_VENTA",
-                        ultima_modificacion: ahoraISO
-                    }, { merge: true });
-                }
                 if (!idProducto) {
                     try {
                         await setDoc(doc(db, "sistema", "metricas_red"), {
