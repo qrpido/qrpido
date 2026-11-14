@@ -465,14 +465,13 @@ function abrirFichaMueble(mueble, items) {
     const listaEl = document.getElementById('lista-productos-estante');
     listaEl.innerHTML = '';
 
-    if (!items || items.length === 0) {
-        listaEl.innerHTML = `
-            <div style="text-align: center; color: #777; padding: 40px 10px;">
-                <div style="font-size: 11px; text-transform: uppercase; color: #666; letter-spacing: 1px; font-weight: 800;">Sin existencias registradas</div>
-                <p style="margin-top: 6px; font-size: 12px; color: #555;">No hay artículos ubicados en este mueble.</p>
-            </div>
-        `;
-    } else {
+     if (!items || items.length === 0) {
+ listaEl.innerHTML =
+ '<div style="text-align: center; color: #777; padding: 40px 10px;">' +
+ '<div style="font-size: 11px; text-transform: uppercase; color: #666; letter-spacing: 1px; font-weight: 800;">Sin existencias registradas</div>' +
+ '<p style="margin-top: 6px; font-size: 12px; color: #555;">No hay artículos ubicados en este mueble.</p>' +
+ '</div>';
+ } else {
 
         const hoy = new Date();
         const nombresCaras = { A: 'Frontal', B: 'Posterior', C: 'Cabecera Izq', D: 'Cabecera Der' };
@@ -847,8 +846,9 @@ function centrarMuebleEnPantalla(mueble) {
 
 // 🎯 Inyector de Coordenada Exacta (Cara y Bin) con Baliza GPS Amarilla
 function colocarPinGpsEnMueble(mueble, idCompartimiento, labelProducto = '') {
-    const el = document.getElementById('mueble-visor-' + mueble.id_mueble);
-    if (!el) return;
+ const el = document.getElementById('mueble-visor-' + mueble.id_mueble);
+ if (!el) return;
+ el.classList.add('radar-activo');
 
     let cara = 'A';
     let nivel = 1;
@@ -1515,9 +1515,14 @@ document.getElementById('btn-cerrar-camara').addEventListener('click', cerrarCam
 // ==========================================
 // 8. MULTI-SEDE DINÁMICA Y LOCAL-FIRST DELTAS (ZERO-READS)
 // ==========================================
+function usuarioPuedeCambiarSedeVisor() {
+ const rolesPermitidos = ['owner', 'dueño', 'supervisor', 'administrador_delegado', 'visual_merchandising', 'admin', 'superadmin'];
+ return Boolean(AuthGate._estado.contextoActivo?.esDueno || rolesPermitidos.includes(rolUsuarioActivo));
+}
+
 async function cargarSedesDinamicas() {
-    if (!idNegocio || !selectSede) return;
-    selectSede.disabled = !AuthGate._estado.contextoActivo?.esDueno;
+ if (!idNegocio || !selectSede) return;
+ selectSede.disabled = !usuarioPuedeCambiarSedeVisor();
     if (selectSede.disabled) {
         selectSede.replaceChildren(new Option(idSedeActiva === 'SALA_VENTAS' ? 'Sala de ventas' : idSedeActiva, idSedeActiva));
         return;
@@ -1556,8 +1561,8 @@ async function cargarSedesDinamicas() {
     }
 }
 if (selectSede) {
-    selectSede.addEventListener('change', async (e) => {
-        if (!AuthGate._estado.contextoActivo?.esDueno) return;
+ selectSede.addEventListener('change', async (e) => {
+ if (!usuarioPuedeCambiarSedeVisor()) return;
         idSedeActiva = e.target.value;
         localStorage.setItem('geokatu_sede_activa_' + idNegocio, idSedeActiva);
         document.getElementById('inventario-ir-stock').href = enlaceStock();
