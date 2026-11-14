@@ -1,5 +1,5 @@
 import { nuevoIdOperacion, quitarConfirmados, crearLoteIdempotente } from './operaciones-integridad.js';
-import { doc, getDoc, setDoc, collection, writeBatch, getDocs, query, where, limit, startAfter, orderBy, startAt, endAt, collectionGroup, deleteDoc, getCountFromServer, onSnapshot, increment, runTransaction } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { doc, getDoc, getDocFromServer, setDoc, collection, writeBatch, getDocs, getDocsFromServer, query, where, limit, startAfter, orderBy, startAt, endAt, collectionGroup, deleteDoc, getCountFromServer, onSnapshot, increment, runTransaction } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, getAdditionalUserInfo, setPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { getAnalytics, logEvent } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js';
 // Motor Geohash Base32 100% Nativo (Cero dependencias externas / Offline-First)
@@ -509,6 +509,117 @@ export function normalizarDireccionCartesiana(dirRaw) {
     };
 }
 
+// Las comprobaciones y el recibo se resuelven en la misma transacción.
+function esErrorTemporalWms(error) {
+    return !navigator.onLine || ['unavailable', 'deadline-exceeded', 'aborted'].includes(error.code);
+}
+
+async function aplicarMovimientoWms(idNegocio, movimiento) {
+    const base = `${_SCHEMA.ColeccionDirectorio}/${idNegocio}`;
+    const prodRef = doc(db, `${base}/productos`, movimiento.codigo_producto);
+    const movRef = doc(db, `${base}/Movimientos_Kardex`, movimiento.mov_id_local);
+    const origen = movimiento.id_compartimiento_origen;
+    const destino = movimiento.id_compartimiento_destino;
+    const origenRef = origen ? doc(collection(prodRef, _SCHEMA.SubColeccionUbicacionesStock), origen) : null;
+    const destinoRef = destino ? doc(collection(prodRef, _SCHEMA.SubColeccionUbicacionesStock), destino) : null;
+
+    const resultado = await runTransaction(db, async tx => {
+        if ((await tx.get(movRef)).exists()) return null;
+        const prod = await tx.get(prodRef);
+        if (!prod.exists() || prod.data().eliminado) throw new Error("El producto ya no está disponible.");
+        const ubiOrigen = origenRef ? (await tx.get(origenRef)).data() : null;
+        const ubiDestino = destinoRef ? (await tx.get(destinoRef)).data() : null;
+        const esConteo = movimiento.tipo === 'AJUSTE_CONTEO_CICLICO';
+        if (esConteo && (Number(ubiDestino?.cantidad) || 0) !== movimiento.stock_previo_bin) {
+            throw new Error("El saldo cambió después del conteo. Vuelve a contar el espacio.");
+        }
+        const total = Number(prod.data().stock_actual) || 0;
+        const saldoOrigen = Number(ubiOrigen?.cantidad) || 0;
+        if (origenRef && saldoOrigen < movimiento.cantidad) {
+            throw new Error("Stock insuficiente en el espacio de origen.");
+        }
+        if (total + movimiento.delta_global < 0) throw new Error("Stock total insuficiente.");
+
+        const timestamp = new Date().toISOString();
+        const actualizarOrigen = origenRef ? {
+            ...ubiOrigen,
+            id_negocio: idNegocio,
+            id_estante: ubiOrigen?.id_estante || movimiento.id_estante_origen || "GENERAL",
+            id_compartimiento: origen,
+            cantidad: Number((saldoOrigen - movimiento.cantidad).toFixed(3)),
+            ultima_modificacion: timestamp
+        } : null;
+        const registroDestino = destinoRef ? {
+            ...ubiDestino,
+            id_negocio: idNegocio,
+            id_estante: movimiento.id_estante_destino || "GENERAL",
+            id_compartimiento: destino,
+            zona: movimiento.zona,
+            cantidad: esConteo ? movimiento.stock_fisico_contado : Number(((Number(ubiDestino?.cantidad) || 0) + movimiento.cantidad).toFixed(3)),
+            ...(esConteo ? { ultimo_conteo_ciclico: timestamp } : {}),
+            ultima_modificacion: timestamp
+        } : null;
+
+        if (origenRef) tx.set(origenRef, actualizarOrigen, { merge: true });
+        if (destinoRef) {
+            const loteOrigen = ubiOrigen?.lote || null;
+            const venceOrigen = ubiOrigen?.fecha_vencimiento || null;
+            if (origenRef && Number(ubiDestino?.cantidad) > 0 &&
+                (loteOrigen !== (ubiDestino.lote || null) || venceOrigen !== (ubiDestino.fecha_vencimiento || null))) {
+                throw new Error("El espacio de destino contiene otro lote. Elige un espacio vacío o del mismo lote.");
+            }
+            if (origenRef && Number(ubiDestino?.cantidad || 0) <= 0) {
+                registroDestino.lote = loteOrigen;
+                registroDestino.fecha_vencimiento = venceOrigen;
+            }
+            if (movimiento.lote) registroDestino.lote = movimiento.lote;
+            if (movimiento.fecha_vencimiento) registroDestino.fecha_vencimiento = movimiento.fecha_vencimiento;
+            tx.set(destinoRef, registroDestino, { merge: true });
+        }
+        const stockActual = Number((total + movimiento.delta_global).toFixed(3));
+        if (movimiento.delta_global || (destinoRef && movimiento.zona === 'PISO_VENTA' && !prod.data().en_piso_venta)) {
+            tx.update(prodRef, {
+                stock_actual: stockActual,
+                fecha_actualizacion: timestamp,
+                ultima_actualizacion_kardex: timestamp,
+                ...(destinoRef && movimiento.zona === 'PISO_VENTA' ? { en_piso_venta: true } : {})
+            });
+        }
+        tx.set(movRef, { ...movimiento, estado_sincronizacion: "sincronizado", timestamp_sincronizacion_nube: timestamp });
+        return { stockActual, actualizarOrigen, registroDestino };
+    });
+
+    if (!resultado) return { duplicado: true };
+    // La nube ya confirmó el movimiento aunque el almacenamiento del navegador esté lleno.
+    try {
+        const claveCat = 'geokatu_catalogo_' + idNegocio;
+        const catalogo = JSON.parse(localStorage.getItem(claveCat) || '[]');
+        const prod = catalogo.find(p => p.id_prod === movimiento.codigo_producto);
+        if (prod) {
+            prod.stock_actual = resultado.stockActual;
+            localStorage.setItem(claveCat, JSON.stringify(catalogo));
+        }
+        const claveUbis = 'geokatu_stock_ubis_' + idNegocio;
+        const ubicaciones = JSON.parse(localStorage.getItem(claveUbis) || '[]');
+        for (const ubicacion of [resultado.actualizarOrigen, resultado.registroDestino].filter(Boolean)) {
+            const indice = ubicaciones.findIndex(u => u.id_prod === movimiento.codigo_producto && u.id_compartimiento === ubicacion.id_compartimiento);
+            const previa = ubicaciones[indice];
+            const actual = {
+                ...previa,
+                ...ubicacion,
+                id_prod: movimiento.codigo_producto,
+                cantidad: ubicacion.cantidad
+            };
+            if (indice >= 0) ubicaciones[indice] = actual;
+            else ubicaciones.push(actual);
+        }
+        localStorage.setItem(claveUbis, JSON.stringify(ubicaciones));
+    } catch (err) {
+        console.warn("[WMS] No se pudo actualizar la caché local:", err.message);
+    }
+    return resultado;
+}
+
 const GeokatuDB = {
     normalizarDireccionCartesiana,
     CatalogoMatrizService,
@@ -578,46 +689,41 @@ const GeokatuDB = {
             }
         },
 
-      registrarMovimientoFisico: async (productoId, ubicacionOrigen, ubicacionDestino, tipoMovimiento, cantidad = 1, metadata = {}) => {
+        registrarMovimientoFisico: async (productoId, ubicacionOrigen, ubicacionDestino, tipoMovimiento, cantidad = 1, metadata = {}) => {
             if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
-            
-            // Priorizar el UID del comercio dueño almacenado en la terminal sobre el del operario
-            const idNegocio = metadata.idNegocio || localStorage.getItem('geokatu_active_uid') || (auth.currentUser ? auth.currentUser.uid : "ADMIN_LOCAL");
-            const cantNumerica = Number(cantidad);
-            if (!Number.isFinite(cantNumerica) || cantNumerica <= 0) {
-                return { success: false, error: 'La cantidad debe ser positiva y finita.' };
+            const idNegocio = metadata.idNegocio || localStorage.getItem('geokatu_active_uid');
+            const cantidadReal = Number(Number(cantidad).toFixed(3));
+            if (!idNegocio || !productoId || !Number.isFinite(cantidadReal) || cantidadReal <= 0) {
+                return { success: false, error: "Selecciona un producto y una cantidad positiva." };
+            }
+            const entrada = ['ENTRADA', 'RECEPCION_COMPRA', 'AJUSTE_SOBRANTE', 'DEVOLUCION_CLIENTE'].includes(tipoMovimiento);
+            const salida = ['SALIDA', 'PICKING_VENTA', 'AJUSTE_MERMA', 'DESPACHO'].includes(tipoMovimiento);
+            const traslado = tipoMovimiento === 'TRASLADO_INTERNO';
+            const origen = metadata.idCompOrigen || null;
+            const destino = metadata.idCompDestino || null;
+            if ((!entrada && !salida && !traslado) || (salida && !origen) || (entrada && !destino) ||
+                (traslado && (!origen || !destino || origen === destino))) {
+                return { success: false, error: "Selecciona las ubicaciones correspondientes al movimiento." };
             }
 
-
-            // 1. Matriz de deltas según tipología ampliada de Kardex WMS
-            let deltaGlobal = 0;
-            const tiposEntrada = ['ENTRADA', 'RECEPCION_COMPRA', 'AJUSTE_SOBRANTE', 'DEVOLUCION_CLIENTE'];
-            const tiposSalida = ['SALIDA', 'PICKING_VENTA', 'AJUSTE_MERMA', 'DESPACHO'];
-            const tiposNeutros = ['AUDITORIA', 'CONSULTA', 'TRASLADO_INTERNO'];
-
-            if (tiposEntrada.includes(tipoMovimiento)) {
-                deltaGlobal = cantNumerica;
-            } else if (tiposSalida.includes(tipoMovimiento)) {
-                deltaGlobal = -cantNumerica;
-            } else if (tiposNeutros.includes(tipoMovimiento)) {
-                deltaGlobal = 0; // Traslado interno o auditoría no alteran el total consolidado
-            }
-
-            const movIdLocal = nuevoIdOperacion('MOV');
-            const payloadMovimiento = {
-                mov_id_local: movIdLocal,
+            const mov = {
+                mov_id_local: nuevoIdOperacion('MOV'),
+                modo_validado: true,
                 codigo_producto: productoId,
-                origen: ubicacionOrigen || "BODEGA_GENERAL",
-                destino: ubicacionDestino || "PISO_VENTA",
+                origen: ubicacionOrigen || null,
+                destino: ubicacionDestino || null,
                 tipo: tipoMovimiento,
-                cantidad: cantNumerica,
-                delta_global: deltaGlobal,
-                usuario: auth.currentUser ? auth.currentUser.email : "OPERADOR_BODEGA",
+                cantidad: cantidadReal,
+                delta_global: entrada ? cantidadReal : salida ? -cantidadReal : 0,
+                usuario: auth.currentUser?.email || null,
+                operador_uid: auth.currentUser?.uid || null,
+                operador_relevo_uid: metadata.operadorUid && metadata.operadorUid !== auth.currentUser?.uid ? metadata.operadorUid : null,
+                sede: metadata.sede || null,
                 timestamp: new Date().toISOString(),
                 id_estante_origen: metadata.idEstanteOrigen || null,
-                id_compartimiento_origen: metadata.idCompOrigen || null,
+                id_compartimiento_origen: origen,
                 id_estante_destino: metadata.idEstanteDestino || null,
-                id_compartimiento_destino: metadata.idCompDestino || null,
+                id_compartimiento_destino: destino,
                 lote: metadata.lote || null,
                 fecha_vencimiento: metadata.fechaVencimiento || null,
                 motivo_ajuste: metadata.motivo || null,
@@ -625,81 +731,20 @@ const GeokatuDB = {
                 estado_sincronizacion: "sincronizado"
             };
 
-            const claveColaMovimiento = `geokatu_movimientos_cola_${idNegocio}`;
-            const colaMovimiento = JSON.parse(localStorage.getItem(claveColaMovimiento) || '[]');
-            colaMovimiento.push(payloadMovimiento);
-            localStorage.setItem(claveColaMovimiento, JSON.stringify(colaMovimiento));
-            // 2. Persistencia local inmediata en catálogo en memoria / caché
-            const claveCache = `geokatu_catalogo_${idNegocio}`;
-            let catalogoLocal = JSON.parse(localStorage.getItem(claveCache) || "[]");
-            const prodRAM = catalogoLocal.find(p => p.id_prod === productoId || p.codigo_barras === productoId);
-            if (prodRAM && deltaGlobal !== 0) {
-                prodRAM.stock_actual = Number((Number(prodRAM.stock_actual || 0) + deltaGlobal).toFixed(3));
-                localStorage.setItem(claveCache, JSON.stringify(catalogoLocal));
-            }
+            const claveCola = 'geokatu_movimientos_cola_' + idNegocio;
+            const cola = JSON.parse(localStorage.getItem(claveCola) || '[]');
+            cola.push(mov);
+            localStorage.setItem(claveCola, JSON.stringify(cola));
+            if (!navigator.onLine) return { success: true, offline: true };
 
-            // Kardex y efectos comparten un recibo estable para los reintentos.
             try {
-                if (!navigator.onLine) {
-                    throw new Error("Terminal operando fuera de línea.");
-                }
-
-                const movRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Movimientos_Kardex`, movIdLocal);
-                const batch = crearLoteIdempotente(db, movRef, runTransaction);
-                batch.set(movRef, payloadMovimiento);
-
-                // Actualizar stock escalar raíz
-                if (deltaGlobal !== 0) {
-                    const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, productoId);
-                    batch.update(prodRef, {
-                        stock_actual: increment(deltaGlobal),
-                        fecha_actualizacion: new Date().toISOString(),
-                        ultima_actualizacion_kardex: payloadMovimiento.timestamp
-                    });
-                }
-
-                  // 1. Ingreso a compartimiento de destino (Solo en Entradas y Traslados)
-                if (metadata.idCompDestino && (tiposEntrada.includes(tipoMovimiento) || tipoMovimiento === 'TRASLADO_INTERNO')) {
-                    const ubiDestRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + idNegocio + "/" + _SCHEMA.SubColeccionProductos + "/" + productoId + "/" + _SCHEMA.SubColeccionUbicacionesStock, metadata.idCompDestino);
-                    const payloadUbicacion = {
-                        id_negocio: idNegocio,
-                        id_estante: metadata.idEstanteDestino || "GENERAL",
-                        id_compartimiento: metadata.idCompDestino,
-                        zona: metadata.zona || "PISO_VENTA",
-                        cantidad: increment(cantNumerica),
-                        ultima_modificacion: payloadMovimiento.timestamp
-                    };
-
-                    if (metadata.lote) payloadUbicacion.lote = metadata.lote;
-                    if (metadata.fechaVencimiento) payloadUbicacion.fecha_vencimiento = metadata.fechaVencimiento;
-
-                    if (payloadUbicacion.zona === 'PISO_VENTA') {
-                        const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, productoId);
-                        batch.update(prodRef, { en_piso_venta: true });
-                    }
-
-                    batch.set(ubiDestRef, payloadUbicacion, { merge: true });
-                }
-
-                // 2. Egreso de compartimiento de origen (En Salidas y Traslados Internos)
-                if (metadata.idCompOrigen && (tiposSalida.includes(tipoMovimiento) || tipoMovimiento === 'TRASLADO_INTERNO')) {
-                    const ubiOrigRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}/${productoId}/${_SCHEMA.SubColeccionUbicacionesStock}`, metadata.idCompOrigen);
-                    batch.set(ubiOrigRef, {
-                        id_estante: metadata.idEstanteOrigen || "GENERAL",
-                        id_compartimiento: metadata.idCompOrigen,
-                        cantidad: increment(-cantNumerica),
-                        ultima_modificacion: payloadMovimiento.timestamp
-                    }, { merge: true });
-                }
-
-                await batch.commit();
-                quitarConfirmados(localStorage, claveColaMovimiento, [movIdLocal], 'mov_id_local');
-                return { success: true, data: { txID: movRef.id, localId: movIdLocal } };
-            } catch (e) {
-                console.warn("[InventarioService] Sin conexión de red. Movimiento encolado localmente:", e.message);
-                // Ya persistido antes del envío. Conservarlo para un reintento.
-
-                return { success: true, offline: true, data: { localId: movIdLocal } };
+                const data = await aplicarMovimientoWms(idNegocio, mov);
+                quitarConfirmados(localStorage, claveCola, [mov.mov_id_local], 'mov_id_local');
+                return { success: true, data };
+            } catch (err) {
+                if (esErrorTemporalWms(err)) return { success: true, offline: true };
+                quitarConfirmados(localStorage, claveCola, [mov.mov_id_local], 'mov_id_local');
+                return { success: false, error: err.message };
             }
         },
 
@@ -721,10 +766,28 @@ const GeokatuDB = {
                 }
 
                 let procesados = 0;
-                const colaRestante = [];
-
                 for (const mov of colaActual) {
+                    if (mov.estado_sincronizacion === 'rechazado') continue;
+                    if (mov.modo_validado && mov.operador_uid !== auth.currentUser?.uid) continue;
                     try {
+                        if (mov.modo_validado) {
+                            await aplicarMovimientoWms(idNegocio, mov);
+                            quitarConfirmados(localStorage, claveCola, [mov.mov_id_local], 'mov_id_local');
+                            procesados++;
+                            continue;
+                        }
+                        // Una cola antigua puede contener traslados que nunca tuvieron origen.
+                        if (mov.tipo === 'TRASLADO_INTERNO' && (!mov.id_compartimiento_origen ||
+                            !mov.id_compartimiento_destino || mov.id_compartimiento_origen === mov.id_compartimiento_destino)) {
+                            const lista = JSON.parse(localStorage.getItem(claveCola) || '[]');
+                            const pendiente = lista.find(item => item.mov_id_local === mov.mov_id_local);
+                            if (pendiente) {
+                                pendiente.estado_sincronizacion = 'rechazado';
+                                pendiente.error = 'Traslado antiguo sin origen y destino distintos. Revisa el conteo físico.';
+                                localStorage.setItem(claveCola, JSON.stringify(lista));
+                            }
+                            continue;
+                        }
                         const movRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Movimientos_Kardex`, mov.mov_id_local);
                         const batch = crearLoteIdempotente(db, movRef, runTransaction);
 
@@ -783,7 +846,15 @@ const GeokatuDB = {
                         procesados++;
                     } catch (errMov) {
                         console.error("[GEOKATU Sync Bodega] Error procesando movimiento diferido:", errMov);
-                        colaRestante.push(mov);
+                        if (mov.modo_validado && !esErrorTemporalWms(errMov)) {
+                            const actual = JSON.parse(localStorage.getItem(claveCola) || '[]');
+                            const rechazado = actual.find(item => item.mov_id_local === mov.mov_id_local);
+                            if (rechazado) {
+                                rechazado.estado_sincronizacion = 'rechazado';
+                                rechazado.error = errMov.message;
+                                localStorage.setItem(claveCola, JSON.stringify(actual));
+                            }
+                        }
                     }
                 }
 
@@ -797,7 +868,7 @@ const GeokatuDB = {
             if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
             try {
                 const ubiRef = collection(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}/${productoId}/${_SCHEMA.SubColeccionUbicacionesStock}`);
-                const snap = await getDocs(ubiRef);
+                const snap = await getDocsFromServer(ubiRef);
                 const ubicaciones = [];
                 snap.forEach(d => {
                     ubicaciones.push({ id: d.id, ...d.data() });
@@ -810,67 +881,37 @@ const GeokatuDB = {
 
         obtenerMapaStockTiendaCompleto: async (idNegocio, desdeTimestamp = null) => {
             if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+            const tenantReal = idNegocio || localStorage.getItem("geokatu_active_uid");
+            if (!tenantReal) return { success: false, error: "Comercio no especificado." };
+            if (!navigator.onLine) return { success: false, offline: true };
+
+            // Registrar el inicio de la consulta y solapar la ventana para tolerar retrasos cortos.
+            const timestampCorte = new Date().toISOString();
+            const anterior = Date.parse(desdeTimestamp || '');
+            const esDelta = Number.isFinite(anterior) && anterior <= Date.parse(timestampCorte);
+            const filtros = [where("id_negocio", "==", tenantReal)];
+            if (esDelta) {
+                const desde = new Date(anterior - 120000).toISOString();
+                filtros.push(where("ultima_modificacion", ">", desde));
+            }
             try {
-                const tenantReal = idNegocio || localStorage.getItem("geokatu_active_uid");
-                let qConstraints = [where("id_negocio", "==", tenantReal)];
-
-                if (desdeTimestamp) {
-                    qConstraints.push(where("ultima_modificacion", ">", desdeTimestamp));
-                }
-
-                const qUbis = query(collectionGroup(db, _SCHEMA.SubColeccionUbicacionesStock), ...qConstraints);
-                const snap = await getDocs(qUbis);
-                const deltasOCompleto = [];
-
-                snap.forEach(docSnap => {
-                    const data = docSnap.data();
-                    const prodId = docSnap.ref.parent.parent ? docSnap.ref.parent.parent.id : null;
-                    deltasOCompleto.push({
-                        id_ubi_doc: docSnap.id,
-                        id_prod: prodId,
-                        id_estante: data.id_estante || "GENERAL",
-                        id_compartimiento: data.id_compartimiento || docSnap.id,
-                        cantidad: Number(data.cantidad) || 0,
-                        lote: data.lote || "S/L",
-                        fecha_vencimiento: data.fecha_vencimiento || null,
-                        ultima_modificacion: data.ultima_modificacion || new Date().toISOString()
-                    });
+                const snap = await getDocsFromServer(query(collectionGroup(db, _SCHEMA.SubColeccionUbicacionesStock), ...filtros));
+                const ruta = _SCHEMA.ColeccionDirectorio + '/' + tenantReal + '/productos/';
+                const data = snap.docs.filter(d => d.ref.path.startsWith(ruta)).map(d => {
+                    const ubi = d.data();
+                    return {
+                        ...ubi,
+                        id_ubi_doc: d.id,
+                        id_prod: d.ref.parent.parent.id,
+                        id_estante: ubi.id_estante || "GENERAL",
+                        id_compartimiento: ubi.id_compartimiento || d.id,
+                        cantidad: Number(ubi.cantidad) || 0,
+                        lote: ubi.lote || "S/L"
+                    };
                 });
-
-                return { 
-                    success: true, 
-                    data: deltasOCompleto, 
-                    esDelta: Boolean(desdeTimestamp),
-                    timestampCorte: new Date().toISOString() 
-                };
+                return { success: true, data, esDelta, timestampCorte };
             } catch (e) {
-                // Fallback automático por si existen documentos previos que aún no tenían el campo id_negocio
-                console.warn("[WMS] Reintentando lectura completa sin filtro compuesto:", e.message);
-                try {
-                    const tenantReal = idNegocio || localStorage.getItem("geokatu_active_uid");
-                    const qFallback = query(collectionGroup(db, _SCHEMA.SubColeccionUbicacionesStock));
-                    const snapFallback = await getDocs(qFallback);
-                    const filtrados = [];
-                    snapFallback.forEach(docSnap => {
-                        if (docSnap.ref.path.indexOf(_SCHEMA.ColeccionDirectorio + "/" + tenantReal) !== -1) {
-                            const data = docSnap.data();
-                            const prodId = docSnap.ref.parent.parent ? docSnap.ref.parent.parent.id : null;
-                            filtrados.push({
-                                id_ubi_doc: docSnap.id,
-                                id_prod: prodId,
-                                id_estante: data.id_estante || "GENERAL",
-                                id_compartimiento: data.id_compartimiento || docSnap.id,
-                                cantidad: Number(data.cantidad) || 0,
-                                lote: data.lote || "S/L",
-                                fecha_vencimiento: data.fecha_vencimiento || null,
-                                ultima_modificacion: data.ultima_modificacion || new Date().toISOString()
-                            });
-                        }
-                    });
-                    return { success: true, data: filtrados, esDelta: false, timestampCorte: new Date().toISOString() };
-                } catch (errFallback) {
-                    return { success: false, error: errFallback.message };
-                }
+                return { success: false, error: e.message };
             }
         },
 
@@ -1091,55 +1132,35 @@ const GeokatuDB = {
 
             const itemsEncontrados = ubisLocales.filter(u => u.id_compartimiento === idCompartimiento);
 
-            if (itemsEncontrados.length > 0 || !navigator.onLine) {
-                const resultado = itemsEncontrados.map(u => {
-                    const prod = catLocal.find(p => p.id_prod === u.id_prod || p.codigo_barras === u.id_prod) || {};
-                    return {
-                        id_prod: u.id_prod,
-                        codigo_barras: prod.codigo_barras || u.id_prod,
-                        nombre: prod.nombre || "Artículo sin descripción",
-                        stock_teorico: Number(u.cantidad) || 0,
-                        lote: u.lote || "S/L",
-                        fecha_vencimiento: u.fecha_vencimiento || null,
-                        zona: u.zona || "PISO_VENTA",
-                        id_estante: u.id_estante || "GENERAL",
-                        id_compartimiento: idCompartimiento
-                    };
-                });
-                return { success: true, data: resultado, origen: "local" };
+            const aItem = (u, prodId) => {
+                const prod = catLocal.find(p => p.id_prod === prodId) || {};
+                return {
+                    id_prod: prodId,
+                    codigo_barras: prod.codigo_barras || prodId,
+                    nombre: prod.nombre || "Artículo sin descripción",
+                    stock_teorico: Number(u.cantidad) || 0,
+                    lote: u.lote || "S/L",
+                    fecha_vencimiento: u.fecha_vencimiento || null,
+                    zona: u.zona || "PISO_VENTA",
+                    id_estante: u.id_estante || "GENERAL",
+                    id_compartimiento: idCompartimiento
+                };
+            };
+            if (!navigator.onLine) {
+                return { success: true, data: itemsEncontrados.map(u => aItem(u, u.id_prod)), origen: "local" };
             }
-
             try {
                 const qUbis = query(
                     collectionGroup(db, _SCHEMA.SubColeccionUbicacionesStock),
+                    where("id_negocio", "==", tenantReal),
                     where("id_compartimiento", "==", idCompartimiento)
                 );
-                const snap = await getDocs(qUbis);
-                const itemsNube = [];
-
-                snap.forEach(d => {
-                    if (d.ref.path.includes(`${_SCHEMA.ColeccionDirectorio}/${tenantReal}`)) {
-                        const data = d.data();
-                        const prodId = d.ref.parent.parent ? d.ref.parent.parent.id : null;
-                        const prod = catLocal.find(p => p.id_prod === prodId) || {};
-                        itemsNube.push({
-                            id_prod: prodId,
-                            codigo_barras: prod.codigo_barras || prodId,
-                            nombre: prod.nombre || "Artículo sin descripción",
-                            stock_teorico: Number(data.cantidad) || 0,
-                            lote: data.lote || "S/L",
-                            fecha_vencimiento: data.fecha_vencimiento || null,
-                            zona: data.zona || "PISO_VENTA",
-                            id_estante: data.id_estante || "GENERAL",
-                            id_compartimiento: idCompartimiento
-                        });
-                    }
-                });
-
-                return { success: true, data: itemsNube, origen: "nube" };
+                const snap = await getDocsFromServer(qUbis);
+                const ruta = _SCHEMA.ColeccionDirectorio + '/' + tenantReal + '/productos/';
+                const data = snap.docs.filter(d => d.ref.path.startsWith(ruta)).map(d => aItem(d.data(), d.ref.parent.parent.id));
+                return { success: true, data, origen: "nube" };
             } catch (err) {
-                console.warn("[InventarioService] Error consultando bin en Firestore, fallback local:", err.message);
-                return { success: true, data: itemsEncontrados, origen: "local_fallback" };
+                return { success: false, error: err.message };
             }
         },
 
@@ -1178,7 +1199,7 @@ const GeokatuDB = {
                 const stockPrevio = Math.max(0, Number(item.stock_previo !== undefined ? item.stock_previo : item.stock_teorico) || 0);
                 const stockFisico = Math.max(0, Number(item.stock_fisico_contado !== undefined ? item.stock_fisico_contado : item.stock_fisico) || 0);
                 const deltaCalculado = Number((stockFisico - stockPrevio).toFixed(3));
-                const movIdLocal = "MOV-AUDIT-" + Date.now().toString(16).toUpperCase() + "-" + Math.random().toString(36).substring(2, 6).toUpperCase();
+                const movIdLocal = nuevoIdOperacion('MOV-AUDIT');
 
                 const payloadMovimiento = {
                     mov_id_local: movIdLocal,
@@ -1195,6 +1216,8 @@ const GeokatuDB = {
                     zona: zonaOperacion,
                     usuario: operadorEmail,
                     operador_uid: operadorUid,
+                    operador_relevo_uid: metadata.operadorUid && metadata.operadorUid !== operadorUid ? metadata.operadorUid : null,
+                    sede: metadata.sede || null,
                     motivo_ajuste: item.motivo || metadata.motivo || "Auditoría física de góndola",
                     lote: item.lote || null,
                     fecha_vencimiento: item.fecha_vencimiento || null,
@@ -1251,56 +1274,13 @@ const GeokatuDB = {
                 }
             }
 
-            localStorage.setItem(claveCacheCat, JSON.stringify(catalogoLocal));
-            localStorage.setItem(claveCacheUbis, JSON.stringify(ubisLocales));
-
             // Intentar asentamiento atómico en Firestore
             try {
                 if (!navigator.onLine) {
                     throw new Error("Terminal operando fuera de línea.");
                 }
 
-                const batch = writeBatch(db);
-
-                // 1. Asientos Kardex
-                asientosKardex.forEach(mov => {
-                    const movRef = doc(collection(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/Movimientos_Kardex`));
-                    batch.set(movRef, mov);
-                });
-
-                // 2. Actualización de Producto Maestro
-                actualizacionesProductos.forEach(prodUpdate => {
-                    if (prodUpdate.delta !== 0) {
-                        const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/${_SCHEMA.SubColeccionProductos}`, prodUpdate.id_prod);
-                        const dataUpdate = {
-                            stock_actual: increment(prodUpdate.delta),
-                            ultima_actualizacion_kardex: timestampActual,
-                            ultima_auditoria_fisica: timestampActual
-                        };
-                        if (prodUpdate.en_piso_venta) {
-                            dataUpdate.en_piso_venta = true;
-                        }
-                        batch.update(prodRef, dataUpdate);
-                    }
-                });
-
-                // 3. Sobrescritura de cantidad real en stock_ubicaciones
-                actualizacionesUbicaciones.forEach(ubiUpdate => {
-                    const ubiRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/${_SCHEMA.SubColeccionProductos}/${ubiUpdate.id_prod}/${_SCHEMA.SubColeccionUbicacionesStock}`, ubiUpdate.id_compartimiento);
-                    const payloadUbi = {
-                        id_estante: ubiUpdate.id_estante,
-                        id_compartimiento: ubiUpdate.id_compartimiento,
-                        zona: ubiUpdate.zona,
-                        cantidad: ubiUpdate.cantidad_real,
-                        ultima_modificacion: ubiUpdate.ultima_modificacion,
-                        ultimo_conteo_ciclico: timestampActual
-                    };
-                    if (ubiUpdate.lote) payloadUbi.lote = ubiUpdate.lote;
-                    if (ubiUpdate.fecha_vencimiento) payloadUbi.fecha_vencimiento = ubiUpdate.fecha_vencimiento;
-                    batch.set(ubiRef, payloadUbi, { merge: true });
-                });
-
-                // 4. Marcado automático de Alertas_Seguridad resueltas
+                const alertas = [];
                 for (const al of alertasAResolver) {
                     try {
                         const qAlertas = query(
@@ -1310,25 +1290,87 @@ const GeokatuDB = {
                             where("estado", "==", "requiere_auditoria_urgente")
                         );
                         const snapAlertas = await getDocs(qAlertas);
-                        snapAlertas.forEach(docAlerta => {
-                            batch.update(docAlerta.ref, {
-                                estado: "resuelta",
-                                resuelto: true,
-                                stock_conciliado: al.stock_conciliado,
-                                motivo_resolucion: "Auditoría y conteo cíclico en anaquel",
-                                timestamp_resolucion: timestampActual,
-                                usuario_resolucion: operadorEmail
-                            });
+                        snapAlertas.forEach(d => {
+                            if (d.data().id_compartimiento === idCompartimiento) alertas.push({ ref: d.ref, cantidad: al.stock_conciliado });
                         });
                     } catch (eAlerta) {
-                        console.warn("[InventarioService] Aviso mitigado en resolución de alerta:", eAlerta.message);
+                        console.warn("[InventarioService] Aviso al consultar alertas:", eAlerta.message);
                     }
                 }
 
-                await batch.commit();
+                await runTransaction(db, async batch => {
+                    const timestampCommit = new Date().toISOString();
+                    for (const movimiento of asientosKardex) {
+                        const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/productos`, movimiento.codigo_producto);
+                        const ubiRef = doc(collection(prodRef, _SCHEMA.SubColeccionUbicacionesStock), idCompartimiento);
+                        const snap = await batch.get(ubiRef);
+                        if ((Number(snap.data()?.cantidad) || 0) !== movimiento.stock_previo_bin) {
+                            throw new Error("Las existencias cambiaron durante el conteo. Vuelve a cargar el espacio.");
+                        }
+                    }
+
+
+                    // 1. Asientos Kardex
+                    asientosKardex.forEach(mov => {
+                        const movRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/Movimientos_Kardex`, mov.mov_id_local);
+                        batch.set(movRef, mov);
+                    });
+
+                    // 2. Actualización de Producto Maestro
+                    actualizacionesProductos.forEach(prodUpdate => {
+                        if (prodUpdate.delta !== 0) {
+                            const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/${_SCHEMA.SubColeccionProductos}`, prodUpdate.id_prod);
+                            const dataUpdate = {
+                                stock_actual: increment(prodUpdate.delta),
+                                fecha_actualizacion: timestampCommit,
+                                ultima_actualizacion_kardex: timestampCommit,
+                                ultima_auditoria_fisica: timestampCommit
+                            };
+                            if (prodUpdate.en_piso_venta) {
+                                dataUpdate.en_piso_venta = true;
+                            }
+                            batch.update(prodRef, dataUpdate);
+                        }
+                    });
+
+                    // 3. Sobrescritura de cantidad real en stock_ubicaciones
+                    actualizacionesUbicaciones.forEach(ubiUpdate => {
+                        const ubiRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/${_SCHEMA.SubColeccionProductos}/${ubiUpdate.id_prod}/${_SCHEMA.SubColeccionUbicacionesStock}`, ubiUpdate.id_compartimiento);
+                        const payloadUbi = {
+                            id_negocio: tenantReal,
+                            id_estante: ubiUpdate.id_estante,
+                            id_compartimiento: ubiUpdate.id_compartimiento,
+                            zona: ubiUpdate.zona,
+                            cantidad: ubiUpdate.cantidad_real,
+                            ultima_modificacion: timestampCommit,
+                            ultimo_conteo_ciclico: timestampCommit
+                        };
+                        if (ubiUpdate.lote) payloadUbi.lote = ubiUpdate.lote;
+                        if (ubiUpdate.fecha_vencimiento) payloadUbi.fecha_vencimiento = ubiUpdate.fecha_vencimiento;
+                        batch.set(ubiRef, payloadUbi, { merge: true });
+                    });
+
+                    for (const alerta of alertas) {
+                        batch.update(alerta.ref, {
+                            estado: "resuelta",
+                            resuelto: true,
+                            stock_conciliado: alerta.cantidad,
+                            motivo_resolucion: "Auditoría y conteo cíclico en anaquel",
+                            timestamp_resolucion: timestampCommit,
+                            usuario_resolucion: operadorEmail
+                        });
+                    }
+                });
+                try {
+                    localStorage.setItem(claveCacheCat, JSON.stringify(catalogoLocal));
+                    localStorage.setItem(claveCacheUbis, JSON.stringify(ubisLocales));
+                } catch (err) {
+                    console.warn("[WMS] No se pudo actualizar la caché del conteo:", err.message);
+                }
                 return { success: true, totalAjustes: asientosKardex.length, offline: false };
 
             } catch (errNube) {
+                if (!esErrorTemporalWms(errNube)) return { success: false, error: errNube.message };
                 console.warn("[InventarioService] Red no disponible. Asentamiento encolado localmente:", errNube.message);
                 const claveCola = `geokatu_movimientos_cola_${tenantReal}`;
                 const colaActual = JSON.parse(localStorage.getItem(claveCola) || "[]");
@@ -1336,6 +1378,7 @@ const GeokatuDB = {
                 asientosKardex.forEach(m => {
                     m.estado_sincronizacion = "pendiente_offline";
                     m.es_conteo_ciclico = true;
+                    m.modo_validado = true;
                     colaActual.push(m);
                 });
 
@@ -2737,52 +2780,55 @@ obtenerContactoComercio: async (idNegocio) => {
             } catch (e) { return { success: false, error: e.message }; }
         },
         guardarMapaBodega: async (idNegocio, idAlmacen, gridData) => {
-            if (!_verificarAcceso()) return { success: false, error: "Sesion no autorizada." };
-            const clavePlano = 'geokatu_plano_' + idNegocio + '_' + (idAlmacen || 'PLANO_PRINCIPAL');
-            const payload = {
-                ...gridData,
-                ultima_modificacion: new Date().toISOString()
-            };
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+            if (!navigator.onLine) return { success: false, offline: true };
+            const clavePlano = 'geokatu_plano_' + idNegocio + '_' + idAlmacen;
+            const payload = { ...gridData, ultima_modificacion: new Date().toISOString() };
             try {
-                localStorage.setItem(clavePlano, JSON.stringify(payload));
-            } catch (eLocal) {}
-            try {
-                if (!navigator.onLine) {
-                    return { success: true, offline: true, mensaje: "Plano guardado en memoria local (Modo Avion)." };
-                }
                 const docRef = doc(db, _SCHEMA.ColeccionDirectorio + '/' + idNegocio + '/Planos_Almacenes', idAlmacen);
                 await setDoc(docRef, payload, { merge: true });
-                return { success: true, mensaje: "Plano espacial guardado correctamente." };
-            } catch (e) {
-                return { success: true, offline: true, error: e.message };
-            }
-        },
-        obtenerMapaBodega: async (idNegocio, idAlmacen = "PLANO_PRINCIPAL", opciones = {}) => {
-            if (!_verificarAcceso()) return { success: false, error: "Sesion no autorizada." };
-            const clavePlano = 'geokatu_plano_' + idNegocio + '_' + idAlmacen;
-            const planoCacheStr = localStorage.getItem(clavePlano);
-            if (planoCacheStr && (!navigator.onLine || !opciones.forzarNube)) {
                 try {
-                    return { success: true, data: JSON.parse(planoCacheStr), origen: "cache_local" };
-                } catch (eParse) {}
-            }
-            try {
-                const docRef = doc(db, _SCHEMA.ColeccionDirectorio + '/' + idNegocio + '/Planos_Almacenes', idAlmacen);
-                const snap = await getDoc(docRef);
-                if (snap.exists()) {
-                    const dataPlano = snap.data();
-                    try { localStorage.setItem(clavePlano, JSON.stringify(dataPlano)); } catch (eS) {}
-                    return { success: true, data: dataPlano, origen: "nube" };
-                }
-                return { success: true, data: planoCacheStr ? JSON.parse(planoCacheStr) : null };
-            } catch (e) {
-                if (planoCacheStr) {
-                    return { success: true, data: JSON.parse(planoCacheStr), origen: "fallback_local", offline: true };
-                }
-                return { success: false, error: e.message };
+                    localStorage.setItem(clavePlano, JSON.stringify(payload));
+                    localStorage.setItem(clavePlano + '_verificado', String(Date.now()));
+                } catch (err) {}
+                return { success: true, data: payload };
+            } catch (err) {
+                return { success: false, error: err.message };
             }
         },
 
+        obtenerMapaBodega: async (idNegocio, idAlmacen = "PLANO_PRINCIPAL", opciones = {}) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
+            const clavePlano = 'geokatu_plano_' + idNegocio + '_' + idAlmacen;
+            let planoLocal = null;
+            try {
+                planoLocal = JSON.parse(localStorage.getItem(clavePlano) || 'null');
+            } catch (err) {}
+            const verificado = Number(localStorage.getItem(clavePlano + '_verificado')) || 0;
+            const vigente = opciones.revalidarMs === undefined || Date.now() - verificado < opciones.revalidarMs;
+            if (planoLocal && (!navigator.onLine || (!opciones.forzarNube && vigente))) {
+                return { success: true, data: planoLocal, origen: "cache_local" };
+            }
+            if (!navigator.onLine) return { success: false, offline: true };
+            try {
+                const docRef = doc(db, _SCHEMA.ColeccionDirectorio + '/' + idNegocio + '/Planos_Almacenes', idAlmacen);
+                const snap = await getDocFromServer(docRef);
+                const data = snap.exists() ? snap.data() : null;
+                try {
+                    if (data) localStorage.setItem(clavePlano, JSON.stringify(data));
+                    else localStorage.removeItem(clavePlano);
+                    localStorage.setItem(clavePlano + '_verificado', String(Date.now()));
+                } catch (err) {}
+                return { success: true, data, origen: "nube" };
+            } catch (err) {
+                return {
+                    success: Boolean(planoLocal),
+                    data: planoLocal,
+                    origen: planoLocal ? "fallback_local" : null,
+                    error: err.message
+                };
+            }
+        },
 
         // =========================================================================
         // MÉTODOS RBAC Y MULTI-SEDE PARA RADAR ESPACIAL
@@ -3888,6 +3934,8 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                             const ubiPisoRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + tenantReal + "/" + _SCHEMA.SubColeccionProductos + "/" + item.id_prod + "/" + _SCHEMA.SubColeccionUbicacionesStock, ubiItem.id_compartimiento);
                             batch.set(ubiPisoRef, {
                                 cantidad: increment(-ubiItem.cantidad),
+                                id_negocio: tenantReal,
+                                id_compartimiento: ubiItem.id_compartimiento,
                                 zona: "PISO_VENTA",
                                 ultima_modificacion: new Date().toISOString()
                             }, { merge: true });
@@ -3977,7 +4025,7 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                             const desglose = item.desglose_ubicaciones?.length ? item.desglose_ubicaciones : (item.id_compartimiento ? [{ id_compartimiento: item.id_compartimiento, cantidad: item.cantidad }] : []);
                             for (const ubicacion of desglose) {
                                 const ref = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/${_SCHEMA.SubColeccionProductos}/${item.id_prod}/${_SCHEMA.SubColeccionUbicacionesStock}`, ubicacion.id_compartimiento);
-                                batch.set(ref, { cantidad: increment(-Number(ubicacion.cantidad)), ultima_modificacion: new Date().toISOString() }, { merge: true });
+                                batch.set(ref, { cantidad: increment(-Number(ubicacion.cantidad)), id_negocio: tenantReal, id_compartimiento: ubicacion.id_compartimiento, ultima_modificacion: new Date().toISOString() }, { merge: true });
                             }
                         }
                     });
@@ -4106,6 +4154,8 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                                     const ubiPisoRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + tenantReal + "/" + _SCHEMA.SubColeccionProductos + "/" + item.id_prod + "/" + _SCHEMA.SubColeccionUbicacionesStock, ubiItem.id_compartimiento);
                                     batch.set(ubiPisoRef, {
                                         cantidad: increment(-ubiItem.cantidad),
+                                        id_negocio: tenantReal,
+                                        id_compartimiento: ubiItem.id_compartimiento,
                                         zona: "PISO_VENTA",
                                         ultima_modificacion: new Date().toISOString()
                                     }, { merge: true });
@@ -4260,6 +4310,8 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                         const ubiRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + idNegocio + "/" + _SCHEMA.SubColeccionProductos + "/" + item.id_prod + "/" + _SCHEMA.SubColeccionUbicacionesStock, idCompRetorno);
                         batch.set(ubiRef, {
                             cantidad: increment(item.cantidad_devuelta),
+                            id_negocio: idNegocio,
+                            id_compartimiento: idCompRetorno,
                             zona: "PISO_VENTA",
                             ultima_modificacion: new Date().toISOString()
                         }, { merge: true });
@@ -4355,7 +4407,7 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                         const ubicaciones = item.desglose_ubicaciones?.length ? item.desglose_ubicaciones : (item.id_compartimiento ? [{ id_compartimiento: item.id_compartimiento, cantidad: item.cantidad }] : []);
                         for (const ubicacion of ubicaciones) {
                             const ref = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}/${item.id_prod}/${_SCHEMA.SubColeccionUbicacionesStock}`, ubicacion.id_compartimiento);
-                            tx.set(ref, { cantidad: increment(Number(ubicacion.cantidad)), ultima_modificacion: new Date().toISOString() }, { merge: true });
+                            tx.set(ref, { cantidad: increment(Number(ubicacion.cantidad)), id_negocio: idNegocio, id_compartimiento: ubicacion.id_compartimiento, ultima_modificacion: new Date().toISOString() }, { merge: true });
                         }
                     }
                     tx.set(doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/Notas_Credito_POS`, ticketId), {

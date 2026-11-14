@@ -544,6 +544,7 @@ export const AuthGate = {
                         nombre: dataP.nombre || "Mi Comercio",
                         rol: 'dueño',
                         esDueno: true,
+                        operadorUid: user.uid,
                         almacen: "SALA_VENTAS",
                         codigoCajero: pinTitularValido,
                         horarioLaboral: null
@@ -561,6 +562,7 @@ export const AuthGate = {
                         nombreComercio: nombrePadre,
                         rol: opData.rol || 'cajero',
                         esDueno: false,
+                        operadorUid: user.uid,
                         almacen: opData.almacen_habitual || "SALA_VENTAS",
                         codigoCajero: opData.codigo_cajero || "0000",
                         horarioLaboral: opData.horario_laboral || null
@@ -585,7 +587,7 @@ export const AuthGate = {
                 if (relevoGuardado) {
                     try {
                         const ctxRelevo = JSON.parse(relevoGuardado);
-                        if (ctxRelevo && ctxRelevo.idNegocio === uidActivoPrevio) {
+                        if (ctxRelevo?.sesionAuthUid === user.uid && ctxRelevo.idNegocio === uidActivoPrevio && contextos.some(c => c.idNegocio === uidActivoPrevio)) {
                             this._iniciarProtocoloAperturaTurno(ctxRelevo);
                             return;
                         }
@@ -790,6 +792,7 @@ export const AuthGate = {
                     nombre: ctxActual.nombre || "Operario Titular",
                     rol: ctxActual.rol || "dueño",
                     esDueno: Boolean(ctxActual.esDueno),
+                    operadorUid: ctxActual.operadorUid || this._estado.usuarioAuth?.uid,
                     almacen: ctxActual.almacen || "SALA_VENTAS",
                     horario_laboral: ctxActual.horarioLaboral || null
                 });
@@ -809,6 +812,7 @@ export const AuthGate = {
                         nombre: d.nombre || "Operario",
                         rol: d.rol || "cajero",
                         esDueno: false,
+                        operadorUid: d.uid || docSnap.id,
                         almacen: d.almacen_habitual || d.almacen || "SALA_VENTAS",
                         horario_laboral: d.horario_laboral || null
                     });
@@ -829,6 +833,8 @@ export const AuthGate = {
         }
     },
     _concederAccesoTerminal(ctx, coordenadas, esFueraHorario) {
+        const sesionAuthUid = this._estado.usuarioAuth?.uid;
+        ctx = { ...ctx, sesionAuthUid, operadorUid: ctx.operadorUid || sesionAuthUid };
         this._estado.contextoActivo = ctx;
         this._estado.sesionBloqueada = false;
         localStorage.setItem('geokatu_active_uid', ctx.idNegocio);
@@ -840,7 +846,7 @@ export const AuthGate = {
             GeokatuDB.SecurityService.sellarSesionTerminalLocal(ctx.idNegocio);
         }
         // Pre-cachear la nomina solo en terminales operativas (POS, Stock, Inventario, Mapatiena)
-        if ((window.location.pathname || '').toLowerCase().indexOf('oficina') === -1) {
+        if (/\/pos(?:\.html)?\/?$/i.test(window.location.pathname || '')) {
             this._hidratarNominaLocal(ctx.idNegocio, false);
         }
         this._cerrarModal();
@@ -975,6 +981,8 @@ export const AuthGate = {
                     nombre: opEncontrado.nombre || "Operario Relevo",
                     rol: opEncontrado.rol || "cajero",
                     esDueno: Boolean(opEncontrado.esDueno),
+                    operadorUid: opEncontrado.operadorUid || null,
+                    sesionAuthUid: this._estado.usuarioAuth?.uid,
                     almacen: opEncontrado.almacen || ctxActual.almacen,
                     codigoCajero: pinIngresado,
                     horarioLaboral: opEncontrado.horario_laboral || null

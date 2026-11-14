@@ -302,14 +302,22 @@ function renderizarMueblesVisor() {
 
     let maxStockGlobal = 1;
     let maxPrecioGlobal = 1;
+    const stockPorEspacio = new Map();
+    for (const stock of stockPosicionalGlobal) {
+        if (!stockPorEspacio.has(stock.id_compartimiento)) stockPorEspacio.set(stock.id_compartimiento, []);
+        stockPorEspacio.get(stock.id_compartimiento).push(stock);
+    }
+    const stockPorMueble = new Map();
+    const catalogoPorId = new Map(catalogoTotal.map(p => [p.id_prod, p]));
 
     muebles.forEach(m => {
-        const items = stockPosicionalGlobal.filter(s => s.id_estante === m.id_mueble || s.id_estante === m.qr);
+        const items = (m.compartimientos || []).flatMap(espacio => stockPorEspacio.get(espacio.id_comp) || []);
+        stockPorMueble.set(m.id_mueble, items);
         const cant = items.reduce((acc, x) => acc + (Number(x.cantidad) || 0), 0);
         if (cant > maxStockGlobal) maxStockGlobal = cant;
 
         items.forEach(it => {
-            const p = catalogoTotal.find(c => c.id_prod === it.id_prod);
+            const p = catalogoPorId.get(it.id_prod);
             if (p && p.precio && Number(p.precio) > maxPrecioGlobal) {
                 maxPrecioGlobal = Number(p.precio);
             }
@@ -331,7 +339,7 @@ function renderizarMueblesVisor() {
 
 
         // Filtrar existencias de este mueble
-        const itemsEnMueble = stockPosicionalGlobal.filter(s => s.id_estante === m.id_mueble || s.id_estante === m.qr);
+        const itemsEnMueble = stockPorMueble.get(m.id_mueble);
         const stockTotalMueble = itemsEnMueble.reduce((acc, x) => acc + (Number(x.cantidad) || 0), 0);
 
         // Capas Temáticas
@@ -341,7 +349,7 @@ function renderizarMueblesVisor() {
         } else if (capaActiva === "HEATMAP_PRECIO") {
             let maxPrecio = 0;
             itemsEnMueble.forEach(it => {
-                const prod = catalogoTotal.find(p => p.id_prod === it.id_prod);
+                const prod = catalogoPorId.get(it.id_prod);
                 if (prod && Number(prod.precio) > maxPrecio) maxPrecio = Number(prod.precio);
             });
             el.style.backgroundColor = calcularGradienteCromatico(maxPrecio, 0, maxPrecioGlobal, false);
@@ -366,7 +374,7 @@ function renderizarMueblesVisor() {
             // Naranja/Amarillo: Auditoría pendiente (> 7 días o nunca auditado).
             let fechaMasReciente = 0;
             itemsEnMueble.forEach(it => {
-                const ts = it.ultimo_conteo_ciclico || it.ultima_modificacion;
+                const ts = it.ultimo_conteo_ciclico;
                 if (ts) {
                     const t = new Date(ts).getTime();
                     if (t > fechaMasReciente) fechaMasReciente = t;
@@ -449,7 +457,7 @@ function abrirFichaMueble(mueble, items) {
     const btnAuditarMueble = document.getElementById('btn-drawer-auditar-mueble');
     if (btnAuditarMueble) {
         btnAuditarMueble.onclick = function() {
-            window.location.href = 'stock?op=AUDITAR&mueble=' + encodeURIComponent(mueble.id_mueble);
+            window.location.href = enlaceStock(mueble, null, 'AUDITAR');
         };
     }
 
@@ -471,7 +479,7 @@ function abrirFichaMueble(mueble, items) {
 
         items.forEach(it => {
             const prod = catalogoTotal.find(p => p.id_prod === it.id_prod || p.codigo_barras === it.id_prod) || {};
-            const cantTeorica = prod.stock_actual !== undefined ? prod.stock_actual : it.cantidad;
+            const cantTeorica = it.cantidad;
 
             // Desglose del bin canónico GEO-P-{idNegocio}-{idSede}-{idMueble}-{cara}-{nivel}-{bin}
             let caraTexto = 'A';
@@ -665,21 +673,11 @@ function renderizarGeometriaAlzado() {
 
 
             // Existencias físicas del bin
-            const itemsEnBin = stockPosicionalGlobal.filter(s => {
-                const matchMueble = s.id_estante === m.id_mueble || s.id_estante === m.qr;
-                if (!matchMueble) return false;
-                const comp = s.id_compartimiento || '';
-                if (comp.indexOf('-') !== -1) {
-                    const p = comp.split('-');
-                    const len = p.length;
-                    if (len >= 3) {
-                        return p[len - 3] === caraAlzadoSeleccionada &&
-                               parseInt(p[len - 2].replace(/\D/g, '')) === nroNivel &&
-                               parseInt(p[len - 1].replace(/\D/g, '')) === nroCol;
-                    }
-                }
-                return comp === idCompGenerado;
-            });
+            const compRegistrado = m.compartimientos?.find(comp =>
+                comp.cara === caraAlzadoSeleccionada && comp.nivel === strNivel && comp.bin === strBin
+            );
+            const idEspacio = compRegistrado?.id_comp || idCompGenerado;
+            const itemsEnBin = stockPosicionalGlobal.filter(s => s.id_compartimiento === idEspacio);
 
             const cantFisica = itemsEnBin.reduce((acc, x) => acc + (Number(x.cantidad) || 0), 0);
             const ratioOcupacion = cantFisica / capMaxBin;
@@ -692,14 +690,14 @@ function renderizarGeometriaAlzado() {
                 claseShading = 'bin-shading-abastecido';
             }
 
-            const esSeleccionado = binSeleccionadoActivo && binSeleccionadoActivo.idComp === idCompGenerado;
+            const esSeleccionado = binSeleccionadoActivo && binSeleccionadoActivo.idComp === idEspacio;
             const claseTarget = esTarget ? ' bin-objetivo-gps' : '';
             const claseSel = esSeleccionado ? ' bin-seleccionado-touch' : '';
             const textoActivo = (esTarget || esSeleccionado) ? ' texto-activo' : '';
             const textoCelda = cantFisica > 0 ? (cantFisica + 'u') : nroCol;
 
             svgContent += '<g class="alzado-bin-nodo" ' +
-                'data-id-comp="' + idCompGenerado + '" ' +
+                'data-id-comp="' + idEspacio + '" ' +
                 'data-cara="' + caraAlzadoSeleccionada + '" ' +
                 'data-nivel="' + nroNivel + '" ' +
                 'data-col="' + nroCol + '" ' +
@@ -762,10 +760,7 @@ function desplegarMicroKardexFooter(binData) {
     if (!footer) return;
 
     // Buscar si ya existe un producto asignado a este bin
-    const itemEnBin = stockPosicionalGlobal.find(s => 
-        (s.id_estante === binData.mueble.id_mueble || s.id_estante === binData.mueble.qr) &&
-        s.id_compartimiento === binData.idComp
-    );
+    const itemEnBin = stockPosicionalGlobal.find(s => s.id_compartimiento === binData.idComp && Number(s.cantidad) > 0);
     const prod = itemEnBin ? catalogoTotal.find(p => p.id_prod === itemEnBin.id_prod) : null;
     const nombreProd = prod ? prod.nombre : (itemEnBin ? itemEnBin.id_prod : 'Bin Vacío');
 
@@ -773,21 +768,17 @@ function desplegarMicroKardexFooter(binData) {
         'Cara ' + binData.cara + ' · N' + binData.nivel + ' · B' + binData.col + ' (' + binData.cant + 'u) - ' + nombreProd +
         '</span>' +
         '<div class="alzado-acciones-bin">' +
-        '<button id="btn-alzado-reponer" class="btn-micro-kardex btn-kardex-reponer">+1 Reponer</button>' +
+        '<button id="btn-alzado-reponer" class="btn-micro-kardex btn-kardex-reponer">Mover stock</button>' +
         '<button id="btn-alzado-auditar-bin" class="btn-micro-kardex btn-kardex-auditar">Auditar</button>' +
         '<button id="btn-alzado-merma" class="btn-micro-kardex btn-kardex-merma">Merma</button>' +
         '</div>';
 
-    document.getElementById('btn-alzado-reponer').addEventListener('click', async (e) => {
-        e.stopPropagation();
-        await ejecutarReposicionBin(binData, prod || itemEnBin);
+    document.getElementById('btn-alzado-reponer').addEventListener('click', () => {
+        window.location.href = enlaceStock(binData.mueble, binData.idComp);
     });
-
-    document.getElementById('btn-alzado-auditar-bin').addEventListener('click', function(e) {
-        e.stopPropagation();
-        window.location.href = 'stock?op=AUDITAR&mueble=' + encodeURIComponent(binData.mueble.id_mueble) + '&bin=' + encodeURIComponent(binData.idComp);
+    document.getElementById('btn-alzado-auditar-bin').addEventListener('click', () => {
+        window.location.href = enlaceStock(binData.mueble, binData.idComp, 'AUDITAR');
     });
-
 
     document.getElementById('btn-alzado-merma').addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -795,58 +786,12 @@ function desplegarMicroKardexFooter(binData) {
     });
 }
 
-async function ejecutarReposicionBin(binData, itemOProd) {
-    if (!itemOProd) {
-        window.mostrarAlertaInApp("Este compartimiento está vacío. Asigna el producto escaneándolo desde la terminal de Bodega (Stock).", "Bin Sin Asignar");
-        return;
-    }
-    const idProd = itemOProd.id_prod || itemOProd.codigo_barras;
-    dispararFeedbackHaptico('exito');
-    reproducirTonoPiso('exito');
-
-
-    // 1. Asiento en Kardex Atómico mediante GeokatuDB
-    await GeokatuDB.InventarioService.registrarMovimientoFisico(
-        idProd,
-        'BODEGA_GENERAL',
-        'PISO_VENTA',
-        'TRASLADO_INTERNO',
-        1,
-        {
-            idNegocio: idNegocio,
-            idEstanteDestino: binData.mueble.id_mueble,
-            idCompDestino: binData.idComp,
-            zona: 'PISO_VENTA'
-        }
-    );
-
-    // 2. Mutación local en RAM y persistencia (0 ms)
-    let ubi = stockPosicionalGlobal.find(s => 
-        (s.id_estante === binData.mueble.id_mueble || s.id_estante === binData.mueble.qr) &&
-        s.id_compartimiento === binData.idComp
-    );
-
-    if (ubi) {
-        ubi.cantidad = (Number(ubi.cantidad) || 0) + 1;
-        binData.cant = ubi.cantidad;
-    } else {
-        const nuevaUbi = {
-            id_prod: idProd,
-            id_estante: binData.mueble.id_mueble,
-            id_compartimiento: binData.idComp,
-            cantidad: 1,
-            lote: 'L-REPOSICION',
-            fecha_vencimiento: null,
-            zona: 'PISO_VENTA'
-        };
-        stockPosicionalGlobal.push(nuevaUbi);
-        binData.cant = 1;
-    }
-
-    localStorage.setItem('geokatu_stock_ubis_' + idNegocio, JSON.stringify(stockPosicionalGlobal));
-
-    renderizarGeometriaAlzado();
-    renderizarMueblesVisor();
+function enlaceStock(mueble = null, espacio = null, operacion = null) {
+    const parametros = new URLSearchParams({ sede: idSedeActiva });
+    if (mueble) parametros.set('mueble', mueble.id_mueble);
+    if (espacio) parametros.set('bin', espacio);
+    if (operacion) parametros.set('op', operacion);
+    return 'stock?' + parametros.toString();
 }
 
 async function ejecutarReporteMermaBin(binData, itemOProd) {
@@ -862,7 +807,7 @@ async function ejecutarReporteMermaBin(binData, itemOProd) {
     const idProd = itemOProd ? (itemOProd.id_prod || itemOProd.codigo_barras) : 'NO_ESPECIFICADO';
 
     // 1. Asiento en Alertas_Seguridad
-    await GeokatuDB.InventarioService.reportarMermaAnaquel(
+    const resultado = await GeokatuDB.InventarioService.reportarMermaAnaquel(
         idNegocio,
         binData.mueble.id_mueble,
         binData.idComp,
@@ -870,6 +815,10 @@ async function ejecutarReporteMermaBin(binData, itemOProd) {
         'Avería física detectada en anaquel'
     );
 
+    if (!resultado.success) {
+        await window.mostrarAlertaInApp(resultado.error || 'Intenta nuevamente.', 'No se guardó la alerta');
+        return;
+    }
     // 2. Reflejo visual inmediato en el plano 2D
     const elMueble = document.getElementById('mueble-visor-' + binData.mueble.id_mueble);
     if (elMueble) {
@@ -1568,6 +1517,11 @@ document.getElementById('btn-cerrar-camara').addEventListener('click', cerrarCam
 // ==========================================
 async function cargarSedesDinamicas() {
     if (!idNegocio || !selectSede) return;
+    selectSede.disabled = !AuthGate._estado.contextoActivo?.esDueno;
+    if (selectSede.disabled) {
+        selectSede.replaceChildren(new Option(idSedeActiva === 'SALA_VENTAS' ? 'Sala de ventas' : idSedeActiva, idSedeActiva));
+        return;
+    }
     const claveSedesCache = 'geokatu_sedes_cache_' + idNegocio;
     const pintarOpcionesSedes = (listaSedes) => {
         selectSede.innerHTML = '';
@@ -1578,10 +1532,7 @@ async function cargarSedesDinamicas() {
             selectSede.appendChild(opt);
         });
         const existeActiva = listaSedes.some(s => s.id_sede === idSedeActiva);
-        if (!existeActiva && listaSedes.length > 0) {
-            idSedeActiva = listaSedes[0].id_sede;
-            localStorage.setItem('geokatu_sede_activa', idSedeActiva);
-        }
+        if (!existeActiva) selectSede.add(new Option(idSedeActiva, idSedeActiva));
         selectSede.value = idSedeActiva;
     };
 
@@ -1606,8 +1557,10 @@ async function cargarSedesDinamicas() {
 }
 if (selectSede) {
     selectSede.addEventListener('change', async (e) => {
+        if (!AuthGate._estado.contextoActivo?.esDueno) return;
         idSedeActiva = e.target.value;
-        localStorage.setItem('geokatu_sede_activa', idSedeActiva);
+        localStorage.setItem('geokatu_sede_activa_' + idNegocio, idSedeActiva);
+        document.getElementById('inventario-ir-stock').href = enlaceStock();
         await hidratarVisor();
         ejecutarZoomExtents(false);
     });
@@ -1640,6 +1593,9 @@ window.addEventListener('storage', (e) => {
 
 async function hidratarVisor() {
     if (!idNegocio) return;
+    const negocio = idNegocio;
+    const sede = idSedeActiva;
+    const sigueActivo = () => negocio === idNegocio && sede === idSedeActiva;
     const claveCachePlano = "geokatu_plano_" + idNegocio + "_" + idSedeActiva;
     const claveCacheStockUbis = "geokatu_stock_ubis_" + idNegocio;
     const claveSyncTimestamp = "geokatu_sync_ubis_time_" + idNegocio;
@@ -1662,6 +1618,7 @@ async function hidratarVisor() {
         muebles = [];
         celdasMurosBloqueadas = new Set();
     }
+    stockPosicionalGlobal = [];
     if (cacheUbis) {
         try { stockPosicionalGlobal = JSON.parse(cacheUbis); } catch (eU) { stockPosicionalGlobal = []; }
     }
@@ -1675,7 +1632,8 @@ async function hidratarVisor() {
 
     // Paso 2: Hidratacion estrictamente por deltas en segundo plano
     try {
-        const resPlano = await GeokatuDB.RadarService.obtenerMapaBodega(idNegocio, idSedeActiva);
+        const resPlano = await GeokatuDB.RadarService.obtenerMapaBodega(negocio, sede, { revalidarMs: 300000 });
+        if (!sigueActivo()) return;
         if (resPlano.success && resPlano.data) {
             const modRemota = resPlano.data.ultima_modificacion || null;
             if (!cachePlano || (modRemota && modRemota !== modPlanoLocal)) {
@@ -1689,7 +1647,8 @@ async function hidratarVisor() {
         }
 
         // Sincronizar unicamente deltas del catalogo (fecha_actualizacion > ultimoSync)
-        const resCat = await GeokatuDB.PosService.descargarCatalogoLocal(idNegocio, false);
+        const resCat = await GeokatuDB.PosService.descargarCatalogoLocal(negocio, false);
+        if (!sigueActivo()) return;
         if (resCat.success) {
             catalogoTotal = resCat.data;
             if (!resCat.esDelta || (resCat.deltasLeidos && resCat.deltasLeidos > 0)) {
@@ -1699,8 +1658,9 @@ async function hidratarVisor() {
         }
 
         // Sincronizar unicamente deltas de ubicaciones (ultima_modificacion > ultimoSync)
-        const ultimoSync = (stockPosicionalGlobal.length > 0) ? (localStorage.getItem(claveSyncTimestamp) || null) : null;
-        const resUbis = await GeokatuDB.InventarioService.obtenerMapaStockTiendaCompleto(idNegocio, ultimoSync);
+        const ultimoSync = cacheUbis ? localStorage.getItem(claveSyncTimestamp) : null;
+        const resUbis = await GeokatuDB.InventarioService.obtenerMapaStockTiendaCompleto(negocio, ultimoSync);
+        if (!sigueActivo()) return;
         if (resUbis.success) {
             if (resUbis.esDelta && resUbis.data.length > 0) {
                 resUbis.data.forEach(delta => {
@@ -1738,7 +1698,10 @@ AuthGate.inicializar({
     minutosInactividad: 20,
     onSesionLista: async function(contexto) {
         idNegocio = contexto.idNegocio;
-        idSedeActiva = contexto.almacen || localStorage.getItem('geokatu_sede_activa') || 'SALA_VENTAS';
+        const parametros = new URLSearchParams(location.search);
+        idSedeActiva = contexto.esDueno ? (parametros.get('sede') || localStorage.getItem('geokatu_sede_activa_' + idNegocio) || contexto.almacen) : contexto.almacen;
+        idSedeActiva ||= 'SALA_VENTAS';
+        document.getElementById('inventario-ir-stock').href = enlaceStock();
         rolUsuarioActivo = contexto.rol || 'cajero';
 
         localStorage.setItem('geokatu_active_uid', contexto.idNegocio);
@@ -1749,10 +1712,11 @@ AuthGate.inicializar({
         GeokatuDB.sincronizarPendientesOperativos(contexto.idNegocio).catch(error => console.warn('[Sincronización pendiente]', error.message));
 
         // Regla RBAC: Boton "Editar Plano SIG" solo para roles arquitectos
-        var rolesConEdicion = ['owner', 'dueño', 'administrador_delegado', 'visual_merchandising', 'admin', 'superadmin'];
+        var rolesConEdicion = ['owner', 'dueño', 'supervisor', 'administrador_delegado', 'visual_merchandising', 'admin', 'superadmin'];
         var btnEditor = document.getElementById('btn-ir-editor');
         if (btnEditor) {
             btnEditor.style.display = rolesConEdicion.includes(rolUsuarioActivo) ? 'inline-block' : 'none';
+            btnEditor.onclick = () => { location.href = 'mapatienda?sede=' + encodeURIComponent(idSedeActiva); };
         }
 
         await cargarSedesDinamicas();
@@ -1779,6 +1743,7 @@ AuthGate.inicializar({
             cerrarCamara();
         }
         detenerAnimacionRuta();
+        idNegocio = null;
         muebles = [];
         catalogoTotal = [];
         stockPosicionalGlobal = [];

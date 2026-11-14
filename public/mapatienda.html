@@ -9,7 +9,7 @@
     <!-- SE INCLUYE QRCODE NATIVO AQUÍ PARA EVITAR EL CRASH DEL IMPORT -->
     <script src="qrcode.min.js" type="text/javascript"></script>
 </head>
-<body>
+<body class="editor-croquis">
 
     <!-- 1. VIEWPORT DEL LIENZO INFINITO -->
     <div id="viewport-infinito" style="touch-action: none;">
@@ -25,20 +25,31 @@
     </div>
 
     <!-- 2. HUD FLOTANTE SUPERIOR ZERO-OVERFLOW (MULTI-SEDE, RADAR Y CONTROLES) -->
-    <header class="hud-barra-superior">
-        <select id="selector-sede-activa" class="hud-radar-select" title="Cambiar sede">
-            <option value="SALA_VENTAS" selected>🏢 Principal</option>
-        </select>
-        <button id="btn-abrir-modal-sede" class="btn-radar-buscar btn-verde-accent" title="Crear espacio" style="display: none;">+ Sede</button>
-        <div class="grupo-busqueda-sku">
-            <input type="text" id="input-radar-sku" class="hud-radar-input" placeholder="Buscar SKU...">
-            <button id="btn-ejecutar-radar" class="btn-radar-buscar" title="Buscar SKU en mapa">🔍</button>
+    <header class="hud-barra-superior croquis-hud">
+        <div class="croquis-cabecera">
+            <a href="inventario" id="croquis-volver" class="croquis-enlace">‹ Inventario</a>
+            <strong>GEOKATU <span> / Croquis</span></strong>
+            <details class="croquis-mas">
+                <summary aria-label="Opciones de terminal">⋯</summary>
+                <div class="croquis-opciones">
+                    <button type="button" onclick="window.AuthGate.bloquearTerminalPorInactividad();">Cambiar operario</button>
+                    <button type="button" id="btn-logout-mapatienda">Cerrar sesión</button>
+                </div>
+            </details>
         </div>
-        <button id="btn-toggle-modo-edicion" class="btn-radar-buscar" title="Bloqueo/Desbloqueo de edición">🔒 Lectura</button>
-        <button id="btn-modo-muros" class="btn-radar-buscar btn-secundario" title="Modo Muros">🧱 Muros</button>
-       <button id="btn-guardar-nube" class="btn-radar-buscar btn-secundario" title="Guardar cambios">💾 Guardar</button>
-        <button type="button" class="btn-radar-buscar btn-secundario" onclick="window.AuthGate.bloquearTerminalPorInactividad();" title="Pausar o cambiar operario por PIN" style="color: var(--naranja); border-color: rgba(255, 107, 0, 0.4);">PIN</button>
-        <button id="btn-logout-mapatienda" class="btn-radar-buscar btn-secundario" title="Cerrar sesión" style="color: #ff4444; border-color: rgba(255, 68, 68, 0.4);">Salir</button>
+        <div class="croquis-principales">
+            <select id="selector-sede-activa" class="hud-radar-select" aria-label="Sede">
+                <option value="SALA_VENTAS" selected>Sala de ventas</option>
+            </select>
+            <button id="btn-toggle-modo-edicion" type="button" class="btn-radar-buscar" aria-pressed="false" hidden>Editar</button>
+            <button id="btn-guardar-nube" type="button" class="btn-radar-buscar croquis-guardar" hidden>Publicar plano</button>
+            <button id="btn-abrir-modal-sede" type="button" class="btn-radar-buscar" style="display:none">+ Sede</button>
+        </div>
+        <p id="croquis-estado" class="croquis-estado" role="status" hidden></p>
+        <form class="grupo-busqueda-sku" id="croquis-busqueda">
+            <input type="search" id="input-radar-sku" class="hud-radar-input" aria-label="Nombre o código del producto" placeholder="Buscar producto">
+            <button id="btn-ejecutar-radar" class="btn-radar-buscar" type="submit">Buscar</button>
+        </form>
     </header>
 
 
@@ -69,27 +80,30 @@
     </div>
 
     <!-- 3. DOCK SEGMENTADO INFERIOR UNIFICADO -->
-    <nav class="hud-dock-unificado" role="toolbar">
-        <button id="btn-burbuja-area" class="dock-segment-btn" title="Definir perímetro de tienda">
+    <nav class="hud-dock-unificado" aria-label="Herramientas del croquis">
+        <button hidden data-croquis-edicion id="btn-burbuja-area" class="dock-segment-btn" title="Definir perímetro de tienda">
             <span class="dock-icono">📐</span>
             <span class="dock-txt">Área</span>
         </button>
-        <button id="btn-burbuja-mueble" class="dock-segment-btn destacado" title="Diseñar nuevo mueble">
+        <button hidden data-croquis-edicion id="btn-burbuja-mueble" class="dock-segment-btn destacado" title="Diseñar nuevo mueble">
             <span class="dock-icono">📦</span>
             <span class="dock-txt">+ Mueble</span>
         </button>
-        <button id="btn-burbuja-item" class="dock-segment-btn" title="Agregar puerta, acceso o zona">
+        <button hidden data-croquis-edicion id="btn-burbuja-item" class="dock-segment-btn" title="Agregar puerta, acceso o zona">
             <span class="dock-icono">🚪</span>
             <span class="dock-txt">+ Ítem</span>
         </button>
+        <button hidden data-croquis-edicion type="button" id="btn-modo-muros" class="dock-segment-btn" aria-pressed="false">
+            <span class="dock-icono">▦</span><span class="dock-txt">Muros</span>
+        </button>
         <button id="btn-pestana-lista-muebles" class="dock-segment-btn" title="Lista de muebles">
             <span class="dock-icono">📋</span>
-            <span class="dock-txt">Lista</span>
+            <span class="dock-txt">Muebles</span>
             <span id="badge-contador-muebles" class="badge-conteo-muebles">0</span>
         </button>
         <button id="btn-burbuja-qrs" class="dock-segment-btn" title="Generar e imprimir señalética">
             <span class="dock-icono">🖨️</span>
-            <span class="dock-txt">QRs</span>
+            <span class="dock-txt">Etiquetas</span>
         </button>
     </nav>
 
@@ -163,6 +177,11 @@
             </div>
 
             <label style="font-size: 10px; color: #aaa; margin-top: 4px; display: block;">CONFIGURAR CARA DE EXHIBICIÓN:</label>
+            <div class="croquis-tipos" aria-label="Configuración inicial del mueble" id="croquis-tipos">
+                <button type="button" class="btn-radar-buscar" data-tipo-mueble="estante">Estante</button>
+                <button type="button" class="btn-radar-buscar" data-tipo-mueble="gondola">Góndola doble</button>
+                <button type="button" class="btn-radar-buscar" data-tipo-mueble="mostrador">Mostrador</button>
+            </div>
             <div class="selector-caras-tabs" id="dock-selector-caras">
                 <button type="button" class="tab-cara-btn activa" data-cara="A">Frontal (A)</button>
                 <button type="button" class="tab-cara-btn" data-cara="B">Posterior (B)</button>
@@ -275,12 +294,23 @@
 
         const selectSede = document.getElementById('selector-sede-activa');
         const btnAbrirModalSede = document.getElementById('btn-abrir-modal-sede');
+        const estadoCroquis = document.getElementById('croquis-estado');
+        function informarCroquis(texto) {
+            estadoCroquis.hidden = !texto;
+            estadoCroquis.textContent = texto;
+        }
+
+        function actualizarEnlaceCroquis() {
+            document.getElementById('croquis-volver').href = 'inventario?sede=' + encodeURIComponent(idSedeActiva);
+        }
 
         // Cargar lista dinámica de sedes
         async function cargarListaSedes() {
             if (!idNegocio || !selectSede) return;
             if (typeof GeokatuDB.RadarService.obtenerSedesComercio !== 'function') return;
             const res = await GeokatuDB.RadarService.obtenerSedesComercio(idNegocio);
+            if (!permisosUsuario.puedeCambiarSede) return;
+
              if (res && res.success && Array.isArray(res.data)) {
                 selectSede.innerHTML = '';
                 res.data.forEach(s => {
@@ -291,13 +321,18 @@
                     if (s.id_sede === idSedeActiva) opt.selected = true;
                     selectSede.appendChild(opt);
                 });
+                if (!Array.from(selectSede.options).some(opt => opt.value === idSedeActiva)) {
+                    selectSede.add(new Option(idSedeActiva, idSedeActiva, true, true));
+                }
             }
         }
 
         if (selectSede) {
             selectSede.addEventListener('change', async (e) => {
+                if (!permisosUsuario.puedeCambiarSede) return;
                 idSedeActiva = e.target.value;
-                localStorage.setItem('geokatu_sede_activa', idSedeActiva);
+                localStorage.setItem('geokatu_sede_activa_' + idNegocio, idSedeActiva);
+                actualizarEnlaceCroquis();
                 await hidratarPlanoNube();
             });
         }
@@ -364,35 +399,25 @@
             minutosInactividad: 10,
             onSesionLista: async function(contexto) {
                 idNegocio = contexto.idNegocio;
-                idSedeActiva = contexto.almacen || localStorage.getItem('geokatu_sede_activa') || 'SALA_VENTAS';
+                const parametros = new URLSearchParams(location.search);
+                idSedeActiva = contexto.esDueno ? (parametros.get('sede') || localStorage.getItem('geokatu_sede_activa_' + idNegocio) || contexto.almacen) : contexto.almacen;
+                idSedeActiva ||= 'SALA_VENTAS';
+                actualizarEnlaceCroquis();
+                selectSede.replaceChildren(new Option(idSedeActiva === 'SALA_VENTAS' ? 'Sala de ventas' : idSedeActiva, idSedeActiva));
 
-                localStorage.setItem('geokatu_active_uid', contexto.idNegocio);
-                localStorage.setItem('geokatu_sede_activa', idSedeActiva);
-
-                // Sellado criptográfico de terminal
                 await GeokatuDB.SecurityService.sellarSesionTerminalLocal(contexto.idNegocio);
 
-                // Validación de permisos de diseño espacial
-                if (typeof GeokatuDB.RadarService.validarPermisosOperador === 'function' && !contexto.esDueno) {
-                    var emailOp = (AuthGate._estado.usuarioAuth && AuthGate._estado.usuarioAuth.email) ? AuthGate._estado.usuarioAuth.email : '';
-                    permisosUsuario = await GeokatuDB.RadarService.validarPermisosOperador(idNegocio, emailOp);
-                } else {
-                    permisosUsuario = { autorizado: true, rol: "dueno", puedeCrearSedes: true, puedeMoverMuebles: true };
-                }
-
-                if (!permisosUsuario.autorizado) {
-                    alert("Acceso denegado: " + (permisosUsuario.motivo || 'No tienes permisos para editar el plano de la tienda.'));
-                    await AuthGate.cerrarSesion();
-                    return;
-                }
-
-                if (permisosUsuario.puedeCrearSedes && btnAbrirModalSede) {
-                    btnAbrirModalSede.style.display = 'inline-block';
-                } else if (btnAbrirModalSede) {
-                    btnAbrirModalSede.style.display = 'none';
-                }
-
-                await cargarListaSedes();
+                const rolesDiseno = ['supervisor', 'administrador_delegado', 'visual_merchandising', 'admin', 'superadmin'];
+                permisosUsuario = {
+                    autorizado: true,
+                    rol: contexto.rol,
+                    puedeCrearSedes: Boolean(contexto.esDueno),
+                    puedeCambiarSede: Boolean(contexto.esDueno),
+                    puedeMoverMuebles: Boolean(contexto.esDueno) || rolesDiseno.includes(contexto.rol)
+                };
+                selectSede.disabled = !permisosUsuario.puedeCambiarSede;
+                btnAbrirModalSede.style.display = permisosUsuario.puedeCrearSedes ? 'inline-block' : 'none';
+                if (permisosUsuario.puedeCambiarSede) await cargarListaSedes();
                 await hidratarPlanoNube();
 
                 // Iniciar guía del editor espacial de tienda
@@ -404,6 +429,11 @@
             },
 
             onCerrarSesion: async function() {
+                permisosUsuario = {};
+                idNegocio = null;
+                informarCroquis('');
+                window.alternarModoEdicion(false);
+                cerrarOpcionesCroquis();
                 muebles = [];
                 itemsEspaciales = [];
                 celdasMurosBloqueadas = new Set();
@@ -415,6 +445,7 @@
         });
 
         // Listener del botón Salir del HUD superior
+        const cerrarOpcionesCroquis = () => { document.querySelector('.croquis-mas').open = false; };
         const btnLogoutMapatienda = document.getElementById('btn-logout-mapatienda');
         if (btnLogoutMapatienda) {
             btnLogoutMapatienda.addEventListener('click', async () => {
@@ -440,27 +471,21 @@
         let modoEdicionActivo = false; 
 
         window.alternarModoEdicion = function(forzarEstado) {
-            modoEdicionActivo = (forzarEstado !== undefined && forzarEstado !== null) ? forzarEstado : !modoEdicionActivo;
+            modoEdicionActivo = Boolean(permisosUsuario.puedeMoverMuebles && (forzarEstado ?? !modoEdicionActivo));
             const btnModo = document.getElementById('btn-toggle-modo-edicion');
             const vp = document.getElementById('viewport-infinito');
-
-            if (modoEdicionActivo) {
-                vp.classList.add('modo-edicion');
-                vp.classList.remove('modo-lectura');
-                if (btnModo) {
-                    btnModo.innerHTML = '🔓 Edición';
-                    btnModo.style.background = 'var(--naranja)';
-                    btnModo.style.borderColor = '#ffffff';
-                }
-            } else {
-                vp.classList.remove('modo-edicion');
-                vp.classList.add('modo-lectura');
+            btnModo.hidden = !permisosUsuario.puedeMoverMuebles;
+            btnModo.textContent = modoEdicionActivo ? 'Terminar edición' : 'Editar';
+            btnModo.setAttribute('aria-pressed', String(modoEdicionActivo));
+            document.getElementById('btn-guardar-nube').hidden = !permisosUsuario.puedeMoverMuebles || !planoBorradorActual();
+            document.querySelectorAll('[data-croquis-edicion]').forEach(btn => { btn.hidden = !modoEdicionActivo; });
+            vp.classList.toggle('modo-edicion', modoEdicionActivo);
+            vp.classList.toggle('modo-lectura', !modoEdicionActivo);
+            if (!modoEdicionActivo) {
+                modoPincelMuros = false;
+                document.getElementById('btn-modo-muros').setAttribute('aria-pressed', 'false');
                 window.deseleccionarMuebles();
-                if (btnModo) {
-                    btnModo.innerHTML = '🔒 Lectura';
-                    btnModo.style.background = 'rgba(255,255,255,0.08)';
-                    btnModo.style.borderColor = 'rgba(255,255,255,0.2)';
-                }
+                window.deseleccionarItems();
             }
         };
 
@@ -837,11 +862,13 @@
         const btnModoMuros = document.getElementById('btn-modo-muros');
         if (btnModoMuros) {
             btnModoMuros.addEventListener('click', () => {
+                if (!modoEdicionActivo) return;
                 modoPincelMuros = !modoPincelMuros;
+                btnModoMuros.setAttribute('aria-pressed', String(modoPincelMuros));
                 if (modoPincelMuros) {
                     btnModoMuros.style.background = 'var(--naranja)';
                     btnModoMuros.style.borderColor = 'white';
-                    alert("🧱 Modo Muros Activado: Toca las celdas del plano para poner o quitar columnas y paredes irregulares.");
+                    informarCroquis("Toca una celda del plano para colocar o quitar un muro.");
                 } else {
                     btnModoMuros.style.background = 'rgba(255,255,255,0.1)';
                     btnModoMuros.style.borderColor = 'rgba(255,255,255,0.2)';
@@ -928,6 +955,8 @@
                         muebles = muebles.filter(item => item.id_mueble !== m.id_mueble);
                         window.deseleccionarMuebles();
                         window.renderizarMuebles();
+                        window.actualizarContadorDrawer();
+                        window.persistirPlanoLocal();
                     }
                 });
                 el.appendChild(menuContextual);
@@ -1174,6 +1203,7 @@
 
         window.abrirModalEditarMueble = function(m) {
             muebleEnEdicion = m;
+            document.getElementById('croquis-tipos').hidden = true;
             document.getElementById('modal-mueble-titulo').innerText = "Editar: " + m.nombre;
             document.getElementById('mueble-nombre').value = m.nombre;
             document.getElementById('mueble-zona').value = m.zona || 'PISO_VENTA';
@@ -1205,7 +1235,9 @@
         const btnBurbujaMueble = document.getElementById('btn-burbuja-mueble');
         if (btnBurbujaMueble) {
             btnBurbujaMueble.addEventListener('click', () => {
+                if (!modoEdicionActivo) return;
                 muebleEnEdicion = null;
+                document.getElementById('croquis-tipos').hidden = false;
                 document.getElementById('modal-mueble-titulo').innerText = "Diseñar Mueble / Góndola";
                 document.getElementById('mueble-nombre').value = "Góndola " + (muebles.length + 1);
                 document.getElementById('mueble-zona').value = 'PISO_VENTA';
@@ -1235,6 +1267,30 @@
             });
         }
 
+        document.getElementById('croquis-tipos').addEventListener('click', e => {
+            const tipo = e.target.closest('button')?.dataset.tipoMueble;
+            if (!tipo) return;
+            const esMostrador = tipo === 'mostrador';
+            const esDoble = tipo === 'gondola';
+            const niveles = esMostrador ? 1 : esDoble ? 4 : 3;
+            const bins = esMostrador ? 2 : 3;
+            document.getElementById('mueble-ancho').value = esDoble ? 2 : 1;
+            document.getElementById('mueble-largo').value = esDoble ? 4 : 2;
+            configCarasEnMemoria = {
+                A: { niveles, bins, activa: true },
+                B: { niveles: esDoble ? niveles : 0, bins: esDoble ? bins : 0, activa: esDoble },
+                C: { niveles: 0, bins: 0, activa: false },
+                D: { niveles: 0, bins: 0, activa: false }
+            };
+            caraActivaModal = 'A';
+            document.querySelectorAll('#dock-selector-caras [data-cara]').forEach(btn => {
+                btn.classList.toggle('activa', btn.dataset.cara === 'A');
+            });
+            inputNiveles.value = niveles;
+            inputSubdivs.value = bins;
+            window.actualizarPreviewBins();
+        });
+
         const btnCancelarMueble = document.getElementById('btn-cancelar-mueble');
         if (btnCancelarMueble) {
             btnCancelarMueble.addEventListener('click', () => {
@@ -1258,11 +1314,10 @@
 
                 window.actualizarPreviewBins();
 
-                let maxNiveles = 1;
-                for (const c in configCarasEnMemoria) {
-                    if (configCarasEnMemoria[c].activa && configCarasEnMemoria[c].niveles > maxNiveles) {
-                        maxNiveles = configCarasEnMemoria[c].niveles;
-                    }
+                if (!modoEdicionActivo) return;
+                if (!Object.values(configCarasEnMemoria).some(cara => cara.activa)) {
+                    alert('Configura al menos un espacio en el mueble.');
+                    return;
                 }
 
                 if (muebleEnEdicion) {
@@ -1271,13 +1326,14 @@
                     muebleEnEdicion.anchoM = anchoM;
                     muebleEnEdicion.largoM = largoM;
                     muebleEnEdicion.caras = JSON.parse(JSON.stringify(configCarasEnMemoria));
-                    muebleEnEdicion.compartimientos = window.generarMatrizCanonicaBins(muebleEnEdicion.id_mueble, muebleEnEdicion.caras);
+                    const previo = new Map((muebleEnEdicion.compartimientos || []).map(espacio => [
+                        [espacio.cara, espacio.nivel, espacio.bin].join('/'), espacio
+                    ]));
+                    muebleEnEdicion.compartimientos = window.generarMatrizCanonicaBins(muebleEnEdicion.id_mueble, muebleEnEdicion.caras)
+                        .map(espacio => previo.get([espacio.cara, espacio.nivel, espacio.bin].join('/')) || espacio);
                     muebleEnEdicion = null;
                 } else {
-                    const sigNumero = muebles.length + 1;
-                    const strNum = String(sigNumero).padStart(2, '0');
-                    const prefZona = (zona === 'BODEGA') ? 'BOD' : 'PV';
-                    const idCanonicoMueble = prefZona + "_M" + strNum + "_" + anchoM + "x" + largoM + "_H" + maxNiveles;
+                    const idCanonicoMueble = 'M_' + crypto.randomUUID().replaceAll('-', '');
 
                     const carasCopia = JSON.parse(JSON.stringify(configCarasEnMemoria));
                     const compartimientos = window.generarMatrizCanonicaBins(idCanonicoMueble, carasCopia);
@@ -1308,9 +1364,17 @@
 
 
         // Persistencia instantanea en localStorage (0 ms, sobrevive a recargas y modo avion)
+        function claveBorrador() {
+            return 'geokatu_plano_borrador_' + idNegocio + '_' + idSedeActiva;
+        }
+
+        function planoBorradorActual() {
+            return idNegocio && localStorage.getItem(claveBorrador());
+        }
+
         window.persistirPlanoLocal = function() {
-            if (!idNegocio) return;
-            const clavePlano = 'geokatu_plano_' + idNegocio + '_' + idSedeActiva;
+            if (!idNegocio || !modoEdicionActivo) return;
+            const clavePlano = claveBorrador();
             const gridData = {
                 perimetro: perimetro,
                 elementos: muebles,
@@ -1321,7 +1385,11 @@
             };
             try {
                 localStorage.setItem(clavePlano, JSON.stringify(gridData));
-            } catch (eL) {}
+                document.getElementById('btn-guardar-nube').hidden = false;
+                informarCroquis('Cambios en borrador');
+            } catch (eL) {
+                informarCroquis('El navegador no pudo guardar el borrador.');
+            }
             return gridData;
         };
 
@@ -1329,27 +1397,46 @@
         const btnGuardarNube = document.getElementById('btn-guardar-nube');
         if (btnGuardarNube) {
             btnGuardarNube.addEventListener('click', async () => {
-                if (!idNegocio) {
-                    alert("Inicia sesion para respaldar el plano.");
-                    return;
-                }
-                const gridData = window.persistirPlanoLocal();
-                const res = await GeokatuDB.RadarService.guardarMapaBodega(idNegocio, idSedeActiva, gridData);
-                if (res.success) {
-                    if (res.offline) {
-                        alert("💾 Plano guardado en memoria local (Modo Avion). Se sincronizara al recuperar red.");
-                    } else {
-                        alert("✅ Plano espacial de [" + idSedeActiva + "] sincronizado con exito.");
+                const borrador = planoBorradorActual();
+                if (!permisosUsuario.puedeMoverMuebles || !borrador) return;
+                const clave = claveBorrador();
+                const sede = idSedeActiva;
+                const negocio = idNegocio;
+                btnGuardarNube.disabled = true;
+                informarCroquis('Publicando…');
+                try {
+                    const nuevoPlano = JSON.parse(borrador);
+                    const publicados = JSON.parse(localStorage.getItem('geokatu_plano_' + negocio + '_' + sede) || 'null');
+                    const espacios = plano => (plano?.elementos || []).flatMap(m => (m.compartimientos || []).map(espacio => espacio.id_comp));
+                    const nuevos = new Set(espacios(nuevoPlano));
+                    const retirados = new Set(espacios(publicados).filter(id => !nuevos.has(id)));
+                    if (retirados.size) {
+                        const stock = await GeokatuDB.InventarioService.obtenerMapaStockTiendaCompleto(negocio);
+                        if (clave !== claveBorrador()) return;
+                        if (!stock.success || stock.data.some(item => retirados.has(item.id_compartimiento) && Number(item.cantidad) !== 0)) {
+                            informarCroquis('Para retirar espacios, primero verifica que sus saldos estén en cero.');
+                            return;
+                        }
                     }
-                } else {
-                    alert("⚠️ Guardado en memoria local. Aviso de nube: " + res.error);
+                    const res = await GeokatuDB.RadarService.guardarMapaBodega(negocio, sede, nuevoPlano);
+                    if (clave !== claveBorrador()) return;
+                    if (res.success && !res.offline) {
+                        if (localStorage.getItem(clave) === borrador) localStorage.removeItem(clave);
+                        btnGuardarNube.hidden = !planoBorradorActual();
+                        informarCroquis(planoBorradorActual() ? 'Hay otros cambios en borrador' : 'Plano publicado');
+                    } else {
+                        informarCroquis(res.error ? 'No se publicó: ' + res.error : 'Sin conexión. Publica el borrador al volver a tener red.');
+                    }
+                } finally {
+                    btnGuardarNube.disabled = false;
                 }
             });
         }
        // --- 7. RADAR ESPACIAL 0-MS OFFLINE-FIRST ---
         const btnEjecutarRadar = document.getElementById('btn-ejecutar-radar');
         if (btnEjecutarRadar) {
-            btnEjecutarRadar.addEventListener('click', async () => {
+            document.getElementById('croquis-busqueda').addEventListener('submit', async e => {
+                e.preventDefault();
                 const sku = document.getElementById('input-radar-sku').value.trim();
                 if (!sku || !idNegocio) {
                     alert("Ingresa un codigo SKU, EAN o nombre de articulo.");
@@ -1429,19 +1516,28 @@
                 const contenedor = document.getElementById('contenedor-qrs-render');
                 contenedor.innerHTML = '';
 
-                muebles.forEach((m) => {
+                const planoPublicado = JSON.parse(localStorage.getItem('geokatu_plano_' + idNegocio + '_' + idSedeActiva) || 'null');
+                const listaMuebles = planoPublicado?.elementos || [];
+                if (!listaMuebles.length) {
+                    informarCroquis('Publica un plano con muebles para imprimir sus etiquetas.');
+                    return;
+                }
+                listaMuebles.forEach((m) => {
                     const cardM = document.createElement('div');
                     cardM.classList.add('tarjeta-qr-print');
                     const divQrM = document.createElement('div');
                     
                     try {
                         if(typeof QRCode !== 'undefined') {
-                            new QRCode(divQrM, { text: m.qr, width: 100, height: 100, colorDark: "#000000", colorLight: "#ffffff" });
+                            const codigoMueble = m.qr || 'GEO-M-' + idNegocio + '-' + idSedeActiva + '-' + m.id_mueble;
+                            new QRCode(divQrM, { text: codigoMueble, width: 144, height: 144, colorDark: "#000000", colorLight: "#ffffff" });
                         }
                     } catch(e){}
                     
                     cardM.appendChild(divQrM);
-                    cardM.innerHTML += "<p style=\"margin: 4px 0 0 0; font-size: 11px; font-weight: bold;\">" + m.nombre + "<br><span style=\"color:#ff6b00;\">" + m.qr + "</span></p>";
+                    const tituloMueble = document.createElement('p');
+                    tituloMueble.textContent = m.nombre + ' · Mueble';
+                    cardM.appendChild(tituloMueble);
                     contenedor.appendChild(cardM);
 
                     (m.compartimientos || []).forEach((comp) => {
@@ -1451,12 +1547,14 @@
                         
                         try {
                             if(typeof QRCode !== 'undefined') {
-                                new QRCode(divQrC, { text: comp.id_comp, width: 100, height: 100, colorDark: "#000000", colorLight: "#ffffff" });
+                                new QRCode(divQrC, { text: comp.id_comp, width: 144, height: 144, colorDark: "#000000", colorLight: "#ffffff" });
                             }
                         } catch(e){}
 
                         cardC.appendChild(divQrC);
-                        cardC.innerHTML += "<p style=\"margin: 4px 0 0 0; font-size: 10px;\">" + m.nombre + " [Cara " + (comp.cara || 'A') + "]<br>" + (comp.nivel || '') + "-" + (comp.bin || '') + "<br><span style=\"color:#0088ff; font-weight: bold;\">" + comp.id_comp + "</span></p>";
+                        const tituloEspacio = document.createElement('p');
+                        tituloEspacio.textContent = m.nombre + ' · Cara ' + (comp.cara || 'A') + ' · ' + comp.nivel + ' · ' + comp.bin;
+                        cardC.appendChild(tituloEspacio);
                         contenedor.appendChild(cardC);
                     });
                 });
@@ -1512,51 +1610,20 @@
 
         window.hidratarPlanoNube = async function() {
             if (!idNegocio) return;
-            const claveCachePlano = 'geokatu_plano_' + idNegocio + '_' + idSedeActiva;
-            let planoLocal = null;
-
-            // Paso 1: Hidratacion instantanea en 0 ms desde localStorage (nunca abre en blanco en bodega sin red)
-            const rawLocal = localStorage.getItem(claveCachePlano);
-            if (rawLocal) {
-                try {
-                    planoLocal = JSON.parse(rawLocal);
-                    window.aplicarDatosPlanoEnMemoria(planoLocal);
-                    window.alternarModoEdicion(false);
-                    window.redibujarArea();
-                    window.renderizarMuebles();
-                    window.actualizarTransform();
-                    window.renderizarItemsEspaciales();
-                    window.actualizarContadorDrawer();
-                } catch (eL) {}
-            }
-
-            if (!navigator.onLine && planoLocal) {
-                return;
-            }
-
-            // Paso 2: Respaldo o verificacion desde GeokatuDB
-            try {
-                const res = await GeokatuDB.RadarService.obtenerMapaBodega(idNegocio, idSedeActiva);
-                if (res.success && res.data) {
-                    const modLocal = planoLocal && planoLocal.ultima_modificacion ? planoLocal.ultima_modificacion : '';
-                    const modRemota = res.data.ultima_modificacion || '';
-                    if (!planoLocal || (modRemota && modRemota > modLocal)) {
-                        localStorage.setItem(claveCachePlano, JSON.stringify(res.data));
-                        window.aplicarDatosPlanoEnMemoria(res.data);
-                    }
-                } else if (!planoLocal) {
-                    window.aplicarDatosPlanoEnMemoria(null);
-                }
-                window.alternarModoEdicion(false);
-                window.redibujarArea();
-                window.renderizarMuebles();
-                window.actualizarTransform();
-                window.renderizarItemsEspaciales();
-                window.actualizarContadorDrawer();
-                console.log("[GEOKATU SIG] Plano de sede [" + idSedeActiva + "] hidratado en 0 ms.");
-            } catch (err) {
-                console.warn("[GEOKATU SIG] Operando sobre plano en cache local:", err);
-            }
+            const negocio = idNegocio;
+            const sede = idSedeActiva;
+            actualizarEnlaceCroquis();
+            const res = await GeokatuDB.RadarService.obtenerMapaBodega(negocio, sede, { revalidarMs: 300000 });
+            if (negocio !== idNegocio || sede !== idSedeActiva) return;
+            const borrador = permisosUsuario.puedeMoverMuebles ? planoBorradorActual() : null;
+            window.aplicarDatosPlanoEnMemoria(borrador ? JSON.parse(borrador) : res.data);
+            window.alternarModoEdicion(false);
+            window.redibujarArea();
+            window.renderizarMuebles();
+            window.actualizarTransform();
+            window.renderizarItemsEspaciales();
+            window.actualizarContadorDrawer();
+            informarCroquis(borrador ? 'Cambios en borrador' : res.success ? '' : 'No se pudo cargar el plano.');
         };
 
 
