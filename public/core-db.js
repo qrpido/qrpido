@@ -767,14 +767,17 @@ const GeokatuDB = {
                 }
 
                 let procesados = 0;
-                                for (const mov of colaActual) {
+                for (const mov of colaActual) {
                     if (mov.estado_sincronizacion === 'rechazado') continue;
                     const uidActualSync = auth.currentUser?.uid || null;
-                    const uidMovValido = !mov.operador_uid || mov.operador_uid === 'TERMINAL_LOCAL' || mov.operador_uid === uidActualSync;
+                    const sinAutorVerificable = !mov.operador_uid || mov.operador_uid === 'TERMINAL_LOCAL';
+                    const uidMovValido = sinAutorVerificable || mov.operador_uid === uidActualSync;
                     if (mov.modo_validado && !uidMovValido) continue;
-                    if (mov.modo_validado && uidActualSync && (!mov.operador_uid || mov.operador_uid === 'TERMINAL_LOCAL')) {
-                        mov.operador_uid = uidActualSync;
+                    if (sinAutorVerificable) {
+                        mov.identidad_origen_incompleta = true;
+                        mov.sincronizado_por_uid = uidActualSync;
                     }
+
                     try {
                         if (mov.modo_validado) {
                             await aplicarMovimientoWms(idNegocio, mov);
@@ -870,7 +873,7 @@ const GeokatuDB = {
             }
         },
 
-                obtenerStockUbicacionesProducto: async (idNegocio, productoId) => {
+                        obtenerStockUbicacionesProducto: async (idNegocio, productoId, forzarRed = false) => {
             if (!_verificarAcceso()) return { success: false, error: "Sesión no autorizada." };
             const tenantReal = idNegocio || localStorage.getItem('geokatu_active_uid');
             const claveUbis = 'geokatu_stock_ubis_' + tenantReal;
@@ -879,17 +882,21 @@ const GeokatuDB = {
                 try {
                     const ubisLocal = JSON.parse(localStorage.getItem(claveUbis) || '[]');
                     const mapaSync = JSON.parse(localStorage.getItem(claveSyncSku) || '{}');
+                    const tsSync = mapaSync[productoId] ? Date.parse(mapaSync[productoId]) : 0;
                     return {
                         success: true,
                         data: ubisLocal.filter(u => u.id_prod === productoId),
                         desdeCache: true,
-                        sincronizadoPreviamente: Boolean(mapaSync[productoId])
+                        sincronizadoPreviamente: Boolean(mapaSync[productoId]),
+                        vigente: tsSync > 0 && (Date.now() - tsSync) < 60000
                     };
                 } catch (errC) {
-                    return { success: true, data: [], desdeCache: true, sincronizadoPreviamente: false };
+                    return { success: true, data: [], desdeCache: true, sincronizadoPreviamente: false, vigente: false };
                 }
             };
-            if (!navigator.onLine) return leerCacheSku();
+            const cacheActual = leerCacheSku();
+            if (!navigator.onLine || (!forzarRed && cacheActual.vigente)) return cacheActual;
+
             try {
                 const rutaSub = _SCHEMA.ColeccionDirectorio + '/' + tenantReal + '/' + _SCHEMA.SubColeccionProductos + '/' + productoId + '/' + _SCHEMA.SubColeccionUbicacionesStock;
                 const ubiRef = collection(db, rutaSub);
@@ -3297,35 +3304,61 @@ obtenerContactoComercio: async (idNegocio) => {
                     return Object.assign({ success: true }, resVacio);
                 }
                 const opData = snapOp.data() || {};
+                const mapaAsignaciones = (opData.asignaciones_comercios && typeof opData.asignaciones_comercios === 'object') ? opData.asignaciones_comercios : {};
                 const idsNegocios = Array.isArray(opData.negocios_vinculados) && opData.negocios_vinculados.length > 0
                     ? opData.negocios_vinculados
-                    : (opData.id_negocio ? [opData.id_negocio] : []);
+                    : (opData.id_negocio ? [opData.id_negocio] : Object.keys(mapaAsignaciones));
                 const tiendas = [];
                 const hace24hISO = new Date(Date.now() - 86400000).toISOString();
                 const conexionesUltimoDia = [];
+                let fonoPersonal = opData.telefono || '';
+                let fotoPersonal = opData.foto || (auth.currentUser && auth.currentUser.photoURL) || '';
+
                 for (let i = 0; i < idsNegocios.length; i++) {
                     const idNeg = idsNegocios[i];
-                    if (!idNeg) continue;
-                    const snapNeg = await getDoc(doc(db, _SCHEMA.ColeccionDirectorio, idNeg)).catch(() => null);
+                    if (!idNeg || tiendas.some(t => t.idNegocio === idNeg)) continue;
+                    const [snapNeg, snapEq, snapCol] = await Promise.all([
+                        getDoc(doc(db, _SCHEMA.ColeccionDirectorio, idNeg)).catch(() => null),
+                        getDoc(doc(db, _SCHEMA.ColeccionDirectorio + '/' + idNeg + '/Equipo', uidTarget)).catch(() => null),
+                        getDoc(doc(db, _SCHEMA.ColeccionDirectorio + '/' + idNeg + '/Colaboradores', uidTarget)).catch(() => null)
+                    ]);
                     const dNeg = (snapNeg && snapNeg.exists()) ? snapNeg.data() : {};
-                    const rolAsignado = opData.rol || 'cajero';
+                    const fichaTienda = (snapEq && snapEq.exists()) ? snapEq.data() : ((snapCol && snapCol.exists()) ? snapCol.data() : (mapaAsignaciones[idNeg] || {}));
+                    if (fichaTienda.telefono && !fonoPersonal) fonoPersonal = fichaTienda.telefono;
+                    if (fichaTienda.foto && !fotoPersonal) fotoPersonal = fichaTienda.foto;
+
+                    const rolTienda = fichaTienda.rol || opData.rol || 'cajero';
+                    const almacenTienda = fichaTienda.almacen_habitual || fichaTienda.almacen || opData.almacen_habitual || 'SALA_VENTAS';
+                    const pinTienda = fichaTienda.codigo_cajero || fichaTienda.pin || opData.codigo_cajero || '0000';
+                    const horarioTienda = fichaTienda.horario_laboral !== undefined ? fichaTienda.horario_laboral : (opData.horario_laboral || null);
+                    const portalesTienda = Array.isArray(fichaTienda.portales_autorizados) ? fichaTienda.portales_autorizados : resolverPortalesPorRol(rolTienda);
+
                     tiendas.push({
                         idNegocio: idNeg,
-                        nombreComercio: dNeg.nombre || opData.nombre_comercio || 'Comercio Asociado',
+                        nombreComercio: dNeg.nombre || fichaTienda.nombre_comercio || opData.nombre_comercio || 'Comercio Asociado',
                         logoComercio: dNeg.logo || dNeg.link_pin || '',
                         direccionComercio: dNeg.direccion || '',
-                        rol: rolAsignado,
-                        almacen: opData.almacen_habitual || 'SALA_VENTAS',
-                        codigoCajero: opData.codigo_cajero || '0000',
-                        horarioLaboral: opData.horario_laboral || null,
-                        portales: Array.isArray(opData.portales_autorizados) ? opData.portales_autorizados : resolverPortalesPorRol(rolAsignado)
+                        rol: rolTienda,
+                        almacen: almacenTienda,
+                        codigoCajero: pinTienda,
+                        horarioLaboral: horarioTienda,
+                        portales: portalesTienda
                     });
+
+                    if (fichaTienda.ultima_conexion && fichaTienda.ultima_conexion >= hace24hISO) {
+                        conexionesUltimoDia.push({
+                            fecha: fichaTienda.ultima_conexion,
+                            modulo: fichaTienda.ultimo_modulo || 'ACCESO TERMINAL',
+                            sede: almacenTienda,
+                            comercio: dNeg.nombre || idNeg
+                        });
+                    }
                     try {
                         const qKardex = query(
                             collection(db, _SCHEMA.ColeccionDirectorio + '/' + idNeg + '/Movimientos_Kardex'),
                             where('timestamp', '>=', hace24hISO),
                             orderBy('timestamp', 'desc'),
-                            limit(25)
+                            limit(40)
                         );
                         const snapK = await getDocs(qKardex);
                         snapK.forEach(dk => {
@@ -3334,21 +3367,33 @@ obtenerContactoComercio: async (idNegocio) => {
                                 conexionesUltimoDia.push({
                                     fecha: mk.timestamp,
                                     modulo: 'STOCK / WMS (' + (mk.tipo || 'MOV') + ')',
-                                    sede: mk.sede || opData.almacen_habitual || 'SALA_VENTAS',
+                                    sede: mk.sede || almacenTienda,
                                     comercio: dNeg.nombre || idNeg
                                 });
                             }
                         });
                     } catch (eK) {}
                 }
-                if (opData.ultima_conexion && opData.ultima_conexion >= hace24hISO) {
-                    conexionesUltimoDia.unshift({
-                        fecha: opData.ultima_conexion,
-                        modulo: opData.ultimo_modulo || 'TERMINAL GEOKATU',
-                        sede: opData.almacen_habitual || 'SALA_VENTAS',
-                        comercio: tiendas[0] ? tiendas[0].nombreComercio : 'Comercio'
+
+                try {
+                    const logLocal = JSON.parse(localStorage.getItem('geokatu_conexiones_24h_' + uidTarget) || '[]');
+                    logLocal.forEach(itemLog => {
+                        if (itemLog && itemLog.fecha && itemLog.fecha >= hace24hISO) {
+                            conexionesUltimoDia.push(itemLog);
+                        }
                     });
-                }
+                } catch (eL) {}
+
+                conexionesUltimoDia.sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')));
+                const vistos = new Set();
+                const conexionesUnicas = conexionesUltimoDia.filter(c => {
+                    const k = (c.fecha || '').slice(0, 16) + '|' + c.modulo + '|' + c.comercio;
+                    if (vistos.has(k)) return false;
+                    vistos.add(k);
+                    return true;
+                }).slice(0, 15);
+
+                const perfilLocalGuardado = JSON.parse(localStorage.getItem('geokatu_perfil_emp_local_' + uidTarget) || '{}');
                 const resultado = {
                     esEmpleado: tiendas.length > 0,
                     tieneCuentaPropia,
@@ -3356,15 +3401,15 @@ obtenerContactoComercio: async (idNegocio) => {
                     nombreCuentaPropia: datosPropios ? (datosPropios.nombre || '') : '',
                     empleado: {
                         uid: uidTarget,
-                        nombre: opData.nombre || (auth.currentUser && auth.currentUser.displayName) || 'Operador GEOKATU',
+                        nombre: perfilLocalGuardado.nombre || opData.nombre || (auth.currentUser && auth.currentUser.displayName) || 'Operador GEOKATU',
                         email: opData.email || email || (auth.currentUser && auth.currentUser.email) || '',
-                        telefono: opData.telefono || '',
-                        foto: opData.foto || (auth.currentUser && auth.currentUser.photoURL) || '',
-                        codigoCajero: opData.codigo_cajero || '0000',
-                        rolPrincipal: opData.rol || 'cajero'
+                        telefono: perfilLocalGuardado.telefono !== undefined ? perfilLocalGuardado.telefono : fonoPersonal,
+                        foto: perfilLocalGuardado.foto || fotoPersonal,
+                        codigoCajero: tiendas[0] ? tiendas[0].codigoCajero : (opData.codigo_cajero || '0000'),
+                        rolPrincipal: tiendas[0] ? tiendas[0].rol : (opData.rol || 'cajero')
                     },
                     tiendas,
-                    conexionesUltimoDia: conexionesUltimoDia.slice(0, 15)
+                    conexionesUltimoDia: conexionesUnicas
                 };
                 localStorage.setItem(claveCacheEmp, JSON.stringify(resultado));
                 return Object.assign({ success: true }, resultado);
@@ -3381,16 +3426,36 @@ obtenerContactoComercio: async (idNegocio) => {
                 if (datos.nombre) payload.nombre = String(datos.nombre).trim();
                 if (datos.telefono !== undefined) payload.telefono = String(datos.telefono).trim();
                 if (datos.foto) payload.foto = String(datos.foto).trim();
-                await setDoc(doc(db, 'Usuarios_Operadores', uidTarget), payload, { merge: true });
+
+                const previoLocal = JSON.parse(localStorage.getItem('geokatu_perfil_emp_local_' + uidTarget) || '{}');
+                localStorage.setItem('geokatu_perfil_emp_local_' + uidTarget, JSON.stringify(Object.assign({}, previoLocal, payload)));
+
+                const cacheEmp = JSON.parse(localStorage.getItem('geokatu_empleo_cache_' + uidTarget) || '{}');
+                const tiendasEmp = Array.isArray(cacheEmp.tiendas) ? cacheEmp.tiendas : [];
+                if (navigator.onLine && tiendasEmp.length > 0) {
+                    const batchEmp = writeBatch(db);
+                    tiendasEmp.forEach(t => {
+                        if (t && t.idNegocio) {
+                            batchEmp.set(doc(db, _SCHEMA.ColeccionDirectorio + '/' + t.idNegocio + '/Equipo', uidTarget), payload, { merge: true });
+                            batchEmp.set(doc(db, _SCHEMA.ColeccionDirectorio + '/' + t.idNegocio + '/Colaboradores', uidTarget), payload, { merge: true });
+                        }
+                    });
+                    await batchEmp.commit().catch(() => {});
+                }
+                if (navigator.onLine) {
+                    await setDoc(doc(db, 'Usuarios_Operadores', uidTarget), payload, { merge: true }).catch(() => {});
+                }
                 localStorage.removeItem('geokatu_empleo_cache_' + uidTarget);
                 return { success: true };
             } catch (e) {
                 return { success: false, error: e.message };
             }
         }
+    },
 
 /**
      * @namespace PosService
+
      * Motor de Caja Registradora, facturación offline, deducción de stock y sincronización
      */
     PosService: {

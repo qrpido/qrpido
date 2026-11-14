@@ -551,30 +551,38 @@ export const AuthGate = {
                         horarioLaboral: null
                     });
                 }
-                                const snapOperador = await getDoc(doc(db, "Usuarios_Operadores", user.uid));
+                                                const snapOperador = await getDoc(doc(db, "Usuarios_Operadores", user.uid));
                 if (snapOperador.exists()) {
-                    const opData = snapOperador.data();
+                    const opData = snapOperador.data() || {};
+                    const mapaAsig = (opData.asignaciones_comercios && typeof opData.asignaciones_comercios === 'object') ? opData.asignaciones_comercios : {};
                     const listaNegocios = Array.isArray(opData.negocios_vinculados) && opData.negocios_vinculados.length > 0
                         ? opData.negocios_vinculados
-                        : (opData.id_negocio ? [opData.id_negocio] : []);
+                        : (opData.id_negocio ? [opData.id_negocio] : Object.keys(mapaAsig));
                     for (let i = 0; i < listaNegocios.length; i++) {
                         const idPadre = listaNegocios[i];
                         if (!idPadre || contextos.some(c => c.idNegocio === idPadre)) continue;
-                        const docPadreSnap = await getDoc(doc(db, "Directorio", idPadre));
-                        const nombrePadre = docPadreSnap.exists() ? docPadreSnap.data().nombre : "Comercio Asignado";
+                        const [docPadreSnap, snapEq, snapCol] = await Promise.all([
+                            getDoc(doc(db, "Directorio", idPadre)).catch(() => null),
+                            getDoc(doc(db, "Directorio/" + idPadre + "/Equipo", user.uid)).catch(() => null),
+                            getDoc(doc(db, "Directorio/" + idPadre + "/Colaboradores", user.uid)).catch(() => null)
+                        ]);
+                        const nombrePadre = (docPadreSnap && docPadreSnap.exists()) ? docPadreSnap.data().nombre : "Comercio Asignado";
+                        const ficha = (snapEq && snapEq.exists()) ? snapEq.data() : ((snapCol && snapCol.exists()) ? snapCol.data() : (mapaAsig[idPadre] || {}));
                         contextos.push({
                             idNegocio: idPadre,
-                            nombre: opData.nombre || nombrePadre,
+                            nombre: ficha.nombre || opData.nombre || nombrePadre,
                             nombreComercio: nombrePadre,
-                            rol: opData.rol || 'cajero',
+                            rol: ficha.rol || opData.rol || 'cajero',
                             esDueno: false,
                             operadorUid: user.uid,
-                            almacen: opData.almacen_habitual || "SALA_VENTAS",
-                            codigoCajero: opData.codigo_cajero || "0000",
-                            horarioLaboral: opData.horario_laboral || null
+                            almacen: ficha.almacen_habitual || ficha.almacen || opData.almacen_habitual || "SALA_VENTAS",
+                            codigoCajero: ficha.codigo_cajero || ficha.pin || opData.codigo_cajero || "0000",
+                            horarioLaboral: ficha.horario_laboral !== undefined ? ficha.horario_laboral : (opData.horario_laboral || null)
                         });
                     }
                 }
+
+            
                 if (contextos.length > 0) {
                     localStorage.setItem(claveCacheCtx, JSON.stringify({
                         timestamp: Date.now(),
@@ -853,18 +861,27 @@ export const AuthGate = {
         if (GeokatuDB && GeokatuDB.SecurityService && GeokatuDB.SecurityService.sellarSesionTerminalLocal) {
             GeokatuDB.SecurityService.sellarSesionTerminalLocal(ctx.idNegocio);
         }
-                // Pre-cachear la nomina solo en terminales operativas (POS, Stock, Inventario, Mapatiena)
+                        // Pre-cachear la nomina solo en terminales operativas (POS, Stock, Inventario, Mapatiena)
         if (/\/(pos|stock|inventario|mapatienda)(?:\.html)?\/?$/i.test(window.location.pathname || '')) {
             this._hidratarNominaLocal(ctx.idNegocio, false);
         }
-        if (!ctx.esDueno && sesionAuthUid && navigator.onLine) {
-            setDoc(doc(db, "Usuarios_Operadores", sesionAuthUid), {
-                ultima_conexion: new Date().toISOString(),
-                ultimo_modulo: this._config.tituloModulo || "TERMINAL GEOKATU"
-            }, { merge: true }).catch(() => {});
-            localStorage.removeItem('geokatu_empleo_cache_' + sesionAuthUid);
+        if (!ctx.esDueno && sesionAuthUid) {
+            try {
+                const claveLog24 = 'geokatu_conexiones_24h_' + sesionAuthUid;
+                const hace24h = new Date(Date.now() - 86400000).toISOString();
+                const logActual = JSON.parse(localStorage.getItem(claveLog24) || '[]').filter(x => x && x.fecha >= hace24h);
+                logActual.unshift({
+                    fecha: new Date().toISOString(),
+                    modulo: this._config.tituloModulo || 'TERMINAL OPERATIVA',
+                    sede: ctx.almacen || 'SALA_VENTAS',
+                    comercio: ctx.nombreComercio || ctx.nombre || ctx.idNegocio
+                });
+                localStorage.setItem(claveLog24, JSON.stringify(logActual.slice(0, 20)));
+                localStorage.removeItem('geokatu_empleo_cache_' + sesionAuthUid);
+            } catch (eL) {}
         }
         this._cerrarModal();
+
 
         if (typeof this._config.onSesionLista === 'function') {
             this._config.onSesionLista({
