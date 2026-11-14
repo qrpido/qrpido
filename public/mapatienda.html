@@ -887,13 +887,14 @@
             const celdaY = Math.floor(clickY / METRO_PX);
             const clave = celdaX + "," + celdaY;
 
-            if (celdasMurosBloqueadas.has(clave)) {
-                celdasMurosBloqueadas.delete(clave);
-            } else {
-                celdasMurosBloqueadas.add(clave);
-            }
-            window.redibujarArea();
-        });
+             if (celdasMurosBloqueadas.has(clave)) {
+ celdasMurosBloqueadas.delete(clave);
+ } else {
+ celdasMurosBloqueadas.add(clave);
+ }
+ window.redibujarArea();
+ window.persistirPlanoLocal();
+ });
 
         window.verificarColisionMuros = function(x, y, anchoM, largoM) {
             const minX = Math.floor(x / METRO_PX);
@@ -983,12 +984,13 @@
                 const pivote = document.createElement('div');
                 pivote.classList.add('pivote-giro', 'contra-rotacion');
                 pivote.innerHTML = '🔄';
-                pivote.addEventListener('pointerdown', (e) => {
-                    e.stopPropagation();
-                    m.rotacion = ((m.rotacion || 0) + 45) % 360;
-                    el.style.transform = "rotate(" + m.rotacion + "deg)";
-                    window.aplicarContraRotacion(el, m.rotacion);
-                });
+                 pivote.addEventListener('pointerdown', (e) => {
+ e.stopPropagation();
+ m.rotacion = ((m.rotacion || 0) + 45) % 360;
+ el.style.transform = "rotate(" + m.rotacion + "deg)";
+ window.aplicarContraRotacion(el, m.rotacion);
+ window.persistirPlanoLocal();
+ });
                 el.appendChild(pivote);
 
                 window.iniciarDragMueble(el, m);
@@ -1031,12 +1033,13 @@
                 }
             });
 
-            const finDrag = () => {
-                arrastrando = false;
-                window.ocultarGuias();
-            };
-            el.addEventListener('pointerup', finDrag);
-            el.addEventListener('pointercancel', finDrag);
+             const finDrag = () => {
+ if (arrastrando) window.persistirPlanoLocal();
+ arrastrando = false;
+ window.ocultarGuias();
+ };
+ el.addEventListener('pointerup', finDrag);
+ el.addEventListener('pointercancel', finDrag);
         };
 
         window.calcularSmartGuides = function(muebleActual, x, y) {
@@ -1117,15 +1120,16 @@
             });
         }
 
-        const btnAplicarArea = document.getElementById('btn-aplicar-area');
-        if (btnAplicarArea) {
-            btnAplicarArea.addEventListener('click', () => {
-                perimetro.anchoM = Number(document.getElementById('area-ancho').value) || 12;
-                perimetro.largoM = Number(document.getElementById('area-largo').value) || 18;
-                document.getElementById('modal-area').style.display = 'none';
-                window.redibujarArea();
-            });
-        }
+         const btnAplicarArea = document.getElementById('btn-aplicar-area');
+ if (btnAplicarArea) {
+ btnAplicarArea.addEventListener('click', () => {
+ perimetro.anchoM = Number(document.getElementById('area-ancho').value) || 12;
+ perimetro.largoM = Number(document.getElementById('area-largo').value) || 18;
+ document.getElementById('modal-area').style.display = 'none';
+ window.redibujarArea();
+ window.persistirPlanoLocal();
+ });
+ }
 
         let caraActivaModal = 'A';
         let configCarasEnMemoria = {
@@ -1762,32 +1766,34 @@
                 const pivote = document.createElement('div');
                 pivote.classList.add('pivote-giro', 'contra-rotacion');
                 pivote.innerHTML = '🔄';
-                pivote.addEventListener('pointerdown', (e) => {
-                    e.stopPropagation();
-                    it.rotacion = ((it.rotacion || 0) + 45) % 360;
-                    el.style.transform = "rotate(" + it.rotacion + "deg)";
-                    window.aplicarContraRotacion(el, it.rotacion);
-                    window.renderizarMinimapa();
-                });
-                el.appendChild(pivote);
+                 pivote.addEventListener('pointerdown', (e) => {
+ e.stopPropagation();
+ it.rotacion = ((it.rotacion || 0) + 45) % 360;
+ el.style.transform = "rotate(" + it.rotacion + "deg)";
+ window.aplicarContraRotacion(el, it.rotacion);
+ window.renderizarMinimapa();
+ window.persistirPlanoLocal();
+ });
+ el.appendChild(pivote);
 
-                const menu = document.createElement('div');
-                menu.classList.add('menu-contextual-mueble', 'contra-rotacion');
-                menu.innerHTML = "<button class=\"btn-mini-contextual btn-editar-it\">✏️ Editar</button><button class=\"btn-mini-contextual peligro btn-borrar-it\">🗑️ Borrar</button>";
-                
-                menu.querySelector('.btn-editar-it').addEventListener('pointerdown', (e) => {
-                    e.stopPropagation();
-                    window.abrirModalEditarItem(it);
-                });
-                menu.querySelector('.btn-borrar-it').addEventListener('pointerdown', (e) => {
-                    e.stopPropagation();
-                    if (confirm("¿Eliminar \"" + it.etiqueta + "\"?")) {
-                        itemsEspaciales = itemsEspaciales.filter(x => x.id_item !== it.id_item);
-                        window.deseleccionarItems();
-                        window.renderizarItemsEspaciales();
-                        window.renderizarMinimapa();
-                    }
-                });
+ const menu = document.createElement('div');
+ menu.classList.add('menu-contextual-mueble', 'contra-rotacion');
+ menu.innerHTML = "<button class=\"btn-mini-contextual btn-editar-it\">✏️ Editar</button><button class=\"btn-mini-contextual peligro btn-borrar-it\">🗑️ Borrar</button>";
+ 
+menu.querySelector('.btn-editar-it').addEventListener('pointerdown', (e) => {
+ e.stopPropagation();
+ window.abrirModalEditarItem(it);
+ });
+ menu.querySelector('.btn-borrar-it').addEventListener('pointerdown', (e) => {
+ e.stopPropagation();
+ if (confirm("¿Eliminar \"" + it.etiqueta + "\"?")) {
+ itemsEspaciales = itemsEspaciales.filter(x => x.id_item !== it.id_item);
+ window.deseleccionarItems();
+ window.renderizarItemsEspaciales();
+ window.renderizarMinimapa();
+ window.persistirPlanoLocal();
+ }
+ });
                 el.appendChild(menu);
 
                 window.iniciarDragItem(el, it);
@@ -1823,9 +1829,12 @@
                 window.renderizarMinimapa();
             });
 
-            const fin = () => { arrastrando = false; };
-            el.addEventListener('pointerup', fin);
-            el.addEventListener('pointercancel', fin);
+             const fin = () => {
+ if (arrastrando) window.persistirPlanoLocal();
+ arrastrando = false;
+ };
+ el.addEventListener('pointerup', fin);
+ el.addEventListener('pointercancel', fin);
         };
 
         window.seleccionarItem = function(it, el) {
