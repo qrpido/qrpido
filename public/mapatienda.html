@@ -6,8 +6,9 @@
     <title>Plano Espacial de Tienda | Geokatu SIG</title>
     <meta name="theme-color" content="#ff6b00">
     <link rel="stylesheet" href="mapatienda.css">
-    <!-- SE INCLUYE QRCODE NATIVO AQUÍ PARA EVITAR EL CRASH DEL IMPORT -->
-    <script src="qrcode.min.js" type="text/javascript"></script>
+     <!-- SE INCLUYE QRCODE NATIVO Y LECTOR DE CAMARA -->
+ <script src="qrcode.min.js" type="text/javascript"></script>
+ <script src="html5-qrcode.min.js" type="text/javascript"></script>
 </head>
 <body class="editor-croquis">
 
@@ -24,33 +25,63 @@
         </div>
     </div>
 
-    <!-- 2. HUD FLOTANTE SUPERIOR ZERO-OVERFLOW (MULTI-SEDE, RADAR Y CONTROLES) -->
-    <header class="hud-barra-superior croquis-hud">
-        <div class="croquis-cabecera">
-            <a href="inventario" id="croquis-volver" class="croquis-enlace">‹ Inventario</a>
-            <strong>GEOKATU <span> / Croquis</span></strong>
-            <details class="croquis-mas">
-                <summary aria-label="Opciones de terminal">⋯</summary>
-                <div class="croquis-opciones">
-                    <button type="button" onclick="window.AuthGate.bloquearTerminalPorInactividad();">Cambiar operario</button>
-                    <button type="button" id="btn-logout-mapatienda">Cerrar sesión</button>
-                </div>
-            </details>
-        </div>
-        <div class="croquis-principales">
-            <select id="selector-sede-activa" class="hud-radar-select" aria-label="Sede">
-                <option value="SALA_VENTAS" selected>Sala de ventas</option>
-            </select>
-            <button id="btn-toggle-modo-edicion" type="button" class="btn-radar-buscar" aria-pressed="false" hidden>Editar</button>
-            <button id="btn-guardar-nube" type="button" class="btn-radar-buscar croquis-guardar" hidden>Publicar plano</button>
-            <button id="btn-abrir-modal-sede" type="button" class="btn-radar-buscar" style="display:none">+ Sede</button>
-        </div>
-        <p id="croquis-estado" class="croquis-estado" role="status" hidden></p>
-        <form class="grupo-busqueda-sku" id="croquis-busqueda">
-            <input type="search" id="input-radar-sku" class="hud-radar-input" aria-label="Nombre o código del producto" placeholder="Buscar producto">
-            <button id="btn-ejecutar-radar" class="btn-radar-buscar" type="submit">Buscar</button>
-        </form>
-    </header>
+     <!-- 2. CABECERA HOMOLOGADA POS (BARRA DE ESTADO + BUSCADOR CON LUPA Y CAMARA + MENU 3 PUNTOS) -->
+ <div class="cabecera-fija-pos">
+  <header id="status-bar">
+   <div class="status-item connection">
+    <span class="indicator"></span>
+    <strong style="color: var(--naranja); letter-spacing: 0.8px;">GEOKATU <span style="color: #fff;">/ CROQUIS</span></strong>
+    <span id="croquis-estado" class="croquis-estado" role="status" hidden style="margin-left: 6px;"></span>
+   </div>
+   <div class="status-item" style="display: flex; align-items: center; gap: 8px;">
+    <details class="croquis-mas" hidden></details>
+    <div style="position: relative;">
+     <button id="btn-menu-tres-puntos" type="button" onclick="window.alternarMenuTresPuntosCroquis(event)" class="btn-opciones-cabecera" title="Opciones de Terminal">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+     </button>
+     <div id="dropdown-menu-pos" class="dropdown-pos-flotante">
+      <a href="inventario" id="croquis-volver" class="item-dropdown-pos">
+       <svg class="icono-pos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="1" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+       Inventario (Radar)
+      </a>
+      <button type="button" class="item-dropdown-pos" onclick="window.navegarPortalCroquis('stock')">
+       <svg class="icono-pos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+       Stock (Bodega WMS)
+      </button>
+      <button type="button" class="item-dropdown-pos" onclick="window.navegarPortalCroquis('pos')">
+       <svg class="icono-pos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+       POS (Caja Registradora)
+      </button>
+      <button type="button" class="item-dropdown-pos" onclick="window.navegarPortalCroquis('oficina')">
+       <svg class="icono-pos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+       OFICINA
+      </button>
+      <div class="divisor-dropdown-pos"></div>
+      <button type="button" class="item-dropdown-pos" onclick="document.getElementById('dropdown-menu-pos').classList.remove('activo'); window.AuthGate.bloquearTerminalPorInactividad();">
+       <svg class="icono-pos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h14v18H5zM8 7h1m6 0h1M8 11h1m6 0h1M8 15h1m6 0h1M10 18h4"/></svg>
+       Relevo / Bloquear (PIN)
+      </button>
+      <button type="button" id="btn-logout-mapatienda" class="item-dropdown-pos item-cerrar-sesion">
+       <svg class="icono-pos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4H3v16h6m5-13 5 5-5 5M8 12h12"/></svg>
+       Cerrar Sesión
+      </button>
+     </div>
+    </div>
+   </div>
+  </header>
+  <section id="top-operations-bar">
+   <form class="top-bar-catalog" id="croquis-busqueda" style="margin: 0;">
+    <div class="search-container">
+     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ff6b00" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+     <input type="search" id="input-radar-sku" aria-label="Nombre o código del producto" placeholder="Buscar SKU, nombre o QR en el plano...">
+    </div>
+    <button id="btn-ejecutar-radar" class="btn-secundario-pos" type="submit" title="Buscar en plano">Buscar</button>
+    <button id="btn-camara-croquis" class="btn-secundario-pos camara-activa" type="button" onclick="window.abrirCamaraRadarCroquis()" title="Escanear código con cámara">
+     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    </button>
+   </form>
+  </section>
+ </div>
 
 
 
@@ -79,33 +110,63 @@
         </div>
     </div>
 
-    <!-- 3. DOCK SEGMENTADO INFERIOR UNIFICADO -->
-    <nav class="hud-dock-unificado" aria-label="Herramientas del croquis">
-        <button hidden data-croquis-edicion id="btn-burbuja-area" class="dock-segment-btn" title="Definir perímetro de tienda">
-            <span class="dock-icono">📐</span>
-            <span class="dock-txt">Área</span>
-        </button>
-        <button hidden data-croquis-edicion id="btn-burbuja-mueble" class="dock-segment-btn destacado" title="Diseñar nuevo mueble">
-            <span class="dock-icono">📦</span>
-            <span class="dock-txt">+ Mueble</span>
-        </button>
-        <button hidden data-croquis-edicion id="btn-burbuja-item" class="dock-segment-btn" title="Agregar puerta, acceso o zona">
-            <span class="dock-icono">🚪</span>
-            <span class="dock-txt">+ Ítem</span>
-        </button>
-        <button hidden data-croquis-edicion type="button" id="btn-modo-muros" class="dock-segment-btn" aria-pressed="false">
-            <span class="dock-icono">▦</span><span class="dock-txt">Muros</span>
-        </button>
-        <button id="btn-pestana-lista-muebles" class="dock-segment-btn" title="Lista de muebles">
-            <span class="dock-icono">📋</span>
-            <span class="dock-txt">Muebles</span>
-            <span id="badge-contador-muebles" class="badge-conteo-muebles">0</span>
-        </button>
-        <button id="btn-burbuja-qrs" class="dock-segment-btn" title="Generar e imprimir señalética">
-            <span class="dock-icono">🖨️</span>
-            <span class="dock-txt">Etiquetas</span>
-        </button>
-    </nav>
+     <!-- 3. PESTAÑA LATERAL IZQUIERDA (>) Y MENÚ DESPLEGABLE DE EDICIÓN -->
+ <button type="button" id="btn-toggle-drawer-izq" class="btn-pestana-lateral-izq" onclick="window.alternarDrawerIzqCroquis()" title="Abrir herramientas de edición">
+  <span id="icono-pestana-izq">&gt;</span>
+ </button>
+ <aside id="drawer-herramientas-izq" class="drawer-lateral-izq" aria-label="Herramientas de edición del croquis">
+  <div class="drawer-izq-seccion">
+   <span class="drawer-izq-titulo">Sede o Bodega</span>
+   <select id="selector-sede-activa" class="input-modal" style="margin: 0;" aria-label="Sede">
+    <option value="SALA_VENTAS" selected>Sala de ventas</option>
+   </select>
+   <button id="btn-abrir-modal-sede" type="button" class="btn-herramienta-izq" style="display:none;">
+    <span>+ Crear Nueva Sede / Bodega</span>
+   </button>
+  </div>
+  <div class="drawer-izq-seccion">
+   <span class="drawer-izq-titulo">Diseño de Mobiliario y Área</span>
+   <button data-croquis-edicion id="btn-burbuja-mueble" type="button" class="btn-herramienta-izq destacado">
+    <span>📦 + Añadir Mueble / Góndola</span>
+   </button>
+   <button data-croquis-edicion id="btn-burbuja-area" type="button" class="btn-herramienta-izq">
+    <span>📐 Delimitar Área (Perímetro)</span>
+   </button>
+   <button data-croquis-edicion id="btn-burbuja-item" type="button" class="btn-herramienta-izq">
+    <span>🚪 + Puerta / Acceso / Rótulo</span>
+   </button>
+   <button data-croquis-edicion id="btn-modo-muros" type="button" class="btn-herramienta-izq" aria-pressed="false">
+    <span>▦ Pincel de Muros y Columnas</span>
+   </button>
+  </div>
+  <div class="drawer-izq-seccion">
+   <span class="drawer-izq-titulo">Control de Edición</span>
+   <button id="btn-toggle-modo-edicion" type="button" class="btn-herramienta-izq" aria-pressed="false" hidden>
+    <span>✏️ Activar Modo Edición</span>
+   </button>
+   <button id="btn-guardar-nube" type="button" class="btn-herramienta-izq destacado" hidden>
+    <span>☁️ Publicar Plano en Nube</span>
+   </button>
+  </div>
+  <div class="drawer-izq-seccion" style="border-bottom: none;">
+   <span class="drawer-izq-titulo">Consulta y Señalética QR</span>
+   <button id="btn-pestana-lista-muebles" type="button" class="btn-herramienta-izq">
+    <span>📋 Índice de Muebles</span>
+    <span id="badge-contador-muebles" class="badge-conteo-muebles" style="position: static;">0</span>
+   </button>
+   <button id="btn-burbuja-qrs" type="button" class="btn-herramienta-izq">
+    <span>🖨️ Imprimir Etiquetas QR</span>
+   </button>
+  </div>
+ </aside>
+ <!-- MODAL ESCÁNER DE CÁMARA PARA BUSCAR EN CROQUIS -->
+ <div id="modal-camara-croquis" class="modal-flotante-wrap" style="display: none;">
+  <div class="modal-tarjeta-boveda" style="text-align: center;">
+   <h3 style="margin: 0 0 10px 0; font-size: 14px; color: var(--naranja); text-transform: uppercase;">Escanear Producto o QR</h3>
+   <div id="lector-camara-croquis" style="width: 100%; min-height: 220px; background: #000; border-radius: 12px; overflow: hidden;"></div>
+   <button type="button" onclick="window.cerrarCamaraRadarCroquis()" class="btn-modal-accion" style="background: rgba(255,255,255,0.1); margin-top: 12px;">Cerrar Cámara</button>
+  </div>
+ </div>
 
     <!-- MINIMAPA MAGNÉTICO EN BURBUJA FLOTANTE COLAPSABLE -->
     <div id="contenedor-minimapa" class="minimapa-burbuja-wrap colapsado" title="Minimapa 2D">
@@ -470,15 +531,68 @@
         let celdasMurosBloqueadas = new Set();
         let modoEdicionActivo = false; 
 
-        window.alternarModoEdicion = function(forzarEstado) {
-            modoEdicionActivo = Boolean(permisosUsuario.puedeMoverMuebles && (forzarEstado ?? !modoEdicionActivo));
-            const btnModo = document.getElementById('btn-toggle-modo-edicion');
-            const vp = document.getElementById('viewport-infinito');
-            btnModo.hidden = !permisosUsuario.puedeMoverMuebles;
-            btnModo.textContent = modoEdicionActivo ? 'Terminar edición' : 'Editar';
-            btnModo.setAttribute('aria-pressed', String(modoEdicionActivo));
-            document.getElementById('btn-guardar-nube').hidden = !permisosUsuario.puedeMoverMuebles || !planoBorradorActual();
-            document.querySelectorAll('[data-croquis-edicion]').forEach(btn => { btn.hidden = !modoEdicionActivo; });
+        window.alternarDrawerIzqCroquis = function(forzar) {
+ const drw = document.getElementById('drawer-herramientas-izq');
+ const btn = document.getElementById('btn-toggle-drawer-izq');
+ const ico = document.getElementById('icono-pestana-izq');
+ if (!drw || !btn) return;
+ const abrir = typeof forzar === 'boolean' ? forzar : !drw.classList.contains('abierto');
+ drw.classList.toggle('abierto', abrir);
+ btn.classList.toggle('abierto', abrir);
+ if (ico) ico.textContent = abrir ? '<' : '>';
+};
+window.alternarMenuTresPuntosCroquis = function(e) {
+ if (e) e.stopPropagation();
+ const menu = document.getElementById('dropdown-menu-pos');
+ if (menu) menu.classList.toggle('activo');
+};
+document.addEventListener('click', (e) => {
+ const menu = document.getElementById('dropdown-menu-pos');
+ if (menu && !e.target.closest('#dropdown-menu-pos') && !e.target.closest('#btn-menu-tres-puntos')) {
+  menu.classList.remove('activo');
+ }
+});
+window.navegarPortalCroquis = function(destino) {
+ const menu = document.getElementById('dropdown-menu-pos');
+ if (menu) menu.classList.remove('activo');
+ if (destino === 'oficina') {
+  const ctx = AuthGate._estado.contextoActivo;
+  const esEmpleado = Boolean(ctx && ctx.esDueno === false);
+  window.location.href = esEmpleado ? 'oficinaempleado.html' : 'oficina.html';
+  return;
+ }
+ window.location.href = destino + '?sede=' + encodeURIComponent(idSedeActiva || 'SALA_VENTAS');
+};
+let qrScannerCroquis = null;
+window.abrirCamaraRadarCroquis = function() {
+ const modal = document.getElementById('modal-camara-croquis');
+ if (!modal || typeof Html5Qrcode === 'undefined') return;
+ modal.style.display = 'flex';
+ if (!qrScannerCroquis) qrScannerCroquis = new Html5Qrcode('lector-camara-croquis');
+ qrScannerCroquis.start({ facingMode: 'environment' }, { fps: 18, qrbox: { width: 240, height: 160 } }, (cod) => {
+  const inp = document.getElementById('input-radar-sku');
+  if (inp) inp.value = cod;
+  window.cerrarCamaraRadarCroquis();
+  document.getElementById('croquis-busqueda').requestSubmit();
+ }, () => {}).catch(() => {});
+};
+window.cerrarCamaraRadarCroquis = function() {
+ const modal = document.getElementById('modal-camara-croquis');
+ if (qrScannerCroquis && qrScannerCroquis.isScanning) {
+  qrScannerCroquis.stop().then(() => { if (modal) modal.style.display = 'none'; }).catch(() => { if (modal) modal.style.display = 'none'; });
+ } else if (modal) {
+  modal.style.display = 'none';
+ }
+};
+window.alternarModoEdicion = function(forzarEstado) {
+ modoEdicionActivo = Boolean(permisosUsuario.puedeMoverMuebles && (forzarEstado ?? !modoEdicionActivo));
+ const btnModo = document.getElementById('btn-toggle-modo-edicion');
+ const vp = document.getElementById('viewport-infinito');
+ btnModo.hidden = !permisosUsuario.puedeMoverMuebles;
+ btnModo.textContent = modoEdicionActivo ? '✓ Terminar edición' : '✏️ Activar Modo Edición';
+ btnModo.setAttribute('aria-pressed', String(modoEdicionActivo));
+ document.getElementById('btn-guardar-nube').hidden = !permisosUsuario.puedeMoverMuebles || !planoBorradorActual();
+ document.querySelectorAll('[data-croquis-edicion]').forEach(btn => { btn.hidden = !permisosUsuario.puedeMoverMuebles; });
             vp.classList.toggle('modo-edicion', modoEdicionActivo);
             vp.classList.toggle('modo-lectura', !modoEdicionActivo);
             if (!modoEdicionActivo) {
@@ -1236,10 +1350,12 @@
             document.getElementById('modal-mueble').style.display = 'flex';
         };
 
-        const btnBurbujaMueble = document.getElementById('btn-burbuja-mueble');
-        if (btnBurbujaMueble) {
-            btnBurbujaMueble.addEventListener('click', () => {
-                if (!modoEdicionActivo) return;
+         const btnBurbujaMueble = document.getElementById('btn-burbuja-mueble');
+ if (btnBurbujaMueble) {
+ btnBurbujaMueble.addEventListener('click', () => {
+ if (!permisosUsuario.puedeMoverMuebles) return;
+ if (!modoEdicionActivo) window.alternarModoEdicion(true);
+ window.alternarDrawerIzqCroquis(false);
                 muebleEnEdicion = null;
                 document.getElementById('croquis-tipos').hidden = false;
                 document.getElementById('modal-mueble-titulo').innerText = "Diseñar Mueble / Góndola";
