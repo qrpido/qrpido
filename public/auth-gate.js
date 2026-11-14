@@ -735,8 +735,8 @@ export const AuthGate = {
                     await this._asentarIncidenciaFueraHorario(ctx, coordenadas, evaluacion.motivo);
                 }
 
-                btn.disabled = false;
-                btn.innerHTML = `${SVG_ICONS.gps} <span>Confirmar Presencia y Entrar</span>`;
+                                btn.disabled = false;
+                btn.innerHTML = SVG_ICONS.gps + ' <span>Confirmar Presencia y Entrar</span>';
                 this._concederAccesoTerminal(ctx, coordenadas, evaluacion.fueraDeHorario);
             },
             (err) => {
@@ -838,6 +838,7 @@ export const AuthGate = {
         this._estado.contextoActivo = ctx;
         this._estado.sesionBloqueada = false;
         localStorage.setItem('geokatu_active_uid', ctx.idNegocio);
+        if (sesionAuthUid) localStorage.setItem('geokatu_auth_uid', sesionAuthUid);
         localStorage.setItem('geokatu_cajero_rol', ctx.rol);
         localStorage.setItem('geokatu_almacen_activo', ctx.almacen);
         localStorage.setItem('geokatu_cajero_pin', ctx.codigoCajero);
@@ -846,7 +847,7 @@ export const AuthGate = {
             GeokatuDB.SecurityService.sellarSesionTerminalLocal(ctx.idNegocio);
         }
         // Pre-cachear la nomina solo en terminales operativas (POS, Stock, Inventario, Mapatiena)
-        if (/\/pos(?:\.html)?\/?$/i.test(window.location.pathname || '')) {
+        if (/\/(pos|stock|inventario|mapatienda)(?:\.html)?\/?$/i.test(window.location.pathname || '')) {
             this._hidratarNominaLocal(ctx.idNegocio, false);
         }
         this._cerrarModal();
@@ -1033,6 +1034,7 @@ export const AuthGate = {
         localStorage.removeItem('geokatu_cajero_rol');
         localStorage.removeItem('geokatu_almacen_activo');
         localStorage.removeItem('geokatu_cajero_pin');
+        localStorage.removeItem('geokatu_auth_uid');
         if (idTiendaActiva) {
             localStorage.removeItem('geokatu_operador_relevo_activo_' + idTiendaActiva);
             localStorage.removeItem('geokatu_nomina_cache_' + idTiendaActiva);
