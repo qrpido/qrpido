@@ -162,9 +162,26 @@
                             <svg class="icono-pos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg>
                             Descargar Respaldo (.txt)
                         </button>
-                        <button type="button" onclick="document.getElementById('input-archivo-respaldo').click(); window.cerrarMenuOpcionesPOS();" class="item-dropdown-pos">
+                                                <button type="button" onclick="document.getElementById('input-archivo-respaldo').click(); window.cerrarMenuOpcionesPOS();" class="item-dropdown-pos">
                             <svg class="icono-pos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 16V4m-5 5 5-5 5 5M4 16v5h16v-5"/></svg>
                             Cargar Respaldo (.txt)
+                        </button>
+                        <div class="divisor-dropdown-pos"></div>
+                        <button type="button" onclick="window.irAPortalGeokatu('mapatienda')" class="item-dropdown-pos">
+                            <svg class="icono-pos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+                            Mapa de la Tienda
+                        </button>
+                        <button type="button" onclick="window.irAPortalGeokatu('inventario')" class="item-dropdown-pos">
+                            <svg class="icono-pos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="1" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+                            Inventario (Radar)
+                        </button>
+                        <button type="button" onclick="window.irAPortalGeokatu('stock')" class="item-dropdown-pos">
+                            <svg class="icono-pos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+                            Stock (Bodega WMS)
+                        </button>
+                        <button type="button" onclick="window.irAPortalGeokatu('oficina')" class="item-dropdown-pos">
+                            <svg class="icono-pos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                            OFICINA
                         </button>
                         <div class="divisor-dropdown-pos"></div>
                         <button type="button" onclick="window.cerrarMenuOpcionesPOS(); window.AuthGate.bloquearTerminalPorInactividad();" class="item-dropdown-pos">
@@ -1105,6 +1122,18 @@
 <div id="toast-pos-notif" style="position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-20px); background: #16161a; border: 1px solid rgba(255, 107, 0, 0.4); color: #fff; padding: 12px 20px; border-radius: 12px; font-size: 13px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,0.8); z-index: 100000; opacity: 0; pointer-events: none; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);"></div>
 
 <script>
+window.irAPortalGeokatu = function(destino) {
+    if (typeof window.cerrarMenuOpcionesPOS === 'function') window.cerrarMenuOpcionesPOS();
+    var sedeActiva = localStorage.getItem('geokatu_sede_activa') || localStorage.getItem('geokatu_almacen_activo') || 'SALA_VENTAS';
+    if (destino === 'oficina') {
+        var ctx = (window.AuthGate && window.AuthGate._estado) ? window.AuthGate._estado.contextoActivo : null;
+        var rolLocal = (localStorage.getItem('geokatu_cajero_rol') || '').toLowerCase();
+        var esEmpleado = (ctx && ctx.esDueno === false) || (!ctx && rolLocal && rolLocal !== 'dueño' && rolLocal !== 'owner');
+        window.location.href = esEmpleado ? 'oficinaempleado.html' : 'oficina.html';
+        return;
+    }
+    window.location.href = destino + '?sede=' + encodeURIComponent(sedeActiva);
+};
 window.mostrarAvisoPos = function(mensaje) {
     const toast = document.getElementById('toast-pos-notif');
     if (!toast) return;
