@@ -657,9 +657,9 @@ window.cambiarTab = function(tabId) {
         btn.classList.remove('activo');
     });
 
-    var content = document.getElementById('content-' + tabId);
+        var content = document.getElementById('content-' + tabId);
     if (content) {
-        content.style.display = (tabId === 'ajustes' || tabId === 'operaciones' || tabId === 'equipo') ? 'flex' : 'block';
+        content.style.display = (tabId === 'ajustes' || tabId === 'operaciones' || tabId === 'equipo' || tabId === 'trabajo') ? 'flex' : 'block';
         content.classList.add('activo');
     }
 
@@ -3788,9 +3788,64 @@ window.registrarEmpleado = async function() {
         };
     }
 
-    btn.innerText = "Registrando...";
+        btn.innerText = "Registrando...";
     btn.disabled = true;
     try {
+        // 1. Verificar primero si el correo ya pertenece a una cuenta existente (Comerciante/Inmueble/Conductor/Operario) para no duplicarla
+        var uidExistente = null;
+        var negociosPrevios = [];
+        var qOpExist = query(collection(db, 'Usuarios_Operadores'), where('email', '==', email), limit(1));
+        var snapOpExist = await getDocs(qOpExist).catch(function() { return { empty: true }; });
+        if (!snapOpExist.empty) {
+            uidExistente = snapOpExist.docs[0].id;
+            var dOpPrev = snapOpExist.docs[0].data() || {};
+            negociosPrevios = Array.isArray(dOpPrev.negocios_vinculados) ? dOpPrev.negocios_vinculados.slice() : (dOpPrev.id_negocio ? [dOpPrev.id_negocio] : []);
+        }
+        if (!uidExistente) {
+            var camposCorreo = ['owner_email', 'email', 'correo', 'correo_interno'];
+            for (var cIdx = 0; cIdx < camposCorreo.length; cIdx++) {
+                var qDir = query(collection(db, 'Directorio'), where(camposCorreo[cIdx], '==', email), limit(1));
+                var snapDir = await getDocs(qDir).catch(function() { return { empty: true }; });
+                if (!snapDir.empty) {
+                    var docDir = snapDir.docs[0];
+                    uidExistente = docDir.data().uid_dueno || docDir.id;
+                    break;
+                }
+            }
+        }
+        if (uidExistente) {
+            if (negociosPrevios.indexOf(window.idNegocioLogueado) === -1) {
+                negociosPrevios.push(window.idNegocioLogueado);
+            }
+            var payloadAnexo = {
+                uid: uidExistente,
+                id_negocio: window.idNegocioLogueado,
+                negocios_vinculados: negociosPrevios,
+                nombre: nombre || email.split('@')[0],
+                telefono: tel,
+                email: email,
+                codigo_cajero: codigo,
+                pin: codigo,
+                rol: rol,
+                almacen_habitual: almacen,
+                horario_laboral: horarioPayload,
+                fecha_vinculacion: new Date().toISOString()
+            };
+            await setDoc(doc(db, 'Usuarios_Operadores', uidExistente), payloadAnexo, { merge: true });
+            await setDoc(doc(db, 'Directorio/' + window.idNegocioLogueado + '/Equipo', uidExistente), payloadAnexo, { merge: true });
+            await setDoc(doc(db, 'Directorio/' + window.idNegocioLogueado + '/Colaboradores', uidExistente), payloadAnexo, { merge: true });
+            localStorage.removeItem('geokatu_nomina_cache_' + window.idNegocioLogueado);
+            localStorage.removeItem('geokatu_empleo_cache_' + uidExistente);
+            alert("✅ Cuenta existente en GEOKATU vinculada como empleado (Oficina Laboral habilitada sin duplicar usuario).");
+            document.getElementById('emp-nuevo-nombre').value = '';
+            document.getElementById('emp-nuevo-email').value = '';
+            document.getElementById('emp-nuevo-pass').value = '';
+            document.getElementById('emp-nuevo-codigo').value = '';
+            document.getElementById('form-nuevo-colaborador').style.display = 'none';
+            window.cargarEquipoOficina();
+            return;
+        }
+
         var funcModule = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js');
         var forjarOperario = funcModule.httpsCallable(funcModule.getFunctions(db.app), 'crearOperarioComercio');
         var res = await forjarOperario({
