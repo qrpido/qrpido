@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+ <title>Oficina Laboral de Empleado | GEOKATU</title>
+ <meta name="theme-color" content="#ff6b00">
+ <link rel="stylesheet" href="admin-boveda.css">
+ <style>
+  body { margin: 0; background: #0a0a0c; color: #f3f4f6; font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100dvh; }
+  #status-bar { height: 38px; display: flex; justify-content: space-between; align-items: center; padding: 0 12px; background: #0f0f13; border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 11px; color: #888; position: sticky; top: 0; z-index: 1002; }
+  .status-item { display: flex; align-items: center; gap: 8px; }
+  .indicator { width: 8px; height: 8px; border-radius: 50%; background: #00ff64; box-shadow: 0 0 8px #00ff64; }
+  .btn-opciones-cabecera { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: #fff; width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .dropdown-pos-flotante { display: none; position: absolute; top: 34px; right: 0; background: #16161c; border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 6px; min-width: 220px; box-shadow: 0 12px 35px rgba(0,0,0,0.85); z-index: 100010; flex-direction: column; gap: 4px; }
+  .dropdown-pos-flotante.activo { display: flex; }
+  .item-dropdown-pos { background: transparent; border: none; color: #ddd; padding: 8px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer; text-align: left; width: 100%; text-decoration: none; }
+  .item-dropdown-pos:hover { background: rgba(255,255,255,0.08); }
+  .divisor-dropdown-pos { height: 1px; background: rgba(255,255,255,0.08); margin: 3px 0; }
+  .contenedor-emp { max-width: 520px; margin: 0 auto; padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+  .card-emp { background: rgba(20,20,26,0.95); border: 1px solid rgba(255,107,0,0.3); border-radius: 18px; padding: 16px; box-shadow: 0 12px 30px rgba(0,0,0,0.7); }
+  .perfil-header { display: flex; align-items: center; gap: 14px; }
+  .avatar-emp { width: 68px; height: 68px; border-radius: 50%; object-fit: cover; border: 2px solid #ff6b00; background: #121217; cursor: pointer; flex-shrink: 0; }
+  .tag-pin { background: rgba(255,107,0,0.15); border: 1px solid #ff6b00; color: #ff6b00; font-family: monospace; font-size: 11px; font-weight: 900; padding: 2px 8px; border-radius: 6px; }
+  .grid-portales { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 10px; }
+  .btn-portal-emp { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 12px 10px; color: #fff; font-size: 12px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: space-between; text-decoration: none; }
+  .btn-portal-emp:active { border-color: #ff6b00; background: rgba(255,107,0,0.15); }
+  .fila-conexion { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; font-size: 11px; }
+ </style>
+</head>
+<body>
+ <header id="status-bar">
+  <div class="status-item">
+   <span class="indicator"></span>
+   <strong style="color: #ff6b00; letter-spacing: 0.8px;">GEOKATU <span style="color: #fff;">/ OFICINA LABORAL</span></strong>
+  </div>
+  <div class="status-item" style="position: relative;">
+   <button id="btn-menu-tres-puntos" type="button" class="btn-opciones-cabecera" onclick="document.getElementById('dropdown-menu-emp').classList.toggle('activo')" title="Menú de Navegación">⋮</button>
+   <div id="dropdown-menu-emp" class="dropdown-pos-flotante">
+    <button type="button" class="item-dropdown-pos" onclick="window.irPortalEmpleado('pos')">💳 POS (Caja Registradora)</button>
+    <button type="button" class="item-dropdown-pos" onclick="window.irPortalEmpleado('stock')">📦 Stock (Bodega WMS)</button>
+    <button type="button" class="item-dropdown-pos" onclick="window.irPortalEmpleado('inventario')">🎯 Inventario (Radar Piso)</button>
+    <button type="button" class="item-dropdown-pos" onclick="window.irPortalEmpleado('mapatienda')">🗺️ Mapa de la Tienda</button>
+    <button type="button" id="btn-ir-oficina-propia" class="item-dropdown-pos" style="display: none; color: #00ff64;" onclick="window.location.href='oficina.html'">🏢 Mi Oficina Comercial</button>
+    <button type="button" class="item-dropdown-pos" onclick="window.location.href='/'">🧭 Radar Ciudad</button>
+    <div class="divisor-dropdown-pos"></div>
+    <button type="button" id="btn-salir-emp" class="item-dropdown-pos" style="color: #ff4444;">🚪 Cerrar Sesión</button>
+   </div>
+  </div>
+ </header>
+
+ <main class="contenedor-emp">
+  <!-- 1. FICHA PERSONAL DEL EMPLEADO -->
+  <section class="card-emp">
+   <input type="file" id="file-foto-emp" accept="image/*" style="display: none;">
+   <div class="perfil-header">
+    <img id="emp-avatar" class="avatar-emp" src="https://via.placeholder.com/120/121217/ff6b00?text=OP" alt="Foto Perfil" title="Toca para cambiar tu foto" onclick="document.getElementById('file-foto-emp').click()">
+    <div style="flex: 1; min-width: 0;">
+     <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+      <span class="tag-pin" id="emp-pin-badge">PIN: ----</span>
+      <span id="emp-rol-badge" style="font-size: 10px; background: rgba(0,255,100,0.12); color: #00ff64; padding: 2px 7px; border-radius: 6px; font-weight: 800; text-transform: uppercase;">Operario</span>
+     </div>
+     <h2 id="emp-nombre-display" style="margin: 6px 0 2px 0; font-size: 17px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Cargando operario...</h2>
+     <span id="emp-email-display" style="font-size: 11px; color: #888; display: block;">---</span>
+    </div>
+   </div>
+   <div style="display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 12px;">
+    <input type="tel" id="emp-input-telefono" class="input-form" placeholder="Teléfono de contacto" style="margin: 0; font-size: 12px; padding: 8px 10px;">
+    <button type="button" id="btn-guardar-perfil-emp" class="btn-submit" style="margin: 0; width: auto; padding: 8px 14px !important; font-size: 11px;">Guardar</button>
+   </div>
+  </section>
+
+  <!-- 2. TIENDAS A LAS CUALES ESTÁ ENLAZADO Y PORTALES DE ACCESO -->
+  <section class="card-emp">
+   <span style="font-size: 10px; font-weight: 900; color: #ff6b00; text-transform: uppercase; letter-spacing: 0.8px;">Comercios y Sedes Vinculadas</span>
+   <div id="lista-tiendas-emp" style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+    <p style="font-size: 12px; color: #777; text-align: center;">Consultando vínculos laborales...</p>
+   </div>
+  </section>
+
+  <!-- 3. ACTIVIDAD Y CONEXIONES DEL ÚLTIMO DÍA (ÚLTIMAS 24 HORAS) -->
+  <section class="card-emp">
+   <div style="display: flex; justify-content: space-between; align-items: center;">
+    <span style="font-size: 10px; font-weight: 900; color: #00e5ff; text-transform: uppercase; letter-spacing: 0.8px;">Conexiones del Último Día (24h)</span>
+    <span id="badge-total-conexiones-hoy" style="font-size: 10px; color: #aaa; font-family: monospace;">0 registros</span>
+   </div>
+   <div id="lista-conexiones-24h" style="display: flex; flex-direction: column; gap: 6px; margin-top: 10px;">
+    <p style="font-size: 11.5px; color: #666; text-align: center; margin: 12px 0;">Sin registros en las últimas 24 horas.</p>
+   </div>
+  </section>
+ </main>
+
+ <script type="module">
+  import GeokatuDB from './core-db.js';
+  let tiendaSeleccionadaId = localStorage.getItem('geokatu_active_uid') || null;
+  let sedeSeleccionadaId = localStorage.getItem('geokatu_sede_activa') || 'SALA_VENTAS';
+  let uidEmpleadoActual = null;
+
+  window.irPortalEmpleado = function(portal, idNegocioParam, sedeParam) {
+   const neg = idNegocioParam || tiendaSeleccionadaId;
+   const sed = sedeParam || sedeSeleccionadaId || 'SALA_VENTAS';
+   if (neg) localStorage.setItem('geokatu_active_uid', neg);
+   if (sed) localStorage.setItem('geokatu_sede_activa', sed);
+   window.location.href = portal + '?sede=' + encodeURIComponent(sed);
+  };
+
+  function renderizarPerfil(res) {
+   const emp = res.empleado || {};
+   document.getElementById('emp-nombre-display').textContent = emp.nombre || 'Operario';
+   document.getElementById('emp-email-display').textContent = emp.email || '';
+   document.getElementById('emp-pin-badge').textContent = 'PIN: ' + (emp.codigoCajero || '0000');
+   document.getElementById('emp-rol-badge').textContent = emp.rolPrincipal || 'cajero';
+   document.getElementById('emp-input-telefono').value = emp.telefono || '';
+   if (emp.foto) document.getElementById('emp-avatar').src = emp.foto;
+   if (res.tieneCuentaPropia) {
+    document.getElementById('btn-ir-oficina-propia').style.display = 'flex';
+   }
+   const contTiendas = document.getElementById('lista-tiendas-emp');
+   contTiendas.replaceChildren();
+   if (!Array.isArray(res.tiendas) || res.tiendas.length === 0) {
+    contTiendas.innerHTML = '<p style="font-size:12px; color:#888;">No tienes comercios asignados actualmente.</p>';
+   } else {
+    tiendaSeleccionadaId = res.tiendas[0].idNegocio;
+    sedeSeleccionadaId = res.tiendas[0].almacen || 'SALA_VENTAS';
+    const nombresPortales = { pos: '💳 Punto de Venta (POS)', stock: '📦 Terminal Stock WMS', inventario: '🎯 Radar Inventario', mapatienda: '🗺️ Croquis de Tienda' };
+    res.tiendas.forEach(t => {
+     const box = document.createElement('div');
+     box.style.cssText = 'background:rgba(0,0,0,0.45); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:12px;';
+     const h = t.horarioLaboral && t.horarioLaboral.activo
+      ? (Math.floor((t.horarioLaboral.hora_inicio_minutos || 420)/60) + ':00 a ' + Math.floor((t.horarioLaboral.hora_fin_minutos || 960)/60) + ':00')
+      : 'Turno Abierto';
+     let btnsHtml = '';
+     (t.portales || ['pos', 'stock', 'inventario']).forEach(p => {
+      btnsHtml += '<button type="button" class="btn-portal-emp" onclick="window.irPortalEmpleado(\'' + p + '\', \'' + t.idNegocio + '\', \'' + t.almacen + '\')"><span>' + (nombresPortales[p] || p) + '</span><span>→</span></button>';
+     });
+     box.innerHTML =
+      '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">' +
+       '<div><strong style="font-size:14px; color:#fff; display:block;">' + t.nombreComercio + '</strong>' +
+       '<span style="font-size:11px; color:#888;">Sede: ' + t.almacen + ' · Rol: ' + t.rol + ' · Horario: ' + h + '</span></div>' +
+      '</div>' +
+      '<div class="grid-portales">' + btnsHtml + '</div>';
+     contTiendas.appendChild(box);
+    });
+   }
+   const contCon = document.getElementById('lista-conexiones-24h');
+   const listaC = Array.isArray(res.conexionesUltimoDia) ? res.conexionesUltimoDia : [];
+   document.getElementById('badge-total-conexiones-hoy').textContent = listaC.length + ' registro(s)';
+   contCon.replaceChildren();
+   if (listaC.length === 0) {
+    contCon.innerHTML = '<p style="font-size:11.5px; color:#666; text-align:center; margin:10px 0;">Sin actividad registrada en las últimas 24 horas.</p>';
+   } else {
+    listaC.forEach(c => {
+     const fila = document.createElement('div');
+     fila.className = 'fila-conexion';
+     const hora = c.fecha ? new Date(c.fecha).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+     fila.innerHTML = '<div><strong style="color:#fff; display:block;">' + c.modulo + '</strong><span style="color:#888; font-size:10px;">' + c.comercio + ' · Sede: ' + c.sede + '</span></div><span style="color:#00ff64; font-family:monospace; font-weight:bold;">' + hora + '</span>';
+     contCon.appendChild(fila);
+    });
+   }
+  }
+
+  GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
+   if (!user) { window.location.href = '/'; return; }
+   uidEmpleadoActual = user.uid;
+   localStorage.setItem('geokatu_auth_uid', user.uid);
+   const res = await GeokatuDB.SecurityService.obtenerPerfilLaboralEmpleado(user.uid, user.email);
+   if (res && res.success) renderizarPerfil(res);
+  });
+
+  document.getElementById('btn-guardar-perfil-emp').addEventListener('click', async () => {
+   if (!uidEmpleadoActual) return;
+   const tel = document.getElementById('emp-input-telefono').value.trim();
+   const r = await GeokatuDB.SecurityService.actualizarDatosPersonalesEmpleado(uidEmpleadoActual, { telefono: tel });
+   alert(r.success ? 'Datos personales actualizados.' : ('Error: ' + r.error));
+  });
+
+  document.getElementById('file-foto-emp').addEventListener('change', async (e) => {
+   const f = e.target.files[0];
+   if (!f || !uidEmpleadoActual) return;
+   try {
+    const blob = await GeokatuDB.AdminService.comprimirAWebP(f, 400, 0.8, true, false);
+    const url = await GeokatuDB.AdminService.subirArchivo('operadores/' + uidEmpleadoActual + '/avatar_' + Date.now() + '.webp', blob, 'image/webp');
+    const urlStr = typeof url === 'string' ? url : (url.url || url.data || '');
+    if (urlStr) {
+     document.getElementById('emp-avatar').src = urlStr;
+     await GeokatuDB.SecurityService.actualizarDatosPersonalesEmpleado(uidEmpleadoActual, { foto: urlStr });
+    }
+   } catch (err) { alert('No se pudo subir la foto: ' + err.message); }
+  });
+
+  document.getElementById('btn-salir-emp').addEventListener('click', async () => {
+   await GeokatuDB.SecurityService.cerrarSesion();
+   GeokatuDB.SecurityService.destruirSesionTerminalLocal();
+   window.location.href = '/';
+  });
+ </script>
+</body>
+</html>
