@@ -3261,12 +3261,133 @@ obtenerContactoComercio: async (idNegocio) => {
             }
             return false;
         },
-        destruirSesionTerminalLocal: () => {
+                destruirSesionTerminalLocal: () => {
             localStorage.removeItem('geokatu_active_uid');
             localStorage.removeItem('geokatu_session_sig');
             localStorage.removeItem('geokatu_cajero_pin');
+        },
+        obtenerPerfilLaboralEmpleado: async (uid, email) => {
+            const uidTarget = uid || (auth && auth.currentUser ? auth.currentUser.uid : localStorage.getItem('geokatu_auth_uid'));
+            if (!uidTarget) return { success: false, esEmpleado: false, error: 'Sin sesion activa.' };
+            const claveCacheEmp = 'geokatu_empleo_cache_' + uidTarget;
+            const resolverPortalesPorRol = (rolStr) => {
+                const r = String(rolStr || 'cajero').toLowerCase();
+                if (['supervisor', 'supervisor_pos', 'administrador_delegado', 'admin', 'superadmin', 'dueño', 'owner'].includes(r)) {
+                    return ['pos', 'stock', 'inventario', 'mapatienda'];
+                }
+                if (r === 'visual_merchandising') return ['inventario', 'mapatienda', 'stock'];
+                if (r === 'operador_bodega') return ['stock', 'inventario'];
+                return ['pos', 'inventario', 'stock'];
+            };
+            if (!navigator.onLine) {
+                const rawC = localStorage.getItem(claveCacheEmp);
+                if (rawC) return Object.assign({ success: true, offline: true }, JSON.parse(rawC));
+                return { success: false, esEmpleado: false, offline: true };
+            }
+            try {
+                const [snapOp, snapPropio] = await Promise.all([
+                    getDoc(doc(db, 'Usuarios_Operadores', uidTarget)).catch(() => null),
+                    getDoc(doc(db, _SCHEMA.ColeccionDirectorio, uidTarget)).catch(() => null)
+                ]);
+                const tieneCuentaPropia = Boolean(snapPropio && snapPropio.exists());
+                const datosPropios = tieneCuentaPropia ? snapPropio.data() : null;
+                if (!snapOp || !snapOp.exists()) {
+                    const resVacio = { esEmpleado: false, tieneCuentaPropia, tipoCuentaPropia: datosPropios ? (datosPropios.tipo_modelo || 'negocio') : null, tiendas: [], conexionesUltimoDia: [] };
+                    localStorage.setItem(claveCacheEmp, JSON.stringify(resVacio));
+                    return Object.assign({ success: true }, resVacio);
+                }
+                const opData = snapOp.data() || {};
+                const idsNegocios = Array.isArray(opData.negocios_vinculados) && opData.negocios_vinculados.length > 0
+                    ? opData.negocios_vinculados
+                    : (opData.id_negocio ? [opData.id_negocio] : []);
+                const tiendas = [];
+                const hace24hISO = new Date(Date.now() - 86400000).toISOString();
+                const conexionesUltimoDia = [];
+                for (let i = 0; i < idsNegocios.length; i++) {
+                    const idNeg = idsNegocios[i];
+                    if (!idNeg) continue;
+                    const snapNeg = await getDoc(doc(db, _SCHEMA.ColeccionDirectorio, idNeg)).catch(() => null);
+                    const dNeg = (snapNeg && snapNeg.exists()) ? snapNeg.data() : {};
+                    const rolAsignado = opData.rol || 'cajero';
+                    tiendas.push({
+                        idNegocio: idNeg,
+                        nombreComercio: dNeg.nombre || opData.nombre_comercio || 'Comercio Asociado',
+                        logoComercio: dNeg.logo || dNeg.link_pin || '',
+                        direccionComercio: dNeg.direccion || '',
+                        rol: rolAsignado,
+                        almacen: opData.almacen_habitual || 'SALA_VENTAS',
+                        codigoCajero: opData.codigo_cajero || '0000',
+                        horarioLaboral: opData.horario_laboral || null,
+                        portales: Array.isArray(opData.portales_autorizados) ? opData.portales_autorizados : resolverPortalesPorRol(rolAsignado)
+                    });
+                    try {
+                        const qKardex = query(
+                            collection(db, _SCHEMA.ColeccionDirectorio + '/' + idNeg + '/Movimientos_Kardex'),
+                            where('timestamp', '>=', hace24hISO),
+                            orderBy('timestamp', 'desc'),
+                            limit(25)
+                        );
+                        const snapK = await getDocs(qKardex);
+                        snapK.forEach(dk => {
+                            const mk = dk.data();
+                            if (mk.operador_uid === uidTarget || mk.operador_relevo_uid === uidTarget) {
+                                conexionesUltimoDia.push({
+                                    fecha: mk.timestamp,
+                                    modulo: 'STOCK / WMS (' + (mk.tipo || 'MOV') + ')',
+                                    sede: mk.sede || opData.almacen_habitual || 'SALA_VENTAS',
+                                    comercio: dNeg.nombre || idNeg
+                                });
+                            }
+                        });
+                    } catch (eK) {}
+                }
+                if (opData.ultima_conexion && opData.ultima_conexion >= hace24hISO) {
+                    conexionesUltimoDia.unshift({
+                        fecha: opData.ultima_conexion,
+                        modulo: opData.ultimo_modulo || 'TERMINAL GEOKATU',
+                        sede: opData.almacen_habitual || 'SALA_VENTAS',
+                        comercio: tiendas[0] ? tiendas[0].nombreComercio : 'Comercio'
+                    });
+                }
+                const resultado = {
+                    esEmpleado: tiendas.length > 0,
+                    tieneCuentaPropia,
+                    tipoCuentaPropia: datosPropios ? (datosPropios.tipo_modelo || 'negocio') : null,
+                    nombreCuentaPropia: datosPropios ? (datosPropios.nombre || '') : '',
+                    empleado: {
+                        uid: uidTarget,
+                        nombre: opData.nombre || (auth.currentUser && auth.currentUser.displayName) || 'Operador GEOKATU',
+                        email: opData.email || email || (auth.currentUser && auth.currentUser.email) || '',
+                        telefono: opData.telefono || '',
+                        foto: opData.foto || (auth.currentUser && auth.currentUser.photoURL) || '',
+                        codigoCajero: opData.codigo_cajero || '0000',
+                        rolPrincipal: opData.rol || 'cajero'
+                    },
+                    tiendas,
+                    conexionesUltimoDia: conexionesUltimoDia.slice(0, 15)
+                };
+                localStorage.setItem(claveCacheEmp, JSON.stringify(resultado));
+                return Object.assign({ success: true }, resultado);
+            } catch (err) {
+                return { success: false, esEmpleado: false, error: err.message };
+            }
+        },
+        actualizarDatosPersonalesEmpleado: async (uid, datos) => {
+            if (!_verificarAcceso()) return { success: false, error: 'Sesion no autorizada.' };
+            const uidTarget = uid || (auth && auth.currentUser ? auth.currentUser.uid : localStorage.getItem('geokatu_auth_uid'));
+            if (!uidTarget) return { success: false, error: 'UID no identificado.' };
+            try {
+                const payload = { ultima_actualizacion_perfil: new Date().toISOString() };
+                if (datos.nombre) payload.nombre = String(datos.nombre).trim();
+                if (datos.telefono !== undefined) payload.telefono = String(datos.telefono).trim();
+                if (datos.foto) payload.foto = String(datos.foto).trim();
+                await setDoc(doc(db, 'Usuarios_Operadores', uidTarget), payload, { merge: true });
+                localStorage.removeItem('geokatu_empleo_cache_' + uidTarget);
+                return { success: true };
+            } catch (e) {
+                return { success: false, error: e.message };
+            }
         }
-    },
 
 /**
      * @namespace PosService
