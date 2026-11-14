@@ -164,7 +164,7 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
   "prerender": [
     {
       "source": "list",
-      "urls": ["/oficina", "/negocio", "/stock", "/inventario", "/cabina"],
+            "urls": ["/oficina", "/oficinaempleado.html", "/negocio", "/stock", "/inventario", "/cabina"],
       "eagerness": "moderate"
     }
   ]
@@ -283,7 +283,8 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
                 <button class="btn-login" id="btn-portal-mando" onclick="toggleSubmenu()">🔑</button>
                 <div id="submenu-llave" class="submenu-llave" style="width: 140px;">
                     <button id="btn-login-submenu" class="btn-submenu" onclick="abrirModal('modal-login'); toggleSubmenu()" style="text-align: left; font-size: 11px;">Iniciar Sesion</button>
-                    <button id="btn-oficina" class="btn-submenu" onclick="window.location.href='oficina'; toggleSubmenu()" style="display:none; text-align: left; font-size: 11px;">Oficina</button>
+                                        <button id="btn-oficina" class="btn-submenu" onclick="window.location.href='oficina'; toggleSubmenu()" style="display:none; text-align: left; font-size: 11px;">Oficina</button>
+                    <button id="btn-oficina-empleado" class="btn-submenu" onclick="window.location.href='oficinaempleado.html'; toggleSubmenu()" style="display:none; text-align: left; font-size: 11px; color: #00ff64;">Oficina Laboral</button>
                     <button id="btn-cabina" class="btn-submenu" onclick="window.location.href='cabina.html'; toggleSubmenu()" style="display:none; text-align: left; font-size: 11px;">Cabina Flota</button>
                     <button id="btn-bodega" class="btn-submenu" onclick="window.location.href='stock'; toggleSubmenu()" style="display:none; text-align: left; font-size: 11px;">Bodega</button>
                     <button id="btn-pos" class="btn-submenu" onclick="window.location.href='pos'; toggleSubmenu()" style="display:none; text-align: left; font-size: 11px;">POS</button>
@@ -376,7 +377,8 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         </div>
         <div id="panel-usuario-activo" style="display: none; text-align: center; padding-top: 15px;">
             <h3 id="nombre-usuario-activo" style="margin: 0 0 20px 0; color: var(--naranja); font-size: 18px; word-break: break-all;">Cargando...</h3>
-            <button class="tu-clase-de-boton-naranja" onclick="window.location.href='oficina'">🏢 IR A MI OFICINA</button>
+                        <button class="tu-clase-de-boton-naranja" onclick="window.location.href='oficina'">🏢 IR A MI OFICINA</button>
+            <button id="btn-modal-oficina-empleado" class="tu-clase-de-boton-naranja" onclick="window.location.href='oficinaempleado.html'" style="display:none; margin-top:8px; background:#00ff64; color:#000;">💼 IR A OFICINA LABORAL</button>
             <button class="btn-auth btn-registrar" onclick="if(window.cerrarSesion) window.cerrarSesion()" style="border-color: #ff4444; color: #ff4444;">Cerrar Sesión</button>
         </div>
     </div>
@@ -713,6 +715,17 @@ import('./core-db.js').then(({ default: GeokatuDB }) => {
             const cacheCtx = localStorage.getItem('geokatu_contextos_cache_' + user.uid);
             if (uidActivoCache || cacheCtx) {
                 return;
+            }
+                        const infoEmpleo = await GeokatuDB.SecurityService.obtenerPerfilLaboralEmpleado(user.uid, user.email);
+            if (infoEmpleo && infoEmpleo.esEmpleado) {
+                const b1 = document.getElementById('btn-oficina-empleado');
+                const b2 = document.getElementById('btn-modal-oficina-empleado');
+                if (b1) b1.style.display = 'block';
+                if (b2) b2.style.display = 'block';
+                if (!infoEmpleo.tieneCuentaPropia && infoEmpleo.tiendas[0]) {
+                    localStorage.setItem('geokatu_active_uid', infoEmpleo.tiendas[0].idNegocio);
+                    return;
+                }
             }
             const infoNegocio = await GeokatuDB.AdminService.obtenerNegocioPorUsuario(user.uid, user.email);
             if (infoNegocio && infoNegocio.success && infoNegocio.data) {
