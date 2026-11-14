@@ -4,13 +4,16 @@
  * Soporte: PMTiles (Range Requests), Matriz Comercial y URLs Limpias
  */
 
-const CACHE_NAME = 'geokatu-cache-v17-pasarelas-pos';
+const CACHE_NAME = 'geokatu-cache-v18-wms-oficinaempleado';
 const MAP_CACHE_NAME = 'geokatu-map-tiles-v3';
 
 // 1. Módulos esenciales del ecosistema GEOKATU (Cero 404, precarga inmediata)
 const urlsToCache = [
     '/', '/negocio', '/negocio.html', '/negocio.css', '/catalogo-experiencia.css',
     '/pos', '/pos.html', '/pos.js', '/estilos-pos.css',
+    '/oficina', '/oficina.html', '/oficinaempleado.html', '/auth-gate.js',
+    '/stock', '/stock.html', '/stock.css', '/inventario', '/inventario.html', '/inventario.js', '/inventario.css',
+    '/mapatienda', '/mapatienda.html', '/mapatienda.css',
     '/catalogo-experiencia.js', '/branding-cuarzos.js', '/arranque-geokatu.js',
     '/marca-geokatu.svg', '/onboarding-core.js', '/estudio-imagen-universal.js', '/core-db.js', '/firebase-config.js', '/motor-mapa.js',
     '/auth-mando.js', '/profiler.js', '/ui-estilos.css', '/pines.css', '/maplibre-gl.js', '/maplibre-gl.css', '/pmtiles.js', '/estilo-fresco.json', '/operaciones-integridad.js',
