@@ -53,12 +53,18 @@
         }
         .lapiz-editar-prod:active { transform: scale(0.85); background: #00f5d4; }
 
-        .offline-banner {
+                .offline-banner {
             position: fixed; top: 0; left: 0; width: 100%; background: #ff4444; color: white;
             text-align: center; padding: 8px; z-index: 10000; font-weight: 900; font-size: 11px;
             text-transform: uppercase; letter-spacing: 1px; display: none;
         }
         .offline-banner.activo { display: block; }
+        #portada-tienda, #avatar-tienda, #img-nombre-png, .producto-card img, .preview-portada, .preview-avatar {
+            -webkit-touch-callout: none !important;
+            -webkit-user-select: none !important;
+            user-select: none !important;
+            -webkit-user-drag: none !important;
+        }
     </style>
 </head>
 <body>
@@ -422,9 +428,10 @@
                     <input type="text" id="input-edit-slogan" class="input-edicion-perfil" placeholder="Ej: Calidad y servicio insuperable">
                 </div>
 
-                <div class="form-grupo-edicion">
+                                <div class="form-grupo-edicion">
                     <label for="input-edit-nicho">Nicho / Sector Comercial</label>
-                    <input type="text" id="input-edit-nicho" class="input-edicion-perfil" placeholder="Ej: Restaurantes y Cafés">
+                    <input type="text" id="input-edit-nicho" list="lista-nichos-negocio" class="input-edicion-perfil" placeholder="Selecciona o escribe un nicho..." autocomplete="off">
+                    <datalist id="lista-nichos-negocio"></datalist>
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
@@ -735,22 +742,280 @@
         const urlParams = new URLSearchParams(window.location.search);
         let idNegocio = urlParams.get('id') || 'acefama-pereira';
 
-        // 1. COMPROBAR SI EL VISITANTE ES EL DUEÑO
+                // 1. COMPROBAR SI EL VISITANTE ES EL DUEÑO O SUPERADMIN MULTI-SEDE
         window.usuarioEsDueno = false;
         window.modoEdicionActivo = false;
+        window.sedesVinculadasNegocio = [];
+
+        window.activarEscudoAntiExtraccionNegocio = function() {
+            if (window._escudoAntiExtraccionActivo) return;
+            window._escudoAntiExtraccionActivo = true;
+            document.addEventListener('contextmenu', function(e) {
+                if (e.target && (e.target.tagName === 'IMG' || e.target.closest('.producto-card') || e.target.closest('.header-negocio'))) {
+                    e.preventDefault();
+                }
+            });
+            document.addEventListener('dragstart', function(e) {
+                if (e.target && e.target.tagName === 'IMG') {
+                    e.preventDefault();
+                }
+            });
+        };
+        window.activarEscudoAntiExtraccionNegocio();
+
+        window.normalizarClaveNichoNegocio = function(valor) {
+            return String(valor || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toLowerCase();
+        };
+
+        window.hidratarNichosNegocio = async function(forzarRemoto) {
+            var dl = document.getElementById('lista-nichos-negocio');
+            if (!dl) return;
+            var mapa = {};
+            var agregar = function(n) {
+                var limpio = String(n || '').replace(/\s+/g, ' ').trim();
+                if (!limpio) return;
+                var k = window.normalizarClaveNichoNegocio(limpio);
+                if (k && !mapa[k]) mapa[k] = limpio;
+            };
+            if (datosNegocio && (datosNegocio.nicho || datosNegocio.categoria)) {
+                agregar(datosNegocio.nicho || datosNegocio.categoria);
+            }
+            try {
+                var cache = JSON.parse(localStorage.getItem('geokatu_nichos_remotos_cache') || '[]');
+                if (Array.isArray(cache)) cache.forEach(agregar);
+            } catch (eC) {}
+
+            var pintarOpciones = function() {
+                var lista = Object.keys(mapa).map(function(k) { return mapa[k]; }).sort(function(a, b) {
+                    return a.localeCompare(b, 'es');
+                });
+                dl.replaceChildren();
+                lista.forEach(function(item) {
+                    var opt = document.createElement('option');
+                    opt.value = item;
+                    dl.appendChild(opt);
+                });
+            };
+            pintarOpciones();
+
+            if (!navigator.onLine && !forzarRemoto) return;
+            var u = localStorage.getItem('geokatu_apps_script_url') || '';
+            if (!u && GeokatuDB && GeokatuDB.AdminService && typeof GeokatuDB.AdminService.obtenerEnlaceAppScriptOnboarding === 'function') {
+                try {
+                    var resU = await GeokatuDB.AdminService.obtenerEnlaceAppScriptOnboarding();
+                    if (resU && resU.url) {
+                        u = resU.url;
+                        localStorage.setItem('geokatu_apps_script_url', u);
+                    }
+                } catch (eU) {}
+            }
+            if (!u) return;
+            try {
+                var sep = u.indexOf('?') !== -1 ? '&' : '?';
+                var resp = await fetch(u + sep + 'action=getNichos&t=' + Date.now());
+                if (!resp.ok) return;
+                var data = await resp.json();
+                if (data && data.status === 'ok' && Array.isArray(data.nichos)) {
+                    localStorage.setItem('geokatu_nichos_remotos_cache', JSON.stringify(data.nichos));
+                    data.nichos.forEach(agregar);
+                    pintarOpciones();
+                }
+            } catch (eF) {}
+        };
+
+        window.registrarNichoDesdeNegocio = async function(nuevoNicho) {
+            var limpio = String(nuevoNicho || '').replace(/\s+/g, ' ').trim();
+            if (!limpio || limpio === 'General') return;
+            var clave = window.normalizarClaveNichoNegocio(limpio);
+            var cache = [];
+            try {
+                cache = JSON.parse(localStorage.getItem('geokatu_nichos_remotos_cache') || '[]');
+                if (!Array.isArray(cache)) cache = [];
+            } catch (e) { cache = []; }
+            var existe = cache.some(function(x) { return window.normalizarClaveNichoNegocio(x) === clave; });
+            if (!existe) {
+                cache.push(limpio);
+                localStorage.setItem('geokatu_nichos_remotos_cache', JSON.stringify(cache));
+            }
+            window.hidratarNichosNegocio(false);
+            var u = localStorage.getItem('geokatu_apps_script_url') || '';
+            if (!u) return;
+            try {
+                await fetch(u, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({ accion: 'registrar_nicho', nicho: limpio })
+                });
+            } catch (eP) {}
+        };
+
+        window.cargarSedesRedNegocio = async function() {
+            var idActual = String(idNegocio || '');
+            if (!idActual) return [];
+            var mapaSedes = {};
+            mapaSedes[idActual] = {
+                id: idActual,
+                sedeId: idActual,
+                nombre: (datosNegocio && datosNegocio.nombre) || 'Sede Actual',
+                direccion: (datosNegocio && datosNegocio.direccion) || 'Ubicación Principal'
+            };
+            var idsRed = (datosNegocio && Array.isArray(datosNegocio.sedes_red_ids)) ? datosNegocio.sedes_red_ids.slice() : [];
+            if (idsRed.length > 1) {
+                await serviciosListos;
+                for (var i = 0; i < idsRed.length; i++) {
+                    var sId = String(idsRed[i]);
+                    if (!sId || mapaSedes[sId]) continue;
+                    var dirSede = 'Sede ' + (i + 1);
+                    var nomSede = (datosNegocio && datosNegocio.nombre) || 'Comercio';
+                    try {
+                        var cacheSede = localStorage.getItem('geokatu_cache_neg_' + sId);
+                        if (cacheSede) {
+                            var parsed = JSON.parse(cacheSede);
+                            if (parsed && parsed.direccion) dirSede = parsed.direccion;
+                            if (parsed && parsed.nombre) nomSede = parsed.nombre;
+                        } else if (navigator.onLine && GeokatuDB && GeokatuDB.RadarService) {
+                            var rSede = await GeokatuDB.RadarService.obtenerNegocio(sId);
+                            if (rSede && rSede.success && rSede.data) {
+                                dirSede = rSede.data.direccion || dirSede;
+                                nomSede = rSede.data.nombre || nomSede;
+                                localStorage.setItem('geokatu_cache_neg_' + sId, JSON.stringify(rSede.data));
+                            }
+                        }
+                    } catch (eS) {}
+                    mapaSedes[sId] = { id: sId, sedeId: sId, nombre: nomSede, direccion: dirSede };
+                }
+            }
+            window.sedesVinculadasNegocio = Object.keys(mapaSedes).map(function(k) { return mapaSedes[k]; });
+            window.renderizarSelectorSedesNegocio();
+            return window.sedesVinculadasNegocio;
+        };
+
+        window.renderizarSelectorSedesNegocio = function() {
+            var badgeHdr = document.getElementById('badge-horario-header');
+            if (!badgeHdr) return;
+            var prev = document.getElementById('negocio-selector-sedes-box');
+            if (prev) prev.remove();
+            if (!window.sedesVinculadasNegocio || window.sedesVinculadasNegocio.length <= 1) return;
+            var wrap = document.createElement('div');
+            wrap.id = 'negocio-selector-sedes-box';
+            wrap.style.cssText = 'margin-top:6px; display:flex; align-items:center; justify-content:center; gap:6px;';
+            var sel = document.createElement('select');
+            sel.style.cssText = 'background:rgba(0,0,0,0.65); color:#00f5d4; border:1px solid rgba(0,245,212,0.45); border-radius:999px; padding:4px 10px; font-size:10.5px; font-weight:800; cursor:pointer; max-width:260px; outline:none;';
+            window.sedesVinculadasNegocio.forEach(function(s, idx) {
+                var opt = document.createElement('option');
+                opt.value = s.id;
+                opt.textContent = '📍 Sede ' + (idx + 1) + ': ' + (s.direccion || s.id);
+                if (String(s.id) === String(idNegocio)) opt.selected = true;
+                sel.appendChild(opt);
+            });
+            sel.onchange = function() {
+                var destinoId = sel.value;
+                if (destinoId && String(destinoId) !== String(idNegocio)) {
+                    var params = new URLSearchParams(window.location.search);
+                    params.set('id', destinoId);
+                    window.location.search = params.toString();
+                }
+            };
+            wrap.appendChild(sel);
+            badgeHdr.insertAdjacentElement('afterend', wrap);
+        };
+
+        window.solicitarAlcanceEdicionNegocio = async function(contextoEdicion) {
+            if (!window.sedesVinculadasNegocio || window.sedesVinculadasNegocio.length <= 1) {
+                await window.cargarSedesRedNegocio();
+            }
+            var sedes = window.sedesVinculadasNegocio || [];
+            var idActual = String(idNegocio || '');
+            if (sedes.length <= 1) {
+                return { modo: 'unica', ids: [idActual] };
+            }
+            return new Promise(function(resolve) {
+                var modal = document.getElementById('gk-modal-alcance-negocio');
+                if (!modal) {
+                    modal = document.createElement('div');
+                    modal.id = 'gk-modal-alcance-negocio';
+                    modal.style.cssText = 'position:fixed; inset:0; z-index:200500; background:rgba(5,8,15,0.88); backdrop-filter:blur(10px); display:none; align-items:center; justify-content:center; padding:16px; box-sizing:border-box;';
+                    document.body.appendChild(modal);
+                }
+                var checksHTML = sedes.map(function(s, idx) {
+                    var sId = String(s.sedeId || s.id);
+                    var marcado = (sId === idActual) ? ' checked' : '';
+                    var dirTxt = window.sanitizarTexto(s.direccion || 'Sin dirección');
+                    return '<label style="display:flex; align-items:flex-start; gap:8px; padding:8px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.12); border-radius:8px; cursor:pointer; font-size:11px; color:#e2e8f0; text-align:left;">' +
+                        '<input type="checkbox" class="chk-neg-alcance-sede" value="' + sId + '"' + marcado + ' style="margin-top:2px; accent-color:#00f5d4;">' +
+                        '<div style="flex:1; min-width:0;">' +
+                            '<div style="font-weight:800; color:#fff;">Sede ' + (idx + 1) + ' (' + sId + ')</div>' +
+                            '<div style="font-size:10px; color:#94a3b8; word-break:break-word;">' + dirTxt + '</div>' +
+                        '</div>' +
+                    '</label>';
+                }).join('');
+
+                modal.innerHTML =
+                    '<div style="width:100%; max-width:390px; background:#12151f; border:1px solid rgba(0,245,212,0.45); border-radius:16px; padding:16px; color:#fff; box-shadow:0 20px 50px rgba(0,0,0,0.85);">' +
+                        '<div style="font-size:13px; font-weight:900; color:#00f5d4; text-transform:uppercase; margin-bottom:4px;">Red Multi-Sede (' + sedes.length + ' sedes)</div>' +
+                        '<div style="font-size:11px; color:#cbd5e1; margin-bottom:12px;">Edición en <b>' + window.sanitizarTexto(contextoEdicion || 'Catálogo') + '</b>. ¿Dónde deseas aplicar este cambio?</div>' +
+                        '<div style="display:flex; flex-direction:column; gap:8px;">' +
+                            '<button type="button" id="btn-neg-alcance-todas" class="btn-contactar" style="width:100%; justify-content:center; padding:10px; font-size:11.5px; background:rgba(0,245,212,0.18); border:1px solid #00f5d4; color:#00f5d4;">Cambiar para todas las sedes (' + sedes.length + ')</button>' +
+                            '<button type="button" id="btn-neg-alcance-esta" class="btn-contactar" style="width:100%; justify-content:center; padding:10px; font-size:11.5px; background:rgba(56,189,248,0.16); border:1px solid #38bdf8; color:#38bdf8;">Cambiar sólo para esta sede</button>' +
+                            '<button type="button" id="btn-neg-alcance-elegir" class="btn-contactar" style="width:100%; justify-content:center; padding:10px; font-size:11.5px; background:rgba(255,107,0,0.18); border:1px solid #ff6b00; color:#ffaa00;">Seleccione las sedes a las cuales quiere que se ejecute este cambio</button>' +
+                        '</div>' +
+                        '<div id="box-neg-checks-sedes" style="display:none; margin-top:10px; max-height:180px; overflow-y:auto; flex-direction:column; gap:6px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.15);">' +
+                            checksHTML +
+                            '<button type="button" id="btn-neg-aplicar-marcadas" class="btn-contactar" style="margin-top:6px; width:100%; justify-content:center; padding:9px; font-size:11px; background:#00f5d4; color:#000; font-weight:900; border:none;">Aplicar a sedes seleccionadas</button>' +
+                        '</div>' +
+                        '<button type="button" id="btn-neg-cancelar-alcance" style="margin-top:10px; width:100%; background:transparent; border:none; color:#94a3b8; font-size:11px; cursor:pointer; padding:6px;">Cancelar</button>' +
+                    '</div>';
+
+                modal.style.display = 'flex';
+                var finalizar = function(res) {
+                    modal.style.display = 'none';
+                    resolve(res);
+                };
+                document.getElementById('btn-neg-alcance-todas').onclick = function() {
+                    finalizar({ modo: 'todas', ids: sedes.map(function(s) { return String(s.sedeId || s.id); }) });
+                };
+                document.getElementById('btn-neg-alcance-esta').onclick = function() {
+                    finalizar({ modo: 'unica', ids: [idActual] });
+                };
+                document.getElementById('btn-neg-alcance-elegir').onclick = function() {
+                    var box = document.getElementById('box-neg-checks-sedes');
+                    if (box) box.style.display = 'flex';
+                };
+                document.getElementById('btn-neg-aplicar-marcadas').onclick = function() {
+                    var marcados = Array.from(modal.querySelectorAll('.chk-neg-alcance-sede:checked')).map(function(c) { return String(c.value); });
+                    if (marcados.length === 0) return alert('Selecciona al menos una sede.');
+                    finalizar({ modo: 'seleccion', ids: marcados });
+                };
+                document.getElementById('btn-neg-cancelar-alcance').onclick = function() {
+                    finalizar(null);
+                };
+            });
+        };
 
         let revisionSesionCatalogo = 0;
         serviciosListos.then(() => GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
             const revision = ++revisionSesionCatalogo;
-            window.usuarioEsDueno = Boolean(user && user.uid === idNegocio);
-            if (user && !window.usuarioEsDueno && urlParams.get('editor') === 'onboarding') {
+            let autorizado = Boolean(user && user.uid === idNegocio);
+            if (user && !autorizado) {
                 const [rol, comercio] = await Promise.all([
                     GeokatuDB.SecurityService.obtenerRolAdmin(user.uid),
                     GeokatuDB.RadarService.obtenerNegocio(idNegocio)
                 ]);
                 if (revision !== revisionSesionCatalogo) return;
-                window.usuarioEsDueno = Boolean(rol.success && rol.data?.rol === 'superadmin' && comercio.success && comercio.data && comercio.data.reclamado !== true);
+                const dCom = (comercio && comercio.success && comercio.data) ? comercio.data : datosNegocio;
+                const emailUser = String(user.email || '').trim().toLowerCase();
+                const emailOwner = String((dCom && (dCom.owner_email || dCom.dueno_email)) || '').trim().toLowerCase();
+                const esDuenoRed = Boolean(dCom && (dCom.uid_dueno === user.uid || dCom.parentId === user.uid || (emailUser && emailOwner && emailUser === emailOwner)));
+                const esSuperadmin = Boolean(rol && rol.success && rol.data && rol.data.rol === 'superadmin');
+                autorizado = Boolean(esDuenoRed || esSuperadmin);
             }
+            window.usuarioEsDueno = autorizado;
             const btnEdit = document.getElementById('btn-modo-edicion');
             if (btnEdit) btnEdit.style.display = window.usuarioEsDueno ? 'flex' : 'none';
             if (!window.usuarioEsDueno) {
@@ -975,9 +1240,11 @@
                 btnFav.classList.add('activo');
             }
 
-            renderizarFooterCorporativo();
+                        renderizarFooterCorporativo();
             renderizarEnlacesCabecera();
             window.CatalogoUI.actualizarIdentidad();
+            window.hidratarNichosNegocio(false);
+            window.cargarSedesRedNegocio();
         }
 
         async function construirTienda() {
@@ -1836,6 +2103,7 @@
             document.getElementById('edit-mostrar-stock').checked = datosNegocio.mostrar_stock_publico === true;
             document.getElementById('edit-avatar-marco').checked = datosNegocio.avatar_marco !== false;
             document.getElementById('edit-avatar-posicion').value = datosNegocio.avatar_posicion || 'centro';
+                        window.hidratarNichosNegocio(false);
             window.CatalogoUI.editarPerfil();
             document.getElementById('estado-edicion-perfil').textContent = 'Edita y revisa la vista previa antes de guardar.';
             window.actualizarPreviewIdentidad();
@@ -1916,13 +2184,30 @@
                     tags_busqueda: tagsArray,
                     portada: document.getElementById('input-edit-portada-url').value.trim()
                 };
-                Object.assign(payload, window.leerAparienciaCatalogo());
+                                Object.assign(payload, window.leerAparienciaCatalogo());
                 payload.contactos_publicos = contactosPublicos;
                 payload.nombre_png = urlPngFinal;
                 payload.logo_nombre = urlPngFinal;
-                var resultado = await GeokatuDB.AdminService.actualizarNegocio(idNegocio, payload);
+                if (payload.nicho && payload.nicho !== 'General') {
+                    window.registrarNichoDesdeNegocio(payload.nicho);
+                }
+                var alcancePerfil = await window.solicitarAlcanceEdicionNegocio('Identidad, Horario y Canales');
+                if (!alcancePerfil || !alcancePerfil.ids || alcancePerfil.ids.length === 0) {
+                    btnGuardar.disabled = false;
+                    btnGuardar.innerText = 'Guardar Cambios';
+                    return;
+                }
+                var resultado = null;
+                for (var sIdx = 0; sIdx < alcancePerfil.ids.length; sIdx++) {
+                    var idTarget = String(alcancePerfil.ids[sIdx]);
+                    var rUpd = await GeokatuDB.AdminService.actualizarNegocio(idTarget, payload);
+                    localStorage.removeItem('geokatu_cache_neg_' + idTarget);
+                    if (idTarget === String(idNegocio)) resultado = rUpd;
+                }
+                if (!resultado) resultado = { success: true };
                 if (!resultado || !resultado.success) throw new Error(resultado && resultado.error || 'Guardado no confirmado');
                 Object.assign(datosNegocio, payload);
+                localStorage.setItem('geokatu_cache_neg_' + idNegocio, JSON.stringify(datosNegocio));
                 aplicarDatosNegocioEnDOM(datosNegocio);
                 renderizarCatalogo(filtroActual);
                 window.cerrarModalManual('modal-editar-perfil-negocio');
@@ -1948,13 +2233,22 @@
                 });
                 if (!editada) { input.value = ''; return; }
 
+                                const alcanceFoto = await window.solicitarAlcanceEdicionNegocio(esLogo ? 'Logo del Comercio' : 'Portada del Comercio');
+                if (!alcanceFoto || !alcanceFoto.ids || alcanceFoto.ids.length === 0) { input.value = ''; return; }
                 const ruta = 'negocios/' + idNegocio + '/' + tipo + '_' + Date.now() + '.webp';
                 const res = await GeokatuDB.AdminService.subirArchivo(ruta, editada.blob, 'image/webp');
                 const url = (typeof res === 'string') ? res : (res && res.data ? res.data : '');
                 const payload = {};
                 if (!url) throw new Error('Subida de imagen no confirmada');
                 payload[tipo] = url;
-                const guardado = await GeokatuDB.AdminService.actualizarNegocio(idNegocio, payload);
+                let guardado = null;
+                for (let fIdx = 0; fIdx < alcanceFoto.ids.length; fIdx++) {
+                    const idSedeF = String(alcanceFoto.ids[fIdx]);
+                    const rF = await GeokatuDB.AdminService.actualizarNegocio(idSedeF, payload);
+                    localStorage.removeItem('geokatu_cache_neg_' + idSedeF);
+                    if (idSedeF === String(idNegocio)) guardado = rF;
+                }
+                if (!guardado) guardado = { success: true };
                 if (!guardado || !guardado.success) throw new Error('Guardado de imagen no confirmado');
                 datosNegocio[tipo] = url;
                 const targetId = tipo === 'portada' ? 'portada-tienda' : 'avatar-tienda';
@@ -2199,19 +2493,38 @@
                     fecha_actualizacion: new Date().toISOString()
                 };
 
-                if (urlImg) payload.imagen = urlImg;
+                                if (urlImg) payload.imagen = urlImg;
                 if (!idProd) {
                     payload.codigo_barras = 'IN_' + Date.now().toString().slice(-6);
                     payload.fecha_creacion = new Date().toISOString();
                     payload.agotado = (stock <= 0);
                 }
 
+                var alcanceProd = await window.solicitarAlcanceEdicionNegocio(idProd ? ('Editar artículo: ' + nombre) : ('Nuevo artículo: ' + nombre));
+                if (!alcanceProd || !alcanceProd.ids || alcanceProd.ids.length === 0) {
+                    return;
+                }
+
                 var resGuardar = await GeokatuDB.AdminService.guardarProducto(idNegocio, idProd || null, payload);
                 if (!resGuardar.success) throw new Error(resGuardar.error);
 
+                var idProdPropagar = idProd || resGuardar.id || resGuardar.id_prod || (resGuardar.data && resGuardar.data.id_prod) || null;
+                for (var pIdx = 0; pIdx < alcanceProd.ids.length; pIdx++) {
+                    var idSedeP = String(alcanceProd.ids[pIdx]);
+                    localStorage.removeItem('geokatu_cache_prods_' + idSedeP);
+                    localStorage.removeItem('geokatu_cache_ver_' + idSedeP);
+                    if (idSedeP === String(idNegocio)) continue;
+                    var clonProd = Object.assign({}, payload);
+                    if (idProd) {
+                        delete clonProd.stock_actual;
+                        delete clonProd.agotado;
+                    }
+                    await GeokatuDB.AdminService.guardarProducto(idSedeP, idProdPropagar, clonProd);
+                }
+
                 if (navigator.vibrate) navigator.vibrate([40, 80, 40]);
                 window.cerrarModalManual('modal-edicion-producto');
-                await cargarCatalogoProductos();
+                await cargarCatalogoProductos(true);
             } catch (err) {
                 alert("Error al guardar producto: " + err.message);
             } finally {
@@ -2224,18 +2537,32 @@
         window.toggleAgotadoInSitu = async function() {
             if (!productoEnEdicionInSitu) return;
             const nuevoEstado = !productoEnEdicionInSitu.agotado;
-            await GeokatuDB.AdminService.actualizarProducto(idNegocio, productoEnEdicionInSitu.id_prod, { agotado: nuevoEstado });
+            const alcanceAgot = await window.solicitarAlcanceEdicionNegocio((nuevoEstado ? 'Agotar: ' : 'Activar: ') + (productoEnEdicionInSitu.nombre || 'Artículo'));
+            if (!alcanceAgot || !alcanceAgot.ids || alcanceAgot.ids.length === 0) return;
+            for (let aIdx = 0; aIdx < alcanceAgot.ids.length; aIdx++) {
+                const idSedeA = String(alcanceAgot.ids[aIdx]);
+                await GeokatuDB.AdminService.actualizarProducto(idSedeA, productoEnEdicionInSitu.id_prod, { agotado: nuevoEstado });
+                localStorage.removeItem('geokatu_cache_prods_' + idSedeA);
+                localStorage.removeItem('geokatu_cache_ver_' + idSedeA);
+            }
             productoEnEdicionInSitu.agotado = nuevoEstado;
             window.cerrarModalManual('modal-edicion-producto');
-            await cargarCatalogoProductos();
+            await cargarCatalogoProductos(true);
         };
 
         window.eliminarProductoInSitu = async function() {
             if (!productoEnEdicionInSitu) return;
-            if (!confirm('¿Eliminar definitivamente "' + (productoEnEdicionInSitu.nombre || '') + '"?')) return;
-            await GeokatuDB.AdminService.eliminarProducto(idNegocio, productoEnEdicionInSitu.id_prod);
+            const alcanceElim = await window.solicitarAlcanceEdicionNegocio('Eliminar artículo: ' + (productoEnEdicionInSitu.nombre || ''));
+            if (!alcanceElim || !alcanceElim.ids || alcanceElim.ids.length === 0) return;
+            if (!confirm('¿Eliminar definitivamente "' + (productoEnEdicionInSitu.nombre || '') + '" en ' + alcanceElim.ids.length + ' sede(s)?')) return;
+            for (let eIdx = 0; eIdx < alcanceElim.ids.length; eIdx++) {
+                const idSedeE = String(alcanceElim.ids[eIdx]);
+                await GeokatuDB.AdminService.eliminarProducto(idSedeE, productoEnEdicionInSitu.id_prod);
+                localStorage.removeItem('geokatu_cache_prods_' + idSedeE);
+                localStorage.removeItem('geokatu_cache_ver_' + idSedeE);
+            }
             window.cerrarModalManual('modal-edicion-producto');
-            await cargarCatalogoProductos();
+            await cargarCatalogoProductos(true);
         };
 
 
