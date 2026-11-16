@@ -547,7 +547,6 @@ align-items: center;
 
 <button onclick="window.open('negocio?id=' + window.idNegocioLogueado, '_blank')">Catálogo Público</button>
 
-<button id="btn-menu-oficina-empleado" onclick="window.location.href='oficinaempleado.html'" style="display: none; color: #00ff64;">💼 Oficina Laboral (Empleado)</button>
 <button onclick="window.location.href='/'">Radar Ciudad</button>
 
 <button onclick="window.cerrarSesionOficina()" style="color: #ff4444; border-top: 1px solid rgba(255,255,255,0.08);">Cerrar Sesión</button>
@@ -590,7 +589,6 @@ align-items: center;
 <button class="tab-btn" onclick="window.cambiarTab('ajustes')">⚙️ Cuenta</button>
 <button class="tab-btn" onclick="window.cambiarTab('operaciones')"> Operaciones</button>
 <button class="tab-btn" onclick="window.cambiarTab('equipo')" id="tab-btn-equipo">👥 Personal</button>
-<button class="tab-btn" onclick="window.cambiarTab('trabajo')" id="tab-btn-trabajo" style="display: none;">💼 Trabajo</button>
 </nav>
 
 
@@ -1116,18 +1114,6 @@ Publicar Tarea
 
 </div>
 
-</section>
-
-<!-- PESTAÑA 6 (CONDICIONAL): TRABAJO (CUANDO EL TITULAR TAMBIÉN ES EMPLEADO DE OTRA CUENTA) -->
-<section id="content-trabajo" class="tab-content" style="display: none; padding: 15px; margin: 0 15px; flex-direction: column; gap: 12px; width: calc(100% - 30px); box-sizing: border-box;">
- <div class="panel-operaciones-bloque" style="border-color: rgba(255,107,0,0.4);">
-  <h4 style="margin: 0 0 4px 0; font-size: 13px; color: var(--naranja); text-transform: uppercase;">Mi Posición Laboral en GEOKATU</h4>
-  <p style="margin: 0 0 12px 0; font-size: 11px; color: #aaa;">Vínculo activo como colaborador en otro comercio dentro de la plataforma:</p>
-  <div id="resumen-empleo-cruzado" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;"></div>
-  <button type="button" class="btn-submit" style="margin: 0; background: linear-gradient(135deg, #ff8c00, var(--naranja));" onclick="window.location.href='oficinaempleado.html'">
-   💼 Ir a Oficina Laboral
-  </button>
- </div>
 </section>
 
 </main>
@@ -1740,29 +1726,6 @@ Ingresa las unidades reales contadas en anaquel para ajustar Kardex.
 
 <script src="./branding-cuarzos.js"></script>
 <script type="module" src="./oficina.js"></script>
-<script type="module">
- import GeokatuDB from './core-db.js';
- GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
-  if (!user) return;
-  const info = await GeokatuDB.SecurityService.obtenerPerfilLaboralEmpleado(user.uid, user.email);
-  if (info && info.success && info.esEmpleado) {
-   const btnMenu = document.getElementById('btn-menu-oficina-empleado');
-   const btnTab = document.getElementById('tab-btn-trabajo');
-   if (btnMenu) btnMenu.style.display = 'block';
-   if (btnTab) btnTab.style.display = 'inline-flex';
-   const cont = document.getElementById('resumen-empleo-cruzado');
-   if (cont && Array.isArray(info.tiendas)) {
-    cont.innerHTML = info.tiendas.map(t =>
-     '<div style="background:rgba(0,0,0,0.45); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:10px;">' +
-      '<strong style="color:#fff; font-size:13px; display:block;">' + t.nombreComercio + '</strong>' +
-      '<span style="color:#00ff64; font-size:11px; font-weight:bold; text-transform:uppercase;">Cargo: ' + t.rol + '</span>' +
-      '<span style="color:#888; font-size:11px; display:block; margin-top:2px;">Sede asignada: ' + t.almacen + ' · PIN: ' + t.codigoCajero + '</span>' +
-     '</div>'
-    ).join('');
-   }
-  }
- });
-</script>
 
 
 

@@ -202,10 +202,6 @@
         const root=document.documentElement;let color=getComputedStyle(root).getPropertyValue('--color-terciario').trim();
         if(luminance(color)===null)color='#ff6b00';
         document.body.style.setProperty('--accion-fondo',color);document.body.style.setProperty('--accion-texto',foreground(color));
-        let marca=getComputedStyle(root).getPropertyValue('--color-marca').trim();
-        if(luminance(marca)===null)marca=color;
-        const contrasteMarca=(Math.max(luminance(marca),luminance('#181b23'))+.05)/(Math.min(luminance(marca),luminance('#181b23'))+.05);
-        document.body.style.setProperty('--pedido-acento',contrasteMarca>=3?marca:'color-mix(in srgb, '+marca+' 45%, white)');
         // Text surfaces use semantic colours, independent from arbitrary brand accents.
         // Solo favorito y compartir sobre la fotografía; sin clones ni carrusel.
         $('contactos-portada').replaceChildren(originals.heart,originals.share);
@@ -234,7 +230,8 @@
     function medirPedido() {
         const filas=[...$('lista-resumen').querySelectorAll('.carrito-articulo')].slice(0,3);
         const altura=filas.reduce((n,f)=>n+f.getBoundingClientRect().height,0);
-        if(altura)$('sheet-checkout').style.setProperty('--pedido-tres-filas',altura+'px');
+        const extra=$('lista-resumen').querySelectorAll('.carrito-articulo').length<=3?$('sheet-checkout').querySelector('.pedido-vaciar').offsetHeight:0;
+        if(altura)$('sheet-checkout').style.setProperty('--pedido-tres-filas',(Math.ceil(altura)+extra+1)+'px');
         if(seccionPedido==='datos') {
             const total=$('pedido-cabecera').offsetHeight+$('pedido-datos-toggle').offsetHeight+$('pedido-datos').scrollHeight+$('sheet-checkout').querySelector('.pedido-pie').offsetHeight+36;
             $('sheet-checkout').style.setProperty('--pedido-datos-alto',total+'px');
@@ -251,7 +248,7 @@
         let abierto=false, overflowAnterior='';
         new MutationObserver(()=>{
             const activo=overlay.classList.contains('activo');if(activo===abierto)return;abierto=activo;
-            if(activo){focoAntesPedido=document.activeElement;overflowAnterior=document.body.style.overflow;document.body.style.setProperty('overflow','hidden','important');$('pedido-productos-toggle').focus({preventScroll:true});requestAnimationFrame(medirPedido);}
+            if(activo){focoAntesPedido=document.activeElement;overflowAnterior=document.body.style.overflow;document.body.style.setProperty('overflow','hidden','important');$('sheet-checkout').focus({preventScroll:true});requestAnimationFrame(medirPedido);}
             else {document.body.style.overflow=overflowAnterior;if(focoAntesPedido&&focoAntesPedido.isConnected)focoAntesPedido.focus({preventScroll:true});}
         }).observe(overlay,{attributes:true,attributeFilter:['class']});
         overlay.addEventListener('keydown',e=>{
@@ -260,16 +257,16 @@
             if(e.key!=='Tab')return;
             const controles=[...$('sheet-checkout').querySelectorAll('button,a[href],input,textarea,select')].filter(n=>!n.disabled&&n.getClientRects().length);
             const primero=controles[0],ultimo=controles[controles.length-1];
-            if(e.shiftKey&&document.activeElement===primero){e.preventDefault();ultimo.focus();}
+            if(e.shiftKey&&(document.activeElement===primero||document.activeElement===$('sheet-checkout'))){e.preventDefault();ultimo.focus();}
             else if(!e.shiftKey&&document.activeElement===ultimo){e.preventDefault();primero.focus();}
         });
         mostrarSeccionPedido('productos');
     }
     function resumenCarrito() {
-        if(!api)return;const host=$('lista-resumen');const foco=host.contains(document.activeElement)?document.activeElement.getAttribute('aria-label'):null;const scrollAnterior=$('pedido-productos').scrollTop;host.replaceChildren();let total=0,productos=0;
+        if(!api)return;const host=$('lista-resumen');const foco=host.contains(document.activeElement)?document.activeElement.getAttribute('aria-label'):null;const scrollAnterior=$('pedido-productos').scrollTop;host.replaceChildren();let total=0,productos=0,unidades=0,soloUnidades=true;
         for(const [id,item] of Object.entries(api.carrito())){
             const p=api.productos().find(p=>p.id_prod===id);if(!p)continue;
-            const subtotal=item.cant*(Number(p.precio)||0);total+=subtotal;productos++;
+            const subtotal=item.cant*(Number(p.precio)||0);total+=subtotal;productos++;unidades+=Number(item.cant)||0;if(p.es_pesable)soloUnidades=false;
             const row=document.createElement('article');row.className='carrito-articulo';
             const photo=button('image','Ver fotos de '+p.nombre,()=>galeria(p),'carrito-miniatura');
             if(p.imagen){photo.replaceChildren();const im=document.createElement('img');im.src=p.imagen;im.alt=p.nombre||'Producto';im.onerror=()=>{photo.replaceChildren(icon('image'));};photo.append(im);}
@@ -283,7 +280,7 @@
         }
         if(!host.children.length)host.append(texto('p','Tu carrito está vacío. Añade algún producto para empezar.','carrito-vacio'));
         $('total-final-checkout').textContent=window.formatearMoneda(total);$('btn-enviar-pedido').disabled=!host.querySelector('.carrito-articulo');
-        $('pedido-conteo').textContent=productos+' '+(productos===1?'producto':'productos');
+        $('pedido-conteo').textContent=productos+' '+(productos===1?'producto':'productos')+(soloUnidades&&productos?' · '+unidades.toLocaleString('es-CO')+' '+(unidades===1?'unidad':'unidades'):'');
         $('pedido-productos').scrollTop=scrollAnterior;
         requestAnimationFrame(medirPedido);
         if(foco){const target=[...host.querySelectorAll('[aria-label]')].find(e=>e.getAttribute('aria-label')===foco);if(target)target.focus({preventScroll:true});}
