@@ -506,76 +506,138 @@ window.cerrarHubContactoPopup = function(e) {
     });
 };
 
+window.normalizarIdFavoritoRadar = function(rawId) {
+    var s = String(rawId || '').trim();
+    try { s = decodeURIComponent(s); } catch (e) {}
+    return s;
+};
+
+window.obtenerSetIdsFavoritosUnificados = function() {
+    var setIds = new Set();
+    try {
+        var favsMapa = JSON.parse(localStorage.getItem('geokatu_favoritos_anon') || '[]');
+        if (Array.isArray(favsMapa)) {
+            favsMapa.forEach(function(item) {
+                var idNorm = window.normalizarIdFavoritoRadar(item && item.id ? item.id : item);
+                if (idNorm) setIds.add(idNorm);
+            });
+        }
+    } catch (e1) {}
+    try {
+        var favsLocales = JSON.parse(localStorage.getItem('geokatu_favoritos_locales') || '[]');
+        if (Array.isArray(favsLocales)) {
+            favsLocales.forEach(function(idItem) {
+                var idNorm2 = window.normalizarIdFavoritoRadar(idItem);
+                if (idNorm2) setIds.add(idNorm2);
+            });
+        }
+    } catch (e2) {}
+    return setIds;
+};
+
 window.toggleFavorito = function(id, nombre, precio, foto, whatsapp, event) {
     if (event) { event.preventDefault(); event.stopPropagation(); }
     if (navigator.vibrate) navigator.vibrate(30);
-    
-    let favs = JSON.parse(localStorage.getItem('geokatu_favoritos_anon')) || [];
-    const index = favs.findIndex(x => x.id === id);
-    let isAdding = false;
-    
-    if (index > -1) {
-        favs.splice(index, 1);
+
+    var idLimpio = window.normalizarIdFavoritoRadar(id);
+    if (!idLimpio) return;
+
+    var favs = [];
+    try { favs = JSON.parse(localStorage.getItem('geokatu_favoritos_anon') || '[]'); } catch (e) { favs = []; }
+    if (!Array.isArray(favs)) favs = [];
+
+    var favsLocales = [];
+    try { favsLocales = JSON.parse(localStorage.getItem('geokatu_favoritos_locales') || '[]'); } catch (e) { favsLocales = []; }
+    if (!Array.isArray(favsLocales)) favsLocales = [];
+
+    var index = favs.findIndex(function(x) { return window.normalizarIdFavoritoRadar(x && x.id) === idLimpio; });
+    var indexLocal = favsLocales.findIndex(function(x) { return window.normalizarIdFavoritoRadar(x) === idLimpio; });
+    var yaEstaba = (index > -1 || indexLocal > -1);
+    var isAdding = false;
+
+    if (yaEstaba) {
+        if (index > -1) favs.splice(index, 1);
+        if (indexLocal > -1) favsLocales.splice(indexLocal, 1);
     } else {
-        favs.push({ id, nombre, precio, foto, whatsapp });
+        var datosCom = dbDirectorioMap.get(idLimpio) || {};
+        var nomFinal = nombre || datosCom.nombre || 'Comercio';
+        var fotoFinal = foto || datosCom.portada || datosCom.logo || '';
+        var waFinal = whatsapp || datosCom.whatsapp || '';
+        favs.push({ id: idLimpio, nombre: nomFinal, precio: precio || 0, foto: fotoFinal, whatsapp: waFinal });
+        favsLocales.push(idLimpio);
         isAdding = true;
-        GeokatuDB.LocalService.registrarEventoAnalytics('add_to_wishlist', { item_id: id, item_name: nombre });
+        if (GeokatuDB && GeokatuDB.LocalService) {
+            GeokatuDB.LocalService.registrarEventoAnalytics('add_to_wishlist', { item_id: idLimpio, item_name: nomFinal });
+        }
     }
-    
+
     localStorage.setItem('geokatu_favoritos_anon', JSON.stringify(favs));
-    
-    if (event && event.target) {
-        const btn = event.target.closest('.btn-fav-popup, .btn-fav-card, .js-action-favorito');
-        if (!btn) return;
-        btn.style.animation = 'none';
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                btn.style.animation = 'saltoCorazon 0.6s ease-out forwards';
+    localStorage.setItem('geokatu_favoritos_locales', JSON.stringify(favsLocales));
+
+    var botonesMismoComercio = document.querySelectorAll('.js-action-favorito');
+    botonesMismoComercio.forEach(function(b) {
+        var idBtn = window.normalizarIdFavoritoRadar(b.getAttribute('data-codigo'));
+        if (idBtn !== idLimpio) return;
+        b.style.animation = 'none';
+        requestAnimationFrame(function() {
+            requestAnimationFrame(function() {
+                b.style.animation = 'saltoCorazon 0.6s ease-out forwards';
             });
         });
         if (isAdding) {
-            btn.innerHTML = '❤️';
-            btn.style.background = 'rgba(255,68,68,0.2)';
-            btn.style.borderColor = '#ff4444';
+            b.innerHTML = '❤️';
+            b.style.background = 'rgba(255,68,68,0.25)';
+            b.style.borderColor = '#ff4444';
         } else {
-            btn.innerHTML = '🤍';
-            btn.style.background = 'rgba(0,0,0,0.6)';
-            btn.style.borderColor = 'rgba(255,255,255,0.2)';
+            b.innerHTML = '🤍';
+            b.style.background = 'rgba(0,0,0,0.6)';
+            b.style.borderColor = 'rgba(255,255,255,0.2)';
         }
-    }
+    });
+
     if (typeof filtrandoFavoritos !== 'undefined' && filtrandoFavoritos && datosDescargados) {
-        const buscador = document.getElementById('input-buscador');
-        barridoRadar(buscador ? buscador.value : '');
+        var buscador = document.getElementById('input-buscador');
+        barridoRadar(buscador ? buscador.value : '', { conservarRotacion: true });
     }
 };
 
 window.abrirMisGuardados = function() {
-    const lista = document.getElementById('lista-favoritos');
-    let favs = JSON.parse(localStorage.getItem('geokatu_favoritos_anon')) || [];
-    lista.innerHTML = ''; 
-    if (favs.length === 0) {
+    var lista = document.getElementById('lista-favoritos');
+    if (!lista) return;
+    var setIds = window.obtenerSetIdsFavoritosUnificados();
+    var favsAnon = [];
+    try { favsAnon = JSON.parse(localStorage.getItem('geokatu_favoritos_anon') || '[]'); } catch (e) { favsAnon = []; }
+    var mapaAnon = {};
+    favsAnon.forEach(function(item) {
+        if (item && item.id) mapaAnon[window.normalizarIdFavoritoRadar(item.id)] = item;
+    });
+
+    lista.innerHTML = '';
+    if (setIds.size === 0) {
         lista.innerHTML = '<p style="text-align:center; padding:20px; color:#888;">No tienes lugares guardados aún.</p>';
     } else {
-        favs.forEach(f => {
-            const card = document.createElement('div');
-            card.className = "fav-card";
-            const h4 = document.createElement('h4');
-            h4.textContent = f.nombre; 
-            const img = document.createElement('img');
-            img.src = f.foto; 
-            const btnBorrar = document.createElement('button');
+        setIds.forEach(function(idFav) {
+            var itemAnon = mapaAnon[idFav] || {};
+            var itemDir = dbDirectorioMap.get(idFav) || {};
+            var nom = itemAnon.nombre || itemDir.nombre || idFav;
+            var foto = itemAnon.foto || itemDir.portada || itemDir.logo || dbSimbologia['avatar_generico'];
+            var card = document.createElement('div');
+            card.className = 'fav-card';
+            var h4 = document.createElement('h4');
+            h4.textContent = nom;
+            var img = document.createElement('img');
+            img.src = foto;
+            var btnBorrar = document.createElement('button');
             btnBorrar.textContent = '✖';
-            btnBorrar.onclick = (e) => {
-                if(window.toggleFavorito) {
-                    window.toggleFavorito(f.id, null, null, null, null, e);
-                }
+            btnBorrar.onclick = function(e) {
+                window.toggleFavorito(idFav, null, null, null, null, e);
                 window.abrirMisGuardados();
             };
             card.append(img, h4, btnBorrar);
             lista.appendChild(card);
         });
     }
-    if(window.abrirModal) {
+    if (window.abrirModal) {
         window.abrirModal('modal-favoritos');
     }
 };
@@ -1526,77 +1588,345 @@ window.buscarCiudadGlobal = function() {
     }
 };
 
-window.compartirTienda = function(event, codigo, nombre, username) {
-    if (event) { event.preventDefault(); event.stopPropagation(); }
-    const popupActivo = document.querySelector('.maplibregl-popup');
-    if (popupActivo) popupActivo.remove();
-    abrirModal('overlay-compartir');
-    setTimeout(() => {
-        try {
-            const baseOriginal = window.location.origin === "null" ? "" : window.location.origin;
-            if (username && username !== 'null') {
-                window.linkCompartirActual = baseOriginal + '/' + username;
-            } else {
-                window.linkCompartirActual = baseOriginal + window.location.pathname.replace('index.html', '') + 'negocio?id=' + codigo;
-            }
+window.dibujarQRNativoCanvas = function(contenedor, texto, tamanoPx) {
+    if (!contenedor) return null;
+    var size = tamanoPx || 210;
+    var bytes = [];
+    var utf8 = unescape(encodeURIComponent(String(texto || '')));
+    for (var i = 0; i < utf8.length; i++) bytes.push(utf8.charCodeAt(i));
 
-            window.nombreCompartirActual = nombre;
-            const qrContainer = document.getElementById('qr-code-container');
-            qrContainer.innerHTML = ""; qrContainer.style.boxShadow = `0 0 15px var(--naranja)`;
-            try { 
-                new QRCode(qrContainer, { text: window.linkCompartirActual, width: 200, height: 200, colorDark: "#ff6b00", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.H }); 
+    var capL = [0, 17, 32, 53, 78, 106, 134, 154, 192];
+    var totCW = [0, 26, 44, 70, 100, 134, 172, 196, 242];
+    var ecCW = [0, 7, 10, 15, 20, 26, 18, 20, 24];
+    var bloques = [0, 1, 1, 1, 1, 1, 2, 2, 2];
+    var alignPos = [[], [], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34], [6, 22, 38], [6, 24, 42]];
+
+    var ver = 1;
+    while (ver <= 8 && bytes.length > capL[ver]) ver++;
+    if (ver > 8) ver = 8;
+    var nMod = 17 + ver * 4;
+
+    var gfExp = new Array(512);
+    var gfLog = new Array(256);
+    var x = 1;
+    for (var e = 0; e < 255; e++) {
+        gfExp[e] = x;
+        gfLog[x] = e;
+        x <<= 1;
+        if (x & 256) x ^= 285;
+    }
+    for (var e2 = 255; e2 < 512; e2++) gfExp[e2] = gfExp[e2 - 255];
+
+    var gfMul = function(a, b) {
+        if (a === 0 || b === 0) return 0;
+        return gfExp[gfLog[a] + gfLog[b]];
+    };
+
+    var rsGen = function(deg) {
+        var poly = [1];
+        for (var i = 0; i < deg; i++) {
+            var next = new Array(poly.length + 1).fill(0);
+            var root = gfExp[i];
+            for (var j = 0; j < poly.length; j++) {
+                next[j] ^= poly[j];
+                next[j + 1] ^= gfMul(poly[j], root);
             }
-            catch (errQR) { qrContainer.innerHTML = "<span style='color:#ff4444; font-size:12px; font-weight:bold;'>El visor web no pudo dibujar el QR. Usa 'Copiar Link'.</span>"; }
-        } catch (e) { console.error("Error armando link:", e); }
-    }, 150);
+            poly = next;
+        }
+        return poly;
+    };
+
+    var rsDiv = function(dataBlock, deg) {
+        var gen = rsGen(deg);
+        var res = dataBlock.slice();
+        for (var k = 0; k < deg; k++) res.push(0);
+        for (var i = 0; i < dataBlock.length; i++) {
+            var coef = res[i];
+            if (coef !== 0) {
+                for (var j = 1; j < gen.length; j++) {
+                    res[i + j] ^= gfMul(gen[j], coef);
+                }
+            }
+        }
+        return res.slice(dataBlock.length);
+    };
+
+    var numBlocks = bloques[ver];
+    var ecPerBlock = ecCW[ver];
+    var totalDataCW = totCW[ver] - (numBlocks * ecPerBlock);
+    var bits = [];
+    var pushBits = function(val, len) {
+        for (var b = len - 1; b >= 0; b--) bits.push((val >> b) & 1);
+    };
+
+    var maxBytes = Math.min(bytes.length, totalDataCW - 2);
+    pushBits(4, 4);
+    pushBits(maxBytes, 8);
+    for (var bi = 0; bi < maxBytes; bi++) pushBits(bytes[bi], 8);
+    var termLen = Math.min(4, totalDataCW * 8 - bits.length);
+    pushBits(0, termLen);
+    while (bits.length % 8 !== 0) bits.push(0);
+
+    var dataCW = [];
+    for (var idxB = 0; idxB < bits.length; idxB += 8) {
+        var byteVal = 0;
+        for (var kB = 0; kB < 8; kB++) byteVal = (byteVal << 1) | bits[idxB + kB];
+        dataCW.push(byteVal);
+    }
+    var pads = [236, 17];
+    var padIdx = 0;
+    while (dataCW.length < totalDataCW) {
+        dataCW.push(pads[padIdx % 2]);
+        padIdx++;
+    }
+
+    var blockSize = Math.floor(totalDataCW / numBlocks);
+    var dataBlocks = [];
+    var ecBlocks = [];
+    for (var bIdx = 0; bIdx < numBlocks; bIdx++) {
+        var slice = dataCW.slice(bIdx * blockSize, (bIdx + 1) * blockSize);
+        dataBlocks.push(slice);
+        ecBlocks.push(rsDiv(slice, ecPerBlock));
+    }
+
+    var finalCW = [];
+    for (var cIdx = 0; cIdx < blockSize; cIdx++) {
+        for (var b1 = 0; b1 < numBlocks; b1++) finalCW.push(dataBlocks[b1][cIdx]);
+    }
+    for (var eIdx = 0; eIdx < ecPerBlock; eIdx++) {
+        for (var b2 = 0; b2 < numBlocks; b2++) finalCW.push(ecBlocks[b2][eIdx]);
+    }
+
+    var mat = [];
+    var func = [];
+    for (var r = 0; r < nMod; r++) {
+        mat.push(new Array(nMod).fill(0));
+        func.push(new Array(nMod).fill(false));
+    }
+
+    var setMod = function(row, col, val, isFunc) {
+        if (row < 0 || col < 0 || row >= nMod || col >= nMod) return;
+        mat[row][col] = val ? 1 : 0;
+        if (isFunc) func[row][col] = true;
+    };
+
+    var drawFinder = function(r0, c0) {
+        for (var dr = -1; dr <= 7; dr++) {
+            for (var dc = -1; dc <= 7; dc++) {
+                var inBox = (dr >= 0 && dr <= 6 && dc >= 0 && dc <= 6);
+                var dark = inBox && (dr === 0 || dr === 6 || dc === 0 || dc === 6 || (dr >= 2 && dr <= 4 && dc >= 2 && dc <= 4));
+                setMod(r0 + dr, c0 + dc, dark ? 1 : 0, true);
+            }
+        }
+    };
+    drawFinder(0, 0);
+    drawFinder(0, nMod - 7);
+    drawFinder(nMod - 7, 0);
+
+    var ap = alignPos[ver];
+    for (var ai = 0; ai < ap.length; ai++) {
+        for (var aj = 0; aj < ap.length; aj++) {
+            var ar = ap[ai], ac = ap[aj];
+            if (func[ar][ac]) continue;
+            for (var dr2 = -2; dr2 <= 2; dr2++) {
+                for (var dc2 = -2; dc2 <= 2; dc2++) {
+                    var darkA = (Math.abs(dr2) === 2 || Math.abs(dc2) === 2 || (dr2 === 0 && dc2 === 0));
+                    setMod(ar + dr2, ac + dc2, darkA ? 1 : 0, true);
+                }
+            }
+        }
+    }
+
+    for (var t = 8; t < nMod - 8; t++) {
+        if (!func[6][t]) setMod(6, t, t % 2 === 0 ? 1 : 0, true);
+        if (!func[t][6]) setMod(t, 6, t % 2 === 0 ? 1 : 0, true);
+    }
+    setMod(nMod - 8, 8, 1, true);
+
+    for (var f1 = 0; f1 < 9; f1++) {
+        if (!func[8][f1]) func[8][f1] = true;
+        if (!func[f1][8]) func[f1][8] = true;
+    }
+    for (var f2 = 0; f2 < 8; f2++) {
+        func[8][nMod - 1 - f2] = true;
+        func[nMod - 1 - f2][8] = true;
+    }
+
+    var allBits = [];
+    for (var cwI = 0; cwI < finalCW.length; cwI++) {
+        for (var bPos = 7; bPos >= 0; bPos--) allBits.push((finalCW[cwI] >> bPos) & 1);
+    }
+
+    var bitPtr = 0;
+    var dirUp = -1;
+    var rowCur = nMod - 1;
+    for (var colRight = nMod - 1; colRight >= 1; colRight -= 2) {
+        if (colRight === 6) colRight--;
+        while (rowCur >= 0 && rowCur < nMod) {
+            for (var dx = 0; dx < 2; dx++) {
+                var cc = colRight - dx;
+                if (!func[rowCur][cc]) {
+                    var bitVal = bitPtr < allBits.length ? allBits[bitPtr++] : 0;
+                    var maskBit = ((rowCur + cc) % 2 === 0) ? 1 : 0;
+                    mat[rowCur][cc] = bitVal ^ maskBit;
+                }
+            }
+            rowCur += dirUp;
+        }
+        dirUp = -dirUp;
+        rowCur += dirUp;
+    }
+
+    // Formato ECC Nivel L (01) + Mascara 0 (000) -> 0x77C4
+    var fmtBits = 0x77C4;
+    var fmtCoords1 = [[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[8,7],[8,8],[7,8],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8]];
+    var fmtCoords2 = [[nMod-1,8],[nMod-2,8],[nMod-3,8],[nMod-4,8],[nMod-5,8],[nMod-6,8],[nMod-7,8],[8,nMod-8],[8,nMod-7],[8,nMod-6],[8,nMod-5],[8,nMod-4],[8,nMod-3],[8,nMod-2],[8,nMod-1]];
+    for (var fb = 0; fb < 15; fb++) {
+        var bitF = (fmtBits >> (14 - fb)) & 1;
+        mat[fmtCoords1[fb][0]][fmtCoords1[fb][1]] = bitF;
+        mat[fmtCoords2[fb][0]][fmtCoords2[fb][1]] = bitF;
+    }
+
+    var quiet = 3;
+    var totalCells = nMod + quiet * 2;
+    var scale = Math.max(4, Math.floor(size / totalCells));
+    var canvasSize = totalCells * scale;
+    var canvas = document.createElement('canvas');
+    canvas.width = canvasSize;
+    canvas.height = canvasSize;
+    canvas.style.cssText = 'width:' + size + 'px; height:' + size + 'px; border-radius:12px; display:block; margin:0 auto; background:#ffffff;';
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvasSize, canvasSize);
+
+    for (var mr = 0; mr < nMod; mr++) {
+        for (var mc = 0; mc < nMod; mc++) {
+            if (!mat[mr][mc]) continue;
+            var esOjo = (mr < 7 && mc < 7) || (mr < 7 && mc >= nMod - 7) || (mr >= nMod - 7 && mc < 7);
+            ctx.fillStyle = esOjo ? '#ff6b00' : '#0a0a0c';
+            ctx.fillRect((mc + quiet) * scale, (mr + quiet) * scale, scale, scale);
+        }
+    }
+
+    contenedor.innerHTML = '';
+    contenedor.appendChild(canvas);
+    return canvas;
 };
 
-window.copiarEnlace = function() { 
-    navigator.clipboard.writeText(window.linkCompartirActual).then(() => { alert('¡Enlace copiado al portapapeles! 🔗'); }); 
+window.compartirTienda = function(event, codigo, nombre, username) {
+    if (event) { event.preventDefault(); event.stopPropagation(); }
+    if (navigator.vibrate) navigator.vibrate(25);
+    var popupActivo = document.querySelector('.maplibregl-popup');
+    if (popupActivo) popupActivo.remove();
+
+    var codigoLimpio = window.normalizarIdFavoritoRadar(codigo);
+    var baseOriginal = (window.location.origin && window.location.origin !== 'null') ? window.location.origin : 'https://geokatu.com';
+    var pathBase = window.location.pathname.replace(/index\.html$/i, '');
+    if (pathBase.slice(-1) !== '/') pathBase += '/';
+    window.linkCompartirActual = baseOriginal + pathBase + 'negocio?id=' + encodeURIComponent(codigoLimpio);
+    window.nombreCompartirActual = nombre || (dbDirectorioMap.get(codigoLimpio)?.nombre) || 'Comercio Geokatu';
+
+    abrirModal('overlay-compartir');
+
+    setTimeout(function() {
+        var modalOverlay = document.getElementById('overlay-compartir');
+        var qrContainer = document.getElementById('qr-code-container');
+        if (!qrContainer && modalOverlay) {
+            var sheet = document.getElementById('sheet-compartir') || modalOverlay.firstElementChild;
+            if (sheet) {
+                qrContainer = document.createElement('div');
+                qrContainer.id = 'qr-code-container';
+                qrContainer.style.cssText = 'width:216px; height:216px; margin:10px auto 14px auto; padding:8px; background:#ffffff; border-radius:16px; display:flex; align-items:center; justify-content:center;';
+                sheet.insertBefore(qrContainer, sheet.firstChild ? sheet.firstChild.nextSibling : null);
+            }
+        }
+        if (qrContainer) {
+            qrContainer.style.boxShadow = '0 0 18px rgba(255, 107, 0, 0.55)';
+            window.dibujarQRNativoCanvas(qrContainer, window.linkCompartirActual, 200);
+        }
+        var elLinkTxt = document.getElementById('link-compartir-preview');
+        if (elLinkTxt) elLinkTxt.textContent = window.linkCompartirActual;
+    }, 80);
+};
+
+window.copiarEnlace = function() {
+    navigator.clipboard.writeText(window.linkCompartirActual).then(function() { alert('¡Enlace copiado al portapapeles! 🔗'); });
 };
 
 window.compartirNativo = async function() {
-    if (navigator.share) { 
-        try { await navigator.share({ title: window.nombreCompartirActual + ' | Geokatu', url: window.linkCompartirActual }); } 
-        catch (err) {} 
+    if (navigator.share) {
+        try { await navigator.share({ title: window.nombreCompartirActual + ' | Geokatu', url: window.linkCompartirActual }); }
+        catch (err) {}
     } else { copiarEnlace(); }
 };
 
 window.descargarQR = async function() {
-    const btn = document.getElementById('btn-descargar-qr');
-    const textoOriginal = btn.innerText; btn.innerText = "⏳ GENERANDO ARCHIVO..."; btn.style.opacity = "0.7";
+    var btn = document.getElementById('btn-descargar-qr');
+    var textoOriginal = btn ? btn.innerText : '';
+    if (btn) { btn.innerText = '⏳ GENERANDO ARCHIVO...'; btn.style.opacity = '0.7'; }
     try {
-        const qrContainer = document.getElementById('qr-code-container'); const canvas = qrContainer.querySelector('canvas');
+        var qrContainer = document.getElementById('qr-code-container');
+        var canvas = qrContainer ? qrContainer.querySelector('canvas') : null;
         if (canvas) {
             canvas.toBlob(function(blob) {
-                const urlObj = window.URL.createObjectURL(blob);
-                const nombreArchivo = `QR_${window.nombreCompartirActual.replace(/\s+/g, '_')}_${Date.now()}.png`;
-                const a = document.createElement('a'); a.style.display = 'none'; a.href = urlObj; a.download = nombreArchivo;
-                document.body.appendChild(a); a.click(); a.remove(); window.URL.revokeObjectURL(urlObj);
-            }, "image/png");
-        } else { alert("Por favor espera un segundo mientras el QR termina de generarse."); }
-    } catch(e) { console.error(e); } finally { setTimeout(() => { btn.innerText = textoOriginal; btn.style.opacity = "1"; }, 1000); }
+                var urlObj = window.URL.createObjectURL(blob);
+                var nombreArchivo = 'QR_' + String(window.nombreCompartirActual || 'Geokatu').replace(/\s+/g, '_') + '_' + Date.now() + '.png';
+                var a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = urlObj;
+                a.download = nombreArchivo;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(urlObj);
+            }, 'image/png');
+        } else {
+            alert('Espera un segundo mientras se genera el código QR.');
+        }
+    } catch (e) { console.error(e); } finally {
+        if (btn) {
+            setTimeout(function() { btn.innerText = textoOriginal; btn.style.opacity = '1'; }, 800);
+        }
+    }
 };
 
 let filtrandoFavoritos = false;
 
-
-
-
 window.toggleMapaFavoritos = function() {
     if (navigator.vibrate) navigator.vibrate(30);
     filtrandoFavoritos = !filtrandoFavoritos;
-    const btn = document.getElementById('btn-filtro-corazon');
-    if (filtrandoFavoritos) {
-        btn.style.background = '#ff4444';
-        btn.style.color = 'white';
-        btn.innerText = '❤️';
-    } else {
-        btn.style.background = 'rgba(255, 68, 68, 0.2)';
-        btn.style.color = '#ff4444';
-        btn.innerText = '🤍';
+    var btn = document.getElementById('btn-filtro-corazon');
+    if (btn) {
+        btn.classList.toggle('activo', filtrandoFavoritos);
+        if (filtrandoFavoritos) {
+            btn.style.background = '#ff4444';
+            btn.style.color = '#ffffff';
+            btn.innerText = '❤️';
+        } else {
+            btn.style.background = 'rgba(255, 68, 68, 0.2)';
+            btn.style.color = '#ff4444';
+            btn.innerText = '🤍';
+        }
     }
-    if (datosDescargados) barridoRadar(document.getElementById('input-buscador').value);
+    if (filtrandoFavoritos && dbDirectorio.length === 0) {
+        try {
+            for (var i = 0; i < localStorage.length; i++) {
+                var k = localStorage.key(i);
+                if (k && k.indexOf('geokatu_cache_neg_') === 0) {
+                    var itemCache = JSON.parse(localStorage.getItem(k) || 'null');
+                    var desemp = window.desempaquetarComercioMatriz(itemCache);
+                    if (desemp) window.registrarEntidadDirectorio(desemp.codigo, desemp);
+                }
+            }
+            dbDirectorio = Array.from(dbDirectorioMap.values());
+            window.dbDirectorio = dbDirectorio;
+            if (dbDirectorio.length > 0) datosDescargados = true;
+        } catch (eCache) {}
+    }
+    if (datosDescargados || dbDirectorio.length > 0) {
+        datosDescargados = true;
+        barridoRadar(document.getElementById('input-buscador') ? document.getElementById('input-buscador').value : '', { conservarRotacion: true });
+    }
 };
 
 window.togglePanelAcordeon = function() {
@@ -1992,11 +2322,11 @@ function actualizarCapasLejanasWebGL(elegibles, modoZoom) {
 window.barridoRadar = function(filtroTexto = "", opciones = {}) {
     if (!datosDescargados || !mapa) return;
 
-    window.actualizarEscalaContinuaZoom();
+        window.actualizarEscalaContinuaZoom();
     const modoZoom = EstadoMapa.vista.modoZoomActual || 'barrio';
     const catActiva = window.categoriaActivaGlobal || 'negocios';
-    const favsStorage = JSON.parse(localStorage.getItem('geokatu_favoritos_anon')) || [];
-    const favsIds = favsStorage.map(f => f.id);
+    const setFavsUnificados = window.obtenerSetIdsFavoritosUnificados();
+    const favsIds = Array.from(setFavsUnificados);
     const filtroEanIds = Array.isArray(window._filtroEanIdsActivo) ? window._filtroEanIdsActivo : null;
 
     // 1. Filtrar universo elegible del directorio público
@@ -2058,7 +2388,7 @@ window.barridoRadar = function(filtroTexto = "", opciones = {}) {
             if (!strCompleto.includes(txt)) return false;
         }
 
-        if (filtrandoFavoritos && !favsIds.includes(encodeURIComponent(p.codigo))) {
+                if (filtrandoFavoritos && !setFavsUnificados.has(window.normalizarIdFavoritoRadar(p.codigo || p.id))) {
             return false;
         }
         return true;
@@ -2371,9 +2701,9 @@ window.barridoRadar = function(filtroTexto = "", opciones = {}) {
             badgeRemate = `<div class="badge-fuego" style="background: #ff0044; color: white; padding: 2px 6px; border-radius: 10px; font-weight: 900; font-size: 10px; letter-spacing: 1px; animation: latidoNeon 1s infinite; margin-bottom: 5px; text-shadow: none;">🔥 REMATE DE INVENTARIO</div>`;
         }
 
-        const numEstrellas = p.reputacion ? parseInt(p.reputacion) : 5;
+                const numEstrellas = p.reputacion ? parseInt(p.reputacion) : 5;
         const estrellasHtml = '★'.repeat(numEstrellas) + '☆'.repeat(5 - numEstrellas);
-        const esFav = favs.includes(encodeURIComponent(p.codigo));
+        const esFav = setFavsUnificados.has(window.normalizarIdFavoritoRadar(p.codigo || p.id));
         const corazon = esFav ? '❤️' : '🤍';
         const favStyleBtn = esFav ? 'color: #ff4444; border-color: #ff4444; background: rgba(255,68,68,0.2);' : '';
         const esAliado = (p.red_afiliados === true || p.red_afiliados === 'SI');
@@ -2494,11 +2824,12 @@ window.barridoRadar = function(filtroTexto = "", opciones = {}) {
                     bloqueSlogan +
                     '<div class="estrellas" style="margin-top: 2px;">' + estrellasHtml + '</div>' +
                     '<p class="texto-piedra" style="margin: 2px 0 8px 0; color: ' + colorSlogan + ' !important;">' + textoNicho + '</p>' +
-                    '<div class="popup-acciones-fila" style="position: relative;">' +
+                                        '<div class="popup-acciones-fila" style="position: relative;">' +
                         '<a href="' + window.sanitizarURL(linkDestino) + '" class="btn-popup-catalogo js-action-ver-detalles" data-codigo="' + window.sanitizarAtributo(encodeURIComponent(p.codigo)) + '" data-nicho="' + window.sanitizarAtributo(sanitizarTexto(p.niche)) + '" style="background: ' + estiloBoton.bg + ' !important; color: ' + estiloBoton.color + ' !important; ' + estiloBoton.borde + ' ' + estiloBoton.sombra + '">' + (estaAbierto ? 'CATÁLOGO' : 'CERRADO') + '</a>' +
                         botonHubTrigger +
                         bloqueHubContacto +
                     '</div>' +
+                    (window.puedeEditarComercioEnMapa(p) ? ('<a href="negocio?id=' + encodeURIComponent(p.codigo) + '" style="display:block; margin-top:6px; padding:5px 8px; border-radius:8px; background:rgba(0,245,212,0.16); border:1px solid rgba(0,245,212,0.5); color:#00f5d4; font-size:9.5px; font-weight:900; text-decoration:none; text-align:center;">✏️ Editar Sede / Catálogo</a>') : '') +
                     btnCoincidentesPopup +
                     '<div class="popup-micro-fila-status">' +
                         '<button type="button" class="btn-micro-status" onclick="window.mostrarAvisoVerificacionModal(\'' + semaforoOverlayId + '\', \'' + horarioOverlayId + '\')" title="' + semaforoTexto + '">' +
@@ -3117,11 +3448,86 @@ window.addEventListener('ejecutar-filtro-mapa-producto', (e) => {
         inputBuscador.value = `Stock: ${barcode} (${idsComercios.length} tiendas)`;
     }
 
-    if (typeof window.barridoRadar === 'function') {
+        if (typeof window.barridoRadar === 'function') {
         window.barridoRadar('', { conservarRotacion: true });
     }
     if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
 });
+
+window.puedeEditarComercioEnMapa = function(p) {
+    if (!p || !window.idUsuarioActual) return false;
+    var uid = String(window.idUsuarioActual);
+    var idP = String(p.codigo || p.id || '');
+    if (idP === uid || String(p.uid_dueno || '') === uid || String(p.parentId || '') === uid) return true;
+    var propio = EstadoMapa.sesion.comercioPropio;
+    if (propio) {
+        if (propio.redId && p.redId && String(propio.redId) === String(p.redId)) return true;
+        if (Array.isArray(propio.sedes_red_ids) && propio.sedes_red_ids.indexOf(idP) !== -1) return true;
+    }
+    return false;
+};
+
+(function inicializarDelegacionPopupYEscudoMapa() {
+    if (!document.getElementById('gk-escudo-mapa-css')) {
+        var stEscudo = document.createElement('style');
+        stEscudo.id = 'gk-escudo-mapa-css';
+        stEscudo.textContent =
+            '.popup-portada, .popup-logo, .popup-nombre-png, .pin-wrapper, .tarjeta-hibrida-img {' +
+            '  -webkit-touch-callout: none !important;' +
+            '  -webkit-user-select: none !important;' +
+            '  user-select: none !important;' +
+            '  -webkit-user-drag: none !important;' +
+            '}';
+        document.head.appendChild(stEscudo);
+    }
+
+    document.addEventListener('contextmenu', function(e) {
+        if (e.target && (e.target.closest('.maplibregl-popup') || e.target.closest('.pin-wrapper') || e.target.closest('.tarjeta-hibrida'))) {
+            if (e.target.tagName === 'IMG' || e.target.tagName === 'image' || e.target.tagName === 'svg') {
+                e.preventDefault();
+            }
+        }
+    });
+
+    document.addEventListener('dragstart', function(e) {
+        if (e.target && e.target.tagName === 'IMG') {
+            e.preventDefault();
+        }
+    });
+
+    document.addEventListener('click', function(e) {
+        var btnFav = e.target.closest('.js-action-favorito');
+        if (btnFav) {
+            e.preventDefault();
+            e.stopPropagation();
+            var codFav = window.normalizarIdFavoritoRadar(btnFav.getAttribute('data-codigo'));
+            var nomFav = btnFav.getAttribute('data-nombre') || '';
+            var preFav = btnFav.getAttribute('data-precio') || 0;
+            var porFav = btnFav.getAttribute('data-portada') || '';
+            var waFav = btnFav.getAttribute('data-whatsapp') || '';
+            window.toggleFavorito(codFav, nomFav, preFav, porFav, waFav, e);
+            return;
+        }
+
+        var btnComp = e.target.closest('.js-action-compartir');
+        if (btnComp) {
+            e.preventDefault();
+            e.stopPropagation();
+            var codComp = window.normalizarIdFavoritoRadar(btnComp.getAttribute('data-codigo'));
+            var nomComp = btnComp.getAttribute('data-nombre') || '';
+            var usrComp = btnComp.getAttribute('data-username') || 'null';
+            window.compartirTienda(e, codComp, nomComp, usrComp);
+            return;
+        }
+
+        var btnCat = e.target.closest('.js-action-ver-detalles');
+        if (btnCat) {
+            var codCat = window.normalizarIdFavoritoRadar(btnCat.getAttribute('data-codigo'));
+            var nicCat = btnCat.getAttribute('data-nicho') || '';
+            window.registrarClicVerDetalles(codCat, nicCat);
+        }
+    }, true);
+})();
 
        
 
