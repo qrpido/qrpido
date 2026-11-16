@@ -7,13 +7,13 @@
 
 import GeokatuDB from './core-db.js';
 import { db } from './firebase-config.js';
-import { doc, collection, writeBatch, setDoc, getDocs, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { doc, collection, writeBatch, setDoc, getDocs, deleteDoc, onSnapshot, runTransaction } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
 import * as geofire from "https://cdn.jsdelivr.net/npm/geofire-common@5.2.0/+esm";
 import './auth-mando.js';
 
 // =========================================================================
-// ESTADO GLOBAL COMPARTIDO
+// ESTADO GLOBAL COMPARTIDO E HIDRATACIÓN MULTI-DISPOSITIVO (ONBOARDING_RADAR)
 // =========================================================================
 let listaComercios = JSON.parse(localStorage.getItem('geokatu_onboarding_cola')) || [];
 let floresRecolectadas = parseInt(localStorage.getItem('geokatu_flores_contador') || '0', 10);
@@ -22,12 +22,338 @@ let comercioActivoParaCatalogo = null;
 let vistaActualTablero = 'radar';
 let superadminAutorizado = false;
 
+const DEVICE_ID_RADAR = (function() {
+    let id = localStorage.getItem('geokatu_radar_device_id');
+    if (!id) {
+        id = 'dev_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now().toString(36);
+        localStorage.setItem('geokatu_radar_device_id', id);
+    }
+    return id;
+})();
+
+let aplicandoSnapshotRemotoRadar = false;
+let unsubscribeRadarSnapshot = null;
+const timersSyncRadar = {};
+const huellasRadarLocal = {};
+
+const CAMPOS_SINCRONIZABLES_RADAR = [
+    'nombre', 'slogan', 'mostrar_slogan', 'informacion_adicional', 'tags_busqueda',
+    'nicho', 'categoria', 'direccion', 'horario', 'es_24_horas', 'whatsapp', 'pbx',
+    'plus_code', 'correo', 'mostrar_correo_publico', 'instagram_handle', 'instagram',
+    'facebook', 'telegram', 'sitio_web', 'web', 'contacto_principal', 'verificado_maps',
+    'cant_resenas', 'resena_picante', 'estado_contacto', 'estado', 'estado_flujo',
+    'oferta_principal', 'notas_seguimiento', 'coordenada_validada', 'coordenadas_crudo',
+    'lat', 'lng', 'geohash', 'destacado_estrella', 'capturado', 'validado', 'subido',
+    'archivado', 'deshabilitado', 'estado_moderacion', 'minimizado', 'redId',
+    'total_sedes', 'es_multisede', '_mostrarSubTicketsSedes', 'pin_pack', 'tema_popup',
+    'avatar_posicion', 'placa_nombre', 'portada_posicion', 'avatar_marco',
+    'mostrar_stock_publico', 'color_principal', 'color_acento', 'color_terciario',
+    'paleta_distribucion', 'logo', 'portada', 'link_pin', 'logo_nombre', 'nombre_png',
+    'reclamado', 'dueno_registrado', 'owner_email'
+];
+
+function urlPersistenteValidaRadar(u) {
+    const s = String(u || '').trim();
+    return (s.indexOf('http://') === 0 || s.indexOf('https://') === 0) ? s : '';
+}
+
+function construirSnapshotLimpioRadar(c) {
+    const snap = { id: String(c.id || '') };
+    CAMPOS_SINCRONIZABLES_RADAR.forEach(function(k) {
+        if (c[k] === undefined) return;
+        if (k === 'logo' || k === 'portada' || k === 'link_pin' || k === 'logo_nombre' || k === 'nombre_png') {
+            const urlOk = urlPersistenteValidaRadar(c[k]);
+            if (urlOk) snap[k] = urlOk;
+            return;
+        }
+        snap[k] = c[k];
+    });
+    snap.catalogo = Array.isArray(c.catalogo) ? c.catalogo.map(function(p) {
+        return {
+            codigo_barras: String(p.codigo_barras || ''),
+            nombre: String(p.nombre || 'Sin nombre'),
+            categoria: String(p.categoria || c.nicho || 'General'),
+            precio: Number(p.precio || 0),
+            stock_actual: Number(p.stock_actual !== undefined ? p.stock_actual : 10),
+            cuerpo_texto: String(p.cuerpo_texto || ''),
+            imagen: urlPersistenteValidaRadar(p.imagen),
+            en_piso_venta: p.en_piso_venta !== false,
+            subido_storage: Boolean(p.subido_storage),
+            fecha_creacion: p.fecha_creacion || ''
+        };
+    }) : [];
+    snap.sedes = Array.isArray(c.sedes) ? c.sedes.map(function(s, idx) {
+        return {
+            id: String(s.id || s.sedeId || (idx === 0 ? c.id : (c.id + '-S' + (idx + 1)))),
+            sedeId: String(s.sedeId || s.id || (idx === 0 ? c.id : (c.id + '-S' + (idx + 1)))),
+            parentId: String(c.id),
+            redId: String(s.redId || c.redId || ('RED-' + c.id)),
+            sedeIndex: Number(s.sedeIndex !== undefined ? s.sedeIndex : idx),
+            esPrincipal: Boolean(idx === 0 || s.esPrincipal),
+            nombre: String(s.nombre || c.nombre || ''),
+            direccion: String(s.direccion || ''),
+            whatsapp: String(s.whatsapp || ''),
+            pbx: String(s.pbx || ''),
+            horario: String(s.horario || ''),
+            correo: String(s.correo || ''),
+            plus_code: String(s.plus_code || ''),
+            coordenada_validada: String(s.coordenada_validada || ''),
+            lat: s.lat !== undefined ? Number(s.lat) : null,
+            lng: s.lng !== undefined ? Number(s.lng) : null,
+            geohash: String(s.geohash || ''),
+            heredaDelPadre: s.heredaDelPadre !== false,
+            excepciones: s.excepciones || {}
+        };
+    }) : [];
+    return snap;
+}
+
+function obtenerColaPendientesRadar() {
+    try {
+        return JSON.parse(localStorage.getItem('geokatu_radar_pendientes_sync') || '{}') || {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function guardarColaPendientesRadar(mapa) {
+    try {
+        localStorage.setItem('geokatu_radar_pendientes_sync', JSON.stringify(mapa || {}));
+    } catch (e) {}
+}
+
+async function enviarOperacionRadarFirestore(op) {
+    if (!superadminAutorizado || !op || !op.id) return false;
+    const idDoc = String(op.id);
+    const docRef = doc(db, 'Onboarding_Radar', idDoc);
+    try {
+        let huboConflicto = false;
+        await runTransaction(db, async function(transaction) {
+            const docSnap = await transaction.get(docRef);
+            const rem = docSnap.exists() ? docSnap.data() : null;
+            const revRemota = (rem && typeof rem.revision === 'number') ? rem.revision : 0;
+            const revBaseLocal = typeof op.baseRevision === 'number' ? op.baseRevision : 0;
+            const nuevaRevision = Math.max(revRemota, revBaseLocal) + 1;
+            const cambiosAplicar = Object.assign({}, op.campos || {});
+            const conflictos = (rem && rem.conflictos_pendientes) ? Object.assign({}, rem.conflictos_pendientes) : {};
+
+            if (rem && revRemota > revBaseLocal && rem.updatedBy && rem.updatedBy !== DEVICE_ID_RADAR) {
+                const camposRemotos = rem.ultimosCamposModificados || [];
+                Object.keys(cambiosAplicar).forEach(function(k) {
+                    if (camposRemotos.indexOf(k) !== -1 && JSON.stringify(rem[k]) !== JSON.stringify(cambiosAplicar[k])) {
+                        huboConflicto = true;
+                        conflictos[k] = {
+                            valorPendiente: cambiosAplicar[k],
+                            valorRemoto: rem[k],
+                            dispositivo: DEVICE_ID_RADAR,
+                            fecha: new Date().toISOString()
+                        };
+                    }
+                });
+            }
+
+            const payloadPadre = Object.assign({}, cambiosAplicar, {
+                id: idDoc,
+                revision: nuevaRevision,
+                updatedAt: Date.now(),
+                updatedBy: DEVICE_ID_RADAR,
+                ultimosCamposModificados: Object.keys(cambiosAplicar),
+                conflictos_pendientes: conflictos
+            });
+            transaction.set(docRef, payloadPadre, { merge: true });
+
+            if (Array.isArray(op.sedes) && op.sedes.length > 0) {
+                op.sedes.forEach(function(sede) {
+                    const sId = String(sede.sedeId || sede.id);
+                    const sedeRef = doc(db, 'Onboarding_Radar/' + idDoc + '/sedes', sId);
+                    transaction.set(sedeRef, Object.assign({}, sede, {
+                        revision: nuevaRevision,
+                        updatedAt: Date.now(),
+                        updatedBy: DEVICE_ID_RADAR
+                    }), { merge: true });
+                });
+            }
+        });
+
+        const pendientes = obtenerColaPendientesRadar();
+        delete pendientes[idDoc];
+        guardarColaPendientesRadar(pendientes);
+
+        const itemLocal = listaComercios.find(function(x) { return String(x.id) === idDoc; });
+        if (itemLocal) {
+            itemLocal._revisionRadar = (itemLocal._revisionRadar || 0) + 1;
+        }
+        if (huboConflicto && typeof window.mostrarToast === 'function') {
+            window.mostrarToast('Conflicto detectado en ' + idDoc + ': se conservó registro de edición simultánea.', 'info', 3500);
+        }
+        return true;
+    } catch (err) {
+        return false;
+    }
+}
+
+export async function procesarColaPendientesRadar() {
+    if (!superadminAutorizado) return;
+    const pendientes = obtenerColaPendientesRadar();
+    const ids = Object.keys(pendientes);
+    for (let i = 0; i < ids.length; i++) {
+        await enviarOperacionRadarFirestore(pendientes[ids[i]]);
+    }
+}
+window.procesarColaPendientesRadar = procesarColaPendientesRadar;
+
+function programarSincronizacionRadarTicket(c) {
+    if (!c || !c.id || aplicandoSnapshotRemotoRadar) return;
+    const debeSincronizar = Boolean(c.capturado || c._editadoEnRadar || c.validado || c.deshabilitado);
+    if (!debeSincronizar) return;
+
+    const idStr = String(c.id);
+    const snapActual = construirSnapshotLimpioRadar(c);
+    const jsonActual = JSON.stringify(snapActual);
+    const jsonPrevio = huellasRadarLocal[idStr] || '';
+    if (jsonActual === jsonPrevio) return;
+
+    let prevObj = {};
+    if (jsonPrevio) {
+        try { prevObj = JSON.parse(jsonPrevio) || {}; } catch (e) { prevObj = {}; }
+    }
+    const camposModificados = {};
+    Object.keys(snapActual).forEach(function(k) {
+        if (k === 'sedes') return;
+        if (JSON.stringify(snapActual[k]) !== JSON.stringify(prevObj[k])) {
+            camposModificados[k] = snapActual[k];
+        }
+    });
+    if (!jsonPrevio) {
+        Object.keys(snapActual).forEach(function(k) {
+            if (k !== 'sedes') camposModificados[k] = snapActual[k];
+        });
+    }
+    huellasRadarLocal[idStr] = jsonActual;
+
+    const pendientes = obtenerColaPendientesRadar();
+    const previoPend = pendientes[idStr] || { id: idStr, baseRevision: c._revisionRadar || 0, campos: {}, sedes: [] };
+    previoPend.campos = Object.assign({}, previoPend.campos, camposModificados);
+    previoPend.sedes = snapActual.sedes || [];
+    pendientes[idStr] = previoPend;
+    guardarColaPendientesRadar(pendientes);
+
+    clearTimeout(timersSyncRadar[idStr]);
+    timersSyncRadar[idStr] = setTimeout(function() {
+        const colaActual = obtenerColaPendientesRadar();
+        if (colaActual[idStr]) {
+            enviarOperacionRadarFirestore(colaActual[idStr]);
+        }
+    }, 450);
+}
+
+export function iniciarEscuchaRadarMultiDispositivo() {
+    if (!superadminAutorizado || unsubscribeRadarSnapshot) return;
+    listaComercios.forEach(function(c) {
+        if (c && c.id && (c.capturado || c._editadoEnRadar)) {
+            huellasRadarLocal[String(c.id)] = JSON.stringify(construirSnapshotLimpioRadar(c));
+        }
+    });
+    try {
+        const colRef = collection(db, 'Onboarding_Radar');
+        unsubscribeRadarSnapshot = onSnapshot(colRef, function(snapshot) {
+            let huboCambiosUI = false;
+            aplicandoSnapshotRemotoRadar = true;
+            try {
+                snapshot.docChanges().forEach(function(change) {
+                    if (change.type === 'removed') return;
+                    const rem = change.doc.data() || {};
+                    const idRem = String(rem.id || change.doc.id);
+                    if (!idRem) return;
+                    const idx = listaComercios.findIndex(function(x) { return String(x.id) === idRem; });
+                    const revRem = typeof rem.revision === 'number' ? rem.revision : 1;
+
+                    if (idx !== -1) {
+                        const local = listaComercios[idx];
+                        const revLocal = typeof local._revisionRadar === 'number' ? local._revisionRadar : 0;
+                        if (rem.updatedBy === DEVICE_ID_RADAR && revRem <= revLocal) return;
+                        CAMPOS_SINCRONIZABLES_RADAR.forEach(function(k) {
+                            if (rem[k] !== undefined) {
+                                if ((k === 'logo' || k === 'portada' || k === 'link_pin' || k === 'logo_nombre' || k === 'nombre_png') && !rem[k] && local[k]) {
+                                    return;
+                                }
+                                local[k] = rem[k];
+                            }
+                        });
+                        if (Array.isArray(rem.catalogo) && rem.catalogo.length > 0) {
+                            local.catalogo = rem.catalogo;
+                        }
+                        if (Array.isArray(rem.sedes) && rem.sedes.length > 0) {
+                            local.sedes = rem.sedes;
+                        }
+                        local._revisionRadar = revRem;
+                        local._editadoEnRadar = true;
+                        huellasRadarLocal[idRem] = JSON.stringify(construirSnapshotLimpioRadar(local));
+                        if (local.capturado) {
+                            const volador = document.querySelector('.abeja-wrapper[data-id-comercio="' + idRem + '"]');
+                            if (volador) volador.remove();
+                        }
+                        huboCambiosUI = true;
+                    } else {
+                        const nuevoRemoto = Object.assign({
+                            id: idRem,
+                            capturado: Boolean(rem.capturado !== false),
+                            validado: Boolean(rem.validado),
+                            subido: Boolean(rem.subido),
+                            catalogo: Array.isArray(rem.catalogo) ? rem.catalogo : [],
+                            sedes: Array.isArray(rem.sedes) ? rem.sedes : [],
+                            _revisionRadar: revRem,
+                            _editadoEnRadar: true
+                        }, rem);
+                        listaComercios.unshift(nuevoRemoto);
+                        huellasRadarLocal[idRem] = JSON.stringify(construirSnapshotLimpioRadar(nuevoRemoto));
+                        huboCambiosUI = true;
+                    }
+                });
+
+                if (huboCambiosUI) {
+                    localStorage.setItem('geokatu_onboarding_cola', JSON.stringify(listaComercios));
+                    if (typeof window.renderizarTablero === 'function') window.renderizarTablero();
+                    if (typeof window.actualizarHUD === 'function') window.actualizarHUD();
+                    if (comercioActivoParaCatalogo) {
+                        const actualizadoActivo = listaComercios.find(function(x) {
+                            return String(x.id) === String(comercioActivoParaCatalogo.id);
+                        });
+                        if (actualizadoActivo) {
+                            comercioActivoParaCatalogo = actualizadoActivo;
+                            if (typeof window.actualizarPreviewsIdentidadUI === 'function') window.actualizarPreviewsIdentidadUI();
+                            if (typeof window.actualizarPinDrawerLive === 'function') window.actualizarPinDrawerLive();
+                            if (typeof window.renderizarListaSkusDrawer === 'function') window.renderizarListaSkusDrawer();
+                        }
+                    }
+                }
+            } finally {
+                aplicandoSnapshotRemotoRadar = false;
+            }
+        }, function(errSnap) {
+            console.warn('[Onboarding_Radar Snapshot]', errSnap.message);
+        });
+    } catch (eInit) {}
+}
+window.iniciarEscuchaRadarMultiDispositivo = iniciarEscuchaRadarMultiDispositivo;
+
+window.addEventListener('online', function() {
+    procesarColaPendientesRadar();
+});
+
 export const AppState = {
     get comercioActivo() { return comercioActivoParaCatalogo; },
     set comercioActivo(val) { comercioActivoParaCatalogo = val; },
     get listaComercios() { return listaComercios; },
     guardarColaLocal: function() {
         localStorage.setItem('geokatu_onboarding_cola', JSON.stringify(listaComercios));
+        if (!aplicandoSnapshotRemotoRadar && superadminAutorizado) {
+            listaComercios.forEach(function(c) {
+                if (c && (c.capturado || c._editadoEnRadar)) {
+                    programarSincronizacionRadarTicket(c);
+                }
+            });
+        }
     }
 };
 window.AppState = AppState;
@@ -270,12 +596,14 @@ GeokatuDB.SecurityService.observarEstadoSesion(async function(user) {
                     badgeSuper.style.display = 'inline-flex';
                     badgeSuper.title = 'Operando como: ' + user.email;
                 }
-                if (btnLogout) btnLogout.style.display = 'inline-flex';
+                                if (btnLogout) btnLogout.style.display = 'inline-flex';
 
                 actualizarDatalistNichos();
                 renderizarTablero();
                 actualizarHUD();
                 iniciarEnjambreSiAutorizado();
+                iniciarEscuchaRadarMultiDispositivo();
+                procesarColaPendientesRadar();
             } else {
                 superadminAutorizado = false;
                 if (panelVerificando) panelVerificando.style.display = 'none';
@@ -2966,12 +3294,12 @@ window.abrirEstudioIdentidadIntegro = async function(dataUrlOrigen, campo) {
 
         const destinoFinal = resultado.rol || campo;
 
-        if (destinoFinal === 'producto') {
+                if (destinoFinal === 'producto') {
             const nomProd = prompt("Nombre del producto:", "Producto Destacado");
             if (!nomProd) return;
             const preProd = parseFloat(prompt("Precio COP:", "10000")) || 0;
             if (!comercioActivoParaCatalogo.catalogo) comercioActivoParaCatalogo.catalogo = [];
-            comercioActivoParaCatalogo.catalogo.unshift({
+            const nuevoProdEstudio = {
                 codigo_barras: String(Date.now()).slice(-8),
                 nombre: nomProd.trim(),
                 categoria: comercioActivoParaCatalogo.nicho || "General",
@@ -2982,10 +3310,13 @@ window.abrirEstudioIdentidadIntegro = async function(dataUrlOrigen, campo) {
                 en_piso_venta: true,
                 subido_storage: false,
                 fecha_creacion: new Date().toISOString()
-            });
+            };
+            comercioActivoParaCatalogo.catalogo.unshift(nuevoProdEstudio);
+            comercioActivoParaCatalogo._editadoEnRadar = true;
             renderizarListaSkusDrawer();
             AppState.guardarColaLocal();
-            mostrarToast("Producto agregado al catalogo local.", "exito");
+            subirFotoAStorageEnSegundoPlano(nuevoProdEstudio, comercioActivoParaCatalogo.id);
+            mostrarToast("Producto agregado y sincronizando imagen en la nube.", "exito");
             return;
         }
 
@@ -2995,12 +3326,13 @@ window.abrirEstudioIdentidadIntegro = async function(dataUrlOrigen, campo) {
         if (destinoFinal === 'logo_nombre') {
             comercioActivoParaCatalogo.nombre_png = resultado.dataUrl;
         }
+        comercioActivoParaCatalogo._editadoEnRadar = true;
 
         actualizarPreviewsIdentidadUI();
         if (destinoFinal === 'link_pin' || destinoFinal === 'logo') actualizarPinDrawerLive();
-        AppState.guardarColaLocal();
+        subirFotoIdentidadStorage(resultado.blob, destinoFinal, comercioActivoParaCatalogo.id);
         emitirTono('EXITO');
-        mostrarToast('Imagen de ' + destinoFinal + ' guardada en memoria local (se subira al inyectar).', 'exito');
+        mostrarToast('Imagen de ' + destinoFinal + ' lista y sincronizando entre dispositivos.', 'exito');
     }
 };
 
@@ -3019,10 +3351,11 @@ window.procesarFotoIdentidadIndividual = async function(file, campo) {
             if (!comercioActivoParaCatalogo._blobsIdentidad) comercioActivoParaCatalogo._blobsIdentidad = {};
             comercioActivoParaCatalogo._blobsIdentidad[campo] = file;
             comercioActivoParaCatalogo[campo] = dataUrlIntegra;
+            comercioActivoParaCatalogo._editadoEnRadar = true;
             actualizarPreviewsIdentidadUI();
             if (campo === 'link_pin' || campo === 'logo') actualizarPinDrawerLive();
-            AppState.guardarColaLocal();
-            mostrarToast('Imagen cargada en memoria local.', 'info');
+            subirFotoIdentidadStorage(file, campo, comercioActivoParaCatalogo.id);
+            mostrarToast('Imagen cargada y sincronizando en Storage.', 'info');
         }
     } catch (e) {
         console.warn("[Identidad] Error leyendo imagen:", e);
@@ -3064,18 +3397,48 @@ window.cargarArchivosLocalesEnDespiece = async function(files) {
 };
 
 export async function subirFotoIdentidadStorage(blob, campo, idComercio) {
-    if (comercioActivoParaCatalogo && blob) {
-        if (!comercioActivoParaCatalogo._blobsIdentidad) comercioActivoParaCatalogo._blobsIdentidad = {};
-        comercioActivoParaCatalogo._blobsIdentidad[campo] = blob;
+    const targetComercio = listaComercios.find(function(x) { return String(x.id) === String(idComercio); }) || comercioActivoParaCatalogo;
+    if (!targetComercio || !blob) return null;
+
+    if (!targetComercio._blobsIdentidad) targetComercio._blobsIdentidad = {};
+    targetComercio._blobsIdentidad[campo] = blob;
+
+    if (!targetComercio[campo] || targetComercio[campo].indexOf('data:image') !== 0) {
         const localUrl = URL.createObjectURL(blob);
-        comercioActivoParaCatalogo[campo] = localUrl;
-        if (campo === 'logo_nombre') comercioActivoParaCatalogo.nombre_png = localUrl;
+        targetComercio[campo] = localUrl;
+        if (campo === 'logo_nombre') targetComercio.nombre_png = localUrl;
+    }
+
+    if (comercioActivoParaCatalogo && String(comercioActivoParaCatalogo.id) === String(targetComercio.id)) {
         actualizarPreviewsIdentidadUI();
         if (campo === 'link_pin' || campo === 'logo') actualizarPinDrawerLive();
-        AppState.guardarColaLocal();
-        return localUrl;
     }
-    return null;
+    AppState.guardarColaLocal();
+
+    (async function() {
+        try {
+            if (!blob || blob.size < 150) return;
+            const storage = getStorage(db.app);
+            const idSeguro = String(targetComercio.id || 'GEO-TEMP').trim();
+            const rutaStorage = 'tiendas/' + idSeguro + '/radar_' + campo + '_' + Date.now() + '.webp';
+            const storageRef = ref(storage, rutaStorage);
+            const snapshot = await uploadBytes(storageRef, blob, { contentType: blob.type || 'image/webp' });
+            const downloadURL = await getDownloadURL(snapshot.ref);
+            targetComercio[campo] = downloadURL;
+            if (campo === 'logo_nombre') targetComercio.nombre_png = downloadURL;
+            if (targetComercio._blobsIdentidad) delete targetComercio._blobsIdentidad[campo];
+            targetComercio._editadoEnRadar = true;
+            AppState.guardarColaLocal();
+            if (comercioActivoParaCatalogo && String(comercioActivoParaCatalogo.id) === String(targetComercio.id)) {
+                actualizarPreviewsIdentidadUI();
+                if (campo === 'link_pin' || campo === 'logo') actualizarPinDrawerLive();
+            }
+        } catch (errUp) {
+            console.warn('[Storage Borrador Identidad]', errUp.message);
+        }
+    })();
+
+    return targetComercio[campo];
 }
 window.subirFotoIdentidadStorage = subirFotoIdentidadStorage;
 
@@ -3270,21 +3633,13 @@ window.sincronizarCatalogoComercioNube = async function() {
             btn.innerText = "Asentando en Firestore...";
         }
 
-        const batch = writeBatch(db);
-        const docNegocioRef = doc(db, "Directorio", idSeguro);
+                const batch = writeBatch(db);
+        const sedesParaPublicar = asegurarEstructuraSedesTicket(c);
+        const redIdMaestro = c.redId || ('RED-' + idSeguro);
+        const idsSedesRed = sedesParaPublicar.map(function(s) { return String(s.sedeId || s.id); });
 
-        const coordsRaw = c.coordenada_validada || c.coordenadas_crudo || c.plus_code || (String(c.lat || '') + ', ' + String(c.lng || ''));
-        const coords = parsearCoordenadasUniversales(coordsRaw) || { lat: 4.81333, lng: -75.69611 };
-
-        let geoHashCalculado = "";
-        try {
-            if (typeof geofire !== 'undefined' && geofire.geohashForLocation) {
-                geoHashCalculado = geofire.geohashForLocation([coords.lat, coords.lng]);
-            }
-        } catch (e) {}
-
-        const arrFonos = String(c.whatsapp || '').split('|').map(function(f) { return f.trim().replace(/\D/g, ''); }).filter(Boolean);
-        const primerFono = arrFonos[0] ? (arrFonos[0].length === 10 ? '57' + arrFonos[0] : arrFonos[0]) : "";
+        const coordsPadreRaw = c.coordenada_validada || c.coordenadas_crudo || c.plus_code || (String(c.lat || '') + ', ' + String(c.lng || ''));
+        const coordsPadre = parsearCoordenadasUniversales(coordsPadreRaw) || { lat: 4.81333, lng: -75.69611 };
 
         let etiquetasArray = [];
         if (Array.isArray(c.tags_busqueda)) etiquetasArray = c.tags_busqueda;
@@ -3292,112 +3647,173 @@ window.sincronizarCatalogoComercioNube = async function() {
             etiquetasArray = c.tags_busqueda.split(/[,|;]/).map(function(t) { return t.replace(/^#/, '').trim(); }).filter(Boolean);
         }
 
-        const payloadMaestro = {
-            nombre: c.nombre || "Comercio Aliado",
-            slogan: c.slogan || "",
-            cuerpo_articulo: c.slogan || c.cuerpo_articulo || "",
-            nicho: c.nicho || c.categoria || "General",
-            categoria: c.nicho || c.categoria || "General",
-            categoria_maestra: c.nicho || c.categoria || "General",
-            tags_busqueda: etiquetasArray,
-            informacion_adicional: c.informacion_adicional || "",
+        const coordsValidasSheet = [];
 
-            verificado_maps: c.verificado_maps || "NO",
-            cant_resenas: Number(c.cant_resenas) || 0,
-            resena_picante: c.resena_picante || "",
-            destacado_estrella: Boolean(c.destacado_estrella),
+        sedesParaPublicar.forEach(function(sede, idxSede) {
+            const idSedeDoc = String(sede.sedeId || sede.id || (idxSede === 0 ? idSeguro : (idSeguro + '-S' + (idxSede + 1)))).trim();
+            const docSedeRef = doc(db, "Directorio", idSedeDoc);
+            const exc = sede.excepciones || {};
 
-            horario: c.horario || "",
-            es_24_horas: Boolean(c.es_24_horas),
+            const rawCoordSede = sede.coordenada_validada || sede.plus_code || (idxSede === 0 ? coordsPadreRaw : '');
+            const coordsSede = parsearCoordenadasUniversales(rawCoordSede) || coordsPadre;
+            coordsValidasSheet.push(coordsSede.lat + ', ' + coordsSede.lng);
 
-            direccion: c.direccion || "",
-            plus_code: c.plus_code || "",
-            Coordenadas: { latitude: coords.lat, longitude: coords.lng },
-            lat: coords.lat,
-            lng: coords.lng,
-            ubicacion: { lat: coords.lat, lng: coords.lng },
-            geohash: geoHashCalculado,
+            let geoHashSede = sede.geohash || '';
+            try {
+                if (typeof geofire !== 'undefined' && geofire.geohashForLocation) {
+                    geoHashSede = geofire.geohashForLocation([coordsSede.lat, coordsSede.lng]);
+                }
+            } catch (eG) {}
 
-            whatsapp: primerFono,
-            whatsApp: primerFono,
-            telefonos: arrFonos,
-            pbx: String(c.pbx || '').trim(),
-            correo: c.correo || c.email || "",
-            email: c.correo || c.email || "",
-            instagram: String(c.instagram_handle || c.instagram || '').replace(/^@/, '').trim(),
-            facebook: c.facebook || "",
-            web: c.sitio_web || c.web || "",
-            sitio_web: c.sitio_web || c.web || "",
+            const waFuente = (exc.whatsapp && sede.whatsapp) ? sede.whatsapp : (sede.whatsapp || c.whatsapp || '');
+            const arrFonosSede = String(waFuente).split('|').map(function(f) { return f.trim().replace(/\D/g, ''); }).filter(Boolean);
+            const primerFonoSede = arrFonosSede[0] ? (arrFonosSede[0].length === 10 ? '57' + arrFonosSede[0] : arrFonosSede[0]) : "";
 
-            pin_pack: c.pin_pack || "forma-gota|anim-salto",
-            tema_popup: c.tema_popup || document.getElementById('drawer-select-tema')?.value || "carbon",
-            pin_pack: c.pin_pack || "forma-gota|anim-salto",
-            tema_popup: c.tema_popup || document.getElementById('drawer-select-tema')?.value || "carbon",
-            avatar_posicion: c.avatar_posicion || document.getElementById('drawer-avatar-posicion')?.value || "centro",
-            placa_nombre: c.placa_nombre || document.getElementById('drawer-placa-nombre')?.value || "ninguna",
-            portada_posicion: c.portada_posicion !== undefined ? Number(c.portada_posicion) : Number(document.getElementById('drawer-portada-posicion')?.value ?? 50),
-            avatar_marco: c.avatar_marco !== undefined ? Boolean(c.avatar_marco) : Boolean(document.getElementById('drawer-avatar-marco')?.checked !== false),
-            mostrar_stock_publico: Boolean(c.mostrar_stock_publico || document.getElementById('drawer-mostrar-stock')?.checked),
-            color_principal: c.color_principal || "#ff6b00",
-            color_acento: c.color_acento || GRIS_METALLIC_GEOKATU,
-            color_terciario: c.color_terciario || BLANCO_GEOKATU,
-            paleta_distribucion: c.paleta_distribucion || [
-                { color: "#ff6b00", porcentaje: 50 },
-                { color: GRIS_METALLIC_GEOKATU, porcentaje: 25 },
-                { color: BLANCO_GEOKATU, porcentaje: 12.5 }
-            ],
-            logo: (c.logo && c.logo.indexOf('http') === 0) ? c.logo : "",
-            portada: (c.portada && c.portada.indexOf('http') === 0) ? c.portada : "",
-            link_pin: (c.link_pin && c.link_pin.indexOf('http') === 0) ? c.link_pin : "",
-            logo_nombre: (c.logo_nombre && c.logo_nombre.indexOf('http') === 0) ? c.logo_nombre : "",
-            nombre_png: (c.logo_nombre && c.logo_nombre.indexOf('http') === 0) ? c.logo_nombre : "",
+            const horarioSede = (exc.horario && sede.horario) ? sede.horario : (sede.horario || c.horario || "");
+            const direccionSede = sede.direccion || c.direccion || "";
+            const pbxSede = String(sede.pbx || c.pbx || '').trim();
+            const correoSede = sede.correo || c.correo || c.email || "";
+            const plusCodeSede = sede.plus_code || (idxSede === 0 ? (c.plus_code || "") : "");
 
+            const payloadSede = {
+                id: idSedeDoc,
+                sedeId: idSedeDoc,
+                parentId: idSeguro,
+                redId: redIdMaestro,
+                sedeIndex: idxSede,
+                esPrincipal: idxSede === 0,
+                es_multisede: sedesParaPublicar.length > 1,
+                total_sedes: sedesParaPublicar.length,
+                sedes_red_ids: idsSedesRed,
 
-            reclamado: Boolean(c.reclamado),
-            dueno_registrado: Boolean(c.dueno_registrado),
-            owner_email: c.owner_email || c.dueno_email || "",
-            estado_moderacion: "aprobado",
-            premium: false,
-            progreso_boveda: 100,
-            tipo_modelo: "negocio",
-            fecha_ingreso: c.fecha_ingreso || new Date().toISOString(),
-            fecha_actualizacion: new Date().toISOString(),
-            origen_cuenta: "Onboarding_OneShot_Radar"
-        };
+                nombre: c.nombre || "Comercio Aliado",
+                slogan: c.slogan || "",
+                cuerpo_articulo: c.slogan || c.cuerpo_articulo || "",
+                nicho: c.nicho || c.categoria || "General",
+                categoria: c.nicho || c.categoria || "General",
+                categoria_maestra: c.nicho || c.categoria || "General",
+                tags_busqueda: etiquetasArray,
+                informacion_adicional: c.informacion_adicional || "",
 
-        batch.set(docNegocioRef, payloadMaestro, { merge: true });
+                verificado_maps: c.verificado_maps || "NO",
+                cant_resenas: Number(c.cant_resenas) || 0,
+                resena_picante: c.resena_picante || "",
+                destacado_estrella: Boolean(c.destacado_estrella),
 
-        // 2. Inyección de subcolección de productos
-        const coleccionProds = collection(db, 'Directorio/' + idSeguro + '/productos');
-        prods.forEach(function(p) {
-            const docRef = p.id ? doc(coleccionProds, String(p.id)) : doc(coleccionProds);
-            const payloadProd = {
-                nombre: p.nombre || "Sin nombre",
-                codigo_barras: String(p.codigo_barras || "").trim(),
-                precio: Number(p.precio) || 0,
-                categoria: p.categoria || c.nicho || "General",
-                stock_actual: Number(p.stock_actual) || 0,
-                cuerpo_texto: p.cuerpo_texto || "",
-                en_piso_venta: true,
-                eliminado: false,
-                fecha_actualizacion: new Date().toISOString()
+                horario: horarioSede,
+                es_24_horas: Boolean(c.es_24_horas),
+
+                direccion: direccionSede,
+                plus_code: plusCodeSede,
+                coordenada_validada: coordsSede.lat + ', ' + coordsSede.lng,
+                Coordenadas: { latitude: coordsSede.lat, longitude: coordsSede.lng },
+                lat: coordsSede.lat,
+                lng: coordsSede.lng,
+                ubicacion: { lat: coordsSede.lat, lng: coordsSede.lng },
+                geohash: geoHashSede,
+
+                whatsapp: primerFonoSede,
+                whatsApp: primerFonoSede,
+                telefonos: arrFonosSede,
+                pbx: pbxSede,
+                correo: correoSede,
+                email: correoSede,
+                instagram: String(c.instagram_handle || c.instagram || '').replace(/^@/, '').trim(),
+                facebook: c.facebook || "",
+                web: c.sitio_web || c.web || "",
+                sitio_web: c.sitio_web || c.web || "",
+
+                pin_pack: c.pin_pack || "forma-gota|anim-salto",
+                tema_popup: c.tema_popup || document.getElementById('drawer-select-tema')?.value || "carbon",
+                avatar_posicion: c.avatar_posicion || document.getElementById('drawer-avatar-posicion')?.value || "centro",
+                placa_nombre: c.placa_nombre || document.getElementById('drawer-placa-nombre')?.value || "ninguna",
+                portada_posicion: c.portada_posicion !== undefined ? Number(c.portada_posicion) : Number(document.getElementById('drawer-portada-posicion')?.value ?? 50),
+                avatar_marco: c.avatar_marco !== undefined ? Boolean(c.avatar_marco) : Boolean(document.getElementById('drawer-avatar-marco')?.checked !== false),
+                mostrar_stock_publico: Boolean(c.mostrar_stock_publico || document.getElementById('drawer-mostrar-stock')?.checked),
+                color_principal: c.color_principal || "#ff6b00",
+                color_acento: c.color_acento || GRIS_METALLIC_GEOKATU,
+                color_terciario: c.color_terciario || BLANCO_GEOKATU,
+                paleta_distribucion: c.paleta_distribucion || [
+                    { color: "#ff6b00", porcentaje: 50 },
+                    { color: GRIS_METALLIC_GEOKATU, porcentaje: 25 },
+                    { color: BLANCO_GEOKATU, porcentaje: 12.5 }
+                ],
+                logo: (c.logo && c.logo.indexOf('http') === 0) ? c.logo : "",
+                portada: (c.portada && c.portada.indexOf('http') === 0) ? c.portada : "",
+                link_pin: (c.link_pin && c.link_pin.indexOf('http') === 0) ? c.link_pin : "",
+                logo_nombre: (c.logo_nombre && c.logo_nombre.indexOf('http') === 0) ? c.logo_nombre : "",
+                nombre_png: (c.logo_nombre && c.logo_nombre.indexOf('http') === 0) ? c.logo_nombre : "",
+
+                reclamado: Boolean(c.reclamado),
+                dueno_registrado: Boolean(c.dueno_registrado),
+                owner_email: c.owner_email || c.dueno_email || "",
+                estado_moderacion: "aprobado",
+                premium: false,
+                progreso_boveda: 100,
+                tipo_modelo: "negocio",
+                fecha_ingreso: c.fecha_ingreso || new Date().toISOString(),
+                fecha_actualizacion: new Date().toISOString(),
+                origen_cuenta: "Onboarding_OneShot_Radar"
             };
-            if (p.imagen && p.imagen.indexOf('http') === 0) {
-                payloadProd.imagen = p.imagen;
-            }
-            batch.set(docRef, payloadProd, { merge: true });
+
+            batch.set(docSedeRef, payloadSede, { merge: true });
+
+            const coleccionProdsSede = collection(db, 'Directorio/' + idSedeDoc + '/productos');
+            prods.forEach(function(p) {
+                const idProdDoc = String(p.id || p.codigo_barras || ('SKU-' + Math.random().toString(36).substring(2, 8))).trim();
+                const docRef = doc(coleccionProdsSede, idProdDoc);
+                const stockSede = (sede.stock_por_sku && sede.stock_por_sku[idProdDoc] !== undefined)
+                    ? Number(sede.stock_por_sku[idProdDoc])
+                    : (Number(p.stock_actual) || 0);
+                const payloadProd = {
+                    nombre: p.nombre || "Sin nombre",
+                    codigo_barras: String(p.codigo_barras || "").trim(),
+                    precio: Number(p.precio) || 0,
+                    categoria: p.categoria || c.nicho || "General",
+                    stock_actual: stockSede,
+                    cuerpo_texto: p.cuerpo_texto || "",
+                    en_piso_venta: true,
+                    eliminado: false,
+                    fecha_actualizacion: new Date().toISOString()
+                };
+                if (p.imagen && p.imagen.indexOf('http') === 0) {
+                    payloadProd.imagen = p.imagen;
+                }
+                batch.set(docRef, payloadProd, { merge: true });
+            });
+
+            localStorage.removeItem('geokatu_cache_neg_' + idSedeDoc);
+            localStorage.removeItem('geokatu_cache_prods_' + idSedeDoc);
         });
 
         await batch.commit();
-        localStorage.removeItem('geokatu_cache_neg_' + idSeguro);
-        localStorage.removeItem('geokatu_cache_prods_' + idSeguro);
         GeokatuDB.AdminService.compilarMatrizGlobalCDN().catch(function() {});
-
 
         c.subido = true;
         c.validado = true;
+        c.estado = 'SUBIDO_FIREBASE';
+        c._editadoEnRadar = true;
         AppState.guardarColaLocal();
         renderizarTablero();
+
+        (async function() {
+            const uSheet = localStorage.getItem('geokatu_apps_script_url') || '';
+            if (!uSheet) return;
+            try {
+                await fetch(uSheet, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({
+                        accion: 'marcar_subido',
+                        id: idSeguro,
+                        fila_index: c.fila_index,
+                        nombre: c.nombre,
+                        coordenada_validada: coordsValidasSheet.join(' || ')
+                    })
+                });
+            } catch (eSh) {}
+        })();
 
         emitirTono('EXITO');
         if (btn) {
