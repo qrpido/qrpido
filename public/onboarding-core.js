@@ -565,6 +565,7 @@ window.probarTraductor = function(val) {
 let miniMapaNuevo = null;
 let markerNuevo = null;
 let ticketEditandoIndex = null;
+let sedeEditandoIndex = null;
 let marcadoresMultiSedes = [];
 const COORDS_PEREIRA_DEFAULT = [-75.69611, 4.81333];
 
@@ -664,24 +665,103 @@ window.buscarDireccionModal = async function() {
     mostrarToast("Pega coordenadas decimales, Plus Code o enlace de Google Maps, o arrastra el pin.", "info");
 };
 
-export function obtenerSedesVinculadas(comercioActual) {
-    if (!comercioActual || !comercioActual.nombre) return [];
-    const normalizarMarca = function(n) {
-        return String(n || '')
-            .toLowerCase()
-            .replace(/\b(s\.?a\.?s\.?|s\.?a\.?|ltda\.?|sucursal|sede|punto|local)\b/gi, '')
-            .replace(/[-–#0-9]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
+export function asegurarEstructuraSedesTicket(comercio) {
+    if (!comercio) return [];
+    const redId = comercio.redId || ('RED-' + comercio.id);
+    comercio.redId = redId;
+    if (Array.isArray(comercio.sedes) && comercio.sedes.length > 0) {
+        comercio.sedes.forEach(function(s, idx) {
+            s.id = s.id || s.sedeId || (idx === 0 ? comercio.id : (comercio.id + '-S' + (idx + 1)));
+            s.sedeId = s.sedeId || s.id;
+            s.parentId = comercio.id;
+            s.redId = redId;
+            s.sedeIndex = idx;
+            if (s.heredaDelPadre === undefined) s.heredaDelPadre = true;
+            if (!s.excepciones) s.excepciones = {};
+        });
+        comercio.total_sedes = comercio.sedes.length;
+        comercio.es_multisede = comercio.sedes.length > 1;
+        return comercio.sedes;
+    }
+    const splitPipe = function(v) {
+        return String(v || '').split('||').map(function(p) { return p.trim(); });
     };
-
-    const marcaRaiz = normalizarMarca(comercioActual.nombre);
-    if (marcaRaiz.length < 3) return [comercioActual];
-
-    return listaComercios.filter(function(item) {
-        const otra = normalizarMarca(item.nombre);
-        return otra.indexOf(marcaRaiz) !== -1 || marcaRaiz.indexOf(otra) !== -1;
+    const dirs = splitPipe(comercio.direccion).filter(Boolean);
+    if (dirs.length <= 1) {
+        comercio.total_sedes = 1;
+        comercio.es_multisede = false;
+        return [{
+            id: comercio.id,
+            sedeId: comercio.id,
+            parentId: comercio.id,
+            redId: redId,
+            sedeIndex: 0,
+            esPrincipal: true,
+            nombre: comercio.nombre,
+            direccion: comercio.direccion || '',
+            whatsapp: comercio.whatsapp || '',
+            pbx: comercio.pbx || '',
+            horario: comercio.horario || '',
+            correo: comercio.correo || '',
+            plus_code: comercio.plus_code || '',
+            coordenada_validada: comercio.coordenada_validada || comercio.coordenadas_crudo || '',
+            heredaDelPadre: true,
+            excepciones: {}
+        }];
+    }
+    const was = splitPipe(comercio.whatsapp);
+    const pbxs = splitPipe(comercio.pbx);
+    const hors = splitPipe(comercio.horario);
+    const cors = splitPipe(comercio.correo);
+    const plus = splitPipe(comercio.plus_code);
+    const coor = splitPipe(comercio.coordenada_validada || comercio.coordenadas_crudo);
+    comercio.sedes = dirs.map(function(d, idx) {
+        const sId = idx === 0 ? comercio.id : (comercio.id + '-S' + (idx + 1));
+        return {
+            id: sId,
+            sedeId: sId,
+            parentId: comercio.id,
+            redId: redId,
+            sedeIndex: idx,
+            esPrincipal: idx === 0,
+            nombre: comercio.nombre,
+            direccion: d,
+            whatsapp: was.length === 1 ? was[0] : (was[idx] || ''),
+            pbx: pbxs.length === 1 ? pbxs[0] : (pbxs[idx] || ''),
+            horario: hors.length === 1 ? hors[0] : (hors[idx] || ''),
+            correo: cors.length === 1 ? cors[0] : (cors[idx] || ''),
+            plus_code: plus.length === 1 ? (idx === 0 ? plus[0] : '') : (plus[idx] || ''),
+            coordenada_validada: coor.length === 1 ? (idx === 0 ? coor[0] : '') : (coor[idx] || ''),
+            heredaDelPadre: true,
+            excepciones: {}
+        };
     });
+    comercio.total_sedes = comercio.sedes.length;
+    comercio.es_multisede = comercio.sedes.length > 1;
+    return comercio.sedes;
+}
+
+export function obtenerSedesVinculadas(comercioActual) {
+    if (!comercioActual) return [];
+    const sedesPropias = asegurarEstructuraSedesTicket(comercioActual);
+    const redId = comercioActual.redId;
+    if (!redId) return sedesPropias;
+    const mapaPorId = {};
+    sedesPropias.forEach(function(s) {
+        const k = String(s.sedeId || s.id);
+        mapaPorId[k] = s;
+    });
+    listaComercios.forEach(function(item) {
+        if (String(item.id) === String(comercioActual.id)) return;
+        if (item.redId && item.redId === redId) {
+            const sedesItem = asegurarEstructuraSedesTicket(item);
+            sedesItem.forEach(function(s) {
+                const k = String(s.sedeId || s.id);
+                if (!mapaPorId[k]) mapaPorId[k] = s;
+            });
+        }
+    });
+    return Object.keys(mapaPorId).map(function(k) { return mapaPorId[k]; });
 }
 
 function limpiarMarcadoresMultiSedes() {
@@ -689,10 +769,12 @@ function limpiarMarcadoresMultiSedes() {
     marcadoresMultiSedes = [];
 }
 
-window.abrirMapaMultiSede = function(nombreComercio) {
-    const comercio = listaComercios.find(function(c) { return c.nombre === nombreComercio; });
+window.abrirMapaMultiSede = function(idONombre) {
+    const comercio = listaComercios.find(function(c) {
+        return String(c.id) === String(idONombre) || c.nombre === idONombre;
+    });
     if (!comercio) return;
-    const idx = listaComercios.findIndex(function(c) { return c.id === comercio.id; });
+    const idx = listaComercios.findIndex(function(c) { return String(c.id) === String(comercio.id); });
     abrirMapaParaEditarTicket(idx);
     setTimeout(function() { dibujarTodasLasSedesEnMapa(comercio); }, 250);
 };
@@ -705,18 +787,23 @@ function dibujarTodasLasSedesEnMapa(comercioBase) {
 
     const bounds = new maplibregl.LngLatBounds();
     let validas = 0;
+    const idActivo = (sedeEditandoIndex !== null && comercioBase.sedes && comercioBase.sedes[sedeEditandoIndex])
+        ? String(comercioBase.sedes[sedeEditandoIndex].sedeId || comercioBase.sedes[sedeEditandoIndex].id)
+        : String(comercioBase.id);
 
     sedes.forEach(function(sede, i) {
-        const raw = sede.coordenada_validada || sede.coordenadas_crudo || (String(sede.lat || '') + ', ' + String(sede.lng || ''));
+        const raw = sede.coordenada_validada || sede.coordenadas_crudo || sede.plus_code || (String(sede.lat || '') + ', ' + String(sede.lng || ''));
         const coords = parsearCoordenadasUniversales(raw);
         if (!coords) return;
         validas++;
         bounds.extend([coords.lng, coords.lat]);
 
-        if (sede.id !== comercioBase.id) {
+        const idSedeActual = String(sede.sedeId || sede.id);
+        if (idSedeActual !== idActivo) {
             const el = document.createElement('div');
             el.style.cssText = "width:22px; height:22px; border-radius:50%; background:#29b6f6; border:2px solid white; display:flex; align-items:center; justify-content:center; color:#000; font-size:9.5px; font-weight:900; cursor:pointer;";
             el.innerText = (i + 1);
+            el.title = (sede.nombre || comercioBase.nombre) + ' - ' + (sede.direccion || '');
 
             const m = new maplibregl.Marker({ element: el })
                 .setLngLat([coords.lng, coords.lat])
@@ -727,9 +814,13 @@ function dibujarTodasLasSedesEnMapa(comercioBase) {
     if (validas > 1) miniMapaNuevo.fitBounds(bounds, { padding: 40, maxZoom: 16 });
 }
 
-window.abrirMapaParaEditarTicket = function(index) {
+window.abrirMapaParaEditarTicket = function(index, sedeIdx) {
     ticketEditandoIndex = index;
+    sedeEditandoIndex = (typeof sedeIdx === 'number' && !isNaN(sedeIdx)) ? sedeIdx : null;
     const c = listaComercios[index];
+    if (!c) return;
+    asegurarEstructuraSedesTicket(c);
+    const sedeObj = (sedeEditandoIndex !== null && c.sedes && c.sedes[sedeEditandoIndex]) ? c.sedes[sedeEditandoIndex] : null;
     const modal = document.getElementById('modal-nuevo-comercio');
     if (modal) modal.style.display = 'flex';
 
@@ -738,14 +829,18 @@ window.abrirMapaParaEditarTicket = function(index) {
     const elWa = document.getElementById('nuevo-whatsapp');
     const elDir = document.getElementById('nuevo-direccion');
     const elBusq = document.getElementById('nuevo-busqueda-dir');
-    if (elId) elId.value = c.id;
+    if (elId) elId.value = sedeObj ? (sedeObj.sedeId || sedeObj.id) : c.id;
     if (elNom) elNom.value = c.nombre || '';
-    if (elWa) elWa.value = c.whatsapp || '';
-    if (elDir) elDir.value = c.direccion || '';
+    if (elWa) elWa.value = sedeObj ? (sedeObj.whatsapp || c.whatsapp || '') : (c.whatsapp || '');
+    if (elDir) elDir.value = sedeObj ? (sedeObj.direccion || '') : (c.direccion || '');
 
-    const latG = (c.Coordenadas && c.Coordenadas.latitude !== undefined) ? c.Coordenadas.latitude : c.lat;
-    const lngG = (c.Coordenadas && c.Coordenadas.longitude !== undefined) ? c.Coordenadas.longitude : c.lng;
-    const coordsRaw = c.coordenada_validada || (latG && lngG ? (latG + ', ' + lngG) : '') || c.coordenadas_crudo || '';
+    const latG = sedeObj
+        ? (sedeObj.lat !== undefined ? sedeObj.lat : ((c.Coordenadas && c.Coordenadas.latitude !== undefined) ? c.Coordenadas.latitude : c.lat))
+        : ((c.Coordenadas && c.Coordenadas.latitude !== undefined) ? c.Coordenadas.latitude : c.lat);
+    const lngG = sedeObj
+        ? (sedeObj.lng !== undefined ? sedeObj.lng : ((c.Coordenadas && c.Coordenadas.longitude !== undefined) ? c.Coordenadas.longitude : c.lng))
+        : ((c.Coordenadas && c.Coordenadas.longitude !== undefined) ? c.Coordenadas.longitude : c.lng);
+    const coordsRaw = (sedeObj ? (sedeObj.coordenada_validada || sedeObj.plus_code) : '') || c.coordenada_validada || (latG && lngG ? (latG + ', ' + lngG) : '') || c.coordenadas_crudo || c.plus_code || '';
     const coords = parsearCoordenadasUniversales(coordsRaw) || { lat: 4.81333, lng: -75.69611 };
     if (elBusq) elBusq.value = coords.lat + ', ' + coords.lng;
     setTimeout(function() {
@@ -756,9 +851,15 @@ window.abrirMapaParaEditarTicket = function(index) {
         actualizarInputsCoordenadas(coords.lat, coords.lng);
     }, 150);
 };
+window.abrirMapaParaEditarSede = function(index, sedeIdx) {
+    window.abrirMapaParaEditarTicket(index, sedeIdx);
+    const c = listaComercios[index];
+    if (c) setTimeout(function() { dibujarTodasLasSedesEnMapa(c); }, 250);
+};
 
 window.abrirModalNuevoComercio = function() {
     ticketEditandoIndex = null;
+    sedeEditandoIndex = null;
     const modal = document.getElementById('modal-nuevo-comercio');
     if (modal) modal.style.display = 'flex';
     const autoId = 'GEO-' + Date.now().toString().slice(-4);
@@ -784,6 +885,7 @@ window.abrirModalNuevoComercio = function() {
 
 window.cerrarModalNuevoComercio = function() {
     ticketEditandoIndex = null;
+    sedeEditandoIndex = null;
     limpiarMarcadoresMultiSedes();
     const modal = document.getElementById('modal-nuevo-comercio');
     if (modal) modal.style.display = 'none';
@@ -800,6 +902,47 @@ window.guardarNuevoComercio = async function() {
 
     if (ticketEditandoIndex !== null) {
         const item = listaComercios[ticketEditandoIndex];
+        item._editadoEnRadar = true;
+        asegurarEstructuraSedesTicket(item);
+        let ghNuevo = item.geohash || '';
+        try {
+            if (typeof geofire !== 'undefined' && geofire.geohashForLocation) {
+                ghNuevo = geofire.geohashForLocation([lat, lng]);
+            }
+        } catch (eG) {}
+
+        if (sedeEditandoIndex !== null && item.sedes && item.sedes[sedeEditandoIndex]) {
+            const sedeObj = item.sedes[sedeEditandoIndex];
+            if (!sedeObj.excepciones) sedeObj.excepciones = {};
+            if (elDir && elDir.value.trim()) {
+                sedeObj.direccion = elDir.value.trim();
+                sedeObj.excepciones.direccion = true;
+            }
+            const waInput = document.getElementById('nuevo-whatsapp')?.value.trim();
+            if (waInput) {
+                sedeObj.whatsapp = waInput;
+                sedeObj.excepciones.whatsapp = true;
+            }
+            sedeObj.lat = lat;
+            sedeObj.lng = lng;
+            sedeObj.coordenada_validada = lat + ', ' + lng;
+            sedeObj.geohash = ghNuevo;
+            sedeObj.excepciones.coordenada_validada = true;
+            if (sedeEditandoIndex === 0) {
+                item.lat = lat; item.lng = lng;
+                item.coordenada_validada = lat + ', ' + lng;
+                item.coordenadas_crudo = item.coordenada_validada;
+                item.ubicacion = { lat: lat, lng: lng };
+                item.Coordenadas = { latitude: lat, longitude: lng };
+                if (ghNuevo) item.geohash = ghNuevo;
+            }
+            AppState.guardarColaLocal();
+            renderizarTablero();
+            cerrarModalNuevoComercio();
+            mostrarToast('Coordenadas fijadas para Sede ' + (sedeEditandoIndex + 1) + ' (' + (sedeObj.sedeId || sedeObj.id) + ').', 'exito');
+            return;
+        }
+
         item.nombre = nombre;
         if (elDir && elDir.value.trim()) item.direccion = elDir.value.trim();
         item.whatsapp = document.getElementById('nuevo-whatsapp')?.value.trim() || item.whatsapp || '';
@@ -808,13 +951,13 @@ window.guardarNuevoComercio = async function() {
         item.coordenadas_crudo = item.coordenada_validada;
         item.ubicacion = { lat: lat, lng: lng };
         item.Coordenadas = { latitude: lat, longitude: lng };
-        let ghNuevo = item.geohash || '';
-        try {
-            if (typeof geofire !== 'undefined' && geofire.geohashForLocation) {
-                ghNuevo = geofire.geohashForLocation([lat, lng]);
-                item.geohash = ghNuevo;
-            }
-        } catch (eG) {}
+        if (ghNuevo) item.geohash = ghNuevo;
+        if (item.sedes && item.sedes[0]) {
+            item.sedes[0].lat = lat;
+            item.sedes[0].lng = lng;
+            item.sedes[0].coordenada_validada = lat + ', ' + lng;
+            item.sedes[0].geohash = ghNuevo;
+        }
         AppState.guardarColaLocal();
         renderizarTablero();
         cerrarModalNuevoComercio();
@@ -869,6 +1012,18 @@ const BLANCO_GEOKATU = "#ffffff";
 
 window.slotColorActual = 1;
 window.estadoColorCustom = { h: 0, s: 100, l: 50, l_base: 50 };
+window.backupColorModal = null;
+
+function normalizarHexSeisDigitos(hexRaw) {
+    const limpio = String(hexRaw || '').replace('#', '').trim().toUpperCase();
+    if (/^[0-9A-F]{3}$/.test(limpio)) {
+        return '#' + limpio[0] + limpio[0] + limpio[1] + limpio[1] + limpio[2] + limpio[2];
+    }
+    if (/^[0-9A-F]{6}$/.test(limpio)) {
+        return '#' + limpio;
+    }
+    return null;
+}
 
 export function hslToHex(h, s, l) {
     const lNorm = l / 100;
@@ -1016,27 +1171,61 @@ window.aplicarColorASlot = aplicarColorASlot;
 
 window.abrirRuedaColorBoveda = function(slot) {
     window.slotColorActual = slot;
-    const inputVal = document.getElementById('hex-slot-' + slot)?.value || "#ff6b00";
+    let inputVal = '#FF6B00';
+    if (slot === 'CUARZO_CUSTOM') {
+        const temaActual = (comercioActivoParaCatalogo && comercioActivoParaCatalogo.tema_popup)
+            || document.getElementById('drawer-select-tema')?.value
+            || 'carbon';
+        inputVal = (temaActual.indexOf('custom:') === 0) ? temaActual.replace('custom:', '') : '#00F5D4';
+        window.backupColorModal = { slot: 'CUARZO_CUSTOM', temaAnterior: temaActual };
+    } else {
+        inputVal = document.getElementById('hex-slot-' + slot)?.value || '#FF6B00';
+        window.backupColorModal = { slot: slot, hexAnterior: normalizarHexSeisDigitos(inputVal) || '#FF6B00' };
+    }
+    const hexNorm = normalizarHexSeisDigitos(inputVal) || '#FF6B00';
     const inputHex = document.getElementById('input-hex-manual');
-    if (inputHex) inputHex.value = inputVal.replace('#', '');
+    if (inputHex) {
+        inputHex.value = hexNorm.replace('#', '');
+        inputHex.style.borderColor = '#00ff64';
+    }
     const modal = document.getElementById('modal-color-espectro');
     if (modal) modal.style.display = 'flex';
 
     try {
-        const hsl = hexToHSL(inputVal);
+        const hsl = hexToHSL(hexNorm);
         window.estadoColorCustom.h = hsl.h;
-        window.estadoColorCustom.l_base = Math.max(50, hsl.l);
+        window.estadoColorCustom.s = hsl.s;
+        if (hsl.s <= 5) {
+            window.estadoColorCustom.l_base = 100;
+        } else {
+            window.estadoColorCustom.l_base = Math.max(50, hsl.l);
+        }
         const slider = document.getElementById('slider-brillo');
         if (slider) {
-            slider.value = 100;
-            slider.style.background = 'linear-gradient(to right, black, ' + hslToHex(hsl.h, 100, window.estadoColorCustom.l_base) + ')';
+            const ratioBrillo = window.estadoColorCustom.l_base > 0
+                ? Math.min(100, Math.max(0, Math.round((hsl.l / window.estadoColorCustom.l_base) * 100)))
+                : 0;
+            slider.value = ratioBrillo;
+            const topeHex = hslToHex(window.estadoColorCustom.h, window.estadoColorCustom.s, window.estadoColorCustom.l_base);
+            slider.style.background = 'linear-gradient(to right, #000000, ' + topeHex + ')';
         }
     } catch(e) {}
 };
 
-window.cerrarModalColorManual = function() {
+window.cerrarModalColorManual = function(confirmado) {
+    if (!confirmado && window.backupColorModal) {
+        if (window.backupColorModal.slot === 'CUARZO_CUSTOM') {
+            window.seleccionarCuarzoDrawer(window.backupColorModal.temaAnterior || 'carbon');
+        } else if (window.backupColorModal.hexAnterior) {
+            aplicarColorASlot(window.backupColorModal.slot, window.backupColorModal.hexAnterior);
+        }
+    }
+    window.backupColorModal = null;
     const modal = document.getElementById('modal-color-espectro');
     if (modal) modal.style.display = 'none';
+};
+window.cancelarModalColorManual = function() {
+    window.cerrarModalColorManual(false);
 };
 
 export const CATALOGO_CUARZOS_ONBOARDING = [
@@ -1188,26 +1377,39 @@ window.seleccionarCuarzoDrawer = function(tema) {
 
 window.confirmarColorSeleccionado = function() {
     const inputEl = document.getElementById('input-hex-manual');
-    let hex = inputEl ? inputEl.value.replace('#', '').trim() : '';
-    if (/^([0-9A-F]{3}|[0-9A-F]{6})$/i.test(hex)) {
-        const hexFinal = '#' + hex.toUpperCase();
+    const hexFinal = normalizarHexSeisDigitos(inputEl ? inputEl.value : '');
+    if (hexFinal) {
         if (window.slotColorActual === 'CUARZO_CUSTOM') {
             window.seleccionarCuarzoDrawer('custom:' + hexFinal);
         } else {
             aplicarColorASlot(window.slotColorActual, hexFinal);
         }
-        cerrarModalColorManual();
+        window.cerrarModalColorManual(true);
     } else {
         mostrarToast("Codigo cromatico hexadecimal invalido.", "error");
     }
 };
 window.sincronizarColorDesdeHex = function(valorIngresado) {
-    const hexLimpio = (valorIngresado || '').replace('#', '').trim();
+    const hexFinal = normalizarHexSeisDigitos(valorIngresado);
     const inputHex = document.getElementById('input-hex-manual');
-    if (/^([0-9A-F]{3}|[0-9A-F]{6})$/i.test(hexLimpio)) {
+    if (hexFinal) {
         if (inputHex) inputHex.style.borderColor = '#00ff64';
+        try {
+            const hsl = hexToHSL(hexFinal);
+            window.estadoColorCustom.h = hsl.h;
+            window.estadoColorCustom.s = hsl.s;
+            window.estadoColorCustom.l_base = (hsl.s <= 5) ? 100 : Math.max(50, hsl.l);
+            const slider = document.getElementById('slider-brillo');
+            if (slider) {
+                slider.value = window.estadoColorCustom.l_base > 0
+                    ? Math.min(100, Math.max(0, Math.round((hsl.l / window.estadoColorCustom.l_base) * 100)))
+                    : 0;
+                const topeHex = hslToHex(hsl.h, hsl.s, window.estadoColorCustom.l_base);
+                slider.style.background = 'linear-gradient(to right, #000000, ' + topeHex + ')';
+            }
+        } catch (eH) {}
         if (window.slotColorActual && window.slotColorActual !== 'CUARZO_CUSTOM') {
-            aplicarColorASlot(window.slotColorActual, '#' + hexLimpio.toUpperCase());
+            aplicarColorASlot(window.slotColorActual, hexFinal);
         }
     } else {
         if (inputHex) inputHex.style.borderColor = '#ff4444';
@@ -1360,24 +1562,33 @@ export function inicializarEventosRueda() {
             puntero.style.top = (y + maxRadio) + 'px';
         }
 
-        // Calibracion exacta 1:1 con conic-gradient(from 90deg)
+                // Calibracion exacta 1:1 con conic-gradient(from 90deg) + zona central de escala de grises
         let angle = Math.atan2(y, x) * (180 / Math.PI);
         if (angle < 0) angle += 360;
+        const ratio = maxRadio > 0 ? (radio / maxRadio) : 0;
         window.estadoColorCustom.h = Math.round(angle);
-        window.estadoColorCustom.l_base = 100 - ((radio / maxRadio) * 50); 
+        if (ratio <= 0.14) {
+            window.estadoColorCustom.s = 0;
+            window.estadoColorCustom.l_base = 100;
+        } else {
+            const ratioColor = (ratio - 0.14) / 0.86;
+            window.estadoColorCustom.s = Math.round(ratioColor * 100);
+            window.estadoColorCustom.l_base = 100 - (ratioColor * 50);
+        }
         actualizarPreviewCustom();
     };
     const actualizarPreviewCustom = function() {
         const factorBrillo = sliderBrillo.value / 100;
+        const sat = (window.estadoColorCustom.s !== undefined) ? window.estadoColorCustom.s : 100;
         const l_final = window.estadoColorCustom.l_base * factorBrillo;
-        const hex = hslToHex(window.estadoColorCustom.h, 100, l_final);
+        const hex = hslToHex(window.estadoColorCustom.h, sat, l_final);
         const inputHex = document.getElementById('input-hex-manual');
         if (inputHex) {
             inputHex.value = hex.replace('#', '');
             inputHex.style.borderColor = '#00ff64';
         }
-        const pureHex = hslToHex(window.estadoColorCustom.h, 100, window.estadoColorCustom.l_base);
-        sliderBrillo.style.background = 'linear-gradient(to right, black, ' + pureHex + ')';
+        const pureHex = hslToHex(window.estadoColorCustom.h, sat, window.estadoColorCustom.l_base);
+        sliderBrillo.style.background = 'linear-gradient(to right, #000000, ' + pureHex + ')';
         if (window.slotColorActual && window.slotColorActual !== 'CUARZO_CUSTOM') {
             aplicarColorASlot(window.slotColorActual, hex);
         }
@@ -1434,20 +1645,126 @@ export function registrarCategoriaGlobalCatalogo(nuevaCat) {
 }
 window.registrarCategoriaGlobalCatalogo = registrarCategoriaGlobalCatalogo;
 
-export function actualizarDatalistNichos() {
-    const datalist = document.getElementById('lista-nichos-sugeridos');
-    if (!datalist) return;
+let ultimaConsultaNichosRemotos = 0;
 
-    const setNichos = new Set();
+function normalizarClaveNichoLocal(valor) {
+    return String(valor || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+}
+
+function poblarElementosDatalistNichos(listaOrdenada) {
+    const idsDatalist = ['lista-nichos-sugeridos', 'lista-nichos-geokatu'];
+    idsDatalist.forEach(function(idDl) {
+        const dl = document.getElementById(idDl);
+        if (!dl) return;
+        dl.innerHTML = '';
+        listaOrdenada.forEach(function(nicho) {
+            const opt = document.createElement('option');
+            opt.value = nicho;
+            dl.appendChild(opt);
+        });
+    });
+}
+
+export function actualizarDatalistNichos(forzarRemoto) {
+    const mapaUnicos = {};
+    const agregarNichoAlPool = function(raw) {
+        const limpio = String(raw || '').replace(/\s+/g, ' ').trim();
+        if (!limpio || limpio === 'General') return;
+        const clave = normalizarClaveNichoLocal(limpio);
+        if (clave && !mapaUnicos[clave]) mapaUnicos[clave] = limpio;
+    };
+
     listaComercios.forEach(function(c) {
-        const n = (c.nicho || c.categoria || '').trim();
-        if (n && n !== 'General') setNichos.add(n);
+        agregarNichoAlPool(c.nicho || c.categoria || '');
     });
 
-    const nichosOrdenados = Array.from(setNichos).sort(function(a, b) { return a.localeCompare(b, 'es'); });
-    datalist.innerHTML = nichosOrdenados.map(function(nicho) { return '<option value="' + nicho + '">'; }).join('');
+    try {
+        const remotosCache = JSON.parse(localStorage.getItem('geokatu_nichos_remotos_cache') || '[]');
+        if (Array.isArray(remotosCache)) remotosCache.forEach(agregarNichoAlPool);
+    } catch (eC) {}
+
+    const nichosOrdenados = Object.keys(mapaUnicos)
+        .map(function(k) { return mapaUnicos[k]; })
+        .sort(function(a, b) { return a.localeCompare(b, 'es'); });
+
+    poblarElementosDatalistNichos(nichosOrdenados);
+
+    const ahora = Date.now();
+    if (!forzarRemoto && (ahora - ultimaConsultaNichosRemotos < 45000)) return;
+    ultimaConsultaNichosRemotos = ahora;
+
+    (async function() {
+        let u = localStorage.getItem('geokatu_apps_script_url') || '';
+        if (!u) {
+            try {
+                const resNube = await GeokatuDB.AdminService.obtenerEnlaceAppScriptOnboarding();
+                if (resNube && resNube.url) {
+                    u = resNube.url;
+                    localStorage.setItem('geokatu_apps_script_url', u);
+                }
+            } catch (eU) {}
+        }
+        if (!u) return;
+        try {
+            const sep = u.indexOf('?') !== -1 ? '&' : '?';
+            const res = await fetch(u + sep + 'action=getNichos&t=' + Date.now());
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data && data.status === 'ok' && Array.isArray(data.nichos)) {
+                localStorage.setItem('geokatu_nichos_remotos_cache', JSON.stringify(data.nichos));
+                data.nichos.forEach(agregarNichoAlPool);
+                const actualizados = Object.keys(mapaUnicos)
+                    .map(function(k) { return mapaUnicos[k]; })
+                    .sort(function(a, b) { return a.localeCompare(b, 'es'); });
+                poblarElementosDatalistNichos(actualizados);
+            }
+        } catch (eN) {}
+    })();
 }
 window.actualizarDatalistNichos = actualizarDatalistNichos;
+
+window.registrarNichoEnAppsScript = async function(nuevoNicho) {
+    const limpio = String(nuevoNicho || '').replace(/\s+/g, ' ').trim();
+    if (!limpio || limpio === 'General') return;
+    const claveNueva = normalizarClaveNichoLocal(limpio);
+    let cache = [];
+    try {
+        cache = JSON.parse(localStorage.getItem('geokatu_nichos_remotos_cache') || '[]');
+        if (!Array.isArray(cache)) cache = [];
+    } catch (e) { cache = []; }
+
+    const yaExiste = cache.some(function(n) { return normalizarClaveNichoLocal(n) === claveNueva; });
+    if (!yaExiste) {
+        cache.push(limpio);
+        localStorage.setItem('geokatu_nichos_remotos_cache', JSON.stringify(cache));
+    }
+    actualizarDatalistNichos(false);
+
+    let u = localStorage.getItem('geokatu_apps_script_url') || '';
+    if (!u) {
+        try {
+            const resNube = await GeokatuDB.AdminService.obtenerEnlaceAppScriptOnboarding();
+            if (resNube && resNube.url) {
+                u = resNube.url;
+                localStorage.setItem('geokatu_apps_script_url', u);
+            }
+        } catch (eU) {}
+    }
+    if (!u) return;
+    try {
+        await fetch(u, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ accion: 'registrar_nicho', nicho: limpio })
+        });
+    } catch (eP) {}
+};
 
 // =========================================================================
 // RENDERIZADOR DEL TABLERO KANBAN
@@ -1713,17 +2030,52 @@ export function renderizarTablero() {
         const correoPub = Boolean(c.mostrar_correo_publico);
         const canalPpal = c.contacto_principal || 'whatsapp';
 
-        const sedesHermanas = obtenerSedesVinculadas(c);
+                const sedesHermanas = obtenerSedesVinculadas(c);
+        const idSeguroAttr = String(c.id || '').replace(/'/g, "\\'");
         let sedesHTML = '';
         if (sedesHermanas.length > 1) {
+            const desplegado = Boolean(c._mostrarSubTicketsSedes);
+            const listaSedesRender = (Array.isArray(c.sedes) && c.sedes.length > 1) ? c.sedes : sedesHermanas;
+            const subTicketsHTML = listaSedesRender.map(function(sedeItem, sIdx) {
+                const coordsSede = parsearCoordenadasUniversales(sedeItem.coordenada_validada || sedeItem.plus_code || '');
+                const txtCoordsSede = coordsSede ? (coordsSede.lat + ', ' + coordsSede.lng) : 'Sin GPS';
+                const colorCoordsSede = coordsSede ? 'var(--verde-hoja)' : 'var(--naranja-miel)';
+                const tieneExcepciones = sedeItem.excepciones && Object.keys(sedeItem.excepciones).length > 0;
+                const textoHerencia = tieneExcepciones ? 'Excepciones propias + Herencia base' : 'Hereda pin, productos y branding';
+                const dirEscapada = String(sedeItem.direccion || '').replace(/"/g, '&quot;');
+                const waEscapado = String(sedeItem.whatsapp || '').replace(/"/g, '&quot;');
+                const horEscapado = String(sedeItem.horario || '').replace(/"/g, '&quot;');
+                return '<div style="margin-top:6px; padding:6px; background:rgba(0,0,0,0.45); border:1px solid rgba(41,182,246,0.28); border-radius:6px;" onclick="event.stopPropagation();">' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center; font-size:9.5px; margin-bottom:4px;">' +
+                        '<strong style="color:#fff;">📍 Sede ' + (sIdx + 1) + ': <span style="color:var(--azul-link); font-family:monospace;">' + (sedeItem.sedeId || sedeItem.id) + '</span></strong>' +
+                        '<span style="font-family:monospace; color:' + colorCoordsSede + ';">' + txtCoordsSede + '</span>' +
+                    '</div>' +
+                    '<div style="font-size:9px; color:#94a3b8; margin-bottom:4px;">🔗 ' + textoHerencia + '</div>' +
+                    '<div style="display:flex; flex-direction:column; gap:4px;">' +
+                        '<input type="text" value="' + dirEscapada + '" placeholder="Dirección sede" onchange="window.actualizarCampoSedeIndividual(' + index + ', ' + sIdx + ', \'direccion\', this.value)" style="background:#090d16; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:3px 6px; font-size:10px; width:100%; box-sizing:border-box;">' +
+                        '<div style="display:grid; grid-template-columns: 1fr 1fr auto; gap:4px; align-items:center;">' +
+                            '<input type="text" value="' + waEscapado + '" placeholder="WhatsApp sede" onchange="window.actualizarCampoSedeIndividual(' + index + ', ' + sIdx + ', \'whatsapp\', this.value)" style="background:#090d16; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:3px 6px; font-size:10px; width:100%; box-sizing:border-box;">' +
+                            '<input type="text" value="' + horEscapado + '" placeholder="Horario sede" onchange="window.actualizarCampoSedeIndividual(' + index + ', ' + sIdx + ', \'horario\', this.value)" style="background:#090d16; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:3px 6px; font-size:10px; width:100%; box-sizing:border-box;">' +
+                            '<button type="button" class="btn-geo-inline" style="display:inline-flex; padding:3px 6px; font-size:9.5px; white-space:nowrap;" onclick="event.stopPropagation(); window.abrirMapaParaEditarSede(' + index + ', ' + sIdx + ')">🗺️ GPS</button>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
+
             sedesHTML = 
                 '<div style="margin: 6px 0; padding: 6px 8px; background: rgba(41, 182, 246, 0.08); border: 1px dashed var(--azul-link); border-radius: 6px;">' +
-                    '<div style="display:flex; justify-content:space-between; align-items:center; font-size:10.5px; font-weight:bold; color:var(--azul-link); margin-bottom:4px;">' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center; gap:6px; font-size:10.5px; font-weight:bold; color:var(--azul-link);">' +
                         '<span>Red Multi-Sede (' + sedesHermanas.length + ' puntos)</span>' +
-                        '<button type="button" class="btn-submit" style="padding: 2px 6px; font-size: 9.5px; background: var(--azul-link); color: #000;" onclick="event.stopPropagation(); abrirMapaMultiSede(\'' + nombreSeguro + '\')">' +
-                            'Ver Red en Mapa' +
-                        '</button>' +
+                        '<div style="display:flex; align-items:center; gap:4px;">' +
+                            '<button type="button" class="btn-submit" style="padding: 2px 7px; font-size: 9.5px; background: var(--azul-link); color: #000;" onclick="event.stopPropagation(); abrirMapaMultiSede(\'' + idSeguroAttr + '\')">' +
+                                'Mapa' +
+                            '</button>' +
+                            '<button type="button" class="btn-submit" style="padding: 2px 7px; font-size: 9.5px; background: rgba(255,107,0,0.22); border: 1px solid var(--naranja); color: var(--naranja-miel);" onclick="event.stopPropagation(); window.toggleSubTicketsMultiSede(' + index + ', event)">' +
+                                (desplegado ? 'Ocultar tickets' : 'Mostrar tickets') +
+                            '</button>' +
+                        '</div>' +
                     '</div>' +
+                    '<div id="subtickets-sedes-' + index + '" style="display:' + (desplegado ? 'block' : 'none') + ';">' + subTicketsHTML + '</div>' +
                 '</div>';
         }
 
@@ -2014,6 +2366,7 @@ window.toggleEditarTicket = function(index, btnElement) {
 
     if (editando) {
         var cActual = listaComercios[index];
+                if (cActual) cActual._editadoEnRadar = true;
         var inputNicho = card.querySelector('.input-nicho-editable');
         var spanNicho = card.querySelector('.dato-nicho-texto');
         if (inputNicho && cActual) {
@@ -2021,6 +2374,9 @@ window.toggleEditarTicket = function(index, btnElement) {
             cActual.nicho = valorFinal;
             cActual.categoria = valorFinal;
             if (spanNicho) spanNicho.innerText = valorFinal;
+            if (valorFinal !== 'General' && typeof window.registrarNichoEnAppsScript === 'function') {
+                window.registrarNichoEnAppsScript(valorFinal);
+            }
         }
 
         spans.forEach(function(span) {
@@ -2173,344 +2529,33 @@ document.addEventListener('click', async function(event) {
     }
 });
 
-window.toggleSwitchTicket = async function(index, campo, estado) {
+window.toggleSubTicketsMultiSede = function(index, event) {
+    if (event) event.stopPropagation();
     const c = listaComercios[index];
     if (!c) return;
-    c[campo] = Boolean(estado);
-    if (campo === 'es_24_horas' && estado) {
-        c.horario = '24 Horas';
-    }
+    asegurarEstructuraSedesTicket(c);
+    c._mostrarSubTicketsSedes = !c._mostrarSubTicketsSedes;
     AppState.guardarColaLocal();
     renderizarTablero();
-
-    if (c.subido === true || vistaActualTablero === 'todos') {
-        try {
-            const payload = { fecha_actualizacion: new Date().toISOString() };
-            payload[campo] = Boolean(estado);
-            if (campo === 'mostrar_slogan') {
-                payload.slogan = estado ? (c.slogan || '') : '';
-            }
-            if (campo === 'es_24_horas' && estado) {
-                payload.horario = '24 Horas';
-            }
-            await setDoc(doc(db, "Directorio", String(c.id)), payload, { merge: true });
-            localStorage.removeItem('geokatu_cache_neg_' + c.id);
-        } catch (e) {}
-    }
 };
 
-window.cambiarCanalPrincipalTicket = async function(index, valor) {
+window.actualizarCampoSedeIndividual = function(index, sedeIdx, campo, valor) {
     const c = listaComercios[index];
     if (!c) return;
-    c.contacto_principal = valor;
+    asegurarEstructuraSedesTicket(c);
+    const sede = c.sedes && c.sedes[sedeIdx];
+    if (!sede) return;
+    const valLimpio = String(valor || '').trim();
+    sede[campo] = valLimpio;
+    if (!sede.excepciones) sede.excepciones = {};
+    sede.excepciones[campo] = true;
+    c._editadoEnRadar = true;
+    if (sedeIdx === 0 && (campo === 'whatsapp' || campo === 'horario')) {
+        c[campo] = valLimpio;
+    }
     AppState.guardarColaLocal();
-    if (c.subido === true || vistaActualTablero === 'todos') {
-        try {
-            await setDoc(doc(db, "Directorio", String(c.id)), {
-                contacto_principal: valor,
-                fecha_actualizacion: new Date().toISOString()
-            }, { merge: true });
-            localStorage.removeItem('geokatu_cache_neg_' + c.id);
-            mostrarToast("Canal principal actualizado: " + valor, "exito", 1800);
-        } catch (e) {}
-    }
+    mostrarToast('Sede ' + (sedeIdx + 1) + ' actualizada (' + campo + ').', 'exito', 1800);
 };
-
-// =========================================================================
-// MENÚ DE PAPELERA (1. DESHABILITAR | 2. ELIMINAR DEFINITIVAMENTE)
-// =========================================================================
-window.abrirMenuPapeleraTicket = function(index) {
-    document.querySelectorAll('.menu-decision-validar').forEach(function(m) { m.remove(); });
-    const card = document.querySelector('.cuadrito-actividad[data-index="' + index + '"]');
-    if (!card) return;
-
-    const c = listaComercios[index];
-    const menu = document.createElement('div');
-    menu.className = 'menu-decision-validar';
-    menu.innerHTML =
-        '<div style="font-size: 11px; font-weight: 900; color: #fff; border-bottom: 1px solid #333; padding-bottom: 4px;">' +
-            'Accion para ' + (c.nombre || c.id) +
-        '</div>' +
-        '<button type="button" class="btn-submit" style="background: rgba(255, 179, 0, 0.2); border: 1px solid var(--naranja-miel); color: var(--naranja-miel); padding: 7px; font-size: 11px; justify-content: center;" onclick="event.stopPropagation(); window.deshabilitarComercioTicket(' + index + ')">' +
-            '1. Deshabilitar (Ocultar del Mapa)' +
-        '</button>' +
-        '<button type="button" class="btn-submit" style="background: rgba(255, 68, 68, 0.22); border: 1px solid var(--rojo-fuego); color: #ff6b6b; padding: 7px; font-size: 11px; justify-content: center;" onclick="event.stopPropagation(); window.eliminarComercioDefinitivo(' + index + ')">' +
-            '2. Eliminar Definitivamente' +
-        '</button>' +
-        '<button type="button" style="background: transparent; border: none; color: #888; font-size: 10px; cursor: pointer; text-align: center;" onclick="event.stopPropagation(); this.parentElement.remove()">' +
-            'Cancelar' +
-        '</button>';
-    card.appendChild(menu);
-};
-
-window.deshabilitarComercioTicket = async function(index) {
-    const c = listaComercios[index];
-    if (!c) return;
-    c.deshabilitado = true;
-    c.estado_moderacion = 'deshabilitado';
-    c.estado_flujo = 'Deshabilitado';
-
-    const itemSrv = comerciosServidorCache.find(function(x) { return String(x.id) === String(c.id); });
-    if (itemSrv) {
-        itemSrv.deshabilitado = true;
-        itemSrv.estado_moderacion = 'deshabilitado';
-    }
-
-    AppState.guardarColaLocal();
-    renderizarTablero();
-    actualizarHUD();
-
-    try {
-        await setDoc(doc(db, "Directorio", String(c.id)), {
-            estado_moderacion: 'deshabilitado',
-            deshabilitado: true,
-            fecha_actualizacion: new Date().toISOString()
-        }, { merge: true });
-        localStorage.removeItem('geokatu_cache_neg_' + c.id);
-        GeokatuDB.AdminService.compilarMatrizGlobalCDN().catch(function() {});
-        emitirTono('EXITO');
-        mostrarToast('Comercio "' + c.nombre + '" enviado a Deshabilitados y ocultado del mapa.', 'info');
-    } catch (e) {
-        mostrarToast('Movido a Deshabilitados localmente.', 'info');
-    }
-};
-
-window.reactivarComercioDeshabilitado = async function(index) {
-    const c = listaComercios[index];
-    if (!c) return;
-    c.deshabilitado = false;
-    c.estado_moderacion = 'aprobado';
-    c.estado_flujo = 'Cerrado';
-    c.capturado = true;
-
-    const itemSrv = comerciosServidorCache.find(function(x) { return String(x.id) === String(c.id); });
-    if (itemSrv) {
-        itemSrv.deshabilitado = false;
-        itemSrv.estado_moderacion = 'aprobado';
-    }
-
-    AppState.guardarColaLocal();
-    renderizarTablero();
-    actualizarHUD();
-
-    try {
-        await setDoc(doc(db, "Directorio", String(c.id)), {
-            estado_moderacion: 'aprobado',
-            deshabilitado: false,
-            fecha_actualizacion: new Date().toISOString()
-        }, { merge: true });
-        GeokatuDB.AdminService.compilarMatrizGlobalCDN().catch(function() {});
-        emitirTono('EXITO');
-        mostrarToast('Comercio "' + c.nombre + '" reactivado en el mapa.', 'exito');
-    } catch (e) {}
-};
-
-window.eliminarComercioDefinitivo = async function(index) {
-    const c = listaComercios[index];
-    if (!c) return;
-    const conf = await solicitarConfirmacion(
-        "Eliminar Definitivamente",
-        '¿Borrar de forma permanente "' + (c.nombre || c.id) + '" del servidor Firestore y de este panel?'
-    );
-    if (!conf) return;
-
-    try {
-        if (c.id) {
-            await deleteDoc(doc(db, "Directorio", String(c.id)));
-            localStorage.removeItem('geokatu_cache_neg_' + c.id);
-            localStorage.removeItem('geokatu_cache_prods_' + c.id);
-            GeokatuDB.AdminService.compilarMatrizGlobalCDN().catch(function() {});
-        }
-    } catch (eDel) {
-        console.warn("Aviso borrando en servidor:", eDel.message);
-    }
-
-    comerciosServidorCache = comerciosServidorCache.filter(function(x) { return String(x.id) !== String(c.id); });
-    listaComercios.splice(index, 1);
-    AppState.guardarColaLocal();
-    renderizarTablero();
-    actualizarHUD();
-    actualizarConteoHistorial();
-    mostrarToast("Comercio eliminado definitivamente.", "info");
-};
-window.eliminarComercioTicket = window.abrirMenuPapeleraTicket;
-
-// =========================================================================
-// EDICIÓN EN CALIENTE Y COPIADO TÁCTIL (SINCRONIZACIÓN COMPLETA A FIRESTORE)
-// =========================================================================
-window.toggleEditarTicket = function(index, btnElement) {
-    var btn = btnElement || document.querySelector('.cuadrito-actividad[data-index="' + index + '"] .btn-editar-inline');
-    if (!btn) return;
-    var card = btn.closest('.cuadrito-actividad');
-    if (!card) return;
-
-    var spans = card.querySelectorAll('.dato-copiable');
-    var btnTrash = card.querySelector('.btn-eliminar-inline');
-    var contenedorWa = card.querySelector('.contenedor-botones-wa');
-    var spanWaRaw = card.querySelector('.dato-whatsapp-raw');
-
-    var editando = btn.textContent.trim().indexOf('✔️') !== -1;
-
-    if (editando) {
-        var cActual = listaComercios[index];
-        var inputNicho = card.querySelector('.input-nicho-editable');
-        var spanNicho = card.querySelector('.dato-nicho-texto');
-        if (inputNicho && cActual) {
-            var valorFinal = inputNicho.value.trim() || 'General';
-            cActual.nicho = valorFinal;
-            cActual.categoria = valorFinal;
-            if (spanNicho) spanNicho.innerText = valorFinal;
-        }
-
-        spans.forEach(function(span) {
-            var key = span.getAttribute('data-key');
-            if (key && key !== 'nicho' && cActual) {
-                var valTxt = span.innerText.trim();
-                if (valTxt === 'N/A' || valTxt === 'Sin slogan' || valTxt === 'Sin etiquetas') valTxt = '';
-
-                if (key === 'tags_texto') {
-                    cActual.tags_busqueda = valTxt
-                        ? valTxt.split(/[,;#\s]+/).map(function(t) { return t.replace(/^#/, '').trim(); }).filter(Boolean)
-                        : [];
-                } else {
-                    cActual[key] = valTxt;
-                }
-            }
-            span.contentEditable = "false";
-            span.classList.remove('modo-edicion');
-        });
-
-        var coordsNuevas = parsearCoordenadasUniversales(cActual.coordenada_validada || '');
-        var geoHashUpdate = cActual.geohash || '';
-        if (coordsNuevas) {
-            cActual.lat = coordsNuevas.lat;
-            cActual.lng = coordsNuevas.lng;
-            cActual.coordenada_validada = coordsNuevas.lat + ', ' + coordsNuevas.lng;
-            cActual.coordenadas_crudo = cActual.coordenada_validada;
-            cActual.ubicacion = { lat: coordsNuevas.lat, lng: coordsNuevas.lng };
-            cActual.Coordenadas = { latitude: coordsNuevas.lat, longitude: coordsNuevas.lng };
-            try {
-                if (typeof geofire !== 'undefined' && geofire.geohashForLocation) {
-                    geoHashUpdate = geofire.geohashForLocation([coordsNuevas.lat, coordsNuevas.lng]);
-                    cActual.geohash = geoHashUpdate;
-                }
-            } catch (eG) {}
-        }
-
-        var itemSrv = comerciosServidorCache.find(function(x) { return String(x.id) === String(cActual.id); });
-        if (itemSrv) {
-            Object.assign(itemSrv, cActual);
-        }
-
-        btn.textContent = '✏️';
-        if (btnTrash) btnTrash.style.display = 'none';
-        if (contenedorWa) contenedorWa.style.display = 'inline-flex';
-        if (spanWaRaw) spanWaRaw.style.display = 'none';
-        if (inputNicho && spanNicho) {
-            inputNicho.style.display = 'none';
-            spanNicho.style.display = 'inline-block';
-        }
-        actualizarDatalistNichos();
-        AppState.guardarColaLocal();
-        renderizarTablero();
-
-        if (cActual && (cActual.subido === true || vistaActualTablero === 'todos')) {
-            mostrarToast("Guardando cambios y coordenadas en Firestore...", "info", 2000);
-            (async function() {
-                try {
-                    var docRef = doc(db, "Directorio", String(cActual.id));
-                    var arrFonos = String(cActual.whatsapp || '').split('|').map(function(f) { return f.trim().replace(/\D/g, ''); }).filter(Boolean);
-                    var pbxLimpio = String(cActual.pbx || '').trim();
-
-                    var payloadUpdate = {
-                        nombre: cActual.nombre || "Comercio Aliado",
-                        slogan: (cActual.mostrar_slogan !== false) ? (cActual.slogan || "") : "",
-                        mostrar_slogan: Boolean(cActual.mostrar_slogan !== false),
-                        cuerpo_articulo: cActual.slogan || "",
-                        nicho: cActual.nicho || "General",
-                        categoria: cActual.nicho || "General",
-                        categoria_maestra: cActual.nicho || "General",
-                        tags_busqueda: Array.isArray(cActual.tags_busqueda) ? cActual.tags_busqueda : [],
-                        direccion: cActual.direccion || "",
-                        direccion_normalizada: GeokatuDB.normalizarDireccionCartesiana(cActual.direccion || ""),
-                        plus_code: cActual.plus_code || "",
-                        horario: cActual.horario || "No registra",
-                        es_24_horas: Boolean(cActual.es_24_horas),
-                        pbx: pbxLimpio,
-                        correo: (cActual.mostrar_correo_publico === true) ? (cActual.correo || "") : "",
-                        correo_interno: cActual.correo || "",
-                        mostrar_correo_publico: Boolean(cActual.mostrar_correo_publico === true),
-                        instagram: String(cActual.instagram || '').replace(/^@/, '').trim(),
-                        facebook: String(cActual.facebook || '').trim(),
-                        telegram: String(cActual.telegram || '').replace(/^@/, '').trim(),
-                        contacto_principal: cActual.contacto_principal || 'whatsapp',
-                        web: cActual.web || cActual.sitio_web || "",
-                        sitio_web: cActual.web || cActual.sitio_web || "",
-                        whatsapp: arrFonos[0] || "",
-                        whatsApp: arrFonos[0] || "",
-                        telefonos: arrFonos,
-                        fecha_actualizacion: new Date().toISOString()
-                    };
-
-                    if (coordsNuevas) {
-                        payloadUpdate.Coordenadas = { latitude: coordsNuevas.lat, longitude: coordsNuevas.lng };
-                        payloadUpdate.lat = coordsNuevas.lat;
-                        payloadUpdate.lng = coordsNuevas.lng;
-                        payloadUpdate.ubicacion = { lat: coordsNuevas.lat, lng: coordsNuevas.lng };
-                        payloadUpdate.coordenada_validada = coordsNuevas.lat + ', ' + coordsNuevas.lng;
-                        if (geoHashUpdate) payloadUpdate.geohash = geoHashUpdate;
-                    }
-
-                    await setDoc(docRef, payloadUpdate, { merge: true });
-                    localStorage.removeItem('geokatu_cache_neg_' + cActual.id);
-                    GeokatuDB.AdminService.compilarMatrizGlobalCDN().catch(function() {});
-                    emitirTono('EXITO');
-                    mostrarToast('Actualizado en vivo en Firestore.', "exito", 2500);
-                } catch (errSync) {
-                    mostrarToast("Error actualizando en la nube: " + errSync.message, "error", 4000);
-                }
-            })();
-        } else {
-            mostrarToast("Cambios guardados localmente.", "exito");
-        }
-    } else {
-        btn.textContent = '✔️';
-        if (btnTrash) btnTrash.style.display = 'block';
-
-        if (contenedorWa) contenedorWa.style.display = 'none';
-        if (spanWaRaw) {
-            spanWaRaw.style.display = 'inline-block';
-            spanWaRaw.contentEditable = "true";
-            spanWaRaw.classList.add('modo-edicion');
-        }
-
-        var inputNicho = card.querySelector('.input-nicho-editable');
-        var spanNicho = card.querySelector('.dato-nicho-texto');
-        if (inputNicho && spanNicho) {
-            spanNicho.style.display = 'none';
-            inputNicho.style.display = 'inline-block';
-            inputNicho.focus();
-        }
-
-        spans.forEach(function(span) {
-            if (!span.classList.contains('dato-whatsapp-raw') && !span.classList.contains('dato-nicho-texto')) {
-                span.contentEditable = "true";
-                span.classList.add('modo-edicion');
-            }
-        });
-    }
-};
-
-document.addEventListener('click', async function(event) {
-    if (event.target.classList.contains('dato-copiable')) {
-        const span = event.target;
-        if (span.classList.contains('modo-edicion')) return;
-        try {
-            await navigator.clipboard.writeText(span.innerText.trim());
-            mostrarToast("Texto copiado al portapapeles.", "info", 1500);
-        } catch (err) {}
-    }
-});
 
 window.agregarFonoDinamico = function(index) {
     const nuevoFono = prompt("Ingresa el numero de WhatsApp:");
@@ -2520,6 +2565,7 @@ window.agregarFonoDinamico = function(index) {
     let actuales = listaComercios[index].whatsapp ? String(listaComercios[index].whatsapp).split('|').map(function(s) { return s.trim(); }).filter(Boolean) : [];
     actuales.push(limpio);
     listaComercios[index].whatsapp = actuales.join(' | ');
+    listaComercios[index]._editadoEnRadar = true;
     AppState.guardarColaLocal();
     renderizarTablero();
 };
@@ -2532,237 +2578,6 @@ window.filtrarComerciosUI = function() {
         card.style.display = (q === '' || txt.indexOf(q) !== -1) ? 'block' : 'none';
     });
 };
-
-// =========================================================================
-// EDICIÓN EN CALIENTE Y COPIADO TÁCTIL
-// =========================================================================
-window.eliminarComercioTicket = async function(index) {
-    var conf = await solicitarConfirmacion("Eliminar Comercio", "¿Deseas eliminar este registro del radar local?");
-    if (!conf) return;
-    listaComercios.splice(index, 1);
-    AppState.guardarColaLocal();
-    renderizarTablero();
-    actualizarConteoHistorial();
-    mostrarToast("Comercio removido.", "info");
-};
-
-window.toggleEditarTicket = function(index, btnElement) {
-    var btn = btnElement || document.querySelector('.cuadrito-actividad[data-index="' + index + '"] .btn-editar-inline');
-    if (!btn) return;
-    var card = btn.closest('.cuadrito-actividad');
-    if (!card) return;
-
-    var spans = card.querySelectorAll('.dato-copiable');
-    var btnTrash = card.querySelector('.btn-eliminar-inline');
-    var contenedorWa = card.querySelector('.contenedor-botones-wa');
-    var spanWaRaw = card.querySelector('.dato-whatsapp-raw');
-    var btnGeoInline = card.querySelector('.btn-geo-inline');
-
-    var editando = btn.textContent.trim().indexOf('✔️') !== -1;
-
-    if (editando) {
-        var inputNicho = card.querySelector('.input-nicho-editable');
-        var spanNicho = card.querySelector('.dato-nicho-texto');
-        if (inputNicho && listaComercios[index]) {
-            var valorFinal = inputNicho.value.trim() || 'General';
-            listaComercios[index].nicho = valorFinal;
-            listaComercios[index].categoria = valorFinal;
-            if (spanNicho) spanNicho.innerText = valorFinal;
-        }
-
-        spans.forEach(function(span) {
-            var key = span.getAttribute('data-key');
-            if (key && key !== 'nicho' && listaComercios[index]) {
-                listaComercios[index][key] = span.innerText.trim();
-            }
-            span.contentEditable = "false";
-            span.classList.remove('modo-edicion');
-        });
-
-        btn.textContent = '✏️';
-        if (btnTrash) btnTrash.style.display = 'none';
-        if (contenedorWa) contenedorWa.style.display = 'inline-flex';
-        if (spanWaRaw) spanWaRaw.style.display = 'none';
-        if (btnGeoInline) btnGeoInline.style.display = 'none';
-        if (inputNicho && spanNicho) {
-            inputNicho.style.display = 'none';
-            spanNicho.style.display = 'inline-block';
-        }
-        actualizarDatalistNichos();
-        AppState.guardarColaLocal();
-        renderizarTablero();
-
-        // Si el comercio ya está en Firebase, actualizar en caliente
-        var cActual = listaComercios[index];
-        if (cActual && cActual.subido === true) {
-            mostrarToast("Sincronizando cambios con Firestore...", "info", 2000);
-            (async function() {
-                try {
-                    var docRef = doc(db, "Directorio", String(cActual.id));
-                    var arrFonos = String(cActual.whatsapp || '').split('|').map(function(f) { return f.trim().replace(/\D/g, ''); }).filter(Boolean);
-                    var pbxLimpio = String(cActual.pbx || '').trim();
-
-                    var payloadUpdate = {
-                        nombre: cActual.nombre || "Comercio Aliado",
-                        nicho: cActual.nicho || "General",
-                        categoria: cActual.nicho || "General",
-                        categoria_maestra: cActual.nicho || "General",
-                        direccion: cActual.direccion || "",
-                        plus_code: cActual.plus_code || "",
-                        horario: cActual.horario || "No registra",
-                        pbx: pbxLimpio,
-                        correo: cActual.correo || "",
-                        email: cActual.correo || "",
-                        instagram: String(cActual.instagram || '').replace(/^@/, '').trim(),
-                        web: cActual.web || cActual.sitio_web || "",
-                        sitio_web: cActual.web || cActual.sitio_web || "",
-                        whatsapp: arrFonos[0] || "",
-                        whatsApp: arrFonos[0] || "",
-                        telefonos: arrFonos,
-                        fecha_actualizacion: new Date().toISOString()
-                    };
-
-                    await setDoc(docRef, payloadUpdate, { merge: true });
-                    emitirTono('EXITO');
-                    mostrarToast('Actualizado en vivo en Firestore.', "exito", 2500);
-                } catch (errSync) {
-                    mostrarToast("Error actualizando en la nube: " + errSync.message, "error", 4000);
-                }
-            })();
-        } else {
-            mostrarToast("Cambios guardados localmente.", "exito");
-        }
-    } else {
-        btn.textContent = '✔️';
-        if (btnTrash) btnTrash.style.display = 'block';
-        if (btnGeoInline) btnGeoInline.style.display = 'inline-flex';
-
-        if (contenedorWa) contenedorWa.style.display = 'none';
-        if (spanWaRaw) {
-            spanWaRaw.style.display = 'inline-block';
-            spanWaRaw.contentEditable = "true";
-            spanWaRaw.classList.add('modo-edicion');
-        }
-
-        var inputNicho = card.querySelector('.input-nicho-editable');
-        var spanNicho = card.querySelector('.dato-nicho-texto');
-        if (inputNicho && spanNicho) {
-            spanNicho.style.display = 'none';
-            inputNicho.style.display = 'inline-block';
-            inputNicho.focus();
-        }
-
-        spans.forEach(function(span) {
-            if (!span.classList.contains('dato-whatsapp-raw') && !span.classList.contains('dato-nicho-texto')) {
-                span.contentEditable = "true";
-                span.classList.add('modo-edicion');
-            }
-        });
-    }
-};
-
-document.addEventListener('click', async function(event) {
-
-    if (event.target.classList.contains('dato-copiable')) {
-        const span = event.target;
-        if (span.classList.contains('modo-edicion')) return;
-        try {
-            await navigator.clipboard.writeText(span.innerText.trim());
-            mostrarToast("Texto copiado al portapapeles.", "info", 1500);
-        } catch (err) {}
-        return;
-    }
-
-   if (event.target.classList.contains('btn-eliminar-inline')) {
-        event.stopPropagation();
-        const conf = await solicitarConfirmacion("Eliminar Comercio", "¿Deseas eliminar este registro del radar local?");
-        if (!conf) return;
-        const card = event.target.closest('.cuadrito-actividad');
-        const index = parseInt(card.getAttribute('data-index'), 10);
-        listaComercios.splice(index, 1);
-        AppState.guardarColaLocal();
-        renderizarTablero();
-        actualizarConteoHistorial();
-        mostrarToast("Comercio removido.", "info");
-        return;
-    }
-
-    if (event.target.classList.contains('btn-editar-inline')) {
-        event.stopPropagation();
-        const btn = event.target;
-        const card = btn.closest('.cuadrito-actividad');
-        const index = parseInt(card.getAttribute('data-index'), 10);
-        const spans = card.querySelectorAll('.dato-copiable');
-        const btnTrash = card.querySelector('.btn-eliminar-inline');
-        const contenedorWa = card.querySelector('.contenedor-botones-wa');
-        const spanWaRaw = card.querySelector('.dato-whatsapp-raw');
-        const btnGeoInline = card.querySelector('.btn-geo-inline');
-
-        const editando = btn.textContent.trim() === '✔️';
-
-        if (editando) {
-            const inputNicho = card.querySelector('.input-nicho-editable');
-            const spanNicho = card.querySelector('.dato-nicho-texto');
-            if (inputNicho && listaComercios[index]) {
-                const valorFinal = inputNicho.value.trim() || 'General';
-                listaComercios[index].nicho = valorFinal;
-                listaComercios[index].categoria = valorFinal;
-                if (spanNicho) spanNicho.innerText = valorFinal;
-            }
-
-            spans.forEach(function(span) {
-                const key = span.getAttribute('data-key');
-                if (key && key !== 'nicho' && listaComercios[index]) {
-                    listaComercios[index][key] = span.innerText.trim();
-                }
-                span.contentEditable = "false";
-                span.classList.remove('modo-edicion');
-            });
-
-            btn.textContent = '✏️';
-            if (btnTrash) btnTrash.style.display = 'none';
-            if (contenedorWa) contenedorWa.style.display = 'inline-flex';
-            if (spanWaRaw) spanWaRaw.style.display = 'none';
-            if (btnGeoInline) btnGeoInline.style.display = 'none';
-            if (inputNicho && spanNicho) {
-                inputNicho.style.display = 'none';
-                spanNicho.style.display = 'inline-block';
-            }
-            actualizarDatalistNichos();
-            AppState.guardarColaLocal();
-            renderizarTablero();
-            mostrarToast("Cambios guardados.", "exito");
-        } else {
-            btn.textContent = '✔️';
-            if (btnTrash) btnTrash.style.display = 'block';
-            if (btnGeoInline) btnGeoInline.style.display = 'inline-flex';
-
-            if (contenedorWa) contenedorWa.style.display = 'none';
-            if (spanWaRaw) {
-                spanWaRaw.style.display = 'inline-block';
-                spanWaRaw.contentEditable = "true";
-                spanWaRaw.classList.add('modo-edicion');
-            }
-
-            const inputNicho = card.querySelector('.input-nicho-editable');
-            const spanNicho = card.querySelector('.dato-nicho-texto');
-            if (inputNicho && spanNicho) {
-                spanNicho.style.display = 'none';
-                inputNicho.style.display = 'inline-block';
-                inputNicho.focus();
-            }
-
-            spans.forEach(function(span) {
-                if (!span.classList.contains('dato-whatsapp-raw') && !span.classList.contains('dato-nicho-texto')) {
-                    span.contentEditable = "true";
-                    span.classList.add('modo-edicion');
-                }
-            });
-        }
-        return;
-    }
-
-});
 
 // =========================================================================
 // DRAWER LATERAL DE CATÁLOGO Y HARDWARE ÓPTICO
@@ -3658,24 +3473,31 @@ window.sincronizarConAppsScript = async function() {
         mostrarToast("Consultando hoja de Google Sheets...", "info", 2000);
         const res = await fetch(u + (u.indexOf('?') !== -1 ? '&' : '?') + 't=' + Date.now());
         if (!res.ok) throw new Error('HTTP ' + res.status);
+                localStorage.setItem('geokatu_apps_script_url', u);
         const data = await res.json();
-        if (!Array.isArray(data)) throw new Error("Estructura de respuesta no valida.");
+        if (!Array.isArray(data)) {
+            if (data && data.error) throw new Error(data.error);
+            throw new Error("Estructura de respuesta no valida.");
+        }
 
         let nuevos = 0;
 
         data.forEach(function(item) {
-            const idx = listaComercios.findIndex(function(c) { return c.id === item.id; });
+            const idx = listaComercios.findIndex(function(c) { return String(c.id) === String(item.id); });
 
             if (idx === -1) {
                 const yaAuditado = (item.estado === 'Auditado' || item.estado === 'SUBIDO_FIREBASE' || item.estado_flujo === 'Cerrado');
-                const nuevoItem = {
-                    ...item,
+                const nuevoItem = Object.assign({}, item, {
+                    redId: item.redId || ('RED-' + item.id),
+                    sedes: Array.isArray(item.sedes) ? item.sedes : [],
+                    total_sedes: item.total_sedes || (Array.isArray(item.sedes) ? item.sedes.length : 1),
+                    es_multisede: Boolean(item.es_multisede || (Array.isArray(item.sedes) && item.sedes.length > 1)),
                     capturado: yaAuditado,
                     validado: (item.estado === 'Auditado' || item.estado === 'SUBIDO_FIREBASE'),
                     subido: (item.estado === 'SUBIDO_FIREBASE'),
                     catalogo: []
-                };
-
+                });
+                asegurarEstructuraSedesTicket(nuevoItem);
                 listaComercios.push(nuevoItem);
 
                 if (!nuevoItem.capturado && !nuevoItem.archivado) {
@@ -3683,18 +3505,66 @@ window.sincronizarConAppsScript = async function() {
                 }
                 nuevos++;
             } else {
-                listaComercios[idx].nombre = item.nombre;
-                listaComercios[idx].direccion = item.direccion;
-                listaComercios[idx].whatsapp = item.whatsapp;
-                listaComercios[idx].horario = item.horario;
-                listaComercios[idx].pbx = item.pbx;
-                listaComercios[idx].correo = item.correo;
-                listaComercios[idx].coordenadas_crudo = item.coordenadas_crudo || item.coordenada_validada;
+                const actual = listaComercios[idx];
+                const protegidoEnRadar = Boolean(actual._editadoEnRadar || actual.capturado);
+                actual.redId = item.redId || actual.redId || ('RED-' + actual.id);
+                actual.fila_index = item.fila_index || actual.fila_index;
+
+                const conservarOCambiar = function(campo, valorVacio) {
+                    const valLocal = actual[campo];
+                    const valSheet = item[campo];
+                    if (!protegidoEnRadar || !valLocal || valLocal === valorVacio) {
+                        if (valSheet !== undefined && valSheet !== '') actual[campo] = valSheet;
+                    }
+                };
+
+                conservarOCambiar('nombre', 'COMERCIO SIN NOMBRE');
+                conservarOCambiar('slogan', '');
+                conservarOCambiar('nicho', 'General');
+                conservarOCambiar('direccion', 'N/A');
+                conservarOCambiar('whatsapp', '');
+                conservarOCambiar('horario', '');
+                conservarOCambiar('pbx', '');
+                conservarOCambiar('correo', '');
+                conservarOCambiar('plus_code', '');
+
+                if (!actual.lat && !actual.coordenada_validada) {
+                    actual.coordenadas_crudo = item.coordenadas_crudo || item.coordenada_validada || actual.coordenadas_crudo || '';
+                    actual.coordenada_validada = item.coordenada_validada || actual.coordenada_validada || '';
+                }
+
+                if (Array.isArray(item.sedes) && item.sedes.length > 0) {
+                    const sedesPrevias = Array.isArray(actual.sedes) ? actual.sedes : [];
+                    actual.sedes = item.sedes.map(function(sSheet, sIdx) {
+                        const sLocal = sedesPrevias.find(function(sp) {
+                            return String(sp.sedeId || sp.id) === String(sSheet.sedeId || sSheet.id) || sp.sedeIndex === sIdx;
+                        });
+                        if (!sLocal) return Object.assign({}, sSheet, { heredaDelPadre: true, excepciones: {} });
+                        const exc = sLocal.excepciones || {};
+                        return Object.assign({}, sSheet, {
+                            direccion: exc.direccion ? sLocal.direccion : (sSheet.direccion || sLocal.direccion),
+                            whatsapp: exc.whatsapp ? sLocal.whatsapp : (sSheet.whatsapp || sLocal.whatsapp),
+                            horario: exc.horario ? sLocal.horario : (sSheet.horario || sLocal.horario),
+                            pbx: exc.pbx ? sLocal.pbx : (sSheet.pbx || sLocal.pbx),
+                            correo: exc.correo ? sLocal.correo : (sSheet.correo || sLocal.correo),
+                            lat: sLocal.lat !== undefined ? sLocal.lat : sSheet.lat,
+                            lng: sLocal.lng !== undefined ? sLocal.lng : sSheet.lng,
+                            geohash: sLocal.geohash || sSheet.geohash || '',
+                            coordenada_validada: exc.coordenada_validada ? sLocal.coordenada_validada : (sLocal.coordenada_validada || sSheet.coordenada_validada || ''),
+                            heredaDelPadre: sLocal.heredaDelPadre !== false,
+                            excepciones: exc
+                        });
+                    });
+                    actual.total_sedes = actual.sedes.length;
+                    actual.es_multisede = actual.sedes.length > 1;
+                } else {
+                    asegurarEstructuraSedesTicket(actual);
+                }
             }
         });
 
         AppState.guardarColaLocal();
-        actualizarDatalistNichos();
+        actualizarDatalistNichos(true);
         actualizarHUD();
         renderizarTablero();
         emitirTono('EXITO');
