@@ -453,11 +453,104 @@ export function solicitarConfirmacion(titulo, mensaje) {
             resolve(resultado);
         };
 
-        btnCancel.onclick = function() { finalizar(false); };
+                btnCancel.onclick = function() { finalizar(false); };
         btnOk.onclick = function() { finalizar(true); };
     });
 }
 window.solicitarConfirmacion = solicitarConfirmacion;
+
+export function solicitarAlcanceMultiSede(comercioBase, contextoEdicion) {
+    return new Promise(function(resolve) {
+        const sedes = obtenerSedesVinculadas(comercioBase);
+        const idActual = String(comercioBase && comercioBase.id ? comercioBase.id : '');
+        if (!sedes || sedes.length <= 1) {
+            resolve({ modo: 'unica', ids: [idActual] });
+            return;
+        }
+
+        let modal = document.getElementById('geokatu-modal-alcance-sedes');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'geokatu-modal-alcance-sedes';
+            modal.style.cssText = 'position:fixed; inset:0; z-index:99999; background:rgba(5,8,15,0.86); backdrop-filter:blur(8px); display:none; align-items:center; justify-content:center; padding:16px;';
+            document.body.appendChild(modal);
+        }
+
+        const checksHTML = sedes.map(function(s, idx) {
+            const sId = String(s.sedeId || s.id);
+            const marcado = (sId === idActual) ? ' checked' : '';
+            const dirTxt = String(s.direccion || 'Sin dirección').replace(/</g, '&lt;');
+            return '<label style="display:flex; align-items:flex-start; gap:8px; padding:7px 8px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:6px; cursor:pointer; font-size:11px; color:#e2e8f0;">' +
+                '<input type="checkbox" class="chk-alcance-sede-item" value="' + sId + '"' + marcado + ' style="margin-top:2px; accent-color:var(--naranja);">' +
+                '<div style="flex:1; min-width:0;">' +
+                    '<div style="font-weight:800; color:#fff;">Sede ' + (idx + 1) + ' (' + sId + ')</div>' +
+                    '<div style="font-size:10px; color:#94a3b8; word-break:break-word;">' + dirTxt + '</div>' +
+                '</div>' +
+            '</label>';
+        }).join('');
+
+        modal.innerHTML =
+            '<div style="width:100%; max-width:390px; background:#0f172a; border:1px solid rgba(41,182,246,0.4); border-radius:14px; padding:16px; color:#fff; box-shadow:0 20px 50px rgba(0,0,0,0.7);">' +
+                '<div style="font-size:13px; font-weight:900; color:var(--azul-link); margin-bottom:4px;">Red Multi-Sede (' + sedes.length + ' ubicaciones)</div>' +
+                '<div style="font-size:11px; color:#cbd5e1; margin-bottom:12px;">Aplicación de cambios en <b>' + (contextoEdicion || 'Comercio') + '</b>. Las direcciones y coordenadas propias de cada sede se conservan intactas:</div>' +
+                '<div style="display:flex; flex-direction:column; gap:8px;">' +
+                    '<button type="button" id="btn-alcance-todas-sedes" class="btn-submit" style="justify-content:center; padding:9px; font-size:11.5px; background:rgba(0,230,118,0.18); border:1px solid var(--verde-hoja); color:var(--verde-hoja);">Cambiar para todas las sedes (' + sedes.length + ')</button>' +
+                    '<button type="button" id="btn-alcance-solo-esta" class="btn-submit" style="justify-content:center; padding:9px; font-size:11.5px; background:rgba(41,182,246,0.18); border:1px solid var(--azul-link); color:var(--azul-link);">Cambiar sólo para esta sede (' + idActual + ')</button>' +
+                    '<button type="button" id="btn-alcance-elegir-sedes" class="btn-submit" style="justify-content:center; padding:9px; font-size:11.5px; background:rgba(255,107,0,0.18); border:1px solid var(--naranja); color:var(--naranja-miel);">Seleccione las sedes a las cuales quiere que se ejecute este cambio</button>' +
+                '</div>' +
+                '<div id="box-checklist-alcance-sedes" style="display:none; margin-top:10px; max-height:185px; overflow-y:auto; flex-direction:column; gap:6px; padding-top:8px; border-top:1px dashed #334155;">' +
+                    checksHTML +
+                    '<button type="button" id="btn-confirmar-sedes-marcadas" class="btn-submit" style="margin-top:6px; justify-content:center; padding:8px; font-size:11px; background:var(--naranja); color:#000; font-weight:900;">Aplicar a sedes seleccionadas</button>' +
+                '</div>' +
+                '<button type="button" id="btn-cancelar-alcance-sedes" style="margin-top:10px; width:100%; background:transparent; border:none; color:#94a3b8; font-size:11px; cursor:pointer; padding:6px;">Cancelar</button>' +
+            '</div>';
+
+        modal.style.display = 'flex';
+
+        const cerrarYResolver = function(resObj) {
+            modal.style.display = 'none';
+            resolve(resObj);
+        };
+
+        document.getElementById('btn-alcance-todas-sedes').onclick = function() {
+            cerrarYResolver({
+                modo: 'todas',
+                ids: sedes.map(function(s) { return String(s.sedeId || s.id); })
+            });
+        };
+
+        document.getElementById('btn-alcance-solo-esta').onclick = function() {
+            cerrarYResolver({
+                modo: 'unica',
+                ids: [idActual]
+            });
+        };
+
+        document.getElementById('btn-alcance-elegir-sedes').onclick = function() {
+            const box = document.getElementById('box-checklist-alcance-sedes');
+            if (box) box.style.display = 'flex';
+        };
+
+        document.getElementById('btn-confirmar-sedes-marcadas').onclick = function() {
+            const marcados = Array.from(modal.querySelectorAll('.chk-alcance-sede-item:checked')).map(function(ch) {
+                return String(ch.value);
+            });
+            if (marcados.length === 0) {
+                mostrarToast('Selecciona al menos una sede.', 'error');
+                return;
+            }
+            cerrarYResolver({
+                modo: 'seleccion',
+                ids: marcados
+            });
+        };
+
+        document.getElementById('btn-cancelar-alcance-sedes').onclick = function() {
+            cerrarYResolver(null);
+        };
+    });
+}
+window.solicitarAlcanceMultiSede = solicitarAlcanceMultiSede;
 // =========================================================================
 // HUD, CONTADORES Y ENJAMBRE (SATISFACEN LOS IMPORTS DEL HTML)
 // =========================================================================
@@ -531,7 +624,7 @@ export async function inicializarMatrizGlobalUI() {
 window.inicializarMatrizGlobalUI = inicializarMatrizGlobalUI;
 
 // =========================================================================
-// SUBIDA MASIVA ONESHOT (BOTÓN DEL HEADER DEL HTML)
+// SUBIDA MASIVA ONESHOT (BOTÓN DEL HEADER DEL HTML - EXPANSIÓN MULTI-SEDE)
 // =========================================================================
 window.subirOneShotAFirebase = async function() {
     const listosParaSubir = listaComercios.filter(function(c) {
@@ -543,24 +636,79 @@ window.subirOneShotAFirebase = async function() {
         return;
     }
 
+    const loteExpandido = [];
+    listosParaSubir.forEach(function(c) {
+        const sedes = asegurarEstructuraSedesTicket(c);
+        const idsRed = sedes.map(function(s) { return String(s.sedeId || s.id); });
+        sedes.forEach(function(sede, idx) {
+            const exc = sede.excepciones || {};
+            const idFinal = String(sede.sedeId || sede.id || (idx === 0 ? c.id : (c.id + '-S' + (idx + 1))));
+            const coordSede = sede.coordenada_validada || (idx === 0 ? c.coordenada_validada : '') || sede.plus_code || c.coordenada_validada || '';
+            const parsed = parsearCoordenadasUniversales(coordSede);
+            const clonSede = Object.assign({}, c, {
+                id: idFinal,
+                sedeId: idFinal,
+                parentId: String(c.id),
+                redId: c.redId || ('RED-' + c.id),
+                sedeIndex: idx,
+                esPrincipal: idx === 0,
+                es_multisede: sedes.length > 1,
+                total_sedes: sedes.length,
+                sedes_red_ids: idsRed,
+                direccion: sede.direccion || c.direccion || '',
+                whatsapp: (exc.whatsapp && sede.whatsapp) ? sede.whatsapp : (sede.whatsapp || c.whatsapp || ''),
+                horario: (exc.horario && sede.horario) ? sede.horario : (sede.horario || c.horario || ''),
+                pbx: sede.pbx || c.pbx || '',
+                correo: sede.correo || c.correo || '',
+                plus_code: sede.plus_code || (idx === 0 ? (c.plus_code || '') : ''),
+                coordenada_validada: parsed ? (parsed.lat + ', ' + parsed.lng) : coordSede
+            });
+            if (parsed) {
+                clonSede.lat = parsed.lat;
+                clonSede.lng = parsed.lng;
+                clonSede.ubicacion = { lat: parsed.lat, lng: parsed.lng };
+                clonSede.Coordenadas = { latitude: parsed.lat, longitude: parsed.lng };
+            }
+            loteExpandido.push(clonSede);
+        });
+    });
+
     const conf = await solicitarConfirmacion(
         "Subida OneShot a Firestore",
-        "¿Deseas asentar masivamente " + listosParaSubir.length + " comercios en la coleccion Directorio?"
+        "¿Deseas asentar masivamente " + listosParaSubir.length + " comercios (" + loteExpandido.length + " sedes en total) en la coleccion Directorio?"
     );
     if (!conf) return;
 
     try {
         mostrarToast("Inyectando tanda en Firestore...", "info");
-        const res = await GeokatuDB.AdminService.subirLoteComerciosDirectorio(listosParaSubir);
+        const res = await GeokatuDB.AdminService.subirLoteComerciosDirectorio(loteExpandido);
         if (res.success) {
+            const uSheet = localStorage.getItem('geokatu_apps_script_url') || '';
             listosParaSubir.forEach(function(c) {
                 c.subido = true;
+                c.estado = 'SUBIDO_FIREBASE';
+                c._editadoEnRadar = true;
+                if (uSheet) {
+                    const coordsSedes = (c.sedes || []).map(function(s) { return s.coordenada_validada || ''; }).filter(Boolean).join(' || ');
+                    fetch(uSheet, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify({
+                            accion: 'marcar_subido',
+                            id: c.id,
+                            fila_index: c.fila_index,
+                            nombre: c.nombre,
+                            coordenada_validada: coordsSedes || c.coordenada_validada || ''
+                        })
+                    }).catch(function() {});
+                }
             });
             AppState.guardarColaLocal();
             renderizarTablero();
             actualizarHUD();
             emitirTono('EXITO');
-            mostrarToast("OneShot completado: " + res.totalSubidos + " comercios sincronizados.", "exito", 4000);
+            mostrarToast("OneShot completado: " + res.totalSubidos + " sedes sincronizadas.", "exito", 4000);
         } else {
             throw new Error(res.error || "Fallo en la transacción");
         }
@@ -1185,19 +1333,39 @@ window.abrirMapaParaEditarSede = function(index, sedeIdx) {
     if (c) setTimeout(function() { dibujarTodasLasSedesEnMapa(c); }, 250);
 };
 
+function asegurarInputNichoModalNuevoComercio() {
+    let elNicho = document.getElementById('nuevo-nicho');
+    if (elNicho) return elNicho;
+    const elNom = document.getElementById('nuevo-nombre');
+    if (!elNom || !elNom.parentElement) return null;
+    elNicho = document.createElement('input');
+    elNicho.type = 'text';
+    elNicho.id = 'nuevo-nicho';
+    elNicho.setAttribute('list', 'lista-nichos-sugeridos');
+    elNicho.placeholder = 'Nicho comercial (elige o escribe uno nuevo)';
+    elNicho.autocomplete = 'off';
+    elNicho.className = elNom.className || '';
+    elNicho.style.cssText = elNom.style.cssText || 'width:100%; margin-top:6px; padding:8px; background:#090d16; border:1px solid #334155; color:#fff; border-radius:6px; font-size:12px; box-sizing:border-box;';
+    elNom.insertAdjacentElement('afterend', elNicho);
+    return elNicho;
+}
+
 window.abrirModalNuevoComercio = function() {
     ticketEditandoIndex = null;
     sedeEditandoIndex = null;
     const modal = document.getElementById('modal-nuevo-comercio');
     if (modal) modal.style.display = 'flex';
+    actualizarDatalistNichos(false);
     const autoId = 'GEO-' + Date.now().toString().slice(-4);
     const elId = document.getElementById('nuevo-id');
     const elNom = document.getElementById('nuevo-nombre');
+    const elNicho = asegurarInputNichoModalNuevoComercio();
     const elWa = document.getElementById('nuevo-whatsapp');
     const elDir = document.getElementById('nuevo-direccion');
     const elBusq = document.getElementById('nuevo-busqueda-dir');
     if (elId) elId.value = autoId;
     if (elNom) elNom.value = '';
+    if (elNicho) elNicho.value = '';
     if (elWa) elWa.value = '';
     if (elDir) elDir.value = '';
     if (elBusq) elBusq.value = '';
@@ -1306,26 +1474,34 @@ window.guardarNuevoComercio = async function() {
                 GeokatuDB.AdminService.compilarMatrizGlobalCDN().catch(function() {});
             } catch (eC) {}
         }
-        mostrarToast('Coordenadas actualizadas en mapa para "' + nombre + '".', "exito");
+                mostrarToast('Coordenadas actualizadas en mapa para "' + nombre + '".', "exito");
         return;
     }
     const direccion = elDir ? elDir.value.trim() : '';
+    const nichoElegido = (document.getElementById('nuevo-nicho')?.value || '').trim() || 'General';
+    if (nichoElegido !== 'General' && typeof window.registrarNichoEnAppsScript === 'function') {
+        window.registrarNichoEnAppsScript(nichoElegido);
+    }
+    const nuevoId = document.getElementById('nuevo-id')?.value.trim() || ('GEO-' + Date.now().toString().slice(-4));
 
     const nuevo = {
-        id: document.getElementById('nuevo-id')?.value.trim() || ('GEO-' + Date.now().toString().slice(-4)),
+        id: nuevoId,
+        redId: 'RED-' + nuevoId,
         nombre: nombre,
-        nicho: "General",
-        categoria: "General",
+        nicho: nichoElegido,
+        categoria: nichoElegido,
         direccion: direccion,
         whatsapp: document.getElementById('nuevo-whatsapp')?.value.trim() || "",
         coordenada_validada: lat + ', ' + lng,
         lat: lat, lng: lng, ubicacion: { lat: lat, lng: lng },
         estado: "Auditado", capturado: true, validado: false, subido: false,
+        _editadoEnRadar: true,
         catalogo: [], fecha_ingreso: new Date().toISOString()
     };
+    asegurarEstructuraSedesTicket(nuevo);
     listaComercios.unshift(nuevo);
     AppState.guardarColaLocal();
-    actualizarDatalistNichos();
+    actualizarDatalistNichos(false);
     renderizarTablero();
     cerrarModalNuevoComercio();
     emitirTono('EXITO');
@@ -2759,15 +2935,22 @@ window.toggleEditarTicket = function(index, btnElement) {
         AppState.guardarColaLocal();
         renderizarTablero();
 
-        if (cActual && (cActual.subido === true || vistaActualTablero === 'todos')) {
-            mostrarToast("Guardando cambios y coordenadas en Firestore...", "info", 2000);
+                if (cActual && (cActual.subido === true || vistaActualTablero === 'todos')) {
             (async function() {
                 try {
-                    var docRef = doc(db, "Directorio", String(cActual.id));
+                    var sedesRed = obtenerSedesVinculadas(cActual);
+                    var idsDestino = [String(cActual.id)];
+                    if (sedesRed.length > 1) {
+                        var decision = await solicitarAlcanceMultiSede(cActual, 'Ficha de Comercio');
+                        if (!decision || !Array.isArray(decision.ids) || decision.ids.length === 0) return;
+                        idsDestino = decision.ids;
+                    }
+
+                    mostrarToast("Guardando cambios en Firestore (" + idsDestino.length + " sede/s)...", "info", 2000);
                     var arrFonos = String(cActual.whatsapp || '').split('|').map(function(f) { return f.trim().replace(/\D/g, ''); }).filter(Boolean);
                     var pbxLimpio = String(cActual.pbx || '').trim();
 
-                    var payloadUpdate = {
+                    var payloadCompartido = {
                         nombre: cActual.nombre || "Comercio Aliado",
                         slogan: (cActual.mostrar_slogan !== false) ? (cActual.slogan || "") : "",
                         mostrar_slogan: Boolean(cActual.mostrar_slogan !== false),
@@ -2776,10 +2959,6 @@ window.toggleEditarTicket = function(index, btnElement) {
                         categoria: cActual.nicho || "General",
                         categoria_maestra: cActual.nicho || "General",
                         tags_busqueda: Array.isArray(cActual.tags_busqueda) ? cActual.tags_busqueda : [],
-                        direccion: cActual.direccion || "",
-                        direccion_normalizada: GeokatuDB.normalizarDireccionCartesiana(cActual.direccion || ""),
-                        plus_code: cActual.plus_code || "",
-                        horario: cActual.horario || "No registra",
                         es_24_horas: Boolean(cActual.es_24_horas),
                         pbx: pbxLimpio,
                         correo: (cActual.mostrar_correo_publico === true) ? (cActual.correo || "") : "",
@@ -2791,26 +2970,48 @@ window.toggleEditarTicket = function(index, btnElement) {
                         contacto_principal: cActual.contacto_principal || 'whatsapp',
                         web: cActual.web || cActual.sitio_web || "",
                         sitio_web: cActual.web || cActual.sitio_web || "",
-                        whatsapp: arrFonos[0] || "",
-                        whatsApp: arrFonos[0] || "",
-                        telefonos: arrFonos,
                         fecha_actualizacion: new Date().toISOString()
                     };
 
-                    if (coordsNuevas) {
-                        payloadUpdate.Coordenadas = { latitude: coordsNuevas.lat, longitude: coordsNuevas.lng };
-                        payloadUpdate.lat = coordsNuevas.lat;
-                        payloadUpdate.lng = coordsNuevas.lng;
-                        payloadUpdate.ubicacion = { lat: coordsNuevas.lat, lng: coordsNuevas.lng };
-                        payloadUpdate.coordenada_validada = coordsNuevas.lat + ', ' + coordsNuevas.lng;
-                        if (geoHashUpdate) payloadUpdate.geohash = geoHashUpdate;
+                    for (var s = 0; s < idsDestino.length; s++) {
+                        var idTarget = String(idsDestino[s]);
+                        var docRef = doc(db, "Directorio", idTarget);
+                        var payloadSede = Object.assign({}, payloadCompartido);
+                        var metaSede = sedesRed.find(function(x) { return String(x.sedeId || x.id) === idTarget; });
+                        var exc = (metaSede && metaSede.excepciones) ? metaSede.excepciones : {};
+
+                        if (idTarget === String(cActual.id)) {
+                            payloadSede.direccion = cActual.direccion || "";
+                            payloadSede.direccion_normalizada = GeokatuDB.normalizarDireccionCartesiana(cActual.direccion || "");
+                            payloadSede.plus_code = cActual.plus_code || "";
+                            payloadSede.horario = cActual.horario || "No registra";
+                            payloadSede.whatsapp = arrFonos[0] || "";
+                            payloadSede.whatsApp = arrFonos[0] || "";
+                            payloadSede.telefonos = arrFonos;
+                            if (coordsNuevas) {
+                                payloadSede.Coordenadas = { latitude: coordsNuevas.lat, longitude: coordsNuevas.lng };
+                                payloadSede.lat = coordsNuevas.lat;
+                                payloadSede.lng = coordsNuevas.lng;
+                                payloadSede.ubicacion = { lat: coordsNuevas.lat, lng: coordsNuevas.lng };
+                                payloadSede.coordenada_validada = coordsNuevas.lat + ', ' + coordsNuevas.lng;
+                                if (geoHashUpdate) payloadSede.geohash = geoHashUpdate;
+                            }
+                        } else {
+                            if (!exc.horario) payloadSede.horario = cActual.horario || "No registra";
+                            if (!exc.whatsapp) {
+                                payloadSede.whatsapp = arrFonos[0] || "";
+                                payloadSede.whatsApp = arrFonos[0] || "";
+                                payloadSede.telefonos = arrFonos;
+                            }
+                        }
+
+                        await setDoc(docRef, payloadSede, { merge: true });
+                        localStorage.removeItem('geokatu_cache_neg_' + idTarget);
                     }
 
-                    await setDoc(docRef, payloadUpdate, { merge: true });
-                    localStorage.removeItem('geokatu_cache_neg_' + cActual.id);
                     GeokatuDB.AdminService.compilarMatrizGlobalCDN().catch(function() {});
                     emitirTono('EXITO');
-                    mostrarToast('Actualizado en vivo en Firestore.', "exito", 2500);
+                    mostrarToast('Actualizado en vivo en Firestore (' + idsDestino.length + ' sede/s).', "exito", 2500);
                 } catch (errSync) {
                     mostrarToast("Error actualizando en la nube: " + errSync.message, "error", 4000);
                 }
@@ -3633,10 +3834,26 @@ window.sincronizarCatalogoComercioNube = async function() {
             btn.innerText = "Asentando en Firestore...";
         }
 
-                const batch = writeBatch(db);
-        const sedesParaPublicar = asegurarEstructuraSedesTicket(c);
+                        const todasLasSedesTicket = asegurarEstructuraSedesTicket(c);
         const redIdMaestro = c.redId || ('RED-' + idSeguro);
-        const idsSedesRed = sedesParaPublicar.map(function(s) { return String(s.sedeId || s.id); });
+        const idsSedesRed = todasLasSedesTicket.map(function(s) { return String(s.sedeId || s.id); });
+        let sedesParaPublicar = todasLasSedesTicket;
+
+        if (todasLasSedesTicket.length > 1 && (c.subido === true || c._mostrarSubTicketsSedes === true)) {
+            const seleccionAlcance = await solicitarAlcanceMultiSede(c, 'Catálogo, Pin y Branding');
+            if (!seleccionAlcance || !Array.isArray(seleccionAlcance.ids) || seleccionAlcance.ids.length === 0) {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerText = 'INYECTAR CATALOGO A FIRESTORE';
+                    btn.style.opacity = '1';
+                }
+                return;
+            }
+            sedesParaPublicar = todasLasSedesTicket.filter(function(s) {
+                return seleccionAlcance.ids.indexOf(String(s.sedeId || s.id)) !== -1;
+            });
+        }
+        const batch = writeBatch(db);
 
         const coordsPadreRaw = c.coordenada_validada || c.coordenadas_crudo || c.plus_code || (String(c.lat || '') + ', ' + String(c.lng || ''));
         const coordsPadre = parsearCoordenadasUniversales(coordsPadreRaw) || { lat: 4.81333, lng: -75.69611 };
