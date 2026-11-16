@@ -11,8 +11,8 @@
     
     <!-- Hojas de Estilos Base -->
     <link rel="stylesheet" href="negocio.css">
-    <link rel="stylesheet" href="catalogo-experiencia.css">
-    <script src="./catalogo-experiencia.js"></script>
+    <link rel="stylesheet" href="catalogo-experiencia.css?v=carrito-20261116">
+    <script src="./catalogo-experiencia.js?v=carrito-20261116"></script>
     <script src="./branding-cuarzos.js"></script>
     <link rel="stylesheet" href="./maplibre-gl.css" />
     <!-- MapLibre se descarga solo cuando se abre el selector de ubicación. -->
@@ -141,6 +141,7 @@
                     </a>
                 </div>
                 <nav id="enlaces-publicos-cabecera" class="enlaces-publicos" aria-label="Más formas de contactar"></nav>
+                <nav id="contactos-cabecera" aria-label="Contactar con el comercio"></nav>
             </div>
         </header>
 
@@ -310,16 +311,33 @@
     <!-- MODAL CHECKOUT / PEDIDO WHATSAPP -->
     <div class="modal-checkout-overlay" id="overlay-checkout" onclick="window.cerrarModal(event, 'overlay-checkout')">
         <div class="modal-checkout-contenido" id="sheet-checkout" role="dialog" aria-modal="true" aria-label="Tu pedido">
-            <button type="button" class="cerrar-sheet" aria-label="Cerrar carrito" onclick="window.cerrarModalManual('overlay-checkout')">Cerrar</button>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <h2 style="margin: 0; color: var(--color-marca); font-size: 18px;">Tu Pedido</h2>
-                <button class="categoria-pill" onclick="window.limpiarCarrito()" style="color: #ff4444; border-color: rgba(255,68,68,0.3);"> Vaciar</button>
-            </div>
-            
-            <div id="lista-resumen" style="margin-bottom: 15px; max-height: 180px; overflow-y: auto;"></div>
-            <h3 style="text-align: right; margin-bottom: 15px; font-size: 16px;">Total: <span id="total-final-checkout" style="color: var(--color-marca);">$0</span></h3>
-            
+            <header class="pedido-cabecera" id="pedido-cabecera">
+                <button type="button" id="pedido-productos-toggle" class="pedido-titulo" aria-expanded="true" aria-controls="pedido-productos">
+                    <span class="pedido-marca">Geo<strong>KATU</strong></span>
+                    <span class="pedido-titulo-fila">Tu pedido <span class="pedido-triangulo"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3 12 8 5 13Z" fill="currentColor"/></svg></span></span>
+                    <span id="pedido-conteo" class="pedido-conteo"></span>
+                </button>
+                <div class="pedido-herramientas">
+                    <button type="button" id="pedido-ampliar" class="pedido-icono" aria-label="Ampliar lista de productos" aria-pressed="false" title="Ampliar lista">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5M3 3l6 6m12-6-6 6M3 21l6-6m12 6-6-6"/></svg>
+                    </button>
+                    <button type="button" class="pedido-icono" aria-label="Cerrar carrito" onclick="window.cerrarModalManual('overlay-checkout')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+                    </button>
+                </div>
+            </header>
+            <section id="pedido-productos" aria-label="Productos del pedido">
+                <div id="lista-resumen"></div>
+                <button type="button" class="pedido-vaciar" onclick="window.limpiarCarrito()">Vaciar carrito</button>
+            </section>
+            <button type="button" id="pedido-datos-toggle" class="pedido-datos-toggle" aria-expanded="false" aria-controls="pedido-datos">
+                <span>Datos del pedido</span><span class="pedido-triangulo"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3 12 8 5 13Z" fill="currentColor"/></svg></span>
+            </button>
+            <section id="pedido-datos" aria-label="Datos del pedido" hidden>
+                <div class="pedido-datos-interior">
+                    <label for="input-nombre-cliente">Nombre o número de mesa</label>
             <input type="text" id="input-nombre-cliente" class="input-form" placeholder="Tu Nombre o Número de Mesa" style="margin-bottom: 8px;">
+            <label for="input-comentario-pedido">Notas del pedido</label>
             <textarea id="input-comentario-pedido" class="input-form" placeholder="Instrucciones o notas adicionales..." maxlength="140" style="min-height: 50px; margin-bottom: 10px;"></textarea>
             
             <div style="display: flex; gap: 8px; width: 100%; margin-bottom: 12px;">
@@ -331,7 +349,12 @@
                 <div id="mapa-ubicacion" style="width: 100%; height: 100%;"></div>
             </div>
             
-            <button id="btn-enviar-pedido" class="btn-contactar" style="width: 100%; padding: 14px;" onclick="window.enviarPedido()">ENVIAR POR WHATSAPP </button>
+                </div>
+            </section>
+            <footer class="pedido-pie">
+                <div class="pedido-total"><span>Total del pedido</span><strong id="total-final-checkout">$0</strong></div>
+                <button id="btn-enviar-pedido" class="btn-contactar" onclick="window.enviarPedido()">Enviar por WhatsApp</button>
+            </footer>
         </div>
     </div>
     
@@ -1482,6 +1505,7 @@
         }
 
         window.abrirCheckout = function() {
+            window.CatalogoUI.prepararCarrito();
             window.CatalogoUI.resumenCarrito();
             window.abrirModal('overlay-checkout');
         };
@@ -1499,7 +1523,11 @@
         window.enviarPedido = async function() {
             var nombre = document.getElementById('input-nombre-cliente').value.trim();
             var notas = document.getElementById('input-comentario-pedido').value.trim();
-            if (!nombre) return alert("Por favor ingresa tu nombre o mesa para identificarte.");
+            if (!nombre) {
+                window.CatalogoUI.abrirDatosPedido();
+                document.getElementById('input-nombre-cliente').focus();
+                return alert("Por favor ingresa tu nombre o mesa para identificarte.");
+            }
 
             var btnSubmit = document.getElementById('btn-enviar-pedido');
             if (btnSubmit) {
