@@ -3586,16 +3586,510 @@ window.editarSlotIdentidadEnEstudio = async function(campo) {
     await window.abrirEstudioIdentidadIntegro(orig, campo);
 };
 
-// Conectar el botón "Subir Foto / Cartel" (#input-foto-cartel-despiece) directo a estudio-imagen-universal.js
-window.cargarArchivosLocalesEnDespiece = async function(files) {
-    if (!files || !files[0] || !comercioActivoParaCatalogo) {
-        mostrarToast("Abre primero un comercio en el Drawer.", "error");
+// =========================================================================
+// MOTOR DE DESPIECE WEB, PORTAPAPELES E INGESTA POLIMÓRFICA
+// =========================================================================
+let estadoDespieceWeb = {
+    precios: [],
+    titulos: [],
+    descripciones: [],
+    imagenes: [],
+    seleccionActiva: { precio: null, titulo: '', descripcion: '' }
+};
+
+function restaurarPlaceholderZonaPegado() {
+    const zona = document.getElementById('zona-pegado-despiece');
+    if (!zona) return;
+    zona.innerHTML =
+        '<div class="texto-pegado-instruccion" style="pointer-events:none;">' +
+            '<svg class="svg-ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>' +
+            '<span>Mantén presionado aquí para pegar copia total</span>' +
+        '</div>';
+}
+
+function actualizarBarraProgresoDespiece(porcentaje, texto) {
+    const wrap = document.getElementById('progreso-extraccion-web');
+    const lblTxt = document.getElementById('txt-progreso-extraccion');
+    const lblPct = document.getElementById('porcentaje-extraccion');
+    const barra = document.getElementById('barra-progreso-extraccion');
+    if (!wrap) return;
+    if (porcentaje <= 0) {
+        wrap.style.display = 'none';
         return;
     }
-    const dataUrl = await leerArchivoIntegroDataURL(files[0]);
-    comercioActivoParaCatalogo._laminaMaestraDataUrl = dataUrl;
-    await window.abrirEstudioIdentidadIntegro(dataUrl, 'portada');
+    wrap.style.display = 'block';
+    if (lblTxt) lblTxt.innerText = texto || 'Procesando DOM...';
+    if (lblPct) lblPct.innerText = Math.min(100, Math.round(porcentaje)) + '%';
+    if (barra) barra.style.width = Math.min(100, Math.round(porcentaje)) + '%';
+}
+
+function parsearNumeroPrecioExtraido(rawPrecio) {
+    const limpio = String(rawPrecio || '').replace(/[^0-9.,]/g, '').trim();
+    if (!limpio) return 0;
+    const sinSeparadorMiles = limpio.replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(/,(?=\d{3}(?:\D|$))/g, '');
+    const normalizado = sinSeparadorMiles.replace(',', '.');
+    const num = parseFloat(normalizado);
+    return (!isNaN(num) && num > 0) ? Math.round(num) : 0;
+}
+
+function renderizarBandejasDespieceWeb() {
+    const contChips = document.getElementById('contenedor-chips-clasificados');
+    const grillaPrecios = document.getElementById('grilla-chips-precios');
+    const grillaTitulos = document.getElementById('grilla-chips-titulos');
+    const grillaDesc = document.getElementById('grilla-chips-descripciones');
+    const cPrecios = document.getElementById('conteo-precios-extraidos');
+    const cTitulos = document.getElementById('conteo-titulos-extraidos');
+    const cDesc = document.getElementById('conteo-descripciones-extraidas');
+
+    const hayTexto = (estadoDespieceWeb.precios.length + estadoDespieceWeb.titulos.length + estadoDespieceWeb.descripciones.length) > 0;
+    if (contChips) contChips.style.display = hayTexto ? 'flex' : 'none';
+    if (cPrecios) cPrecios.innerText = estadoDespieceWeb.precios.length;
+    if (cTitulos) cTitulos.innerText = estadoDespieceWeb.titulos.length;
+    if (cDesc) cDesc.innerText = estadoDespieceWeb.descripciones.length;
+
+    if (grillaPrecios) {
+        grillaPrecios.innerHTML = estadoDespieceWeb.precios.map(function(p, idx) {
+            const activo = (estadoDespieceWeb.seleccionActiva.precio === p.valor) ? 'border-color:var(--verde-hoja); background:rgba(0,230,118,0.22);' : '';
+            return '<button type="button" class="chip-despiece-item" style="padding:3px 8px; border-radius:999px; font-size:10.5px; font-family:monospace; background:rgba(0,230,118,0.1); border:1px solid rgba(0,230,118,0.35); color:var(--verde-hoja); cursor:pointer; ' + activo + '" onclick="window.seleccionarChipDespiece(\'precio\', ' + idx + ')">$' + Number(p.valor).toLocaleString('es-CO') + '</button>';
+        }).join('');
+    }
+
+    if (grillaTitulos) {
+        grillaTitulos.innerHTML = estadoDespieceWeb.titulos.map(function(t, idx) {
+            const activo = (estadoDespieceWeb.seleccionActiva.titulo === t) ? 'border-color:var(--naranja); background:rgba(255,107,0,0.25); color:#fff;' : '';
+            const seguro = String(t).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return '<button type="button" class="chip-despiece-item" style="padding:3px 8px; border-radius:8px; font-size:10.5px; background:rgba(147,197,253,0.1); border:1px solid rgba(147,197,253,0.3); color:#93c5fd; cursor:pointer; text-align:left; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; ' + activo + '" onclick="window.seleccionarChipDespiece(\'titulo\', ' + idx + ')">' + seguro + '</button>';
+        }).join('');
+    }
+
+    if (grillaDesc) {
+        grillaDesc.innerHTML = estadoDespieceWeb.descripciones.map(function(d, idx) {
+            const activo = (estadoDespieceWeb.seleccionActiva.descripcion === d) ? 'border-color:#fcd34d; background:rgba(252,211,77,0.22); color:#fff;' : '';
+            const corto = d.length > 85 ? (d.substring(0, 82) + '...') : d;
+            const seguro = String(corto).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return '<button type="button" class="chip-despiece-item" title="' + String(d).replace(/"/g, '&quot;') + '" style="padding:4px 8px; border-radius:8px; font-size:10px; background:rgba(252,211,77,0.08); border:1px solid rgba(252,211,77,0.28); color:#fcd34d; cursor:pointer; text-align:left; line-height:1.3; ' + activo + '" onclick="window.seleccionarChipDespiece(\'descripcion\', ' + idx + ')">' + seguro + '</button>';
+        }).join('');
+    }
+
+    const contMini = document.getElementById('contenedor-miniaturas-despiece');
+    const grillaMini = document.getElementById('grilla-miniaturas-despiece');
+    const cMini = document.getElementById('conteo-miniaturas-cola');
+    if (cMini) cMini.innerText = estadoDespieceWeb.imagenes.length;
+    if (contMini) contMini.style.display = estadoDespieceWeb.imagenes.length > 0 ? 'block' : 'none';
+
+    if (grillaMini) {
+        grillaMini.innerHTML = estadoDespieceWeb.imagenes.map(function(imgObj, idx) {
+            const srcMostrar = imgObj.dataUrl || imgObj.url;
+            const altTxt = imgObj.alt ? String(imgObj.alt).replace(/</g, '&lt;').substring(0, 36) : ('Imagen #' + (idx + 1));
+            return '<div style="background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:6px; display:flex; flex-direction:column; gap:5px; position:relative;">' +
+                '<button type="button" onclick="window.quitarImagenColaDespiece(' + idx + ')" style="position:absolute; top:4px; right:4px; width:20px; height:20px; border-radius:50%; background:rgba(0,0,0,0.8); border:1px solid rgba(255,68,68,0.5); color:#ff6b6b; font-size:10px; cursor:pointer; z-index:2;">✕</button>' +
+                '<div style="width:100%; height:92px; background:#090d16; border-radius:7px; overflow:hidden; display:flex; align-items:center; justify-content:center;">' +
+                    '<img src="' + srcMostrar + '" alt="' + altTxt + '" style="max-width:100%; max-height:100%; object-fit:contain; cursor:pointer;" onclick="window.enviarMiniaturaDespieceAEstudio(' + idx + ', \'producto\')" onerror="this.style.opacity=\'0.25\'">' +
+                '</div>' +
+                '<span style="font-size:9px; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + altTxt + '</span>' +
+                '<div style="display:grid; grid-template-columns:1fr 1fr; gap:3px;">' +
+                    '<button type="button" class="btn-submit" style="padding:3px 4px; font-size:9px; justify-content:center; background:rgba(0,230,118,0.18); border:1px solid var(--verde-hoja); color:var(--verde-hoja);" onclick="window.crearProductoDirectoDesdeMiniatura(' + idx + ')">+ Producto</button>' +
+                    '<button type="button" class="btn-submit" style="padding:3px 4px; font-size:9px; justify-content:center; background:rgba(41,182,246,0.18); border:1px solid var(--azul-link); color:var(--azul-link);" onclick="window.enviarMiniaturaDespieceAEstudio(' + idx + ', \'portada\')">✨ Estudio</button>' +
+                '</div>' +
+                '<div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:2px;">' +
+                    '<button type="button" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#cbd5e1; border-radius:4px; padding:2px; font-size:8.5px; cursor:pointer;" onclick="window.asignarMiniaturaDespieceDirecto(' + idx + ', \'logo\')">Logo</button>' +
+                    '<button type="button" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#cbd5e1; border-radius:4px; padding:2px; font-size:8.5px; cursor:pointer;" onclick="window.asignarMiniaturaDespieceDirecto(' + idx + ', \'portada\')">Port</button>' +
+                    '<button type="button" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#cbd5e1; border-radius:4px; padding:2px; font-size:8.5px; cursor:pointer;" onclick="window.asignarMiniaturaDespieceDirecto(' + idx + ', \'link_pin\')">Pin</button>' +
+                    '<button type="button" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#cbd5e1; border-radius:4px; padding:2px; font-size:8.5px; cursor:pointer;" onclick="window.asignarMiniaturaDespieceDirecto(' + idx + ', \'logo_nombre\')">PNG</button>' +
+                '</div>' +
+            '</div>';
+        }).join('');
+    }
+}
+
+window.seleccionarChipDespiece = async function(tipo, idx) {
+    let textoCopiar = '';
+    if (tipo === 'precio' && estadoDespieceWeb.precios[idx]) {
+        const val = estadoDespieceWeb.precios[idx].valor;
+        estadoDespieceWeb.seleccionActiva.precio = (estadoDespieceWeb.seleccionActiva.precio === val) ? null : val;
+        textoCopiar = String(val);
+    } else if (tipo === 'titulo' && estadoDespieceWeb.titulos[idx]) {
+        const valT = estadoDespieceWeb.titulos[idx];
+        estadoDespieceWeb.seleccionActiva.titulo = (estadoDespieceWeb.seleccionActiva.titulo === valT) ? '' : valT;
+        textoCopiar = valT;
+    } else if (tipo === 'descripcion' && estadoDespieceWeb.descripciones[idx]) {
+        const valD = estadoDespieceWeb.descripciones[idx];
+        estadoDespieceWeb.seleccionActiva.descripcion = (estadoDespieceWeb.seleccionActiva.descripcion === valD) ? '' : valD;
+        textoCopiar = valD;
+    }
+    if (textoCopiar && navigator.clipboard) {
+        try { await navigator.clipboard.writeText(textoCopiar); } catch (e) {}
+    }
+    renderizarBandejasDespieceWeb();
+    mostrarToast('Seleccionado y copiado: ' + textoCopiar.substring(0, 38), 'info', 1600);
 };
+
+window.quitarImagenColaDespiece = function(idx) {
+    estadoDespieceWeb.imagenes.splice(idx, 1);
+    renderizarBandejasDespieceWeb();
+};
+
+async function resolverDataUrlDesdeMiniatura(imgObj) {
+    if (!imgObj) return null;
+    if (imgObj.dataUrl && imgObj.dataUrl.indexOf('data:') === 0) return imgObj.dataUrl;
+    const url = imgObj.url || '';
+    if (!url) return null;
+    const intentarFetch = async function(u) {
+        const r = await fetch(u);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const b = await r.blob();
+        return await leerArchivoIntegroDataURL(b);
+    };
+    try {
+        const dUrl = await intentarFetch(url);
+        imgObj.dataUrl = dUrl;
+        return dUrl;
+    } catch (e1) {
+        if (url.indexOf('http') === 0) {
+            try {
+                const proxyUrl = 'https://images.weserv.nl/?url=' + encodeURIComponent(url) + '&output=webp';
+                const dUrlProxy = await intentarFetch(proxyUrl);
+                imgObj.dataUrl = dUrlProxy;
+                return dUrlProxy;
+            } catch (e2) {}
+        }
+    }
+    return url;
+}
+
+window.enviarMiniaturaDespieceAEstudio = async function(idx, rolSugerido) {
+    if (!comercioActivoParaCatalogo) {
+        mostrarToast('Abre primero un comercio en el Drawer.', 'error');
+        return;
+    }
+    const imgObj = estadoDespieceWeb.imagenes[idx];
+    if (!imgObj) return;
+    mostrarToast('Cargando imagen en Estudio 2D...', 'info', 1400);
+    const dataUrl = await resolverDataUrlDesdeMiniatura(imgObj);
+    if (!dataUrl) {
+        mostrarToast('No se pudo leer la imagen remota.', 'error');
+        return;
+    }
+    comercioActivoParaCatalogo._laminaMaestraDataUrl = dataUrl;
+    await window.abrirEstudioIdentidadIntegro(dataUrl, rolSugerido || 'portada');
+};
+
+window.asignarMiniaturaDespieceDirecto = async function(idx, campoDestino) {
+    if (!comercioActivoParaCatalogo) {
+        mostrarToast('Abre primero un comercio en el Drawer.', 'error');
+        return;
+    }
+    const imgObj = estadoDespieceWeb.imagenes[idx];
+    if (!imgObj) return;
+    const abrirEstudio = document.getElementById('chk-abrir-estudio-al-subir')?.checked !== false;
+    if (abrirEstudio) {
+        await window.enviarMiniaturaDespieceAEstudio(idx, campoDestino);
+        return;
+    }
+    const dataUrl = await resolverDataUrlDesdeMiniatura(imgObj);
+    if (!dataUrl) return;
+    try {
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        comercioActivoParaCatalogo[campoDestino] = dataUrl;
+        if (campoDestino === 'logo_nombre') comercioActivoParaCatalogo.nombre_png = dataUrl;
+        comercioActivoParaCatalogo._editadoEnRadar = true;
+        actualizarPreviewsIdentidadUI();
+        if (campoDestino === 'link_pin' || campoDestino === 'logo') actualizarPinDrawerLive();
+        subirFotoIdentidadStorage(blob, campoDestino, comercioActivoParaCatalogo.id);
+        emitirTono('EXITO');
+        mostrarToast('Asignado a ' + campoDestino + '.', 'exito', 1800);
+    } catch (e) {
+        await window.enviarMiniaturaDespieceAEstudio(idx, campoDestino);
+    }
+};
+
+window.crearProductoDirectoDesdeMiniatura = async function(idx) {
+    if (!comercioActivoParaCatalogo) {
+        mostrarToast('Abre primero un comercio en el Drawer.', 'error');
+        return;
+    }
+    const imgObj = estadoDespieceWeb.imagenes[idx];
+    if (!imgObj) return;
+    const sugerenciaTitulo = estadoDespieceWeb.seleccionActiva.titulo || imgObj.alt || 'Producto Destacado';
+    const sugerenciaPrecio = estadoDespieceWeb.seleccionActiva.precio !== null ? String(estadoDespieceWeb.seleccionActiva.precio) : '10000';
+    const nomProd = prompt('Nombre del producto:', sugerenciaTitulo);
+    if (!nomProd || !nomProd.trim()) return;
+    const preProd = parseFloat(prompt('Precio COP:', sugerenciaPrecio)) || 0;
+    const descProd = estadoDespieceWeb.seleccionActiva.descripcion || '';
+
+    const dataUrl = await resolverDataUrlDesdeMiniatura(imgObj);
+    let blobProd = imgObj.blob || null;
+    if (!blobProd && dataUrl && dataUrl.indexOf('data:') === 0) {
+        try {
+            const r = await fetch(dataUrl);
+            blobProd = await r.blob();
+        } catch (eB) {}
+    }
+
+    const nuevoProd = {
+        codigo_barras: String(Date.now()).slice(-8),
+        nombre: nomProd.trim(),
+        categoria: comercioActivoParaCatalogo.nicho || 'General',
+        precio: preProd,
+        stock_actual: 10,
+        cuerpo_texto: descProd,
+        imagen: dataUrl || imgObj.url || '',
+        archivoBlob: blobProd,
+        en_piso_venta: true,
+        subido_storage: Boolean(!blobProd && imgObj.url && imgObj.url.indexOf('http') === 0),
+        fecha_creacion: new Date().toISOString()
+    };
+    if (!comercioActivoParaCatalogo.catalogo) comercioActivoParaCatalogo.catalogo = [];
+    comercioActivoParaCatalogo.catalogo.unshift(nuevoProd);
+    comercioActivoParaCatalogo._editadoEnRadar = true;
+    renderizarListaSkusDrawer();
+    AppState.guardarColaLocal();
+    if (blobProd) {
+        subirFotoAStorageEnSegundoPlano(nuevoProd, comercioActivoParaCatalogo.id);
+    }
+    emitirTono('EXITO');
+    mostrarToast('Producto "' + nomProd.trim() + '" agregado al catálogo.', 'exito', 2000);
+};
+
+function procesarInsumosDespieceWeb(htmlCrudo, textoPlano, archivosImagen) {
+    actualizarBarraProgresoDespiece(20, 'Analizando contenido pegado...');
+    const setPrecios = new Set(estadoDespieceWeb.precios.map(function(p) { return p.valor; }));
+    const setTitulos = new Set(estadoDespieceWeb.titulos);
+    const setDesc = new Set(estadoDespieceWeb.descripciones);
+    const setUrls = new Set(estadoDespieceWeb.imagenes.map(function(i) { return i.url || i.dataUrl; }));
+
+    const agregarPrecio = function(raw) {
+        const val = parsearNumeroPrecioExtraido(raw);
+        if (val >= 500 && val <= 99999999 && !setPrecios.has(val)) {
+            setPrecios.add(val);
+            estadoDespieceWeb.precios.push({ texto: '$' + val.toLocaleString('es-CO'), valor: val });
+        }
+    };
+
+    const agregarTextoClasificado = function(linea) {
+        const limpia = String(linea || '').replace(/\s+/g, ' ').trim();
+        if (!limpia || limpia.length < 3) return;
+        if (/^(https?:\/\/|www\.|data:image)/i.test(limpia)) return;
+        const matchesPrecio = limpia.match(/(?:\$|cop|usd)\s*\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{1,2})?|\b\d{1,3}(?:\.\d{3})+\b/gi);
+        if (matchesPrecio) {
+            matchesPrecio.forEach(agregarPrecio);
+        }
+        const sinPrecio = limpia.replace(/(?:\$|cop|usd)\s*\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{1,2})?/gi, '').trim();
+        if (sinPrecio.length < 3 || /^[0-9.,\s$-]+$/.test(sinPrecio)) return;
+        if (sinPrecio.length <= 68 && sinPrecio.split(' ').length <= 10) {
+            if (!setTitulos.has(sinPrecio)) {
+                setTitulos.add(sinPrecio);
+                estadoDespieceWeb.titulos.push(sinPrecio);
+            }
+        } else if (sinPrecio.length > 68 && sinPrecio.length <= 500) {
+            if (!setDesc.has(sinPrecio)) {
+                setDesc.add(sinPrecio);
+                estadoDespieceWeb.descripciones.push(sinPrecio);
+            }
+        }
+    };
+
+    const agregarImagenCola = function(url, alt, dataUrl, blob) {
+        const clave = dataUrl || url || '';
+        if (!clave || clave.length < 6 || setUrls.has(clave)) return;
+        if (/\.(svg|ico)(\?|$)/i.test(url || '')) return;
+        if (/1x1|pixel|spacer|blank|avatar-default|emoji/i.test(url || '')) return;
+        setUrls.add(clave);
+        estadoDespieceWeb.imagenes.push({
+            url: url || '',
+            alt: (alt || '').trim(),
+            dataUrl: dataUrl || '',
+            blob: blob || null
+        });
+    };
+
+    if (htmlCrudo && htmlCrudo.trim()) {
+        try {
+            const parser = new DOMParser();
+            const docHtml = parser.parseFromString(htmlCrudo, 'text/html');
+            actualizarBarraProgresoDespiece(55, 'Extrayendo imágenes y nodos...');
+
+            docHtml.querySelectorAll('img, source').forEach(function(el) {
+                let src = el.getAttribute('src') || el.getAttribute('data-src') || el.getAttribute('data-lazy-src') || el.getAttribute('data-original') || '';
+                const srcset = el.getAttribute('srcset') || el.getAttribute('data-srcset') || '';
+                if (!src && srcset) {
+                    const partes = srcset.split(',').map(function(s) { return s.trim().split(' ')[0]; }).filter(Boolean);
+                    if (partes.length > 0) src = partes[partes.length - 1];
+                }
+                if (src && src.indexOf('//') === 0) src = 'https:' + src;
+                if (src && (src.indexOf('http') === 0 || src.indexOf('data:image') === 0 || src.indexOf('blob:') === 0)) {
+                    agregarImagenCola(src, el.getAttribute('alt') || el.getAttribute('title') || '', src.indexOf('data:image') === 0 ? src : '', null);
+                }
+            });
+
+            docHtml.querySelectorAll('[style*="background"]').forEach(function(el) {
+                const st = el.getAttribute('style') || '';
+                const m = st.match(/url\(["']?(https?:\/\/[^"')]+)["']?\)/i);
+                if (m && m[1]) agregarImagenCola(m[1], el.innerText || '', '', null);
+            });
+
+            docHtml.querySelectorAll('h1, h2, h3, h4, h5, strong, b, p, li, span, div, td').forEach(function(nodo) {
+                if (nodo.children && nodo.children.length > 2) return;
+                const txt = (nodo.textContent || '').trim();
+                if (txt) agregarTextoClasificado(txt);
+            });
+        } catch (eDom) {}
+    }
+
+    if (textoPlano && textoPlano.trim()) {
+        actualizarBarraProgresoDespiece(75, 'Clasificando textos y precios...');
+        const urlsEnTexto = textoPlano.match(/https?:\/\/[^\s"'<>]+\.(?:jpg|jpeg|png|webp|gif)(?:\?[^\s"'<>]*)?/gi) || [];
+        urlsEnTexto.forEach(function(u) { agregarImagenCola(u, 'Imagen Web', '', null); });
+
+        textoPlano.split(/\r?\n/).forEach(function(linea) {
+            agregarTextoClasificado(linea);
+        });
+    }
+
+    if (archivosImagen && archivosImagen.length > 0) {
+        Array.from(archivosImagen).forEach(function(file, fIdx) {
+            leerArchivoIntegroDataURL(file).then(function(dUrl) {
+                agregarImagenCola('', file.name || ('Captura ' + (fIdx + 1)), dUrl, file);
+                renderizarBandejasDespieceWeb();
+            }).catch(function() {});
+        });
+    }
+
+    actualizarBarraProgresoDespiece(100, 'Extracción completada');
+    renderizarBandejasDespieceWeb();
+    setTimeout(function() { actualizarBarraProgresoDespiece(0, ''); }, 900);
+
+    const totalHallados = estadoDespieceWeb.imagenes.length + estadoDespieceWeb.titulos.length + estadoDespieceWeb.precios.length;
+    if (totalHallados > 0) {
+        emitirTono('EXITO');
+        mostrarToast('Despiece listo: ' + estadoDespieceWeb.imagenes.length + ' fotos, ' + estadoDespieceWeb.titulos.length + ' textos y ' + estadoDespieceWeb.precios.length + ' precios.', 'exito', 2800);
+    } else {
+        mostrarToast('No se detectaron imágenes ni textos comerciales en el portapapeles.', 'info', 2200);
+    }
+}
+
+window.limpiarDespieceWeb = function() {
+    estadoDespieceWeb = {
+        precios: [],
+        titulos: [],
+        descripciones: [],
+        imagenes: [],
+        seleccionActiva: { precio: null, titulo: '', descripcion: '' }
+    };
+    restaurarPlaceholderZonaPegado();
+    renderizarBandejasDespieceWeb();
+    actualizarBarraProgresoDespiece(0, '');
+    mostrarToast('Bandeja de despiece limpia.', 'info', 1500);
+};
+
+window.pegarDesdePortapapelesDirecto = async function() {
+    if (!comercioActivoParaCatalogo) {
+        mostrarToast('Abre primero un comercio en el Drawer.', 'error');
+        return;
+    }
+    let html = '';
+    let texto = '';
+    const archivos = [];
+    try {
+        if (navigator.clipboard && typeof navigator.clipboard.read === 'function') {
+            const items = await navigator.clipboard.read();
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                for (let j = 0; j < item.types.length; j++) {
+                    const mime = item.types[j];
+                    if (mime === 'text/html') {
+                        const blobH = await item.getType(mime);
+                        html += await blobH.text();
+                    } else if (mime === 'text/plain') {
+                        const blobT = await item.getType(mime);
+                        texto += await blobT.text();
+                    } else if (mime.indexOf('image/') === 0) {
+                        const blobImg = await item.getType(mime);
+                        archivos.push(new File([blobImg], 'portapapeles_' + Date.now() + '.png', { type: mime }));
+                    }
+                }
+            }
+        } else if (navigator.clipboard && typeof navigator.clipboard.readText === 'function') {
+            texto = await navigator.clipboard.readText();
+        }
+    } catch (eClip) {
+        try {
+            if (navigator.clipboard && typeof navigator.clipboard.readText === 'function') {
+                texto = await navigator.clipboard.readText();
+            }
+        } catch (eTxt) {
+            mostrarToast('Mantén presionado el recuadro inferior y elige Pegar.', 'info', 2500);
+            const zona = document.getElementById('zona-pegado-despiece');
+            if (zona) zona.focus();
+            return;
+        }
+    }
+    procesarInsumosDespieceWeb(html, texto, archivos);
+};
+
+window.cargarArchivosLocalesEnDespiece = async function(files) {
+    if (!files || !files.length || !comercioActivoParaCatalogo) {
+        mostrarToast('Abre primero un comercio en el Drawer.', 'error');
+        return;
+    }
+    const lista = Array.from(files);
+    for (let i = 0; i < lista.length; i++) {
+        const dataUrl = await leerArchivoIntegroDataURL(lista[i]);
+        estadoDespieceWeb.imagenes.unshift({
+            url: '',
+            alt: lista[i].name || ('Foto ' + (i + 1)),
+            dataUrl: dataUrl,
+            blob: lista[i]
+        });
+    }
+    renderizarBandejasDespieceWeb();
+    if (lista.length === 1) {
+        const dUrlUnica = estadoDespieceWeb.imagenes[0].dataUrl;
+        comercioActivoParaCatalogo._laminaMaestraDataUrl = dUrlUnica;
+        const abrirAuto = document.getElementById('chk-abrir-estudio-al-subir')?.checked !== false;
+        if (abrirAuto) {
+            await window.abrirEstudioIdentidadIntegro(dUrlUnica, 'portada');
+        }
+    } else {
+        emitirTono('EXITO');
+        mostrarToast(lista.length + ' fotos cargadas en la bandeja de despiece.', 'exito', 2200);
+    }
+};
+
+(function inicializarZonaPegadoDespieceDOM() {
+    const vincular = function() {
+        const zona = document.getElementById('zona-pegado-despiece');
+        if (!zona || zona._listenerDespieceActivo) return;
+        zona._listenerDespieceActivo = true;
+        zona.addEventListener('paste', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const cd = e.clipboardData || window.clipboardData;
+            if (!cd) return;
+            const html = cd.getData('text/html') || '';
+            const texto = cd.getData('text/plain') || '';
+            const archivos = [];
+            if (cd.items) {
+                for (let i = 0; i < cd.items.length; i++) {
+                    if (cd.items[i].type && cd.items[i].type.indexOf('image/') === 0) {
+                        const f = cd.items[i].getAsFile();
+                        if (f) archivos.push(f);
+                    }
+                }
+            } else if (cd.files && cd.files.length > 0) {
+                for (let j = 0; j < cd.files.length; j++) archivos.push(cd.files[j]);
+            }
+            setTimeout(restaurarPlaceholderZonaPegado, 30);
+            procesarInsumosDespieceWeb(html, texto, archivos);
+        });
+    };
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', vincular);
+    } else {
+        vincular();
+    }
+})();
 
 export async function subirFotoIdentidadStorage(blob, campo, idComercio) {
     const targetComercio = listaComercios.find(function(x) { return String(x.id) === String(idComercio); }) || comercioActivoParaCatalogo;
