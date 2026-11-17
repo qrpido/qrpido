@@ -4403,10 +4403,55 @@ window.cerrarModalSalida = function(confirmado) {
 // FUNCIONES CONTROLADORAS DEL ONBOARDING (FASE 1 Y 2) - BLINDADAS
 // ============================================================================
 window.imagenCargadaTemporalPaso1 = null;
+window.logoTemporalPaso2 = null;
+window.portadaTemporalPaso2 = null;
 window.mapaOnboarding = null;
 window.markerOnboarding = null;
 
 window.blobPinEditadoPaso1 = null;
+window.blobLogoEditadoPaso2 = null;
+window.blobPortadaEditadaPaso2 = null;
+
+window.cargarPreviewLogoPaso2 = async function(input) {
+    if (!input.files || !input.files[0]) return;
+    var editada = await window.GeokatuEstudio.editarImagen(input.files[0], {
+        maxAncho: 600,
+        maxAlto: 600,
+        calidad: 0.86,
+        titulo: 'Editar Foto de Perfil / Logo'
+    });
+    if (!editada) { input.value = ''; return; }
+    window.logoTemporalPaso2 = editada.dataUrl;
+    window.blobLogoEditadoPaso2 = editada.blob;
+    window.datosTienda.logo = editada.dataUrl;
+    var img = document.getElementById('fase2-img-logo-preview');
+    var ph = document.getElementById('fase2-placeholder-logo');
+    if (img) { img.src = editada.dataUrl; img.style.display = 'block'; }
+    if (ph) ph.style.display = 'none';
+    if (!window.imagenCargadaTemporalPaso1) {
+        window.imagenCargadaTemporalPaso1 = editada.dataUrl;
+        window.blobPinEditadoPaso1 = editada.blob;
+        window.actualizarPinLive();
+    }
+};
+
+window.cargarPreviewPortadaPaso2 = async function(input) {
+    if (!input.files || !input.files[0]) return;
+    var editada = await window.GeokatuEstudio.editarImagen(input.files[0], {
+        maxAncho: 1200,
+        maxAlto: 400,
+        calidad: 0.85,
+        titulo: 'Editar Foto de Portada (3:1)'
+    });
+    if (!editada) { input.value = ''; return; }
+    window.portadaTemporalPaso2 = editada.dataUrl;
+    window.blobPortadaEditadaPaso2 = editada.blob;
+    window.datosTienda.portada = editada.dataUrl;
+    var img = document.getElementById('fase2-img-portada-preview');
+    var ph = document.getElementById('fase2-placeholder-portada');
+    if (img) { img.src = editada.dataUrl; img.style.display = 'block'; }
+    if (ph) ph.style.display = 'none';
+};
 window.cargarPreviewPin = async function(input) {
     if (input.files && input.files[0]) {
         var editada = await window.GeokatuEstudio.editarImagen(input.files[0], {
@@ -4586,16 +4631,46 @@ window.guardarPaso2ADN = async function() {
                 console.warn("[Paso 2] Aviso subiendo foto del PIN:", errPinUp.message);
             }
         }
-        // 2. Subir logotipo tipografico PNG/WebP desde el Blob ya procesado en RAM
+                // 2. Subir logotipo tipografico PNG/WebP desde el Blob ya procesado en RAM
         var blobNom = window.blobNombrePngEditadoFase1 || window.dataUrlABlob(window.nombrePngTemporalPaso1);
         if (blobNom && navigator.onLine) {
             try {
                 var resNom = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/nombre_png.webp', blobNom, 'image/webp');
                 var urlNom = (typeof resNom === 'string') ? resNom : (resNom && resNom.data ? resNom.data : (resNom && resNom.url ? resNom.url : ''));
-                if (urlNom) payload.nombre_png = urlNom;
+                if (urlNom) {
+                    payload.nombre_png = urlNom;
+                    payload.logo_nombre = urlNom;
+                }
                 window.blobNombrePngEditadoFase1 = null;
             } catch (errNomUp) {
                 console.warn("[Paso 2] Aviso subiendo logo tipografico:", errNomUp.message);
+            }
+        }
+        // 3. Subir foto de perfil / logo del comercio
+        var blobLogo = window.blobLogoEditadoPaso2 || window.dataUrlABlob(window.logoTemporalPaso2);
+        if (blobLogo && navigator.onLine) {
+            try {
+                var resLogo = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/logo_' + Date.now() + '.webp', blobLogo, 'image/webp');
+                var urlLogo = (typeof resLogo === 'string') ? resLogo : (resLogo && resLogo.data ? resLogo.data : (resLogo && resLogo.url ? resLogo.url : ''));
+                if (urlLogo) {
+                    payload.logo = urlLogo;
+                    if (!payload.link_pin && !window.datosTienda.link_pin) payload.link_pin = urlLogo;
+                }
+                window.blobLogoEditadoPaso2 = null;
+            } catch (errLogoUp) {
+                console.warn("[Paso 2] Aviso subiendo logo de perfil:", errLogoUp.message);
+            }
+        }
+        // 4. Subir foto de portada panoramica del comercio
+        var blobPortada = window.blobPortadaEditadaPaso2 || window.dataUrlABlob(window.portadaTemporalPaso2);
+        if (blobPortada && navigator.onLine) {
+            try {
+                var resPortada = await GeokatuDB.AdminService.subirArchivo('tiendas/' + window.idNegocioLogueado + '/portada_' + Date.now() + '.webp', blobPortada, 'image/webp');
+                var urlPortada = (typeof resPortada === 'string') ? resPortada : (resPortada && resPortada.data ? resPortada.data : (resPortada && resPortada.url ? resPortada.url : ''));
+                if (urlPortada) payload.portada = urlPortada;
+                window.blobPortadaEditadaPaso2 = null;
+            } catch (errPortadaUp) {
+                console.warn("[Paso 2] Aviso subiendo portada:", errPortadaUp.message);
             }
         }
         var resUpd = await GeokatuDB.AdminService.actualizarNegocio(window.idNegocioLogueado, payload);
@@ -4903,8 +4978,13 @@ window.guardarPaso3Ubicacion = async function() {
         fecha_actualizacion: new Date().toISOString()
     };
 
-    if (t.link_pin) payloadFinal.link_pin = t.link_pin;
-    if (t.nombre_png) payloadFinal.nombre_png = t.nombre_png;
+        if (t.link_pin) payloadFinal.link_pin = t.link_pin;
+    if (t.nombre_png) {
+        payloadFinal.nombre_png = t.nombre_png;
+        payloadFinal.logo_nombre = t.nombre_png;
+    }
+    if (t.logo) payloadFinal.logo = t.logo;
+    if (t.portada) payloadFinal.portada = t.portada;
 
     try {
         // 1. Payload público de cartografía (sin teléfonos planos)
