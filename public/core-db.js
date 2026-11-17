@@ -5302,21 +5302,72 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
 };
 
 // ==========================================
+// BUS DE EVENTOS EN MEMORIA (SINCRONIZACION MISMA PESTANA 0ms)
+// ==========================================
+GeokatuDB.emitirCambioLocal = (clave, valor) => {
+ if (!clave) return;
+ const valorStr = (valor === undefined || valor === null) ? null : String(valor);
+ Promise.resolve().then(() => {
+  window.dispatchEvent(new CustomEvent('geokatu:storage-local', {
+   detail: { key: String(clave), newValue: valorStr }
+  }));
+ });
+};
+
+GeokatuDB.suscribirCambioLocal = (callback) => {
+ if (typeof callback !== 'function') return () => {};
+ const onStorageExterno = (e) => {
+  if (e && e.key) callback({ key: e.key, newValue: e.newValue, mismaPestana: false });
+ };
+ const onStorageLocal = (e) => {
+  const det = e && e.detail ? e.detail : null;
+  if (det && det.key) callback({ key: det.key, newValue: det.newValue, mismaPestana: true });
+ };
+ window.addEventListener('storage', onStorageExterno);
+ window.addEventListener('geokatu:storage-local', onStorageLocal);
+ return () => {
+  window.removeEventListener('storage', onStorageExterno);
+  window.removeEventListener('geokatu:storage-local', onStorageLocal);
+ };
+};
+
+if (typeof window !== 'undefined' && typeof Storage !== 'undefined' && !window.__gkStorageBusActivo) {
+ window.__gkStorageBusActivo = true;
+ const _origSetItem = Storage.prototype.setItem;
+ const _origRemoveItem = Storage.prototype.removeItem;
+ Storage.prototype.setItem = function(clave, valor) {
+  _origSetItem.call(this, clave, valor);
+  if (this === window.localStorage && typeof clave === 'string' && clave.indexOf('geokatu_') === 0) {
+   GeokatuDB.emitirCambioLocal(clave, valor);
+  }
+ };
+ Storage.prototype.removeItem = function(clave) {
+  _origRemoveItem.call(this, clave);
+  if (this === window.localStorage && typeof clave === 'string' && clave.indexOf('geokatu_') === 0) {
+   GeokatuDB.emitirCambioLocal(clave, null);
+  }
+ };
+}
+
+// ==========================================
 // EXPORTACIÓN ESTRICTA (Singleton)
 // ==========================================
 // Las colas pertenecen al comercio activo. Cada recibo protege los reintentos.
 GeokatuDB.sincronizarPendientesOperativos = async (idNegocio) => {
-    if (!idNegocio || !navigator.onLine) return;
-    await GeokatuDB.InventarioService.sincronizarMovimientosPendientes(idNegocio);
-    await GeokatuDB.PosService.sincronizarVentasPendientes(idNegocio);
-    await GeokatuDB.PosService.sincronizarCierresPendientes(idNegocio);
-    await GeokatuDB.PosService.sincronizarColaGoogleSheets(idNegocio);
+ if (!idNegocio || !navigator.onLine) return;
+ await GeokatuDB.InventarioService.sincronizarMovimientosPendientes(idNegocio);
+ await GeokatuDB.PosService.sincronizarVentasPendientes(idNegocio);
+ await GeokatuDB.PosService.sincronizarCierresPendientes(idNegocio);
+ await GeokatuDB.PosService.sincronizarColaGoogleSheets(idNegocio);
 };
 
-window.addEventListener('online', () => {
-    GeokatuDB.sincronizarPendientesOperativos(localStorage.getItem('geokatu_active_uid'))
-        .catch(error => console.warn('[Sincronización pendiente]', error.message));
-});
+if (!window.__gkCoreOnlineListener) {
+ window.__gkCoreOnlineListener = true;
+ window.addEventListener('online', () => {
+  GeokatuDB.sincronizarPendientesOperativos(localStorage.getItem('geokatu_active_uid'))
+  .catch(error => console.warn('[Sincronización pendiente]', error.message));
+ });
+}
 export default GeokatuDB;
 
 
