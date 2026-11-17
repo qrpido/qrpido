@@ -1571,30 +1571,73 @@ if (selectSede) {
     });
 }
 
-// Reactividad en 0 ms entre pestañas locales (POS / Stock / Oficina -> Visor)
-window.addEventListener('storage', (e) => {
-    if (!idNegocio || !e.key) return;
-    if (e.key === 'geokatu_catalogo_' + idNegocio && e.newValue) {
-        try {
-            catalogoTotal = JSON.parse(e.newValue);
-            renderizarMueblesVisor();
-        } catch (err) {}
-    } else if (e.key === 'geokatu_stock_ubis_' + idNegocio && e.newValue) {
-        try {
-            stockPosicionalGlobal = JSON.parse(e.newValue);
-            renderizarMueblesVisor();
-        } catch (err) {}
-    } else if (e.key === 'geokatu_plano_' + idNegocio + '_' + idSedeActiva && e.newValue) {
-        try {
-            const pData = JSON.parse(e.newValue);
-            if (pData.perimetro) perimetro = pData.perimetro;
-            if (Array.isArray(pData.elementos)) muebles = pData.elementos;
-            if (Array.isArray(pData.muros)) celdasMurosBloqueadas = new Set(pData.muros);
-            redibujarArea();
-            renderizarMueblesVisor();
-        } catch (err) {}
-    }
-});
+// Reactividad en 0 ms en misma pestana y entre pestanas (POS / Stock / Oficina -> Visor)
+let _desuscribirBusVisor = null;
+let _timerRefrescoVisorLocal = null;
+let _pendienteRedibujarArea = false;
+let _pendienteRenderMuebles = false;
+
+function procesarEventoBusVisor(e) {
+ if (!idNegocio || !e || !e.key || !e.newValue) return;
+ if (e.key === 'geokatu_catalogo_' + idNegocio) {
+  try {
+   catalogoTotal = JSON.parse(e.newValue);
+   poblarFiltros();
+   _pendienteRenderMuebles = true;
+  } catch (err) {}
+ } else if (e.key === 'geokatu_stock_ubis_' + idNegocio) {
+  try {
+   stockPosicionalGlobal = JSON.parse(e.newValue);
+   _pendienteRenderMuebles = true;
+  } catch (err) {}
+ } else if (e.key === 'geokatu_plano_' + idNegocio + '_' + idSedeActiva) {
+  try {
+   const pData = JSON.parse(e.newValue);
+   if (pData.perimetro) perimetro = pData.perimetro;
+   if (Array.isArray(pData.elementos)) muebles = pData.elementos;
+   if (Array.isArray(pData.muros)) celdasMurosBloqueadas = new Set(pData.muros);
+   _pendienteRedibujarArea = true;
+   _pendienteRenderMuebles = true;
+  } catch (err) {}
+ } else {
+  return;
+ }
+ if (_timerRefrescoVisorLocal) clearTimeout(_timerRefrescoVisorLocal);
+ _timerRefrescoVisorLocal = setTimeout(() => {
+  _timerRefrescoVisorLocal = null;
+  const hacerArea = _pendienteRedibujarArea;
+  const hacerMuebles = _pendienteRenderMuebles;
+  _pendienteRedibujarArea = false;
+  _pendienteRenderMuebles = false;
+  if (!idNegocio) return;
+  if (hacerArea) redibujarArea();
+  if (hacerMuebles) renderizarMueblesVisor();
+ }, 60);
+}
+
+function activarBusLocalVisor() {
+ if (typeof _desuscribirBusVisor === 'function') return;
+ if (typeof GeokatuDB.suscribirCambioLocal === 'function') {
+  _desuscribirBusVisor = GeokatuDB.suscribirCambioLocal(procesarEventoBusVisor);
+ } else {
+  window.addEventListener('storage', procesarEventoBusVisor);
+  _desuscribirBusVisor = () => window.removeEventListener('storage', procesarEventoBusVisor);
+ }
+}
+
+function desactivarBusLocalVisor() {
+ if (_timerRefrescoVisorLocal) {
+  clearTimeout(_timerRefrescoVisorLocal);
+  _timerRefrescoVisorLocal = null;
+ }
+ _pendienteRedibujarArea = false;
+ _pendienteRenderMuebles = false;
+ if (typeof _desuscribirBusVisor === 'function') {
+  _desuscribirBusVisor();
+  _desuscribirBusVisor = null;
+ }
+}
+activarBusLocalVisor();
 
 async function hidratarVisor() {
     if (!idNegocio) return;
@@ -1701,8 +1744,9 @@ AuthGate.inicializar({
     tituloModulo: 'Radar de Inventario SIG',
     subtituloModulo: 'Visor de Piso y Ubicacion Espacial de Stock',
     minutosInactividad: 20,
-    onSesionLista: async function(contexto) {
-        idNegocio = contexto.idNegocio;
+     onSesionLista: async function(contexto) {
+ idNegocio = contexto.idNegocio;
+ activarBusLocalVisor();
         const parametros = new URLSearchParams(location.search);
         idSedeActiva = contexto.esDueno ? (parametros.get('sede') || localStorage.getItem('geokatu_sede_activa_' + idNegocio) || contexto.almacen) : contexto.almacen;
         idSedeActiva ||= 'SALA_VENTAS';
@@ -1743,12 +1787,13 @@ AuthGate.inicializar({
         }
     },
 
-    onCerrarSesion: async function() {
-        if (typeof cerrarCamara === 'function') {
-            cerrarCamara();
-        }
-        detenerAnimacionRuta();
-        idNegocio = null;
+     onCerrarSesion: async function() {
+ desactivarBusLocalVisor();
+ if (typeof cerrarCamara === 'function') {
+ cerrarCamara();
+ }
+ detenerAnimacionRuta();
+ idNegocio = null;
         muebles = [];
         catalogoTotal = [];
         stockPosicionalGlobal = [];
