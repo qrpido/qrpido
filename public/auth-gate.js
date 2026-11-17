@@ -284,32 +284,41 @@ function inyectarEstilosBunker() {
 // MOTOR CENTRAL DE CONTROL DE TERMINAL Y AUTENTICACIÓN
 // =========================================================================
 export const AuthGate = {
-    _config: {
-        tituloModulo: 'Terminal Operativa',
-        subtituloModulo: 'Verifica tu identidad para iniciar operaciones',
-        minutosInactividad: 10,
-        onSesionLista: null,
-        onCerrarSesion: null
-    },
+ _config: {
+ tituloModulo: 'Terminal Operativa',
+ subtituloModulo: 'Verifica tu identidad para iniciar operaciones',
+ minutosInactividad: 10,
+ eximirGps: false,
+ precargarNomina: null,
+ onSesionLista: null,
+ onCerrarSesion: null
+ },
 
-    _estado: {
-        pinAcumulado: '',
-        usuarioAuth: null,
-        contextoActivo: null,
-        contextosDetectados: [],
-        datosTurnoPendiente: null,
-        modoRelevoEnCaliente: false,
-        timerInactividad: null,
-        sesionBloqueada: false
-    },
+ _estado: {
+ inicializado: false,
+ pinAcumulado: '',
+ usuarioAuth: null,
+ contextoActivo: null,
+ contextosDetectados: [],
+ datosTurnoPendiente: null,
+ modoRelevoEnCaliente: false,
+ timerInactividad: null,
+ sesionBloqueada: false
+ },
 
-    inicializar(opciones = {}) {
-        this._config = Object.assign({}, this._config, opciones);
-        inyectarEstilosBunker();
-        this._construirDOM();
-        this._iniciarVigilanteInactividad();
-        this._escucharSesionAuth();
-    },
+ inicializar(opciones = {}) {
+ this._config = Object.assign({}, this._config, opciones);
+ inyectarEstilosBunker();
+ this._construirDOM();
+ const elTit = document.getElementById('gk-gate-titulo-ui');
+ const elSub = document.getElementById('gk-gate-subtitulo-ui');
+ if (elTit) elTit.textContent = this._config.tituloModulo;
+ if (elSub) elSub.textContent = this._config.subtituloModulo;
+ if (this._estado.inicializado) return;
+ this._estado.inicializado = true;
+ this._iniciarVigilanteInactividad();
+ this._escucharSesionAuth();
+ },
 
     _construirDOM() {
         if (document.getElementById('gk-auth-gate-root')) return;
@@ -657,14 +666,14 @@ export const AuthGate = {
             ctx.codigoCajero = "0000";
         }
         this._estado.datosTurnoPendiente = ctx;
-        const rutaActual = (window.location.pathname || '').toLowerCase();
-        const esPortalOficina = rutaActual.indexOf('oficina') !== -1;
-        const esTitularDueno = Boolean(ctx.esDueno === true || ctx.rol === 'dueño' || ctx.rol === 'owner');
-        // REGLA ESTRICTA: El dueno o cualquier acceso a Oficina entra en 0 ms sin pedir GPS
-        if (esTitularDueno || esPortalOficina) {
-            this._concederAccesoTerminal(ctx, null, false);
-            return;
-        }
+         const rutaActual = (window.location.pathname || '').toLowerCase();
+ const esPortalOficina = Boolean(this._config.eximirGps) || (rutaActual.indexOf('oficina') !== -1);
+ const esTitularDueno = Boolean(ctx.esDueno === true || ctx.rol === 'dueño' || ctx.rol === 'owner');
+ // REGLA ESTRICTA: El dueno, eximirGps o cualquier acceso a Oficina entra en 0 ms sin pedir GPS
+ if (esTitularDueno || esPortalOficina) {
+ this._concederAccesoTerminal(ctx, null, false);
+ return;
+ }
         const hoyStr = new Date().toISOString().split('T')[0];
         const claveGpsDia = 'geokatu_gps_apertura_' + ctx.idNegocio + '_' + hoyStr;
         const gpsGuardadoHoy = localStorage.getItem(claveGpsDia);
@@ -861,10 +870,12 @@ export const AuthGate = {
         if (GeokatuDB && GeokatuDB.SecurityService && GeokatuDB.SecurityService.sellarSesionTerminalLocal) {
             GeokatuDB.SecurityService.sellarSesionTerminalLocal(ctx.idNegocio);
         }
-                        // Pre-cachear la nomina solo en terminales operativas (POS, Stock, Inventario, Mapatiena)
-        if (/\/(pos|stock|inventario|mapatienda)(?:\.html)?\/?$/i.test(window.location.pathname || '')) {
-            this._hidratarNominaLocal(ctx.idNegocio, false);
-        }
+                         // Pre-cachear la nomina por opcion explicita o por ruta de terminal operativa
+ const esRutaOperativa = /\/(terminal|pos|posven|stock|inventario|mapatienda)(?:\.html)?\/?$/i.test(window.location.pathname || '');
+ const debePrecargarNomina = (this._config.precargarNomina === true) || (this._config.precargarNomina !== false && esRutaOperativa);
+ if (debePrecargarNomina) {
+ this._hidratarNominaLocal(ctx.idNegocio, false);
+ }
         if (!ctx.esDueno && sesionAuthUid) {
             try {
                 const claveLog24 = 'geokatu_conexiones_24h_' + sesionAuthUid;
