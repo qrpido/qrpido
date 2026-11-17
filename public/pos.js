@@ -1656,13 +1656,13 @@ async function ejecutarVentaFinalDefinitivaInterna() {
             if (modalDian) modalDian.style.display = 'none';
         }
 
-        if (window.deseaFacturaEcologicaQR) {
-            window.deseaFacturaEcologicaQR = false;
-            await abrirModalFacturaDigitalQR(ultimoTicketIdVendido);
-        } else {
-            motorCajon.dispararAperturaDirecta(0, true).catch(() => {});
-            setTimeout(() => window.print(), 300);
-        }
+         if (window.deseaFacturaEcologicaQR) {
+  window.deseaFacturaEcologicaQR = false;
+  await abrirModalFacturaDigitalQR(ultimoTicketIdVendido);
+ } else {
+  motorCajon.dispararAperturaDirecta(0, true).catch(() => {});
+  setTimeout(() => imprimirTirillaPos(), 300);
+ }
 
     } else {
         alert("Error al procesar la venta: " + res.error);
@@ -2093,11 +2093,39 @@ window.addEventListener('pointerdown', () => {
 }, { once: true });
 
 // ==========================================
-// 9. ATAJOS DE TECLADO
+// 9. ATAJOS DE TECLADO Y CONTROL DE IMPRESION AISLADA
 // ==========================================
+function esVistaPosActiva() {
+ if (window.TerminalApp && typeof window.TerminalApp.vistaActiva === 'string') {
+  return window.TerminalApp.vistaActiva === 'pos';
+ }
+ const appPos = document.getElementById('pos-app');
+ return Boolean(appPos && appPos.style.display !== 'none');
+}
+
+function imprimirTirillaPos(onDespues) {
+ let limpiado = false;
+ const limpiarModo = () => {
+  if (limpiado) return;
+  limpiado = true;
+  document.body.classList.remove('modo-print-ticket');
+  window.removeEventListener('afterprint', limpiarModo);
+  if (typeof onDespues === 'function') onDespues();
+ };
+ document.body.classList.remove('modo-print-qr');
+ document.body.classList.add('modo-print-ticket');
+ window.addEventListener('afterprint', limpiarModo);
+ try {
+  window.print();
+ } finally {
+  setTimeout(limpiarModo, 1200);
+ }
+}
+
 window.addEventListener('keydown', (e) => {
-    const modalPesaje = document.getElementById('modal-pesaje');
-    const modalPesajeAbierto = modalPesaje && modalPesaje.style.display === 'flex';
+ if (!esVistaPosActiva() || (AuthGate._estado && AuthGate._estado.sesionBloqueada)) return;
+ const modalPesaje = document.getElementById('modal-pesaje');
+ const modalPesajeAbierto = modalPesaje && modalPesaje.style.display === 'flex';
 
    // Tecla rápida F6 para Tarar en cualquier momento
     if (e.key === 'F6') {
@@ -2808,13 +2836,12 @@ document.getElementById('btn-confirmar-cierre-z').addEventListener('click', asyn
             armarTirillaInformeX(resX.informeX);
             document.getElementById('modal-cierre-z').style.display = 'none';
 
-            setTimeout(() => {
-                window.print();
-                setTimeout(() => {
-                    document.getElementById('tirilla-informe-x-container').style.display = 'none';
-                    document.getElementById('tirilla-venta-container').style.display = 'block';
-                }, 1000);
-            }, 300);
+             setTimeout(() => {
+  imprimirTirillaPos(() => {
+   document.getElementById('tirilla-informe-x-container').style.display = 'none';
+   document.getElementById('tirilla-venta-container').style.display = 'block';
+  });
+ }, 300);
 
             alert("Auditoría (Informe X) generada con éxito. La caja continúa operando normalmente.");
         } else {
@@ -2850,15 +2877,13 @@ document.getElementById('btn-confirmar-cierre-z').addEventListener('click', asyn
 
         document.getElementById('modal-cierre-z').style.display = 'none';
 
-        // Imprimir tirilla de cierre
-        setTimeout(() => {
-            window.print();
-            // Restaurar visor térmico para tickets de venta
-            setTimeout(() => {
-                document.getElementById('tirilla-cierre-z-container').style.display = 'none';
-                document.getElementById('tirilla-venta-container').style.display = 'block';
-            }, 1000);
-        }, 300);
+         // Imprimir tirilla de cierre
+ setTimeout(() => {
+  imprimirTirillaPos(() => {
+   document.getElementById('tirilla-cierre-z-container').style.display = 'none';
+   document.getElementById('tirilla-venta-container').style.display = 'block';
+  });
+ }, 300);
 
         alert(res.offline ? "Cierre Z guardado en este dispositivo. Pendiente de sincronizar con el servidor." : "Turno sellado y Cierre Z registrado exitosamente.");
     } else {
