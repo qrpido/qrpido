@@ -789,29 +789,42 @@
             }
         }
 
-        // =========================================================================
-        // LECTOR FÍSICO NATIVO (PISTOLA USB-C / BLUETOOTH EN WINDOW)
-        // =========================================================================
-        let bufferUSB = '';
-        let ultimoTiempoTecla = 0;
-        window.addEventListener('keydown', (e) => {
-            if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+         // =========================================================================
+ // LECTOR FÍSICO NATIVO (PISTOLA USB-C / BLUETOOTH EN WINDOW)
+ // =========================================================================
+ function esVistaStockActiva() {
+  if (window.TerminalApp && typeof window.TerminalApp.vistaActiva === 'string') {
+   return window.TerminalApp.vistaActiva === 'stock';
+  }
+  const appEl = document.getElementById('app-terminal');
+  return Boolean(appEl && appEl.style.display !== 'none');
+ }
+ let bufferUSB = '';
+ let ultimoTiempoTecla = 0;
+ window.addEventListener('keydown', (e) => {
+  if (!esVistaStockActiva() || !sesionWms || AuthGate._estado.sesionBloqueada) {
+   bufferUSB = '';
+   return;
+  }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const tagActivo = e.target && e.target.tagName ? e.target.tagName : '';
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tagActivo)) return;
 
-            const ahora = performance.now();
-            if (ahora - ultimoTiempoTecla > 80) bufferUSB = '';
-            ultimoTiempoTecla = ahora;
+  const ahora = performance.now();
+  if (ahora - ultimoTiempoTecla > 80) bufferUSB = '';
+  ultimoTiempoTecla = ahora;
 
-            if (e.key === 'Enter') {
-                if (bufferUSB.length >= 3) {
-                    e.preventDefault();
-                    const cod = bufferUSB.trim();
-                    bufferUSB = '';
-                    procesarMovimientoStock(cod, "PISTOLA_USB");
-                }
-                return;
-            }
-            if (e.key.length === 1) bufferUSB += e.key;
-        }, true);
+  if (e.key === 'Enter') {
+   if (bufferUSB.length >= 3) {
+    e.preventDefault();
+    const cod = bufferUSB.trim();
+    bufferUSB = '';
+    procesarMovimientoStock(cod, "PISTOLA_USB");
+   }
+   return;
+  }
+  if (e.key.length === 1) bufferUSB += e.key;
+ }, true);
 
         // =========================================================================
         // PROCESAMIENTO ATÓMICO Y KARDEX
@@ -1309,10 +1322,11 @@ async function procesarMovimientoStock(codigoRaw, origenHardware) {
                 document.getElementById('panel-auditoria-ciclica').style.display = 'none';
                 document.getElementById('tarjeta-producto').style.display = 'none';
                 document.getElementById('estado-espera-escaneo').style.display = 'block';
-                const sesion = { ...contexto };
-                sesionWms = sesion;
-                catalogoLocal = GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio);
-                mostrarEstadoColaWms();
+                 const sesion = { ...contexto };
+ sesionWms = sesion;
+ activarBusLocalStock();
+ catalogoLocal = GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio);
+ mostrarEstadoColaWms();
                 localStorage.setItem('geokatu_active_uid', contexto.idNegocio);
                 localStorage.setItem('geokatu_sede_activa', idSedeActiva);
 
@@ -1364,10 +1378,11 @@ async function procesarMovimientoStock(codigoRaw, origenHardware) {
                 }
             },
 
-            onCerrarSesion: async function() {
-                sesionWms = null;
-                document.getElementById('wms-estado-sync').hidden = true;
-                await apagarCamara();
+             onCerrarSesion: async function() {
+ desactivarBusLocalStock();
+ sesionWms = null;
+ document.getElementById('wms-estado-sync').hidden = true;
+ await apagarCamara();
                 document.getElementById('app-terminal').style.display = 'none';
                 document.getElementById('tarjeta-producto').style.display = 'none';
                 catalogoLocal = [];
@@ -1404,13 +1419,86 @@ async function procesarMovimientoStock(codigoRaw, origenHardware) {
  });
 
 
-        window.addEventListener('online', () => {
-            if (!sesionWms) return;
-            GeokatuDB.InventarioService.sincronizarMovimientosPendientes(idNegocio).then(mostrarEstadoColaWms);
-        });
-        window.addEventListener('storage', e => {
-            if (e.key === 'geokatu_movimientos_cola_' + idNegocio) mostrarEstadoColaWms();
-        });
+         window.addEventListener('online', () => {
+  if (!sesionWms) return;
+  GeokatuDB.InventarioService.sincronizarMovimientosPendientes(idNegocio).then(mostrarEstadoColaWms);
+ });
+ let _desuscribirBusStock = null;
+ let _timerBusStock = null;
+ let _pendColaStock = false;
+ let _pendFichaStock = false;
+ let _pendPlanoStock = false;
+ function procesarEventoBusStock(e) {
+  if (!sesionWms || !idNegocio || !e || !e.key) return;
+  if (e.key === 'geokatu_movimientos_cola_' + idNegocio) {
+   _pendColaStock = true;
+  } else if (e.key === 'geokatu_catalogo_' + idNegocio && e.newValue) {
+   try {
+    catalogoLocal = JSON.parse(e.newValue);
+    if (productoActivoFicha) {
+     const act = catalogoLocal.find(p => p.id_prod === productoActivoFicha.id_prod);
+     if (act) productoActivoFicha = act;
+    }
+    _pendFichaStock = true;
+   } catch (errC) {}
+  } else if (e.key === 'geokatu_stock_ubis_' + idNegocio && e.newValue) {
+   _pendFichaStock = true;
+  } else if (e.key === 'geokatu_plano_' + idNegocio + '_' + idSedeActiva && e.newValue) {
+   try {
+    const pData = JSON.parse(e.newValue);
+    if (Array.isArray(pData.elementos)) {
+     mueblesPlanoTienda = pData.elementos;
+     _pendPlanoStock = true;
+    }
+   } catch (errP) {}
+  } else {
+   return;
+  }
+  if (_timerBusStock) clearTimeout(_timerBusStock);
+  _timerBusStock = setTimeout(() => {
+   _timerBusStock = null;
+   const hCola = _pendColaStock;
+   const hFicha = _pendFichaStock;
+   const hPlano = _pendPlanoStock;
+   _pendColaStock = false;
+   _pendFichaStock = false;
+   _pendPlanoStock = false;
+   if (!sesionWms) return;
+   if (hCola) mostrarEstadoColaWms();
+   if (hPlano) poblarSelectorMueblesModal();
+   if (hFicha && productoActivoFicha && !modoAccionFicha) {
+    const proy = proyectarSaldosProducto(productoActivoFicha);
+    const elStock = document.getElementById('res-stock');
+    if (elStock) {
+     elStock.innerText = proy.stockProyectado;
+     elStock.style.color = proy.stockProyectado > 0 ? '#00ff64' : '#ff4444';
+    }
+    renderizarUbicacionesFichaProducto(productoActivoFicha);
+   }
+  }, 60);
+ }
+ function activarBusLocalStock() {
+  if (typeof _desuscribirBusStock === 'function') return;
+  if (typeof GeokatuDB.suscribirCambioLocal === 'function') {
+   _desuscribirBusStock = GeokatuDB.suscribirCambioLocal(procesarEventoBusStock);
+  } else {
+   window.addEventListener('storage', procesarEventoBusStock);
+   _desuscribirBusStock = () => window.removeEventListener('storage', procesarEventoBusStock);
+  }
+ }
+ function desactivarBusLocalStock() {
+  if (_timerBusStock) {
+   clearTimeout(_timerBusStock);
+   _timerBusStock = null;
+  }
+  _pendColaStock = false;
+  _pendFichaStock = false;
+  _pendPlanoStock = false;
+  if (typeof _desuscribirBusStock === 'function') {
+   _desuscribirBusStock();
+   _desuscribirBusStock = null;
+  }
+ }
 
         // Buscador manual por código o nombre
         const ejecutarBusquedaManualInput = () => {
