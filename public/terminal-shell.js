@@ -141,29 +141,149 @@ function ejecutarCuandoBridgeExista(vista, nombreFn, fnEjecutar) {
   }
 }
 
+let modoEditorMapaActivo = false;
+
+function repararVistaInventarioEmbebida(frame) {
+  if (!frame || !frame.contentDocument) return;
+  const doc = frame.contentDocument;
+  if (!doc.getElementById('hud-radar') || doc.getElementById('gk-fix-radar-25d')) return;
+
+  const st = doc.createElement('style');
+  st.id = 'gk-fix-radar-25d';
+  st.textContent = `
+    /* 1. Evitar que Filtros se corte con el buscador (27659.jpg) */
+    #panel-filtros {
+      margin-top: 10px !important;
+      padding-top: 12px !important;
+      border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+      position: relative !important;
+      z-index: 25 !important;
+    }
+    /* 2. Ocultar ficha inferior cuando el 2.5D o el drawer estan abiertos (Cero superposicion) */
+    body:has(#visor-alzado-pip:not(.oculto)) #ficha-compacta-radar,
+    body:has(#drawer-detalle:not(.oculto)) #ficha-compacta-radar {
+      display: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    /* 3. Visor 2.5D limpio, centrado y con boton X siempre visible */
+    #visor-alzado-pip:not(.oculto) {
+      position: fixed !important;
+      left: 12px !important;
+      right: 12px !important;
+      bottom: 14px !important;
+      top: auto !important;
+      width: auto !important;
+      max-width: 440px !important;
+      margin: 0 auto !important;
+      background: rgba(14, 14, 20, 0.98) !important;
+      border: 1.5px solid #ff6b00 !important;
+      border-radius: 18px !important;
+      box-shadow: 0 20px 55px rgba(0, 0, 0, 0.95), 0 0 0 100vmax rgba(0, 0, 0, 0.55) !important;
+      z-index: 9500 !important;
+      overflow: hidden !important;
+    }
+    #alzado-id-badge, #drawer-id-mueble {
+      display: inline-block !important;
+      max-width: 92px !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
+      vertical-align: bottom !important;
+    }
+    #btn-cerrar-alzado {
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      width: 30px !important;
+      height: 30px !important;
+      min-width: 30px !important;
+      border-radius: 8px !important;
+      background: rgba(255, 68, 68, 0.18) !important;
+      border: 1px solid rgba(255, 68, 68, 0.5) !important;
+      color: #ffffff !important;
+      flex-shrink: 0 !important;
+      cursor: pointer !important;
+      margin-left: 4px !important;
+    }
+    /* 4. Mejora visual de muebles en el plano 2D */
+    .mueble-radar-2d, [data-id-mueble] {
+      border-radius: 8px !important;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
+    }
+  `;
+  doc.head.appendChild(st);
+
+  // Garantizar que el boton X exista y sea visible dentro de la cabecera del 2.5D
+  const visor = doc.getElementById('visor-alzado-pip');
+  if (visor) {
+    let btnCerrar = doc.getElementById('btn-cerrar-alzado');
+    const headerVisor = visor.firstElementChild;
+    if (!btnCerrar && headerVisor) {
+      btnCerrar = doc.createElement('button');
+      btnCerrar.id = 'btn-cerrar-alzado';
+      btnCerrar.type = 'button';
+      btnCerrar.innerHTML = '✕';
+      headerVisor.appendChild(btnCerrar);
+    }
+    if (btnCerrar) {
+      btnCerrar.addEventListener('click', (e) => {
+        e.stopPropagation();
+        visor.classList.add('oculto');
+      });
+    }
+    // Barra de acciones inferior dentro del propio 2.5D (Abrir en Stock / Editar Mapa / Cerrar)
+    if (!doc.getElementById('gk-footer-25d')) {
+      const footer25d = doc.createElement('div');
+      footer25d.id = 'gk-footer-25d';
+      footer25d.style.cssText = 'display:grid; grid-template-columns:1fr 1fr auto; gap:6px; padding:8px 12px 10px 12px; background:rgba(10,10,14,0.96); border-top:1px solid rgba(255,255,255,0.1);';
+      footer25d.innerHTML = `
+        <button type="button" id="gk-25d-ir-stock" style="background:rgba(0,255,100,0.12); border:1px solid rgba(0,255,100,0.4); color:#00ff64; border-radius:8px; padding:8px 6px; font-size:11px; font-weight:800; cursor:pointer;">Abrir en Stock</button>
+        <button type="button" id="gk-25d-editar-mapa" style="background:rgba(37,99,235,0.2); border:1px solid rgba(96,165,250,0.45); color:#93c5fd; border-radius:8px; padding:8px 6px; font-size:11px; font-weight:800; cursor:pointer;">Editar Croquis</button>
+        <button type="button" id="gk-25d-cerrar-btn" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#ffffff; border-radius:8px; padding:8px 12px; font-size:11px; font-weight:800; cursor:pointer;">Cerrar</button>
+      `;
+      visor.appendChild(footer25d);
+      footer25d.querySelector('#gk-25d-cerrar-btn').addEventListener('click', () => visor.classList.add('oculto'));
+      footer25d.querySelector('#gk-25d-ir-stock').addEventListener('click', () => {
+        const btnStock = doc.getElementById('btn-fc-abrir-stock');
+        if (btnStock) btnStock.click();
+        else window.TerminalApp.irAVista('stock');
+      });
+      footer25d.querySelector('#gk-25d-editar-mapa').addEventListener('click', () => {
+        window.TerminalApp.alternarModoEditorMapa(true);
+      });
+    }
+  }
+};
+
 function asegurarFrameCargado(vista) {
   const frame = FRAMES[vista];
-  if (!frame || framesCargados[vista] || frame.dataset.iniciado === '1') return;
-  frame.dataset.iniciado = '1';
+  if (!frame) return;
+  if (!frame.dataset.listenerListo) {
+    frame.dataset.listenerListo = '1';
+    frame.addEventListener('load', () => {
+      framesCargados[vista] = true;
+      try {
+        if (frame.contentWindow) {
+          frame.contentWindow.TerminalApp = window.TerminalApp;
+        }
+      } catch (e) {}
 
-  frame.addEventListener('load', () => {
-    framesCargados[vista] = true;
-    try {
-      if (frame.contentWindow) {
-        frame.contentWindow.TerminalApp = window.TerminalApp;
+      if (vista === 'pos') {
+        setTimeout(conectarObservadorTicketPos, 250);
       }
-    } catch (e) {}
+      if (vista === 'mapa') {
+        setTimeout(() => repararVistaInventarioEmbebida(frame), 120);
+      }
 
-    if (vista === 'pos') {
-      setTimeout(conectarObservadorTicketPos, 250);
-    }
-
-    const cola = accionesPendientes[vista].splice(0);
-    cola.forEach((fn) => {
-      try { fn(); } catch (eC) {}
+      const cola = accionesPendientes[vista].splice(0);
+      cola.forEach((fn) => {
+        try { fn(); } catch (eC) {}
+      });
     });
-  }, { once: true });
-
+  }
+  if (framesCargados[vista] || frame.dataset.iniciado === '1') return;
+  frame.dataset.iniciado = '1';
   frame.src = RUTAS_FRAMES[vista];
 }
 
@@ -319,12 +439,32 @@ window.TerminalApp = {
     }
   },
 
-  solicitarCerrarSesion() {
+    solicitarCerrarSesion() {
     if (ScannerHub && ScannerHub.estaAbierto()) {
       ScannerHub.cerrar({ silencioso: true, restaurarFoco: false });
     }
     if (AuthGate && typeof AuthGate.cerrarSesion === 'function') {
       AuthGate.cerrarSesion();
+    }
+  },
+
+  alternarModoEditorMapa(forzarEditor) {
+    const frameMapa = FRAMES.mapa;
+    if (!frameMapa) return;
+    modoEditorMapaActivo = typeof forzarEditor === 'boolean' ? forzarEditor : !modoEditorMapaActivo;
+    const txtBtn = document.getElementById('txt-switch-editor-mapa');
+    const btnSwitch = document.getElementById('btn-switch-editor-mapa');
+    if (modoEditorMapaActivo) {
+      frameMapa.src = 'mapatienda?embed=terminal';
+      if (txtBtn) txtBtn.textContent = 'Volver al Radar';
+      if (btnSwitch) btnSwitch.style.background = 'linear-gradient(135deg, #ff8c00, #ff6b00)';
+    } else {
+      frameMapa.src = 'inventario?embed=terminal';
+      if (txtBtn) txtBtn.textContent = 'Editar Mapa';
+      if (btnSwitch) btnSwitch.style.background = 'linear-gradient(135deg, #2563eb, #1d4ed8)';
+    }
+    if (this.vistaActiva !== 'mapa') {
+      this.irAVista('mapa');
     }
   },
 
