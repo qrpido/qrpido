@@ -306,8 +306,39 @@ export const AuthGate = {
  sesionBloqueada: false
  },
 
- inicializar(opciones = {}) {
+  inicializar(opciones = {}) {
  this._config = Object.assign({}, this._config, opciones);
+ const shellPadre = (window.parent && window.parent !== window && window.parent.TerminalApp && window.parent.TerminalApp.esTerminalUnificada) ? window.parent.TerminalApp : null;
+ if (shellPadre) {
+  window.TerminalApp = shellPadre;
+  if (this._estado.inicializado) return;
+  this._estado.inicializado = true;
+  shellPadre.registrarModuloHijo({
+   onSesion: (ctx) => {
+    this._estado.contextoActivo = ctx;
+    this._estado.sesionBloqueada = false;
+    if (typeof this._config.onSesionLista === 'function') {
+     this._config.onSesionLista(ctx);
+    }
+   },
+   onBloqueo: (motivo) => {
+    this._estado.sesionBloqueada = true;
+    window.dispatchEvent(new CustomEvent('gk:terminal-bloqueada', { detail: { motivo: motivo || 'inactividad' } }));
+   },
+   onLogout: () => {
+    this._estado.contextoActivo = null;
+    this._estado.sesionBloqueada = true;
+    window.dispatchEvent(new CustomEvent('gk:terminal-bloqueada', { detail: { motivo: 'logout' } }));
+    if (typeof this._config.onCerrarSesion === 'function') {
+     try { this._config.onCerrarSesion(); } catch (e) {}
+    }
+   }
+  });
+  const avisarActividad = () => { try { shellPadre.notificarActividad(); } catch (e) {} };
+  window.addEventListener('pointerdown', avisarActividad, { passive: true });
+  window.addEventListener('keydown', avisarActividad, { passive: true });
+  return;
+ }
  inyectarEstilosBunker();
  this._construirDOM();
  const elTit = document.getElementById('gk-gate-titulo-ui');
@@ -928,7 +959,11 @@ export const AuthGate = {
         reiniciarContador();
     },
 
-     bloquearTerminalPorInactividad() {
+      bloquearTerminalPorInactividad() {
+ if (window.parent && window.parent !== window && window.parent.TerminalApp && window.parent.TerminalApp.esTerminalUnificada) {
+  window.parent.TerminalApp.solicitarBloqueo();
+  return;
+ }
  if (!this._estado.contextoActivo) return;
 
  this._estado.sesionBloqueada = true;
@@ -1065,7 +1100,11 @@ export const AuthGate = {
         if (root) root.classList.remove('activo');
         this._ocultarError();
     },
-     async cerrarSesion() {
+      async cerrarSesion() {
+ if (window.parent && window.parent !== window && window.parent.TerminalApp && window.parent.TerminalApp.esTerminalUnificada) {
+  window.parent.TerminalApp.solicitarCerrarSesion();
+  return;
+ }
  window.dispatchEvent(new CustomEvent('gk:terminal-bloqueada', { detail: { motivo: 'logout' } }));
  if (typeof this._config.onCerrarSesion === 'function') {
   try { this._config.onCerrarSesion(); } catch(e) {}
