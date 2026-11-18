@@ -348,7 +348,7 @@ window.renderizarSelectorSedesCabeceraOficina = function() {
     window.sedesVinculadasOficina.forEach(function(s, i) {
         var opt = document.createElement('option');
         opt.value = s.id;
-        opt.textContent = '📍 Sede ' + (i + 1) + ': ' + (s.direccion || s.id);
+                opt.textContent = 'Sede ' + (i + 1) + ': ' + (s.direccion || s.id);
         if (String(s.id) === String(window.idNegocioLogueado)) opt.selected = true;
         sel.appendChild(opt);
     });
@@ -466,7 +466,7 @@ window.mostrarTooltipNombrePng = function(origen, btnElement) {
 
     el.innerHTML = 
         '<div style="display: flex; gap: 8px; align-items: flex-start;">' +
-            '<span style="color: var(--naranja); font-size: 15px; line-height: 1;">ℹ️</span>' +
+                        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--naranja)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:2px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>' +
             '<div style="flex: 1;">' +
                 '<strong style="color: #ffffff; display: block; margin-bottom: 2px;">Logotipo con Fondo Transparente</strong>' +
                 '<p style="margin: 0; color: #b5b5be; line-height: 1.35;">Sube tu marca recortada (PNG/WebP sin fondo). Se exhibir\u00E1 en la cabecera, minimapa y tarjetas de la plataforma en lugar de texto b\u00E1sico.</p>' +
@@ -574,7 +574,7 @@ window.mostrarTooltipEtiquetasRadar = function(btnElement) {
 
     el.innerHTML = 
         '<div style="display: flex; gap: 8px; align-items: flex-start;">' +
-            '<span style="color: var(--naranja); font-size: 15px; line-height: 1;">🏷️</span>' +
+                        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--naranja)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:2px;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>' +
             '<div style="flex: 1;">' +
                 '<strong style="color: #ffffff; display: block; margin-bottom: 2px;">Etiquetas de Búsqueda</strong>' +
                 '<p style="margin: 0; color: #b5b5be; line-height: 1.35;">Escribe tus productos estrella, platos o servicios separados por guion o coma. Los ciudadanos te encontrarán en el radar aunque no conozcan el nombre de tu comercio.</p>' +
@@ -701,7 +701,7 @@ window.renderizarCarruselesCuarzo = function() {
         html +=
             '<button type="button" class="chip-cuarzo-item' + (esCustomActivo ? ' activo' : '') + '" data-tema="custom" onclick="' + fnCustom + '" style="background:linear-gradient(145deg, rgba(255,107,0,0.25), rgba(0,245,212,0.25)); border-color:rgba(0,245,212,0.5); color:#ffffff;">' +
                 '<span style="width:10px; height:10px; border-radius:50%; background:' + colorCustom + '; border:1px solid #fff;"></span>' +
-                '<span>🎨 Personalizado</span>' +
+                                '<span>Personalizado</span>' +
             '</button>';
         track.innerHTML = html;
         window.vincularScrollSincronizadoCuarzos(cfg.trackId, cfg.simTrackId);
@@ -743,7 +743,7 @@ window.renderizarSimuladorNombrePng = function(dataUrl, ratio, contenedorId) {
     }).join('');
 
     var avisoProporcion = (ratio < 1.6)
-        ? '<div style="color:#ffaa00; font-size:9.5px; margin-bottom:6px; line-height:1.3;">⚠️ Imagen casi cuadrada. Para mayor tamaño, usa solo las letras horizontales sin fondo.</div>'
+                ? '<div style="color:#ffaa00; font-size:9.5px; margin-bottom:6px; line-height:1.3;">Imagen casi cuadrada. Para mayor tamaño, usa solo las letras horizontales sin fondo.</div>'
         : '<div style="color:#00ff64; font-size:9.5px; margin-bottom:6px;">✓ Toca o desliza cualquier cuarzo para elegir el fondo de tu tarjeta y catálogo</div>';
 
     box.style.display = 'block';
@@ -1604,7 +1604,7 @@ window.minimizarABurbuja = function(modalId, nombreProd) {
     var tagTexto = (nombreProd || 'PROD').substring(0, 6);
     var burbujaHTML = 
         '<div id="' + burbujaId + '" class="burbuja-producto-flotante" onclick="window.restaurarDesdeBurbuja(\'' + modalId + '\', \'' + burbujaId + '\')">' +
-            '<span class="burbuja-badge">📦</span>' +
+                        '<span class="burbuja-badge">SKU</span>' +
             '<div class="burbuja-contenido">' +
                 '<span style="font-weight:900;">' + tagTexto + '</span>' +
             '</div>' +
@@ -1903,7 +1903,7 @@ window.cancelarEdicion = function() {
     var fImg = document.getElementById('prodImagenFile');
     if (fImg) fImg.value = '';
     var txtUpload = document.getElementById('file-upload-text');
-    if (txtUpload) txtUpload.innerHTML = '<span style="font-size:18px;">📸</span><span>Foto</span>';
+        if (txtUpload) txtUpload.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--naranja)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><span>Foto</span>';
 
 };
 
@@ -1954,7 +1954,7 @@ window.prepararEdicion = function(id) {
     if (uploadText) {
         uploadText.innerHTML = (p.imagen && p.imagen.trim().length > 10)
             ? '<img src="' + p.imagen + '" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">'
-            : '<span style="font-size:18px;">📸</span><span>Foto</span>';
+                        : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--naranja)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><span>Foto</span>';
     }
 
     document.getElementById('btn-submit-producto').innerText = "ACTUALIZAR DATOS";
@@ -2312,7 +2312,7 @@ window.detenerCamaraEscaner = function() {
     window.trackCamaraActiva = null;
 
     var btnTorch = document.getElementById('btn-torch-escaner');
-    if (btnTorch) btnTorch.innerHTML = '🔦 <span>Flash</span>';
+        if (btnTorch) btnTorch.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span>Flash</span>';
 
     if (window.html5QrCodeCatalogo && window.html5QrCodeCatalogo.isScanning) {
         window.html5QrCodeCatalogo.stop().then(function() {
@@ -2339,9 +2339,9 @@ window.toggleTorchScanner = function() {
     }).then(function() {
         var btnTorch = document.getElementById('btn-torch-escaner');
         if (btnTorch) {
-            btnTorch.innerHTML = window.torchEncendido 
-                ? '⚡ <span style="color:#00ff64;">Encendido</span>' 
-                : '🔦 <span>Flash</span>';
+                        btnTorch.innerHTML = window.torchEncendido
+                ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="#00ff64" stroke="#00ff64" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span style="color:#00ff64;">Encendido</span>'
+                : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span>Flash</span>';
         }
     }).catch(function(e) {
         console.warn("Error conmutando flash:", e);
@@ -2552,7 +2552,7 @@ window.sincronizarEtiquetaBotonEmoji = function(selectId) {
     if (emoji) {
         btn.innerHTML = '<span style="font-size:17px; line-height:1;">' + emoji + '</span><span style="font-size:10px; color:#ff6b00; font-weight:800;">Cambiar ▾</span>';
     } else {
-        btn.innerHTML = '<span style="font-size:11px; color:#ccc;">😊 Emoticon</span><span style="font-size:10px; color:#ff6b00;">▾</span>';
+                btn.innerHTML = '<span style="font-size:11px; color:#ccc; display:inline-flex; align-items:center; gap:5px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg><span>Distintivo</span></span><span style="font-size:10px; color:#ff6b00;">▾</span>';
     }
 };
 
@@ -2582,9 +2582,9 @@ window.inyectarModalTecladoEmojis = function() {
                 '<button type="button" id="gk-cerrar-teclado-emoji" style="background:rgba(255,255,255,0.08); border:none; color:#fff; width:28px; height:28px; border-radius:50%; cursor:pointer; font-weight:bold;">✕</button>' +
             '</div>' +
             '<div style="display:grid; grid-template-columns:1fr 1fr auto; gap:6px; margin-bottom:10px;">' +
-                '<button type="button" id="gk-anc-arriba" style="padding:8px; border-radius:8px; border:1px solid #ff6b00; background:rgba(255,107,0,0.2); color:#fff; font-size:11px; font-weight:800; cursor:pointer;">⬆️ Corona Arriba</button>' +
-                '<button type="button" id="gk-anc-esquina" style="padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.04); color:#aaa; font-size:11px; font-weight:800; cursor:pointer;">↗️ En Esquina</button>' +
-                '<button type="button" id="gk-sin-emoji" style="padding:8px 10px; border-radius:8px; border:1px solid rgba(255,68,68,0.4); background:rgba(255,68,68,0.12); color:#ff4444; font-size:11px; font-weight:800; cursor:pointer;">🚫 Quitar</button>' +
+                                '<button type="button" id="gk-anc-arriba" style="padding:8px; border-radius:8px; border:1px solid #ff6b00; background:rgba(255,107,0,0.2); color:#fff; font-size:11px; font-weight:800; cursor:pointer;">Corona Arriba</button>' +
+                '<button type="button" id="gk-anc-esquina" style="padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.04); color:#aaa; font-size:11px; font-weight:800; cursor:pointer;">En Esquina</button>' +
+                '<button type="button" id="gk-sin-emoji" style="padding:8px 10px; border-radius:8px; border:1px solid rgba(255,68,68,0.4); background:rgba(255,68,68,0.12); color:#ff4444; font-size:11px; font-weight:800; cursor:pointer;">Quitar</button>' +
             '</div>' +
             '<div id="gk-scroll-emojis-grid" style="overflow-y:auto; flex:1; padding-right:2px;">' +
                 htmlGrupos +
@@ -4033,7 +4033,7 @@ window.renderizarResumenFiscal = function() {
     if (selPais) selPais.value = paisActual;
 
     var f = window.datosTienda.perfil_fiscal;
-    var etiquetaPais = paisActual === 'VEN' ? '🇻🇪 VENEZUELA (POS USD/VES)' : '🇨🇴 COLOMBIA (POS COP/DIAN)';
+        var etiquetaPais = paisActual === 'VEN' ? 'VE · VENEZUELA (POS USD/VES)' : 'CO · COLOMBIA (POS COP/DIAN)';
 
     if (!f || !f.nit) {
         contenedor.innerHTML = 
@@ -4080,7 +4080,7 @@ window.cargarEquipoOficina = async function() {
         }
 
         var html = '';
-        if (selectDest) selectDest.innerHTML = '<option value="TODOS">📢 Para todo el personal</option>';
+                if (selectDest) selectDest.innerHTML = '<option value="TODOS">Para todo el personal</option>';
 
         var badgeRoles = {
             cajero: { txt: "Cajero", col: "#0277BD" },
@@ -4329,7 +4329,7 @@ window.cargarTareasOficina = async function() {
                         '<strong style="display:block; font-size:12px; color:white;">' + t.titulo + '</strong>' +
                     '</div>' +
                     '<button type="button" onclick="window.marcarTareaCompletada(\'' + docSnap.id + '\')" style="background:rgba(0,255,100,0.15); border:1px solid rgba(0,255,100,0.4); color:#00ff64; border-radius:6px; padding:5px 9px; font-size:10px; cursor:pointer;">' +
-                        '✔️ Listo' +
+                                                '<span style="display:inline-flex; align-items:center; gap:4px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>Listo</span></span>' +
                     '</button>' +
                 '</div>';
         });
