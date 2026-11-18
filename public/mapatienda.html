@@ -279,8 +279,8 @@
                 <h3 style="margin: 0; font-size: 15px; text-transform: uppercase;">Señalética QR de Tienda</h3>
                 <button id="btn-cerrar-print" style="background: none; border: none; font-size: 18px; cursor: pointer;">✕</button>
             </div>
-            <div class="grid-qrs-print" id="contenedor-qrs-render"></div>
-            <button onclick="window.print()" class="btn-modal-accion" style="margin-top: 10px;">🖨️ Mandar a Imprimir</button>
+             <div class="grid-qrs-print" id="contenedor-qrs-render"></div>
+ <button type="button" onclick="window.imprimirEtiquetasQR()" class="btn-modal-accion" style="margin-top: 10px;">🖨️ Mandar a Imprimir</button>
         </div>
     </div>
 
@@ -1683,12 +1683,30 @@ window.alternarModoEdicion = function(forzarEstado) {
             });
         }
 
-        const btnCerrarPrint = document.getElementById('btn-cerrar-print');
-        if (btnCerrarPrint) {
-            btnCerrarPrint.addEventListener('click', () => {
-                document.getElementById('modal-impresion').style.display = 'none';
-            });
-        }
+         const btnCerrarPrint = document.getElementById('btn-cerrar-print');
+ if (btnCerrarPrint) {
+  btnCerrarPrint.addEventListener('click', () => {
+   document.getElementById('modal-impresion').style.display = 'none';
+  });
+ }
+
+ window.imprimirEtiquetasQR = function() {
+  let limpiado = false;
+  const limpiarModo = () => {
+   if (limpiado) return;
+   limpiado = true;
+   document.body.classList.remove('modo-print-qr');
+   window.removeEventListener('afterprint', limpiarModo);
+  };
+  document.body.classList.remove('modo-print-ticket');
+  document.body.classList.add('modo-print-qr');
+  window.addEventListener('afterprint', limpiarModo);
+  try {
+   window.print();
+  } finally {
+   setTimeout(limpiarModo, 1200);
+  }
+ };
 
        // --- 9. AUTO-CARGA DEL PLANO PERSISTIDO (0-MS LOCALSTORAGE + NUBE) ---
         window.aplicarDatosPlanoEnMemoria = function(planoObj) {
