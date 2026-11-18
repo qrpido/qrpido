@@ -365,8 +365,17 @@ window.cerrarCamaraPOS = () => {
 };
 
 
+window.__gkPosProcesarCodigo = (codigo) => {
+ if (!codigo) return;
+ procesarEntradaCodigo(String(codigo));
+};
+
 window.escanearParaPOS = () => {
  const btnCam = document.getElementById('btn-toggle-camara');
+ if (window.TerminalApp && typeof window.TerminalApp.abrirEscaner === 'function') {
+  window.TerminalApp.abrirEscaner('VENDER', btnCam);
+  return;
+ }
  if (ScannerHub) {
   if (ScannerHub.estaAbierto()) {
    ScannerHub.cerrar();
