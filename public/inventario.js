@@ -152,6 +152,15 @@ if (btnFcAbrirStock) {
  btnFcAbrirStock.addEventListener("click", (e) => {
   e.stopPropagation();
   if (!seleccionRadarActiva || !seleccionRadarActiva.mueble) return;
+  if (window.TerminalApp && typeof window.TerminalApp.irAVista === "function") {
+   window.TerminalApp.irAVista("stock", {
+    sede: idSedeActiva,
+    mueble: seleccionRadarActiva.mueble,
+    bin: seleccionRadarActiva.idComp ? { id_comp: seleccionRadarActiva.idComp } : null,
+    buscar: seleccionRadarActiva.prod ? (seleccionRadarActiva.prod.codigo_barras || seleccionRadarActiva.prod.id_prod) : null
+   });
+   return;
+  }
   window.location.href = enlaceStock(seleccionRadarActiva.mueble, seleccionRadarActiva.idComp);
  });
 }
@@ -1628,8 +1637,17 @@ function procesarLecturaRafaga(codigo) {
     ejecutarBusquedaYFiltros();
 }
 
+window.__gkMapaEnfocar = (termino) => {
+ if (inputBusqueda) inputBusqueda.value = String(termino || '');
+ ejecutarBusquedaYFiltros(false);
+};
+
 document.getElementById('btn-abrir-camara').addEventListener('click', () => {
  const btnCamMapa = document.getElementById('btn-abrir-camara');
+ if (window.TerminalApp && typeof window.TerminalApp.abrirEscaner === 'function') {
+  window.TerminalApp.abrirEscaner('CONSULTAR', btnCamMapa);
+  return;
+ }
  ScannerHub.abrir({
   modoInicial: 'CONSULTAR',
   origenEl: btnCamMapa,
