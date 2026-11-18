@@ -4,12 +4,13 @@
  * Soporte: PMTiles (Range Requests), Matriz Comercial y URLs Limpias
  */
 
-const CACHE_NAME = 'geokatu-cache-v18-wms-oficinaempleado';
+const CACHE_NAME = 'geokatu-cache-v19-terminal-unificada';
 const MAP_CACHE_NAME = 'geokatu-map-tiles-v3';
 
 // 1. Módulos esenciales del ecosistema GEOKATU (Cero 404, precarga inmediata)
 const urlsToCache = [
     '/', '/negocio', '/negocio.html', '/negocio.css', '/catalogo-experiencia.css',
+        '/terminal', '/terminal.html', '/terminal-shell.js', '/scanner-hub.js', '/html5-qrcode.min.js', '/qrcode.min.js',
     '/pos', '/pos.html', '/pos.js', '/estilos-pos.css',
     '/oficina', '/oficina.html', '/oficinaempleado.html', '/auth-gate.js',
     '/stock', '/stock.html', '/stock.css', '/inventario', '/inventario.html', '/inventario.js', '/inventario.css',
