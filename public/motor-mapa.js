@@ -55,27 +55,46 @@ export const EstadoMapa = {
 };
 window.EstadoMapaGeokatu = EstadoMapa;
 
+const SVG_MAPA = {
+    corazonLleno: '<svg width="16" height="16" viewBox="0 0 24 24" fill="#ff4444" stroke="#ff4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+    corazonVacio: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+    corazonBlanco: '<svg width="18" height="18" viewBox="0 0 24 24" fill="#ffffff" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+    lupa: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+    pin: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+    radar: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+    rayo: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ff6b00" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+    alerta: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffaa00" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+    offline: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ff6b6b" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>',
+    lapiz: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+    fuego: '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2s4 3.5 4 7.5c0 1.6-.6 3-1.6 4 .4-1.2.1-2.5-.9-3.3 0 2-1.5 3.3-3 4.3-1.2.8-2.5 2-2.5 3.5 0 2.2 1.8 4 4 4s4-1.8 4-4c0-1.1-.4-2.1-1-2.9 1.8-.9 3-2.8 3-5.1 0-4.4-4-8-6-8z"/></svg>',
+    brujula: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>',
+    camara3d: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>'
+};
+
 // Indicador explícito de estados del contrato de experiencia (Sección 4)
 window.actualizarEstadoRadar = function(estado, textoManual = null) {
     EstadoMapa.consulta.estadoUI = estado;
     const pill = document.getElementById('radar-status-pill');
     if (!pill) return;
-    const mapaTextos = {
-        'iniciando': '⏳ Iniciando mapa...',
-        'mostrando_cache': '⚡ Mostrando caché local • Actualizando...',
-        'consultando': '🛰️ Actualizando esta zona...',
-        'cobertura_parcial': '⚠️ Cobertura parcial en esta vista',
-        'sin_conexion': '📴 Sin conexión • Mostrando datos guardados',
-        'error': '⚠️ Fallo temporal de consulta • Datos previos conservados',
-        'listo': ''
+    const mapaEstados = {
+        'iniciando': { icon: SVG_MAPA.radar, txt: 'Iniciando mapa...' },
+        'mostrando_cache': { icon: SVG_MAPA.rayo, txt: 'Mostrando caché local • Actualizando...' },
+        'consultando': { icon: SVG_MAPA.radar, txt: 'Actualizando esta zona...' },
+        'cobertura_parcial': { icon: SVG_MAPA.alerta, txt: 'Cobertura parcial en esta vista' },
+        'sin_conexion': { icon: SVG_MAPA.offline, txt: 'Sin conexión • Mostrando datos guardados' },
+        'error': { icon: SVG_MAPA.alerta, txt: 'Fallo temporal de consulta • Datos previos conservados' }
     };
-    const msg = textoManual !== null ? textoManual : (mapaTextos[estado] || '');
-    if (!msg || estado === 'listo') {
+    if (estado === 'listo' || (textoManual === null && !mapaEstados[estado])) {
         pill.classList.remove('visible');
-    } else {
-        pill.textContent = msg;
-        pill.classList.add('visible');
+        return;
     }
+    if (textoManual !== null) {
+        pill.textContent = textoManual;
+    } else {
+        const cfg = mapaEstados[estado];
+        pill.innerHTML = cfg.icon + '<span>' + cfg.txt + '</span>';
+    }
+    pill.classList.add('visible');
 };
 
 // Validación estricta de coordenadas finitas (0 es coordenada válida)
@@ -453,7 +472,7 @@ window.abrirHubContactoDinamico = async function(codigoComercio, hubId, e) {
     if (yaAbierto) return;
 
     // Estado visual de carga inmediata
-    hub.innerHTML = '<span style="font-size:10px; color:#aaa; padding:6px 10px; display:block;">Conectando... ⏳</span>';
+        hub.innerHTML = '<span style="font-size:10px; color:#aaa; padding:6px 10px; display:block;">Conectando...</span>';
     hub.classList.add('activo');
 
     // 1. Respaldo en memoria del radar (0 ms)
@@ -584,12 +603,12 @@ window.toggleFavorito = function(id, nombre, precio, foto, whatsapp, event) {
                 b.style.animation = 'saltoCorazon 0.6s ease-out forwards';
             });
         });
-        if (isAdding) {
-            b.innerHTML = '❤️';
+                if (isAdding) {
+            b.innerHTML = SVG_MAPA.corazonLleno;
             b.style.background = 'rgba(255,68,68,0.25)';
             b.style.borderColor = '#ff4444';
         } else {
-            b.innerHTML = '🤍';
+            b.innerHTML = SVG_MAPA.corazonVacio;
             b.style.background = 'rgba(0,0,0,0.6)';
             b.style.borderColor = 'rgba(255,255,255,0.2)';
         }
@@ -762,17 +781,17 @@ window.actualizarEscalaContinuaZoom = function() {
 };
 
 window.obtenerDatosSemaforo = function(fechaIso) {
-    let color = '#FFD700'; let texto = '🟡 En mercado';
+    let color = '#FFD700'; let texto = 'En mercado';
     if (!fechaIso) return { color, texto };
     const fecha = new Date(fechaIso);
     if (isNaN(fecha)) return { color, texto };
     const hoy = new Date();
     const diffTime = Math.abs(hoy - fecha);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    if (diffDays <= 7) { color = '#00ff64'; texto = '🟢 Reciente'; }
-    else if (diffDays <= 21) { color = '#FFD700'; texto = '🟡 En mercado'; }
-    else if (diffDays <= 45) { color = '#ff4444'; texto = '🔴 Baja demanda'; }
-    else { color = '#555555'; texto = '⚫ Inactivo'; }
+    if (diffDays <= 7) { color = '#00ff64'; texto = 'Reciente'; }
+    else if (diffDays <= 21) { color = '#FFD700'; texto = 'En mercado'; }
+    else if (diffDays <= 45) { color = '#ff4444'; texto = 'Baja demanda'; }
+    else { color = '#555555'; texto = 'Inactivo'; }
     return { color, texto };
 };
 
@@ -1046,7 +1065,7 @@ window.filtrarCiudadesSugeridas = function(texto) {
     contenedor.innerHTML = filtradas.map(function(c) {
         const nombreSeguro = String(c.nombre || '').replace(/'/g, "\\'");
         return '<div onclick="window.fijarCiudadManual(' + c.lat + ', ' + c.lng + ', \'' + nombreSeguro + '\')" style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold;">' +
-            '📍 ' + window.sanitizarTexto(c.nombre) +
+            '<span style="display:inline-flex; align-items:center; gap:7px;">' + SVG_MAPA.pin + '<span>' + window.sanitizarTexto(c.nombre) + '</span></span>' +
         '</div>';
     }).join('');
 };
@@ -1201,7 +1220,7 @@ window.descargarNegociosDeFirebase = async function(opciones = {}) {
     window.actualizarEstadoRadar('consultando');
 
     if (btn) {
-        btn.innerText = "⏳ Rastreando...";
+                btn.innerHTML = SVG_MAPA.radar + "<span>Rastreando...</span>";
         btn.style.background = "#ffcc00";
     }
 
@@ -1295,7 +1314,7 @@ window.descargarNegociosDeFirebase = async function(opciones = {}) {
 
             if (btn) {
                 btn.style.display = 'none';
-                btn.innerText = "🔍 Buscar en esta zona";
+                                btn.innerHTML = SVG_MAPA.lupa + "<span>Buscar en esta zona</span>";
                 btn.style.background = "linear-gradient(45deg, var(--naranja), #ffcc00)";
             }
 
@@ -1319,8 +1338,8 @@ window.descargarNegociosDeFirebase = async function(opciones = {}) {
                 }, 3500);
             }
             if (btn) {
-                btn.innerText = "🔍 Reintentar en esta zona";
-                btn.style.display = 'block';
+                                btn.innerHTML = SVG_MAPA.lupa + "<span>Reintentar en esta zona</span>";
+                btn.style.display = 'inline-flex';
             }
         } finally {
             EstadoMapa.consulta.promesasEnVuelo.delete(claveCelda);
@@ -1850,7 +1869,7 @@ window.compartirTienda = function(event, codigo, nombre, username) {
 };
 
 window.copiarEnlace = function() {
-    navigator.clipboard.writeText(window.linkCompartirActual).then(function() { alert('¡Enlace copiado al portapapeles! 🔗'); });
+        navigator.clipboard.writeText(window.linkCompartirActual).then(function() { alert('Enlace copiado al portapapeles.'); });
 };
 
 window.compartirNativo = async function() {
@@ -1863,7 +1882,7 @@ window.compartirNativo = async function() {
 window.descargarQR = async function() {
     var btn = document.getElementById('btn-descargar-qr');
     var textoOriginal = btn ? btn.innerText : '';
-    if (btn) { btn.innerText = '⏳ GENERANDO ARCHIVO...'; btn.style.opacity = '0.7'; }
+        if (btn) { btn.innerText = 'GENERANDO ARCHIVO...'; btn.style.opacity = '0.7'; }
     try {
         var qrContainer = document.getElementById('qr-code-container');
         var canvas = qrContainer ? qrContainer.querySelector('canvas') : null;
@@ -1898,14 +1917,14 @@ window.toggleMapaFavoritos = function() {
     var btn = document.getElementById('btn-filtro-corazon');
     if (btn) {
         btn.classList.toggle('activo', filtrandoFavoritos);
-        if (filtrandoFavoritos) {
+                if (filtrandoFavoritos) {
             btn.style.background = '#ff4444';
             btn.style.color = '#ffffff';
-            btn.innerText = '❤️';
+            btn.innerHTML = SVG_MAPA.corazonBlanco;
         } else {
-            btn.style.background = 'rgba(255, 68, 68, 0.2)';
+            btn.style.background = 'rgba(255, 68, 68, 0.16)';
             btn.style.color = '#ff4444';
-            btn.innerText = '🤍';
+            btn.innerHTML = SVG_MAPA.corazonVacio;
         }
     }
     if (filtrandoFavoritos && dbDirectorio.length === 0) {
@@ -2139,7 +2158,7 @@ window.abrirListaAgrupacion = function(listaComercios, pagina = 0) {
                     <div style="font-size:12px; font-weight:800; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${nombreSeg}</div>
                     <div style="font-size:10px; color:#ff6b00; font-weight:700; text-transform:uppercase;">${nichoSeg}</div>
                 </div>
-                <span style="font-size:11px; color:#cbd5e1; font-weight:900; padding-left:8px;">Ver 📍</span>
+                                <span style="font-size:11px; color:#cbd5e1; font-weight:900; padding-left:8px; display:inline-flex; align-items:center; gap:4px;">Ver ${SVG_MAPA.pin}</span>
             </div>
         `;
     }).join('');
@@ -2154,7 +2173,7 @@ window.abrirListaAgrupacion = function(listaComercios, pagina = 0) {
 
     contenedor.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:6px;">
-            <span style="font-size:12px; font-weight:900; color:#ff6b00; text-transform:uppercase;">📍 ${listaComercios.length} ubicaciones en este punto</span>
+                        <span style="font-size:12px; font-weight:900; color:#ff6b00; text-transform:uppercase; display:inline-flex; align-items:center; gap:6px;">${SVG_MAPA.pin}<span>${listaComercios.length} ubicaciones en este punto</span></span>
             <button onclick="document.getElementById('modal-agrupacion-lista').classList.remove('activo')" style="background:transparent; border:none; color:#94a3b8; font-size:16px; font-weight:900; cursor:pointer;">✕</button>
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; overflow-y:auto; max-height:34vh; padding-right:2px;">
@@ -2698,13 +2717,13 @@ window.barridoRadar = function(filtroTexto = "", opciones = {}) {
         if (p.merma_activa === true || p.flash_sale === true) {
             claseFuego = 'pin-en-fuego'; 
             c1 = '#ff0044'; 
-            badgeRemate = `<div class="badge-fuego" style="background: #ff0044; color: white; padding: 2px 6px; border-radius: 10px; font-weight: 900; font-size: 10px; letter-spacing: 1px; animation: latidoNeon 1s infinite; margin-bottom: 5px; text-shadow: none;">🔥 REMATE DE INVENTARIO</div>`;
+                        badgeRemate = `<div class="badge-fuego" style="background: #ff0044; color: white; padding: 2px 7px; border-radius: 10px; font-weight: 900; font-size: 10px; letter-spacing: 0.8px; animation: latidoNeon 1s infinite; margin-bottom: 5px; text-shadow: none; display: inline-flex; align-items: center; gap: 4px;">${SVG_MAPA.fuego}<span>REMATE DE INVENTARIO</span></div>`;
         }
 
                 const numEstrellas = p.reputacion ? parseInt(p.reputacion) : 5;
         const estrellasHtml = '★'.repeat(numEstrellas) + '☆'.repeat(5 - numEstrellas);
         const esFav = setFavsUnificados.has(window.normalizarIdFavoritoRadar(p.codigo || p.id));
-        const corazon = esFav ? '❤️' : '🤍';
+                const corazon = esFav ? SVG_MAPA.corazonLleno : SVG_MAPA.corazonVacio;
         const favStyleBtn = esFav ? 'color: #ff4444; border-color: #ff4444; background: rgba(255,68,68,0.2);' : '';
         const esAliado = (p.red_afiliados === true || p.red_afiliados === 'SI');
         
@@ -2803,7 +2822,7 @@ window.barridoRadar = function(filtroTexto = "", opciones = {}) {
         var infoSpider = desplazamientosSpider.get(p.codigo);
         var btnCoincidentesPopup = '';
         if (infoSpider && infoSpider.totalCoincidentes > 1) {
-            btnCoincidentesPopup = `<button type="button" onclick="window.abrirListaAgrupacion(window._gruposCoincidentesMap['${String(p.codigo).replace(/'/g, "\\'")}'], 0)" style="width:100%; margin-top:6px; background:rgba(255,107,0,0.18); border:1px solid #ff6b00; color:#fff; border-radius:8px; padding:5px; font-size:9.5px; font-weight:800; cursor:pointer;">📍 Ver ${infoSpider.totalCoincidentes} negocios en esta dirección</button>`;
+            btnCoincidentesPopup = `<button type="button" onclick="window.abrirListaAgrupacion(window._gruposCoincidentesMap['${String(p.codigo).replace(/'/g, "\\'")}'], 0)" style="width:100%; margin-top:6px; background:rgba(255,107,0,0.18); border:1px solid #ff6b00; color:#fff; border-radius:8px; padding:5px; font-size:9.5px; font-weight:800; cursor:pointer;"><span style="display:inline-flex; align-items:center; justify-content:center; gap:5px;">${SVG_MAPA.pin}<span>Ver ${infoSpider.totalCoincidentes} negocios en esta dirección</span></span></button>`;
             window._gruposCoincidentesMap = window._gruposCoincidentesMap || {};
             window._gruposCoincidentesMap[p.codigo] = infoSpider.grupo;
         }
@@ -2829,7 +2848,7 @@ window.barridoRadar = function(filtroTexto = "", opciones = {}) {
                         botonHubTrigger +
                         bloqueHubContacto +
                     '</div>' +
-                    (window.puedeEditarComercioEnMapa(p) ? ('<a href="negocio?id=' + encodeURIComponent(p.codigo) + '" style="display:block; margin-top:6px; padding:5px 8px; border-radius:8px; background:rgba(0,245,212,0.16); border:1px solid rgba(0,245,212,0.5); color:#00f5d4; font-size:9.5px; font-weight:900; text-decoration:none; text-align:center;">✏️ Editar Sede / Catálogo</a>') : '') +
+                    (window.puedeEditarComercioEnMapa(p) ? ('<a href="negocio?id=' + encodeURIComponent(p.codigo) + '" style="display:block; margin-top:6px; padding:5px 8px; border-radius:8px; background:rgba(0,245,212,0.16); border:1px solid rgba(0,245,212,0.5); color:#00f5d4; font-size:9.5px; font-weight:900; text-decoration:none; text-align:center;">' + SVG_MAPA.lapiz + ' Editar Sede / Catálogo</a>') : '') +
                     btnCoincidentesPopup +
                     '<div class="popup-micro-fila-status">' +
                         '<button type="button" class="btn-micro-status" onclick="window.mostrarAvisoVerificacionModal(\'' + semaforoOverlayId + '\', \'' + horarioOverlayId + '\')" title="' + semaforoTexto + '">' +
@@ -3124,7 +3143,7 @@ window.toggleRadarInmersivo = function(btnElement) {
     window.isRadar3DActivo = !window.isRadar3DActivo;
 
     if (window.isRadar3DActivo) {
-        btnElement.innerText = "🚁 Vista Aérea";
+                btnElement.innerHTML = SVG_MAPA.camara3d + "<span>Vista Aérea</span>";
         btnElement.style.background = "rgba(255, 107, 0, 0.2)";
         btnElement.style.borderColor = "#ff6b00";
         btnElement.style.color = "#ff6b00";
@@ -3152,7 +3171,7 @@ window.toggleRadarInmersivo = function(btnElement) {
         }
 
     } else {
-        btnElement.innerText = "🧭 Activar Radar 3D";
+                btnElement.innerHTML = SVG_MAPA.brujula + "<span>Activar Radar 3D</span>";
         btnElement.style.background = "rgba(0, 255, 255, 0.1)";
         btnElement.style.borderColor = "#0ff";
         btnElement.style.color = "#0ff";
@@ -3196,7 +3215,7 @@ window.toggleRadarInmersivo = function(btnElement) {
     const btnGiro = document.getElementById('btn-giro-toggle');
     if (btnGiro) {
         if (tipo === 'rayosx') {
-            btnGiro.style.display = 'block';
+                        btnGiro.style.display = 'inline-flex';
         } else {
             btnGiro.style.display = 'none';
             if (window.isRadar3DActivo) window.toggleRadarInmersivo(btnGiro);
