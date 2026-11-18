@@ -361,8 +361,54 @@
             estadoCroquis.textContent = texto;
         }
 
+                window.resolverPrefijoMueble6D = function(nombreMueble, zonaMueble) {
+            const nom = String(nombreMueble || '').toUpperCase();
+            const zon = String(zonaMueble || '').toUpperCase();
+            if (zon === 'BODEGA' || nom.includes('BOD') || nom.includes('ALM')) return 'BOD';
+            if (nom.includes('VIT') || nom.includes('MOS')) return 'VIT';
+            if (nom.includes('FRI') || nom.includes('NEV') || nom.includes('REF')) return 'FRI';
+            if (nom.includes('CAJ')) return 'CAJ';
+            if (nom.includes('PAS')) return 'PAS';
+            return 'PVT';
+        };
+
+        window.obtenerCodigoVisible6D = function(m, idxFallback) {
+            if (!m) return 'PVT001';
+            if (m.codigo_6d && /^[A-Z]{3}\d{3}$/.test(m.codigo_6d)) return m.codigo_6d;
+            const raw = String(m.id_mueble || '').trim().toUpperCase();
+            if (/^[A-Z]{3}\d{3}$/.test(raw)) return raw;
+            const pref = window.resolverPrefijoMueble6D(m.nombre, m.zona);
+            const mNum = String(m.nombre || '').match(/(\d{1,3})/);
+            let num = mNum ? parseInt(mNum[1], 10) : ((typeof idxFallback === 'number' ? idxFallback : 0) + 1);
+            num = Math.max(1, Math.min(999, num));
+            return pref + String(num).padStart(3, '0');
+        };
+
+        window.generarNuevoIdMueble6D = function(nombreMueble, zonaMueble) {
+            const pref = window.resolverPrefijoMueble6D(nombreMueble, zonaMueble);
+            const usados = new Set(muebles.map((x, i) => window.obtenerCodigoVisible6D(x, i)));
+            const mNum = String(nombreMueble || '').match(/(\d{1,3})/);
+            if (mNum) {
+                const cand = pref + String(Math.max(1, Math.min(999, parseInt(mNum[1], 10)))).padStart(3, '0');
+                if (!usados.has(cand)) return cand;
+            }
+            for (let n = 1; n <= 999; n++) {
+                const cand = pref + String(n).padStart(3, '0');
+                if (!usados.has(cand)) return cand;
+            }
+            return pref + String(Math.floor(100 + Math.random() * 900));
+        };
+
         function actualizarEnlaceCroquis() {
-            document.getElementById('croquis-volver').href = 'inventario?sede=' + encodeURIComponent(idSedeActiva);
+            const linkVolver = document.getElementById('croquis-volver');
+            if (!linkVolver) return;
+            linkVolver.href = 'inventario?sede=' + encodeURIComponent(idSedeActiva);
+            linkVolver.onclick = function(e) {
+                if (window.TerminalApp && typeof window.TerminalApp.alternarModoEditorMapa === 'function') {
+                    e.preventDefault();
+                    window.TerminalApp.alternarModoEditorMapa(false);
+                }
+            };
         }
 
         // Cargar lista dinámica de sedes
@@ -1088,11 +1134,12 @@ window.alternarModoEdicion = function(forzarEstado) {
                 }
                 el.appendChild(subGrid);
 
-                const tag = document.createElement('div');
+                                const tag = document.createElement('div');
                 tag.classList.add('mueble-etiqueta', 'contra-rotacion');
                 const totalBins = m.compartimientos ? m.compartimientos.length : 0;
-                const mZonaStr = m.zona === 'BODEGA' ? 'Bodega' : 'Piso Venta';
-                tag.innerText = m.nombre + "\n[" + mZonaStr + "]\n" + totalBins + " Bins";
+                const cod6D = window.obtenerCodigoVisible6D(m, muebles.indexOf(m));
+                m.codigo_6d = cod6D;
+                tag.innerText = cod6D + " · " + m.nombre + "\n" + totalBins + " Bins";
                 el.appendChild(tag);
 
                 const pivote = document.createElement('div');
@@ -1440,9 +1487,10 @@ window.alternarModoEdicion = function(forzarEstado) {
                     return;
                 }
 
-                if (muebleEnEdicion) {
+                                if (muebleEnEdicion) {
                     muebleEnEdicion.nombre = nombre;
                     muebleEnEdicion.zona = zona;
+                    muebleEnEdicion.codigo_6d = window.obtenerCodigoVisible6D({ id_mueble: muebleEnEdicion.id_mueble, nombre: nombre, zona: zona });
                     muebleEnEdicion.anchoM = anchoM;
                     muebleEnEdicion.largoM = largoM;
                     muebleEnEdicion.caras = JSON.parse(JSON.stringify(configCarasEnMemoria));
@@ -1453,13 +1501,14 @@ window.alternarModoEdicion = function(forzarEstado) {
                         .map(espacio => previo.get([espacio.cara, espacio.nivel, espacio.bin].join('/')) || espacio);
                     muebleEnEdicion = null;
                 } else {
-                    const idCanonicoMueble = 'M_' + crypto.randomUUID().replaceAll('-', '');
+                    const idCanonicoMueble = window.generarNuevoIdMueble6D(nombre, zona);
 
                     const carasCopia = JSON.parse(JSON.stringify(configCarasEnMemoria));
                     const compartimientos = window.generarMatrizCanonicaBins(idCanonicoMueble, carasCopia);
 
                     const nuevoMueble = {
                         id_mueble: idCanonicoMueble,
+                        codigo_6d: idCanonicoMueble,
                         qr: "GEO-M-" + idNegocio + "-" + idSedeActiva + "-" + idCanonicoMueble,
                         nombre: nombre,
                         zona: zona,
@@ -1654,9 +1703,10 @@ window.alternarModoEdicion = function(forzarEstado) {
                         }
                     } catch(e){}
                     
-                    cardM.appendChild(divQrM);
+                                        cardM.appendChild(divQrM);
+                    const codMueble6D = window.obtenerCodigoVisible6D(m);
                     const tituloMueble = document.createElement('p');
-                    tituloMueble.textContent = m.nombre + ' · Mueble';
+                    tituloMueble.textContent = codMueble6D + ' · ' + m.nombre;
                     cardM.appendChild(tituloMueble);
                     contenedor.appendChild(cardM);
 
@@ -1671,9 +1721,9 @@ window.alternarModoEdicion = function(forzarEstado) {
                             }
                         } catch(e){}
 
-                        cardC.appendChild(divQrC);
+                                                cardC.appendChild(divQrC);
                         const tituloEspacio = document.createElement('p');
-                        tituloEspacio.textContent = m.nombre + ' · Cara ' + (comp.cara || 'A') + ' · ' + comp.nivel + ' · ' + comp.bin;
+                        tituloEspacio.textContent = codMueble6D + ' · Cara ' + (comp.cara || 'A') + ' · ' + comp.nivel + ' · ' + comp.bin;
                         cardC.appendChild(tituloEspacio);
                         contenedor.appendChild(cardC);
                     });
@@ -1803,7 +1853,7 @@ window.alternarModoEdicion = function(forzarEstado) {
                     "<strong style=\"color: white; font-size: 13px;\">" + m.nombre + "</strong>" +
                     "<span style=\"font-size: 9px; padding: 2px 6px; border-radius: 6px; background: " + colorBg + "; color: " + colorTxt + "; font-weight: bold;\">" + txtZona + "</span>" +
                     "</div>" +
-                    "<div style=\"font-family: monospace; font-size: 11px; color: var(--naranja); margin-top: 4px;\">" + m.id_mueble + "</div>" +
+                                        "<div style=\"font-family: monospace; font-size: 11.5px; font-weight: 900; color: var(--naranja); margin-top: 4px;\">" + window.obtenerCodigoVisible6D(m) + "</div>" +
                     "<div style=\"display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px; color: #888;\">" +
                     "<span>Dim: " + m.anchoM + "m x " + m.largoM + "m</span>" +
                     "<span style=\"color: #00ff64; font-weight: bold;\">" + totalBins + " Bins</span>" +
