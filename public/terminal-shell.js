@@ -143,6 +143,32 @@ function ejecutarCuandoBridgeExista(vista, nombreFn, fnEjecutar) {
 
 let modoEditorMapaActivo = false;
 
+// Generador determinista de codigo de 6 caracteres: 3 Letras (Zona/Tipo) + 3 Numeros (001-999)
+window.generarCodigoMueble6D = function(rawId, nombreMueble, sedeTexto) {
+  const limpio = String(rawId || '').trim().toUpperCase();
+  if (/^[A-Z]{3}\d{3}$/.test(limpio)) return limpio;
+  const bolsa = (String(sedeTexto || '') + ' ' + String(nombreMueble || '')).toUpperCase();
+  let prefijo = 'PVT';
+  if (bolsa.includes('BOD') || bolsa.includes('ALM')) prefijo = 'BOD';
+  else if (bolsa.includes('VIT') || bolsa.includes('MOS')) prefijo = 'VIT';
+  else if (bolsa.includes('FRI') || bolsa.includes('NEV') || bolsa.includes('REF')) prefijo = 'FRI';
+  else if (bolsa.includes('CAJ')) prefijo = 'CAJ';
+  else if (bolsa.includes('PAS')) prefijo = 'PAS';
+
+  const numEnNombre = String(nombreMueble || '').match(/(\d{1,3})/);
+  let numero = 1;
+  if (numEnNombre) {
+    numero = Math.max(1, Math.min(999, parseInt(numEnNombre[1], 10)));
+  } else if (limpio) {
+    let hash = 0;
+    for (let i = 0; i < limpio.length; i++) {
+      hash = ((hash << 5) - hash + limpio.charCodeAt(i)) | 0;
+    }
+    numero = (Math.abs(hash) % 999) + 1;
+  }
+  return prefijo + String(numero).padStart(3, '0');
+};
+
 function repararVistaInventarioEmbebida(frame) {
   if (!frame || !frame.contentDocument) return;
   const doc = frame.contentDocument;
@@ -183,13 +209,16 @@ function repararVistaInventarioEmbebida(frame) {
       z-index: 9500 !important;
       overflow: hidden !important;
     }
-    #alzado-id-badge, #drawer-id-mueble {
-      display: inline-block !important;
-      max-width: 92px !important;
-      overflow: hidden !important;
-      text-overflow: ellipsis !important;
-      white-space: nowrap !important;
-      vertical-align: bottom !important;
+        #alzado-id-badge, #drawer-id-mueble {
+      font-family: monospace !important;
+      font-weight: 900 !important;
+      letter-spacing: 0.8px !important;
+      background: rgba(255, 107, 0, 0.16) !important;
+      border: 1px solid rgba(255, 107, 0, 0.45) !important;
+      color: #ff6b00 !important;
+      padding: 2px 7px !important;
+      border-radius: 6px !important;
+      font-size: 11px !important;
     }
     #btn-cerrar-alzado {
       display: inline-flex !important;
@@ -212,7 +241,28 @@ function repararVistaInventarioEmbebida(frame) {
       box-shadow: 0 6px 16px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
     }
   `;
-  doc.head.appendChild(st);
+    doc.head.appendChild(st);
+
+  const normalizarBadges6D = () => {
+    const selSede = doc.getElementById('select-sede-radar');
+    const txtSede = selSede && selSede.options[selSede.selectedIndex] ? selSede.options[selSede.selectedIndex].text : 'PISO DE VENTA';
+    const pares = [
+      { idBadge: 'alzado-id-badge', idNom: 'alzado-titulo-mueble' },
+      { idBadge: 'drawer-id-mueble', idNom: 'drawer-titulo-mueble' }
+    ];
+    pares.forEach((p) => {
+      const elB = doc.getElementById(p.idBadge);
+      const elN = doc.getElementById(p.idNom);
+      if (elB && elB.textContent && elB.textContent.trim().length > 6) {
+        const raw = elB.textContent.trim();
+        elB.dataset.rawId = raw;
+        elB.textContent = window.generarCodigoMueble6D(raw, elN ? elN.textContent : '', txtSede);
+      }
+    });
+  };
+  const obs6D = new MutationObserver(normalizarBadges6D);
+  obs6D.observe(doc.body, { childList: true, subtree: true, characterData: true });
+  normalizarBadges6D();
 
   // Garantizar que el boton X exista y sea visible dentro de la cabecera del 2.5D
   const visor = doc.getElementById('visor-alzado-pip');
@@ -263,9 +313,10 @@ function asegurarFrameCargado(vista) {
     frame.dataset.listenerListo = '1';
     frame.addEventListener('load', () => {
       framesCargados[vista] = true;
-      try {
+            try {
         if (frame.contentWindow) {
           frame.contentWindow.TerminalApp = window.TerminalApp;
+          frame.contentWindow.generarCodigoMueble6D = window.generarCodigoMueble6D;
         }
       } catch (e) {}
 
