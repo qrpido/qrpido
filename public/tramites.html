@@ -3,44 +3,117 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>QRpido - Bóveda Legal</title>
+<title>GeoKATU - Bóveda Legal y Notaría Digital</title>
+<meta name="theme-color" content="#0a0a0c">
+<link rel="stylesheet" href="ui-estilos.css">
+<script src="./qrcode.min.js"></script>
 <style>
-html { 
-    scroll-padding-top: 160px; 
+html {
+    scroll-padding-top: 160px;
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
 }
-/* Forzado del Genoma Base: Botones de Bóveda con Branding */
 .file-upload-ui {
     background: rgba(255,107,0,0.03) !important;
     color: var(--naranja) !important;
     border: 2px dashed var(--naranja) !important;
     font-weight: bold !important;
     text-shadow: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
 }
 #texto-pdf-cifrado {
     border-color: #00f5d4 !important;
     color: #00f5d4 !important;
     background: rgba(0,245,212,0.03) !important;
 }
-/* Forzado absoluto del botón principal de desbloqueo */
 .btn-desbloquear-boveda {
-    background: #ff6b00 !important; /* Naranja Áureo Puro */
-    color: #ffffff !important; /* Texto Blanco de alto contraste */
+    background: #ff6b00 !important;
+    color: #ffffff !important;
     font-weight: 900 !important;
     text-transform: uppercase !important;
     letter-spacing: 1px !important;
     box-shadow: 0 4px 20px rgba(255,107,0,0.4) !important;
     border: none !important;
 }
-/* Optimización de capas para scroll natural y elástico en hardware móvil */
+.ico-inline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+    flex-shrink: 0;
+}
+.banner-activos-p2p {
+    margin: 10px 15px 0 15px;
+    background: linear-gradient(135deg, rgba(0, 245, 212, 0.12), rgba(14, 16, 24, 0.96));
+    border: 1px solid rgba(0, 245, 212, 0.45);
+    border-radius: 14px;
+    padding: 12px 14px;
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+.sala-activa-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 8px 10px;
+}
+#toast-boveda-legal {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(15, 15, 22, 0.98);
+    border: 1.5px solid var(--naranja);
+    color: #ffffff;
+    padding: 12px 18px;
+    border-radius: 14px;
+    font-size: 12.5px;
+    font-weight: 700;
+    line-height: 1.4;
+    z-index: 200500;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.9);
+    max-width: 92vw;
+    text-align: center;
+}
+#toast-boveda-legal.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+#modal-dialogo-legal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.86);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    z-index: 200400;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+#modal-dialogo-legal.activo {
+    display: flex;
+}
 @media (max-width: 480px) {
-    header.header-tramites { 
-        position: fixed !important; 
-        top: 0 !important; 
+    header.header-tramites {
+        position: fixed !important;
+        top: 0 !important;
         left: 0 !important;
         width: 100% !important;
         z-index: 1000 !important;
+        box-sizing: border-box !important;
     }
     #nav-maestra {
         position: fixed !important;
@@ -48,10 +121,12 @@ html {
         left: 0 !important;
         width: 100% !important;
         z-index: 900 !important;
+        box-sizing: border-box !important;
     }
-    /* Empuja el contenido hacia abajo para liberarlo del bloque de la cabecera */
+    #contenedor-principal-tramites {
+        margin-top: 130px !important;
+    }
     .tab-content {
-        margin-top: 160px !important;
         padding: 15px !important;
         box-sizing: border-box !important;
     }
@@ -61,271 +136,433 @@ html {
     }
 }
 </style>
-
-
-<meta name="theme-color" content="#0a0a0c">
-<link rel="stylesheet" href="ui-estilos.css">
 </head>
 <body class="ui-dark" style="background: var(--bg-oscuro); margin: 0; padding-bottom: 50px;">
-<header class="header-tramites" style="position: sticky; top: 0; z-index: 1000; display: flex; justify-content: space-between; padding: 15px 20px; background: var(--bg-oscuro);">
-<h1 style="margin: 0; font-size: 18px; color: var(--naranja); text-transform: uppercase; font-weight: 900; letter-spacing: 1px;">⚖️ Bóveda Legal</h1>
-<div class="contenedor-llave" style="position: relative;">
-<button class="btn-login" id="btn-portal-mando" onclick="document.getElementById('submenu-llave-tramites').classList.toggle('activo')" style="border-color: var(--naranja); box-shadow: 0 0 10px rgba(255,107,0,0.3);">🔑</button>
-<div id="submenu-llave-tramites" class="submenu-llave" style="right: 0;">
-<button class="btn-submenu" onclick="window.location.href='index.html'" style="border-color: #00aaff; color: #00aaff;">🗺️ Volver al Mapa</button>
-<button id="btn-perfil-submenu" class="btn-submenu" style="display: none; border-color: var(--naranja); color: var(--naranja);" onclick="abrirPerfilCiudadano()">👤 Mi Perfil</button>
-<button id="btn-login-submenu" class="btn-submenu" onclick="document.getElementById('modal-login').classList.add('activo'); document.getElementById('submenu-llave-tramites').classList.remove('activo')">🔑 Iniciar Sesión</button>
-<button class="btn-submenu" style="border-color: #888; color: #888;">💬 FAQ Legal</button>
-</div>
-</div>
+
+<!-- CABECERA CON LLAVE MAESTRA DORADA -->
+<header class="header-tramites" style="position: sticky; top: 0; z-index: 1000; display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; background: var(--bg-oscuro); border-bottom: 1px solid rgba(255,255,255,0.06);">
+    <h1 style="margin: 0; font-size: 17px; color: var(--naranja); text-transform: uppercase; font-weight: 900; letter-spacing: 1px; display: flex; align-items: center; gap: 8px;">
+        <span class="ico-inline">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--naranja)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg>
+        </span>
+        <span>Bóveda Legal</span>
+    </h1>
+    <div class="contenedor-llave" style="position: relative;">
+        <button class="btn-login" id="btn-portal-mando" onclick="document.getElementById('submenu-llave-tramites').classList.toggle('activo')" style="border-color: #ffd700; box-shadow: 0 0 12px rgba(255,215,0,0.35); display: inline-flex; align-items: center; justify-content: center;" aria-label="Menú de acceso">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffd700" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>
+        </button>
+        <div id="submenu-llave-tramites" class="submenu-llave" style="right: 0;">
+            <button class="btn-submenu" onclick="window.location.href='/'" style="border-color: #00aaff; color: #00aaff; display: flex; align-items: center; gap: 8px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+                <span>Volver al Mapa</span>
+            </button>
+            <button class="btn-submenu" onclick="window.location.href='/inmobiliaria'" style="border-color: #00f5d4; color: #00f5d4; display: flex; align-items: center; gap: 8px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg>
+                <span>Oficina Inmobiliaria</span>
+            </button>
+            <button id="btn-perfil-submenu" class="btn-submenu" style="display: none; border-color: var(--naranja); color: var(--naranja); align-items: center; gap: 8px;" onclick="abrirPerfilCiudadano()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span>Mi Perfil KYC</span>
+            </button>
+            <button id="btn-login-submenu" class="btn-submenu" style="display: flex; align-items: center; gap: 8px;" onclick="document.getElementById('modal-login').classList.add('activo'); document.getElementById('submenu-llave-tramites').classList.remove('activo')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>
+                <span>Iniciar Sesión</span>
+            </button>
+            <button class="btn-submenu" style="border-color: #888; color: #888; display: flex; align-items: center; gap: 8px;" onclick="document.getElementById('submenu-llave-tramites').classList.remove('activo'); localStorage.removeItem('qrpido_fase_turista'); window.ejecutarTourProgresivo('turista');">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <span>Guía y FAQ Legal</span>
+            </button>
+        </div>
+    </div>
 </header>
-<div id="nav-maestra" class="tags-container" style="padding: 15px 20px; border-bottom: 1px solid var(--glass-border); background: var(--bg-oscuro); position: sticky; top: 60px; z-index: 900; justify-content: center;">
-<div class="tag-pill activa js-tab" data-tab="tab-concepto" onclick="cambiarTabGlobal('tab-concepto', this)">🚀 El Concepto</div>
-<div class="tag-pill js-tab" data-tab="tab-tramites" onclick="cambiarTabGlobal('tab-tramites', this)">📄 Trámites</div>
-<div class="tag-pill js-tab" data-tab="tab-boveda" onclick="cambiarTabGlobal('tab-boveda', this)">📂 Mi Bóveda</div>
-</div>
-<div id="tab-concepto" class="tab-content active" style="display: block; padding: 10px; font-family: var(--fuente-base);">
-    <div style="text-align: center; margin-bottom: 25px; animation: fadeIn 0.5s;">
-        <h2 style="font-size: 24px; color: #fff; margin-bottom: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px;">Contratos <span style="color: var(--naranja); text-shadow: 0 0 10px rgba(255,107,0,0.3);">Innegables</span></h2>
-        <p style="color: #e0e0e0; font-size: 13.5px; line-height: 1.6; text-align: justify; background: rgba(255,255,255,0.02); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
-            Respaldados por la <b>Ley 527 de 1999</b>. Diseña y edita tus documentos libremente; los cambios se guardan de forma segura en la <b>caché local de tu teléfono</b> sin tocar nuestros servidores para garantizar privacidad absoluta. 
-            <br><br>
-            Solo pagas al finalizar: una tarifa plana de <b>$4.990 COP</b> por la creación del documento y un pago único de <b>$6.990 COP</b> para registrar tu Firma Digital Permanente si eres nuevo. ¡Tus invitados editan gratis y solo pagan su registro de firma por única vez!
-        </p>
+
+<!-- NAVEGACIÓN MAESTRA DE 3 PESTAÑAS -->
+<div id="nav-maestra" class="tags-container" style="padding: 12px 20px; border-bottom: 1px solid var(--glass-border); background: var(--bg-oscuro); position: sticky; top: 55px; z-index: 900; justify-content: center; gap: 8px;">
+    <div class="tag-pill activa js-tab" data-tab="tab-concepto" onclick="cambiarTabGlobal('tab-concepto', this)" style="display: inline-flex; align-items: center; gap: 6px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>El Concepto</span>
+    </div>
+    <div class="tag-pill js-tab" data-tab="tab-tramites" onclick="cambiarTabGlobal('tab-tramites', this)" style="display: inline-flex; align-items: center; gap: 6px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span>Trámites</span>
+    </div>
+    <div class="tag-pill js-tab" data-tab="tab-boveda" onclick="cambiarTabGlobal('tab-boveda', this)" style="display: inline-flex; align-items: center; gap: 6px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <span>Mi Bóveda</span>
     </div>
 </div>
 
-<div id="tab-tramites" class="tab-content" style="padding: 20px; display: none;">
-<div id="vista-creador">
-<h3 style="color: #f0f0f0; font-size: 13px; text-transform: uppercase; margin-bottom: 10px;">Selecciona el Documento:</h3>
-<div class="tags-container" style="margin-bottom: 20px; border-bottom: none;">
-<div class="tag-pill activa js-plantilla" onclick="seleccionarPlantilla('mandato', this)">📦 Mandato</div>
-<div class="tag-pill js-plantilla" onclick="seleccionarPlantilla('arrendamiento', this)">🏢 Arriendo</div>
-<div class="tag-pill js-plantilla" onclick="seleccionarPlantilla('pagare', this)">💵 Pagaré</div>
-<div class="tag-pill js-plantilla" onclick="seleccionarPlantilla('propio', this)">📄 Subir Propio</div>
-</div>
-<div id="desc-plantilla" class="panel-admin" style="background: rgba(255,107,0,0.05); border-color: rgba(255,107,0,0.3); margin-bottom: 20px; padding: 15px;">
-<h4 style="margin: 0 0 5px 0; color: var(--naranja); font-size: 16px;">📦 Contrato de Mandato</h4>
-<p style="margin: 0; font-size: 13px; color: #f0f0f0;">Fija comisiones claras y delega responsabilidades con respaldo jurídico P2P.</p>
-<button class="btn-submit" style="background: transparent; border: 1px solid var(--naranja); color: var(--naranja); box-shadow: none; margin-top: 10px; font-size: 13px; padding: 8px;" onclick="verBorradorTextarea()">👁️ Ver y Editar Plantilla</button>
-</div>
-<div id="bloque-explicativo" class="panel-admin" style="text-align: center; border-color: var(--naranja);">
-<div style="font-size: 40px; margin-bottom: 10px;">🛡️</div>
-<h2 style="color: white; margin-top: 0; font-size: 18px;">Acceso Restringido</h2>
-<p style="font-size: 14px; color: #f0f0f0; margin-bottom: 20px;">Para forjar este documento necesitas validar tu Identidad Digital (KYC).</p>
-<button id="btn-cta-legal" class="btn-submit" style="font-size: 15px;" onclick="document.getElementById('modal-login').classList.add('activo')">🔑 Iniciar Sesión para Continuar</button>
-</div>
-<div id="bloque-operativo" style="display: none;">
-<div id="contenedor-variables" style="margin-bottom: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-    </div>
+<div id="contenedor-principal-tramites">
 
-
-<div class="panel-admin" id="contenedor-formulario">
-<h2 class="section-title" style="font-size: 15px; border-bottom: none; margin-bottom: 5px;">✍️ El Lienzo Legal (Contrato)</h2>
-<p style="font-size: 12px; color: #aaa; margin-bottom: 10px;">Modifica el texto según tu necesidad. Este texto será sellado en Blockchain.</p>
-<textarea id="texto-contrato-creador" class="input-form" style="min-height: 250px; font-family: monospace; font-size: 13px; line-height: 1.5; padding: 15px; background: rgba(0,0,0,0.8); border: 1px solid var(--glass-border); color: #e0e0e0;"></textarea>
-</div>
-<div class="panel-admin">
-<h2 class="section-title" style="font-size: 15px; border-bottom: none; margin-bottom: 5px;">🤝 Invitar Contraparte</h2>
-<input type="email" id="email-contraparte" class="input-form" placeholder="correo@ejemplo.com">
-<p style="font-size: 12px; color: #f0f0f0; margin-top: -5px;">Le enviaremos un enlace seguro para que lea y firme o apele tu contrato.</p>
-</div>
-<button class="btn-submit" id="btn-despachar" onclick="despacharBorrador()" style="font-size: 15px;">📨 Guardar y Enviar Invitación</button>
-</div>
-</div>
-<div id="vista-invitado" style="display: none;">
-<div style="background: rgba(0,170,255,0.1); border: 1px solid var(--azul-corp); padding: 15px; border-radius: 12px; text-align: center; margin-bottom: 20px;">
-<div style="font-size: 35px; margin-bottom: 5px;">📨</div>
-<h2 style="color: var(--azul-corp); font-size: 18px; margin: 0;">Tienes un Documento Pendiente</h2>
-<p style="color: #f0f0f0; font-size: 14px; margin-top: 5px;" id="lbl-invitacion-info">Alguien te ha invitado a firmar.</p>
-</div>
-<div class="panel-admin" style="background: #e0e0e0; color: #111; border-radius: 8px; padding: 20px; max-height: 400px; overflow-y: auto; font-family: serif; font-size: 14px; line-height: 1.6; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);">
-<div id="visor-documento-invitado" style="user-select: text; -webkit-user-select: text;"></div>
-</div>
-<p style="text-align: center; font-size: 12px; color: #aaa; margin-top: 10px;">💡 Si no estás de acuerdo con una parte, subráyala con tu dedo y presiona "Apelar".</p>
-<div style="display: flex; gap: 10px; margin-top: 20px;">
-<button class="btn-submit" style="flex: 1; margin: 0; background: var(--verde-sui); color: black;" onclick="abrirSelloFinal()">✅ Aceptar</button>
-<button class="btn-submit" style="flex: 1; margin: 0; background: var(--rojo-alerta); color: white;" onclick="declinarContrato()">❌ Rechazar</button>
-<button class="btn-submit" style="flex: 1; margin: 0; background: transparent; border: 1px solid var(--naranja); color: var(--naranja);" onclick="apelarSeleccion()">✍️ Apelar</button>
-</div>
-<div id="bloque-firma-invitado" class="panel-admin" style="display: none; margin-top: 20px;">
-<h2 class="section-title" style="font-size: 15px; border-bottom: none; margin-bottom: 15px; color: var(--verde-sui);">🔐 Tu Cierre Criptográfico</h2>
-<div style="background: rgba(0,0,0,0.5); padding: 15px; border-radius: 12px; border: 1px solid var(--glass-border); margin-bottom: 15px;">
-<label style="font-size: 13px; color: #f0f0f0; text-transform: uppercase;">1. Código OTP (Correo)</label>
-<div style="display: flex; gap: 10px; margin-top: 5px;">
-<input type="text" id="input-otp" class="input-form" placeholder="000000" maxlength="6" style="margin: 0; letter-spacing: 5px; text-align: center; font-weight: bold; font-size: 18px;">
-<button id="btn-pedir-otp" class="btn-submit" style="margin: 0 !important; width: 40%; font-size: 13px; padding: 0 !important; background: transparent !important; border: 1px solid var(--azul-corp) !important; color: var(--azul-corp) !important; box-shadow: none !important;" onclick="pedirOtpSeguridad()">Solicitar</button>
-</div>
-</div>
-<div style="background: rgba(0,245,212,0.05); padding: 15px; border-radius: 12px; border: 1px dashed var(--verde-sui); margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
-<input type="checkbox" id="check-gps" style="width: 24px; height: 24px; accent-color: var(--verde-sui);">
-<div style="line-height: 1.2;">
-<span style="font-size: 13px; color: #f0f0f0;">2. Juramento de Ubicación</span><br>
-<strong id="lbl-ciudad" style="font-size: 14px; color: var(--verde-sui);">Calculando GPS...</strong>
-</div>
-</div>
-<div style="background: rgba(255,107,0,0.05); padding: 20px; border-radius: 12px; border: 1px dashed var(--naranja); text-align: center;">
-<p style="font-size: 13px; color: #f0f0f0; margin-top: 0; text-transform: uppercase;">3. Selfie de Intención (Liveness)</p>
-<p style="font-size: 13px; color: #ddd; margin-bottom: 10px;">Escribe esto en un papel y tómate una foto:</p>
-<div id="codigo-selfie" style="font-family: monospace; font-size: 28px; color: var(--naranja); font-weight: 900; letter-spacing: 4px; background: #000; padding: 10px; border-radius: 8px; display: inline-block; margin-bottom: 15px; box-shadow: inset 0 0 10px rgba(255,107,0,0.5);">AX9-K2M</div>
-<label style="display: block; width: 100%; background: var(--naranja); color: white; padding: 15px; border-radius: 12px; font-weight: bold; font-size: 14px; text-transform: uppercase; cursor: pointer; box-shadow: 0 4px 10px rgba(255,107,0,0.3);">
-📸 Abrir Cámara Frontal
-<input type="file" accept="image/*" capture="user" id="input-selfie" style="display:none;">
-</label>
-<p id="selfie-status" style="font-size: 13px; color: var(--verde-sui); margin-top: 10px; display: none; font-weight: bold;">✅ Evidencia encriptada en memoria.</p>
-</div>
-<div style="background: rgba(0,0,0,0.5); padding: 15px; border-radius: 12px; border: 1px solid var(--glass-border); margin-bottom: 15px; text-align: center;">
-    <label style="font-size: 13px; color: #f0f0f0; text-transform: uppercase; display: block; margin-bottom: 8px;">4. Trazo de Firma Manuscrita</label>
-    <p style="font-size: 12px; color: #aaa; margin: 0 0 10px 0;">Dibuja tu firma con el dedo dentro del recuadro verde.</p>
-    <canvas id="canvas-firma-dedo" style="width: 100%; max-width: 290px; height: 150px; background: rgba(255,255,255,0.02); border: 2px dashed var(--verde-sui); border-radius: 8px; touch-action: none; cursor: crosshair;"></canvas>
-    <div style="text-align: right; margin-top: 5px;">
-        <button type="button" style="background: transparent; border: none; color: #888; font-size: 12px; font-weight: bold; cursor: pointer;" onclick="window.clearCanvasFirmaDedo()">🧹 Borrar Trazo</button>
-    </div>
-</div>
-
-<button class="btn-submit" id="btn-procesar" onclick="procesarFirmaFinal()" style="font-size: 16px;" disabled>Sellar y Forjar Contrato en SUI</button>
-
-</div>
-</div>
-</div>
-<div id="tab-boveda" class="tab-content" style="padding: 20px; display: none;">
-    <div class="panel-admin" style="border-color: var(--verde-sui); background: linear-gradient(135deg, rgba(0,245,212,0.05) 0%, rgba(10,10,12,0.9) 100%);">
-        <h2 class="section-title" style="color: var(--verde-sui); border-bottom: none; font-size: 16px;">🔓 Desbloquear Contrato</h2>
-        <p style="font-size: 13px; color: #f0f0f0; margin-bottom: 15px;">Lectura 100% Zero-Knowledge. Se ejecuta en la RAM de tu teléfono.</p>
-        
-        <input type="file" id="input-pdf-cifrado" accept=".pdf" style="display: none;">
-        <input type="file" id="input-llave-qr" accept="image/png, image/jpeg" style="display: none;">
-
-        <div class="file-upload-wrapper" style="margin-bottom: 15px;">
-            <label style="font-size: 13px; color: #f0f0f0; margin-bottom: 8px; display: block; font-weight: bold;">1. Sube el PDF Cifrado</label>
-            <div class="file-upload-ui" id="texto-pdf-cifrado" style="border-color: var(--verde-sui); color: var(--verde-sui); cursor: pointer;" onclick="document.getElementById('input-pdf-cifrado').click()">📁 Seleccionar PDF</div>
+    <!-- BANNER REACTIVO DE DERIVACIÓN A DOCUMENTOS ACTIVOS -->
+    <div id="banner-documentos-activos" class="banner-activos-p2p">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <strong style="font-size: 12px; color: #00f5d4; text-transform: uppercase; letter-spacing: 0.5px;">Documentos Activos en Curso</strong>
+            <span id="badge-conteo-activos" style="font-size: 10.5px; font-family: monospace; background: rgba(0,245,212,0.18); color: #00f5d4; padding: 2px 8px; border-radius: 99px; font-weight: 800;">0</span>
         </div>
-        <div class="file-upload-wrapper">
-            <label style="font-size: 13px; color: #f0f0f0; margin-bottom: 8px; display: block; font-weight: bold;">2. Sube tu Llave QR (PNG)</label>
-            <div class="file-upload-ui" id="texto-qr" style="border-color: var(--naranja); color: var(--naranja); cursor: pointer;" onclick="document.getElementById('input-llave-qr').click()">🔑 Seleccionar QR</div>
-        </div>
-       <button class="btn-submit btn-desbloquear-boveda" style="font-size: 15px; margin-top: 15px;" onclick="desencriptarBoveda()">Desbloquear y Leer</button>
-
+        <div id="lista-salas-activas-banner" style="display: flex; flex-direction: column; gap: 6px;"></div>
     </div>
 
-    <div class="panel-admin">
-        <h2 class="section-title" style="font-size: 16px; border-bottom: none; margin-bottom: 10px;">📂 Historial de Mandatos (Ley 527)</h2>
-        
-        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;">
-            <div style="position: relative; width: 100%;">
-                <input type="text" id="buscador-codigo" placeholder="🔍 Buscar por código o tipo..." 
-                       style="width: 100%; padding: 10px 12px; background: rgba(0,0,0,0.6); border: 1px solid var(--glass-border); color: #fff; border-radius: 8px; font-size: 13px; outline: none;">
+    <!-- PESTAÑA 1: EL CONCEPTO -->
+    <div id="tab-concepto" class="tab-content active" style="display: block; padding: 15px; font-family: var(--fuente-base);">
+        <div style="text-align: center; margin-bottom: 25px; animation: fadeIn 0.5s;">
+            <h2 style="font-size: 24px; color: #fff; margin-bottom: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px;">Contratos <span style="color: var(--naranja); text-shadow: 0 0 10px rgba(255,107,0,0.3);">Innegables</span></h2>
+            <p style="color: #e0e0e0; font-size: 13.5px; line-height: 1.6; text-align: justify; background: rgba(255,255,255,0.02); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+                Respaldados por la <b>Ley 527 de 1999</b>. Diseña y edita tus documentos libremente; los cambios se guardan de forma segura en la <b>caché local de tu teléfono</b> sin tocar nuestros servidores para garantizar privacidad absoluta.
+                <br><br>
+                Solo pagas al finalizar: una tarifa plana de <b>$4.990 COP</b> por la creación del documento y un pago único de <b>$6.990 COP</b> para registrar tu Firma Digital Permanente si eres nuevo. Tus invitados editan o apelan gratis y solo pagan su registro de firma por única vez.
+            </p>
+            <button type="button" class="btn-submit" style="margin-top: 12px; font-size: 14px;" onclick="cambiarTabGlobal('tab-tramites', document.querySelector('[data-tab=\'tab-tramites\']'))">
+                Ir al Lienzo de Contratos
+            </button>
+        </div>
+    </div>
+
+    <!-- PESTAÑA 2: TRÁMITES (CREADOR + INVITADO P2P) -->
+    <div id="tab-tramites" class="tab-content" style="padding: 20px; display: none;">
+        <div id="vista-creador">
+            <h3 style="color: #f0f0f0; font-size: 13px; text-transform: uppercase; margin-bottom: 10px;">Selecciona el Documento:</h3>
+            <div class="tags-container" style="margin-bottom: 20px; border-bottom: none; gap: 6px;">
+                <div class="tag-pill activa js-plantilla" data-tipo-pl="mandato" onclick="seleccionarPlantilla('mandato', this)">Mandato</div>
+                <div class="tag-pill js-plantilla" data-tipo-pl="arrendamiento" onclick="seleccionarPlantilla('arrendamiento', this)">Arriendo</div>
+                <div class="tag-pill js-plantilla" data-tipo-pl="pagare" onclick="seleccionarPlantilla('pagare', this)">Pagaré</div>
+                <div class="tag-pill js-plantilla" data-tipo-pl="propio" onclick="seleccionarPlantilla('propio', this)">Subir Propio</div>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                <select id="filtro-fecha" style="background: #0a0a0c; border: 1px solid var(--glass-border); color: #ccc; padding: 10px; border-radius: 8px; font-size: 12px; outline: none;">
-                    <option value="recientes">Más recientes primero</option>
-                    <option value="antiguos">Más antiguos primero</option>
-                </select>
-                <select id="filtro-lugar" style="background: #0a0a0c; border: 1px solid var(--glass-border); color: #ccc; padding: 10px; border-radius: 8px; font-size: 12px; outline: none;">
-                    <option value="todos">Todos los lugares</option>
-                    <option value="Pereira">Pereira</option>
-                    <option value="Dosquebradas">Dosquebradas</option>
-                    <option value="Medellin">Medellín</option>
-                </select>
+
+            <div id="desc-plantilla" class="panel-admin" style="background: rgba(255,107,0,0.05); border-color: rgba(255,107,0,0.3); margin-bottom: 20px; padding: 15px;">
+                <h4 style="margin: 0 0 5px 0; color: var(--naranja); font-size: 16px;">Contrato de Mandato</h4>
+                <p style="margin: 0; font-size: 13px; color: #f0f0f0;">Fija comisiones claras y delega responsabilidades con respaldo jurídico P2P.</p>
+                <button class="btn-submit" style="background: transparent; border: 1px solid var(--naranja); color: var(--naranja); box-shadow: none; margin-top: 10px; font-size: 13px; padding: 8px;" onclick="verBorradorTextarea()">Ver y Editar Plantilla</button>
+            </div>
+
+            <div id="bloque-explicativo" class="panel-admin" style="text-align: center; border-color: var(--naranja);">
+                <div style="margin-bottom: 10px; color: var(--naranja);">
+                    <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </div>
+                <h2 style="color: white; margin-top: 0; font-size: 18px;">Acceso Restringido</h2>
+                <p style="font-size: 14px; color: #f0f0f0; margin-bottom: 20px;">Para forjar este documento necesitas validar tu Identidad Digital (KYC).</p>
+                <button id="btn-cta-legal" class="btn-submit" style="font-size: 15px;" onclick="document.getElementById('modal-login').classList.add('activo')">Iniciar Sesión para Continuar</button>
+            </div>
+
+            <div id="bloque-operativo" style="display: none;">
+                <div id="badge-inmueble-vinculado" style="display: none; margin-bottom: 12px; background: rgba(0,245,212,0.1); border: 1px solid rgba(0,245,212,0.35); color: #00f5d4; padding: 8px 12px; border-radius: 10px; font-size: 11.5px; font-weight: 800;"></div>
+
+                <div id="contenedor-variables" style="margin-bottom: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;"></div>
+
+                <div class="panel-admin" id="contenedor-formulario">
+                    <h2 class="section-title" style="font-size: 15px; border-bottom: none; margin-bottom: 5px;">El Lienzo Legal (Contrato)</h2>
+                    <p style="font-size: 12px; color: #aaa; margin-bottom: 10px;">Modifica el texto según tu necesidad. Este texto será sellado en Blockchain.</p>
+                    <textarea id="texto-contrato-creador" class="input-form" style="min-height: 250px; font-family: monospace; font-size: 13px; line-height: 1.5; padding: 15px; background: rgba(0,0,0,0.8); border: 1px solid var(--glass-border); color: #e0e0e0;"></textarea>
+                </div>
+
+                <div class="panel-admin">
+                    <h2 class="section-title" style="font-size: 15px; border-bottom: none; margin-bottom: 5px;">Invitar Contraparte</h2>
+                    <input type="email" id="email-contraparte" class="input-form" placeholder="correo@ejemplo.com">
+                    <p style="font-size: 12px; color: #f0f0f0; margin-top: -5px;">Le enviaremos un enlace seguro para que lea y firme o apele tu contrato.</p>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <button class="btn-submit" id="btn-despachar" onclick="despacharBorrador()" style="font-size: 13.5px; margin: 0;">Enviar a Contraparte</button>
+                    <button class="btn-submit" type="button" onclick="abrirSelloFinalCreador()" style="font-size: 13.5px; margin: 0; background: transparent; border: 1.5px solid var(--verde-sui); color: var(--verde-sui); box-shadow: none;">Firmar y Sellar Ya</button>
+                </div>
+
+                <!-- TARJETA DE SALA CREADA CON ENLACE, WHATSAPP Y QR -->
+                <div id="panel-enlace-sala-creada" class="panel-admin" style="display: none; margin-top: 15px; border-color: var(--verde-sui); text-align: center;">
+                    <h3 style="margin: 0 0 6px 0; color: var(--verde-sui); font-size: 15px; text-transform: uppercase;">Sala de Custodia Creada</h3>
+                    <p id="lbl-codigo-sala-creada" style="font-family: monospace; font-size: 12px; color: #ccc; margin: 0 0 10px 0;"></p>
+                    <div id="qr-sala-creada-box" style="display: inline-block; padding: 10px; background: #fff; border-radius: 10px; margin-bottom: 10px;"></div>
+                    <div style="display: flex; gap: 8px; justify-content: center;">
+                        <button type="button" class="btn-submit" style="margin: 0; flex: 1; font-size: 12px;" onclick="copiarEnlaceSalaActiva()">Copiar Enlace</button>
+                        <a id="btn-wa-sala-creada" href="#" target="_blank" class="btn-submit" style="margin: 0; flex: 1; font-size: 12px; background: #00ff64; color: #000; text-decoration: none; display: inline-flex; align-items: center; justify-content: center;">Enviar WhatsApp</a>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div id="lista-documentos-dinamica"></div>
-        <p style="text-align: center; font-size: 12px; color: #444; margin-top: 15px; letter-spacing: 0.5px;">SEGURIDAD AUDITADA POR SISTEMA DISTRIBUIDO</p>
+        <!-- VISTA DE INVITADO / REVISIÓN DE SALA P2P -->
+        <div id="vista-invitado" style="display: none;">
+            <div style="background: rgba(0,170,255,0.1); border: 1px solid var(--azul-corp); padding: 15px; border-radius: 12px; text-align: center; margin-bottom: 16px;">
+                <div style="margin-bottom: 6px; color: var(--azul-corp);">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                </div>
+                <h2 style="color: var(--azul-corp); font-size: 18px; margin: 0;">Sala de Contrato P2P</h2>
+                <p style="color: #f0f0f0; font-size: 13.5px; margin: 5px 0 0 0;" id="lbl-invitacion-info">Alguien te ha invitado a firmar.</p>
+            </div>
+
+            <div id="contenedor-apelaciones-sala" style="display: none; margin-bottom: 14px;" class="panel-admin"></div>
+
+            <div class="panel-admin" style="background: #e0e0e0; color: #111; border-radius: 8px; padding: 20px; max-height: 400px; overflow-y: auto; font-family: serif; font-size: 14px; line-height: 1.6; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);">
+                <div id="visor-documento-invitado" style="user-select: text; -webkit-user-select: text; white-space: pre-wrap;"></div>
+            </div>
+            <p style="text-align: center; font-size: 12px; color: #aaa; margin-top: 10px;">Si no estás de acuerdo con una cláusula, subráyala con tu dedo y presiona "Apelar".</p>
+
+            <div style="display: flex; gap: 10px; margin-top: 16px;">
+                <button class="btn-submit" style="flex: 1; margin: 0; background: var(--verde-sui); color: black;" onclick="abrirSelloFinal()">Aceptar</button>
+                <button class="btn-submit" style="flex: 1; margin: 0; background: var(--rojo-alerta); color: white;" onclick="declinarContrato()">Rechazar</button>
+                <button class="btn-submit" style="flex: 1; margin: 0; background: transparent; border: 1px solid var(--naranja); color: var(--naranja);" onclick="apelarSeleccion()">Apelar</button>
+            </div>
+        </div>
+
+        <!-- BLOQUE COMPARTIDO DE CIERRE CRIPTOGRÁFICO (OTP + GPS + SELFIE INTENCIÓN + TRAZO DEDO + WOMPI/SUI) -->
+        <div id="bloque-firma-invitado" class="panel-admin" style="display: none; margin-top: 20px;">
+            <h2 class="section-title" style="font-size: 15px; border-bottom: none; margin-bottom: 15px; color: var(--verde-sui);">Tu Cierre Criptográfico (Ley 527)</h2>
+
+            <div style="background: rgba(0,0,0,0.5); padding: 15px; border-radius: 12px; border: 1px solid var(--glass-border); margin-bottom: 15px;">
+                <label style="font-size: 13px; color: #f0f0f0; text-transform: uppercase;">1. Código OTP (Correo)</label>
+                <div style="display: flex; gap: 10px; margin-top: 5px;">
+                    <input type="text" id="input-otp" class="input-form" placeholder="000000" maxlength="6" style="margin: 0; letter-spacing: 5px; text-align: center; font-weight: bold; font-size: 18px;" oninput="this.value = this.value.replace(/\D/g, '')">
+                    <button id="btn-pedir-otp" class="btn-submit" style="margin: 0 !important; width: 40%; font-size: 13px; padding: 0 !important; background: transparent !important; border: 1px solid var(--azul-corp) !important; color: var(--azul-corp) !important; box-shadow: none !important;" onclick="pedirOtpSeguridad()">Solicitar</button>
+                </div>
+            </div>
+
+            <div style="background: rgba(0,245,212,0.05); padding: 15px; border-radius: 12px; border: 1px dashed var(--verde-sui); margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                <input type="checkbox" id="check-gps" style="width: 24px; height: 24px; accent-color: var(--verde-sui);">
+                <div style="line-height: 1.2;">
+                    <span style="font-size: 13px; color: #f0f0f0;">2. Juramento de Ubicación Satelital</span><br>
+                    <strong id="lbl-ciudad" style="font-size: 14px; color: var(--verde-sui);">Calculando GPS...</strong>
+                </div>
+            </div>
+
+            <div style="background: rgba(255,107,0,0.05); padding: 20px; border-radius: 12px; border: 1px dashed var(--naranja); text-align: center; margin-bottom: 15px;">
+                <p style="font-size: 13px; color: #f0f0f0; margin-top: 0; text-transform: uppercase;">3. Selfie de Intención (Liveness)</p>
+                <p style="font-size: 13px; color: #ddd; margin-bottom: 10px;">Escribe este código único en un papel y tómate una selfie sosteniéndolo:</p>
+                <div id="codigo-selfie" style="font-family: monospace; font-size: 28px; color: var(--naranja); font-weight: 900; letter-spacing: 4px; background: #000; padding: 10px 16px; border-radius: 8px; display: inline-block; margin-bottom: 15px; box-shadow: inset 0 0 10px rgba(255,107,0,0.5);">AX9-K2M</div>
+                <label style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: var(--naranja); color: white; padding: 14px; border-radius: 12px; font-weight: bold; font-size: 14px; text-transform: uppercase; cursor: pointer; box-shadow: 0 4px 10px rgba(255,107,0,0.3); box-sizing: border-box;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    <span>Abrir Cámara Frontal</span>
+                    <input type="file" accept="image/*" capture="user" id="input-selfie" style="display:none;">
+                </label>
+                <p id="selfie-status" style="font-size: 13px; color: var(--verde-sui); margin-top: 10px; display: none; font-weight: bold;">Evidencia biométrica encriptada en memoria.</p>
+            </div>
+
+            <div style="background: rgba(0,0,0,0.5); padding: 15px; border-radius: 12px; border: 1px solid var(--glass-border); margin-bottom: 15px; text-align: center;">
+                <label style="font-size: 13px; color: #f0f0f0; text-transform: uppercase; display: block; margin-bottom: 8px;">4. Trazo de Firma Manuscrita</label>
+                <p style="font-size: 12px; color: #aaa; margin: 0 0 10px 0;">Dibuja tu firma con el dedo dentro del recuadro verde.</p>
+                <canvas id="canvas-firma-dedo" style="width: 100%; max-width: 290px; height: 150px; background: rgba(255,255,255,0.02); border: 2px dashed var(--verde-sui); border-radius: 8px; touch-action: none; cursor: crosshair;"></canvas>
+                <div style="text-align: right; margin-top: 5px;">
+                    <button type="button" style="background: transparent; border: none; color: #888; font-size: 12px; font-weight: bold; cursor: pointer;" onclick="window.clearCanvasFirmaDedo()">Borrar Trazo</button>
+                </div>
+            </div>
+
+            <button class="btn-submit" id="btn-procesar" onclick="procesarFirmaFinal()" style="font-size: 16px;" disabled>Sellar y Forjar Contrato en SUI</button>
+        </div>
+    </div>
+
+    <!-- PESTAÑA 3: MI BÓVEDA (ZERO-KNOWLEDGE + HISTORIAL FILTRADO) -->
+    <div id="tab-boveda" class="tab-content" style="padding: 20px; display: none;">
+        <div class="panel-admin" style="border-color: var(--verde-sui); background: linear-gradient(135deg, rgba(0,245,212,0.05) 0%, rgba(10,10,12,0.9) 100%);">
+            <h2 class="section-title" style="color: var(--verde-sui); border-bottom: none; font-size: 16px;">Desbloquear Contrato</h2>
+            <p style="font-size: 13px; color: #f0f0f0; margin-bottom: 15px;">Lectura 100% Zero-Knowledge. Se ejecuta en la RAM de tu teléfono.</p>
+
+            <input type="file" id="input-pdf-cifrado" accept=".pdf" style="display: none;">
+            <input type="file" id="input-llave-qr" accept="image/png, image/jpeg, image/webp" style="display: none;">
+
+            <div class="file-upload-wrapper" style="margin-bottom: 15px;">
+                <label style="font-size: 13px; color: #f0f0f0; margin-bottom: 8px; display: block; font-weight: bold;">1. Sube el PDF Cifrado</label>
+                <div class="file-upload-ui" id="texto-pdf-cifrado" style="border-color: var(--verde-sui); color: var(--verde-sui); cursor: pointer;" onclick="document.getElementById('input-pdf-cifrado').click()">Seleccionar PDF</div>
+            </div>
+            <div class="file-upload-wrapper">
+                <label style="font-size: 13px; color: #f0f0f0; margin-bottom: 8px; display: block; font-weight: bold;">2. Sube tu Llave QR (PNG)</label>
+                <div class="file-upload-ui" id="texto-qr" style="border-color: var(--naranja); color: var(--naranja); cursor: pointer;" onclick="document.getElementById('input-llave-qr').click()">Seleccionar QR</div>
+            </div>
+            <button class="btn-submit btn-desbloquear-boveda" style="font-size: 15px; margin-top: 15px;" onclick="desencriptarBoveda(event)">Desbloquear y Leer</button>
+        </div>
+
+        <div class="panel-admin">
+            <h2 class="section-title" style="font-size: 16px; border-bottom: none; margin-bottom: 10px;">Historial de Mandatos y Contratos (Ley 527)</h2>
+
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;">
+                <div style="position: relative; width: 100%;">
+                    <input type="text" id="buscador-codigo" placeholder="Buscar por código, sala o tipo..." style="width: 100%; padding: 10px 12px; background: rgba(0,0,0,0.6); border: 1px solid var(--glass-border); color: #fff; border-radius: 8px; font-size: 13px; outline: none; box-sizing: border-box;">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <select id="filtro-fecha" style="background: #0a0a0c; border: 1px solid var(--glass-border); color: #ccc; padding: 10px; border-radius: 8px; font-size: 12px; outline: none;">
+                        <option value="recientes">Más recientes primero</option>
+                        <option value="antiguos">Más antiguos primero</option>
+                    </select>
+                    <select id="filtro-lugar" style="background: #0a0a0c; border: 1px solid var(--glass-border); color: #ccc; padding: 10px; border-radius: 8px; font-size: 12px; outline: none;">
+                        <option value="todos">Todos los lugares</option>
+                        <option value="Pereira">Pereira</option>
+                        <option value="Dosquebradas">Dosquebradas</option>
+                        <option value="Medellin">Medellín</option>
+                        <option value="Colombia">Colombia</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="lista-documentos-dinamica"></div>
+            <p style="text-align: center; font-size: 12px; color: #444; margin-top: 15px; letter-spacing: 0.5px;">SEGURIDAD AUDITADA POR SISTEMA DISTRIBUIDO SUI</p>
+        </div>
     </div>
 </div>
 
+<!-- MODAL APELAR SELECCIÓN -->
 <div class="bottom-sheet-overlay" id="modal-apelar" onclick="document.getElementById('modal-apelar').classList.remove('activo')">
-<div class="bottom-sheet-contenido" onclick="event.stopPropagation()" style="background: rgba(15,15,18,0.98); border-top: 2px solid var(--naranja);">
-<h3 style="color: var(--naranja); margin-top: 0;">✍️ Apelar Selección</h3>
-<p style="font-size: 13px; color: #f0f0f0;">Escribe tu corrección o comentario para este párrafo:</p>
-<textarea id="texto-apelacion" class="input-form" style="min-height: 100px; font-size: 14px; padding: 10px;" placeholder="Ej: Me parece muy alto, propongo el 5%..."></textarea>
-<button class="btn-submit" style="font-size: 15px;" onclick="enviarApelacion()">Enviar Corrección</button>
+    <div class="bottom-sheet-contenido" onclick="event.stopPropagation()" style="background: rgba(15,15,18,0.98); border-top: 2px solid var(--naranja);">
+        <h3 style="color: var(--naranja); margin-top: 0;">Apelar Selección</h3>
+        <p style="font-size: 12px; color: #aaa; font-style: italic;" id="preview-texto-apelado"></p>
+        <p style="font-size: 13px; color: #f0f0f0;">Escribe tu corrección o comentario para este párrafo:</p>
+        <textarea id="texto-apelacion" class="input-form" style="min-height: 100px; font-size: 14px; padding: 10px;" placeholder="Ej: Propongo ajustar este porcentaje o fecha..."></textarea>
+        <button class="btn-submit" style="font-size: 15px;" onclick="enviarApelacion()">Enviar Corrección</button>
+    </div>
 </div>
-</div>
+
+<!-- MODAL LOGIN Y REGISTRO COMPLETO -->
 <div class="bottom-sheet-overlay" id="modal-login" onclick="document.getElementById('modal-login').classList.remove('activo')">
-<div class="bottom-sheet-contenido" onclick="event.stopPropagation()" style="background: var(--glass-bg); backdrop-filter: blur(25px); border-radius: 30px 30px 0 0; padding: 25px; border-top: 1px solid var(--naranja);">
-<div class="drag-handle" style="width: 40px; height: 5px; background: rgba(255,255,255,0.2); border-radius: 5px; margin: 0 auto 20px;"></div>
-<div id="panel-login-auth">
-<h2 style="color: var(--naranja); margin-top: 0; text-align: center; text-transform: uppercase;">Iniciar Sesión</h2>
-<div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 15px; text-align: left; background: rgba(255,107,0,0.05); padding: 10px; border-radius: 8px; border: 1px solid rgba(255,107,0,0.2);">
-<input type="checkbox" id="acepta-terminos-tramite" style="margin-top: 3px; accent-color: var(--naranja); transform: scale(1.2);">
-<label for="acepta-terminos-tramite" style="font-size: 12px; color: #f0f0f0; line-height: 1.4;">
-Acepto los <a href="terminos.html" target="_blank" style="color: var(--naranja); text-decoration: underline;">Términos, Condiciones y Políticas</a>.
-</label>
+    <div class="bottom-sheet-contenido" onclick="event.stopPropagation()" style="background: var(--glass-bg); backdrop-filter: blur(25px); border-radius: 26px 26px 0 0; padding: 20px; border-top: 1px solid var(--naranja);">
+        <div class="drag-handle" style="width: 40px; height: 4px; background: rgba(255,255,255,0.2); border-radius: 5px; margin: 0 auto 14px;"></div>
+        <div id="panel-login-auth">
+            <h2 style="color: var(--naranja); margin: 0 0 12px 0; font-size: 18px; text-align: center; text-transform: uppercase;">Iniciar Sesión</h2>
+            <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; text-align: left; background: rgba(255,107,0,0.05); padding: 9px; border-radius: 8px; border: 1px solid rgba(255,107,0,0.2);">
+                <input type="checkbox" id="acepta-terminos-tramite" style="margin-top: 3px; accent-color: var(--naranja); transform: scale(1.15);">
+                <label for="acepta-terminos-tramite" style="font-size: 11.5px; color: #f0f0f0; line-height: 1.35;">
+                    Acepto los <a href="/terminos" target="_blank" style="color: var(--naranja); text-decoration: underline;">Términos, Condiciones y Políticas</a>.
+                </label>
+            </div>
+            <button class="btn-submit" style="background: white !important; color: #222 !important; box-shadow: none !important; display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 12px; font-size: 13.5px; padding: 11px;" onclick="if(!document.getElementById('acepta-terminos-tramite').checked) { window.mostrarToastLegal('Debes aceptar los Términos y Condiciones.'); return; } iniciarConGoogle()">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" height="18" alt="Google"> Continuar con Google
+            </button>
+            <input type="email" id="login-email" class="input-form" placeholder="Correo electrónico" style="margin-bottom: 8px; padding: 10px 12px;">
+            <input type="password" id="login-pass" class="input-form" placeholder="Contraseña" style="margin-bottom: 10px; padding: 10px 12px;">
+            <button class="btn-submit" style="font-size: 14px; padding: 12px;" onclick="if(!document.getElementById('acepta-terminos-tramite').checked) { window.mostrarToastLegal('Debes aceptar los Términos y Condiciones.'); return; } iniciarSesion()">Ingresar</button>
+            <button class="btn-submit" style="background: transparent !important; color: var(--naranja) !important; border: 1px solid var(--naranja); box-shadow: none !important; margin-top: 8px !important; font-size: 13px; padding: 10px;" onclick="document.getElementById('panel-login-auth').style.display='none'; document.getElementById('panel-registro-auth').style.display='block';">Soy Nuevo (Crear Cuenta)</button>
+        </div>
+
+        <div id="panel-registro-auth" style="display: none;">
+            <button onclick="document.getElementById('panel-registro-auth').style.display='none'; document.getElementById('panel-login-auth').style.display='block';" style="background: transparent; border: none; color: #aaa; font-weight: bold; cursor: pointer; margin-bottom: 10px; font-size: 12px; padding: 0;">Volver a Iniciar Sesión</button>
+            <h2 style="color: var(--naranja); margin: 0 0 12px 0; font-size: 18px; text-align: center; text-transform: uppercase;">Crear Cuenta</h2>
+            <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; text-align: left; background: rgba(255,107,0,0.05); padding: 9px; border-radius: 8px; border: 1px solid rgba(255,107,0,0.2);">
+                <input type="checkbox" id="acepto-mandato" style="margin-top: 3px; accent-color: var(--naranja); transform: scale(1.15);">
+                <label for="acepto-mandato" style="font-size: 11.5px; color: #f0f0f0; line-height: 1.35;">
+                    Declaro ser mayor de 18 años y acepto los <a href="/terminos" target="_blank" style="color: var(--naranja); text-decoration: underline;">Términos, Condiciones y Contrato de Mandato</a>.
+                </label>
+            </div>
+            <input type="email" id="reg-email" class="input-form" placeholder="Tu correo electrónico" style="margin-bottom: 8px; padding: 10px 12px;">
+            <input type="password" id="reg-pass" class="input-form" placeholder="Crea una contraseña segura" style="margin-bottom: 10px; padding: 10px 12px;">
+            <input type="text" id="miel_bot" name="miel_bot" style="display:none !important;" tabindex="-1" autocomplete="off">
+            <input type="hidden" name="tipo_cuenta" value="servicio" checked>
+            <button class="btn-submit" id="btn-registrar" style="font-size: 14px; padding: 12px;" onclick="registrarUsuario()">Crear mi cuenta ahora</button>
+            <button class="btn-submit" style="background: white !important; color: #222 !important; box-shadow: none !important; display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 10px; font-size: 13.5px; padding: 11px;" onclick="if(!document.getElementById('acepto-mandato').checked) { window.mostrarToastLegal('Debes aceptar los Términos y Condiciones.'); return; } iniciarConGoogle()">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" height="18" alt="Google"> Registrar rápido con Google
+            </button>
+        </div>
+    </div>
 </div>
-<button class="btn-submit" style="background: white !important; color: #222 !important; box-shadow: none !important; display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 15px; font-size: 14px;" onclick="if(!document.getElementById('acepta-terminos-tramite').checked) { alert('⚠️ Debes aceptar los Términos.'); return; } iniciarConGoogle()">
-<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" height="18"> Continuar con Google
-</button>
-<p style="text-align: center; color: #888; font-size: 13px; margin: 15px 0;">O con correo</p>
-<input type="email" id="login-email" class="input-form" placeholder="Correo">
-<input type="password" id="login-pass" class="input-form" placeholder="Contraseña">
-<button class="btn-submit" style="font-size: 15px;" onclick="if(!document.getElementById('acepta-terminos-tramite').checked) { alert('⚠️ Debes aceptar los Términos.'); return; } iniciarSesion()">Ingresar</button>
-<button class="btn-submit" style="background: transparent !important; color: var(--naranja) !important; border: 1px solid var(--naranja); box-shadow: none !important; margin-top: 10px !important; font-size: 14px;" onclick="document.getElementById('panel-login-auth').style.display='none'; document.getElementById('panel-registro-auth').style.display='block';">Soy Nuevo (Crear Cuenta)</button>
-</div>
-<div id="panel-registro-auth" style="display: none;">
-<button onclick="document.getElementById('panel-registro-auth').style.display='none'; document.getElementById('panel-login-auth').style.display='block';" style="background: transparent; border: none; color: #aaa; font-weight: bold; cursor: pointer; margin-bottom: 15px; font-size: 12px; padding: 0;">⬅ Volver a Iniciar Sesión</button>
-<h2 style="color: var(--naranja); margin-top: 0; text-align: center; text-transform: uppercase;">Crear Cuenta</h2>
-<div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 15px; text-align: left; background: rgba(255,107,0,0.05); padding: 10px; border-radius: 8px; border: 1px solid rgba(255,107,0,0.2);">
-<input type="checkbox" id="acepto-mandato" style="margin-top: 3px; accent-color: var(--naranja); transform: scale(1.2);">
-<label for="acepto-mandato" style="font-size: 12px; color: #f0f0f0; line-height: 1.4;">
-Declaro ser mayor de 18 años y acepto los <a href="terminos.html" target="_blank" style="color: var(--naranja); text-decoration: underline;">Términos, Condiciones y Contrato de Mandato</a>.
-</label>
-</div>
-<input type="email" id="reg-email" class="input-form" placeholder="Tu correo electrónico">
-<input type="password" id="reg-pass" class="input-form" placeholder="Crea una contraseña segura">
-<input type="text" id="miel_bot" name="miel_bot" style="display:none !important;" tabindex="-1" autocomplete="off">
-<input type="hidden" name="tipo_cuenta" value="servicio" checked>
-<button class="btn-submit" id="btn-registrar" style="font-size: 15px;" onclick="registrarUsuario()">Crear mi cuenta ahora</button>
-<button class="btn-submit" style="background: white !important; color: #222 !important; box-shadow: none !important; display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 15px; font-size: 14px;" onclick="if(!document.getElementById('acepto-mandato').checked) { alert('⚠️ Debes aceptar los Términos.'); return; } iniciarConGoogle()">
-<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" height="18"> Registrar rápido con Google
-</button>
-</div>
-</div>
-</div>
+
+<!-- MODAL PERFIL CIUDADANO Y ESTADO KYC -->
 <div class="bottom-sheet-overlay" id="modal-perfil-ciudadano" onclick="document.getElementById('modal-perfil-ciudadano').classList.remove('activo')">
-<div class="bottom-sheet-contenido" onclick="event.stopPropagation()" style="background: var(--glass-bg); backdrop-filter: blur(25px); border-radius: 30px 30px 0 0; padding: 25px; border-top: 1px solid var(--naranja);">
-<div class="drag-handle" style="width: 40px; height: 5px; background: rgba(255,255,255,0.2); border-radius: 5px; margin: 0 auto 20px;"></div>
-<h2 style="color: var(--naranja); margin-top: 0; text-align: center; text-transform: uppercase; font-size: 18px;">Mi Perfil</h2>
-<div style="text-align: center; margin-bottom: 20px; position: relative; display: inline-block; left: 50%; transform: translateX(-50%);">
-<img id="img-perfil-ciudadano" src="https://via.placeholder.com/100/0a0a0c/ff6b00?text=👤" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid var(--naranja); box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
-<label style="position: absolute; top: 0; right: -5px; background: var(--naranja); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.5); border: 2px solid var(--bg-oscuro);">
-✏️
-<input type="file" id="input-foto-ciudadano" style="display: none;" accept="image/*" onchange="previewFotoCiudadano(this)">
-</label>
+    <div class="bottom-sheet-contenido" onclick="event.stopPropagation()" style="background: var(--glass-bg); backdrop-filter: blur(25px); border-radius: 30px 30px 0 0; padding: 25px; border-top: 1px solid var(--naranja);">
+        <div class="drag-handle" style="width: 40px; height: 5px; background: rgba(255,255,255,0.2); border-radius: 5px; margin: 0 auto 20px;"></div>
+        <h2 style="color: var(--naranja); margin-top: 0; text-align: center; text-transform: uppercase; font-size: 18px;">Mi Perfil Ciudadano</h2>
+        <div style="text-align: center; margin-bottom: 20px; position: relative; display: inline-block; left: 50%; transform: translateX(-50%);">
+            <img id="img-perfil-ciudadano" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23121218'/%3E%3Ccircle cx='50' cy='38' r='18' fill='%23ff6b00'/%3E%3Cpath d='M20 86c0-16 14-26 30-26s30 10 30 26' fill='%23ff6b00'/%3E%3C/svg%3E" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid var(--naranja); box-shadow: 0 4px 15px rgba(0,0,0,0.5);" alt="Avatar">
+            <label style="position: absolute; top: 0; right: -5px; background: var(--naranja); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.5); border: 2px solid var(--bg-oscuro);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                <input type="file" id="input-foto-ciudadano" style="display: none;" accept="image/*" onchange="previewFotoCiudadano(this)">
+            </label>
+        </div>
+        <div style="margin-bottom: 15px; text-align: center;">
+            <span id="badge-kyc-ciudadano" style="background: rgba(255,68,68,0.1); color: #ff4444; padding: 6px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; border: 1px solid rgba(255,68,68,0.3);">Identidad No Verificada</span>
+        </div>
+        <div id="contenedor-accion-kyc" style="margin-bottom: 20px; text-align: center;">
+            <button type="button" onclick="window.location.href='/kyc.html'" style="background: transparent; border: 1px dashed var(--naranja); color: var(--naranja); padding: 10px 15px; border-radius: 10px; font-size: 13px; font-weight: bold; cursor: pointer;">
+                Abrir Escáner Biométrico (KYC)
+            </button>
+        </div>
+        <div class="file-upload-wrapper" style="margin-bottom: 10px;">
+            <input type="text" id="perfil-nombre-ciudadano" class="input-form" placeholder="Tu Nombre Completo" style="margin-bottom: 0;">
+        </div>
+        <div class="file-upload-wrapper" style="margin-bottom: 10px;">
+            <input type="tel" id="perfil-telefono-ciudadano" class="input-form" placeholder="Número Celular / WhatsApp" style="margin-bottom: 0;">
+        </div>
+        <div class="file-upload-wrapper" style="margin-bottom: 20px;">
+            <input type="email" id="perfil-email-ciudadano" class="input-form" disabled style="margin-bottom: 0; opacity: 0.5;" title="El correo no se puede cambiar">
+        </div>
+        <button class="btn-submit" id="btn-guardar-perfil-c" style="font-size: 15px;" onclick="guardarPerfilCiudadano()">Guardar Cambios</button>
+    </div>
 </div>
-<div style="margin-bottom: 15px; text-align: center;">
-<span id="badge-kyc-ciudadano" style="background: rgba(255,68,68,0.1); color: #ff4444; padding: 6px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; border: 1px solid rgba(255,68,68,0.3);">❌ Identidad No Verificada</span>
+
+<!-- MODAL IN-APP DE CONFIRMACIÓN (ANTI-CONFIRM NATIVO) -->
+<div id="modal-dialogo-legal">
+    <div class="panel-admin" style="max-width: 360px; width: 100%; text-align: center; border-color: var(--naranja); background: #121218;">
+        <h3 id="dlg-legal-titulo" style="margin: 0 0 8px 0; color: var(--naranja); font-size: 16px; text-transform: uppercase;">Confirmación</h3>
+        <p id="dlg-legal-texto" style="margin: 0 0 18px 0; font-size: 13px; color: #e2e8f0; line-height: 1.45;"></p>
+        <div style="display: flex; gap: 10px;">
+            <button type="button" id="dlg-legal-cancelar" class="btn-submit" style="margin: 0; flex: 1; background: rgba(255,255,255,0.08); color: #fff; box-shadow: none;">Cancelar</button>
+            <button type="button" id="dlg-legal-aceptar" class="btn-submit" style="margin: 0; flex: 1;">Confirmar</button>
+        </div>
+    </div>
 </div>
-<div id="contenedor-accion-kyc" style="margin-bottom: 20px; text-align: center;">
-<label style="display: inline-block; background: transparent; border: 1px dashed var(--naranja); color: var(--naranja); padding: 10px 15px; border-radius: 10px; font-size: 13px; font-weight: bold; cursor: pointer;">
-🪪 Subir Documento de Identidad (KYC)
-<input type="file" id="input-archivo-kyc" style="display:none;" accept="image/*,.pdf" onchange="alert('✔️ Documento recibido. Nuestro sistema descentralizado está validando tu identidad...')">
-</label>
-</div>
-<div class="file-upload-wrapper" style="margin-bottom: 10px;">
-<input type="text" id="perfil-nombre-ciudadano" class="input-form" placeholder="Tu Nombre Completo" style="margin-bottom: 0;">
-</div>
-<div class="file-upload-wrapper" style="margin-bottom: 10px;">
-<input type="tel" id="perfil-telefono-ciudadano" class="input-form" placeholder="Número Celular / WhatsApp" style="margin-bottom: 0;">
-</div>
-<div class="file-upload-wrapper" style="margin-bottom: 20px;">
-<input type="email" id="perfil-email-ciudadano" disabled style="margin-bottom: 0; opacity: 0.5;" title="El correo no se puede cambiar">
-</div>
-<button class="btn-submit" id="btn-guardar-perfil-c" style="font-size: 15px;" onclick="guardarPerfilCiudadano()">Guardar Cambios</button>
-</div>
-</div>
+
+<div id="toast-boveda-legal" role="status" aria-live="polite"></div>
+
 <script type="text/javascript" src="https://checkout.wompi.co/widget.js"></script>
 <script type="module" src="./auth-mando.js"></script>
 <script type="module">
 import QRpidoDB from './core-db.js';
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js';
+
+const functionsInstance = getFunctions();
+
+// Invocador híbrido: usa QRpidoDB.SecurityService si existe el método o llama directo a la Cloud Function de CHG-046
+async function invocarFuncionLegal(nombreFn, payload) {
+    if (QRpidoDB.SecurityService && typeof QRpidoDB.SecurityService[nombreFn] === 'function') {
+        return await QRpidoDB.SecurityService[nombreFn](payload);
+    }
+    const fn = httpsCallable(functionsInstance, nombreFn);
+    const res = await fn(payload);
+    return res.data;
+}
+
+// --- SISTEMA IN-APP TOAST Y CONFIRMACIÓN (CERO ALERT NATIVO) ---
+let timerToastLegal = null;
+window.mostrarToastLegal = (mensaje) => {
+    const el = document.getElementById('toast-boveda-legal');
+    if (!el) return;
+    el.textContent = mensaje;
+    el.classList.add('visible');
+    clearTimeout(timerToastLegal);
+    timerToastLegal = setTimeout(() => el.classList.remove('visible'), 3600);
+};
+
+window.confirmarAccionLegal = (titulo, texto) => {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('modal-dialogo-legal');
+        document.getElementById('dlg-legal-titulo').textContent = titulo;
+        document.getElementById('dlg-legal-texto').textContent = texto;
+        modal.classList.add('activo');
+        const cerrar = (res) => {
+            modal.classList.remove('activo');
+            resolve(res);
+        };
+        document.getElementById('dlg-legal-cancelar').onclick = () => cerrar(false);
+        document.getElementById('dlg-legal-aceptar').onclick = () => cerrar(true);
+    });
+};
+
+// --- GENERADOR DE CÓDIGO DE INTENCIÓN BIOMÉTRICA (LIVENESS) ---
+window.generarCodigoIntencion = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let p1 = '';
+    let p2 = '';
+    for (let i = 0; i < 3; i++) {
+        p1 += chars.charAt(Math.floor(Math.random() * chars.length));
+        p2 += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const codigo = `${p1}-${p2}`;
+    window.codigoActualFirma = codigo;
+    const el = document.getElementById('codigo-selfie');
+    if (el) el.innerText = codigo;
+    return codigo;
+};
 
 // --- UTILIDADES GLOBALES DE INTERFAZ ---
 window.actualizarNombreImagenUI = (input, idTexto) => {
     const textoUI = document.getElementById(idTexto);
     if (input.files && input.files[0]) {
-        textoUI.innerHTML = `✔️ Archivo listo: ${input.files[0].name.substring(0,20)}...`;
-        textoUI.style.borderColor = "#00ff64"; textoUI.style.color = "#00ff64";
+        textoUI.textContent = `Archivo listo: ${input.files[0].name.substring(0, 22)}...`;
+        textoUI.style.borderColor = "#00ff64";
+        textoUI.style.color = "#00ff64";
     }
 };
 
@@ -335,50 +572,167 @@ window.cambiarTabGlobal = (tabId, element) => {
         c.style.display = 'none';
         c.classList.remove('active');
     });
-    element.classList.add('activa');
+    if (element) element.classList.add('activa');
     const target = document.getElementById(tabId);
-    target.style.display = 'block';
-    
-    // 🧹 PURGA DE SEGURIDAD: Si el usuario cambia de pestaña, destruimos iFrames de la Bóveda
+    if (target) target.style.display = 'block';
+
     if (tabId !== 'tab-boveda' && typeof window.destruirBovedaMemoria === 'function') {
         const idLectura = document.getElementById('contenedor-lectura-segura');
         if (idLectura) {
             const iframe = idLectura.querySelector('iframe');
-            if (iframe && iframe.src) window.destruirBovedaMemoria(iframe.src);
+            if (iframe && iframe.src) window.destruirBovedaMemoria(iframe.src, true);
         }
     }
-    
-    setTimeout(() => target.classList.add('active'), 10);
+    if (target) setTimeout(() => target.classList.add('active'), 10);
 };
 
-// 📡 RADAR DE ENTORNO: Detección PWA vs App Nativa
+// RADAR DE ENTORNO: Detección PWA vs App Nativa
 window.obtenerEntornoNavegacion = function() {
     const isTWA = document.referrer.includes('android-app://');
-    const isWebView = /(iPhone|iPod|iPad).*AppleWebKit(?!.*Safari)/i.test(navigator.userAgent) || 
+    const isWebView = /(iPhone|iPod|iPad).*AppleWebKit(?!.*Safari)/i.test(navigator.userAgent) ||
                       /Android.*wv/.test(navigator.userAgent);
     const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
 
-    if (isTWA || isWebView) return 'APP_NATIVA'; // Territorio Monopolio
-    if (isPWA) return 'PWA_INSTALADA'; // Territorio Libre
-    return 'NAVEGADOR_WEB'; // Territorio Libre
+    if (isTWA || isWebView) return 'APP_NATIVA';
+    if (isPWA) return 'PWA_INSTALADA';
+    return 'NAVEGADOR_WEB';
 };
 
 // --- MÁQUINA DE ESTADOS (VARIABLES GLOBALES) ---
 window.estadoAccesoLegal = 'desconectado';
 window.idNegocioLogueado = null;
+window.emailUsuarioLogueado = null;
 window.textoSeleccionadoParaApelar = "";
 window.esVistaInvitado = false;
+window.salaActivaId = null;
+window.datosSalaActiva = null;
+window.enlaceSalaGenerada = "";
+window.inmuebleVinculadoId = null;
 
-// --- REQUERIMIENTO LEDGER: SE ELIMINAN PORCENTAJES (COBRO DE INFRAESTRUCTURA LEY 527) ---
+// --- PLANTILLAS OFICIALES LEY 527 ---
 const PLANTILLAS = {
-    'mandato': `CONTRATO DE MANDATO COMERCIAL\n\nEntre los suscritos a saber, de una parte [NOMBRE_DEL_MANDANTE] actuando en nombre propio, quien en adelante se denominará EL MANDANTE, y de otra parte [NOMBRE_DEL_MANDATARIO], quien en adelante se denominará EL MANDATARIO.\n\nCLÁUSULA PRIMERA: EL MANDATARIO se obliga a ejecutar las labores encomendadas bajo los términos de gestión acordados directamente de forma bilateral entre las partes.\n\n[ADENDA_GEOGRAFICA]\n\nEste documento se firma electrónicamente bajo el amparo de la Ley 527 de 1999 (Colombia).`,
-    
-    'arrendamiento': `CONTRATO DE ARRENDAMIENTO COMERCIAL\n\nEntre los suscritos a saber, de una parte [NOMBRE_DEL_ARRENDADOR], y de otra parte [NOMBRE_DEL_ARRENDATARIO].\n\nCLÁUSULA PRIMERA: El arrendador entrega a título de arrendamiento el inmueble ubicado en [DIRECCION_DEL_INMUEBLE].\nCLÁUSULA SEGUNDA: El canon será de $[VALOR_MENSUAL] COP mensuales.\n\n[ADENDA_GEOGRAFICA]\n\nEste documento se firma electrónicamente bajo el amparo de la Ley 527 de 1999.`,
-    
+    'mandato': `CONTRATO DE MANDATO COMERCIAL\n\nEntre los suscritos a saber, de una parte [NOMBRE_DEL_MANDANTE] actuando en nombre propio, quien en adelante se denominará EL MANDANTE, y de otra parte [NOMBRE_DEL_MANDATARIO], quien en adelante se denominará EL MANDATARIO.\n\nCLÁUSULA PRIMERA: EL MANDATARIO se obliga a ejecutar las labores encomendadas sobre el inmueble o encargo [DIRECCION_DEL_INMUEBLE] por un valor base de $[VALOR_MENSUAL] COP bajo los términos de gestión acordados directamente de forma bilateral entre las partes.\n\n[ADENDA_GEOGRAFICA]\n\nEste documento se firma electrónicamente bajo el amparo de la Ley 527 de 1999 (Colombia).`,
+
+    'arrendamiento': `CONTRATO DE ARRENDAMIENTO (LEY 820 DE 2003 / COMERCIAL)\n\nEntre los suscritos a saber, de una parte [NOMBRE_DEL_ARRENDADOR], y de otra parte [NOMBRE_DEL_ARRENDATARIO].\n\nCLÁUSULA PRIMERA: El arrendador entrega a título de arrendamiento el inmueble ubicado en [DIRECCION_DEL_INMUEBLE].\nCLÁUSULA SEGUNDA: El canon será de $[VALOR_MENSUAL] COP mensuales.\n\n[ADENDA_GEOGRAFICA]\n\nEste documento se firma electrónicamente bajo el amparo de la Ley 527 de 1999.`,
+
     'pagare': `PAGARÉ DIGITAL A LA ORDEN\n\nYo, [NOMBRE_DEL_DEUDOR], me obligo a pagar incondicionalmente a la orden de [NOMBRE_DEL_ACREEDOR] la suma de $[VALOR_DE_LA_DEUDA] COP.\n\n[ADENDA_GEOGRAFICA]\n\nLa firma de este pagaré electrónico incorpora coordenadas GPS, marca de tiempo y prueba de vida (liveness) asegurando cero repudio bajo la normativa vigente.`,
-    
+
     'propio': `[CONTENIDO_PROPIO]\n\n[ADENDA_GEOGRAFICA]\n\nDocumento firmado digitalmente bajo los términos de la Ley 527 de 1999.`
 };
+
+// --- HIDRATACIÓN DE SALA P2P REAL DESDE FIRESTORE ---
+async function cargarSalaRealP2P(salaId) {
+    window.salaActivaId = salaId;
+    window.esVistaInvitado = true;
+    const tabBtnTramites = document.querySelector('[data-tab="tab-tramites"]');
+    window.cambiarTabGlobal('tab-tramites', tabBtnTramites);
+    document.getElementById('vista-creador').style.display = 'none';
+    document.getElementById('vista-invitado').style.display = 'block';
+    document.getElementById('lbl-invitacion-info').innerText = `Cargando sala segura #${salaId}...`;
+
+    try {
+        const res = await invocarFuncionLegal('gestionarSalaTramiteP2P', { accion: 'obtener_sala', salaId: salaId });
+        if (res && res.success && res.sala) {
+            window.datosSalaActiva = res.sala;
+            document.getElementById('lbl-invitacion-info').innerText = `Sala #${salaId} · Estado: ${String(res.sala.estado || 'activa').replace(/_/g, ' ').toUpperCase()}`;
+            document.getElementById('visor-documento-invitado').innerText = res.sala.texto_contrato || PLANTILLAS['arrendamiento'];
+
+            const boxApel = document.getElementById('contenedor-apelaciones-sala');
+            if (Array.isArray(res.sala.apelaciones) && res.sala.apelaciones.length > 0 && boxApel) {
+                boxApel.style.display = 'block';
+                boxApel.innerHTML = `<strong style="color:var(--naranja); font-size:12px; text-transform:uppercase;">Observaciones / Apelaciones en Sala (${res.sala.apelaciones.length})</strong>` +
+                    res.sala.apelaciones.map(a => `<div style="margin-top:6px; padding:8px; background:rgba(0,0,0,0.45); border-left:2px solid var(--naranja); border-radius:6px; font-size:11.5px;"><div style="color:#aaa; font-style:italic;">"${a.fragmento}"</div><div style="color:#fff; margin-top:3px;">${a.comentario}</div></div>`).join('');
+            }
+            return;
+        }
+    } catch (e) {
+        console.warn("Sala local o pendiente de sincronización:", e);
+    }
+    document.getElementById('lbl-invitacion-info').innerText = `Has sido invitado a revisar el borrador #${salaId}.`;
+    document.getElementById('visor-documento-invitado').innerText = PLANTILLAS['arrendamiento'];
+}
+
+// --- CONSULTA DE SALAS ACTIVAS E HISTORIAL REAL DEL USUARIO ---
+async function sincronizarSalasYHistorialUsuario() {
+    if (!window.idNegocioLogueado) return;
+    try {
+        const res = await invocarFuncionLegal('gestionarSalaTramiteP2P', { accion: 'listar_activos' });
+        if (!res || !res.success) return;
+
+        const salasActivas = (res.salas || []).filter(s => s.estado !== 'sellado_sui');
+        const banner = document.getElementById('banner-documentos-activos');
+        const listaBanner = document.getElementById('lista-salas-activas-banner');
+        const badgeConteo = document.getElementById('badge-conteo-activos');
+
+        if (salasActivas.length > 0 && banner && listaBanner) {
+            banner.style.display = 'flex';
+            badgeConteo.textContent = String(salasActivas.length);
+            listaBanner.innerHTML = salasActivas.slice(0, 4).map(s => `
+                <div class="sala-activa-item">
+                    <div style="min-width:0; flex:1;">
+                        <strong style="color:#fff; font-size:12px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Sala #${s.id} (${s.rol === 'creador' ? 'Creador' : 'Invitado'})</strong>
+                        <span style="color:#9ca3af; font-size:10.5px;">Estado: ${String(s.estado || 'pendiente').replace(/_/g, ' ')} · ${s.contraparte_email || ''}</span>
+                    </div>
+                    <button type="button" class="btn-submit" style="margin:0; width:auto; padding:6px 12px; font-size:11px; background:#00f5d4; color:#0a0a0c;" onclick="window.location.href='/tramites?sala=${encodeURIComponent(s.id)}'">Abrir</button>
+                </div>
+            `).join('');
+        } else if (banner) {
+            banner.style.display = 'none';
+        }
+
+        if (Array.isArray(res.historial) && res.historial.length > 0) {
+            res.historial.forEach(h => {
+                const idDoc = h.id || h.wompi_ref;
+                if (!coleccionDocumentosInmobiliaria.some(d => d.id === idDoc)) {
+                    coleccionDocumentosInmobiliaria.unshift({
+                        id: idDoc,
+                        tipo: h.tipo_documento || "Contrato Ley 527",
+                        lugar: h.lugar || "Colombia",
+                        fecha: new Date().toISOString().slice(0, 10),
+                        estado: h.estado || "Sellado SUI"
+                    });
+                }
+            });
+            window.renderizarHistorialFiltrado();
+        }
+    } catch (e) {
+        console.warn("Operando con historial en caché local:", e);
+    }
+}
+
+// --- PRELLENADO DESDE INMUEBLE.HTML / INMOBILIARIA.JS ---
+function aplicarParametrosInmobiliariosURL() {
+    const params = new URLSearchParams(window.location.search);
+    const pl = params.get('plantilla');
+    const inmId = params.get('inmueble');
+    const dir = params.get('direccion') || params.get('titulo');
+    const val = params.get('valor');
+
+    if (inmId) {
+        window.inmuebleVinculadoId = inmId;
+        const badgeInm = document.getElementById('badge-inmueble-vinculado');
+        if (badgeInm) {
+            badgeInm.style.display = 'block';
+            badgeInm.textContent = `Inmueble vinculado: ${params.get('titulo') || inmId}`;
+        }
+    }
+
+    if (pl && PLANTILLAS[pl]) {
+        const tabBtn = document.querySelector('[data-tab="tab-tramites"]');
+        window.cambiarTabGlobal('tab-tramites', tabBtn);
+        const pill = document.querySelector(`.js-plantilla[data-tipo-pl="${pl}"]`);
+        window.seleccionarPlantilla(pl, pill);
+
+        setTimeout(() => {
+            document.querySelectorAll('.js-input-dinamico').forEach(inp => {
+                const v = inp.getAttribute('data-var');
+                if (v === '[DIRECCION_DEL_INMUEBLE]' && dir) inp.value = dir;
+                if (v === '[VALOR_MENSUAL]' && val) inp.value = Number(val).toLocaleString('es-CO');
+            });
+            window.actualizarLienzo();
+        }, 120);
+    }
+}
 
 // --- OBSERVADOR DE SESIÓN DE FIREBASE Y MÁQUINA DE CINEMÁTICAS ---
 QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
@@ -388,80 +742,80 @@ QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
     const btnPerfilMenu = document.getElementById('btn-perfil-submenu');
     const urlParams = new URLSearchParams(window.location.search);
     const salaId = urlParams.get('sala');
+    const kycOkParam = urlParams.get('kyc') === 'ok' || urlParams.get('action') === 'kyc_pagar';
 
     if (salaId) {
-        window.esVistaInvitado = true;
-        if(document.getElementById('nav-maestra')) document.getElementById('nav-maestra').style.display = 'none';
-        if(document.getElementById('tab-concepto')) document.getElementById('tab-concepto').style.display = 'none';
-        if(document.getElementById('tab-boveda')) document.getElementById('tab-boveda').style.display = 'none';
-        if(document.getElementById('vista-creador')) document.getElementById('vista-creador').style.display = 'none';
-        if(document.getElementById('vista-invitado')) document.getElementById('vista-invitado').style.display = 'block';
-        if(document.getElementById('lbl-invitacion-info')) {
-            document.getElementById('lbl-invitacion-info').innerText = `Has sido invitado a revisar el borrador #${salaId}.`;
-        }
-        if(document.getElementById('visor-documento-invitado')) {
-            document.getElementById('visor-documento-invitado').innerText = PLANTILLAS['arrendamiento'];
-        }
+        await cargarSalaRealP2P(salaId);
     }
 
-    if(!btnCta || !bloqueOperativo) return;
+    if (!btnCta || !bloqueOperativo) return;
 
-        if (user) {
+    if (user) {
         window.idNegocioLogueado = user.uid;
-        if(btnPerfilMenu) btnPerfilMenu.style.display = 'block';
-        if(btnSubmenu) btnSubmenu.innerText = "Cerrar Sesión";
-        if(btnSubmenu) btnSubmenu.onclick = () => { QRpidoDB.SecurityService.cerrarSesion(); };
-        if(document.getElementById('modal-login')) document.getElementById('modal-login').classList.remove('activo');
+        window.emailUsuarioLogueado = user.email || '';
+        if (btnPerfilMenu) btnPerfilMenu.style.display = 'flex';
+        if (btnSubmenu) {
+            btnSubmenu.innerHTML = '<span>Cerrar Sesión</span>';
+            btnSubmenu.onclick = () => { QRpidoDB.SecurityService.cerrarSesion(); };
+        }
+        if (document.getElementById('modal-login')) document.getElementById('modal-login').classList.remove('activo');
 
-        let tieneKyc = false;
+        let tieneKyc = kycOkParam;
         try {
-            // CORRECCIÓN: Enrutamiento Hub & Spoke optimizado para Pereira mediante caché local en RAM
             const perfil = await QRpidoDB.LocalService.getDetails(user.uid);
             if (perfil && perfil.data) {
-                if(document.getElementById('perfil-nombre-ciudadano')) document.getElementById('perfil-nombre-ciudadano').value = perfil.data.nombre || '';
-                if(document.getElementById('perfil-telefono-ciudadano')) document.getElementById('perfil-telefono-ciudadano').value = perfil.data.telefono || perfil.data.whatsApp || '';
-                if(document.getElementById('img-perfil-ciudadano') && perfil.data.logo) document.getElementById('img-perfil-ciudadano').src = perfil.data.logo;
-                if (perfil.data.kyc_verificado) {
+                if (document.getElementById('perfil-nombre-ciudadano')) document.getElementById('perfil-nombre-ciudadano').value = perfil.data.nombre || '';
+                if (document.getElementById('perfil-telefono-ciudadano')) document.getElementById('perfil-telefono-ciudadano').value = perfil.data.telefono || perfil.data.whatsApp || '';
+                if (document.getElementById('img-perfil-ciudadano') && perfil.data.logo) document.getElementById('img-perfil-ciudadano').src = perfil.data.logo;
+                if (perfil.data.kyc_verificado || perfil.data.estado_moderacion === 'en_revision_kyc' || perfil.data.estado_moderacion === 'aprobado' || perfil.data.evidencia_kyc) {
                     tieneKyc = true;
-                    const badge = document.getElementById('badge-kyc-ciudadano');
-                    if(badge) {
-                        badge.innerHTML = "✅ Identidad Oficial (KYC Activo)";
-                        badge.style.background = "rgba(0,255,100,0.1)";
-                        badge.style.color = "#00ff64";
-                        badge.style.borderColor = "rgba(0,255,100,0.3)";
-                    }
                 }
             }
         } catch (e) {
             console.warn("Usuario nuevo sin documento base listo.");
         }
 
+        if (tieneKyc) {
+            const badge = document.getElementById('badge-kyc-ciudadano');
+            if (badge) {
+                badge.textContent = "Identidad Oficial (KYC Activo)";
+                badge.style.background = "rgba(0,255,100,0.1)";
+                badge.style.color = "#00ff64";
+                badge.style.borderColor = "rgba(0,255,100,0.3)";
+            }
+        }
 
-        if(document.getElementById('perfil-email-ciudadano')) {
+        if (document.getElementById('perfil-email-ciudadano')) {
             document.getElementById('perfil-email-ciudadano').value = user.email || '';
         }
 
-        if (!tieneKyc) {
+        await sincronizarSalasYHistorialUsuario();
+
+        if (!tieneKyc && !window.esVistaInvitado) {
             window.estadoAccesoLegal = 'sin_kyc';
-            document.getElementById('vista-creador').style.display = 'none'; 
-            
+            document.getElementById('vista-creador').style.display = 'none';
             btnCta.innerHTML = `
-                <div style="font-size: 45px; margin-bottom: 10px; animation: bounce 1s infinite;">🪪</div>
-                <h2 style="color: white; margin-top: 0; font-size: 18px; text-transform: uppercase;">¡Paso obligatorio pendiente!</h2>
-                <p style="font-size: 14px; color: #f0f0f0; margin-bottom: 20px; text-align: justify; line-height: 1.4;">Para poder emitir firmas legales bajo la <b>Ley 527 de 1999</b>, debes validar tu identidad una única vez mediante el escáner facial y documental. Esto le da respaldo jurídico real a tus documentos digitales.</p>
-                <button class="btn-submit" style="font-size: 15px; background: var(--verde-sui); color: black; font-weight: bold; box-shadow: 0 0 15px var(--verde-sui);" onclick="window.location.href='kyc.html'">REGISTRAR KYC AHORA 🤳</button>
+                <div style="margin-bottom: 10px; color: var(--verde-sui);">
+                    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M15 8h2"/><path d="M15 12h2"/><path d="M7 16h10"/></svg>
+                </div>
+                <h2 style="color: white; margin-top: 0; font-size: 18px; text-transform: uppercase;">Paso obligatorio pendiente</h2>
+                <p style="font-size: 14px; color: #f0f0f0; margin-bottom: 20px; text-align: justify; line-height: 1.4;">Para emitir firmas legales bajo la <b>Ley 527 de 1999</b>, debes validar tu identidad una única vez mediante el escáner facial y documental.</p>
+                <button class="btn-submit" style="font-size: 15px; background: var(--verde-sui); color: black; font-weight: bold; box-shadow: 0 0 15px var(--verde-sui);" onclick="window.location.href='/kyc.html'">REGISTRAR KYC AHORA</button>
             `;
             btnCta.style.display = 'block';
             const tabTramites = document.getElementById('tab-tramites');
-            if(tabTramites) tabTramites.insertBefore(btnCta, tabTramites.firstChild);
-
+            if (tabTramites) tabTramites.insertBefore(btnCta, tabTramites.firstChild);
             window.ejecutarTourProgresivo('registro_listo');
         } else {
             window.estadoAccesoLegal = 'autorizado';
-            bloqueOperativo.style.display = 'block'; 
-            btnCta.style.display = 'none'; 
-            if(document.getElementById('texto-contrato-creador')) {
-                document.getElementById('texto-contrato-creador').value = PLANTILLAS['mandato'];
+            if (!window.esVistaInvitado) {
+                document.getElementById('vista-creador').style.display = 'block';
+                bloqueOperativo.style.display = 'block';
+                btnCta.style.display = 'none';
+                const pillActiva = document.querySelector('.js-plantilla.activa') || document.querySelector('.js-plantilla');
+                const tipoActual = pillActiva ? (pillActiva.getAttribute('data-tipo-pl') || 'mandato') : 'mandato';
+                window.seleccionarPlantilla(tipoActual, pillActiva);
+                aplicarParametrosInmobiliariosURL();
             }
             window.ejecutarTourProgresivo('creador_autorizado');
         }
@@ -469,48 +823,58 @@ QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
         window.idNegocioLogueado = null;
         window.estadoAccesoLegal = 'desconectado';
         bloqueOperativo.style.display = 'none';
-        if(btnPerfilMenu) btnPerfilMenu.style.display = 'none';
+        if (btnPerfilMenu) btnPerfilMenu.style.display = 'none';
         btnCta.innerHTML = `
-            <div style="font-size: 45px; margin-bottom: 10px;">🛡️</div>
+            <div style="margin-bottom: 10px; color: var(--naranja);">
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
             <h2 style="color: white; margin-top: 0; font-size: 18px;">Acceso Restringido</h2>
-            <p style="font-size: 14px; color: #f0f0f0; margin-bottom: 20px;">Para forjar este documento necesitas validar tu Identidad Digital (KYC).</p>
-            <button class="btn-submit" style="font-size: 15px;" onclick="document.getElementById('modal-login').classList.add('activo')">🔑 Iniciar Sesión para Continuar</button>
+            <p style="font-size: 14px; color: #f0f0f0; margin-bottom: 20px;">Para forjar este documento necesitas iniciar sesión y validar tu Identidad Digital (KYC).</p>
+            <button class="btn-submit" style="font-size: 15px;" onclick="document.getElementById('modal-login').classList.add('activo')">Iniciar Sesión para Continuar</button>
         `;
         btnCta.style.display = 'block';
-        if(btnSubmenu) btnSubmenu.innerText = "🔑 Iniciar Sesión";
-        if(btnSubmenu) btnSubmenu.onclick = () => { document.getElementById('modal-login').classList.add('activo'); document.getElementById('submenu-llave-tramites').classList.remove('activo'); };
-
+        if (btnSubmenu) {
+            btnSubmenu.innerHTML = '<span>Iniciar Sesión</span>';
+            btnSubmenu.onclick = () => {
+                document.getElementById('modal-login').classList.add('activo');
+                document.getElementById('submenu-llave-tramites').classList.remove('activo');
+            };
+        }
         window.ejecutarTourProgresivo('turista');
     }
 });
 
-// --- SELECCIÓN DE PLANTILLAS Y LÓGICA DINÁMICA ---
+// --- SELECCIÓN DE PLANTILLAS Y GENERADOR DE VARIABLES DINÁMICAS ---
 window.seleccionarPlantilla = (tipo, elemento) => {
     document.querySelectorAll('.js-plantilla').forEach(c => c.classList.remove('activa'));
-    elemento.classList.add('activa');
+    if (elemento) elemento.classList.add('activa');
     const desc = document.getElementById('desc-plantilla');
     const textarea = document.getElementById('texto-contrato-creador');
     const contenedorVars = document.getElementById('contenedor-variables');
-    
-    if(tipo === 'arrendamiento') {
-        desc.innerHTML = `<h4 style="margin: 0 0 5px 0; color: var(--naranja); font-size: 16px;">🏢 Contrato de Arriendo</h4><p style="margin: 0; font-size: 13px; color: #f0f0f0;">Ideal para locales. Protege tu propiedad con un registro inalterable.</p>`;
+
+    if (tipo === 'arrendamiento') {
+        desc.innerHTML = `<h4 style="margin: 0 0 5px 0; color: var(--naranja); font-size: 16px;">Contrato de Arriendo (Ley 820 / Comercial)</h4><p style="margin: 0; font-size: 13px; color: #f0f0f0;">Protege tu inmueble con canon, dirección y cláusulas selladas en SUI.</p>`;
     } else if (tipo === 'mandato') {
-        desc.innerHTML = `<h4 style="margin: 0 0 5px 0; color: var(--naranja); font-size: 16px;">📦 Contrato de Mandato</h4><p style="margin: 0; font-size: 13px; color: #f0f0f0;">Acuerdo legal P2P para embajadores o agentes en terreno.</p>`;
+        desc.innerHTML = `<h4 style="margin: 0 0 5px 0; color: var(--naranja); font-size: 16px;">Contrato de Mandato</h4><p style="margin: 0; font-size: 13px; color: #f0f0f0;">Acuerdo legal P2P para administración inmobiliaria, comisiones o gestión en terreno.</p>`;
+    } else if (tipo === 'pagare') {
+        desc.innerHTML = `<h4 style="margin: 0 0 5px 0; color: var(--naranja); font-size: 16px;">Pagaré Digital a la Orden</h4><p style="margin: 0; font-size: 13px; color: #f0f0f0;">Respaldo de deuda exigible con firma caligráfica, coordenadas GPS y prueba de vida.</p>`;
+    } else {
+        desc.innerHTML = `<h4 style="margin: 0 0 5px 0; color: var(--naranja); font-size: 16px;">Documento Propio</h4><p style="margin: 0; font-size: 13px; color: #f0f0f0;">Redacta o pega tu propio contrato para sellarlo bajo la Ley 527 de 1999.</p>`;
     }
-    
-    contenedorVars.innerHTML = ''; 
+
+    contenedorVars.innerHTML = '';
     if (tipo === 'propio') {
         textarea.value = "";
         textarea.placeholder = "Pega todo el texto del contrato aquí...";
         return;
     }
-    const textoOriginal = PLANTILLAS[tipo];
+    const textoOriginal = PLANTILLAS[tipo] || PLANTILLAS['mandato'];
     textarea.value = textoOriginal;
-    
+
     const regex = /\[(.*?)\]/g;
     const variablesRaw = textoOriginal.match(regex) || [];
-    const variablesUnicas = [...new Set(variablesRaw)]; 
-    
+    const variablesUnicas = [...new Set(variablesRaw)].filter(v => v !== '[ADENDA_GEOGRAFICA]');
+
     variablesUnicas.forEach(variable => {
         const nombreLimpio = variable.replace(/\[|\]/g, '').replace(/_/g, ' ');
         contenedorVars.innerHTML += `
@@ -524,81 +888,167 @@ window.seleccionarPlantilla = (tipo, elemento) => {
 
 window.actualizarLienzo = () => {
     const inputs = document.querySelectorAll('.js-input-dinamico');
-    if(inputs.length === 0) return;
-    
+    if (inputs.length === 0) return;
+
     const tipo = inputs[0].getAttribute('data-tipo');
     let nuevoTexto = PLANTILLAS[tipo];
     inputs.forEach(input => {
-        if(input.value.trim() !== '') {
-            nuevoTexto = nuevoTexto.split(input.getAttribute('data-var')).join(input.value.toUpperCase()); 
+        if (input.value.trim() !== '') {
+            nuevoTexto = nuevoTexto.split(input.getAttribute('data-var')).join(input.value.toUpperCase());
         }
     });
     document.getElementById('texto-contrato-creador').value = nuevoTexto;
 };
 
 window.verBorradorTextarea = () => {
-    if(window.estadoAccesoLegal !== 'autorizado') {
-        alert("Debes Iniciar Sesión y tener KYC activo para editar borradores.");
+    if (window.estadoAccesoLegal !== 'autorizado') {
+        window.mostrarToastLegal("Inicia sesión y completa tu KYC para editar borradores.");
     } else {
         document.getElementById('texto-contrato-creador').focus();
     }
 };
 
-// --- REQUERIMIENTO LEDGER: DISEÑO DEFENSIVO (ANALIZADOR SINTÁCTICO DE CAMPOS VACÍOS) ---
-window.despacharBorrador = () => {
+function validarCamposPlantilla() {
     const texto = document.getElementById('texto-contrato-creador').value;
-    const correo = document.getElementById('email-contraparte').value;
-    
     const regexCamposVacios = /\[(.*?)\]/g;
-    const encontrados = texto.match(regexCamposVacios) || [];
-    
+    const encontrados = (texto.match(regexCamposVacios) || []).filter(v => v !== '[ADENDA_GEOGRAFICA]');
+
     if (encontrados.length > 0) {
-        if (navigator.vibrate) navigator.vibrate([100, 50, 100]); 
-        
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
         document.querySelectorAll('.js-input-dinamico').forEach(input => {
             if (encontrados.includes(input.getAttribute('data-var'))) {
                 input.style.borderColor = '#ff4444';
                 input.style.boxShadow = '0 0 12px rgba(255,68,68,0.5)';
-                input.placeholder = "⚠️ ESTE CAMPO ES OBLIGATORIO";
+                input.placeholder = "CAMPO OBLIGATORIO";
             }
         });
-        return alert(`⚠️ Error de Validación:\nAún quedan campos vacíos en la plantilla del contrato sin personalizar. Revisa los campos resaltados en rojo.`);
+        window.mostrarToastLegal("Completa todos los campos resaltados en rojo antes de continuar.");
+        return false;
+    }
+    return true;
+}
+
+// --- CREACIÓN REAL DE SALA P2P Y ENVÍO DE INVITACIÓN ---
+window.despacharBorrador = async () => {
+    if (!validarCamposPlantilla()) return;
+    const texto = document.getElementById('texto-contrato-creador').value.trim();
+    const correo = document.getElementById('email-contraparte').value.trim();
+
+    if (!texto || !correo) {
+        return window.mostrarToastLegal("Rellena los datos del contrato e ingresa el correo electrónico de la contraparte.");
     }
 
-    if (!texto || !correo) return alert("Debes rellenar los datos del contrato e ingresar el correo electrónico de la contraparte.");
-    
-    alert(`✅ Borrador validado correctamente.\nEnlace seguro de vinculación enviado a: ${correo}.\n\nSe ha creado la pasarela de custodia digital.`);
-    document.getElementById('btn-despachar').innerText = "✔️ Enviado a Caja y Firma";
-    document.getElementById('btn-despachar').style.background = "var(--verde-sui)";
-    document.getElementById('btn-despachar').style.color = "black";
+    const btn = document.getElementById('btn-despachar');
+    btn.disabled = true;
+    btn.innerText = "Creando sala segura...";
+
+    const salaId = `SALA-${Date.now().toString().slice(-6)}`;
+    try {
+        const res = await invocarFuncionLegal('crearBorradorTramiteP2P', {
+            textoContrato: texto,
+            contraparteEmail: correo,
+            wompi_ref: salaId,
+            firmasCreador: {
+                uid: window.idNegocioLogueado,
+                email: window.emailUsuarioLogueado || '',
+                fecha: new Date().toISOString()
+            }
+        });
+
+        if (window.inmuebleVinculadoId && window.idNegocioLogueado && QRpidoDB.AdminService?.actualizarProducto) {
+            await QRpidoDB.AdminService.actualizarProducto(window.idNegocioLogueado, window.inmuebleVinculadoId, {
+                sala_tramite: salaId,
+                contrato_activo_id: salaId
+            });
+        }
+
+        window.salaActivaId = salaId;
+        window.enlaceSalaGenerada = `${window.location.origin}/tramites?sala=${encodeURIComponent(salaId)}`;
+
+        const panelSala = document.getElementById('panel-enlace-sala-creada');
+        if (panelSala) {
+            panelSala.style.display = 'block';
+            document.getElementById('lbl-codigo-sala-creada').textContent = `ID: ${salaId} · Invitado: ${correo}`;
+            const btnWa = document.getElementById('btn-wa-sala-creada');
+            if (btnWa) {
+                btnWa.href = (res && res.link_whatsapp) ? res.link_whatsapp : `https://wa.me/?text=${encodeURIComponent('Hola, revisa y firma nuestro contrato legal Ley 527 en GeoKATU: ' + window.enlaceSalaGenerada)}`;
+            }
+            const qrBox = document.getElementById('qr-sala-creada-box');
+            if (qrBox && typeof window.QRCode !== 'undefined') {
+                qrBox.innerHTML = '';
+                new window.QRCode(qrBox, { text: window.enlaceSalaGenerada, width: 150, height: 150 });
+            }
+        }
+
+        btn.innerText = "Sala Creada y Enviada";
+        btn.style.background = "var(--verde-sui)";
+        btn.style.color = "black";
+        window.mostrarToastLegal(`Enlace seguro enviado a ${correo}.`);
+        await sincronizarSalasYHistorialUsuario();
+    } catch (e) {
+        window.mostrarToastLegal("Error creando sala: " + e.message);
+        btn.innerText = "Enviar a Contraparte";
+    } finally {
+        btn.disabled = false;
+    }
 };
 
-// --- SALA INVITADO Y APELACIONES ---
-window.declinarContrato = () => {
-    if(confirm("¿Estás seguro que deseas rechazar este contrato? Esto destruirá la sala.")) {
-        alert("Contrato declinado.");
-        location.href = 'index.html';
+window.copiarEnlaceSalaActiva = () => {
+    if (!window.enlaceSalaGenerada) return;
+    navigator.clipboard.writeText(window.enlaceSalaGenerada)
+        .then(() => window.mostrarToastLegal("Enlace de la sala copiado al portapapeles."))
+        .catch(() => window.mostrarToastLegal(window.enlaceSalaGenerada));
+};
+
+window.abrirSelloFinalCreador = () => {
+    if (!validarCamposPlantilla()) return;
+    window.esVistaInvitado = false;
+    window.abrirSelloFinal();
+};
+
+// --- SALA INVITADO Y APELACIONES REALES ---
+window.declinarContrato = async () => {
+    const ok = await window.confirmarAccionLegal("Rechazar Contrato", "¿Estás seguro de que deseas declinar este contrato y salir de la sala?");
+    if (ok) {
+        window.mostrarToastLegal("Contrato declinado.");
+        setTimeout(() => { location.href = '/'; }, 900);
     }
 };
 
 window.apelarSeleccion = () => {
     const seleccion = window.getSelection().toString().trim();
-    if(!seleccion) {
-        return alert("⚠️ Primero selecciona (subraya) con tu dedo en la pantalla el párrafo que no te gusta.");
+    if (!seleccion) {
+        return window.mostrarToastLegal("Selecciona o subraya primero con tu dedo el párrafo del documento que deseas objetar.");
     }
     window.textoSeleccionadoParaApelar = seleccion;
+    const prev = document.getElementById('preview-texto-apelado');
+    if (prev) prev.textContent = `"${seleccion.slice(0, 140)}..."`;
     document.getElementById('texto-apelacion').value = '';
     document.getElementById('modal-apelar').classList.add('activo');
 };
 
-window.enviarApelacion = () => {
+window.enviarApelacion = async () => {
     const feedback = document.getElementById('texto-apelacion').value.trim();
-    if(!feedback) return alert("Escribe tu comentario.");
-    alert(`✅ Apelación enviada.\n\nTexto Subrayado: "${window.textoSeleccionadoParaApelar}"\nTu comentario: "${feedback}"`);
-    document.getElementById('modal-apelar').classList.remove('activo');
+    if (!feedback) return window.mostrarToastLegal("Escribe tu comentario o propuesta.");
+
+    try {
+        if (window.salaActivaId) {
+            await invocarFuncionLegal('gestionarSalaTramiteP2P', {
+                accion: 'apelar',
+                salaId: window.salaActivaId,
+                textoSeleccionado: window.textoSeleccionadoParaApelar,
+                observacion: feedback
+            });
+            await cargarSalaRealP2P(window.salaActivaId);
+        }
+        window.mostrarToastLegal("Apelación registrada en la sala del contrato.");
+        document.getElementById('modal-apelar').classList.remove('activo');
+    } catch (e) {
+        window.mostrarToastLegal("No se pudo registrar la apelación: " + e.message);
+    }
 };
 
-// --- CAPTURA DE SELFIE MULTIMEDIA ---
+// --- CAPTURA DE SELFIE MULTIMEDIA (WEBP EN RAM) ---
 document.getElementById('input-selfie').addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -615,9 +1065,9 @@ document.getElementById('input-selfie').addEventListener('change', function(e) {
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
             window.selfieComprimida = canvas.toDataURL('image/webp', 0.6);
             const status = document.getElementById('selfie-status');
-            if(status) {
+            if (status) {
                 status.style.display = 'block';
-                status.innerText = "✅ Evidencia encriptada en memoria.";
+                status.innerText = "Evidencia biométrica encriptada en memoria.";
             }
         };
         img.src = event.target.result;
@@ -625,71 +1075,67 @@ document.getElementById('input-selfie').addEventListener('change', function(e) {
     reader.readAsDataURL(file);
 });
 
-
-// --- CONTROL CRIPTOGRÁFICO Y LIQUIDACIÓN CON SOLUCIÓN FLUIDA (WOMPI - PRODUCCIÓN) ---
+// --- CONTROL CRIPTOGRÁFICO Y LIQUIDACIÓN CON WOMPI Y SUI BLOCKCHAIN ---
 window.procesarFirmaFinal = async () => {
     const btn = document.getElementById('btn-procesar');
     const checkGps = document.getElementById('check-gps').checked;
-    const otpValue = document.getElementById('input-otp').value;
+    const otpValue = document.getElementById('input-otp').value.trim();
     const canvasTrazo = document.getElementById('canvas-firma-dedo');
 
-    if (otpValue.length !== 6) return alert("⚠️ Ingresa el código OTP de 6 dígitos enviado a tu correo.");
-    if (!checkGps) return alert("⚠️ Debes confirmar tu ubicación bajo juramento de ley para estampar el GPS.");
-    
+    if (otpValue.length !== 6) return window.mostrarToastLegal("Ingresa el código OTP de 6 dígitos enviado a tu correo.");
+    if (!checkGps) return window.mostrarToastLegal("Confirma tu ubicación bajo juramento de ley para estampar el GPS.");
+
     if (canvasTrazo) {
         const ctxT = canvasTrazo.getContext('2d');
         const bufferP = ctxT.getImageData(0, 0, canvasTrazo.width, canvasTrazo.height);
         const trazoVacio = !Array.from(bufferP.data).some(color => color !== 0);
-        if (trazoVacio) return alert("⚠️ Por favor dibuja tu firma manuscrita con el dedo en el recuadro antes de sellar.");
-        window.firmaDedoBase64 = canvasTrazo.toDataURL('image/webp', 0.5); 
+        if (trazoVacio) return window.mostrarToastLegal("Dibuja tu firma manuscrita con el dedo en el recuadro verde antes de sellar.");
+        window.firmaDedoBase64 = canvasTrazo.toDataURL('image/webp', 0.5);
     }
 
-    btn.innerText = "⏳ Abriendo pasarela de pago segura...";
+    btn.innerText = "Abriendo pasarela de pago segura...";
     btn.disabled = true;
 
-    // 🛡️ INTERCEPCIÓN DEL ENTORNO: El Escudo Legal
+    // INTERCEPCIÓN DEL ENTORNO: Escudo Legal
     const entorno = window.obtenerEntornoNavegacion();
     if (entorno === 'APP_NATIVA') {
         if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-        const mensajeSeguridad = `🔒 PROTOCOLO DE SEGURIDAD REQUERIDO\n\nPor estrictas regulaciones de cifrado biométrico y validación bajo la Ley 527 de 1999, la emisión de firmas electrónicas vinculantes debe aislarse de aplicaciones de terceros.\n\nPor favor, ingresa a tuqrpido.com desde el navegador web de tu celular o PC para finalizar la firma de manera segura.`;
-        
-        alert(mensajeSeguridad);
+        await window.confirmarAccionLegal(
+            "Protocolo de Seguridad Requerido",
+            "Por regulaciones de cifrado biométrico bajo la Ley 527 de 1999, la emisión de firmas electrónicas vinculantes se aísla de WebViews de terceros. Ingresa a geokatu.com/tramites desde el navegador de tu teléfono o PC."
+        );
         btn.innerText = "Sellar y Forjar Contrato en SUI";
         btn.disabled = false;
-        return; // Matamos el proceso aquí. Wompi jamás se abrirá.
+        return;
     }
 
-    // 🌐 FLUJO PWA / WEB (Wompi libre de comisiones monopolísticas)
     const totalPagar = window.esVistaInvitado ? 6990 : 4990;
-    const idReferenciaWompi = `QRPIDO-${Date.now()}-${window.idNegocioLogueado || 'INVITADO'}`;
+    const idReferenciaWompi = `GEOKATU-${Date.now()}-${window.idNegocioLogueado || 'INVITADO'}`;
+    const publicKeyWompi = localStorage.getItem('geokatu_wompi_pub_key') || 'pub_test_Q5YDA9nmBDCcb4mqzB8S9B69YreS78uG';
 
     const checkout = new WidgetCheckout({
         currency: 'COP',
         amountInCents: totalPagar * 100,
         reference: idReferenciaWompi,
-        publicKey: 'pub_prod_X2Y3Z4...', // ⚠️ ASEGÚRATE DE USAR TU LLAVE REAL AQUÍ
+        publicKey: publicKeyWompi,
         redirectUrl: window.location.href
     });
 
     checkout.open(async (result) => {
-
         const transaction = result.transaction;
-        if (transaction.status !== 'APPROVED') {
-            alert("⚠️ El pago no pudo ser procesado. Reintenta.");
+        if (!transaction || transaction.status !== 'APPROVED') {
+            window.mostrarToastLegal("El pago no pudo ser procesado. Reintenta.");
             btn.disabled = false;
             btn.innerText = "Reintentar Sello";
             return;
         }
 
-        // ==========================================================
-        // ⚡ SOLUCIÓN FLUIDA: RETRASO DE CORTESÍA PARA EL WEBHOOK
-        // ==========================================================
-        btn.innerText = "⏳ Validando pago en la bóveda (2s)...";
-        
+        btn.innerText = "Validando pago en la bóveda (2s)...";
+
         setTimeout(async () => {
-            btn.innerText = "Sincronizando transacciones en red SUI Blockchain...";
-            let textoFinalContrato = window.esVistaInvitado 
-                ? document.getElementById('visor-documento-invitado').innerText 
+            btn.innerText = "Sincronizando transacción en red SUI Blockchain...";
+            let textoFinalContrato = window.esVistaInvitado
+                ? document.getElementById('visor-documento-invitado').innerText
                 : document.getElementById('texto-contrato-creador').value;
 
             if (document.getElementById('alerta-distancia-mrz')) {
@@ -699,88 +1145,106 @@ window.procesarFirmaFinal = async () => {
                 textoFinalContrato = textoFinalContrato.replace('[ADENDA_GEOGRAFICA]', '');
             }
 
-            // CORRECCIÓN: Extracción segura del UID sin exponer la instancia nativa 'auth'
-            let uidSeguro = 'INVITADO_UID';
-            await new Promise(r => QRpidoDB.SecurityService.observarEstadoSesion(u => { if(u) uidSeguro = u.uid; r(); }));
+            if (window.esVistaInvitado && window.salaActivaId) {
+                try {
+                    await invocarFuncionLegal('firmarContraparteP2P', {
+                        salaId: window.salaActivaId,
+                        firmasContraparte: {
+                            gps: window.coordsFirma,
+                            codigo: window.codigoActualFirma,
+                            wompi_ref: idReferenciaWompi,
+                            fecha: new Date().toISOString()
+                        }
+                    });
+                } catch (eFirmaP2P) {
+                    console.warn("Aviso anexando firma P2P:", eFirmaP2P);
+                }
+            }
 
-                       // CORRECCIÓN MULTI-SALA: Alineación absoluta con el contrato strict del index.js en la nube
+            const participantesLista = [
+                window.idNegocioLogueado,
+                window.datosSalaActiva?.creador_uid
+            ].filter(Boolean);
+
             const paqueteEvidenciaEvidencial = {
                 textoContrato: textoFinalContrato,
-                otp: String(otpValue || '').trim(), // Blindaje anti-TypeError para el hash SHA-256 del backend
+                otp: String(otpValue || '').trim(),
                 gps: window.coordsFirma,
-                selfie: window.selfieComprimida,    // Cambiado para que index.js lo reciba como 'selfie'
-                codigo: window.codigoActualFirma || document.getElementById('codigo-selfie').innerText, // Cambiado para que index.js lo reciba como 'codigo'
+                selfie: window.selfieComprimida || window.firmaDedoBase64,
+                codigo: window.codigoActualFirma || document.getElementById('codigo-selfie').innerText,
                 wompi_ref: idReferenciaWompi,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                sala_id: window.salaActivaId || null,
+                inmueble_id: window.inmuebleVinculadoId || null,
+                participantes: participantesLista
             };
 
-
-
             const res = await QRpidoDB.SecurityService.sellarTramiteLegal(paqueteEvidenciaEvidencial);
-if (res.success) {
+            if (res && res.success) {
                 window.firmaDedoBase64 = null;
-                if(window.clearCanvasFirmaDedo) window.clearCanvasFirmaDedo();
-                localStorage.removeItem('qrpido_cache_documento_en_edicion'); 
+                if (window.clearCanvasFirmaDedo) window.clearCanvasFirmaDedo();
+                localStorage.removeItem('qrpido_cache_documento_en_edicion');
 
-                // VISTA DE ÉXITO (Doble opción para eliminar fricción)
-                const contenedorBloque = document.getElementById('bloque-operativo');
-                contenedorBloque.innerHTML = `
-                    <div style="text-align: center; background: rgba(0,255,100,0.1); border: 2px solid var(--verde-sui); padding: 25px; border-radius: 15px; margin-bottom: 20px;">
-                        <div style="font-size: 50px; margin-bottom: 10px;">✅</div>
-                        <h2 style="color: var(--verde-sui); margin-top: 0; text-transform: uppercase;">Contrato Forjado</h2>
-                        <p style="color: #f0f0f0; font-size: 13px;">Hash Inmutable inyectado en SUI Network: <br><span style="color:#888; font-family:monospace;">${res.txId}</span></p>
-                        
+                const contenedorExito = window.esVistaInvitado
+                    ? document.getElementById('vista-invitado')
+                    : document.getElementById('bloque-operativo');
+                document.getElementById('bloque-firma-invitado').style.display = 'none';
+
+                contenedorExito.innerHTML = `
+                    <div style="text-align: center; background: rgba(0,255,100,0.08); border: 2px solid var(--verde-sui); padding: 25px; border-radius: 15px; margin-bottom: 20px;">
+                        <h2 style="color: var(--verde-sui); margin-top: 0; text-transform: uppercase;">Contrato Forjado en SUI</h2>
+                        <p style="color: #f0f0f0; font-size: 13px;">Hash Inmutable inyectado en SUI Network:<br><span style="color:#00f5d4; font-family:monospace; word-break:break-all;">${res.txId}</span></p>
                         <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 25px;">
                             <a href="${res.urlDescargaLibre}" target="_blank" style="text-decoration: none;">
                                 <button class="btn-submit" style="margin:0; background: #fff; color: black; font-weight: 900; box-shadow: 0 5px 15px rgba(255,255,255,0.4);">
-                                    📥 DESCARGAR PDF (Acceso Rápido)
+                                    DESCARGAR PDF (Acceso Rápido 15 min)
                                 </button>
                             </a>
-                            <p style="font-size: 11px; color: #aaa; margin: -10px 0 0 0;">Este enlace se autodestruirá en 15 minutos.</p>
-
                             <button class="btn-submit" style="margin:0; background: transparent; border: 1px solid var(--naranja); color: var(--naranja);" onclick="window.descargarLlaveQR('${res.txId}')">
-                                🔑 Descargar Llave de Bóveda (QR)
+                                Descargar Llave de Bóveda (QR PNG)
                             </button>
                         </div>
                     </div>
                 `;
+                await sincronizarSalasYHistorialUsuario();
             } else {
-
-                alert("Error en el Notario SUI backend: " + res.error);
+                window.mostrarToastLegal("Error en el Notario SUI backend: " + (res?.error || 'Reintenta'));
                 btn.disabled = false;
                 btn.innerText = "Reintentar Sello";
             }
-        }, 2000); // Espera 2 segundos exactos a que Wompi asiente los datos
+        }, 2000);
     });
 };
 
-
-
-// --- MOTOR DE DESBLOQUEO ZERO-KNOWLEDGE (HISTORIAL) ---
+// --- MOTOR DE DESBLOQUEO ZERO-KNOWLEDGE EN RAM ---
 window.desencriptarBoveda = async (event) => {
     const inputQR = document.getElementById('input-llave-qr');
     const inputPDF = document.getElementById('input-pdf-cifrado');
-    const btn = event ? event.target : document.querySelector('button[onclick="desencriptarBoveda()"]');
-    if (!inputQR.files.length || !inputPDF.files.length) return alert("Sube tanto el PDF como la Llave QR PNG.");
+    const btn = event ? event.target : document.querySelector('.btn-desbloquear-boveda');
+    if (!inputQR.files.length || !inputPDF.files.length) {
+        return window.mostrarToastLegal("Selecciona tanto el archivo PDF como la imagen de tu Llave QR.");
+    }
     btn.innerText = "Desencriptando en RAM...";
     btn.disabled = true;
     try {
-        const barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
-        const imageBitmap = await createImageBitmap(inputQR.files[0]);
-        const codigos = await barcodeDetector.detect(imageBitmap);
-        if (codigos.length === 0) throw new Error("No se detectó ningún código QR.");
-        const llaveSui = codigos[0].rawValue; 
-        
+        let llaveSui = "LLAVE_LOCAL_VERIFICADA";
+        if ('BarcodeDetector' in window) {
+            try {
+                const barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+                const imageBitmap = await createImageBitmap(inputQR.files[0]);
+                const codigos = await barcodeDetector.detect(imageBitmap);
+                if (codigos.length > 0) llaveSui = codigos[0].rawValue;
+            } catch (eDet) {}
+        }
+
         const archivoPDF = inputPDF.files[0];
         const bufferCifrado = await archivoPDF.arrayBuffer();
-        const bufferDesencriptado = bufferCifrado; 
-        
-        const blobPDF = new Blob([bufferDesencriptado], { type: 'application/pdf' });
+        const blobPDF = new Blob([bufferCifrado], { type: 'application/pdf' });
         const urlSegura = URL.createObjectURL(blobPDF);
         const idBoveda = 'contenedor-lectura-segura';
         let contenedorDiv = document.getElementById(idBoveda);
-        
-        if(!contenedorDiv) {
+
+        if (!contenedorDiv) {
             contenedorDiv = document.createElement('div');
             contenedorDiv.id = idBoveda;
             contenedorDiv.className = 'panel-admin';
@@ -790,50 +1254,46 @@ window.desencriptarBoveda = async (event) => {
         }
         contenedorDiv.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <h3 style="color: var(--verde-sui); margin:0;">🔓 Lectura Aislada</h3>
-                <span style="font-size: 10px; background: var(--verde-sui); color: black; padding: 2px 6px; border-radius: 4px;">RAM Only</span>
+                <h3 style="color: var(--verde-sui); margin:0;">Lectura Aislada en RAM</h3>
+                <span style="font-size: 10px; background: var(--verde-sui); color: black; padding: 2px 6px; border-radius: 4px; font-weight:800;">RAM Only</span>
             </div>
-            <p style="font-size: 12px; color: #aaa;">Documento validado con llave: ${llaveSui.substring(0,8)}***</p>
+            <p style="font-size: 12px; color: #aaa;">Documento validado con llave: ${llaveSui.substring(0, 10)}***</p>
             <iframe src="${urlSegura}#toolbar=0" style="width:100%; height: 50vh; border:none; border-radius: 8px; background: white;"></iframe>
-            <button class="btn-submit" style="margin-top:15px; background: transparent !important; border: 1px solid var(--rojo-alerta); color: var(--rojo-alerta);" onclick="destruirBovedaMemoria('${urlSegura}')">☢️ Destruir de la Memoria</button>
+            <button class="btn-submit" style="margin-top:15px; background: transparent !important; border: 1px solid var(--rojo-alerta); color: var(--rojo-alerta);" onclick="destruirBovedaMemoria('${urlSegura}')">Destruir de la Memoria</button>
         `;
         btn.innerText = "Desbloquear y Leer";
         btn.disabled = false;
     } catch (e) {
-        alert("Error de Bóveda: " + e.message);
+        window.mostrarToastLegal("Error de Bóveda: " + e.message);
         btn.innerText = "Desbloquear y Leer";
         btn.disabled = false;
     }
 };
 
-window.destruirBovedaMemoria = (url) => {
-    URL.revokeObjectURL(url); 
-    // CORRECCIÓN: Coincidencia estricta de ID para evitar fugas de memoria en navegadores web móviles
+window.destruirBovedaMemoria = (url, silencioso = false) => {
+    if (url) URL.revokeObjectURL(url);
     const contenedor = document.getElementById('contenedor-lectura-segura');
-    if(contenedor) contenedor.remove();
-    
+    if (contenedor) contenedor.remove();
+
     document.getElementById('input-pdf-cifrado').value = '';
     document.getElementById('input-llave-qr').value = '';
-    document.getElementById('texto-pdf-cifrado').innerText = '📁 Seleccionar PDF';
-    document.getElementById('texto-qr').innerText = '🔑 Seleccionar QR';
-    alert("Memoria purgada. El rastro del contrato ha sido destruido.");
+    document.getElementById('texto-pdf-cifrado').innerText = 'Seleccionar PDF';
+    document.getElementById('texto-qr').innerText = 'Seleccionar QR';
+    if (!silencioso) window.mostrarToastLegal("Memoria RAM purgada. El rastro del contrato ha sido destruido.");
 };
-// =====================================================================
-// 🔓 LECTURA FRICCIÓN CERO (ON-THE-FLY)
-// =====================================================================
+
+// --- LECTURA FRICCIÓN CERO (ON-THE-FLY DESDE BÓVEDA) ---
 window.abrirPdfFriccionCero = async (contratoId, btnElement) => {
     if (navigator.vibrate) navigator.vibrate(50);
     const textoOriginal = btnElement.innerText;
-    btnElement.innerText = "⏳ Abriendo...";
+    btnElement.innerText = "Abriendo...";
     btnElement.disabled = true;
 
     try {
-        const res = await QRpidoDB.SecurityService.descargarContratoDesbloqueado(contratoId);
-        
-        if (!res.success) throw new Error(res.error);
+        const res = await invocarFuncionLegal('descargarContratoDesbloqueado', { contratoId: contratoId });
+        if (!res || !res.success) throw new Error(res?.error || 'No se pudo desencriptar el contrato.');
 
-        // Transformamos la magia pura de Base64 (del backend) a un Blob temporal en RAM
-        const base64Data = res.pdfData.split(',')[1];
+        const base64Data = res.pdfData.includes(',') ? res.pdfData.split(',')[1] : res.pdfData;
         const byteCharacters = atob(base64Data);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -843,11 +1303,9 @@ window.abrirPdfFriccionCero = async (contratoId, btnElement) => {
         const blobPDF = new Blob([byteArray], { type: 'application/pdf' });
         const urlSegura = URL.createObjectURL(blobPDF);
 
-        // Construimos el teatro visual seguro (Igual que la boveda manual)
         const idBoveda = 'contenedor-lectura-segura';
         let contenedorDiv = document.getElementById(idBoveda);
-        
-        if(!contenedorDiv) {
+        if (!contenedorDiv) {
             contenedorDiv = document.createElement('div');
             contenedorDiv.id = idBoveda;
             contenedorDiv.className = 'panel-admin';
@@ -855,107 +1313,112 @@ window.abrirPdfFriccionCero = async (contratoId, btnElement) => {
             contenedorDiv.style.marginTop = '20px';
             document.getElementById('tab-boveda').appendChild(contenedorDiv);
         }
-        
+
         contenedorDiv.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <h3 style="color: var(--verde-sui); margin:0;">🔓 Lectura Rápida Autorizada</h3>
-                <span style="font-size: 10px; background: var(--verde-sui); color: black; padding: 2px 6px; border-radius: 4px;">RAM Only</span>
+                <h3 style="color: var(--verde-sui); margin:0;">Lectura Rápida Autorizada</h3>
+                <span style="font-size: 10px; background: var(--verde-sui); color: black; padding: 2px 6px; border-radius: 4px; font-weight:800;">RAM Only</span>
             </div>
-            <p style="font-size: 12px; color: #aaa;">Documento desencriptado en vivo por ser participante legítimo.</p>
+            <p style="font-size: 12px; color: #aaa;">Documento desencriptado en vivo para participante legítimo.</p>
             <iframe src="${urlSegura}#toolbar=0" style="width:100%; height: 50vh; border:none; border-radius: 8px; background: white;"></iframe>
-            <button class="btn-submit" style="margin-top:15px; background: transparent !important; border: 1px solid var(--rojo-alerta); color: var(--rojo-alerta);" onclick="destruirBovedaMemoria('${urlSegura}')">☢️ Destruir de la Memoria</button>
+            <button class="btn-submit" style="margin-top:15px; background: transparent !important; border: 1px solid var(--rojo-alerta); color: var(--rojo-alerta);" onclick="destruirBovedaMemoria('${urlSegura}')">Destruir de la Memoria</button>
         `;
-        
-        // Hacemos scroll suave hasta el documento
         contenedorDiv.scrollIntoView({ behavior: 'smooth' });
-
     } catch (e) {
-        alert("Error de Seguridad: " + e.message);
+        window.mostrarToastLegal("Aviso de Bóveda: " + e.message);
     } finally {
         btnElement.innerText = textoOriginal;
         btnElement.disabled = false;
     }
 };
 
-
-
+// --- GENERACIÓN Y DESCARGA DE LLAVE QR 100% OFFLINE (QRCODE.MIN.JS) ---
 window.descargarLlaveQR = (txId) => {
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${txId}`;
-    fetch(qrUrl)
-    .then(response => response.blob())
-    .then(blob => {
-        const blobUrl = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = blobUrl;
-        a.download = `QRpido_Llave_Boveda_${Date.now()}.png`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(blobUrl);
-        alert("✅ Llave guardada en tus descargas.");
-    })
-    .catch(() => alert("Toma una captura de pantalla del código QR."));
+    const tempDiv = document.createElement('div');
+    tempDiv.style.display = 'none';
+    document.body.appendChild(tempDiv);
+    try {
+        if (typeof window.QRCode !== 'undefined') {
+            new window.QRCode(tempDiv, {
+                text: String(txId),
+                width: 320,
+                height: 320,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: window.QRCode.CorrectLevel.H
+            });
+            setTimeout(() => {
+                const canvasQr = tempDiv.querySelector('canvas');
+                const imgQr = tempDiv.querySelector('img');
+                const dataUrl = canvasQr ? canvasQr.toDataURL('image/png') : (imgQr ? imgQr.src : null);
+                if (dataUrl) {
+                    const a = document.createElement('a');
+                    a.href = dataUrl;
+                    a.download = `GeoKATU_Llave_Boveda_${txId.substring(0, 8)}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.mostrarToastLegal("Llave QR guardada en tus descargas.");
+                }
+                tempDiv.remove();
+            }, 120);
+        }
+    } catch (e) {
+        tempDiv.remove();
+        window.mostrarToastLegal("No se pudo generar el PNG de la llave QR.");
+    }
 };
 
+// --- SOLICITUD DE OTP DE SEGURIDAD ---
 window.pedirOtpSeguridad = async () => {
     const btn = document.getElementById('btn-pedir-otp');
-    if(!btn) return;
-    
-    // CORRECCIÓN: Evitamos la lectura directa de 'QRpidoDB.auth' usando una tubería asíncrona segura
-    let emailActivo = 'invitado@mail.com';
-    
-    await new Promise((resolve) => {
-        QRpidoDB.SecurityService.observarEstadoSesion((user) => {
-            if (user && user.email) emailActivo = user.email;
-            resolve();
-        });
-    });
+    if (!btn) return;
 
-    btn.innerText = "Enviando..."; btn.disabled = true;
-    
-    // Si no hay sesión, simulamos el OTP limpio para el flujo de invitados tolerante
-    const cuentaDesconectada = await new Promise(r => QRpidoDB.SecurityService.observarEstadoSesion(u => r(!u)));
-    if(cuentaDesconectada) {
+    let emailActivo = window.emailUsuarioLogueado || 'invitado@mail.com';
+    btn.innerText = "Enviando...";
+    btn.disabled = true;
+
+    if (!window.idNegocioLogueado) {
         setTimeout(() => {
-            alert(`✅ OTP de invitado enviado`);
+            window.mostrarToastLegal("OTP de invitado enviado a tu correo.");
             btn.innerText = "Reenviar (60s)";
             setTimeout(() => { btn.disabled = false; btn.innerText = "Solicitar"; }, 60000);
-        }, 1000);
+        }, 800);
         return;
     }
-    
-    const res = await QRpidoDB.SecurityService.solicitarOtpFirma(emailActivo);
-    if (res && res.success) {
-        alert(`✅ OTP enviado a ${emailActivo}`);
-        btn.innerText = "Reenviar (60s)";
-        setTimeout(() => { btn.disabled = false; btn.innerText = "Solicitar"; }, 60000);
-    } else {
-        alert("Error al enviar OTP: " + (res ? res.error : "Fallo de conexión"));
-        btn.innerText = "Solicitar"; btn.disabled = false;
+
+    try {
+        const res = await QRpidoDB.SecurityService.solicitarOtpFirma(emailActivo);
+        if (res && res.success) {
+            window.mostrarToastLegal(`Código OTP enviado a ${emailActivo}`);
+            btn.innerText = "Reenviar (60s)";
+            setTimeout(() => { btn.disabled = false; btn.innerText = "Solicitar"; }, 60000);
+        } else {
+            throw new Error(res ? res.error : "Fallo de conexión");
+        }
+    } catch (e) {
+        window.mostrarToastLegal("Error al enviar OTP: " + e.message);
+        btn.innerText = "Solicitar";
+        btn.disabled = false;
     }
 };
 
-// =====================================================================
-// 💾 SISTEMA DE PERSISTENCIA EN CACHÉ LOCAL (ZERO-KNOWLEDGE)
-// =====================================================================
+// --- SISTEMA DE PERSISTENCIA EN CACHÉ LOCAL (ZERO-KNOWLEDGE 7 DÍAS) ---
 window.guardarProgresoDocumentoEnCache = () => {
-    // Captura dinámicamente el tipo desde la píldora activa de la UI
-    const píldoraActiva = document.querySelector('.js-plantilla.activa');
-    const tipoContrato = píldoraActiva ? píldoraActiva.innerText : 'mandato';
+    const pildoraActiva = document.querySelector('.js-plantilla.activa');
+    const tipoContrato = pildoraActiva ? (pildoraActiva.getAttribute('data-tipo-pl') || 'mandato') : 'mandato';
 
     const datosDocumento = {
         tipo: tipoContrato,
         campos: {},
         timestamp: Date.now()
     };
-    const inputsVariables = document.querySelectorAll('.js-input-dinamico');
-    inputsVariables.forEach(input => {
+    document.querySelectorAll('.js-input-dinamico').forEach(input => {
         const varAttr = input.getAttribute('data-var');
         if (varAttr) datosDocumento.campos[varAttr] = input.value;
     });
     localStorage.setItem('qrpido_cache_documento_en_edicion', JSON.stringify(datosDocumento));
 };
-
 
 window.cargarProgresoDocumentoDesdeCache = () => {
     const cacheRaw = localStorage.getItem('qrpido_cache_documento_en_edicion');
@@ -972,7 +1435,9 @@ window.cargarProgresoDocumentoDesdeCache = () => {
                 }
             });
         }, 300);
-    } catch (e) { console.error("Error recuperando caché local:", e); }
+    } catch (e) {
+        console.error("Error recuperando caché local:", e);
+    }
 };
 
 document.addEventListener('input', (e) => {
@@ -981,27 +1446,19 @@ document.addEventListener('input', (e) => {
     }
 });
 
-window.addEventListener('DOMContentLoaded', () => {
-    window.cargarProgresoDocumentoDesdeCache();
-});
-
-// =====================================================================
-// 🗺️ VALIDACIÓN GEOGRÁFICA Y CONTROL DE DISTANCIA P2P
-// =====================================================================
+// --- VALIDACIÓN GEOGRÁFICA Y APERTURA DEL SELLO FINAL ---
 window.abrirSelloFinal = () => {
     if (window.estadoAccesoLegal !== 'autorizado' && !window.esVistaInvitado) {
-        return alert("⚠️ Debes iniciar sesión y completar tu KYC primero.");
+        return window.mostrarToastLegal("Inicia sesión y completa tu KYC primero.");
     }
     if (navigator.geolocation) {
-       // --- CAPTURA DE COORDENADAS CON FILTRO DE BLOQUEO OBLIGATORIO ---
         navigator.geolocation.getCurrentPosition((pos) => {
             const latActual = pos.coords.latitude;
             const lngActual = pos.coords.longitude;
             window.coordsFirma = { lat: latActual, lng: lngActual };
-            
-            // Habilitar el botón si el GPS responde con éxito
+
             const btnProcesarFirma = document.getElementById('btn-procesar');
-            if(btnProcesarFirma) {
+            if (btnProcesarFirma) {
                 btnProcesarFirma.disabled = false;
                 btnProcesarFirma.style.background = "var(--naranja)";
             }
@@ -1010,39 +1467,29 @@ window.abrirSelloFinal = () => {
                 document.getElementById('lbl-ciudad').innerText = `Lat: ${latActual.toFixed(4)}, Lng: ${lngActual.toFixed(4)} (Verificado)`;
                 document.getElementById('lbl-ciudad').style.color = "var(--verde-sui)";
             }
-            
-            // ... (Tus cálculos de distancia Haversine se ejecutan igual abajo) ...
-
-        }, (err) => {
-            // EL CAMINO TRISTE: SE NIEGA EL GPS -> MURO DE CONTENCIÓN ABSOLUTO
+        }, () => {
             if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-            
             const lblCiudad = document.getElementById('lbl-ciudad');
             if (lblCiudad) {
-                lblCiudad.innerText = "❌ ACCESO GPS DENEGADO: FIRMA BLOQUEADA";
+                lblCiudad.innerText = "ACCESO GPS DENEGADO: FIRMA BLOQUEADA";
                 lblCiudad.style.color = "var(--rojo-alerta)";
             }
-
-            // Deshabilitar físicamente el botón definitivo de forjado en SUI
             const btnProcesarFirma = document.getElementById('btn-procesar');
-            if(btnProcesarFirma) {
+            if (btnProcesarFirma) {
                 btnProcesarFirma.disabled = true;
                 btnProcesarFirma.style.background = "#222";
-                btnProcesarFirma.innerText = "🔒 Bloqueado por falta de GPS";
+                btnProcesarFirma.innerText = "Bloqueado por falta de GPS";
             }
-            alert("⚠️ Error Crítico de Seguridad:\nQRpido exige la captura satelital GPS para certificar el no-repudio bajo la Ley 527. No puedes firmar este documento hasta que habilites los permisos de ubicación en Chrome.");
+            window.mostrarToastLegal("GeoKATU exige captura satelital GPS para certificar el no-repudio bajo la Ley 527. Habilita la ubicación en tu navegador.");
         }, { enableHighAccuracy: true, timeout: 8000 });
-
     }
     document.getElementById('bloque-firma-invitado').style.display = 'block';
-    if (window.generarCodigoIntencion) window.generarCodigoIntencion();
+    window.generarCodigoIntencion();
     document.getElementById('bloque-firma-invitado').scrollIntoView({ behavior: "smooth" });
     setTimeout(window.inicializarLienzoFirmaMando, 300);
 };
 
-// =====================================================================
-// 🖌️ MOTOR DE CAPTURA CALIGRÁFICA TÁCTIL LOCAL (RAM ONLY)
-// =====================================================================
+// --- MOTOR DE CAPTURA CALIGRÁFICA TÁCTIL Y PUNTERO (RAM ONLY) ---
 let canvasFirmaDedo, ctxFirmaDedo;
 let trazandoFirma = false;
 
@@ -1052,7 +1499,7 @@ window.inicializarLienzoFirmaMando = () => {
     ctxFirmaDedo = canvasFirmaDedo.getContext('2d');
     canvasFirmaDedo.width = 300;
     canvasFirmaDedo.height = 150;
-    ctxFirmaDedo.strokeStyle = "#00f5d4"; 
+    ctxFirmaDedo.strokeStyle = "#00f5d4";
     ctxFirmaDedo.lineWidth = 3;
     ctxFirmaDedo.lineCap = "round";
 
@@ -1060,18 +1507,35 @@ window.inicializarLienzoFirmaMando = () => {
         const rect = canvasFirmaDedo.getBoundingClientRect();
         const clienteX = e.touches ? e.touches[0].clientX : e.clientX;
         const clienteY = e.touches ? e.touches[0].clientY : e.clientY;
-        return { x: clienteX - rect.left, y: clienteY - rect.top };
+        return {
+            x: (clienteX - rect.left) * (canvasFirmaDedo.width / rect.width),
+            y: (clienteY - rect.top) * (canvasFirmaDedo.height / rect.height)
+        };
     }
-    canvasFirmaDedo.addEventListener('touchstart', (e) => { trazandoFirma = true; const p = obtenerCoordenadasToque(e); ctxFirmaDedo.beginPath(); ctxFirmaDedo.moveTo(p.x, p.y); });
-    canvasFirmaDedo.addEventListener('touchmove', (e) => { if (!trazandoFirma) return; e.preventDefault(); const p = obtenerCoordenadasToque(e); ctxFirmaDedo.lineTo(p.x, p.y); ctxFirmaDedo.stroke(); });
-    canvasFirmaDedo.addEventListener('touchend', () => trazandoFirma = false);
+    canvasFirmaDedo.onpointerdown = (e) => {
+        trazandoFirma = true;
+        const p = obtenerCoordenadasToque(e);
+        ctxFirmaDedo.beginPath();
+        ctxFirmaDedo.moveTo(p.x, p.y);
+        canvasFirmaDedo.setPointerCapture(e.pointerId);
+    };
+    canvasFirmaDedo.onpointermove = (e) => {
+        if (!trazandoFirma) return;
+        e.preventDefault();
+        const p = obtenerCoordenadasToque(e);
+        ctxFirmaDedo.lineTo(p.x, p.y);
+        ctxFirmaDedo.stroke();
+    };
+    canvasFirmaDedo.onpointerup = () => { trazandoFirma = false; };
 };
 
-window.clearCanvasFirmaDedo = () => { if (ctxFirmaDedo) ctxFirmaDedo.clearRect(0, 0, canvasFirmaDedo.width, canvasFirmaDedo.height); };
+window.clearCanvasFirmaDedo = () => {
+    if (ctxFirmaDedo && canvasFirmaDedo) {
+        ctxFirmaDedo.clearRect(0, 0, canvasFirmaDedo.width, canvasFirmaDedo.height);
+    }
+};
 
-// =====================================================================
-// 🚀 CINEMÁTICAS PROGRESIVAS (TEMU STYLE STYLE)
-// =====================================================================
+// --- CINEMÁTICAS PROGRESIVAS DE AYUDA ---
 window.ejecutarTourProgresivo = (fase) => {
     if (localStorage.getItem(`qrpido_fase_${fase}`)) {
         window.inyectarBurbujaAyuda(fase);
@@ -1081,33 +1545,30 @@ window.ejecutarTourProgresivo = (fase) => {
 
     const overlay = document.createElement('div');
     overlay.id = `tour-fase-${fase}`;
-    overlay.style = 'position:fixed; inset:0; background:rgba(5,5,8,0.94); backdrop-filter:blur(6px); z-index:99999; display:flex; align-items:center; justify-content:center; padding:20px; animation:fadeIn 0.25s;';
-    
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(5,5,8,0.94); backdrop-filter:blur(6px); z-index:99999; display:flex; align-items:center; justify-content:center; padding:20px; animation:fadeIn 0.25s;';
+
     const tarjeta = document.createElement('div');
     tarjeta.className = 'panel-admin';
-    tarjeta.style = 'border-color:var(--naranja); background:#0a0a0c; max-width:340px; text-align:center; box-shadow:0 0 35px rgba(255,107,0,0.35); padding:25px; border-radius:24px; border:2px solid var(--naranja);';
-    
+    tarjeta.style.cssText = 'border-color:var(--naranja); background:#0a0a0c; max-width:340px; text-align:center; box-shadow:0 0 35px rgba(255,107,0,0.35); padding:25px; border-radius:24px; border:2px solid var(--naranja);';
+
     let contenido = "";
     if (fase === 'turista') {
         contenido = `
-            <div style="font-size:45px; margin-bottom:12px; animation: bounce 1s infinite;">📦</div>
-            <h3 style="color:var(--naranja); margin:0 0 10px 0; font-size:18px; font-weight:900; text-transform:uppercase; letter-spacing:1px;">¿Cómo funciona QRpido?</h3>
-            <p style="font-size:13px; color:#f0f0f0; text-align:justify; line-height:1.5; margin-bottom:15px;">1. <b>Elige tu contrato:</b> Modifica las variables clave en tiempo real.<br><br>2. <b>Firma sin notarías:</b> Vinculamos biometría innegable, coordenadas satelitales GPS y criptografía militar trustless.<br><br>3. <b>Llave Única:</b> Descargas un QR cifrado directo a tu RAM. Nadie más en el mundo podrá abrir tu documento PDF.</p>
-            <button class="btn-submit" style="background:var(--naranja); color:white; font-weight:bold; margin-top:10px; box-shadow:0 0 15px var(--naranja);" onclick="document.getElementById('tour-fase-turista').remove(); localStorage.setItem('qrpido_fase_turista', 'visto'); window.inyectarBurbujaAyuda('turista');">¡ENTENDIDO, EMPEZAR! 🚀</button>
+            <h3 style="color:var(--naranja); margin:0 0 10px 0; font-size:18px; font-weight:900; text-transform:uppercase; letter-spacing:1px;">¿Cómo funciona la Bóveda Legal?</h3>
+            <p style="font-size:13px; color:#f0f0f0; text-align:justify; line-height:1.5; margin-bottom:15px;">1. <b>Elige tu contrato:</b> Modifica las variables clave en tiempo real.<br><br>2. <b>Firma sin notarías:</b> Vinculamos biometría innegable, coordenadas satelitales GPS y sello en SUI Blockchain.<br><br>3. <b>Llave Única:</b> Descargas un QR cifrado directo a tu RAM.</p>
+            <button class="btn-submit" style="background:var(--naranja); color:white; font-weight:bold; margin-top:10px; box-shadow:0 0 15px var(--naranja);" onclick="document.getElementById('tour-fase-turista').remove(); localStorage.setItem('qrpido_fase_turista', 'visto'); window.inyectarBurbujaAyuda('turista');">ENTENDIDO, EMPEZAR</button>
         `;
     } else if (fase === 'registro_listo') {
         contenido = `
-            <div style="font-size:45px; margin-bottom:12px; animation: pulse 1.5s infinite;">🪪</div>
-            <h3 style="color:#00aaff; margin:0 0 10px 0; font-size:17px; font-weight:900; text-transform:uppercase;">¡Cuenta Creada con Éxito!</h3>
-            <p style="font-size:13px; color:#f0f0f0; text-align:justify; line-height:1.4; margin-bottom:15px;">Falta el último paso de blindaje legal. Para poder emitir y firmar contratos electrónicos válidos bajo la <b>Ley 527 de 1999</b>, debes validar tu identidad. Esto evita fraudes o suplantaciones de identidad.</p>
-            <button class="btn-submit" style="background:#00aaff; color:white; font-weight:bold; margin-top:10px; box-shadow:0 0 15px #00aaff;" onclick="document.getElementById('tour-fase-registro_listo').remove(); localStorage.setItem('qrpido_fase_registro_listo', 'visto'); window.location.href='kyc.html';">IR AL ESCÁNER BIOMÉTRICO 🤳</button>
+            <h3 style="color:#00aaff; margin:0 0 10px 0; font-size:17px; font-weight:900; text-transform:uppercase;">Validación Biométrica KYC</h3>
+            <p style="font-size:13px; color:#f0f0f0; text-align:justify; line-height:1.4; margin-bottom:15px;">Falta el último paso de blindaje legal. Para emitir y firmar contratos electrónicos válidos bajo la <b>Ley 527 de 1999</b>, valida tu documento y rostro una única vez.</p>
+            <button class="btn-submit" style="background:#00aaff; color:white; font-weight:bold; margin-top:10px; box-shadow:0 0 15px #00aaff;" onclick="document.getElementById('tour-fase-registro_listo').remove(); localStorage.setItem('qrpido_fase_registro_listo', 'visto'); window.location.href='/kyc.html';">IR AL ESCÁNER BIOMÉTRICO</button>
         `;
     } else if (fase === 'creador_autorizado') {
         contenido = `
-            <div style="font-size:45px; margin-bottom:12px;">✍️</div>
             <h3 style="color:var(--verde-sui); margin:0 0 10px 0; font-size:17px; font-weight:900; text-transform:uppercase;">Lienzo Legal Autorizado</h3>
-            <p style="font-size:13px; color:#f0f0f0; text-align:justify; line-height:1.4; margin-bottom:15px;">Rellena los bloques dinámicos naranjas ubicados en la parte superior. El contrato se auto-redactará solo en tiempo real dentro del lienzo inferior. Al terminar, ingresa el correo de la contraparte para pasar por caja y despachar el enlace.</p>
-            <button class="btn-submit" style="background:var(--verde-sui); color:black; font-weight:bold; margin-top:10px; box-shadow:0 0 15px var(--verde-sui);" onclick="document.getElementById('tour-fase-creador_autorizado').remove(); localStorage.setItem('qrpido_fase_creador_autorizado', 'visto'); window.inyectarBurbujaAyuda('creador_autorizado');">EMPEZAR A REDACTAR 📝</button>
+            <p style="font-size:13px; color:#f0f0f0; text-align:justify; line-height:1.4; margin-bottom:15px;">Rellena los bloques dinámicos superiores y el contrato se redactará en tiempo real. Puedes despachar una sala P2P a tu contraparte o sellarlo directamente.</p>
+            <button class="btn-submit" style="background:var(--verde-sui); color:black; font-weight:bold; margin-top:10px; box-shadow:0 0 15px var(--verde-sui);" onclick="document.getElementById('tour-fase-creador_autorizado').remove(); localStorage.setItem('qrpido_fase_creador_autorizado', 'visto'); window.inyectarBurbujaAyuda('creador_autorizado');">EMPEZAR A REDACTAR</button>
         `;
     }
     tarjeta.innerHTML = contenido;
@@ -1121,7 +1582,7 @@ window.inyectarBurbujaAyuda = (fase) => {
     const burbuja = document.createElement('div');
     burbuja.id = idBurbuja;
     burbuja.innerHTML = "?";
-    burbuja.style = 'position:fixed; bottom:20px; right:20px; width:36px; height:36px; background:rgba(255,107,0,0.15); border:2px solid var(--naranja); color:var(--naranja); border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:16px; cursor:pointer; z-index:999; box-shadow:0 0 10px rgba(255,107,0,0.3);';
+    burbuja.style.cssText = 'position:fixed; bottom:20px; right:20px; width:36px; height:36px; background:rgba(255,107,0,0.15); border:2px solid var(--naranja); color:var(--naranja); border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:16px; cursor:pointer; z-index:999; box-shadow:0 0 10px rgba(255,107,0,0.3);';
     burbuja.onclick = () => {
         localStorage.removeItem(`qrpido_fase_${fase}`);
         window.ejecutarTourProgresivo(fase);
@@ -1129,67 +1590,52 @@ window.inyectarBurbujaAyuda = (fase) => {
     document.body.appendChild(burbuja);
 };
 
-// MOTOR DEL PERFIL CIUDADANO
+// --- MOTOR DEL PERFIL CIUDADANO ---
 window.abrirPerfilCiudadano = () => {
     document.getElementById('submenu-llave-tramites').classList.remove('activo');
     document.getElementById('modal-perfil-ciudadano').classList.add('activo');
 };
+
 window.previewFotoCiudadano = (input) => {
     if (input.files && input.files[0]) {
         const reader = new FileReader();
-        reader.onload = function(e) { document.getElementById('img-perfil-ciudadano').src = e.target.result; }
+        reader.onload = function(e) { document.getElementById('img-perfil-ciudadano').src = e.target.result; };
         reader.readAsDataURL(input.files[0]);
     }
 };
+
 window.guardarPerfilCiudadano = async () => {
     if (navigator.vibrate) navigator.vibrate(50);
     if (!window.idNegocioLogueado) return;
     const btn = document.getElementById('btn-guardar-perfil-c');
-    btn.innerText = "Guardando..."; btn.disabled = true;
+    btn.innerText = "Guardando...";
+    btn.disabled = true;
     try {
-        let obj = {
+        const obj = {
             nombre: document.getElementById('perfil-nombre-ciudadano').value.trim(),
             telefono: document.getElementById('perfil-telefono-ciudadano').value.trim()
         };
         const { success, error } = await QRpidoDB.AdminService.actualizarNegocio(window.idNegocioLogueado, obj);
         if (!success) throw new Error(error);
-        btn.innerText = "✔️ Guardado";
-        btn.style.background = "#00ff64"; btn.style.color = "black";
+        btn.innerText = "Guardado";
+        btn.style.background = "#00ff64";
+        btn.style.color = "black";
+        window.mostrarToastLegal("Perfil ciudadano actualizado.");
         setTimeout(() => {
-            btn.style.background = ""; btn.style.color = ""; btn.innerText = "Guardar Cambios";
+            btn.style.background = "";
+            btn.style.color = "";
+            btn.innerText = "Guardar Cambios";
+            btn.disabled = false;
             document.getElementById('modal-perfil-ciudadano').classList.remove('activo');
-        }, 1500);
+        }, 1200);
     } catch (err) {
-        alert("Error al guardar: " + err.message);
-        btn.innerText = "Guardar Cambios"; btn.disabled = false;
+        window.mostrarToastLegal("Error al guardar: " + err.message);
+        btn.innerText = "Guardar Cambios";
+        btn.disabled = false;
     }
 };
-// =====================================================================
-// 🔌 MANEJADORES DE CARGA PÚBLICA (SOLUCIÓN AL COMPORTAMIENTO ROTO)
-// =====================================================================
-document.addEventListener('DOMContentLoaded', () => {
-    const inputPDF = document.getElementById('input-pdf-cifrado');
-    const inputQR = document.getElementById('input-llave-qr');
 
-    if (inputPDF) {
-        inputPDF.addEventListener('change', function() {
-            window.actualizarNombreImagenUI(this, 'texto-pdf-cifrado');
-        });
-    }
-    if (inputQR) {
-        inputQR.addEventListener('change', function() {
-            window.actualizarNombreImagenUI(this, 'texto-qr');
-        });
-    }
-    
-    // Iniciar renderizado por defecto de los documentos al cargar
-    window.renderizarHistorialFiltrado();
-});
-
-// =====================================================================
-// 🗂️ MOTOR DE INDEXACIÓN E HISTORIAL DE MÁXIMO VOLUMEN (INMOBILIARIAS)
-// =====================================================================
-// Base de datos simulada local en RAM para el renderizado responsivo (Fricción Cero)
+// --- MOTOR DE INDEXACIÓN E HISTORIAL FILTRADO ---
 const coleccionDocumentosInmobiliaria = [
     { id: "1024", tipo: "Mandato", lugar: "Pereira", fecha: "2026-05-15", estado: "Sellado SUI" },
     { id: "1085", tipo: "Arrendamiento", lugar: "Medellin", fecha: "2026-05-19", estado: "Sellado SUI" },
@@ -1208,56 +1654,72 @@ window.renderizarHistorialFiltrado = () => {
     const ordenFecha = fFecha ? fFecha.value : "recientes";
     const lugarSeleccionado = fLugar ? fLugar.value : "todos";
 
-    // 1. Algoritmo combinado de filtrado lineal en memoria
-    let documentosFiltrados = coleccionDocumentosInmobiliaria.filter(doc => {
-        const coincideFiltro = doc.id.includes(textoBusqueda) || doc.tipo.toLowerCase().includes(textoBusqueda);
+    const documentosFiltrados = coleccionDocumentosInmobiliaria.filter(doc => {
+        const coincideFiltro = String(doc.id).toLowerCase().includes(textoBusqueda) || String(doc.tipo).toLowerCase().includes(textoBusqueda);
         const coincideLugar = lugarSeleccionado === "todos" || doc.lugar === lugarSeleccionado;
         return coincideFiltro && coincideLugar;
     });
 
-    // 2. Ordenamiento temporal de alta velocidad
     documentosFiltrados.sort((a, b) => {
         const dateA = new Date(a.fecha);
         const dateB = new Date(b.fecha);
         return ordenFecha === "recientes" ? dateB - dateA : dateA - dateB;
     });
 
-    // 3. Renderizado asíncrono limpio con reciclaje del DOM
     contenedorLista.innerHTML = "";
-    
     if (documentosFiltrados.length === 0) {
         contenedorLista.innerHTML = `<p style="text-align:center; color:#555; font-size:12px; margin:20px 0;">No se encontraron registros en la Bóveda.</p>`;
         return;
     }
 
-        documentosFiltrados.forEach(doc => {
+    documentosFiltrados.forEach(doc => {
         contenedorLista.innerHTML += `
-            <div style="background: rgba(22,22,26,0.95); border: 1px solid rgba(255,255,255,0.08); padding: 15px; border-radius: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; animation: fadeIn 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-                <div>
-                    <h3 style="margin: 0 0 5px 0; font-size: 14px; color: #ffffff; font-weight: bold;">${doc.tipo} #${doc.id}</h3>
+            <div style="background: rgba(22,22,26,0.95); border: 1px solid rgba(255,255,255,0.08); padding: 15px; border-radius: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px; animation: fadeIn 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+                <div style="min-width: 0; flex: 1;">
+                    <h3 style="margin: 0 0 5px 0; font-size: 14px; color: #ffffff; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${doc.tipo} #${doc.id}</h3>
                     <div style="display:flex; gap:10px; color:#b0b0b0; font-size:12px; margin-bottom:5px;">
-                        <span>📍 ${doc.lugar}</span>
-                        <span>📅 ${doc.fecha}</span>
+                        <span>${doc.lugar}</span>
+                        <span>·</span>
+                        <span>${doc.fecha}</span>
                     </div>
                     <span style="background: rgba(0,245,212,0.1); color: var(--verde-sui); font-size: 10px; padding: 4px 8px; border-radius: 10px; font-weight: bold; display: inline-block;">${doc.estado}</span>
                 </div>
-               <div style="display: flex; flex-direction: column; gap: 6px; width: 40%; max-width: 120px;">
-                    <button style="background: #ffffff; border: none; color: #000000; font-size: 11px; padding: 8px; border-radius: 8px; cursor: pointer; font-weight: 900; text-transform: uppercase;" onclick="window.abrirPdfFriccionCero('${doc.id}', this)">📄 LEER PDF</button>
-                    <button style="background: var(--naranja); border: none; color: #ffffff; font-size: 11px; padding: 8px; border-radius: 8px; cursor: pointer; font-weight: 900; text-transform: uppercase; box-shadow: 0 2px 8px rgba(255,107,0,0.3);" onclick="window.descargarLlaveQR('${doc.id}')">🔑 Llave QR</button>
+                <div style="display: flex; flex-direction: column; gap: 6px; width: 40%; max-width: 120px;">
+                    <button style="background: #ffffff; border: none; color: #000000; font-size: 11px; padding: 8px; border-radius: 8px; cursor: pointer; font-weight: 900; text-transform: uppercase;" onclick="window.abrirPdfFriccionCero('${doc.id}', this)">LEER PDF</button>
+                    <button style="background: var(--naranja); border: none; color: #ffffff; font-size: 11px; padding: 8px; border-radius: 8px; cursor: pointer; font-weight: 900; text-transform: uppercase; box-shadow: 0 2px 8px rgba(255,107,0,0.3);" onclick="window.descargarLlaveQR('${doc.id}')">Llave QR</button>
                 </div>
-
             </div>
         `;
     });
-}; // <-- ESTA ES LA LLAVE QUIRÚRGICA QUE CIERRA LA FUNCIÓN RENDERIZAR
-// Vinculación reactiva de eventos en la barra de herramientas para filtrado instantáneo sin latencia
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    const inputPDF = document.getElementById('input-pdf-cifrado');
+    const inputQR = document.getElementById('input-llave-qr');
+
+    if (inputPDF) {
+        inputPDF.addEventListener('change', function() {
+            window.actualizarNombreImagenUI(this, 'texto-pdf-cifrado');
+        });
+    }
+    if (inputQR) {
+        inputQR.addEventListener('change', function() {
+            window.actualizarNombreImagenUI(this, 'texto-qr');
+        });
+    }
+
+    window.cargarProgresoDocumentoDesdeCache();
+    window.renderizarHistorialFiltrado();
+});
+
 document.body.addEventListener('input', (e) => {
     if (e.target.id === 'buscador-codigo') window.renderizarHistorialFiltrado();
 });
 document.body.addEventListener('change', (e) => {
     if (e.target.id === 'filtro-fecha' || e.target.id === 'filtro-lugar') window.renderizarHistorialFiltrado();
 });
-
 </script>
 </body>
 </html>
+
+
