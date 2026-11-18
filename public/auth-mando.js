@@ -1,12 +1,18 @@
 // auth-mando.js - Módulo de Autenticación Centralizada (Cero Magic Links)
 import GeokatuDB from './core-db.js';
 
+const SVG_OJO_VISIBLE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+const SVG_OJO_OCULTO = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
 window.toggleVerPassword = function(inputId, btn) {
     const el = document.getElementById(inputId);
+    if (!el || !btn) return;
     if (el.type === 'password') {
-        el.type = 'text'; btn.innerText = '🙈';
+        el.type = 'text';
+        btn.innerHTML = SVG_OJO_OCULTO;
     } else {
-        el.type = 'password'; btn.innerText = '👁️';
+        el.type = 'password';
+        btn.innerHTML = SVG_OJO_VISIBLE;
     }
 };
 
@@ -96,11 +102,10 @@ window.validarCodigoRegistro = async () => {
 window.iniciarConGoogle = async () => {
     const { success, error } = await GeokatuDB.SecurityService.iniciarConGoogle();
     if (success) {
-        localStorage.setItem('qrpido_session_validated', 'true'); // 🔑 Entregamos llave a usuario recurrente
+        localStorage.setItem('qrpido_session_validated', 'true');
         const modal = document.getElementById('modal-login');
         if (modal) modal.classList.remove('activo');
 
-        // CORTE QUIRÚRGICO APLICADO: Si estamos en tramites.html, forzamos recarga.
         if(window.location.pathname.includes('tramites.html')) {
             location.reload();
         }
@@ -117,7 +122,7 @@ window.iniciarSesion = async () => {
     if (!success) {
         alert("Error: " + error);
     } else {
-        localStorage.setItem('qrpido_session_validated', 'true'); // 🔑 Entregamos llave a usuario recurrente
+        localStorage.setItem('qrpido_session_validated', 'true');
         const modal = document.getElementById('modal-login');
         if (modal) modal.classList.remove('activo');
 
@@ -129,7 +134,8 @@ window.iniciarSesion = async () => {
 
 window.cerrarSesion = async () => {
     await GeokatuDB.SecurityService.cerrarSesion();
-    localStorage.removeItem('qrpido_session_validated'); // 🗑️ Destruimos la llave por seguridad
+    window.rolUsuarioActual = null;
+    localStorage.removeItem('qrpido_session_validated');
     const modal = document.getElementById('modal-login');
     if (modal) modal.classList.remove('activo');
     
@@ -160,63 +166,84 @@ GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
     const panelActivo = document.getElementById('panel-usuario-activo');
     const btnMando = document.getElementById('btn-portal-mando');
     const btnSaldo = document.getElementById('contenedor-saldo-universal');
-    
-    // 🚖 CAPTURA DE BOTONES DE TRANSPORTE INYECTADOS EN EL SUBMENÚ DE INDEX.HTML
     const btnEmpresaTrans = document.getElementById('btn-panel-empresa');
     const btnConductorTrans = document.getElementById('btn-panel-conductor');
+    const btnCabina = document.getElementById('btn-cabina');
+    const btnPerf = document.getElementById('btn-audit-perf');
+    const btnRep = document.getElementById('btn-audit-rep');
+    const btnOfiEmp = document.getElementById('btn-oficina-empleado');
+    const btnModalOfiEmp = document.getElementById('btn-modal-oficina-empleado');
 
     if (user) {
-        if(formLogin) formLogin.style.display = 'none';
-        if(panelActivo) panelActivo.style.display = 'block';
-        if(document.getElementById('nombre-usuario-activo')) document.getElementById('nombre-usuario-activo').innerText = user.email;
-        if(btnMando) btnMando.style.background = 'var(--naranja)';
-        
+        window.idUsuarioActual = user.uid;
+        window.rolUsuarioActual = null;
+        if (formLogin) formLogin.style.display = 'none';
+        if (panelActivo) panelActivo.style.display = 'block';
+        if (document.getElementById('nombre-usuario-activo')) document.getElementById('nombre-usuario-activo').innerText = user.email;
+        if (btnMando) btnMando.style.background = 'var(--naranja)';
+        if (btnEmpresaTrans) btnEmpresaTrans.style.display = 'none';
+        if (btnConductorTrans) btnConductorTrans.style.display = 'none';
+        if (btnCabina) btnCabina.style.display = 'none';
+        if (btnPerf) btnPerf.style.display = 'none';
+        if (btnRep) btnRep.style.display = 'none';
+        if (typeof window.sincronizarBotonesLlave === 'function') window.sincronizarBotonesLlave();
+
         try {
             const { success, data } = await GeokatuDB.SecurityService.obtenerRolAdmin(user.uid);
-            if (success) {
-                // Limpieza/Ocultado preventivo de accesos de movilidad antes de evaluar el rol activo
-                if (btnEmpresaTrans) btnEmpresaTrans.style.display = 'none';
-                if (btnConductorTrans) btnConductorTrans.style.display = 'none';
+            if (success && data) {
+                const rol = String(data.rol || '').toLowerCase();
+                window.rolUsuarioActual = rol || null;
 
-                if ((data.rol === 'admin' || data.rol === 'moderador' || data.rol === 'superadmin') && btnMod) btnMod.style.display = 'block';
-                if (data.rol === 'superadmin' && btnSuper) btnSuper.style.display = 'block';
-                
-                // 🚖 CONMUTADOR REACTIVO DE ROLES DE MOVILIDAD
-                if (data.rol === 'empresa_transporte' && btnEmpresaTrans) {
+                if ((rol === 'admin' || rol === 'moderador' || rol === 'superadmin') && btnMod) btnMod.style.display = 'block';
+                if (rol === 'superadmin') {
+                    if (btnSuper) btnSuper.style.display = 'block';
+                    if (btnPerf) btnPerf.style.display = 'block';
+                    if (btnRep) btnRep.style.display = 'block';
+                }
+
+                if (rol === 'empresa_transporte' && btnEmpresaTrans) {
                     btnEmpresaTrans.style.display = 'block';
                     if (typeof window.inyectarCRMCorporativoEmpresa === 'function') {
                         window.inyectarCRMCorporativoEmpresa(user.uid);
                     }
                 }
-                
-                if (data.rol === 'conductor' && btnConductorTrans) {
-                    btnConductorTrans.style.display = 'block';
+
+                if (rol === 'conductor') {
+                    if (btnCabina) btnCabina.style.display = 'block';
+                    if (btnConductorTrans) btnConductorTrans.style.display = 'block';
                     if (typeof window.verificarOnboardingCRM === 'function') {
-                        window.verificarOnboardingCRM(user.uid, user.email, data.rol);
+                        window.verificarOnboardingCRM(user.uid, user.email, rol);
                     }
                 }
 
-                if (data.rol && btnSaldo) {
+                if (rol && btnSaldo) {
                     btnSaldo.style.display = 'flex';
-                    if(data.saldo_logistica !== undefined && window.formatearMoneda) {
+                    if (data.saldo_logistica !== undefined && window.formatearMoneda) {
                         document.getElementById('texto-saldo-global').innerText = window.formatearMoneda(data.saldo_logistica);
                     }
                 }
             }
         } catch (error) {
-             console.error("Error al obtener rol:", error);
+            console.error('Error al obtener rol:', error);
+        } finally {
+            if (typeof window.sincronizarBotonesLlave === 'function') window.sincronizarBotonesLlave();
         }
-        
     } else {
-        if(btnSaldo) btnSaldo.style.display = 'none';
-        if(formLogin) formLogin.style.display = 'block';
-        if(panelActivo) panelActivo.style.display = 'none';
-        if(btnMando) btnMando.style.background = 'var(--glass-bg)';
-        if(btnMod) btnMod.style.display = 'none';
-        if(btnSuper) btnSuper.style.display = 'none';
-        
-        // 🚖 REINICIO DE BOTONES EN NAVEGACIÓN ANÓNIMA O CIERRE DE SESIÓN
+        window.idUsuarioActual = null;
+        window.rolUsuarioActual = null;
+        if (btnSaldo) btnSaldo.style.display = 'none';
+        if (formLogin) formLogin.style.display = 'block';
+        if (panelActivo) panelActivo.style.display = 'none';
+        if (btnMando) btnMando.style.background = 'var(--glass-bg)';
+        if (btnMod) btnMod.style.display = 'none';
+        if (btnSuper) btnSuper.style.display = 'none';
         if (btnEmpresaTrans) btnEmpresaTrans.style.display = 'none';
         if (btnConductorTrans) btnConductorTrans.style.display = 'none';
+        if (btnCabina) btnCabina.style.display = 'none';
+        if (btnPerf) btnPerf.style.display = 'none';
+        if (btnRep) btnRep.style.display = 'none';
+        if (btnOfiEmp) btnOfiEmp.style.display = 'none';
+        if (btnModalOfiEmp) btnModalOfiEmp.style.display = 'none';
+        if (typeof window.sincronizarBotonesLlave === 'function') window.sincronizarBotonesLlave();
     }
 });
