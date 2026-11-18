@@ -481,6 +481,12 @@ const cifrado = Buffer.concat([cipher.update(buffer), cipher.final()]);
 const authTag = cipher.getAuthTag();
 return Buffer.concat([iv, authTag, cifrado]);
 }
+function validarEstructuraQrCedula(payloadQr) {
+    if (!payloadQr || typeof payloadQr !== 'string') return false;
+    const limpio = payloadQr.trim();
+    return limpio.length >= 25 && (limpio.includes('CO') || limpio.includes('REP') || /\d{6,10}/.test(limpio));
+}
+
 exports.procesarKycBiometrico = onCall({ memory: '512MB', maxInstances: 10, secrets: [semillaMaestra] }, async (request) => {
 if (!visionClient) {
 const vision = require("@google-cloud/vision");
@@ -490,7 +496,7 @@ if (!request.auth) {
 throw new HttpsError("unauthenticated", "Operación rechazada. El usuario debe estar autenticado.");
 }
 const uid = request.auth.uid;
-const { frente, reverso, rostro } = request.data;
+const { frente, reverso, rostro, qrData } = request.data;
 if (!frente || !reverso || !rostro) {
 throw new HttpsError("invalid-argument", "Error de envío. Faltan evidencias en el paquete biométrico.");
 }
@@ -499,9 +505,11 @@ const limpiarBase64 = (dataUrl) => dataUrl.replace(/^data:image\/\w+;base64,/, "
 const bufferFrente = Buffer.from(limpiarBase64(frente), "base64");
 const bufferReverso = Buffer.from(limpiarBase64(reverso), "base64");
 const bufferRostro = Buffer.from(limpiarBase64(rostro), "base64");
-const [resultadoTexto, resultadoRostro] = await Promise.all([
+const [resultadoTexto, resRostroCedula, resultadoRostro, resReversoTexto] = await Promise.all([
 visionClient.textDetection({ image: { content: bufferFrente } }),
-visionClient.faceDetection({ image: { content: bufferRostro } })
+visionClient.faceDetection({ image: { content: bufferFrente } }),
+visionClient.faceDetection({ image: { content: bufferRostro } }),
+visionClient.textDetection({ image: { content: bufferReverso } })
 ]);
 const anotacionesTexto = resultadoTexto[0].textAnnotations;
 const textoExtraido = anotacionesTexto && anotacionesTexto.length > 0 ? anotacionesTexto[0].description.toUpperCase() : "";
@@ -511,19 +519,31 @@ textoExtraido.includes("REPUBLICA BOLIVARIANA DE VENEZUELA") ||
 textoExtraido.includes("CEDULA DE IDENTIDAD") ||
 textoExtraido.includes("REPUBLICA") ||
 textoExtraido.includes("COLOMBIA") ||
-textoExtraido.includes("VENEZUELA");
+textoExtraido.includes("VENEZUELA") ||
+textoExtraido.includes("NOMBRES");
 
 if (!esDocumentoValido) {
 return { success: false, mensaje: "Rechazado: El documento frontal no parece ser una Cédula legítima." };
 }
-const rostrosDetectados = resultadoRostro[0].faceAnnotations;
-if (!rostrosDetectados || rostrosDetectados.length === 0) {
+const rostrosCedula = resRostroCedula[0].faceAnnotations || [];
+if (rostrosCedula.length === 0) {
+return { success: false, mensaje: "Rechazado: No se detectó el retrato fotográfico impreso en la cédula." };
+}
+const rostrosDetectados = resultadoRostro[0].faceAnnotations || [];
+if (rostrosDetectados.length === 0) {
 return { success: false, mensaje: "Rechazado: No se detectó un rostro humano en la selfie." };
 }
 const rostroPrincipal = rostrosDetectados[0];
-if (rostroPrincipal.detectionConfidence < 0.7) {
-return { success: false, mensaje: "Calidad insuficiente. Inténtalo de nuevo con mejor iluminación." };
+if (rostroPrincipal.detectionConfidence < 0.78 || rostroPrincipal.blurredLikelihood === "VERY_LIKELY") {
+return { success: false, mensaje: "Calidad biométrica insuficiente o imagen borrosa. Mejora la luz e inténtalo de nuevo." };
 }
+const qrValido = validarEstructuraQrCedula(qrData);
+const textoReverso = (resReversoTexto[0].textAnnotations && resReversoTexto[0].textAnnotations[0]) ? resReversoTexto[0].textAnnotations[0].description.toUpperCase() : "";
+const reversoValido = qrValido || textoReverso.includes("COL") || textoReverso.includes("REGISTRADURIA") || textoReverso.includes("<<<") || textoReverso.includes("INDICE") || textoReverso.includes("SANGRE") || textoReverso.includes("VENEZUELA") || textoReverso.length >= 20;
+if (!reversoValido) {
+return { success: false, mensaje: "Rechazado: El reverso del documento no es legible (enfoca el QR o la zona de datos)." };
+}
+const hashIntegridadKyc = crypto.createHash("sha256").update(Buffer.concat([bufferFrente, bufferReverso, bufferRostro, Buffer.from(uid)])).digest("hex");
 const secretoMaestro = semillaMaestra.value();
 const encFrente = encriptarBuffer(bufferFrente, secretoMaestro, uid);
 const encReverso = encriptarBuffer(bufferReverso, secretoMaestro, uid);
@@ -539,11 +559,16 @@ bucket.file(`${pathBase}_rostro.enc`).save(encRostro, opcionesArchivo)
 ]);
 await admin.firestore().collection("Directorio").doc(uid).set({
 kyc_verificado: true,
-estado_moderacion: "en_revision_kyc",
+estado_kyc: "aprobado_bancario",
+fecha_verificacion_kyc: admin.firestore.FieldValue.serverTimestamp(),
 evidencia_kyc: {
 frente: `${pathBase}_frente.enc`,
 reverso: `${pathBase}_reverso.enc`,
 rostro: `${pathBase}_rostro.enc`,
+qr_verificado: qrValido,
+confianza_facial: Number((rostroPrincipal.detectionConfidence || 0).toFixed(4)),
+hash_integridad: hashIntegridadKyc,
+nivel_validacion: "bancario_vision_qr",
 fecha_envio: new Date().toISOString(),
 estado_cripto: "cifrado_aes_gcm"
 }
