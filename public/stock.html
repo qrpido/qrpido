@@ -377,10 +377,11 @@
 
 
     <script type="module">
-        import GeokatuDB from './core-db.js';
-       import { AuthGate } from './auth-gate.js';
-       import './geokatu-tour.js';
-       import './estudio-imagen-universal.js';
+         import GeokatuDB from './core-db.js';
+ import { AuthGate } from './auth-gate.js';
+ import { ScannerHub } from './scanner-hub.js';
+ import './geokatu-tour.js';
+ import './estudio-imagen-universal.js';
 
 
 
@@ -751,22 +752,57 @@
 
         };
 
-        const apagarCamara = async () => {
-            if (scannerInstancia && scannerInstancia.isScanning) {
-                try {
-                    await scannerInstancia.stop();
-                } catch (e) {}
-            }
-            visorCamara.style.display = 'none';
-            txtBtnCamara.innerText = "ACTIVAR CÁMARA";
-            btnToggleCamara.style.background = "";
-            camaraEncendida = false;
-        };
+         const apagarCamara = async () => {
+  if (ScannerHub && ScannerHub.estaAbierto()) {
+   await ScannerHub.cerrar({ silencioso: true });
+  }
+  if (scannerInstancia && scannerInstancia.isScanning) {
+   try {
+    await scannerInstancia.stop();
+   } catch (e) {}
+  }
+  visorCamara.style.display = 'none';
+  txtBtnCamara.innerText = "ACTIVAR CÁMARA";
+  btnToggleCamara.style.background = "";
+  camaraEncendida = false;
+ };
 
-        btnToggleCamara.addEventListener('click', () => {
-            if (camaraEncendida) apagarCamara();
-            else encenderCamara();
-        });
+ async function abrirScannerHubStock(origenBtn) {
+  await apagarCamara();
+  const muebleAct = ubicacionCascada.idEstante ? mueblesPlanoTienda.find(m => m.id_mueble === ubicacionCascada.idEstante) : null;
+  const binAct = ubicacionCascada.idCompartimiento ? buscarEspacio(ubicacionCascada.idCompartimiento) : null;
+  ScannerHub.abrir({
+   modoInicial: 'UBICAR',
+   origenEl: origenBtn || btnToggleCamara,
+   idNegocio: idNegocio,
+   idSede: idSedeActiva,
+   muebleInicial: muebleAct || (binAct ? binAct.mueble : null),
+   binInicial: binAct ? binAct.espacio : null,
+   productoInicial: productoActivoFicha || null,
+   onUbicar: async (est) => {
+    if (!sesionWms || AuthGate._estado.sesionBloqueada) return;
+    if (est.mueble || est.bin) {
+     fijarUbicacion(est.mueble || null, est.bin || null);
+     esperandoQrUbicacionAccion = false;
+     if (operacionActual === 'AUDITAR' && est.bin) {
+      await iniciarAuditoriaBin(est.bin.id_comp);
+     }
+    }
+    if (est.codigoProd) {
+     await procesarMovimientoStock(est.codigoProd, 'SCANNER_HUB');
+    }
+   }
+  });
+ }
+
+ btnToggleCamara.addEventListener('click', () => {
+  if (chkRafaga.checked) {
+   if (camaraEncendida) apagarCamara();
+   else encenderCamara();
+  } else {
+   abrirScannerHubStock(btnToggleCamara);
+  }
+ });
 
         // PESTILLO CONCURRENTE DE CINTA TRANSPORTADORA
         async function onLecturaOptica(codigo) {
@@ -1099,9 +1135,13 @@ document.getElementById('btn-elegir-lista-gondola-accion').addEventListener('cli
 });
 
 document.getElementById('btn-escanear-qr-gondola-accion').addEventListener('click', () => {
-    esperandoQrUbicacionAccion = true;
-    if (!camaraEncendida) encenderCamara();
-    document.getElementById('wms-paso').textContent = 'Escanea el espacio de la operación';
+ esperandoQrUbicacionAccion = true;
+ document.getElementById('wms-paso').textContent = 'Escanea el espacio de la operación';
+ if (chkRafaga.checked) {
+  if (!camaraEncendida) encenderCamara();
+ } else {
+  abrirScannerHubStock(document.getElementById('btn-escanear-qr-gondola-accion'));
+ }
 });
 
 let movimientoEnCurso = false;
@@ -1366,9 +1406,13 @@ async function procesarMovimientoStock(codigoRaw, origenHardware) {
                 } else if (mueble && !binUrl) {
                     fijarUbicacion(mueble);
                 }
-                if (paramsUrl.get('op') === 'AUDITAR' && (ubicacionCascada.idCompartimiento || ubicacionCascada.idEstante)) {
-                    document.getElementById('btn-modo-auditoria-anaquel').click();
-                }
+                 if (paramsUrl.get('op') === 'AUDITAR' && (ubicacionCascada.idCompartimiento || ubicacionCascada.idEstante)) {
+  document.getElementById('btn-modo-auditoria-anaquel').click();
+ }
+ const buscarUrl = paramsUrl.get('buscar');
+ if (buscarUrl && operacionActual !== 'AUDITAR') {
+  await procesarMovimientoStock(buscarUrl, 'SCANNER_HUB');
+ }
 
                 // Iniciar guia tactica de bodega WMS
                 if (window.GeokatuTour && typeof window.GeokatuTour.iniciar === 'function') {
