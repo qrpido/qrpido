@@ -928,12 +928,13 @@ export const AuthGate = {
         reiniciarContador();
     },
 
-    bloquearTerminalPorInactividad() {
-        if (!this._estado.contextoActivo) return;
+     bloquearTerminalPorInactividad() {
+ if (!this._estado.contextoActivo) return;
 
-        this._estado.sesionBloqueada = true;
-        this._estado.pinAcumulado = '';
-        this._estado.modoRelevoEnCaliente = false;
+ this._estado.sesionBloqueada = true;
+ window.dispatchEvent(new CustomEvent('gk:terminal-bloqueada', { detail: { motivo: 'inactividad' } }));
+ this._estado.pinAcumulado = '';
+ this._estado.modoRelevoEnCaliente = false;
 
         this._ocultarTodasLasVistas();
         const ctx = this._estado.contextoActivo;
@@ -1064,10 +1065,11 @@ export const AuthGate = {
         if (root) root.classList.remove('activo');
         this._ocultarError();
     },
-    async cerrarSesion() {
-        if (typeof this._config.onCerrarSesion === 'function') {
-            try { this._config.onCerrarSesion(); } catch(e) {}
-        }
+     async cerrarSesion() {
+ window.dispatchEvent(new CustomEvent('gk:terminal-bloqueada', { detail: { motivo: 'logout' } }));
+ if (typeof this._config.onCerrarSesion === 'function') {
+  try { this._config.onCerrarSesion(); } catch(e) {}
+ }
         const idTiendaActiva = this._estado.contextoActivo ? this._estado.contextoActivo.idNegocio : localStorage.getItem('geokatu_active_uid');
         const uidUsuario = this._estado.usuarioAuth ? this._estado.usuarioAuth.uid : null;
         await GeokatuDB.SecurityService.cerrarSesion();
