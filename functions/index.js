@@ -107,7 +107,7 @@ const { Ed25519Keypair } = await import('@mysten/sui/keypairs/ed25519');
 const { Transaction } = await import('@mysten/sui/transactions');
 const suiClient = new SuiJsonRpcClient({ url: 'https://fullnode.mainnet.sui.io:443' });
 try {
-const datosCrudos = `PROD:productoId|ORIGEN:{ubicacionOrigen}|DESTINO:ubicacionDestino|OP:{tipoMovimiento}|USER:${uidBodeguero}`;
+const datosCrudos = `PROD:${productoId}|ORIGEN:${ubicacionOrigen}|DESTINO:${ubicacionDestino}|OP:${tipoMovimiento}|USER:${uidBodeguero}`;
 const huellaMovimiento = crypto.createHash('sha256').update(datosCrudos).digest('hex');
 const tx = new Transaction();
 tx.setGasPayment([{ objectId: monedaSuiGas.id, version: monedaSuiGas.version, digest: monedaSuiGas.digest }]);
@@ -558,7 +558,8 @@ bucket.file(`${pathBase}_reverso.enc`).save(encReverso, opcionesArchivo),
 bucket.file(`${pathBase}_rostro.enc`).save(encRostro, opcionesArchivo)
 ]);
 await admin.firestore().collection("Directorio").doc(uid).set({
-kyc_verificado: true,
+kyc_verificado: false,
+kyc_pendiente_cruce_1a1: true,
 estado_kyc: "aprobado_bancario",
 fecha_verificacion_kyc: admin.firestore.FieldValue.serverTimestamp(),
 evidencia_kyc: {
@@ -579,7 +580,7 @@ console.error("Falla en la Cocina KYC:", error);
 throw new HttpsError("internal", "Error interno en el procesamiento: " + error.message);
 }
 });
-function generarPDFEnMemoria(texto, gps, selfieBase64, codigo, timestamp) {
+function generarPDFEnMemoria(texto, gps, selfieBase64, codigo, timestamp, evidenciaP2P) {
 return new Promise((resolve, reject) => {
 const PDFDocument = require('pdfkit');
 const doc = new PDFDocument();
@@ -593,15 +594,31 @@ doc.fontSize(12).text(texto, { align: 'justify' });
 doc.addPage();
 doc.fontSize(16).text('EVIDENCIA CRIPTOGRÁFICA Y LIVENESS', { align: 'center' });
 doc.moveDown();
-const fechaStamp = new Date(timestamp).toISOString();
-doc.fontSize(10).text(`Firma Registrada (UTC): ${fechaStamp}`);
+const fechaStamp = new Date(timestamp || Date.now()).toISOString();
+doc.fontSize(10).text(`Firma de Cierre (UTC): ${fechaStamp}`);
 doc.text(`Coordenadas Juramentadas: Lat ${gps?.lat || 'N/D'}, Lng ${gps?.lng || 'N/D'}`);
 doc.text(`Código de Intención Biométrico: ${codigo || 'N/D'}`);
-if (selfieBase64) {
+if (evidenciaP2P) {
 doc.moveDown();
-const base64Data = selfieBase64.replace(/^data:image\/\w+;base64,/, "");
+doc.fontSize(12).text('TRAZABILIDAD DE PARTES (SALA P2P)', { underline: true });
+doc.fontSize(9.5).text(`Sala ID: ${evidenciaP2P.salaId || 'Directa'}`);
+if (evidenciaP2P.creador) {
+doc.text(`Parte 1 (Creador): ${evidenciaP2P.creador.email || evidenciaP2P.creador.uid || 'N/D'} | Fecha: ${evidenciaP2P.creador.fecha || 'N/D'}`);
+}
+if (evidenciaP2P.contraparte) {
+const gpsC = evidenciaP2P.contraparte.gps || {};
+doc.text(`Parte 2 (Contraparte): ${evidenciaP2P.contraparte.email || evidenciaP2P.contraparte.uid || 'N/D'} | GPS: ${gpsC.lat || 'N/D'}, ${gpsC.lng || 'N/D'} | Código: ${evidenciaP2P.contraparte.codigo || 'N/D'}`);
+}
+}
+if (selfieBase64) {
+try {
+doc.moveDown();
+const base64Data = String(selfieBase64).replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
 const imgBuffer = Buffer.from(base64Data, 'base64');
 doc.image(imgBuffer, { fit: [250, 250], align: 'center' });
+} catch (eImg) {
+doc.text('Evidencia gráfica anexada mediante hash SHA-256 en bóveda cifrada.');
+}
 }
 doc.end();
 });
@@ -610,11 +627,53 @@ doc.end();
 // 10. EL NOTARIO DIGITAL (Sellar Trámite, SUI y Fricción Cero)
 // ============================================================================
 exports.sellarTramiteLegal = functions.runWith({ memory: '1GB', secrets: [semillaSui, semillaMaestra] }).https.onCall(async (data, context) => {
-const uid = context.auth ? context.auth.uid : 'INVITADO';
-const { textoContrato, otp, gps, selfie, codigo, wompi_ref, timestamp } = data;
-if (!textoContrato || !wompi_ref) throw new functions.https.HttpsError('invalid-argument', 'Paquete incompleto.');
+if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Debes iniciar sesión para sellar un contrato.');
+const uid = context.auth.uid;
+const emailAuth = String(context.auth.token.email || '').trim().toLowerCase();
+const { textoContrato, otp, gps, selfie, codigo, wompi_ref, wompi_tx_id, timestamp } = data || {};
+if (!textoContrato || !wompi_ref || !otp) throw new functions.https.HttpsError('invalid-argument', 'Paquete incompleto (se requiere contrato, OTP y referencia de pago).');
+const dbCheck = admin.firestore();
+const refLimpia = String(wompi_ref).trim();
+const bovedaExistente = await dbCheck.collection('Boveda_Tramites').doc(refLimpia).get();
+if (bovedaExistente.exists) throw new functions.https.HttpsError('already-exists', 'Esta referencia de pago ya fue utilizada en un contrato.');
+const otpRef = dbCheck.collection('Sistema_OTP').doc(uid);
+await dbCheck.runTransaction(async (tr) => {
+const otpDoc = await tr.get(otpRef);
+if (!otpDoc.exists) throw new functions.https.HttpsError('failed-precondition', 'Solicita un código OTP válido antes de sellar.');
+const dOtp = otpDoc.data();
+if (dOtp.expira && dOtp.expira.toDate() < new Date()) {
+tr.delete(otpRef);
+throw new functions.https.HttpsError('deadline-exceeded', 'El código OTP expiró. Solicita uno nuevo.');
+}
+if (String(dOtp.codigo || '').trim() !== String(otp).trim()) {
+throw new functions.https.HttpsError('permission-denied', 'Código OTP incorrecto.');
+}
+tr.delete(otpRef);
+});
+const pagoWebhookDoc = await dbCheck.collection('Pagos_Tramites_Verificados').doc(refLimpia).get();
+let pagoVerificado = pagoWebhookDoc.exists && pagoWebhookDoc.data().estado === 'APPROVED' && Number(pagoWebhookDoc.data().monto_centavos || 0) >= 499000;
+if (!pagoVerificado) {
+if (!wompi_tx_id) throw new functions.https.HttpsError('failed-precondition', 'Pago no confirmado por pasarela Wompi.');
+const baseWompi = refLimpia.startsWith('SANDBOX-') ? 'https://sandbox.wompi.co/v1/transactions/' : 'https://production.wompi.co/v1/transactions/';
+const respWompi = await fetch(baseWompi + encodeURIComponent(String(wompi_tx_id)));
+const jsonWompi = respWompi.ok ? await respWompi.json() : null;
+const txW = jsonWompi && jsonWompi.data ? jsonWompi.data : null;
+if (!txW || txW.status !== 'APPROVED' || txW.reference !== refLimpia || Number(txW.amount_in_cents || 0) < 499000) {
+throw new functions.https.HttpsError('failed-precondition', 'La transacción Wompi no está aprobada o no coincide con la referencia y tarifa.');
+}
+await dbCheck.collection('Pagos_Tramites_Verificados').doc(refLimpia).set({ estado: 'APPROVED', wompi_tx_id: txW.id, monto_centavos: txW.amount_in_cents, uid: uid, fecha: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+}
+let evidenciaP2P = null;
+if (data.sala_id) {
+const salaSnap = await dbCheck.collection('Salas_Legales_P2P').doc(String(data.sala_id)).get();
+if (!salaSnap.exists) throw new functions.https.HttpsError('not-found', 'La sala P2P indicada no existe.');
+const sData = salaSnap.data();
+const esParte = sData.creador_uid === uid || (emailAuth && String(sData.contraparte_email || '').trim().toLowerCase() === emailAuth);
+if (!esParte) throw new functions.https.HttpsError('permission-denied', 'No eres participante autorizado de esta sala P2P.');
+evidenciaP2P = { salaId: salaSnap.id, creador: (sData.firmas && sData.firmas.creador) ? sData.firmas.creador : { uid: sData.creador_uid }, contraparte: (sData.firmas && sData.firmas.contraparte) ? Object.assign({ email: sData.contraparte_email }, sData.firmas.contraparte) : { email: sData.contraparte_email, gps: gps, codigo: codigo } };
+}
 try {
-const pdfBuffer = await generarPDFEnMemoria(textoContrato, gps, selfie, codigo, timestamp);
+const pdfBuffer = await generarPDFEnMemoria(textoContrato, gps, selfie, codigo, timestamp, evidenciaP2P);
 const hashDocumento = crypto.createHash('sha256').update(pdfBuffer).digest('hex');
 const { SuiJsonRpcClient } = await import('@mysten/sui/jsonRpc');
 const { Ed25519Keypair } = await import('@mysten/sui/keypairs/ed25519');
@@ -669,6 +728,7 @@ if (data.sala_id) {
 return {
 success: true,
 txId: txIdGenerado,
+hashDocumento: hashDocumento,
 urlDescargaLibre: urlFriccionCero[0]
 };
 } catch (error) {
@@ -740,18 +800,37 @@ console.error("Falla en Bóveda en Vivo:", error);
 throw new HttpsError("internal", error.message || "Error al intentar desencriptar el documento.");
 }
 });
+exports.aprobarKycModerador = onCall({ memory: '256MB' }, async (request) => {
+if (!request.auth) throw new HttpsError('unauthenticated', 'Acceso denegado.');
+const { uidObjetivo, aprobado, motivo } = request.data || {};
+if (!uidObjetivo || typeof aprobado !== 'boolean') throw new HttpsError('invalid-argument', 'Parámetros inválidos.');
+const db = admin.firestore();
+const adminSnap = await db.collection('Usuarios_Admin').doc(request.auth.uid).get();
+if (!adminSnap.exists || !['admin', 'superadmin', 'moderador'].includes(adminSnap.data().rol)) {
+throw new HttpsError('permission-denied', 'Solo moderadores autorizados pueden aprobar cruce KYC 1:1.');
+}
+await db.collection('Directorio').doc(String(uidObjetivo)).set({
+kyc_verificado: aprobado,
+kyc_pendiente_cruce_1a1: false,
+estado_kyc: aprobado ? 'aprobado_1a1_moderador' : 'rechazado_moderador',
+kyc_moderador_uid: request.auth.uid,
+kyc_motivo_decision: String(motivo || ''),
+fecha_decision_kyc: admin.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+return { success: true, aprobado: aprobado };
+});
 // ============================================================================
 // 13. SALA DE ESPERA P2P (Borradores y Contrapartes)
 // ============================================================================
 exports.crearBorradorTramiteP2P = functions.runWith({ memory: '256MB', secrets: [gmailAppPass] }).https.onCall(async (data, context) => {
 if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Debes iniciar sesión.');
 const uidCreador = context.auth.uid;
-const { textoContrato, contraparteEmail, wompi_ref, firmasCreador } = data;
-if (!textoContrato || !contraparteEmail || !wompi_ref) {
+const { textoContrato, contraparteEmail, firmasCreador } = data || {};
+if (!textoContrato || !contraparteEmail) {
 throw new functions.https.HttpsError('invalid-argument', 'Faltan datos del contrato o contraparte.');
 }
 const db = admin.firestore();
-const salaId = wompi_ref;
+const salaId = `SALA-${crypto.randomBytes(16).toString('hex')}`;
 try {
 await db.collection('Salas_Legales_P2P').doc(salaId).set({
 creador_uid: uidCreador,
@@ -796,7 +875,8 @@ return await db.runTransaction(async (transaction) => {
 const salaDoc = await transaction.get(salaRef);
 if (!salaDoc.exists) throw new functions.https.HttpsError('not-found', 'La sala no existe.');
 const salaData = salaDoc.data();
-if (salaData.contraparte_email !== context.auth.token.email) {
+const emailAuthP2P = String(context.auth.token.email || '').trim().toLowerCase();
+if (String(salaData.contraparte_email || '').trim().toLowerCase() !== emailAuthP2P) {
 throw new functions.https.HttpsError('permission-denied', 'No eres el invitado a esta sala.');
 }
 transaction.update(salaRef, {
@@ -843,20 +923,29 @@ exports.descargarContratoDesbloqueado = onCall({ memory: '512MB', secrets: [semi
 });
 
 exports.gestionarSalaTramiteP2P = onCall({ memory: '256MB' }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Inicia sesión para continuar.');
+    const uid = request.auth.uid;
+    const email = String(request.auth.token.email || '').trim().toLowerCase();
     const { accion, salaId, observacion, textoSeleccionado } = request.data || {};
     const db = admin.firestore();
     if (accion === 'obtener_sala') {
         if (!salaId) throw new HttpsError('invalid-argument', 'Falta salaId.');
         const snap = await db.collection('Salas_Legales_P2P').doc(String(salaId)).get();
         if (!snap.exists) throw new HttpsError('not-found', 'Sala no encontrada.');
-        return { success: true, sala: Object.assign({ id: snap.id }, snap.data()) };
+        const dSala = snap.data();
+        const autorizado = dSala.creador_uid === uid || (email && String(dSala.contraparte_email || '').trim().toLowerCase() === email);
+        if (!autorizado) throw new HttpsError('permission-denied', 'No eres participante autorizado de esta sala privada.');
+        return { success: true, sala: Object.assign({ id: snap.id }, dSala) };
     }
-    if (!request.auth) throw new HttpsError('unauthenticated', 'Inicia sesión para continuar.');
-    const uid = request.auth.uid;
-    const email = String(request.auth.token.email || '').toLowerCase();
     if (accion === 'apelar') {
         if (!salaId || !observacion) throw new HttpsError('invalid-argument', 'Faltan datos de apelación.');
         const ref = db.collection('Salas_Legales_P2P').doc(String(salaId));
+        const snapAp = await ref.get();
+        if (!snapAp.exists) throw new HttpsError('not-found', 'Sala no encontrada.');
+        const dAp = snapAp.data();
+        if (dAp.creador_uid !== uid && (!email || String(dAp.contraparte_email || '').trim().toLowerCase() !== email)) {
+            throw new HttpsError('permission-denied', 'No tienes permiso para apelar en esta sala.');
+        }
         await ref.set({
             estado: 'en_apelacion',
             apelaciones: admin.firestore.FieldValue.arrayUnion({
@@ -961,7 +1050,7 @@ throw new HttpsError('invalid-argument', 'Token de seguridad no proporcionado.')
 try {
 const secretKey = secretoRecaptchaV2.value();
 // Google requiere los parámetros en la URL para este endpoint
-const verifyUrl = `https://www.google.com/recaptcha/api/siteverify?secret=secretKey&response={token}`;
+const verifyUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${encodeURIComponent(secretKey)}&response=${encodeURIComponent(token)}`;
 // fetch es nativo en Node 18+ (versión por defecto de Firebase Functions)
 const respuestaGoogle = await fetch(verifyUrl, { method: 'POST' });
 const dataGoogle = await respuestaGoogle.json();
