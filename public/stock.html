@@ -767,31 +767,54 @@
   camaraEncendida = false;
  };
 
+  async function aplicarResultadoScannerStock(est) {
+  if (!est || !sesionWms || AuthGate._estado.sesionBloqueada) return;
+  const muebleObj = (est.mueble && typeof est.mueble === 'string')
+   ? (mueblesPlanoTienda.find(m => m.id_mueble === est.mueble) || null)
+   : (est.mueble || null);
+  let binObj = est.bin || null;
+  if (binObj && typeof binObj === 'string') {
+   const hallado = buscarEspacio(binObj);
+   binObj = hallado ? hallado.espacio : { id_comp: binObj };
+  } else if (binObj && binObj.id_comp && !binObj.mueble) {
+   const hallado = buscarEspacio(binObj.id_comp);
+   if (hallado) binObj = hallado.espacio;
+  }
+  if (muebleObj || binObj) {
+   fijarUbicacion(muebleObj || null, binObj || null);
+   esperandoQrUbicacionAccion = false;
+   if (operacionActual === 'AUDITAR' && binObj && binObj.id_comp) {
+    await iniciarAuditoriaBin(binObj.id_comp);
+   }
+  }
+  if (est.codigoProd) {
+   await procesarMovimientoStock(est.codigoProd, 'SCANNER_HUB');
+  }
+ }
+ window.__gkStockAplicarUbicacion = aplicarResultadoScannerStock;
+
  async function abrirScannerHubStock(origenBtn) {
   await apagarCamara();
   const muebleAct = ubicacionCascada.idEstante ? mueblesPlanoTienda.find(m => m.id_mueble === ubicacionCascada.idEstante) : null;
   const binAct = ubicacionCascada.idCompartimiento ? buscarEspacio(ubicacionCascada.idCompartimiento) : null;
+  const extras = {
+   muebleInicial: muebleAct || (binAct ? binAct.mueble : null),
+   binInicial: binAct ? binAct.espacio : null,
+   productoInicial: productoActivoFicha || null
+  };
+  if (window.TerminalApp && typeof window.TerminalApp.abrirEscaner === 'function') {
+   window.TerminalApp.abrirEscaner('UBICAR', origenBtn || btnToggleCamara, extras);
+   return;
+  }
   ScannerHub.abrir({
    modoInicial: 'UBICAR',
    origenEl: origenBtn || btnToggleCamara,
    idNegocio: idNegocio,
    idSede: idSedeActiva,
-   muebleInicial: muebleAct || (binAct ? binAct.mueble : null),
-   binInicial: binAct ? binAct.espacio : null,
-   productoInicial: productoActivoFicha || null,
-   onUbicar: async (est) => {
-    if (!sesionWms || AuthGate._estado.sesionBloqueada) return;
-    if (est.mueble || est.bin) {
-     fijarUbicacion(est.mueble || null, est.bin || null);
-     esperandoQrUbicacionAccion = false;
-     if (operacionActual === 'AUDITAR' && est.bin) {
-      await iniciarAuditoriaBin(est.bin.id_comp);
-     }
-    }
-    if (est.codigoProd) {
-     await procesarMovimientoStock(est.codigoProd, 'SCANNER_HUB');
-    }
-   }
+   muebleInicial: extras.muebleInicial,
+   binInicial: extras.binInicial,
+   productoInicial: extras.productoInicial,
+   onUbicar: aplicarResultadoScannerStock
   });
  }
 
