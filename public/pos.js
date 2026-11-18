@@ -1,6 +1,7 @@
 import GeokatuDB from './core-db.js';
 import { BillingGuard } from './billing-guard.js';
 import { AuthGate } from './auth-gate.js';
+import { ScannerHub } from './scanner-hub.js';
 import './geokatu-tour.js';
 import { MotorBalanza } from './balanza-motor.js';
 import { MotorCajonMonedero } from './cajon-motor.js';
@@ -333,9 +334,12 @@ window.alternarFlashCamaraPOS = async () => {
 };
 
 window.cerrarCamaraPOS = () => {
-    const dock = document.getElementById('scanner-dock');
-    const btnCam = document.getElementById('btn-toggle-camara');
-    if (dock) dock.style.display = 'none';
+ if (ScannerHub && ScannerHub.estaAbierto()) {
+  ScannerHub.cerrar({ silencioso: true });
+ }
+ const dock = document.getElementById('scanner-dock');
+ const btnCam = document.getElementById('btn-toggle-camara');
+ if (dock) dock.style.display = 'none';
     if (btnCam) btnCam.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" x2="17" y1="12" y2="12"/></svg><span style="font-size: 11px; font-weight: 900;">Cámara</span>';
 
 
@@ -362,14 +366,31 @@ window.cerrarCamaraPOS = () => {
 
 
 window.escanearParaPOS = () => {
-    const dock = document.getElementById('scanner-dock');
-    const btnCam = document.getElementById('btn-toggle-camara');
-    if (!dock) return;
+ const btnCam = document.getElementById('btn-toggle-camara');
+ if (ScannerHub) {
+  if (ScannerHub.estaAbierto()) {
+   ScannerHub.cerrar();
+   return;
+  }
+  const sedePos = localStorage.getItem('geokatu_sede_activa_' + idNegocio) || localStorage.getItem('geokatu_sede_activa') || localStorage.getItem('geokatu_almacen_activo') || 'SALA_VENTAS';
+  ScannerHub.abrir({
+   modoInicial: 'VENDER',
+   origenEl: btnCam,
+   idNegocio: idNegocio,
+   idSede: sedePos,
+   onVender: (codigo) => {
+    procesarEntradaCodigo(codigo);
+   }
+  });
+  return;
+ }
+ const dock = document.getElementById('scanner-dock');
+ if (!dock) return;
 
-    if (dock.style.display === "block") {
-        window.cerrarCamaraPOS();
-        return;
-    }
+ if (dock.style.display === "block") {
+  window.cerrarCamaraPOS();
+  return;
+ }
 
     dock.style.display = "block";
     if (btnCam) btnCam.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg><span style="font-size: 11px; font-weight: 900;">Cerrar</span>';
