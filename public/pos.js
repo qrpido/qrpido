@@ -370,6 +370,25 @@ window.__gkPosProcesarCodigo = (codigo) => {
  procesarEntradaCodigo(String(codigo));
 };
 
+(function reordenarBotonesCobroPos() {
+ const aplicar = () => {
+  const btnEco = document.getElementById('btn-toggle-eco');
+  const gridPagos = document.querySelector('.payment-grid-compact');
+  const btnCajon = gridPagos ? gridPagos.querySelector('.btn-pay.cajon') : null;
+  if (btnEco && btnEco.parentElement && gridPagos && btnCajon) {
+   const filaEco = btnEco.parentElement;
+   filaEco.classList.add('fila-eco-con-cajon');
+   filaEco.insertBefore(btnCajon, btnEco);
+   gridPagos.classList.add('con-espacio-menu');
+  }
+ };
+ if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', aplicar, { once: true });
+ } else {
+  aplicar();
+ }
+})();
+
 window.escanearParaPOS = () => {
  const btnCam = document.getElementById('btn-toggle-camara');
  if (window.TerminalApp && typeof window.TerminalApp.abrirEscaner === 'function') {
