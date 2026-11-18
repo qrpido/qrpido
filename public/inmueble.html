@@ -2,1026 +2,1988 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Inmuebles | Geokatu</title>
-   
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#ff6b00">
-    <link rel="apple-touch-icon" href="https://via.placeholder.com/192/0a0a0c/ff6b00?text=GK">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Inmuebles | GeoKATU</title>
 
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0a0a0c">
+    <link rel="apple-touch-icon" href="https://via.placeholder.com/192/0a0a0c/ff6b00?text=GK">
+    <script src="./qrcode.min.js"></script>
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 
     <style>
         :root {
             --color-marca: #ff6b00;
             --naranja: #ff6b00;
             --bg-oscuro: #0a0a0c;
-            --glass-bg: rgba(20, 20, 25, 0.75);
-            --glass-border: rgba(255, 255, 255, 0.1);
-           
-            /* Sistema Áureo & Fibonacci */
-            --texto-sm: 10px;
-            --texto-base: 16px;
-            --texto-h3: 22px;
-            --texto-h1: 32px;
-            
-            --sp-micro: 8px;
+            --glass-bg: rgba(18, 18, 24, 0.88);
+            --glass-border: rgba(255, 255, 255, 0.12);
+            --verde: #00ff64;
+            --cian: #00f5d4;
+            --rojo: #ff4444;
+            --texto-muted: #9ca3af;
             --sp-sm: 13px;
-            --sp-md: 21px;
-            --sp-lg: 34px;
-            --sp-xl: 55px;
+            --sp-md: 20px;
         }
 
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
 
-        body, html { 
-            margin: 0; 
-            padding: 0; 
-            font-family: 'Segoe UI', sans-serif; 
-            background: var(--bg-oscuro); 
-            color: white; 
-            scroll-behavior: smooth; 
-            overflow-x: hidden; 
-            font-size: var(--texto-base);
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg-oscuro);
+            color: #ffffff;
+            scroll-behavior: smooth;
+            overflow-x: hidden;
+            font-size: 15px;
             touch-action: pan-y;
             overscroll-behavior-y: contain;
         }
-       
-        /* Fondo Ambiental */
-        #fondo-pantalla { 
-            position: fixed; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100vh; 
-            object-fit: cover; 
-            z-index: -2; 
-            opacity: 0.15; 
-            filter: blur(15px);
-            transition: opacity 0.5s ease;
+
+        #fondo-pantalla {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100dvh;
+            object-fit: cover;
+            z-index: -2;
+            opacity: 0.14;
+            filter: blur(18px);
+            transition: opacity 0.4s ease;
         }
 
-
-        .glass-panel { 
-            background: var(--glass-bg); 
-            backdrop-filter: blur(20px); 
-            -webkit-backdrop-filter: blur(20px); 
-            border: 1px solid var(--glass-border); 
-            border-radius: 20px; 
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid var(--glass-border);
+            border-radius: 18px;
         }
-       
-        /* Shimmer Loading */
-        .shimmer-box { 
-            position: relative; 
-            overflow: hidden; 
-            background: rgba(255,255,255,0.05) !important; 
-            color: transparent !important; 
-            border-color: transparent !important; 
-            pointer-events: none; 
+
+        /* SHIMMER */
+        .shimmer-box {
+            position: relative;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.05) !important;
+            color: transparent !important;
+            border-color: transparent !important;
+            pointer-events: none;
         }
         .shimmer-box * { visibility: hidden; }
-        .shimmer-box::after { 
-            content: ''; 
-            position: absolute; 
-            top: 0; 
-            left: -100%; 
-            width: 50%; 
-            height: 100%; 
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent); 
-            animation: shimmer 1.5s infinite; 
+        .shimmer-box::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            left: -100%;
+            width: 60%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            animation: shimmerInm 1.3s infinite;
         }
-        @keyframes shimmer { 100% { left: 100%; } }
+        @keyframes shimmerInm { 100% { left: 140%; } }
 
-
-        /* Navegación Flotante */
-        .nav-flotante { 
-            position: fixed; 
-            top: 15px; 
-            left: 15px; 
-            right: 15px; 
-            display: flex; 
-            justify-content: space-between; 
-            z-index: 500; 
-            pointer-events: none; 
+        /* BARRA SUPERIOR FLOTANTE + FILTROS RAPIDOS */
+        .top-bar-inm {
+            position: fixed;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 600px;
+            padding: calc(12px + env(safe-area-inset-top, 0px)) 14px 8px 14px;
+            z-index: 600;
+            background: linear-gradient(to bottom, rgba(10, 10, 14, 0.92) 55%, transparent);
+            pointer-events: none;
         }
-        .btn-nav { 
-            pointer-events: all; 
-            background: rgba(10,10,15,0.7); 
-            backdrop-filter: blur(12px); 
+        .nav-flotante {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+        .nav-grupo-der {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-nav {
+            pointer-events: all;
+            background: rgba(14, 14, 20, 0.82);
+            backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255,255,255,0.2); 
-            color: white; 
-            border-radius: 50%; 
-            width: 44px; 
-            height: 44px; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            cursor: pointer; 
-            transition: all 0.25s ease; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.6); 
-            text-decoration: none; 
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            color: #ffffff;
+            border-radius: 50%;
+            width: 42px;
+            height: 42px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            position: relative;
+            transition: transform 0.18s ease, border-color 0.2s ease, background 0.2s ease;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+            text-decoration: none;
+            padding: 0;
         }
-        .btn-nav:active { 
-            transform: scale(0.92); 
-            background: var(--color-marca); 
-            border-color: var(--color-marca); 
+        .btn-nav:active { transform: scale(0.92); border-color: var(--naranja); }
+        .badge-fav-count {
+            position: absolute;
+            top: -3px;
+            right: -3px;
+            min-width: 17px;
+            height: 17px;
+            border-radius: 99px;
+            background: var(--rojo);
+            color: #ffffff;
+            font-size: 9.5px;
+            font-weight: 900;
+            font-family: monospace;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 0 4px;
+            border: 1.5px solid #0a0a0c;
         }
-        
-        /* Contenedor Tinder Swipeable */
+
+        /* LLAVE MAESTRA Y SUBMENU IDENTICOS A INDEX.HTML */
+        .contenedor-llave {
+            position: relative;
+            pointer-events: all;
+        }
+        .submenu-llave {
+            position: absolute;
+            top: 50px;
+            right: 0;
+            width: 184px;
+            background: rgba(16, 16, 22, 0.97);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 15px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(-8px);
+            transition: opacity 0.22s ease, transform 0.22s ease;
+            box-shadow: 0 14px 32px rgba(0, 0, 0, 0.85);
+            z-index: 1200;
+        }
+        .submenu-llave.activo {
+            opacity: 1;
+            pointer-events: all;
+            transform: translateY(0);
+        }
+        .btn-submenu {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            padding: 8px 9px;
+            border-radius: 8px;
+            font-weight: 800;
+            font-size: 11px;
+            cursor: pointer;
+            text-transform: uppercase;
+            text-align: left;
+            transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+        }
+        .btn-submenu:hover,
+        .btn-submenu:active {
+            background: rgba(255, 107, 0, 0.18);
+            border-color: var(--naranja);
+            color: var(--naranja);
+        }
+
+        /* BARRA DE FILTROS RAPIDOS SOBRE EL FEED */
+        .barra-filtros-feed {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            margin-top: 8px;
+            padding-bottom: 2px;
+            pointer-events: all;
+        }
+        .barra-filtros-feed::-webkit-scrollbar { display: none; }
+        .chip-feed {
+            background: rgba(14, 14, 20, 0.84);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            color: #d1d5db;
+            padding: 5px 11px;
+            border-radius: 99px;
+            font-size: 11px;
+            font-weight: 700;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: all 0.18s ease;
+        }
+        .chip-feed.activo {
+            background: var(--naranja);
+            border-color: var(--naranja);
+            color: #ffffff;
+            font-weight: 900;
+        }
+
+        /* TARJETA SWIPEABLE */
         #tarjeta-inmueble-activa {
             width: 100%;
-            transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.35s ease;
+            max-width: 600px;
+            margin: 0 auto;
+            position: relative;
+            transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s ease;
             will-change: transform, opacity;
         }
 
+        /* SELLOS VISUALES DE SWIPE */
+        .sello-swipe {
+            position: fixed;
+            top: 24%;
+            z-index: 700;
+            padding: 7px 14px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 900;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            pointer-events: none;
+            opacity: 0;
+            border: 2.5px solid;
+            background: rgba(10, 10, 14, 0.82);
+        }
+        #sello-like { left: 22px; color: var(--verde); border-color: var(--verde); transform: rotate(-12deg); }
+        #sello-pass { right: 22px; color: var(--rojo); border-color: var(--rojo); transform: rotate(12deg); }
 
-        /* Galería */
-        .galeria-container { 
-            width: 100%; 
-            position: relative; 
-            margin-bottom: var(--sp-md); 
+        /* GALERIA ESTILO STORIES (SIN CONFLICTO CON SWIPE) */
+        .galeria-container {
+            width: 100%;
+            height: 54dvh;
+            min-height: 330px;
+            max-height: 490px;
+            position: relative;
+            overflow: hidden;
+            border-radius: 0 0 26px 26px;
+            border-bottom: 2px solid var(--naranja);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8);
+            background: #0d0d12;
+            margin-bottom: 16px;
         }
-        .galeria-wrapper { 
-            display: flex; 
-            overflow-x: auto; 
-            scroll-snap-type: x mandatory; 
-            scrollbar-width: none; 
-            -webkit-overflow-scrolling: touch; 
-            border-radius: 0 0 28px 28px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.8); 
-            border-bottom: 2px solid var(--color-marca); 
-            background: #000;
+        .story-barras {
+            position: absolute;
+            top: calc(100px + env(safe-area-inset-top, 0px));
+            left: 14px;
+            right: 14px;
+            display: flex;
+            gap: 4px;
+            z-index: 15;
+            pointer-events: none;
         }
-        .galeria-wrapper::-webkit-scrollbar { display: none; }
-        .galeria-img { 
-            width: 100%; 
-            height: 55vh; 
-            min-height: 320px;
-            max-height: 500px;
-            flex-shrink: 0; 
-            scroll-snap-align: start; 
-            object-fit: cover; 
+        .story-barra {
+            flex: 1;
+            height: 3px;
+            border-radius: 99px;
+            background: rgba(255, 255, 255, 0.3);
+            transition: background 0.2s ease;
         }
-       
-        .indicador-galeria { 
-            position: absolute; 
-            bottom: 15px; 
-            left: 50%; 
-            transform: translateX(-50%); 
-            background: rgba(0,0,0,0.7); 
-            backdrop-filter: blur(6px); 
-            padding: 4px 14px; 
-            border-radius: 20px; 
-            font-size: 11px; 
-            font-weight: 800; 
-            letter-spacing: 1.5px; 
-            border: 1px solid rgba(255,255,255,0.2); 
+        .story-barra.vista { background: rgba(255, 255, 255, 0.72); }
+        .story-barra.activa { background: var(--naranja); box-shadow: 0 0 6px rgba(255, 107, 0, 0.7); }
+
+        .foto-story-activa {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+        .zona-tap-story {
+            position: absolute;
+            top: 96px;
+            bottom: 42px;
+            width: 34%;
+            z-index: 12;
+            cursor: pointer;
+        }
+        .zona-tap-izq { left: 0; }
+        .zona-tap-der { right: 0; }
+
+        .galeria-pie-badges {
+            position: absolute;
+            bottom: 12px;
+            left: 14px;
+            right: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 14;
+            pointer-events: none;
+        }
+        .pill-frescura {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(10, 10, 14, 0.8);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            padding: 4px 10px;
+            border-radius: 99px;
+            font-size: 11px;
+            font-weight: 800;
+        }
+        .dot-frescura {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .indicador-galeria {
+            background: rgba(10, 10, 14, 0.8);
+            backdrop-filter: blur(8px);
+            padding: 4px 11px;
+            border-radius: 99px;
+            font-size: 11px;
+            font-weight: 800;
+            font-family: monospace;
+            border: 1px solid rgba(255, 255, 255, 0.16);
         }
 
+        /* CONTENIDO DE FICHA */
+        .info-container {
+            padding: 0 18px 118px 18px;
+        }
+        .fila-tags-superiores {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .badge-operacion {
+            background: var(--naranja);
+            color: #ffffff;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 10.5px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+        }
+        .badge-estado-ciclo {
+            padding: 3px 9px;
+            border-radius: 8px;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            border: 1px solid;
+        }
+        .badge-contrato-tag {
+            background: rgba(0, 245, 212, 0.1);
+            border: 1px solid rgba(0, 245, 212, 0.35);
+            color: var(--cian);
+            padding: 3px 9px;
+            border-radius: 8px;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+        .titulo-propiedad {
+            margin: 0 0 6px 0;
+            font-size: 24px;
+            font-weight: 900;
+            line-height: 1.18;
+        }
+        .precio-fila {
+            display: flex;
+            align-items: baseline;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+        .precio-propiedad {
+            margin: 0;
+            font-size: 25px;
+            color: var(--verde);
+            font-weight: 900;
+            font-family: monospace;
+            font-variant-numeric: tabular-nums;
+        }
+        .meta-precio-m2 {
+            font-size: 11.5px;
+            font-family: monospace;
+            font-variant-numeric: tabular-nums;
+            color: #cbd5e1;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 3px 8px;
+            border-radius: 8px;
+            display: none;
+        }
 
-        /* Información Principal */
-        .info-container { 
-            padding: 0 var(--sp-md); 
-            padding-bottom: 120px; 
-            max-width: 600px;
-            margin: 0 auto;
-        }
-       
-        .badge-operacion { 
-            background: var(--color-marca); 
-            color: white; 
-            padding: 4px 12px; 
-            border-radius: 12px; 
-            font-size: 11px; 
-            font-weight: 900; 
-            text-transform: uppercase; 
-            letter-spacing: 1px; 
-            display: inline-block; 
-            margin-bottom: 6px; 
-            box-shadow: 0 0 12px rgba(255,107,0,0.4); 
-        }
-       
-        .titulo-propiedad { 
-            margin: 0 0 6px 0; 
-            font-size: var(--texto-h1); 
-            font-weight: 900; 
-            line-height: 1.15; 
-            text-shadow: 0 2px 10px rgba(0,0,0,0.8); 
-        }
-        .precio-propiedad { 
-            margin: 0 0 14px 0; 
-            font-size: 26px; 
-            color: #00ff64; 
-            font-weight: 900; 
-            text-shadow: 0 0 15px rgba(0,255,100,0.3); 
-        }
-
-
-        /* Badges de Atributos */
-        .badges-row { 
-            display: flex; 
-            gap: 8px; 
-            overflow-x: auto; 
-            padding-bottom: 6px; 
-            margin-bottom: 16px; 
-            scrollbar-width: none; 
+        /* BADGES TECNICOS */
+        .badges-row {
+            display: flex;
+            gap: 7px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            margin-bottom: 14px;
+            scrollbar-width: none;
         }
         .badges-row::-webkit-scrollbar { display: none; }
-        .badge-cristal { 
-            background: rgba(255,255,255,0.06); 
-            border: 1px solid var(--glass-border); 
-            padding: 7px 12px; 
-            border-radius: 14px; 
-            display: flex; 
-            align-items: center; 
-            gap: 6px; 
-            font-weight: bold; 
-            font-size: 12px; 
-            white-space: nowrap; 
-            backdrop-filter: blur(10px); 
+        .badge-cristal {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 7px 11px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 700;
+            font-size: 12px;
+            white-space: nowrap;
         }
-        .badge-cristal span { color: var(--color-marca); font-size: 14px; }
+        .badge-cristal svg { color: var(--naranja); flex-shrink: 0; }
 
-
-        /* Botón Mapa Radar */
-        .btn-ver-mapa {
-            width: 100%; 
-            padding: 13px; 
-            border-radius: 14px; 
-            background: rgba(255, 107, 0, 0.1); 
-            color: var(--color-marca); 
-            border: 1px solid var(--color-marca); 
-            font-weight: 800; 
-            font-size: 12.5px; 
-            letter-spacing: 0.5px;
-            margin-bottom: 22px; 
-            cursor: pointer; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            gap: 8px; 
-            transition: all 0.2s ease;
+        /* ACCIONES SECUNDARIAS DE FICHA (MAPA + CONTRATO) */
+        .grid-acciones-ficha {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 18px;
         }
-        .btn-ver-mapa:active { transform: scale(0.97); background: rgba(255, 107, 0, 0.2); }
-
-
-        .seccion-titulo { 
-            font-size: 12px; 
-            font-weight: 900; 
-            text-transform: uppercase; 
-            letter-spacing: 1.5px; 
-            margin-bottom: 8px; 
-            color: var(--color-marca); 
-            border-bottom: 1px solid rgba(255,255,255,0.08); 
-            padding-bottom: 6px; 
+        .btn-ficha-sec {
+            padding: 11px 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 107, 0, 0.45);
+            background: rgba(255, 107, 0, 0.1);
+            color: #ffffff;
+            font-weight: 800;
+            font-size: 11.5px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: transform 0.15s ease;
         }
-        .descripcion-texto { 
-            color: #ddd; 
-            font-size: 13.5px; 
-            line-height: 1.6; 
-            margin-bottom: 25px; 
-            background: rgba(0,0,0,0.35); 
-            padding: 16px; 
-            border-radius: 16px; 
-            border: 1px solid rgba(255,255,255,0.05); 
+        .btn-ficha-sec:active { transform: scale(0.96); }
+        .btn-ficha-legal {
+            border-color: rgba(0, 245, 212, 0.45);
+            background: rgba(0, 245, 212, 0.1);
+            color: var(--cian);
         }
 
-
-        /* Ficha Inmobiliaria */
-        .agencia-card { 
-            display: flex; 
-            align-items: center; 
-            gap: 12px; 
-            padding: 14px 16px; 
-            margin-bottom: 25px; 
-            cursor: pointer; 
-            transition: all 0.2s ease; 
+        /* CALCULADORA CONTEXTUAL */
+        .bloque-calculadora {
+            background: rgba(16, 16, 22, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 13px 14px;
+            margin-bottom: 18px;
+            display: none;
         }
-        .agencia-card:active { transform: scale(0.98); border-color: var(--color-marca); }
-        .agencia-logo { 
-            width: 46px; 
-            height: 46px; 
-            border-radius: 50%; 
-            border: 2px solid var(--color-marca); 
-            object-fit: cover; 
-            background: #000;
+        .calc-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
         }
-        .agencia-info h4 { margin: 0 0 2px 0; font-size: 14px; color: white; }
-        .agencia-info p { margin: 0; font-size: 11.5px; color: #888; }
+        .calc-head strong {
+            font-size: 11.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--naranja);
+        }
+        .calc-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .calc-box {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
+            padding: 8px 10px;
+        }
+        .calc-box span {
+            display: block;
+            font-size: 10px;
+            color: var(--texto-muted);
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+        .calc-box strong {
+            font-family: monospace;
+            font-variant-numeric: tabular-nums;
+            font-size: 14px;
+            color: #ffffff;
+        }
+        .calc-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .calc-range {
+            flex: 1;
+            accent-color: var(--naranja);
+        }
+        .calc-select {
+            background: #0c0c10;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            color: #ffffff;
+            border-radius: 8px;
+            padding: 5px 8px;
+            font-size: 11.5px;
+            font-weight: 700;
+        }
 
+        .seccion-titulo {
+            font-size: 11.5px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 0 0 8px 0;
+            color: var(--naranja);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 5px;
+        }
+        .descripcion-texto {
+            color: #d1d5db;
+            font-size: 13.5px;
+            line-height: 1.55;
+            margin-bottom: 20px;
+            background: rgba(0, 0, 0, 0.36);
+            padding: 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            white-space: pre-line;
+        }
 
-        /* Otras opciones carrusel */
-        .otras-opciones-wrapper { 
-            display: flex; 
-            gap: 12px; 
-            overflow-x: auto; 
-            padding-bottom: 12px; 
-            scrollbar-width: none; 
-            align-items: stretch; 
+        /* FICHA DE AGENCIA */
+        .agencia-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: border-color 0.2s ease, transform 0.15s ease;
+        }
+        .agencia-card:active { transform: scale(0.98); border-color: var(--naranja); }
+        .agencia-logo {
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            border: 2px solid var(--naranja);
+            object-fit: cover;
+            background: #0a0a0c;
+            flex-shrink: 0;
+        }
+        .agencia-info { flex: 1; min-width: 0; }
+        .agencia-info h4 {
+            margin: 0 0 2px 0;
+            font-size: 14px;
+            color: #ffffff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .agencia-info p { margin: 0; font-size: 11.5px; color: var(--texto-muted); }
+
+        /* CARRUSEL OTRAS OPCIONES */
+        .otras-opciones-wrapper {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+            scrollbar-width: none;
         }
         .otras-opciones-wrapper::-webkit-scrollbar { display: none; }
-        .card-opcion { 
-            width: 200px; 
-            flex-shrink: 0; 
-            display: flex; 
-            flex-direction: column; 
-            text-decoration: none; 
-            color: white; 
-            overflow: hidden; 
-            border-radius: 16px;
-            background: rgba(0,0,0,0.4);
-            border: 1px solid rgba(255,255,255,0.08);
-            transition: 0.2s; 
+        .card-opcion {
+            width: 192px;
+            flex-shrink: 0;
+            border-radius: 14px;
+            overflow: hidden;
+            background: rgba(16, 16, 22, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            cursor: pointer;
+            transition: transform 0.15s ease, border-color 0.2s ease;
         }
-        .card-opcion:active { transform: scale(0.96); border-color: var(--color-marca); }
-        .card-opcion-img { width: 100%; height: 110px; object-fit: cover; }
-        .card-opcion-info { padding: 10px; flex-grow: 1; }
-        .card-opcion-titulo { margin: 0 0 4px 0; font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .card-opcion-precio { margin: 0; color: #00ff64; font-weight: 900; font-size: 13px; }
+        .card-opcion:active { transform: scale(0.96); border-color: var(--naranja); }
+        .card-opcion-img { width: 100%; height: 106px; object-fit: cover; display: block; }
+        .card-opcion-info { padding: 9px 10px; }
+        .card-opcion-titulo {
+            margin: 0 0 3px 0;
+            font-size: 12px;
+            font-weight: 800;
+            color: #ffffff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .card-opcion-precio {
+            margin: 0;
+            color: var(--verde);
+            font-family: monospace;
+            font-variant-numeric: tabular-nums;
+            font-weight: 900;
+            font-size: 12.5px;
+        }
 
-
-        /* Barra de Control Tinder Flotante */
-        .cta-wrapper { 
-            position: fixed; 
-            bottom: 0; 
-            left: 0; 
-            width: 100%; 
-            padding: 15px 20px 20px 20px; 
-            background: linear-gradient(to top, rgba(10,10,12,0.98) 70%, transparent); 
-            z-index: 1000; 
-            box-sizing: border-box; 
-            display: flex; 
-            gap: 12px; 
-            max-width: 600px;
+        /* BARRA INFERIOR TINDER: DESHACER | PASAR | ME INTERESA */
+        .cta-wrapper {
+            position: fixed;
+            bottom: 0;
             left: 50%;
             transform: translateX(-50%);
+            width: 100%;
+            max-width: 600px;
+            padding: 12px 16px max(16px, env(safe-area-inset-bottom)) 16px;
+            background: linear-gradient(to top, rgba(10, 10, 12, 0.98) 72%, transparent);
+            z-index: 900;
+            display: grid;
+            grid-template-columns: 48px 56px 1fr;
+            gap: 10px;
+            align-items: center;
         }
-       
-        .btn-pulsante { 
-            border: none; 
-            border-radius: 25px; 
-            font-size: 14px; 
-            font-weight: 900; 
-            text-transform: uppercase; 
-            letter-spacing: 1px; 
-            cursor: pointer; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            gap: 8px; 
-            transition: transform 0.2s ease; 
+        .btn-tinder {
+            height: 50px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(20, 20, 26, 0.92);
+            color: #ffffff;
+            font-weight: 900;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: transform 0.15s ease, opacity 0.2s ease;
         }
-        .btn-pulsante:active { transform: scale(0.94); }
-       
-        .btn-interesa { 
-            background: linear-gradient(135deg, #ff8c00, var(--color-marca)); 
-            color: white; 
-            flex: 3; 
-            height: 52px; 
-            box-shadow: 0 8px 24px rgba(255,107,0,0.4); 
-        }
-       
-        .btn-descartar-tinder { 
-            flex: 1; 
-            background: rgba(255,255,255,0.08); 
-            backdrop-filter: blur(10px); 
-            color: #ddd; 
-            border: 1px solid rgba(255,255,255,0.15); 
-            font-size: 18px; 
-            height: 52px;
+        .btn-tinder:active { transform: scale(0.94); }
+        .btn-tinder:disabled { opacity: 0.35; cursor: not-allowed; }
+        .btn-rewind { color: #facc15; border-color: rgba(250, 204, 21, 0.35); }
+        .btn-descartar { color: #ff6b6b; border-color: rgba(255, 68, 68, 0.4); }
+        .btn-interesa {
+            border: none;
+            background: linear-gradient(135deg, #ff8c00, var(--naranja));
+            font-size: 13.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            box-shadow: 0 8px 22px rgba(255, 107, 0, 0.38);
         }
 
-
-        /* Modales */
-        .modal-overlay { 
-            position: fixed; 
-            inset: 0; 
-            background: rgba(0,0,0,0.85); 
+        /* MODALES Y BOTTOM SHEETS (COMPATIBLES CON AUTH-MANDO.JS) */
+        .bottom-sheet-overlay,
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.82);
             backdrop-filter: blur(8px);
-            z-index: 2000; 
-            display: flex; 
-            justify-content: center; 
-            align-items: flex-end; 
-            opacity: 0; 
-            pointer-events: none; 
-            transition: opacity 0.3s ease; 
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 2000;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
         }
-        .modal-overlay.activo { opacity: 1; pointer-events: all; }
-        .modal-contenido { 
-            width: 100%; 
-            max-width: 500px; 
-            background: rgba(20, 20, 25, 0.98); 
-            border-top: 1px solid var(--color-marca); 
-            border-radius: 28px 28px 0 0; 
-            padding: 20px 25px 35px 25px; 
-            transform: translateY(100%); 
-            transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1); 
-            box-sizing: border-box; 
-            text-align: center; 
+        .bottom-sheet-overlay.activo,
+        .modal-overlay.activo {
+            opacity: 1;
+            pointer-events: all;
         }
-        .modal-overlay.activo .modal-contenido { transform: translateY(0); }
-        .drag-handle { width: 44px; height: 5px; background: rgba(255,255,255,0.25); border-radius: 5px; margin: 0 auto 16px auto; }
-        
-        .btn-accion-secundaria { 
-            width: 100%; 
-            padding: 13px; 
-            border-radius: 12px; 
-            border: 1px solid var(--glass-border); 
-            background: rgba(255,255,255,0.06); 
-            color: white; 
-            font-weight: bold; 
-            font-size: 12.5px;
-            cursor: pointer; 
-            transition: 0.2s; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            gap: 6px; 
+        .bottom-sheet-contenido,
+        .modal-contenido {
+            width: 94%;
+            max-width: 440px;
+            background: rgba(18, 18, 24, 0.98);
+            border: 1px solid rgba(255, 107, 0, 0.35);
+            border-radius: 26px;
+            padding: 16px 20px 22px 20px;
+            margin-bottom: 12px;
+            transform: translate3d(0, 120%, 0);
+            transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+            max-height: 88dvh;
+            overflow-y: auto;
+            text-align: center;
+            box-shadow: 0 18px 44px rgba(0, 0, 0, 0.9);
         }
-        .btn-accion-secundaria:active { background: rgba(255,255,255,0.12); transform: scale(0.96); }
+        .bottom-sheet-overlay.activo .bottom-sheet-contenido,
+        .modal-overlay.activo .modal-contenido {
+            transform: translate3d(0, 0, 0);
+        }
+        .drag-handle {
+            width: 42px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.24);
+            border-radius: 99px;
+            margin: 0 auto 12px auto;
+        }
 
+        /* LOGIN COMPACTO SIN SCROLL (IDENTICO A INDEX.HTML) */
+        .input-login {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            color: #ffffff;
+            outline: none;
+        }
+        .btn-auth {
+            width: 100%;
+            padding: 13px;
+            border-radius: 11px;
+            border: none;
+            font-weight: 900;
+            cursor: pointer;
+            margin-bottom: 9px;
+            text-transform: uppercase;
+        }
+        .btn-ingresar { background: var(--naranja); color: #ffffff; }
+        .btn-registrar { background: transparent; color: var(--naranja); border: 1px solid var(--naranja); }
+        .gk-auth-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 10px; }
+        .gk-auth-brand { text-align: left; }
+        .gk-auth-title { margin: 0; font-size: 19px; font-weight: 900; letter-spacing: 1px; line-height: 1.1; text-transform: uppercase; }
+        .gk-auth-sub { margin: 3px 0 0 0; font-size: 11.5px; color: #9ca3af; }
+        .gk-auth-close { width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.06); color: #ffffff; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+        .gk-auth-divider { display: flex; align-items: center; gap: 10px; margin: 0 0 11px 0; color: #8b92a1; font-size: 11px; font-weight: 600; }
+        .gk-auth-divider::before, .gk-auth-divider::after { content: ""; flex: 1; height: 1px; background: rgba(255, 255, 255, 0.12); }
+        .gk-auth-field { position: relative; width: 100%; margin-bottom: 8px; }
+        .gk-auth-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: #8b92a1; pointer-events: none; display: flex; align-items: center; }
+        .gk-auth-input { width: 100%; height: 43px; padding: 0 14px 0 38px; border-radius: 11px; font-size: 13.5px; }
+        .gk-auth-input:focus { border-color: var(--naranja); box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.16); }
+        .gk-auth-meta { display: flex; justify-content: flex-end; margin: -2px 0 8px 0; }
+        .gk-auth-forgot { color: #9ca3af; font-size: 11px; font-weight: 600; text-decoration: none; }
+        .gk-auth-captcha-wrap { display: flex; justify-content: center; height: 64px; overflow: hidden; margin-bottom: 9px; }
+        .gk-auth-captcha-wrap .g-recaptcha { transform: scale(0.82); transform-origin: center top; }
+        .gk-auth-submit { width: 100%; height: 44px; padding: 0 16px; margin: 0; border-radius: 11px; font-size: 13.5px; background: linear-gradient(135deg, #ff8c00, var(--naranja)); box-shadow: 0 6px 16px rgba(255, 107, 0, 0.34); }
+        .gk-auth-signup-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 11px; padding: 9px 12px; border-radius: 12px; background: rgba(255, 107, 0, 0.08); border: 1px solid rgba(255, 107, 0, 0.28); }
+        .gk-auth-signup-bar span { font-size: 12px; font-weight: 600; color: #e2e8f0; }
+        .gk-auth-signup-btn { background: transparent; border: none; color: var(--naranja); font-size: 12px; font-weight: 900; text-transform: uppercase; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+        .gk-auth-legal { text-align: center; color: #7b8291; font-size: 10px; margin: 9px 0 0 0; }
 
-        .offline-banner { 
-            position: fixed; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            background: #ff4444; 
-            color: white; 
-            text-align: center; 
-            padding: 7px; 
-            z-index: 10000; 
-            font-weight: 900; 
-            font-size: 11px; 
-            text-transform: uppercase; 
-            letter-spacing: 1px; 
-            display: none; 
+        /* TABS GUARDADOS Y COMPARADOR */
+        .tabs-guardados {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+        .tab-fav-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #9ca3af;
+            padding: 8px;
+            border-radius: 10px;
+            font-size: 11.5px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .tab-fav-btn.activo {
+            background: rgba(255, 107, 0, 0.18);
+            border-color: var(--naranja);
+            color: #ffffff;
+        }
+        .tabla-comparador {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11.5px;
+            text-align: left;
+        }
+        .tabla-comparador th,
+        .tabla-comparador td {
+            padding: 7px 6px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            font-variant-numeric: tabular-nums;
+        }
+        .tabla-comparador th { color: #9ca3af; font-weight: 700; }
+
+        /* FRANJAS AGENDA VISITA */
+        .grid-franjas {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin: 12px 0 14px 0;
+        }
+        .franja-btn {
+            padding: 10px 8px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            color: #e5e7eb;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .franja-btn.activa {
+            background: rgba(255, 107, 0, 0.2);
+            border-color: var(--naranja);
+            color: #ffffff;
+        }
+
+        .btn-accion-secundaria {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            background: rgba(255, 255, 255, 0.06);
+            color: #ffffff;
+            font-weight: 800;
+            font-size: 12px;
+            cursor: pointer;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* TOAST IN-APP Y OFFLINE */
+        #toast-inmueble {
+            position: fixed;
+            bottom: 84px;
+            left: 50%;
+            transform: translateX(-50%) translateY(14px);
+            background: rgba(16, 16, 22, 0.96);
+            border: 1px solid var(--naranja);
+            color: #ffffff;
+            padding: 9px 16px;
+            border-radius: 99px;
+            font-size: 12px;
+            font-weight: 700;
+            z-index: 3000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.22s ease, transform 0.22s ease;
+            box-shadow: 0 10px 26px rgba(0, 0, 0, 0.85);
+            max-width: 90vw;
+            text-align: center;
+        }
+        #toast-inmueble.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        .offline-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(255, 68, 68, 0.95);
+            color: #ffffff;
+            text-align: center;
+            padding: 6px;
+            z-index: 4000;
+            font-weight: 900;
+            font-size: 10.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            display: none;
         }
         .offline-banner.activo { display: block; }
     </style>
 </head>
 <body>
-    <div id="offline-banner" class="offline-banner">⚠️ Sin conexión: Modo offline activo</div>
-    <img id="fondo-pantalla" src="" alt="Fondo Ambiental">
+    <div id="offline-banner" class="offline-banner">Sin conexión · Modo offline activo</div>
+    <img id="fondo-pantalla" src="" alt="">
 
+    <div id="sello-like" class="sello-swipe">Guardar</div>
+    <div id="sello-pass" class="sello-swipe">Siguiente</div>
 
-    <!-- Navegación Flotante -->
-    <div class="nav-flotante">
-        <a href="index.html" class="btn-nav" title="Volver al Radar">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="19" y1="12" x2="5" y2="12"></line>
-                <polyline points="12 19 5 12 5"></polyline>
-            </svg>
-        </a>
-        <div style="display: flex; gap: 10px;">
-            <button class="btn-nav" id="btn-fav-inmueble" onclick="window.guardarInmuebleActual()" title="Guardar Favorito" style="font-size: 18px;">🤍</button>
-            <button class="btn-nav" onclick="window.abrirMisGuardados()" title="Mis Guardados" style="font-size: 18px; border-color: #ff4444; color: #ff4444; background: rgba(255, 68, 68, 0.2);">❤️</button>
-            <button class="btn-nav" onclick="window.abrirModal('overlay-compartir')" title="Compartir Inmueble">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="18" cy="5" r="3"></circle>
-                    <circle cx="6" cy="12" r="3"></circle>
-                    <circle cx="18" cy="19" r="3"></circle>
-                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-                </svg>
-            </button>
+    <!-- BARRA SUPERIOR + LLAVE DORADA + FILTROS RAPIDOS -->
+    <div class="top-bar-inm">
+        <div class="nav-flotante">
+            <a href="/" class="btn-nav" title="Volver al Radar" aria-label="Volver al Radar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            </a>
+
+            <div class="nav-grupo-der">
+                <button type="button" class="btn-nav" id="btn-fav-inmueble" onclick="window.guardarInmuebleActual()" title="Guardar propiedad" aria-label="Guardar propiedad">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                </button>
+
+                <button type="button" class="btn-nav" onclick="window.abrirMisGuardados()" title="Mis Guardados y Comparador" aria-label="Mis Guardados">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff6b6b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                    <span id="badge-conteo-favs" class="badge-fav-count">0</span>
+                </button>
+
+                <button type="button" class="btn-nav" onclick="window.abrirModal('overlay-compartir')" title="Compartir propiedad" aria-label="Compartir">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                </button>
+
+                <!-- LLAVE MAESTRA DORADA (HOMOLOGADA CON INDEX.HTML) -->
+                <div class="contenedor-llave" id="btn-portal-mando-contenedor">
+                    <button type="button" class="btn-nav" id="btn-portal-mando" onclick="window.toggleSubmenu()" aria-label="Menú de cuenta">
+                        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 1.5px 3px rgba(0, 0, 0, 0.65));">
+                            <defs>
+                                <linearGradient id="gk-llave-dorada-inm" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+                                    <stop offset="0%" stop-color="#FFF7CC"/>
+                                    <stop offset="35%" stop-color="#FFD700"/>
+                                    <stop offset="72%" stop-color="#F59E0B"/>
+                                    <stop offset="100%" stop-color="#B45309"/>
+                                </linearGradient>
+                            </defs>
+                            <path d="M15.5 2.5C12.19 2.5 9.5 5.19 9.5 8.5C9.5 9.48 9.74 10.4 10.16 11.21L3.35 18.02C3.13 18.24 3 18.55 3 18.87V21C3 21.55 3.45 22 4 22H6.5C7.05 22 7.5 21.55 7.5 21V19.5H9C9.55 19.5 10 19.05 10 18.5V17H11.5C11.82 17 12.13 16.87 12.35 16.65L13.29 15.71C14 15.9 14.74 16 15.5 16C18.81 16 21.5 13.31 21.5 10C21.5 5.86 18.81 2.5 15.5 2.5ZM16.5 9.5C15.4 9.5 14.5 8.6 14.5 7.5C14.5 6.4 15.4 5.5 16.5 5.5C17.6 5.5 18.5 6.4 18.5 7.5C18.5 8.6 17.6 9.5 16.5 9.5Z" fill="url(#gk-llave-dorada-inm)" stroke="#5C3300" stroke-width="0.7" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                    <div id="submenu-llave" class="submenu-llave">
+                        <button type="button" id="btn-login-submenu" class="btn-submenu" onclick="window.abrirModal('modal-login'); window.toggleSubmenu()">Iniciar Sesión</button>
+                        <button type="button" id="btn-inmobiliaria" class="btn-submenu" onclick="window.location.href='/inmobiliaria'; window.toggleSubmenu()" style="display:none; border-color: rgba(255,107,0,0.45); color: #ff6b00;">Oficina Inmobiliaria</button>
+                        <button type="button" id="btn-oficina" class="btn-submenu" onclick="window.location.href='/oficina'; window.toggleSubmenu()" style="display:none;">Oficina</button>
+                        <button type="button" id="btn-oficina-empleado" class="btn-submenu" onclick="window.location.href='/oficinaempleado.html'; window.toggleSubmenu()" style="display:none; color: #00ff64;">Oficina Laboral</button>
+                        <button type="button" id="btn-terminal" class="btn-submenu" onclick="window.location.href='/terminal'; window.toggleSubmenu()" style="display:none;">Caja y Tienda</button>
+                        <button type="button" id="btn-metricas" class="btn-submenu" onclick="const id = localStorage.getItem('geokatu_active_uid') || window.idUsuarioActual || ''; window.location.href = '/metricas' + (id ? '?id=' + encodeURIComponent(id) : ''); window.toggleSubmenu()" style="display:none;">Métricas</button>
+                        <button type="button" id="btn-cabina" class="btn-submenu" onclick="window.location.href='/cabina.html'; window.toggleSubmenu()" style="display:none;">Cabina Flota</button>
+                        <button type="button" class="btn-submenu" onclick="window.location.href='/tramites'; window.toggleSubmenu()" style="color: #00f5d4;">Notaría / Trámites</button>
+                        <button type="button" id="btn-salir" class="btn-submenu" onclick="if(window.cerrarSesion) window.cerrarSesion(); window.toggleSubmenu()" style="display:none; color: #ff4444; border-color: rgba(255,68,68,0.3);">Salir</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="barra-filtros-feed" id="barra-filtros-feed">
+            <button type="button" class="chip-feed activo" data-op="todos" onclick="window.aplicarFiltroFeed('op', 'todos', this)">Todos</button>
+            <button type="button" class="chip-feed" data-op="arriendo" onclick="window.aplicarFiltroFeed('op', 'arriendo', this)">Arriendo</button>
+            <button type="button" class="chip-feed" data-op="venta" onclick="window.aplicarFiltroFeed('op', 'venta', this)">Venta</button>
+            <button type="button" class="chip-feed" data-op="dias" onclick="window.aplicarFiltroFeed('op', 'dias', this)">Por días</button>
+            <button type="button" class="chip-feed" data-sub="apartamento" onclick="window.aplicarFiltroFeed('sub', 'apartamento', this)">Aptos</button>
+            <button type="button" class="chip-feed" data-sub="casa" onclick="window.aplicarFiltroFeed('sub', 'casa', this)">Casas</button>
+            <button type="button" class="chip-feed" data-sub="local" onclick="window.aplicarFiltroFeed('sub', 'local', this)">Locales</button>
+            <button type="button" class="chip-feed" data-sub="lote" onclick="window.aplicarFiltroFeed('sub', 'lote', this)">Lotes / Fincas</button>
         </div>
     </div>
 
-
-    <!-- TARJETA DESLIZABLE (TINDER SWIPE ENGINE) -->
-    <div id="tarjeta-inmueble-activa">
-        <!-- Galería de Fotos -->
-        <div class="galeria-container">
-            <div class="galeria-wrapper shimmer-box" id="carrusel-imagenes">
-                <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" class="galeria-img">
+    <!-- TARJETA PRINCIPAL SWIPEABLE -->
+    <main id="tarjeta-inmueble-activa">
+        <div class="galeria-container shimmer-box" id="galeria-story-box">
+            <div class="story-barras" id="story-barras"></div>
+            <img id="foto-story-activa" class="foto-story-activa" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Foto del inmueble">
+            <div class="zona-tap-story zona-tap-izq" onclick="window.retrocederFotoStory(event)" aria-label="Foto anterior"></div>
+            <div class="zona-tap-story zona-tap-der" onclick="window.avanzarFotoStory(event)" aria-label="Siguiente foto"></div>
+            <div class="galeria-pie-badges">
+                <span class="pill-frescura" id="pill-frescura"></span>
+                <span class="indicador-galeria" id="contador-galeria">1 / 1</span>
             </div>
-            <div class="indicador-galeria" id="contador-galeria">1 / 1</div>
         </div>
 
+        <section class="info-container" id="info-container">
+            <div class="fila-tags-superiores" id="badge-promo-container"></div>
 
-        <!-- Información Detallada -->
-        <div class="info-container">
-            <div id="badge-promo-container"></div>
-            <h1 class="titulo-propiedad shimmer-box" id="inmueble-titulo" style="width: 80%; height: 32px; border-radius: 8px;"></h1>
-            <h2 class="precio-propiedad shimmer-box" id="inmueble-precio" style="width: 45%; height: 30px; border-radius: 8px;"></h2>
-
-
-            <div class="badges-row" id="contenedor-badges">
-                <div class="badge-cristal shimmer-box" style="width: 80px; height: 36px; border-radius: 12px;"></div>
-                <div class="badge-cristal shimmer-box" style="width: 80px; height: 36px; border-radius: 12px;"></div>
-                <div class="badge-cristal shimmer-box" style="width: 80px; height: 36px; border-radius: 12px;"></div>
+            <h1 class="titulo-propiedad shimmer-box" id="inmueble-titulo" style="min-height: 30px; border-radius: 8px;">Cargando inmueble...</h1>
+            <div class="precio-fila">
+                <h2 class="precio-propiedad shimmer-box" id="inmueble-precio" style="min-height: 28px; min-width: 140px; border-radius: 8px;">$0</h2>
+                <span id="meta-precio-m2" class="meta-precio-m2"></span>
             </div>
 
+            <div class="badges-row" id="contenedor-badges">
+                <div class="badge-cristal shimmer-box" style="width: 84px; height: 32px;"></div>
+                <div class="badge-cristal shimmer-box" style="width: 84px; height: 32px;"></div>
+                <div class="badge-cristal shimmer-box" style="width: 84px; height: 32px;"></div>
+            </div>
 
-            <button class="btn-ver-mapa" onclick="window.volarAlMapa()">
-                <span>🗺️</span> VER UBICACIÓN EN EL RADAR GEOKATU
-            </button>
+            <div class="grid-acciones-ficha">
+                <button type="button" class="btn-ficha-sec" onclick="window.volarAlMapa()">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    <span>Ver en el Radar</span>
+                </button>
+                <button type="button" class="btn-ficha-sec btn-ficha-legal" onclick="window.irATramiteInmueble()">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+                    <span id="txt-btn-contrato">Contrato Digital</span>
+                </button>
+            </div>
 
+            <div id="bloque-calculadora" class="bloque-calculadora"></div>
 
             <h3 class="seccion-titulo">Descripción</h3>
-            <div class="descripcion-texto shimmer-box" id="inmueble-descripcion" style="min-height: 90px; border-radius: 14px;"></div>
-
+            <div class="descripcion-texto shimmer-box" id="inmueble-descripcion" style="min-height: 82px;"></div>
 
             <h3 class="seccion-titulo">Inmobiliaria / Anfitrión</h3>
             <div class="glass-panel agencia-card" id="tarjeta-agencia" onclick="window.irAPerfilAgencia()">
-                <img id="agencia-logo" class="agencia-logo" src="https://via.placeholder.com/60/0a0a0c/ff6b00?text=INMO">
-                <div class="agencia-info" style="width: 100%;">
-                    <h4 id="agencia-nombre">Cargando Inmobiliaria...</h4>
-                    <p id="agencia-nicho">Aliado Verificado</p>
+                <img id="agencia-logo" class="agencia-logo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'%3E%3Crect width='60' height='60' rx='30' fill='%23121218'/%3E%3Ctext x='30' y='35' fill='%23ff6b00' font-family='sans-serif' font-size='14' font-weight='900' text-anchor='middle'%3EINMO%3C/text%3E%3C/svg%3E" alt="Logo agencia">
+                <div class="agencia-info">
+                    <h4 id="agencia-nombre">Cargando agencia...</h4>
+                    <p id="agencia-nicho">Portafolio verificado</p>
                 </div>
-                <div style="margin-left: auto; color: var(--color-marca); font-size: 18px;">➔</div>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff6b00" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
             </div>
-
 
             <h3 class="seccion-titulo" id="titulo-otras-opciones" style="display: none;">Otras propiedades en la zona</h3>
             <div class="otras-opciones-wrapper" id="contenedor-otras-opciones"></div>
 
+            <button type="button" class="btn-ficha-sec" style="width: 100%; border-style: dashed; margin-top: 18px;" onclick="window.location.href='/inmobiliaria'">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg>
+                <span>¿Eres agente o inmobiliaria? Gestiona tu portafolio</span>
+            </button>
+        </section>
+    </main>
 
-            <button class="btn-ver-mapa" style="border-style: dashed; margin-top: 25px;" onclick="window.location.href='boveda-inmuebles.html'">
-                🏢 ¿Eres agente o inmobiliaria? Gestiona tu catálogo aquí
+    <!-- BARRA INFERIOR TINDER -->
+    <div class="cta-wrapper">
+        <button type="button" class="btn-tinder btn-rewind" id="btn-rewind-tinder" onclick="window.deshacerTinder()" disabled title="Volver a la propiedad anterior" aria-label="Deshacer">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+        </button>
+        <button type="button" class="btn-tinder btn-descartar" onclick="window.siguientePropiedadTinder('izquierda')" title="Siguiente propiedad" aria-label="Pasar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <button type="button" class="btn-tinder btn-interesa" id="btn-whatsapp-cta" onclick="window.abrirModalVisita()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            <span>Agendar / Me Interesa</span>
+        </button>
+    </div>
+
+    <!-- MODAL LOGIN COMPACTO SIN SCROLL (IDENTICO A INDEX.HTML) -->
+    <div class="bottom-sheet-overlay" id="modal-login" onclick="window.cerrarModal(event, 'modal-login')">
+        <div class="bottom-sheet-contenido" id="sheet-login" style="max-width: 410px;">
+            <div class="drag-handle"></div>
+            <div class="gk-auth-head">
+                <div class="gk-auth-brand">
+                    <h2 class="gk-auth-title"><span style="color: #ff6b00;">GEO</span><span>KATU</span></h2>
+                    <p class="gk-auth-sub">Inicia sesión para operar tu cuenta o inmobiliaria</p>
+                </div>
+                <button type="button" class="gk-auth-close" onclick="document.getElementById('modal-login').classList.remove('activo')" aria-label="Cerrar inicio de sesión">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div id="form-login-activo">
+                <button type="button" id="btn-google-auth" class="btn-auth" style="background: white; color: #222; display: flex; align-items: center; justify-content: center; gap: 10px; border: 1px solid #ddd; box-shadow: 0 4px 10px rgba(0,0,0,0.15); transition: 0.3s; width: 100%; padding: 14px; font-size: 15px; border-radius: 12px; margin-bottom: 12px; text-transform: none; font-weight: 700;"
+                onclick="this.disabled=true; this.style.opacity='0.7'; this.innerHTML='Conectando con Google...'; window.iniciarConGoogle().finally(() => { this.disabled=false; this.style.opacity='1'; this.innerHTML='<img src=&quot;https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg&quot; width=&quot;20&quot; height=&quot;20&quot;> Continuar con Google'; });">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" height="20" alt="Google"> Continuar con Google
+                </button>
+                <div class="gk-auth-divider">o continúa con tu correo</div>
+                <form id="form-login-portal" onsubmit="event.preventDefault(); if(document.getElementById('miel-mando').value !== '') return; const btn=document.getElementById('btn-login-accion'); if(btn){btn.disabled=true; btn.innerText='Validando...'; setTimeout(()=>{btn.disabled=false; btn.innerText='Iniciar Sesión';},3000);} window.iniciarSesion();">
+                    <input type="text" id="miel-mando" name="miel_bot" style="position:absolute; left:-9999px; opacity:0;" tabindex="-1" autocomplete="off">
+                    <div class="gk-auth-field">
+                        <span class="gk-auth-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>
+                        <input type="email" id="login-email" name="email" class="input-login gk-auth-input" placeholder="Correo electrónico" autocomplete="username" required>
+                    </div>
+                    <div class="gk-auth-field">
+                        <span class="gk-auth-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+                        <input type="password" id="login-pass" name="password" class="input-login gk-auth-input" placeholder="Contraseña" autocomplete="current-password" required style="padding-right: 42px;">
+                        <button type="button" onclick="if(window.toggleVerPassword) window.toggleVerPassword('login-pass', this)" aria-label="Mostrar u ocultar contraseña" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: #8b92a1; cursor: pointer; padding: 6px; z-index: 10; display: flex; align-items: center; justify-content: center;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                    </div>
+                    <div class="gk-auth-meta">
+                        <a href="mailto:soporte@tuqrpido.com" class="gk-auth-forgot">¿Olvidaste tu contraseña?</a>
+                    </div>
+                    <div class="gk-auth-captcha-wrap">
+                        <div class="g-recaptcha" data-sitekey="6LeT74wtAAAAAMeqXa4L9kkNdFLqjzEjsykUD5ET" data-theme="dark"></div>
+                    </div>
+                    <button type="submit" class="btn-auth btn-ingresar gk-auth-submit" id="btn-login-accion">Iniciar Sesión</button>
+                </form>
+                <div class="gk-auth-signup-bar">
+                    <span>¿Nuevo en GeoKATU?</span>
+                    <button type="button" class="gk-auth-signup-btn" onclick="window.location.href='/acceso'"><span>Crear cuenta</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+                </div>
+                <p class="gk-auth-legal">Al continuar aceptas el <a href="/terminos" target="_blank" style="color: #ff6b00; text-decoration: none; font-weight: 700;">Contrato de Mandato y Términos</a>.</p>
+            </div>
+            <div id="panel-usuario-activo" style="display: none; text-align: center; padding-top: 8px;">
+                <h3 id="nombre-usuario-activo" style="margin: 0 0 16px 0; color: var(--naranja); font-size: 16px; word-break: break-all;">Cargando...</h3>
+                <button type="button" class="btn-auth btn-ingresar" onclick="window.location.href='/inmobiliaria'">Oficina Inmobiliaria</button>
+                <button type="button" class="btn-auth btn-registrar" onclick="window.location.href='/oficina'" style="border-color: rgba(255,255,255,0.22); color: #ffffff;">Oficina Comercial</button>
+                <button type="button" id="btn-modal-oficina-empleado" class="btn-auth" onclick="window.location.href='/oficinaempleado.html'" style="display:none; background:#00ff64; color:#000000;">Oficina Laboral</button>
+                <button type="button" class="btn-auth btn-registrar" onclick="if(window.cerrarSesion) window.cerrarSesion()" style="border-color: #ff4444; color: #ff4444;">Cerrar Sesión</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL AGENDAR VISITA EN 1 TOQUE -->
+    <div class="modal-overlay" id="modal-visita" onclick="window.cerrarModal(event, 'modal-visita')">
+        <div class="modal-contenido">
+            <div class="drag-handle"></div>
+            <h3 style="margin: 0 0 4px 0; color: var(--naranja); font-size: 16px; text-transform: uppercase;">Agendar Visita</h3>
+            <p id="txt-visita-prop" style="margin: 0; font-size: 12px; color: #cbd5e1;"></p>
+            <div class="grid-franjas">
+                <button type="button" class="franja-btn activa" onclick="window.seleccionarFranjaVisita('hoy en la tarde', this)">Hoy en la tarde</button>
+                <button type="button" class="franja-btn" onclick="window.seleccionarFranjaVisita('mañana en la mañana', this)">Mañana AM</button>
+                <button type="button" class="franja-btn" onclick="window.seleccionarFranjaVisita('mañana en la tarde', this)">Mañana PM</button>
+                <button type="button" class="franja-btn" onclick="window.seleccionarFranjaVisita('este fin de semana', this)">Fin de semana</button>
+            </div>
+            <button type="button" id="btn-enviar-visita-wa" class="btn-tinder btn-interesa" style="width: 100%;" onclick="window.confirmarVisitaWhatsApp()">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                <span>Confirmar por WhatsApp</span>
+            </button>
+            <button type="button" class="btn-accion-secundaria" style="margin-top: 8px; border-color: rgba(0,245,212,0.4); color: #00f5d4;" onclick="document.getElementById('modal-visita').classList.remove('activo'); window.irATramiteInmueble();">
+                <span>Ir directo a Contrato Digital (/tramites)</span>
             </button>
         </div>
     </div>
 
-
-    <!-- Barra Inferior de Acción Tipo Tinder -->
-    <div class="cta-wrapper">
-        <button class="btn-pulsante btn-descartar-tinder" id="btn-descartar-tinder" onclick="window.siguientePropiedadTinder()" title="Siguiente Inmueble (Descartar)">
-            ✕
-        </button>
-        <button class="btn-pulsante btn-interesa" id="btn-whatsapp-cta">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-            </svg>
-            Me Interesa
-        </button>
-    </div>
-
-
-    <!-- Modal: Mis Guardados -->
+    <!-- MODAL MIS GUARDADOS + COMPARADOR -->
     <div class="modal-overlay" id="modal-favoritos" onclick="window.cerrarModal(event, 'modal-favoritos')">
-        <div class="modal-contenido" id="sheet-favoritos" style="border-top-color: #ff4444; text-align: left;">
+        <div class="modal-contenido" style="text-align: left;">
             <div class="drag-handle"></div>
-            <h2 style="color: #ff4444; margin-top: 0; text-transform: uppercase; letter-spacing: 1.5px; text-align: center;">Mis Guardados</h2>
-            <p style="text-align:center; font-size:12px; color:#888; margin-bottom: 16px;">Inmuebles guardados localmente en este dispositivo.</p>
-            <div id="lista-favoritos" style="max-height: 55vh; overflow-y: auto; margin-bottom: 15px; scrollbar-width: none;"></div>
+            <h3 style="margin: 0 0 10px 0; color: #ffffff; font-size: 16px; text-transform: uppercase; text-align: center;">Mis Guardados</h3>
+            <div class="tabs-guardados">
+                <button type="button" id="btn-tab-fav-lista" class="tab-fav-btn activo" onclick="window.cambiarTabGuardados('lista')">Lista</button>
+                <button type="button" id="btn-tab-fav-comp" class="tab-fav-btn" onclick="window.cambiarTabGuardados('comparar')">Comparador</button>
+            </div>
+            <div id="lista-favoritos" style="max-height: 52dvh; overflow-y: auto;"></div>
+            <div id="comparador-favoritos" style="display: none; max-height: 52dvh; overflow-x: auto;"></div>
         </div>
     </div>
 
-
-    <!-- Modal: Compartir -->
-    <div class="modal-overlay" id="overlay-compartir" onclick="window.cerrarModal(event, 'overlay-compartir')">
-        <div class="modal-contenido" id="sheet-compartir">
+    <!-- MODAL PORTAFOLIO DE AGENCIA -->
+    <div class="modal-overlay" id="modal-agencia" onclick="window.cerrarModal(event, 'modal-agencia')">
+        <div class="modal-contenido" style="text-align: left;">
             <div class="drag-handle"></div>
-            <h2 style="margin-top: 0; color: var(--color-marca); text-transform: uppercase; letter-spacing: 1.5px; font-size: 18px;">Compartir Propiedad</h2>
-            <div id="qr-code-container" style="background: white; padding: 14px; border-radius: 18px; display: inline-block; margin-bottom: 16px; line-height: 0;"></div>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                <img id="modal-ag-logo" class="agencia-logo" src="" alt="Agencia">
+                <div style="min-width: 0;">
+                    <h3 id="modal-ag-nombre" style="margin: 0; font-size: 15px; color: #ffffff;">Inmobiliaria</h3>
+                    <p id="modal-ag-nicho" style="margin: 2px 0 0 0; font-size: 11.5px; color: #9ca3af;">Portafolio verificado</p>
+                </div>
+            </div>
+            <div id="modal-ag-lista" style="display: flex; flex-direction: column; gap: 8px; max-height: 50dvh; overflow-y: auto;"></div>
+        </div>
+    </div>
+
+    <!-- MODAL COMPARTIR CON QR LOCAL -->
+    <div class="modal-overlay" id="overlay-compartir" onclick="window.cerrarModal(event, 'overlay-compartir')">
+        <div class="modal-contenido">
+            <div class="drag-handle"></div>
+            <h3 style="margin: 0 0 12px 0; color: var(--naranja); text-transform: uppercase; font-size: 16px;">Compartir Propiedad</h3>
+            <div id="qr-code-container" style="background: #ffffff; padding: 12px; border-radius: 16px; display: inline-block; margin-bottom: 14px; line-height: 0;"></div>
             <div style="display: flex; flex-direction: column; gap: 8px;">
-                <button class="btn-pulsante btn-interesa" id="btn-descargar-qr" onclick="window.descargarQR()" style="padding: 12px; font-size: 13px;">⬇️ DESCARGAR QR</button>
-                <div style="display: flex; gap: 8px;">
-                    <button class="btn-accion-secundaria" onclick="window.copiarEnlace()" style="flex: 1;">🔗 Copiar Link</button>
-                    <button class="btn-accion-secundaria" onclick="window.compartirNativo()" style="flex: 1;">📲 Compartir</button>
+                <button type="button" class="btn-tinder btn-interesa" style="width: 100%; height: 44px; font-size: 12.5px;" onclick="window.descargarQR()">Descargar Código QR</button>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <button type="button" class="btn-accion-secundaria" onclick="window.copiarEnlace()">Copiar Link</button>
+                    <button type="button" class="btn-accion-secundaria" onclick="window.compartirNativo()">Compartir</button>
                 </div>
             </div>
         </div>
     </div>
 
+    <div id="toast-inmueble" role="status" aria-live="polite"></div>
 
+    <script type="module" src="./auth-mando.js"></script>
     <script type="module">
         import GeokatuDB from './core-db.js';
-
 
         window.GeokatuDB = GeokatuDB;
         window.datosAgencia = null;
         window.propiedadActual = null;
-        window.propiedadesGlobales = [];
+        window.propiedadesBase = [];
+        window.propiedadesFiltradas = [];
+        window.historialTinder = [];
 
+        const IMG_FALLBACK = 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?q=80&w=1080&auto=format&fit=crop';
+
+        const SVG_INM = {
+            corazonLleno: '<svg width="18" height="18" viewBox="0 0 24 24" fill="#ff4444" stroke="#ff4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+            corazonVacio: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+            edificio: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg>',
+            cama: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/></svg>',
+            bano: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16a1 1 0 0 1 1 1v3a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4v-3a1 1 0 0 1 1-1z"/><path d="M6 12V5a2 2 0 0 1 2-2h3"/></svg>',
+            area: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="M3 9h18"/></svg>',
+            capa: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>',
+            auto: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14v-5l-2-5H7l-2 5v5z"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/></svg>',
+            pin: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>'
+        };
+
+        let galeriaActual = [];
+        let indiceFotoActual = 0;
+        let filtroOpActivo = 'todos';
+        let filtroSubActivo = null;
+        let franjaVisitaElegida = 'hoy en la tarde';
+        let timerToast = null;
+
+        function mostrarToast(msg) {
+            const el = document.getElementById('toast-inmueble');
+            if (!el) return;
+            el.textContent = msg;
+            el.classList.add('visible');
+            clearTimeout(timerToast);
+            timerToast = setTimeout(() => el.classList.remove('visible'), 2600);
+        }
 
         window.sanitizarTexto = function(texto) {
             if (texto === null || texto === undefined) return '';
             const div = document.createElement('div');
-            div.textContent = texto;
+            div.textContent = String(texto);
             return div.innerHTML;
         };
 
-
-        window.formatearMoneda = function(valor, moneda = 'COP') {
-            const num = Number(valor) || 0;
-            if (moneda === 'USD') return (num / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-            return '$' + num.toLocaleString('es-CO') + ' COP';
+        window.formatearMoneda = function(valor) {
+            const num = Math.round(Number(valor) || 0);
+            return '$' + num.toLocaleString('es-CO');
         };
 
+        window.abrirModal = (id) => document.getElementById(id)?.classList.add('activo');
+        window.cerrarModal = (e, id) => { if (e.target.id === id) document.getElementById(id)?.classList.remove('activo'); };
 
-        window.abrirModal = (id) => document.getElementById(id).classList.add('activo');
-        window.cerrarModal = (e, id) => { if (e.target.id === id) document.getElementById(id).classList.remove('activo'); };
+        // === CONTROL DE LLAVE MAESTRA SINCRONIZADO CON AUTH-MANDO.JS ===
+        window.sincronizarBotonesLlave = function() {
+            const panelActivo = document.getElementById('panel-usuario-activo');
+            const logueado = Boolean(window.idUsuarioActual || (panelActivo && panelActivo.style.display !== 'none'));
+            const rol = String(window.rolUsuarioActual || '').toLowerCase();
+            const setVis = (id, visible) => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = visible ? 'block' : 'none';
+            };
+            setVis('btn-login-submenu', !logueado);
+            setVis('btn-inmobiliaria', logueado);
+            setVis('btn-oficina', logueado);
+            setVis('btn-terminal', logueado);
+            setVis('btn-metricas', logueado);
+            setVis('btn-cabina', logueado && rol === 'conductor');
+            setVis('btn-salir', logueado);
+        };
 
+        window.toggleSubmenu = function() {
+            window.sincronizarBotonesLlave();
+            document.getElementById('submenu-llave')?.classList.toggle('activo');
+        };
 
-        // === ARQUITECTURA DE DATOS Y CARGA ===
+        // === NORMALIZADOR DUAL (LEGACY BOVEDA-INMUEBLES + CANONICO INMOBILIARIA) ===
+        function normalizarInmueble(raw) {
+            if (!raw) return null;
+            const id = String(raw.id_prod || raw.id || raw.codigo || '');
+            const opRaw = String(raw.tipo_operacion || raw.tipo || 'arriendo').toLowerCase();
+            const operacion = ['arriendo', 'venta', 'dias'].includes(opRaw) ? opRaw : 'arriendo';
+
+            const parseNum = (v) => {
+                if (typeof v === 'number') return v;
+                const m = String(v || '').match(/\d+(?:\.\d+)?/);
+                return m ? Number(m[0]) : 0;
+            };
+
+            const fotosSet = [];
+            const pushFoto = (u) => {
+                if (typeof u === 'string' && u.trim().length > 8 && !fotosSet.includes(u.trim())) {
+                    fotosSet.push(u.trim());
+                }
+            };
+            pushFoto(raw.foto_portada);
+            pushFoto(raw.imagen);
+            if (Array.isArray(raw.galeria)) raw.galeria.forEach(pushFoto);
+            if (Array.isArray(raw.galeria_extra)) raw.galeria_extra.forEach(pushFoto);
+            if (fotosSet.length === 0) fotosSet.push(IMG_FALLBACK);
+
+            const lat = Number(raw.Coordenadas?.latitude ?? raw.Coordenadas?._lat ?? raw.lat);
+            const lng = Number(raw.Coordenadas?.longitude ?? raw.Coordenadas?._long ?? raw.lng);
+
+            return {
+                _id: id,
+                id_negocio_padre: raw.id_negocio_padre || raw.parentId || '',
+                nombre: raw.nombre || 'Propiedad sin título',
+                precio: Number(raw.precio) || 0,
+                administracion: Number(raw.administracion) || 0,
+                admin_incluida: Boolean(raw.admin_incluida),
+                tipo_operacion: operacion,
+                subtipo_inmueble: raw.subtipo_inmueble || raw.categoria || 'Inmueble',
+                habitaciones: parseNum(raw.habitaciones ?? raw.cuartos),
+                banos: parseNum(raw.banos),
+                area_m2: parseNum(raw.area_m2),
+                estrato: String(raw.estrato || '').replace(/^e/i, ''),
+                parqueaderos: parseNum(raw.parqueaderos),
+                barrio: raw.barrio || raw.categoria || '',
+                direccion: raw.direccion || '',
+                estado_inmueble: raw.estado_inmueble || (raw.agotado ? 'arrendado_vendido' : 'disponible'),
+                tipo_contrato: raw.tipo_contrato || (operacion === 'venta' ? 'promesa_compraventa' : 'arriendo_vivienda_ley820'),
+                sala_tramite: raw.sala_tramite || raw.contrato_activo_id || '',
+                descripcion_final: raw.cuerpo_texto || raw.cuerpo_articulo || raw.descripcion || 'Inmueble verificado disponible en GeoKATU.',
+                fotos: fotosSet,
+                lat: Number.isFinite(lat) ? lat : null,
+                lng: Number.isFinite(lng) ? lng : null,
+                fecha_ref: raw.fecha_registro || raw.fecha_creacion || raw.fecha_actualizacion || null
+            };
+        }
+
+        function calcularFrescura(fechaIso) {
+            if (!fechaIso) return { color: '#9ca3af', texto: 'Publicado' };
+            const f = new Date(fechaIso);
+            if (isNaN(f.getTime())) return { color: '#9ca3af', texto: 'Publicado' };
+            const dias = Math.max(0, Math.floor((Date.now() - f.getTime()) / 86400000));
+            if (dias <= 7) return { color: '#00ff64', texto: dias === 0 ? 'Nuevo hoy' : ('Hace ' + dias + 'd') };
+            if (dias <= 21) return { color: '#facc15', texto: 'En mercado' };
+            return { color: '#9ca3af', texto: 'Vigente' };
+        }
+
+        function obtenerCentroInicial() {
+            try {
+                const cam = JSON.parse(sessionStorage.getItem('geokatu_last_cam') || 'null');
+                if (cam && Number.isFinite(Number(cam.lat)) && Number.isFinite(Number(cam.lng))) {
+                    return { lat: Number(cam.lat), lng: Number(cam.lng) };
+                }
+            } catch (e) {}
+            try {
+                const manual = JSON.parse(localStorage.getItem('geokatu_ciudad_manual') || 'null');
+                if (manual && Number.isFinite(Number(manual.lat)) && Number.isFinite(Number(manual.lng))) {
+                    return { lat: Number(manual.lat), lng: Number(manual.lng) };
+                }
+            } catch (e) {}
+            return { lat: 4.8133, lng: -75.6961 };
+        }
+
+        // === CARGA INICIAL DEL FEED ===
         async function construirInmueblesFeed() {
             const urlParams = new URLSearchParams(window.location.search);
             const idAgencia = urlParams.get('id');
             const idItem = urlParams.get('item');
-
+            const centro = obtenerCentroInicial();
 
             try {
-                // 1. Si viene agencia específica, cargar su catálogo
+                let listaCruda = [];
                 if (idAgencia) {
-                    const resAgencia = await GeokatuDB.LocalService.getDetails(idAgencia);
-                    if (resAgencia.success) window.datosAgencia = resAgencia.data;
-                    
-                    const resProps = await GeokatuDB.RadarService.obtenerProductosPublicos(idAgencia, { limite: 25 });
-                    if (resProps.success && resProps.data.length > 0) {
-                        window.propiedadesGlobales = resProps.data;
+                    const [resAg, resProps] = await Promise.all([
+                        GeokatuDB.LocalService.getDetails(idAgencia),
+                        GeokatuDB.RadarService.obtenerProductosPublicos(idAgencia, { limite: 30 })
+                    ]);
+                    if (resAg?.success && resAg.data) window.datosAgencia = Object.assign({ id: idAgencia }, resAg.data);
+                    if (resProps?.success && Array.isArray(resProps.data) && resProps.data.length > 0) {
+                        listaCruda = resProps.data.map(x => Object.assign({ id_negocio_padre: idAgencia }, x));
                     }
                 }
 
-
-                // 2. Si no hay propiedades de agencia o se entra directo, barrer radar general de inmuebles
-                if (!window.propiedadesGlobales || window.propiedadesGlobales.length === 0) {
-                    const resRadar = await GeokatuDB.RadarService.buscarInmueblesEnRadar(4.8133, -75.6961, 25000);
-                    if (resRadar.success && resRadar.data.length > 0) {
-                        window.propiedadesGlobales = resRadar.data;
+                if (listaCruda.length === 0) {
+                    const resRadar = await GeokatuDB.RadarService.buscarInmueblesEnRadar(centro.lat, centro.lng, 25000);
+                    if (resRadar?.success && Array.isArray(resRadar.data)) {
+                        listaCruda = resRadar.data;
                     }
                 }
 
+                window.propiedadesBase = listaCruda.map(normalizarInmueble).filter(Boolean);
+                window.propiedadesFiltradas = window.propiedadesBase.slice();
 
-                if (window.propiedadesGlobales.length === 0) {
-                    throw new Error("No hay inmuebles disponibles en este momento.");
+                if (window.propiedadesFiltradas.length === 0) {
+                    throw new Error('Aún no hay inmuebles publicados en esta zona.');
                 }
 
+                window.propiedadActual = idItem
+                    ? (window.propiedadesFiltradas.find(p => p._id === idItem) || window.propiedadesFiltradas[0])
+                    : window.propiedadesFiltradas[0];
 
-                // Determinar propiedad activa
-                if (idItem) {
-                    window.propiedadActual = window.propiedadesGlobales.find(p => p.id_prod === idItem || p.id === idItem) || window.propiedadesGlobales[0];
-                } else {
-                    window.propiedadActual = window.propiedadesGlobales[0];
-                }
-
-
-                // Obtener datos de la agencia dueña si no los tenemos
-                const idPadre = window.propiedadActual.id_negocio_padre || idAgencia;
-                if (idPadre && (!window.datosAgencia || window.datosAgencia.id !== idPadre)) {
-                    const resPadre = await GeokatuDB.LocalService.getDetails(idPadre);
-                    if (resPadre.success) window.datosAgencia = resPadre.data;
-                }
-
-
+                await cargarAgenciaDePropiedad(window.propiedadActual, idAgencia);
                 window.renderizarPropiedad(window.propiedadActual);
                 window.actualizarOtrasOpciones();
-                window.prepararQR();
-
-
-            } catch (e) {
-                console.error("Fallo al construir feed de inmuebles:", e);
-                document.querySelector('.info-container').innerHTML = `
-                    <div style="text-align: center; padding: 40px 15px;">
-                        <span style="font-size: 40px;">🏠</span>
-                        <h3 style="color:#ff6b00; margin-top: 10px;">${e.message}</h3>
-                        <a href="index.html" style="color:#fff; text-decoration: underline; font-size: 13px;">Volver al Radar</a>
-                    </div>`;
+                actualizarBadgeGuardados();
+            } catch (err) {
+                document.getElementById('galeria-story-box').style.display = 'none';
+                document.getElementById('info-container').innerHTML =
+                    '<div style="text-align:center; padding: 130px 20px 40px 20px;">' +
+                        '<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#ff6b00" stroke-width="1.8"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg>' +
+                        '<h3 style="color:#ffffff; margin: 12px 0 6px 0;">' + window.sanitizarTexto(err.message) + '</h3>' +
+                        '<p style="color:#9ca3af; font-size:12.5px; margin:0 0 18px 0;">Explora otra zona en el radar o publica la primera propiedad.</p>' +
+                        '<div style="display:flex; gap:10px; justify-content:center;">' +
+                            '<button type="button" class="btn-ficha-sec" onclick="window.location.href=\'/\'">Volver al Radar</button>' +
+                            '<button type="button" class="btn-ficha-sec btn-ficha-legal" onclick="window.location.href=\'/inmobiliaria\'">Publicar Inmueble</button>' +
+                        '</div>' +
+                    '</div>';
             }
         }
 
+        async function cargarAgenciaDePropiedad(prop, fallbackId) {
+            const idPadre = prop.id_negocio_padre || fallbackId;
+            if (!idPadre) return;
+            if (window.datosAgencia && (window.datosAgencia.id === idPadre || window.datosAgencia.codigo === idPadre)) return;
+            try {
+                const res = await GeokatuDB.LocalService.getDetails(idPadre);
+                if (res?.success && res.data) {
+                    window.datosAgencia = Object.assign({ id: idPadre }, res.data);
+                }
+            } catch (e) {}
+        }
 
+        // === GALERIA STORIES ===
+        function pintarStoryFoto() {
+            const img = document.getElementById('foto-story-activa');
+            const barras = document.getElementById('story-barras');
+            const cont = document.getElementById('contador-galeria');
+            if (!img || !galeriaActual.length) return;
+            img.src = galeriaActual[indiceFotoActual] || IMG_FALLBACK;
+            img.onerror = () => { img.src = IMG_FALLBACK; };
+            if (cont) cont.textContent = (indiceFotoActual + 1) + ' / ' + galeriaActual.length;
+            if (barras) {
+                barras.innerHTML = galeriaActual.map((_, idx) => {
+                    const cls = idx === indiceFotoActual ? 'activa' : (idx < indiceFotoActual ? 'vista' : '');
+                    return '<div class="story-barra ' + cls + '"></div>';
+                }).join('');
+            }
+        }
+
+        window.avanzarFotoStory = function(e) {
+            if (e) e.stopPropagation();
+            if (galeriaActual.length <= 1) return;
+            indiceFotoActual = (indiceFotoActual + 1) % galeriaActual.length;
+            pintarStoryFoto();
+        };
+
+        window.retrocederFotoStory = function(e) {
+            if (e) e.stopPropagation();
+            if (galeriaActual.length <= 1) return;
+            indiceFotoActual = (indiceFotoActual - 1 + galeriaActual.length) % galeriaActual.length;
+            pintarStoryFoto();
+        };
+
+        // === CALCULADORA CONTEXTUAL ===
+        function renderizarCalculadora(prop) {
+            const box = document.getElementById('bloque-calculadora');
+            if (!box || !prop.precio) {
+                if (box) box.style.display = 'none';
+                return;
+            }
+            box.style.display = 'block';
+            if (prop.tipo_operacion === 'venta') {
+                box.innerHTML =
+                    '<div class="calc-head"><strong>Simulador de cuota estimada</strong><span id="calc-inicial-lbl" style="font-size:11px; color:#9ca3af; font-family:monospace;">Inicial 30%</span></div>' +
+                    '<div class="calc-grid">' +
+                        '<div class="calc-box"><span>Cuota inicial</span><strong id="calc-val-inicial">$0</strong></div>' +
+                        '<div class="calc-box"><span>Cuota mensual aprox.</span><strong id="calc-val-cuota" style="color:#00ff64;">$0</strong></div>' +
+                    '</div>' +
+                    '<div class="calc-controls">' +
+                        '<input type="range" id="calc-rango-inicial" class="calc-range" min="20" max="50" step="5" value="30" oninput="window.actualizarCalcVenta()">' +
+                        '<select id="calc-plazo-anios" class="calc-select" onchange="window.actualizarCalcVenta()">' +
+                            '<option value="10">10 años</option>' +
+                            '<option value="15" selected>15 años</option>' +
+                            '<option value="20">20 años</option>' +
+                        '</select>' +
+                    '</div>';
+                window.actualizarCalcVenta();
+            } else {
+                const adminVal = prop.admin_incluida ? 0 : (prop.administracion || 0);
+                const totalMes = prop.precio + adminVal;
+                box.innerHTML =
+                    '<div class="calc-head"><strong>Desglose mensual estimado</strong><span style="font-size:10.5px; color:#00ff64; font-weight:800;">' + (prop.admin_incluida ? 'Admin incluida' : (adminVal > 0 ? '+ Administración' : 'Canon base')) + '</span></div>' +
+                    '<div class="calc-grid">' +
+                        '<div class="calc-box"><span>Canon + Admin</span><strong style="color:#00ff64;">' + window.formatearMoneda(totalMes) + '</strong></div>' +
+                        '<div class="calc-box"><span>Administración</span><strong>' + (prop.admin_incluida ? 'Incluida' : (adminVal > 0 ? window.formatearMoneda(adminVal) : 'Consultar')) + '</strong></div>' +
+                    '</div>';
+            }
+        }
+
+        window.actualizarCalcVenta = function() {
+            const prop = window.propiedadActual;
+            if (!prop) return;
+            const pct = Number(document.getElementById('calc-rango-inicial')?.value || 30);
+            const anios = Number(document.getElementById('calc-plazo-anios')?.value || 15);
+            const inicial = prop.precio * (pct / 100);
+            const financiar = Math.max(0, prop.precio - inicial);
+            const tasaMes = 0.011;
+            const n = anios * 12;
+            const cuota = financiar > 0
+                ? (financiar * (tasaMes * Math.pow(1 + tasaMes, n)) / (Math.pow(1 + tasaMes, n) - 1))
+                : 0;
+            const lbl = document.getElementById('calc-inicial-lbl');
+            const vIni = document.getElementById('calc-val-inicial');
+            const vCuo = document.getElementById('calc-val-cuota');
+            if (lbl) lbl.textContent = 'Inicial ' + pct + '%';
+            if (vIni) vIni.textContent = window.formatearMoneda(inicial);
+            if (vCuo) vCuo.textContent = window.formatearMoneda(cuota) + '/mes';
+        };
+
+        // === RENDER PRINCIPAL ===
         window.renderizarPropiedad = function(prop) {
             if (!prop) return;
-
-
-            // Retirar placeholders
-            ['inmueble-titulo', 'inmueble-precio', 'inmueble-descripcion', 'carrusel-imagenes'].forEach(id => {
+            ['inmueble-titulo', 'inmueble-precio', 'inmueble-descripcion', 'galeria-story-box'].forEach(id => {
                 document.getElementById(id)?.classList.remove('shimmer-box');
             });
 
+            document.title = prop.nombre + ' | GeoKATU Inmuebles';
+            document.getElementById('inmueble-titulo').textContent = prop.nombre;
+            const sufijoPrecio = prop.tipo_operacion === 'arriendo' ? ' /mes' : (prop.tipo_operacion === 'dias' ? ' /noche' : '');
+            document.getElementById('inmueble-precio').textContent = window.formatearMoneda(prop.precio) + sufijoPrecio;
+            document.getElementById('inmueble-descripcion').textContent = prop.descripcion_final;
 
-            document.getElementById('inmueble-titulo').innerText = prop.nombre || 'Propiedad sin título';
-            document.getElementById('inmueble-precio').innerText = window.formatearMoneda(prop.precio);
-            document.getElementById('inmueble-descripcion').innerText = prop.cuerpo_texto || prop.descripcion || "Inmueble verificado con excelente ubicación.";
-
-
-            document.title = `${prop.nombre} | Geokatu Inmuebles`;
-
-
-            // Badge de operación
-            const opContainer = document.getElementById('badge-promo-container');
-            const tipoOp = prop.tipo_operacion || (prop.badge ? prop.badge : 'DISPONIBLE');
-            opContainer.innerHTML = `<div class="badge-operacion">${window.sanitizarTexto(tipoOp)}</div>`;
-
-
-            // Badges técnicos
-            const bCont = document.getElementById('contenedor-badges');
-            let bHtml = '';
-            if (prop.subtipo_inmueble) bHtml += `<div class="badge-cristal"><span>🏢</span> ${window.sanitizarTexto(prop.subtipo_inmueble)}</div>`;
-            if (prop.habitaciones) bHtml += `<div class="badge-cristal"><span>🛏️</span> ${prop.habitaciones} Hab</div>`;
-            if (prop.banos) bHtml += `<div class="badge-cristal"><span>🚿</span> ${prop.banos} Baños</div>`;
-            if (prop.area_m2) bHtml += `<div class="badge-cristal"><span>📐</span> ${prop.area_m2} m²</div>`;
-            if (prop.estrato) bHtml += `<div class="badge-cristal"><span>🏙️</span> Estrato ${prop.estrato}</div>`;
-            bCont.innerHTML = bHtml || '<div class="badge-cristal"><span>🔑</span> Listo para entrega</div>';
-
-
-            // Galería
-            const carrusel = document.getElementById('carrusel-imagenes');
-            const imgMain = prop.foto_portada || prop.imagen || 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?q=80&w=1080&auto=format&fit=crop';
-            let galeria = [imgMain];
-            if (Array.isArray(prop.galeria)) galeria = galeria.concat(prop.galeria.filter(Boolean));
-
-
-            carrusel.innerHTML = galeria.map((img, i) => `
-                <img src="${img}" class="galeria-img" loading="${i === 0 ? 'eager' : 'lazy'}" onerror="this.src='https://via.placeholder.com/600x400/0a0a0c/ff6b00?text=Inmueble'">
-            `).join('');
-
-
-            const contador = document.getElementById('contador-galeria');
-            contador.innerText = `1 / ${galeria.length}`;
-            carrusel.onscroll = () => {
-                const idx = Math.round(carrusel.scrollLeft / carrusel.clientWidth) + 1;
-                contador.innerText = `${idx} / ${galeria.length}`;
-            };
-
-
-            // Fondo dinámico
-            document.getElementById('fondo-pantalla').src = imgMain;
-
-
-            // Inmobiliaria
-            const agenciaNom = window.datosAgencia ? window.datosAgencia.nombre : 'Inmobiliaria Aliada';
-            const agenciaLogo = window.datosAgencia?.logo || 'https://via.placeholder.com/60/0a0a0c/ff6b00?text=INMO';
-            document.getElementById('agencia-nombre').innerText = agenciaNom;
-            document.getElementById('agencia-logo').src = agenciaLogo;
-
-
-            // Botón Contacto WhatsApp Protegido (Hidratación bajo demanda)
-            const btnWs = document.getElementById('btn-whatsapp-cta');
-            btnWs.onclick = async () => {
-                btnWs.disabled = true;
-                const txtOriginal = btnWs.innerHTML;
-                btnWs.innerText = "Conectando... ⏳";
-
-
-                try {
-                    const idAgenciaOPropietario = prop.id_negocio_padre || window.datosAgencia?.id || prop.codigo || prop.id;
-                    const res = await GeokatuDB.LocalService.obtenerContactoComercio(idAgenciaOPropietario);
-                    const c = (res.success && res.data) ? res.data : {};
-                    const tel = (c.whatsapp || c.whatsApp || (c.telefonos && c.telefonos[0]) || '').toString().replace(/\D/g, '');
-
-
-                    if (tel && tel.length >= 7) {
-                        const numFinal = tel.length === 10 ? ('57' + tel) : tel;
-                        const msg = "Hola, vi en Geokatu el inmueble: *" + prop.nombre + "* (" + window.formatearMoneda(prop.precio) + "). ¿Está disponible?";
-                        window.open("https://wa.me/" + numFinal + "?text=" + encodeURIComponent(msg), '_blank');
-                    } else {
-                        alert("El anunciante no tiene un canal de WhatsApp disponible.");
-                    }
-                } catch (e) {
-                    alert("Error al conectar con el anunciante.");
-                } finally {
-                    btnWs.disabled = false;
-                    btnWs.innerHTML = txtOriginal;
-                }
-            };
-
-
-
-
-            // Estado de favoritos
-            window.actualizarBotonFavorito();
-        };
-
-
-        // === MECÁNICA TINDER (SWIPE & NEXT) ===
-        window.siguientePropiedadTinder = function(direccion = 'izquierda') {
-            if (!window.propiedadesGlobales || window.propiedadesGlobales.length <= 1) {
-                alert("Has visto todas las propiedades del radar.");
-                return;
+            const m2El = document.getElementById('meta-precio-m2');
+            if (prop.area_m2 > 0 && prop.precio > 0) {
+                m2El.textContent = window.formatearMoneda(prop.precio / prop.area_m2) + ' / m²';
+                m2El.style.display = 'inline-block';
+            } else {
+                m2El.style.display = 'none';
             }
 
+            const etiquetasOp = { arriendo: 'En Arriendo', venta: 'En Venta', dias: 'Por Días' };
+            const etiquetasContrato = {
+                arriendo_vivienda_ley820: 'Ley 820',
+                arriendo_comercial: 'Contrato Comercial',
+                temporada_dias: 'Estadía Corta',
+                promesa_compraventa: 'Promesa Compraventa'
+            };
+            const estadosCiclo = {
+                disponible: { txt: 'Disponible', col: '#00ff64', bg: 'rgba(0,255,100,0.1)', bd: 'rgba(0,255,100,0.35)' },
+                en_estudio: { txt: 'En Estudio', col: '#facc15', bg: 'rgba(250,204,21,0.12)', bd: 'rgba(250,204,21,0.4)' },
+                arrendado_vendido: { txt: 'Cerrado', col: '#ff6b6b', bg: 'rgba(255,68,68,0.14)', bd: 'rgba(255,68,68,0.4)' }
+            };
+            const estInfo = estadosCiclo[prop.estado_inmueble] || estadosCiclo.disponible;
+            document.getElementById('badge-promo-container').innerHTML =
+                '<span class="badge-operacion">' + window.sanitizarTexto(etiquetasOp[prop.tipo_operacion] || prop.tipo_operacion) + '</span>' +
+                '<span class="badge-estado-ciclo" style="color:' + estInfo.col + '; background:' + estInfo.bg + '; border-color:' + estInfo.bd + ';">' + estInfo.txt + '</span>' +
+                '<span class="badge-contrato-tag">' + window.sanitizarTexto(etiquetasContrato[prop.tipo_contrato] || 'Contrato Digital') + '</span>';
 
-            if (navigator.vibrate) navigator.vibrate(30);
+            const txtContrato = document.getElementById('txt-btn-contrato');
+            if (txtContrato) {
+                txtContrato.textContent = prop.sala_tramite ? 'Abrir Contrato Activo' : 'Contrato Digital';
+            }
 
+            const fres = calcularFrescura(prop.fecha_ref);
+            const pillF = document.getElementById('pill-frescura');
+            if (pillF) {
+                pillF.innerHTML = '<span class="dot-frescura" style="background:' + fres.color + ';"></span><span style="color:' + fres.color + ';">' + fres.texto + '</span>';
+            }
+
+            let bHtml = '';
+            if (prop.subtipo_inmueble) bHtml += '<div class="badge-cristal">' + SVG_INM.edificio + '<span>' + window.sanitizarTexto(prop.subtipo_inmueble) + '</span></div>';
+            if (prop.habitaciones > 0) bHtml += '<div class="badge-cristal">' + SVG_INM.cama + '<span>' + prop.habitaciones + ' Hab</span></div>';
+            if (prop.banos > 0) bHtml += '<div class="badge-cristal">' + SVG_INM.bano + '<span>' + prop.banos + ' Baños</span></div>';
+            if (prop.area_m2 > 0) bHtml += '<div class="badge-cristal">' + SVG_INM.area + '<span>' + prop.area_m2 + ' m²</span></div>';
+            if (prop.estrato) bHtml += '<div class="badge-cristal">' + SVG_INM.capa + '<span>Estrato ' + window.sanitizarTexto(prop.estrato) + '</span></div>';
+            if (prop.parqueaderos > 0) bHtml += '<div class="badge-cristal">' + SVG_INM.auto + '<span>' + prop.parqueaderos + ' Parq</span></div>';
+            if (prop.barrio) bHtml += '<div class="badge-cristal">' + SVG_INM.pin + '<span>' + window.sanitizarTexto(prop.barrio) + '</span></div>';
+            document.getElementById('contenedor-badges').innerHTML = bHtml || '<div class="badge-cristal">' + SVG_INM.edificio + '<span>Disponible</span></div>';
+
+            galeriaActual = prop.fotos.slice();
+            indiceFotoActual = 0;
+            pintarStoryFoto();
+            document.getElementById('fondo-pantalla').src = galeriaActual[0];
+
+            renderizarCalculadora(prop);
+
+            document.getElementById('agencia-nombre').textContent = window.datosAgencia?.nombre || 'Inmobiliaria Aliada';
+            document.getElementById('agencia-nicho').textContent = window.datosAgencia?.niche || window.datosAgencia?.nicho || 'Ver portafolio completo';
+            if (window.datosAgencia?.logo) {
+                document.getElementById('agencia-logo').src = window.datosAgencia.logo;
+            }
+
+            const idAg = prop.id_negocio_padre || window.datosAgencia?.id || '';
+            const q = new URLSearchParams();
+            if (idAg) q.set('id', idAg);
+            if (prop._id) q.set('item', prop._id);
+            window.history.replaceState({}, '', '/inmueble' + (q.toString() ? ('?' + q.toString()) : ''));
+
+            window.actualizarBotonFavorito();
+            window.prepararQR();
+        };
+
+        // === FILTROS EN VIVO DEL FEED ===
+        window.aplicarFiltroFeed = function(tipo, valor, btnEl) {
+            if (tipo === 'op') {
+                filtroOpActivo = valor;
+                document.querySelectorAll('#barra-filtros-feed [data-op]').forEach(b => b.classList.remove('activo'));
+                if (btnEl) btnEl.classList.add('activo');
+            } else {
+                const yaActivo = filtroSubActivo === valor;
+                filtroSubActivo = yaActivo ? null : valor;
+                document.querySelectorAll('#barra-filtros-feed [data-sub]').forEach(b => b.classList.remove('activo'));
+                if (!yaActivo && btnEl) btnEl.classList.add('activo');
+            }
+
+            const filtrados = window.propiedadesBase.filter(p => {
+                if (filtroOpActivo !== 'todos' && p.tipo_operacion !== filtroOpActivo) return false;
+                if (filtroSubActivo) {
+                    const txt = (p.subtipo_inmueble + ' ' + p.nombre).toLowerCase();
+                    if (filtroSubActivo === 'lote') {
+                        if (!txt.includes('lote') && !txt.includes('finca')) return false;
+                    } else if (!txt.includes(filtroSubActivo)) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+
+            if (filtrados.length === 0) {
+                mostrarToast('No hay propiedades con ese filtro en esta zona.');
+                return;
+            }
+            window.propiedadesFiltradas = filtrados;
+            window.propiedadActual = filtrados[0];
+            window.renderizarPropiedad(window.propiedadActual);
+            window.actualizarOtrasOpciones();
+        };
+
+        // === MECANICA TINDER + DESHACER ===
+        function actualizarBtnRewind() {
+            const btn = document.getElementById('btn-rewind-tinder');
+            if (btn) btn.disabled = window.historialTinder.length === 0;
+        }
+
+        window.siguientePropiedadTinder = function(direccion = 'izquierda') {
+            if (!window.propiedadesFiltradas || window.propiedadesFiltradas.length <= 1) {
+                mostrarToast('Ya viste todas las propiedades de este filtro.');
+                return;
+            }
+            if (navigator.vibrate) navigator.vibrate(25);
+            if (direccion === 'derecha') {
+                window.guardarInmuebleActual(true);
+            }
+
+            window.historialTinder.push(window.propiedadActual);
+            if (window.historialTinder.length > 20) window.historialTinder.shift();
+            actualizarBtnRewind();
 
             const tarjeta = document.getElementById('tarjeta-inmueble-activa');
-            const translacionX = direccion === 'derecha' ? '120%' : '-120%';
-            const rotacion = direccion === 'derecha' ? '15deg' : '-15deg';
-
-
-            // Animación de salida fluida
-            tarjeta.style.transform = `translate3d(${translacionX}, 0, 0) rotate(${rotacion})`;
+            tarjeta.style.transform = 'translate3d(' + (direccion === 'derecha' ? '115%' : '-115%') + ', 0, 0) rotate(' + (direccion === 'derecha' ? '12deg' : '-12deg') + ')';
             tarjeta.style.opacity = '0';
 
-
-            setTimeout(() => {
-                let currentIndex = window.propiedadesGlobales.findIndex(p => (p.id_prod || p.id) === (window.propiedadActual.id_prod || window.propiedadActual.id));
-                let nextIndex = (currentIndex + 1) % window.propiedadesGlobales.length;
-                window.propiedadActual = window.propiedadesGlobales[nextIndex];
-
-
-                // Cambio silencioso de URL
-                const idProp = window.propiedadActual.id_prod || window.propiedadActual.id;
-                const idAg = window.propiedadActual.id_negocio_padre || window.datosAgencia?.id || '';
-                window.history.replaceState({}, '', `inmuebles.html?id=${idAg}&item=${idProp}`);
-
-
+            setTimeout(async () => {
+                const idxActual = window.propiedadesFiltradas.findIndex(p => p._id === window.propiedadActual._id);
+                const sigIdx = (idxActual + 1) % window.propiedadesFiltradas.length;
+                window.propiedadActual = window.propiedadesFiltradas[sigIdx];
+                await cargarAgenciaDePropiedad(window.propiedadActual);
                 window.renderizarPropiedad(window.propiedadActual);
                 window.actualizarOtrasOpciones();
                 window.scrollTo({ top: 0, behavior: 'smooth' });
 
-
-                // Retorno instantáneo y aparición suave
                 tarjeta.style.transition = 'none';
-                tarjeta.style.transform = 'translate3d(0, 20px, 0)';
-                setTimeout(() => {
-                    tarjeta.style.transition = 'transform 0.35s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.35s ease';
+                tarjeta.style.transform = 'translate3d(0, 18px, 0)';
+                requestAnimationFrame(() => {
+                    tarjeta.style.transition = 'transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s ease';
                     tarjeta.style.transform = 'translate3d(0, 0, 0)';
                     tarjeta.style.opacity = '1';
-                }, 30);
-            }, 300);
+                });
+            }, 260);
         };
 
+        window.deshacerTinder = async function() {
+            if (window.historialTinder.length === 0) return;
+            if (navigator.vibrate) navigator.vibrate(20);
+            window.propiedadActual = window.historialTinder.pop();
+            actualizarBtnRewind();
+            await cargarAgenciaDePropiedad(window.propiedadActual);
+            window.renderizarPropiedad(window.propiedadActual);
+            window.actualizarOtrasOpciones();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            mostrarToast('Propiedad anterior restaurada.');
+        };
 
-        // GESTO TÁCTIL (SWIPE FÍSICO)
-        (function() {
+        (function iniciarSwipeTinder() {
             const tarjeta = document.getElementById('tarjeta-inmueble-activa');
-            let startX = 0, currentX = 0, startY = 0, currentY = 0;
-            let esSwipe = false;
-
+            const selloLike = document.getElementById('sello-like');
+            const selloPass = document.getElementById('sello-pass');
+            let sx = 0, sy = 0, cx = 0, activo = false;
 
             tarjeta.addEventListener('touchstart', (e) => {
-                startX = e.touches[0].clientX;
-                startY = e.touches[0].clientY;
-                esSwipe = false;
+                if (e.target.closest('input, select, button, .badges-row, .otras-opciones-wrapper')) {
+                    activo = false;
+                    return;
+                }
+                sx = e.touches[0].clientX;
+                sy = e.touches[0].clientY;
+                cx = sx;
+                activo = true;
             }, { passive: true });
 
-
             tarjeta.addEventListener('touchmove', (e) => {
-                currentX = e.touches[0].clientX;
-                currentY = e.touches[0].clientY;
-                const deltaX = currentX - startX;
-                const deltaY = currentY - startY;
-
-
-                // Si el desplazamiento horizontal domina sobre el vertical
-                if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 20) {
-                    esSwipe = true;
+                if (!activo) return;
+                cx = e.touches[0].clientX;
+                const dx = cx - sx;
+                const dy = e.touches[0].clientY - sy;
+                if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 26) {
                     tarjeta.style.transition = 'none';
-                    tarjeta.style.transform = `translate3d(${deltaX}px, 0, 0) rotate(${deltaX * 0.05}deg)`;
-                    tarjeta.style.opacity = `${1 - Math.abs(deltaX) / (window.innerWidth * 1.2)}`;
+                    tarjeta.style.transform = 'translate3d(' + dx + 'px, 0, 0) rotate(' + (dx * 0.035) + 'deg)';
+                    tarjeta.style.opacity = String(Math.max(0.45, 1 - Math.abs(dx) / (window.innerWidth * 1.25)));
+                    const fuerza = Math.min(1, (Math.abs(dx) - 26) / 80);
+                    selloLike.style.opacity = dx > 0 ? String(fuerza) : '0';
+                    selloPass.style.opacity = dx < 0 ? String(fuerza) : '0';
                 }
             }, { passive: true });
 
-
             tarjeta.addEventListener('touchend', () => {
-                if (!esSwipe) return;
-                const deltaX = currentX - startX;
-                if (Math.abs(deltaX) > 90) {
-                    window.siguientePropiedadTinder(deltaX > 0 ? 'derecha' : 'izquierda');
+                if (!activo) return;
+                activo = false;
+                selloLike.style.opacity = '0';
+                selloPass.style.opacity = '0';
+                const dx = cx - sx;
+                if (Math.abs(dx) > 95) {
+                    window.siguientePropiedadTinder(dx > 0 ? 'derecha' : 'izquierda');
                 } else {
-                    tarjeta.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+                    tarjeta.style.transition = 'transform 0.28s ease, opacity 0.25s ease';
                     tarjeta.style.transform = 'translate3d(0, 0, 0)';
                     tarjeta.style.opacity = '1';
                 }
-            });
+            }, { passive: true });
         })();
 
-
-        // === PERSISTENCIA Y FAVORITOS ===
-        window.guardarInmuebleActual = function() {
-            if (!window.propiedadActual) return;
+        // === PUENTE INTELIGENTE A NOTARIA DIGITAL (/tramites) ===
+        window.irATramiteInmueble = function() {
             const p = window.propiedadActual;
-            const id = p.id_prod || p.id;
-            let favs = JSON.parse(localStorage.getItem('geokatu_favs_inmuebles')) || [];
-            const idx = favs.findIndex(x => x.id === id);
-
-
-            if (idx > -1) {
-                favs.splice(idx, 1);
-            } else {
-                favs.push({
-                    id: id,
-                    nombre: p.nombre,
-                    precio: p.precio,
-                    foto: p.foto_portada || p.imagen,
-                    whatsapp: p.whatsapp || window.datosAgencia?.whatsapp
-                });
+            if (!p) return;
+            if (p.sala_tramite) {
+                const qActiva = new URLSearchParams({ sala: p.sala_tramite, inmueble: p._id });
+                window.location.href = '/tramites?' + qActiva.toString();
+                return;
             }
-            localStorage.setItem('geokatu_favs_inmuebles', JSON.stringify(favs));
-            window.actualizarBotonFavorito();
+            const plantilla = (p.tipo_operacion === 'venta') ? 'mandato' : 'arrendamiento';
+            const q = new URLSearchParams({
+                plantilla: plantilla,
+                inmueble: p._id,
+                agencia: p.id_negocio_padre || window.datosAgencia?.id || '',
+                titulo: p.nombre,
+                direccion: p.direccion || p.barrio || '',
+                valor: String(p.precio || ''),
+                operacion: p.tipo_operacion,
+                contrato: p.tipo_contrato
+            });
+            window.location.href = '/tramites?' + q.toString();
         };
 
+        // === AGENDAR VISITA ===
+        window.abrirModalVisita = function() {
+            if (!window.propiedadActual) return;
+            document.getElementById('txt-visita-prop').textContent = window.propiedadActual.nombre + ' (' + window.formatearMoneda(window.propiedadActual.precio) + '). Elige cuándo deseas visitar:';
+            window.abrirModal('modal-visita');
+        };
+
+        window.seleccionarFranjaVisita = function(franja, btnEl) {
+            franjaVisitaElegida = franja;
+            document.querySelectorAll('.franja-btn').forEach(b => b.classList.remove('activa'));
+            if (btnEl) btnEl.classList.add('activa');
+        };
+
+        window.confirmarVisitaWhatsApp = async function() {
+            const prop = window.propiedadActual;
+            if (!prop) return;
+            const btn = document.getElementById('btn-enviar-visita-wa');
+            const prevHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.textContent = 'Conectando...';
+            try {
+                const idContacto = prop.id_negocio_padre || window.datosAgencia?.id || prop._id;
+                const res = await GeokatuDB.LocalService.obtenerContactoComercio(idContacto);
+                const c = (res?.success && res.data) ? res.data : {};
+                const tel = String(c.whatsapp || c.whatsApp || (c.telefonos && c.telefonos[0]) || window.datosAgencia?.whatsapp || window.datosAgencia?.whatsApp || '').replace(/\D/g, '');
+                if (tel.length >= 7) {
+                    const numFinal = tel.length === 10 ? ('57' + tel) : tel;
+                    const msg = 'Hola, vi en GeoKATU el inmueble "' + prop.nombre + '" (' + window.formatearMoneda(prop.precio) + '). Me interesa agendar una visita ' + franjaVisitaElegida + '. ¿Está disponible?';
+                    window.open('https://wa.me/' + numFinal + '?text=' + encodeURIComponent(msg), '_blank');
+                    document.getElementById('modal-visita').classList.remove('activo');
+                } else {
+                    mostrarToast('Este anunciante aún no tiene WhatsApp registrado.');
+                }
+            } catch (e) {
+                mostrarToast('No se pudo conectar con el anunciante.');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = prevHtml;
+            }
+        };
+
+        // === FAVORITOS UNIFICADOS + COMPARADOR ===
+        function leerFavoritosInmuebles() {
+            try { return JSON.parse(localStorage.getItem('geokatu_favs_inmuebles') || '[]'); } catch (e) { return []; }
+        }
+
+        function sincronizarFavoritoConMapa(prop, agregar) {
+            try {
+                const id = prop._id;
+                let favsMapa = JSON.parse(localStorage.getItem('geokatu_favoritos_anon') || '[]');
+                let favsLoc = JSON.parse(localStorage.getItem('geokatu_favoritos_locales') || '[]');
+                favsMapa = favsMapa.filter(x => String(x?.id) !== id);
+                favsLoc = favsLoc.filter(x => String(x) !== id);
+                if (agregar) {
+                    favsMapa.push({ id: id, nombre: prop.nombre, precio: prop.precio, foto: prop.fotos[0] });
+                    favsLoc.push(id);
+                }
+                localStorage.setItem('geokatu_favoritos_anon', JSON.stringify(favsMapa));
+                localStorage.setItem('geokatu_favoritos_locales', JSON.stringify(favsLoc));
+            } catch (e) {}
+        }
+
+        function actualizarBadgeGuardados() {
+            const cant = leerFavoritosInmuebles().length;
+            const badge = document.getElementById('badge-conteo-favs');
+            if (badge) {
+                badge.textContent = String(cant);
+                badge.style.display = cant > 0 ? 'flex' : 'none';
+            }
+        }
+
+        window.guardarInmuebleActual = function(soloAgregar) {
+            const p = window.propiedadActual;
+            if (!p) return;
+            let favs = leerFavoritosInmuebles();
+            const idx = favs.findIndex(x => x.id === p._id);
+            let agregado = false;
+            if (idx > -1) {
+                if (soloAgregar === true) return;
+                favs.splice(idx, 1);
+                mostrarToast('Eliminado de tus guardados.');
+            } else {
+                favs.push({
+                    id: p._id,
+                    nombre: p.nombre,
+                    precio: p.precio,
+                    area_m2: p.area_m2,
+                    habitaciones: p.habitaciones,
+                    estrato: p.estrato,
+                    operacion: p.tipo_operacion,
+                    foto: p.fotos[0]
+                });
+                agregado = true;
+                mostrarToast('Inmueble guardado en favoritos.');
+            }
+            localStorage.setItem('geokatu_favs_inmuebles', JSON.stringify(favs));
+            sincronizarFavoritoConMapa(p, agregado);
+            window.actualizarBotonFavorito();
+            actualizarBadgeGuardados();
+        };
 
         window.actualizarBotonFavorito = function() {
             const btn = document.getElementById('btn-fav-inmueble');
             if (!btn || !window.propiedadActual) return;
-            const id = window.propiedadActual.id_prod || window.propiedadActual.id;
-            const favs = JSON.parse(localStorage.getItem('geokatu_favs_inmuebles')) || [];
-            const esFav = favs.some(x => x.id === id);
-            btn.innerText = esFav ? '❤️' : '🤍';
-            btn.style.borderColor = esFav ? '#ff4444' : 'rgba(255,255,255,0.2)';
+            const esFav = leerFavoritosInmuebles().some(x => x.id === window.propiedadActual._id);
+            btn.innerHTML = esFav ? SVG_INM.corazonLleno : SVG_INM.corazonVacio;
+            btn.style.borderColor = esFav ? '#ff4444' : 'rgba(255,255,255,0.18)';
         };
 
+        window.cambiarTabGuardados = function(tab) {
+            const esLista = tab === 'lista';
+            document.getElementById('btn-tab-fav-lista').classList.toggle('activo', esLista);
+            document.getElementById('btn-tab-fav-comp').classList.toggle('activo', !esLista);
+            document.getElementById('lista-favoritos').style.display = esLista ? 'block' : 'none';
+            document.getElementById('comparador-favoritos').style.display = esLista ? 'none' : 'block';
+        };
 
         window.abrirMisGuardados = function() {
+            const favs = leerFavoritosInmuebles();
             const lista = document.getElementById('lista-favoritos');
-            const favs = JSON.parse(localStorage.getItem('geokatu_favs_inmuebles')) || [];
-
+            const comp = document.getElementById('comparador-favoritos');
 
             if (favs.length === 0) {
-                lista.innerHTML = '<p style="text-align:center; color:#888; padding: 25px 0;">No tienes inmuebles guardados.</p>';
+                lista.innerHTML = '<p style="text-align:center; color:#888; padding:24px 0; font-size:12.5px;">Aún no tienes inmuebles guardados.</p>';
+                comp.innerHTML = '<p style="text-align:center; color:#888; padding:24px 0; font-size:12.5px;">Guarda al menos 2 inmuebles para compararlos.</p>';
             } else {
-                lista.innerHTML = favs.map(f => `
-                    <div style="display: flex; gap: 12px; align-items: center; background: rgba(0,0,0,0.4); padding: 10px; border-radius: 14px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.06);">
-                        <img src="${f.foto}" style="width: 55px; height: 55px; border-radius: 10px; object-fit: cover;">
-                        <div style="flex: 1; overflow: hidden; text-align: left;">
-                            <h4 style="margin: 0; font-size: 13px; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${window.sanitizarTexto(f.nombre)}</h4>
-                            <span style="color: #00ff64; font-weight: bold; font-size: 12px;">${window.formatearMoneda(f.precio)}</span>
-                        </div>
-                        <button onclick="window.quitarFavorito('${f.id}')" style="background: none; border: none; color: #ff4444; font-size: 16px; cursor: pointer;">✕</button>
-                    </div>
-                `).join('');
+                lista.innerHTML = favs.map(f =>
+                    '<div style="display:flex; gap:10px; align-items:center; background:rgba(0,0,0,0.42); padding:9px; border-radius:12px; margin-bottom:8px; border:1px solid rgba(255,255,255,0.08);">' +
+                        '<img src="' + f.foto + '" style="width:52px; height:52px; border-radius:9px; object-fit:cover; cursor:pointer;" onclick="window.seleccionarDirecta(\'' + f.id + '\'); document.getElementById(\'modal-favoritos\').classList.remove(\'activo\');">' +
+                        '<div style="flex:1; min-width:0; text-align:left; cursor:pointer;" onclick="window.seleccionarDirecta(\'' + f.id + '\'); document.getElementById(\'modal-favoritos\').classList.remove(\'activo\');">' +
+                            '<strong style="display:block; font-size:12.5px; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + window.sanitizarTexto(f.nombre) + '</strong>' +
+                            '<span style="color:#00ff64; font-weight:800; font-family:monospace; font-size:12px;">' + window.formatearMoneda(f.precio) + '</span>' +
+                        '</div>' +
+                        '<button type="button" onclick="window.quitarFavorito(\'' + f.id + '\')" style="background:transparent; border:none; color:#ff6b6b; padding:6px; cursor:pointer;" aria-label="Quitar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
+                    '</div>'
+                ).join('');
+
+                const top3 = favs.slice(0, 3);
+                if (top3.length < 2) {
+                    comp.innerHTML = '<p style="text-align:center; color:#888; padding:24px 0; font-size:12.5px;">Guarda 1 inmueble más para activar el comparador.</p>';
+                } else {
+                    const ths = top3.map(f => '<th style="color:#fff;">' + window.sanitizarTexto(f.nombre).slice(0, 16) + '</th>').join('');
+                    const fila = (lbl, fn) => '<tr><th>' + lbl + '</th>' + top3.map(f => '<td>' + fn(f) + '</td>').join('') + '</tr>';
+                    comp.innerHTML =
+                        '<table class="tabla-comparador">' +
+                            '<thead><tr><th>Atributo</th>' + ths + '</tr></thead>' +
+                            '<tbody>' +
+                                fila('Precio', f => '<strong style="color:#00ff64;">' + window.formatearMoneda(f.precio) + '</strong>') +
+                                fila('Área', f => f.area_m2 ? (f.area_m2 + ' m²') : '—') +
+                                fila('$/m²', f => (f.area_m2 > 0 && f.precio > 0) ? window.formatearMoneda(f.precio / f.area_m2) : '—') +
+                                fila('Hab.', f => f.habitaciones ? String(f.habitaciones) : '—') +
+                                fila('Estrato', f => f.estrato || '—') +
+                            '</tbody>' +
+                        '</table>';
+                }
             }
+            window.cambiarTabGuardados('lista');
             window.abrirModal('modal-favoritos');
         };
 
-
         window.quitarFavorito = function(id) {
-            let favs = JSON.parse(localStorage.getItem('geokatu_favs_inmuebles')) || [];
-            favs = favs.filter(x => x.id !== id);
+            const favs = leerFavoritosInmuebles().filter(x => x.id !== id);
             localStorage.setItem('geokatu_favs_inmuebles', JSON.stringify(favs));
             window.abrirMisGuardados();
             window.actualizarBotonFavorito();
+            actualizarBadgeGuardados();
         };
 
+        // === PERFIL DE AGENCIA ===
+        window.irAPerfilAgencia = function() {
+            const ag = window.datosAgencia;
+            document.getElementById('modal-ag-nombre').textContent = ag?.nombre || 'Inmobiliaria Aliada';
+            document.getElementById('modal-ag-nicho').textContent = ag?.niche || ag?.nicho || 'Portafolio verificado';
+            document.getElementById('modal-ag-logo').src = ag?.logo || document.getElementById('agencia-logo').src;
+            const idAg = ag?.id || window.propiedadActual?.id_negocio_padre;
+            const propsAg = idAg
+                ? window.propiedadesBase.filter(p => (p.id_negocio_padre || p._id) === idAg)
+                : window.propiedadesBase;
+            const cont = document.getElementById('modal-ag-lista');
+            cont.innerHTML = propsAg.slice(0, 12).map(p =>
+                '<div onclick="window.seleccionarDirecta(\'' + p._id + '\'); document.getElementById(\'modal-agencia\').classList.remove(\'activo\');" style="display:flex; gap:10px; align-items:center; padding:9px; border-radius:12px; background:rgba(0,0,0,0.42); border:1px solid rgba(255,255,255,0.08); cursor:pointer; text-align:left;">' +
+                    '<img src="' + p.fotos[0] + '" style="width:54px; height:54px; border-radius:9px; object-fit:cover;">' +
+                    '<div style="flex:1; min-width:0;">' +
+                        '<strong style="display:block; font-size:12.5px; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + window.sanitizarTexto(p.nombre) + '</strong>' +
+                        '<span style="font-size:11.5px; color:#00ff64; font-family:monospace; font-weight:800;">' + window.formatearMoneda(p.precio) + '</span>' +
+                    '</div>' +
+                '</div>'
+            ).join('');
+            window.abrirModal('modal-agencia');
+        };
 
+        // === ENFOCAR EN EL RADAR (PROTOCOLO MOTOR-MAPA.JS) ===
         window.volarAlMapa = function() {
-            if (!window.propiedadActual) return;
             const p = window.propiedadActual;
-            let lat = p.lat || p.Coordenadas?.latitude;
-            let lng = p.lng || p.Coordenadas?.longitude;
-            if (!lat || !lng) return alert("Esta propiedad no tiene coordenadas exactas en el radar.");
-            window.location.href = `index.html?lat=${lat}&lng=${lng}&zoom=17`;
+            if (!p || p.lat === null || p.lng === null) {
+                mostrarToast('Esta propiedad aún no tiene coordenadas fijadas.');
+                return;
+            }
+            const q = new URLSearchParams({
+                enfocar: p._id,
+                lat: String(p.lat),
+                lng: String(p.lng),
+                tipo: 'inmueble'
+            });
+            window.location.href = '/?' + q.toString();
         };
-
 
         window.actualizarOtrasOpciones = function() {
             const cont = document.getElementById('contenedor-otras-opciones');
             const tit = document.getElementById('titulo-otras-opciones');
-            const currId = window.propiedadActual.id_prod || window.propiedadActual.id;
-            const otras = window.propiedadesGlobales.filter(p => (p.id_prod || p.id) !== currId).slice(0, 6);
-
-
+            const currId = window.propiedadActual?._id;
+            const otras = window.propiedadesFiltradas.filter(p => p._id !== currId).slice(0, 8);
             if (otras.length === 0) {
                 tit.style.display = 'none';
                 cont.innerHTML = '';
                 return;
             }
-
-
             tit.style.display = 'block';
-            cont.innerHTML = otras.map(p => `
-                <div class="card-opcion" onclick="window.seleccionarDirecta('${p.id_prod || p.id}')">
-                    <img class="card-opcion-img" src="${p.foto_portada || p.imagen || 'https://via.placeholder.com/200x110/0a0a0c/ff6b00?text=Inmueble'}">
-                    <div class="card-opcion-info">
-                        <h4 class="card-opcion-titulo">${window.sanitizarTexto(p.nombre)}</h4>
-                        <p class="card-opcion-precio">${window.formatearMoneda(p.precio)}</p>
-                    </div>
-                </div>
-            `).join('');
+            cont.innerHTML = otras.map(p =>
+                '<div class="card-opcion" onclick="window.seleccionarDirecta(\'' + p._id + '\')">' +
+                    '<img class="card-opcion-img" src="' + p.fotos[0] + '" alt="' + window.sanitizarTexto(p.nombre) + '">' +
+                    '<div class="card-opcion-info">' +
+                        '<h4 class="card-opcion-titulo">' + window.sanitizarTexto(p.nombre) + '</h4>' +
+                        '<p class="card-opcion-precio">' + window.formatearMoneda(p.precio) + '</p>' +
+                    '</div>' +
+                '</div>'
+            ).join('');
         };
 
-
-        window.seleccionarDirecta = function(id) {
-            window.propiedadActual = window.propiedadesGlobales.find(p => (p.id_prod || p.id) === id);
-            window.renderizarPropiedad(window.propiedadActual);
+        window.seleccionarDirecta = async function(id) {
+            const hallada = window.propiedadesBase.find(p => p._id === id);
+            if (!hallada) return;
+            window.propiedadActual = hallada;
+            await cargarAgenciaDePropiedad(hallada);
+            window.renderizarPropiedad(hallada);
             window.actualizarOtrasOpciones();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         };
 
-
-        // QR y Compartir
+        // === QR LOCAL OFFLINE Y COMPARTIR ===
         window.prepararQR = function() {
             const qrCont = document.getElementById('qr-code-container');
-            if (!qrCont) return;
-            qrCont.innerHTML = "";
-            new QRCode(qrCont, {
+            if (!qrCont || typeof window.QRCode === 'undefined') return;
+            qrCont.innerHTML = '';
+            new window.QRCode(qrCont, {
                 text: window.location.href,
-                width: 180,
-                height: 180,
-                colorDark: "#ff6b00",
-                colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.H
+                width: 185,
+                height: 185,
+                colorDark: '#0a0a0c',
+                colorLight: '#ffffff',
+                correctLevel: window.QRCode.CorrectLevel.H
             });
         };
 
-
         window.copiarEnlace = function() {
-            navigator.clipboard.writeText(window.location.href).then(() => alert("Enlace copiado al portapapeles 🔗"));
+            navigator.clipboard.writeText(window.location.href).then(() => mostrarToast('Enlace copiado al portapapeles.'));
         };
-
 
         window.compartirNativo = async function() {
             if (navigator.share) {
                 try {
                     await navigator.share({
                         title: document.title,
-                        text: `Mira esta propiedad en Geokatu: ${window.propiedadActual?.nombre}`,
+                        text: 'Mira esta propiedad en GeoKATU: ' + (window.propiedadActual?.nombre || ''),
                         url: window.location.href
                     });
                 } catch (e) {}
@@ -1030,26 +1992,26 @@
             }
         };
 
-
         window.descargarQR = function() {
             const canvas = document.querySelector('#qr-code-container canvas');
-            if (!canvas) return;
+            const img = document.querySelector('#qr-code-container img');
+            const src = canvas ? canvas.toDataURL('image/png') : (img ? img.src : '');
+            if (!src) return;
             const a = document.createElement('a');
-            a.href = canvas.toDataURL("image/png");
-            a.download = `QR_Inmueble_${Date.now()}.png`;
+            a.href = src;
+            a.download = 'QR_Inmueble_' + Date.now() + '.png';
             a.click();
         };
-
 
         window.addEventListener('offline', () => document.getElementById('offline-banner').classList.add('activo'));
         window.addEventListener('online', () => document.getElementById('offline-banner').classList.remove('activo'));
         if (!navigator.onLine) document.getElementById('offline-banner').classList.add('activo');
 
-
-        window.addEventListener('DOMContentLoaded', construirInmueblesFeed);
+        window.addEventListener('DOMContentLoaded', () => {
+            window.sincronizarBotonesLlave();
+            construirInmueblesFeed();
+        });
     </script>
 </body>
 </html>
-
-
 

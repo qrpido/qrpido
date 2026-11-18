@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Oficina Inmobiliaria | GeoKATU</title>
+    <meta name="theme-color" content="#0a0a0c">
+
+    <link rel="stylesheet" href="admin-boveda.css">
+    <link rel="stylesheet" href="pines.css">
+    <link rel="stylesheet" href="./maplibre-gl.css">
+
+    <script src="./maplibre-gl.js"></script>
+    <script src="./pmtiles.js"></script>
+    <script src="./qrcode.min.js"></script>
+</head>
+<body class="boveda-ui">
+    <input type="file" id="file-logo-agencia" accept="image/*" style="display: none;" onchange="window.subirImagenAgencia('logo', this)">
+    <input type="file" id="file-portada-agencia" accept="image/*" style="display: none;" onchange="window.subirImagenAgencia('portada', this)">
+
+    <main id="dashboard-screen" style="display: none; height: 100dvh; width: 100%; max-width: 560px; margin: 0 auto; flex-direction: column; overflow-y: auto; overflow-x: hidden; position: relative; box-sizing: border-box;">
+
+        <!-- CABECERA HOMOLOGADA CON OFICINA.HTML -->
+        <header class="panel-admin" style="position: relative; z-index: 100; flex-shrink: 0; border-radius: 0 0 21px 21px; margin-bottom: 10px;">
+            <button type="button" class="btn-opciones-cabecera" onclick="document.getElementById('menu-cabecera-inmo').classList.toggle('activo')" title="Módulos del Sistema" aria-label="Menú de módulos">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+            </button>
+
+            <div id="menu-cabecera-inmo" class="menu-cabecera-dropdown">
+                <button type="button" onclick="window.visualizarVitrinaInmobiliaria()">Ver Vitrina Pública (Tinder)</button>
+                <button type="button" onclick="window.location.href='/tramites'">Notaría Digital (/tramites)</button>
+                <button type="button" onclick="window.location.href='/terminal'">Caja y Tienda</button>
+                <button type="button" onclick="window.location.href='/oficina'">Oficina Comercial</button>
+                <button type="button" onclick="window.location.href='/'">Radar Ciudad</button>
+                <button type="button" onclick="window.cerrarSesionInmobiliaria()" style="color: #ff4444; border-top: 1px solid rgba(255,255,255,0.08);">Cerrar Sesión</button>
+            </div>
+
+            <div class="oficina-header" style="border: none; margin: 0; padding: 0; display: flex; align-items: center; gap: 12px;">
+                <img id="ui-logo-inmo" src="" class="oficina-logo" style="display: none; background: var(--bg-oscuro);" alt="Logo agencia">
+                <div class="oficina-info" style="flex: 1; min-width: 0;">
+                    <h3 id="ui-nombre-inmo" style="margin: 0; font-size: 17px; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">OFICINA INMOBILIARIA</h3>
+                    <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
+                        <span id="inmo-badge-plan" class="badge-plan">INMOBILIARIA ACTIVA</span>
+                        <span id="inmo-uid-badge" style="font-size: 10px; color: #888; font-family: monospace;">---</span>
+                    </div>
+                    <div id="billing-alert-container" style="margin-top: 6px;"></div>
+                </div>
+            </div>
+        </header>
+
+        <!-- BARRA DE 4 PESTAÑAS SVG -->
+        <nav class="tabs" style="flex-shrink: 0; margin: 0 15px 14px 15px; width: calc(100% - 30px); box-sizing: border-box;">
+            <button type="button" class="tab-btn activo" data-tab="kpis" onclick="window.cambiarTabInmo('kpis')">
+                <span style="display:inline-flex; align-items:center; justify-content:center; gap:5px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                    <span>Métricas</span>
+                </span>
+            </button>
+            <button type="button" class="tab-btn" data-tab="portafolio" onclick="window.cambiarTabInmo('portafolio')">
+                <span style="display:inline-flex; align-items:center; justify-content:center; gap:5px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg>
+                    <span>Portafolio</span>
+                </span>
+            </button>
+            <button type="button" class="tab-btn" data-tab="contratos" onclick="window.cambiarTabInmo('contratos')">
+                <span style="display:inline-flex; align-items:center; justify-content:center; gap:5px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span>Contratos</span>
+                </span>
+            </button>
+            <button type="button" class="tab-btn" data-tab="cuenta" onclick="window.cambiarTabInmo('cuenta')">
+                <span style="display:inline-flex; align-items:center; justify-content:center; gap:5px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c0 .66.39 1.26 1 1.51H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <span>Cuenta</span>
+                </span>
+            </button>
+        </nav>
+
+        <!-- TAB 1: METRICAS -->
+        <section id="content-kpis" class="tab-content activo" style="padding: 15px; margin: 0 15px; width: calc(100% - 30px); box-sizing: border-box;">
+            <label class="section-title" style="margin-bottom: 10px;">Resumen del Portafolio</label>
+            <div class="oficina-kpi-grid">
+                <div class="kpi-card">
+                    <span>Total Inmuebles</span>
+                    <strong class="valor" id="kpi-total-inm">0</strong>
+                </div>
+                <div class="kpi-card">
+                    <span>Disponibles</span>
+                    <strong class="valor" id="kpi-disp-inm" style="color: #00ff64;">0</strong>
+                </div>
+                <div class="kpi-card">
+                    <span>En Estudio / Cerrados</span>
+                    <strong class="valor" id="kpi-ocup-inm" style="color: #facc15;">0</strong>
+                </div>
+                <div class="kpi-card">
+                    <span>Contratos Activos</span>
+                    <strong class="valor" id="kpi-contratos-inm" style="color: #00f5d4;">0</strong>
+                </div>
+            </div>
+
+            <div class="panel-operaciones-bloque" style="margin-bottom: 12px;">
+                <h4 style="margin: 0 0 6px 0; font-size: 11.5px; color: var(--naranja); text-transform: uppercase;">Vencimientos Próximos (30 días)</h4>
+                <div id="lista-vencimientos-inmo" style="font-size: 12px; color: #9ca3af;">Sin vencimientos en los próximos 30 días.</div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <button type="button" class="btn-submit" style="margin: 0; font-size: 11.5px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;" onclick="window.cambiarTabInmo('portafolio'); window.abrirSheetInmueble();">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span>Nuevo Inmueble</span>
+                </button>
+                <button type="button" class="btn-dashed-action" style="margin: 0; font-size: 11.5px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;" onclick="window.visualizarVitrinaInmobiliaria()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    <span>Vitrina Tinder</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- TAB 2: PORTAFOLIO DE PROPIEDADES -->
+        <section id="content-portafolio" class="tab-content" style="display: none; padding: 15px; margin: 0 15px; width: calc(100% - 30px); box-sizing: border-box;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <label class="section-title" style="margin: 0;">Portafolio de Inmuebles</label>
+                <button type="button" class="btn-submit" style="margin: 0; width: auto; padding: 8px 14px !important; font-size: 11px; display: inline-flex; align-items: center; gap: 5px;" onclick="window.abrirSheetInmueble()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span>Nuevo Inmueble</span>
+                </button>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 6px; margin-bottom: 12px;">
+                <input type="text" id="filtro-inmo-texto" class="input-form" placeholder="Buscar título o barrio..." style="margin: 0; font-size: 12px;" oninput="window.filtrarPortafolio()">
+                <select id="filtro-inmo-op" class="input-form" style="margin: 0; font-size: 11.5px;" onchange="window.filtrarPortafolio()">
+                    <option value="">Operación</option>
+                    <option value="arriendo">Arriendo</option>
+                    <option value="venta">Venta</option>
+                    <option value="dias">Por días</option>
+                </select>
+                <select id="filtro-inmo-estado" class="input-form" style="margin: 0; font-size: 11.5px;" onchange="window.filtrarPortafolio()">
+                    <option value="">Estado</option>
+                    <option value="disponible">Disponible</option>
+                    <option value="en_estudio">En estudio</option>
+                    <option value="arrendado_vendido">Cerrado</option>
+                </select>
+            </div>
+
+            <div id="lista-inmuebles-container" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        </section>
+
+        <!-- TAB 3: CONTRATOS Y NOTARIA DIGITAL -->
+        <section id="content-contratos" class="tab-content" style="display: none; padding: 15px; margin: 0 15px; width: calc(100% - 30px); box-sizing: border-box;">
+            <div class="panel-operaciones-bloque" style="margin-bottom: 12px; border-color: rgba(0, 245, 212, 0.35); background: rgba(0, 245, 212, 0.05);">
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                    <div>
+                        <h4 style="margin: 0 0 3px 0; color: #00f5d4; font-size: 12.5px; text-transform: uppercase;">Notaría Digital GeoKATU</h4>
+                        <p style="margin: 0; font-size: 11px; color: #cbd5e1;">Emite contratos vinculantes Ley 527 o abre directamente una sala activa.</p>
+                    </div>
+                    <button type="button" onclick="window.location.href='/tramites'" style="background: #00f5d4; color: #0a0a0c; border: none; border-radius: 8px; padding: 8px 12px; font-size: 11px; font-weight: 900; cursor: pointer; white-space: nowrap;">
+                        Ir a Trámites
+                    </button>
+                </div>
+            </div>
+
+            <label class="section-title" style="margin-bottom: 8px;">Contratos por Inmueble</label>
+            <div id="lista-contratos-inmo" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        </section>
+
+        <!-- TAB 4: CUENTA DE LA AGENCIA -->
+        <section id="content-cuenta" class="tab-content" style="display: none; padding: 15px; margin: 0 15px; width: calc(100% - 30px); box-sizing: border-box;">
+            <div class="panel-operaciones-bloque" style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 4px;">
+                    <button type="button" class="btn-dashed-action" style="margin: 0; padding: 9px; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;" onclick="document.getElementById('file-logo-agencia').click()">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        <span>Logo Agencia</span>
+                    </button>
+                    <button type="button" class="btn-dashed-action" style="margin: 0; padding: 9px; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;" onclick="document.getElementById('file-portada-agencia').click()">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                        <span>Portada</span>
+                    </button>
+                </div>
+
+                <label class="section-title" style="margin-bottom: 2px; font-size: 10px;">Nombre de Agencia o Asesor *</label>
+                <input type="text" id="ag-nombre" class="input-form" placeholder="Ej: Inmobiliaria Eje Cafetero">
+
+                <label class="section-title" style="margin-bottom: 2px; font-size: 10px;">Slogan / Especialidad</label>
+                <input type="text" id="ag-slogan" class="input-form" placeholder="Ej: Arriendos y ventas sin fiador">
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <div>
+                        <label class="section-title" style="margin-bottom: 2px; font-size: 10px;">Enfoque</label>
+                        <select id="ag-nicho" class="input-form">
+                            <option value="Inmobiliaria General">Inmobiliaria General</option>
+                            <option value="Arriendos Residenciales">Arriendos Residenciales</option>
+                            <option value="Venta de Propiedades">Venta de Propiedades</option>
+                            <option value="Locales y Bodegas">Locales y Bodegas</option>
+                            <option value="Hospedaje Turístico">Hospedaje / Días</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="section-title" style="margin-bottom: 2px; font-size: 10px;">WhatsApp Atención *</label>
+                        <input type="tel" id="ag-whatsapp" class="input-form" placeholder="3101234567" oninput="this.value = this.value.replace(/\D/g, '')">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr 90px; gap: 8px;">
+                    <div>
+                        <label class="section-title" style="margin-bottom: 2px; font-size: 10px;">PBX / Fijo</label>
+                        <input type="text" id="ag-pbx" class="input-form" placeholder="6063400000">
+                    </div>
+                    <div>
+                        <label class="section-title" style="margin-bottom: 2px; font-size: 10px;">Usuario URL</label>
+                        <input type="text" id="ag-username" class="input-form" placeholder="mi_inmobiliaria" style="text-transform: lowercase;">
+                    </div>
+                    <div>
+                        <label class="section-title" style="margin-bottom: 2px; font-size: 10px; color: var(--naranja);">PIN Titular</label>
+                        <input type="text" id="ag-pin" maxlength="4" class="input-form" placeholder="0000" style="text-align: center; font-family: monospace; font-weight: 900; color: var(--naranja);" oninput="this.value = this.value.replace(/\D/g, '')">
+                    </div>
+                </div>
+
+                <label class="section-title" style="margin-top: 6px; margin-bottom: 4px; font-size: 10px;">Ubicación Sede Principal (Radar)</label>
+                <div style="display: flex; gap: 6px;">
+                    <input type="text" id="ag-buscador-mapa" class="input-form" style="margin: 0; flex: 1;" placeholder="Ciudad o lat, lng..." onkeypress="if(event.key==='Enter') window.buscarEnMapaAgencia()">
+                    <button type="button" class="btn-dashed-action" style="margin: 0; width: auto; padding: 0 12px;" onclick="window.buscarEnMapaAgencia()">Buscar</button>
+                    <button type="button" class="btn-dashed-action" style="margin: 0; width: auto; padding: 0 12px;" onclick="window.ubicarGpsAgencia()">GPS</button>
+                </div>
+                <div id="mapa-agencia-sede" style="width: 100%; height: 210px; border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.12); background: #111; margin-top: 6px;"></div>
+                <input type="hidden" id="ag-lat">
+                <input type="hidden" id="ag-lng">
+
+                <button type="button" id="btn-guardar-agencia" class="btn-submit" style="margin-top: 10px;" onclick="window.guardarPerfilAgencia()">Guardar Perfil de Agencia</button>
+            </div>
+        </section>
+    </main>
+
+    <!-- BOTTOM SHEET: CREAR / EDITAR INMUEBLE -->
+    <div id="overlay-inmueble" class="bottom-sheet-overlay" style="display: none;" onclick="if(event.target === this) window.cerrarSheetInmueble()"></div>
+    <div id="bottom-sheet-inmueble" class="bottom-sheet" style="max-width: 500px; left: 0; right: 0; margin: 0 auto; box-sizing: border-box;">
+        <div class="bottom-sheet-header">
+            <div class="bottom-sheet-drag"></div>
+            <h3 class="bottom-sheet-titulo" id="sheet-inmo-titulo">Nuevo Inmueble</h3>
+            <button type="button" class="bottom-sheet-cerrar" onclick="window.cerrarSheetInmueble()" aria-label="Cerrar formulario">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+
+        <div class="bottom-sheet-content">
+            <input type="hidden" id="inm-edit-id">
+            <input type="hidden" id="inm-foto-actual">
+            <input type="hidden" id="inm-galeria-actual" value="[]">
+
+            <label class="section-title" style="font-size: 10px;">Título del anuncio *</label>
+            <input type="text" id="inm-nombre" class="input-form" placeholder="Ej: Apartamento moderno con balcón en Pinares">
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div>
+                    <label class="section-title" style="font-size: 10px;">Operación *</label>
+                    <select id="inm-operacion" class="input-form">
+                        <option value="arriendo">En Arriendo</option>
+                        <option value="venta">En Venta</option>
+                        <option value="dias">Por Días / Temporada</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="section-title" style="font-size: 10px;">Tipo de Inmueble *</label>
+                    <select id="inm-subtipo" class="input-form" onchange="window.actualizarCamposPorSubtipo()">
+                        <option value="apartamento">Apartamento</option>
+                        <option value="casa">Casa</option>
+                        <option value="apartaestudio">Apartaestudio</option>
+                        <option value="habitacion">Habitación</option>
+                        <option value="local">Local Comercial</option>
+                        <option value="oficina">Oficina</option>
+                        <option value="bodega">Bodega</option>
+                        <option value="lote">Lote</option>
+                        <option value="finca">Finca</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 8px;">
+                <div>
+                    <label class="section-title" style="font-size: 10px;">Valor (COP) *</label>
+                    <input type="number" id="inm-precio" class="input-form" placeholder="1800000" min="0">
+                </div>
+                <div>
+                    <label class="section-title" style="font-size: 10px;">Administración (COP)</label>
+                    <input type="number" id="inm-admin" class="input-form" placeholder="0" min="0">
+                </div>
+            </div>
+
+            <label style="display: flex; align-items: center; gap: 7px; font-size: 11px; color: #cbd5e1; margin: -4px 0 10px 0; cursor: pointer;">
+                <input type="checkbox" id="inm-admin-incluida" style="accent-color: var(--naranja);">
+                <span>Administración incluida en el valor</span>
+            </label>
+
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+                <div>
+                    <label class="section-title" style="font-size: 10px;">Área (m²)</label>
+                    <input type="number" step="any" id="inm-area" class="input-form" placeholder="72">
+                </div>
+                <div id="campo-hab-wrap">
+                    <label class="section-title" style="font-size: 10px;">Habitaciones</label>
+                    <input type="number" id="inm-hab" class="input-form" placeholder="3" min="0">
+                </div>
+                <div id="campo-banos-wrap">
+                    <label class="section-title" style="font-size: 10px;">Baños</label>
+                    <input type="number" id="inm-banos" class="input-form" placeholder="2" min="0">
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+                <div>
+                    <label class="section-title" style="font-size: 10px;">Estrato</label>
+                    <select id="inm-estrato" class="input-form">
+                        <option value="">N/A</option>
+                        <option value="1">Estrato 1</option>
+                        <option value="2">Estrato 2</option>
+                        <option value="3">Estrato 3</option>
+                        <option value="4">Estrato 4</option>
+                        <option value="5">Estrato 5</option>
+                        <option value="6">Estrato 6</option>
+                        <option value="Comercial">Comercial</option>
+                        <option value="Rural">Rural</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="section-title" style="font-size: 10px;">Parqueaderos</label>
+                    <input type="number" id="inm-parq" class="input-form" placeholder="1" min="0">
+                </div>
+                <div>
+                    <label class="section-title" style="font-size: 10px;">Estado</label>
+                    <select id="inm-estado" class="input-form">
+                        <option value="disponible">Disponible</option>
+                        <option value="en_estudio">En estudio</option>
+                        <option value="arrendado_vendido">Cerrado</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div>
+                    <label class="section-title" style="font-size: 10px;">Barrio / Sector *</label>
+                    <input type="text" id="inm-barrio" class="input-form" placeholder="Ej: Álamos">
+                </div>
+                <div>
+                    <label class="section-title" style="font-size: 10px;">Dirección exacta</label>
+                    <input type="text" id="inm-direccion" class="input-form" placeholder="Cra 14 # 12-40">
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 8px;">
+                <div>
+                    <label class="section-title" style="font-size: 10px;">Tipo de Contrato Legal</label>
+                    <select id="inm-tipo-contrato" class="input-form">
+                        <option value="arriendo_vivienda_ley820">Arriendo Vivienda (Ley 820)</option>
+                        <option value="arriendo_comercial">Arriendo Comercial</option>
+                        <option value="temporada_dias">Estadía Corta / Días</option>
+                        <option value="promesa_compraventa">Promesa Compraventa</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="section-title" style="font-size: 10px;">Fin de Contrato (Opcional)</label>
+                    <input type="date" id="inm-fin-contrato" class="input-form">
+                </div>
+            </div>
+
+            <label class="section-title" style="font-size: 10px;">ID Sala / Contrato Activo en /tramites (Opcional)</label>
+            <input type="text" id="inm-sala-tramite" class="input-form" placeholder="Ej: SALA-1085 (si existe, deriva directo)">
+
+            <label class="section-title" style="font-size: 10px;">Descripción detallada</label>
+            <textarea id="inm-descripcion" class="input-form" rows="3" style="resize: none;" placeholder="Describe iluminación, acabados, transporte cercano, políticas de mascotas..."></textarea>
+
+            <!-- FOTOS CON ESTUDIO WEBP -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
+                <div>
+                    <input type="file" id="inm-file-portada" accept="image/*" style="display: none;" onchange="window.manejarFotoPortadaInmo(this)">
+                    <button type="button" class="btn-dashed-action" id="btn-portada-inmo-txt" style="margin: 0; padding: 10px 6px; font-size: 11px;" onclick="document.getElementById('inm-file-portada').click()">Foto Fachada</button>
+                </div>
+                <div>
+                    <input type="file" id="inm-file-galeria" accept="image/*" multiple style="display: none;" onchange="window.manejarGaleriaInmo(this)">
+                    <button type="button" class="btn-dashed-action" id="btn-galeria-inmo-txt" style="margin: 0; padding: 10px 6px; font-size: 11px;" onclick="document.getElementById('inm-file-galeria').click()">Galería Extra (Hasta 8)</button>
+                </div>
+            </div>
+
+            <!-- MAPA MAPLIBRE OFFLINE -->
+            <label class="section-title" style="font-size: 10px;">Ubicación exacta en el Radar *</label>
+            <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+                <input type="text" id="inm-buscador-mapa" class="input-form" style="margin: 0; flex: 1;" placeholder="Ciudad o lat, lng..." onkeypress="if(event.key==='Enter') window.buscarEnMapaInmo()">
+                <button type="button" class="btn-dashed-action" style="margin: 0; width: auto; padding: 0 11px;" onclick="window.buscarEnMapaInmo()">Buscar</button>
+                <button type="button" class="btn-dashed-action" style="margin: 0; width: auto; padding: 0 11px;" onclick="window.ubicarGpsPropiedad()">GPS</button>
+            </div>
+            <div id="mini-mapa-inmueble" style="width: 100%; height: 200px; border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.14); background: #111; margin-bottom: 10px;"></div>
+            <input type="hidden" id="inm-lat">
+            <input type="hidden" id="inm-lng">
+
+            <button type="button" id="btn-guardar-inmueble" class="btn-submit" onclick="window.guardarInmueble()">Guardar Inmueble</button>
+        </div>
+    </div>
+
+    <!-- MODAL CARTEL QR IMPRIMIBLE -->
+    <div id="modal-cartel-qr" class="bottom-sheet-overlay" style="display: none;" onclick="if(event.target === this) window.cerrarCartelQR()">
+        <div class="bottom-sheet activo" style="max-width: 440px; margin: 0 auto; border-radius: 20px 20px 0 0;">
+            <div class="bottom-sheet-header">
+                <div class="bottom-sheet-drag"></div>
+                <h3 class="bottom-sheet-titulo">Cartel de Ventana con QR</h3>
+                <button type="button" class="bottom-sheet-cerrar" onclick="window.cerrarCartelQR()" aria-label="Cerrar cartel">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="bottom-sheet-content">
+                <div id="cartel-print-area" class="cartel-print-hoja">
+                    <div id="cartel-banda" class="cartel-print-banda">SE ARRIENDA</div>
+                    <h2 id="cartel-titulo" style="margin: 0 0 4px 0; font-size: 18px; font-weight: 900; color: #0a0a0c;">Inmueble</h2>
+                    <p id="cartel-specs" style="margin: 0 0 6px 0; font-size: 12.5px; color: #334155; font-weight: 700;">—</p>
+                    <div id="cartel-precio" style="font-size: 22px; font-weight: 900; font-family: monospace; color: #0a0a0c;">$0</div>
+                    <div id="cartel-qr-box" class="cartel-print-qr"></div>
+                    <p style="margin: 4px 0 0 0; font-size: 11px; font-weight: 800; color: #0a0a0c; text-transform: uppercase;">Escanea para ver fotos, mapa y contrato digital en GeoKATU</p>
+                    <p id="cartel-contacto" style="margin: 4px 0 0 0; font-size: 12px; font-weight: 900; color: #ff6b00;"></p>
+                </div>
+                <button type="button" class="btn-submit" style="margin-top: 12px;" onclick="window.imprimirCartelQR()">Imprimir / Guardar PDF</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL CONFIRMACION IN-APP -->
+    <div id="modal-confirm-inmo" class="modal-confirmar-salida" style="display: none;">
+        <div class="caja-confirmar-salida">
+            <h4 id="confirm-inmo-titulo" style="margin: 0 0 8px 0; color: #ffffff; font-size: 15px;">Confirmar acción</h4>
+            <p id="confirm-inmo-texto" style="color: #9ca3af; font-size: 12px; margin: 0 0 18px 0;"></p>
+            <div style="display: flex; gap: 10px;">
+                <button type="button" onclick="window.responderConfirmacionInmo(false)" style="flex: 1; padding: 11px; border-radius: 10px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); color: #ffffff; font-weight: 800; cursor: pointer;">Cancelar</button>
+                <button type="button" onclick="window.responderConfirmacionInmo(true)" style="flex: 1; padding: 11px; border-radius: 10px; background: var(--naranja); border: none; color: #ffffff; font-weight: 800; cursor: pointer;">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-inmo" role="status" aria-live="polite"></div>
+
+    <script src="./branding-cuarzos.js"></script>
+    <script type="module" src="./inmobiliaria.js"></script>
+</body>
+</html>
+
+
