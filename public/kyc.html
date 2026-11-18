@@ -146,7 +146,7 @@
         let streamActual = null;
         let loopAnalisisLuz = null;
         let uidCiudadanoSecreto = null; // 🛡️ Sello de acoplamiento de sesión
-        const fotosEnRAM = { frente: null, reverso: null, rostro: null };
+                const fotosEnRAM = { frente: null, reverso: null, rostro: null, qrData: null };
 
                 function mostrarAvisoKyc(msg, esExito) {
             const el = document.getElementById("toast-kyc");
@@ -295,8 +295,9 @@
                     imgPreview.style.display = "none";
                     fxEscaneo.style.display = "none";
 
-                    document.getElementById('lbl-titulo').innerText = "2. Reverso de la Cédula";
-                    document.getElementById('lbl-instruccion').innerText = "Voltea el documento. Enfoca el reverso (Zona de código QR o caracteres <<<).";
+                                        window.configurarMascaraReverso();
+                    document.getElementById('lbl-titulo').innerText = "2. Reverso (Código QR)";
+                    document.getElementById('lbl-instruccion').innerText = "Voltea el documento y enfoca el código QR del reverso (o zona MRZ) dentro del recuadro.";
                 
                 } else if (pasoActual === 2) {
                     const esValido = await validarReversoConIA(canvas);
@@ -366,13 +367,30 @@
             }
         }
 
+                window.configurarMascaraReverso = () => {
+            const maskCedula = document.getElementById('mask-cedula');
+            if (maskCedula) {
+                maskCedula.innerHTML = '<defs><mask id="cutout-qr"><rect width="100" height="100" fill="white" /><rect x="18" y="24" width="64" height="42" rx="5" fill="black" /></mask></defs><rect width="100" height="100" mask="url(#cutout-qr)" /><rect class="guia" x="18" y="24" width="64" height="42" rx="5" fill="none" />';
+            }
+            if (fxEscaneo) {
+                fxEscaneo.style.left = '18%';
+                fxEscaneo.style.top = '24%';
+                fxEscaneo.style.width = '64%';
+                fxEscaneo.style.height = '42%';
+            }
+        };
+
         async function validarReversoConIA(canvasEl) {
+            fotosEnRAM.qrData = null;
             if ('BarcodeDetector' in window) {
                 try {
-                    const detector = new BarcodeDetector({ formats: ['pdf417', 'qr_code'] }); 
+                    const detector = new BarcodeDetector({ formats: ['qr_code', 'pdf417'] });
                     const barcodes = await detector.detect(canvasEl);
-                    if (barcodes.length > 0) return true; 
-                } catch(e) { console.warn("Fallback OCR..."); }
+                    if (barcodes.length > 0 && barcodes[0].rawValue) {
+                        fotosEnRAM.qrData = String(barcodes[0].rawValue).trim();
+                        return true;
+                    }
+                } catch(e) { console.warn('Fallback OCR reverso...'); }
             }
             let worker = null;
             try {
@@ -383,7 +401,7 @@
                 await worker.terminate();
                 const textoUpper = text.toUpperCase().replace(/\s+/g, '');
                 const patronMRZ = /[A-Z0-9]<+[A-Z0-9]+<+/g;
-                return patronMRZ.test(textoUpper) || textoUpper.includes("INDICE") || textoUpper.includes("SANGRE") || textoUpper.includes("REGISTRADOR") || textoUpper.includes("PENAGOS");
+                return patronMRZ.test(textoUpper) || textoUpper.includes("COL") || textoUpper.includes("REGISTRADURIA") || textoUpper.includes("IDENTIFICACION") || textoUpper.includes("INDICE") || textoUpper.includes("SANGRE") || textoUpper.includes("REGISTRADOR") || textoUpper.includes("PENAGOS") || textoUpper.includes("VENEZUELA");
             } catch(e) {
                 if (worker) await worker.terminate();
                 return false;
@@ -419,7 +437,7 @@
                 if (!result.success) throw new Error(result.error);
                 btn.innerText = "Biometría Sellada";
                 btn.style.background = "var(--verde-sui)"; btn.style.color = "black";
-                fotosEnRAM.frente = null; fotosEnRAM.reverso = null; fotosEnRAM.rostro = null;
+                                fotosEnRAM.frente = null; fotosEnRAM.reverso = null; fotosEnRAM.rostro = null; fotosEnRAM.qrData = null;
                 setTimeout(() => { window.location.href = '/tramites?kyc=ok'; }, 1200);
             } catch (err) {
                 mostrarAvisoKyc("Error de validación: " + err.message);
