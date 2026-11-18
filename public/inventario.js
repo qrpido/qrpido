@@ -4,6 +4,7 @@
  */
 import GeokatuDB from './core-db.js';
 import { AuthGate } from './auth-gate.js';
+import { ScannerHub } from './scanner-hub.js';
 import './geokatu-tour.js';
 
 
@@ -1628,41 +1629,44 @@ function procesarLecturaRafaga(codigo) {
 }
 
 document.getElementById('btn-abrir-camara').addEventListener('click', () => {
-    modalCamara.style.display = 'flex';
-    ultimoCodigoLeido = '';
-    tiempoUltimaLectura = 0;
-    conteoAuditoriaRafaga = 0;
-    if (badgeRafagaConteo) badgeRafagaConteo.innerText = '0 escaneos';
-    if (txtRafagaProd) txtRafagaProd.innerText = 'Esperando lectura...';
-
-    if (!html5QrCodeVisor) {
-        html5QrCodeVisor = new Html5Qrcode("lector-camara-visor");
-    }
-    html5QrCodeVisor.start(
-        { facingMode: "environment" },
-        { fps: 20, qrbox: { width: 260, height: 180 } },
-        (codigo) => {
-            const ahora = Date.now();
-            if (codigo === ultimoCodigoLeido && (ahora - tiempoUltimaLectura) < 800) {
-                return; // Inhibir ráfaga duplicada inmediata
-            }
-            ultimoCodigoLeido = codigo;
-            tiempoUltimaLectura = ahora;
-
-            if (modoEscaneoCamara === 'BUSQUEDA') {
-                inputBusqueda.value = codigo;
-                ejecutarBusquedaYFiltros();
-                cerrarCamara();
-            } else {
-                procesarLecturaRafaga(codigo);
-            }
-        },
-        () => {}
-    ).catch(err => console.warn("[Lector QR] Error al iniciar cámara:", err));
+ const btnCamMapa = document.getElementById('btn-abrir-camara');
+ ScannerHub.abrir({
+  modoInicial: 'CONSULTAR',
+  origenEl: btnCamMapa,
+  idNegocio: idNegocio,
+  idSede: idSedeActiva,
+  onVerEnMapa: (datos) => {
+   if (!datos) return;
+   const termino = (datos.ubicacion && datos.ubicacion.id_compartimiento)
+    ? datos.ubicacion.id_compartimiento
+    : (datos.codigo || '');
+   if (inputBusqueda) inputBusqueda.value = termino;
+   ejecutarBusquedaYFiltros(false);
+  },
+  onUbicar: (est) => {
+   if (window.TerminalApp && typeof window.TerminalApp.irAVista === 'function') {
+    window.TerminalApp.irAVista('stock', {
+     sede: est.idSede || idSedeActiva,
+     mueble: est.mueble ? est.mueble.id_mueble : null,
+     bin: est.bin ? est.bin.id_comp : null,
+     buscar: est.codigoProd || null
+    });
+    return;
+   }
+   const url = new URLSearchParams({ sede: est.idSede || idSedeActiva });
+   if (est.mueble) url.set('mueble', est.mueble.id_mueble);
+   if (est.bin) url.set('bin', est.bin.id_comp);
+   if (est.codigoProd) url.set('buscar', est.codigoProd);
+   window.location.href = 'stock?' + url.toString();
+  }
+ });
 });
 
 function cerrarCamara() {
-    antorchaEncendida = false;
+ if (ScannerHub && ScannerHub.estaAbierto()) {
+  ScannerHub.cerrar({ silencioso: true });
+ }
+ antorchaEncendida = false;
     if (btnLinterna) {
         btnLinterna.classList.remove('activo');
         btnLinterna.innerText = '🔦 OFF';
