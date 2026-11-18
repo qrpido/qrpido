@@ -114,16 +114,25 @@ window.generarGeohash = function(lat, lng, precision) {
 };
 
 
-// Ruteador dinámico según país del comercio
-window.abrirTerminalPOS = async function() {
+// Ruteador dinámico hacia Terminal Unificada (conserva /posven para Venezuela)
+window.abrirTerminalUnificada = async function(vista) {
+    var vistaDest = ['inicio', 'pos', 'stock', 'mapa'].indexOf(vista) !== -1 ? vista : 'pos';
     var idTenant = window.idNegocioLogueado || localStorage.getItem('geokatu_active_uid');
-    if (!idTenant) {
-        window.open('/pos', '_blank');
-        return;
+    if (vistaDest === 'pos' && idTenant && GeokatuDB && GeokatuDB.PosService && typeof GeokatuDB.PosService.obtenerDestinoPOS === 'function') {
+        try {
+            var destino = await GeokatuDB.PosService.obtenerDestinoPOS(idTenant);
+            var cleanDestino = String(destino || '').replace(/\.html/g, '');
+            if (cleanDestino.indexOf('posven') !== -1) {
+                window.open(cleanDestino.startsWith('/') ? cleanDestino : ('/' + cleanDestino), '_blank');
+                return;
+            }
+        } catch (e) {}
     }
-    var destino = await GeokatuDB.PosService.obtenerDestinoPOS(idTenant);
-    var cleanDestino = String(destino).replace(/\.html/g, '');
-    window.open(cleanDestino.startsWith('/') ? cleanDestino : ('/' + cleanDestino), '_blank');
+    window.open('/terminal?vista=' + encodeURIComponent(vistaDest), '_blank');
+};
+
+window.abrirTerminalPOS = function() {
+    return window.abrirTerminalUnificada('pos');
 };
 
 
