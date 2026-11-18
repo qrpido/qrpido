@@ -172,27 +172,27 @@ window.generarCodigoMueble6D = function(rawId, nombreMueble, sedeTexto) {
 function repararVistaInventarioEmbebida(frame) {
   if (!frame || !frame.contentDocument) return;
   const doc = frame.contentDocument;
-  if (!doc.getElementById('hud-radar') || doc.getElementById('gk-fix-radar-25d')) return;
+  if (!doc.querySelector('.visor-hud') || doc.getElementById('gk-fix-radar-25d')) return;
 
   const st = doc.createElement('style');
   st.id = 'gk-fix-radar-25d';
   st.textContent = `
-    /* 1. Evitar que Filtros se corte con el buscador (27659.jpg) */
-    #panel-filtros {
-      margin-top: 10px !important;
-      padding-top: 12px !important;
-      border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
-      position: relative !important;
-      z-index: 25 !important;
+    /* 1. Separar #panel-filtros-avanzados del buscador superior (27659.jpg) */
+    #panel-filtros-avanzados:not(.oculto) {
+      top: 138px !important;
+      padding-top: 14px !important;
+      z-index: 950 !important;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.92) !important;
     }
-    /* 2. Ocultar ficha inferior cuando el 2.5D o el drawer estan abiertos (Cero superposicion) */
+    /* 2. Ocultar ficha inferior y FAB cuando el 2.5D o el drawer estan abiertos */
     body:has(#visor-alzado-pip:not(.oculto)) #ficha-compacta-radar,
-    body:has(#drawer-detalle:not(.oculto)) #ficha-compacta-radar {
+    body:has(#visor-alzado-pip:not(.oculto)) #fab-capas-contenedor,
+    body:has(#panel-detalle-mueble.abierto) #ficha-compacta-radar {
       display: none !important;
       opacity: 0 !important;
       pointer-events: none !important;
     }
-    /* 3. Visor 2.5D limpio, centrado y con boton X siempre visible */
+    /* 3. Visor 2.5D centrado, con cabecera flexible y boton X siempre visible */
     #visor-alzado-pip:not(.oculto) {
       position: fixed !important;
       left: 12px !important;
@@ -209,7 +209,25 @@ function repararVistaInventarioEmbebida(frame) {
       z-index: 9500 !important;
       overflow: hidden !important;
     }
-        #alzado-id-badge, #drawer-id-mueble {
+    .alzado-pip-header {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      gap: 8px !important;
+      flex-wrap: nowrap !important;
+    }
+    .alzado-pip-titulos {
+      min-width: 0 !important;
+      flex: 1 1 auto !important;
+      overflow: hidden !important;
+    }
+    .alzado-pip-controles {
+      display: flex !important;
+      align-items: center !important;
+      gap: 4px !important;
+      flex-shrink: 0 !important;
+    }
+    #alzado-id-tag, #txt-mueble-id-fisico {
       font-family: monospace !important;
       font-weight: 900 !important;
       letter-spacing: 0.8px !important;
@@ -219,6 +237,11 @@ function repararVistaInventarioEmbebida(frame) {
       padding: 2px 7px !important;
       border-radius: 6px !important;
       font-size: 11px !important;
+      display: inline-block !important;
+      max-width: 78px !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
     }
     #btn-cerrar-alzado {
       display: inline-flex !important;
@@ -228,35 +251,51 @@ function repararVistaInventarioEmbebida(frame) {
       height: 30px !important;
       min-width: 30px !important;
       border-radius: 8px !important;
-      background: rgba(255, 68, 68, 0.18) !important;
-      border: 1px solid rgba(255, 68, 68, 0.5) !important;
+      background: rgba(255, 68, 68, 0.2) !important;
+      border: 1px solid rgba(255, 68, 68, 0.55) !important;
       color: #ffffff !important;
       flex-shrink: 0 !important;
       cursor: pointer !important;
       margin-left: 4px !important;
     }
-    /* 4. Mejora visual de muebles en el plano 2D */
-    .mueble-radar-2d, [data-id-mueble] {
-      border-radius: 8px !important;
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
-    }
   `;
-    doc.head.appendChild(st);
+  doc.head.appendChild(st);
+
+  // Boton Editar Mapa directo en la cabecera junto a Mover stock
+  const cab = doc.querySelector('.inventario-cabecera');
+  const linkStock = doc.getElementById('inventario-ir-stock');
+  if (cab && linkStock && !doc.getElementById('btn-cab-editar-croquis')) {
+    const wrapAcc = doc.createElement('div');
+    wrapAcc.style.cssText = 'display:flex; align-items:center; gap:6px;';
+    const btnEd = doc.createElement('button');
+    btnEd.id = 'btn-cab-editar-croquis';
+    btnEd.type = 'button';
+    btnEd.textContent = 'Editar mapa';
+    btnEd.style.cssText = 'background:rgba(37,99,235,0.22); border:1px solid rgba(96,165,250,0.5); color:#93c5fd; border-radius:99px; padding:6px 11px; font-size:11px; font-weight:800; cursor:pointer;';
+    btnEd.addEventListener('click', () => window.TerminalApp.alternarModoEditorMapa(true));
+    linkStock.parentNode.insertBefore(wrapAcc, linkStock);
+    wrapAcc.appendChild(btnEd);
+    wrapAcc.appendChild(linkStock);
+  }
 
   const normalizarBadges6D = () => {
-    const selSede = doc.getElementById('select-sede-radar');
+    const selSede = doc.getElementById('selector-sede-activa');
     const txtSede = selSede && selSede.options[selSede.selectedIndex] ? selSede.options[selSede.selectedIndex].text : 'PISO DE VENTA';
     const pares = [
-      { idBadge: 'alzado-id-badge', idNom: 'alzado-titulo-mueble' },
-      { idBadge: 'drawer-id-mueble', idNom: 'drawer-titulo-mueble' }
+      { idBadge: 'alzado-id-tag', idNom: 'alzado-nombre-tag' },
+      { idBadge: 'txt-mueble-id-fisico', idNom: 'txt-mueble-nombre' }
     ];
     pares.forEach((p) => {
       const elB = doc.getElementById(p.idBadge);
       const elN = doc.getElementById(p.idNom);
-      if (elB && elB.textContent && elB.textContent.trim().length > 6) {
-        const raw = elB.textContent.trim();
-        elB.dataset.rawId = raw;
-        elB.textContent = window.generarCodigoMueble6D(raw, elN ? elN.textContent : '', txtSede);
+      if (elB && elB.textContent) {
+        const actual = elB.textContent.trim();
+        if (actual.length > 6 || !/^[A-Z]{3}\d{3}$/.test(actual)) {
+          const raw = elB.dataset.rawId || actual;
+          elB.dataset.rawId = raw;
+          const cod6 = window.generarCodigoMueble6D(raw, elN ? elN.textContent : '', txtSede);
+          if (actual !== cod6) elB.textContent = cod6;
+        }
       }
     });
   };
