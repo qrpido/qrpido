@@ -5,9 +5,266 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Visor de Piso y Radar de Stock | Geokatu SIG</title>
     <meta name="theme-color" content="#ff6b00">
-    <link rel="stylesheet" href="mapatienda.css">
+        <link rel="stylesheet" href="mapatienda.css">
     <link rel="stylesheet" href="inventario.css">
     <script src="html5-qrcode.min.js" type="text/javascript"></script>
+    <style id="gk-cad-studio-theme">
+        /* 1. LIENZO CAD ARQUITECTONICO */
+        #viewport-infinito {
+            background-color: #08090d !important;
+            background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 0) !important;
+        }
+        .mueble-bloque {
+            background: linear-gradient(145deg, rgba(24, 28, 40, 0.94), rgba(13, 15, 22, 0.98)) !important;
+            border: 1.5px solid rgba(255, 107, 0, 0.65) !important;
+            border-radius: 10px !important;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+        }
+        .mueble-bloque.seleccionado, .mueble-bloque.radar-activo {
+            border-color: #00f5d4 !important;
+            box-shadow: 0 0 0 2px rgba(0, 245, 212, 0.28), 0 12px 28px rgba(0, 0, 0, 0.85) !important;
+        }
+        .subdivision-celda {
+            border-color: rgba(255, 255, 255, 0.07) !important;
+        }
+        .mueble-etiqueta {
+            background: rgba(10, 12, 18, 0.88) !important;
+            border: 1px solid rgba(255, 255, 255, 0.14) !important;
+            border-radius: 7px !important;
+            padding: 3px 6px !important;
+            font-size: 10px !important;
+            font-weight: 800 !important;
+            letter-spacing: 0.3px !important;
+            color: #f8fafc !important;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6) !important;
+        }
+
+        /* 2. BARRA SUPERIOR FLOTANTE DE 1 SOLO PISO */
+        .hud-barra-superior.visor-hud {
+            position: fixed !important;
+            top: 10px !important;
+            left: 10px !important;
+            right: 10px !important;
+            max-width: 560px !important;
+            margin: 0 auto !important;
+            padding: 7px 9px !important;
+            background: rgba(14, 16, 23, 0.9) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            border-radius: 16px !important;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 6px !important;
+            z-index: 900 !important;
+        }
+        .inventario-cabecera { display: none !important; }
+        .gk-command-row {
+            display: flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            width: 100% !important;
+            height: 36px !important;
+        }
+        .select-sede-visor {
+            width: auto !important;
+            max-width: 112px !important;
+            height: 36px !important;
+            padding: 0 22px 0 9px !important;
+            border-radius: 10px !important;
+            background-color: rgba(255, 255, 255, 0.06) !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            color: #f1f5f9 !important;
+            font-size: 11px !important;
+            font-weight: 800 !important;
+            flex-shrink: 0 !important;
+        }
+        .buscador-radar-caja {
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+            height: 36px !important;
+            background: rgba(0, 0, 0, 0.48) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            border-radius: 10px !important;
+            padding: 0 8px !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+        }
+        .buscador-radar-caja:focus-within {
+            border-color: #ff6b00 !important;
+            box-shadow: 0 0 0 2px rgba(255, 107, 0, 0.18) !important;
+        }
+        .input-busqueda-radar {
+            font-size: 12px !important;
+            color: #ffffff !important;
+        }
+        .hud-acciones-botones {
+            display: flex !important;
+            align-items: center !important;
+            gap: 5px !important;
+            flex-shrink: 0 !important;
+        }
+        .btn-radar-icono {
+            width: 36px !important;
+            height: 36px !important;
+            min-width: 36px !important;
+            border-radius: 10px !important;
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.11) !important;
+            color: #e2e8f0 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 0 !important;
+            cursor: pointer !important;
+        }
+        .btn-radar-icono:active { transform: scale(0.93) !important; }
+        .btn-radar-disenar {
+            width: auto !important;
+            padding: 0 10px !important;
+            gap: 5px !important;
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.28), rgba(29, 78, 216, 0.42)) !important;
+            border-color: rgba(96, 165, 250, 0.5) !important;
+            color: #93c5fd !important;
+            font-size: 11px !important;
+            font-weight: 800 !important;
+        }
+        body.modo-embed-terminal #btn-abrir-camara,
+        body.modo-embed-terminal #btn-relevo-visor,
+        body.modo-embed-terminal #btn-logout-visor {
+            display: none !important;
+        }
+
+        /* 3. CINTA HORIZONTAL DESLIZABLE DE CAPAS (REEMPLAZA EL FAB INFERIOR) */
+        #fab-capas-contenedor {
+            position: fixed !important;
+            top: 64px !important;
+            left: 10px !important;
+            right: 10px !important;
+            bottom: auto !important;
+            max-width: 560px !important;
+            margin: 0 auto !important;
+            z-index: 880 !important;
+            pointer-events: auto !important;
+        }
+        #btn-fab-trigger { display: none !important; }
+        #fab-menu-emergente {
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            gap: 6px !important;
+            overflow-x: auto !important;
+            scrollbar-width: none !important;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 2px 1px !important;
+            position: static !important;
+            width: 100% !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            transform: none !important;
+        }
+        #fab-menu-emergente::-webkit-scrollbar { display: none !important; }
+        .fab-menu-titulo, #btn-ir-editor { display: none !important; }
+        #fab-menu-emergente .badge-filtro {
+            flex: 0 0 auto !important;
+            background: rgba(14, 16, 23, 0.86) !important;
+            backdrop-filter: blur(12px) !important;
+            -webkit-backdrop-filter: blur(12px) !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            color: #94a3b8 !important;
+            border-radius: 99px !important;
+            padding: 5px 11px !important;
+            font-size: 10.5px !important;
+            font-weight: 800 !important;
+            white-space: nowrap !important;
+            cursor: pointer !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45) !important;
+        }
+        #fab-menu-emergente .badge-filtro.activo {
+            background: rgba(255, 107, 0, 0.22) !important;
+            border-color: #ff6b00 !important;
+            color: #ffffff !important;
+        }
+
+        /* 4. PANEL DE FILTROS DESPLEGABLE (SIN CORTES) */
+        #panel-filtros-avanzados:not(.oculto) {
+            position: fixed !important;
+            top: 102px !important;
+            left: 10px !important;
+            right: 10px !important;
+            max-width: 560px !important;
+            margin: 0 auto !important;
+            background: rgba(15, 17, 24, 0.97) !important;
+            backdrop-filter: blur(22px) !important;
+            border: 1px solid rgba(255, 107, 0, 0.45) !important;
+            border-radius: 16px !important;
+            padding: 14px !important;
+            z-index: 960 !important;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9) !important;
+        }
+
+        /* 5. FICHA COMPACTA 2D Y VISOR 2.5D UNIFICADO */
+        #ficha-compacta-radar:not(.oculto) {
+            position: fixed !important;
+            left: 12px !important;
+            right: 12px !important;
+            bottom: 12px !important;
+            max-width: 460px !important;
+            margin: 0 auto !important;
+            background: rgba(14, 16, 23, 0.95) !important;
+            backdrop-filter: blur(20px) !important;
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            border-radius: 18px !important;
+            padding: 12px 14px !important;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.85) !important;
+            z-index: 910 !important;
+        }
+        body:has(#visor-alzado-pip:not(.oculto)) #ficha-compacta-radar,
+        body:has(#panel-detalle-mueble.abierto) #ficha-compacta-radar {
+            display: none !important;
+        }
+        #visor-alzado-pip:not(.oculto) {
+            position: fixed !important;
+            left: 12px !important;
+            right: 12px !important;
+            bottom: 12px !important;
+            top: auto !important;
+            width: auto !important;
+            max-width: 460px !important;
+            margin: 0 auto !important;
+            background: rgba(13, 15, 22, 0.98) !important;
+            border: 1.5px solid rgba(255, 107, 0, 0.75) !important;
+            border-radius: 20px !important;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.95), 0 0 0 100vmax rgba(0, 0, 0, 0.45) !important;
+            z-index: 980 !important;
+            overflow: hidden !important;
+        }
+        .alzado-canvas-wrap {
+            background: radial-gradient(circle at center, rgba(30, 41, 59, 0.45) 0%, rgba(9, 11, 16, 0.98) 100%) !important;
+            border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+        #alzado-id-tag, #txt-mueble-id-fisico {
+            font-family: monospace !important;
+            font-weight: 900 !important;
+            letter-spacing: 0.8px !important;
+            background: rgba(255, 107, 0, 0.18) !important;
+            border: 1px solid rgba(255, 107, 0, 0.5) !important;
+            color: #ff6b00 !important;
+            padding: 2px 8px !important;
+            border-radius: 6px !important;
+            font-size: 11px !important;
+            max-width: 78px !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+        }
+    </style>
 </head>
 <body class="boveda-ui">
 
@@ -19,81 +276,51 @@
         </div>
     </div>
 
-   <!-- 2. HUD SUPERIOR COMPACTO ANTIDESBORDE -->
+      <!-- 2. BARRA DE MANDO FLOTANTE DE 1 SOLO NIVEL -->
     <header class="hud-barra-superior visor-hud">
         <div class="inventario-cabecera">
             <strong>GEOKATU <span> / Inventario</span></strong>
             <a id="inventario-ir-stock" href="stock">Mover stock</a>
         </div>
-        <div class="hud-fila-superior">
+        <div class="gk-command-row">
             <select id="selector-sede-activa" class="select-sede-visor" title="Cambiar Sede o Almacén">
-                <option value="" disabled selected>Cargando sede...</option>
+                <option value="" disabled selected>Sede...</option>
             </select>
-            <div class="hud-acciones-botones">
-                <!-- Cámara Óptica con sensor cian activo -->
-                <button id="btn-abrir-camara" class="btn-radar-icono" title="Escanear con Cámara">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="filter: drop-shadow(0 0 4px rgba(255,107,0,0.5));">
-                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" stroke="#ff6b00" stroke-width="2" fill="rgba(255,107,0,0.12)" stroke-linejoin="round"></path>
-                        <circle cx="12" cy="13" r="4" stroke="#00e5ff" stroke-width="2" fill="rgba(0,229,255,0.2)"></circle>
-                        <circle cx="12" cy="13" r="1.5" fill="#00e5ff"></circle>
-                    </svg>
-                </button>
-                <!-- Filtros Multicapa con rieles ámbar y selectores en cian -->
-                <button id="btn-toggle-filtros" class="btn-radar-icono" title="Filtros avanzados">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="filter: drop-shadow(0 0 4px rgba(0,229,255,0.4));">
-                        <line x1="4" y1="21" x2="4" y2="3" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-linecap="round"></line>
-                        <line x1="12" y1="21" x2="12" y2="3" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-linecap="round"></line>
-                        <line x1="20" y1="21" x2="20" y2="3" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-linecap="round"></line>
-                        <circle cx="4" cy="14" r="3" fill="#ff6b00" stroke="#ffffff" stroke-width="1.5"></circle>
-                        <circle cx="12" cy="8" r="3" fill="#00e5ff" stroke="#ffffff" stroke-width="1.5"></circle>
-                        <circle cx="20" cy="16" r="3" fill="#ffaa00" stroke="#ffffff" stroke-width="1.5"></circle>
-                    </svg>
-                </button>
-               <!-- Diana de Centrado con retícula verde de precisión -->
-                <button id="btn-zoom-fit" class="btn-radar-icono" title="Ver plano completo">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="filter: drop-shadow(0 0 4px rgba(0,255,100,0.4));">
-                        <circle cx="12" cy="12" r="9" stroke="#ff6b00" stroke-width="1.8" fill="rgba(255,107,0,0.08)"></circle>
-                        <circle cx="12" cy="12" r="3" stroke="#00ff64" stroke-width="2" fill="rgba(0,255,100,0.3)"></circle>
-                        <line x1="12" y1="1" x2="12" y2="5" stroke="#00ff64" stroke-width="2" stroke-linecap="round"></line>
-                        <line x1="12" y1="19" x2="12" y2="23" stroke="#00ff64" stroke-width="2" stroke-linecap="round"></line>
-                        <line x1="1" y1="12" x2="5" y2="12" stroke="#00ff64" stroke-width="2" stroke-linecap="round"></line>
-                        <line x1="19" y1="12" x2="23" y2="12" stroke="#00ff64" stroke-width="2" stroke-linecap="round"></line>
-                    </svg>
-                </button>
-                <!-- Botón Relevo / Pausa de Terminal con PIN -->
-                <button type="button" class="btn-radar-icono" onclick="window.AuthGate.bloquearTerminalPorInactividad();" title="Pausar terminal o cambiar operario por PIN">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--naranja)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 0 4px rgba(255,107,0,0.5));">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                    </svg>
-                </button>
-                <!-- Botón Salir / Cerrar Sesión -->
-                <button id="btn-logout-visor" class="btn-radar-icono" title="Cerrar Sesión / Salir">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ff4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 0 4px rgba(255,68,68,0.4));">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                        <polyline points="16 17 21 12 16 7"></polyline>
-                        <line x1="21" y1="12" x2="9" y2="12"></line>
-                    </svg>
-                </button>
-
-            </div>
-
-        </div>
-        <div class="hud-fila-buscador">
             <div class="buscador-radar-caja">
-                <!-- Lupa de exploración con cristal de escaneo cian -->
                 <span class="icono-lupa" style="display: flex; align-items: center;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                        <circle cx="11" cy="11" r="7" stroke="#00e5ff" stroke-width="2" fill="rgba(0,229,255,0.15)"></circle>
-                        <line x1="16.5" y1="16.5" x2="22" y2="22" stroke="#ff6b00" stroke-width="2.5" stroke-linecap="round"></line>
-                    </svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ff6b00" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 </span>
-                <input type="text" id="visor-busqueda" class="input-busqueda-radar" placeholder="Buscar SKU, Nombre, QR, EAN...">
+                <input type="text" id="visor-busqueda" class="input-busqueda-radar" placeholder="SKU, nombre o góndola...">
                 <button id="btn-limpiar-filtros" class="btn-limpiar-radar" title="Limpiar búsqueda">✕</button>
             </div>
+            <div class="hud-acciones-botones">
+                <button id="btn-abrir-camara" class="btn-radar-icono" title="Escanear con Cámara">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ff6b00" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                </button>
+                <button id="btn-toggle-filtros" class="btn-radar-icono" title="Filtros de inventario">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+                </button>
+                <button id="btn-zoom-fit" class="btn-radar-icono" title="Centrar plano completo">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#00ff64" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/><line x1="12" y1="1" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="1" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="23" y2="12"/></svg>
+                </button>
+                <button type="button" id="btn-hud-disenar" class="btn-radar-icono btn-radar-disenar" onclick="if(window.parent && window.parent.TerminalApp){window.parent.TerminalApp.alternarModoEditorMapa(true);}else{window.location.href='mapatienda';}" title="Diseñar o editar góndolas del mapa">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                    <span>Diseñar</span>
+                </button>
+                <button type="button" id="btn-relevo-visor" class="btn-radar-icono" onclick="window.AuthGate.bloquearTerminalPorInactividad();" title="Bloquear por PIN">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--naranja)" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </button>
+                <button id="btn-logout-visor" class="btn-radar-icono" title="Cerrar Sesión">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ff4444" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                </button>
+            </div>
         </div>
-
     </header>
+    <script>
+        if (new URLSearchParams(window.location.search).get("embed") === "terminal" || window.parent !== window) {
+            document.body.classList.add("modo-embed-terminal");
+        }
+    </script>
 
 
 
