@@ -17,7 +17,151 @@ let muebles = [];
 let celdasMurosBloqueadas = new Set();
 let catalogoTotal = [];
 let stockPosicionalGlobal = []; // Array de { id_prod, id_estante, id_compartimiento, cantidad, lote, fecha_vencimiento, zona }
+let stockPorBinMap = new Map();
+let seleccionRadarActiva = null;
 let capaActiva = "TODO";
+
+function reconstruirIndiceStockPorBin() {
+ stockPorBinMap = new Map();
+ for (let i = 0; i < stockPosicionalGlobal.length; i++) {
+  const s = stockPosicionalGlobal[i];
+  if (!s || !s.id_compartimiento) continue;
+  let lista = stockPorBinMap.get(s.id_compartimiento);
+  if (!lista) {
+   lista = [];
+   stockPorBinMap.set(s.id_compartimiento, lista);
+  }
+  lista.push(s);
+ }
+}
+
+function obtenerItemsPorBin(idComp) {
+ if (!idComp) return [];
+ return stockPorBinMap.get(idComp) || [];
+}
+
+function obtenerItemsPorMueble(mueble) {
+ if (!mueble) return [];
+ const resultado = [];
+ const comps = mueble.compartimientos || [];
+ for (let i = 0; i < comps.length; i++) {
+  const arr = stockPorBinMap.get(comps[i].id_comp);
+  if (arr && arr.length) {
+   for (let j = 0; j < arr.length; j++) resultado.push(arr[j]);
+  }
+ }
+ return resultado;
+}
+
+function formatearUbicacionCorta(mueble, idComp) {
+ const nombreM = (mueble && mueble.nombre) ? mueble.nombre : "Mueble";
+ if (idComp && idComp.indexOf("GEO-P-") === 0) {
+  const p = idComp.split("-");
+  if (p.length >= 6) {
+   return nombreM + " · Cara " + p[p.length - 3] + " · " + p[p.length - 2] + " · " + p[p.length - 1];
+  }
+ }
+ const zonaTxt = (mueble && mueble.zona === "BODEGA") ? "Bodega" : "Piso de venta";
+ return nombreM + " · " + zonaTxt;
+}
+
+function seleccionarMuebleEnPlano2D(mueble) {
+ document.querySelectorAll(".mueble-bloque").forEach(b => b.classList.remove("mueble-seleccionado-2d"));
+ if (!mueble) return;
+ const nodo = document.getElementById("mueble-visor-" + mueble.id_mueble);
+ if (nodo) nodo.classList.add("mueble-seleccionado-2d");
+}
+
+const fichaCompactaEl = document.getElementById("ficha-compacta-radar");
+const fcImgEl = document.getElementById("fc-radar-img");
+const fcTituloEl = document.getElementById("fc-radar-titulo");
+const fcSubtituloEl = document.getElementById("fc-radar-subtitulo");
+const fcStockEl = document.getElementById("fc-radar-stock");
+const fcSepEl = document.getElementById("fc-radar-sep");
+const fcPrecioEl = document.getElementById("fc-radar-precio");
+
+function cerrarFichaCompactaRadar() {
+ if (fichaCompactaEl) fichaCompactaEl.classList.add("oculto");
+}
+
+function actualizarContenidoFichaCompacta() {
+ if (!fichaCompactaEl || !seleccionRadarActiva || !seleccionRadarActiva.mueble) return;
+ const m = seleccionRadarActiva.mueble;
+ const idComp = seleccionRadarActiva.idComp || null;
+ const items = idComp ? obtenerItemsPorBin(idComp) : obtenerItemsPorMueble(m);
+ let prod = seleccionRadarActiva.prod || null;
+ if (!prod && idComp && items.length === 1) {
+  prod = catalogoTotal.find(p => p.id_prod === items[0].id_prod || p.codigo_barras === items[0].id_prod) || null;
+ }
+ const totalUnidades = items.reduce((acc, x) => acc + (Number(x.cantidad) || 0), 0);
+ if (prod) {
+  fcTituloEl.innerText = prod.nombre || prod.id_prod || m.nombre;
+  fcSubtituloEl.innerText = formatearUbicacionCorta(m, idComp);
+  const stockProd = (idComp && totalUnidades > 0) ? totalUnidades : (Number(prod.stock_actual) || totalUnidades);
+  fcStockEl.innerText = stockProd + " disponibles";
+  if (Number(prod.precio) > 0) {
+   fcPrecioEl.innerText = "$" + Number(prod.precio).toLocaleString("es-CO");
+   fcPrecioEl.classList.remove("oculto");
+   fcSepEl.classList.remove("oculto");
+  } else {
+   fcPrecioEl.classList.add("oculto");
+   fcSepEl.classList.add("oculto");
+  }
+  if (prod.imagen) {
+   fcImgEl.src = prod.imagen;
+   fcImgEl.classList.remove("oculto");
+  } else {
+   fcImgEl.classList.add("oculto");
+  }
+ } else {
+  fcTituloEl.innerText = m.nombre || "Mueble";
+  fcSubtituloEl.innerText = formatearUbicacionCorta(m, idComp);
+  const binsOcupados = new Set(items.map(x => x.id_compartimiento)).size;
+  fcStockEl.innerText = totalUnidades + " disponibles · " + binsOcupados + " bins";
+  fcPrecioEl.classList.add("oculto");
+  fcSepEl.classList.add("oculto");
+  fcImgEl.classList.add("oculto");
+ }
+}
+
+function abrirFichaCompactaRadar(datos) {
+ if (!datos || !datos.mueble || !fichaCompactaEl) return;
+ seleccionRadarActiva = {
+  mueble: datos.mueble,
+  prod: datos.prod || null,
+  idComp: datos.idComp || null
+ };
+ seleccionarMuebleEnPlano2D(datos.mueble);
+ actualizarContenidoFichaCompacta();
+ fichaCompactaEl.classList.remove("oculto");
+}
+
+const btnCerrarFc = document.getElementById("btn-cerrar-ficha-compacta");
+if (btnCerrarFc) btnCerrarFc.addEventListener("click", (e) => { e.stopPropagation(); cerrarFichaCompactaRadar(); });
+const btnFcVer25d = document.getElementById("btn-fc-ver-25d");
+if (btnFcVer25d) {
+ btnFcVer25d.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (!seleccionRadarActiva || !seleccionRadarActiva.mueble) return;
+  abrirAlzadoElevacionMueble(seleccionRadarActiva.mueble, seleccionRadarActiva.idComp);
+ });
+}
+const btnFcAbrirStock = document.getElementById("btn-fc-abrir-stock");
+if (btnFcAbrirStock) {
+ btnFcAbrirStock.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (!seleccionRadarActiva || !seleccionRadarActiva.mueble) return;
+  window.location.href = enlaceStock(seleccionRadarActiva.mueble, seleccionRadarActiva.idComp);
+ });
+}
+const btnFcVerDetalle = document.getElementById("btn-fc-ver-detalle");
+if (btnFcVerDetalle) {
+ btnFcVerDetalle.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (!seleccionRadarActiva || !seleccionRadarActiva.mueble) return;
+  abrirFichaMueble(seleccionRadarActiva.mueble, obtenerItemsPorMueble(seleccionRadarActiva.mueble));
+ });
+}
 
 // Viewport libre para navegación
 let viewport = { x: 40, y: 100, escala: 1 };
@@ -300,18 +444,16 @@ function renderizarMueblesVisor() {
     contenedorMuebles.innerHTML = '';
     const hoy = new Date();
 
-    let maxStockGlobal = 1;
-    let maxPrecioGlobal = 1;
-    const stockPorEspacio = new Map();
-    for (const stock of stockPosicionalGlobal) {
-        if (!stockPorEspacio.has(stock.id_compartimiento)) stockPorEspacio.set(stock.id_compartimiento, []);
-        stockPorEspacio.get(stock.id_compartimiento).push(stock);
-    }
-    const stockPorMueble = new Map();
-    const catalogoPorId = new Map(catalogoTotal.map(p => [p.id_prod, p]));
+     let maxStockGlobal = 1;
+ let maxPrecioGlobal = 1;
+ if (stockPorBinMap.size === 0 && stockPosicionalGlobal.length > 0) {
+  reconstruirIndiceStockPorBin();
+ }
+ const stockPorMueble = new Map();
+ const catalogoPorId = new Map(catalogoTotal.map(p => [p.id_prod, p]));
 
-    muebles.forEach(m => {
-        const items = (m.compartimientos || []).flatMap(espacio => stockPorEspacio.get(espacio.id_comp) || []);
+ muebles.forEach(m => {
+  const items = obtenerItemsPorMueble(m);
         stockPorMueble.set(m.id_mueble, items);
         const cant = items.reduce((acc, x) => acc + (Number(x.cantidad) || 0), 0);
         if (cant > maxStockGlobal) maxStockGlobal = cant;
@@ -421,17 +563,30 @@ function renderizarMueblesVisor() {
         el.appendChild(tag);
 
 
-        // Evento de inspección y disparo del visor de alzado PiP
-        el.addEventListener('click', (e) => {
-            e.stopPropagation();
-            abrirFichaMueble(m, itemsEnMueble);
-            abrirAlzadoElevacionMueble(m);
-        });
+         if (seleccionRadarActiva && seleccionRadarActiva.mueble && seleccionRadarActiva.mueble.id_mueble === m.id_mueble) {
+  el.classList.add("mueble-seleccionado-2d");
+ }
 
-        contenedorMuebles.appendChild(el);
-    });
+ // Evento de inspeccion en 2D: resalta el mueble y abre ficha compacta (2.5D solo a peticion)
+ el.addEventListener('click', (e) => {
+  e.stopPropagation();
+  abrirFichaCompactaRadar({ mueble: m, items: itemsEnMueble, prod: null, idComp: null });
+ });
 
-    ejecutarBusquedaYFiltros();
+ contenedorMuebles.appendChild(el);
+ });
+
+ ejecutarBusquedaYFiltros(true);
+ if (widgetAlzado && !widgetAlzado.classList.contains("oculto") && muebleAlzadoActivo) {
+  renderizarGeometriaAlzado();
+ }
+ if (fichaCompactaEl && !fichaCompactaEl.classList.contains("oculto") && seleccionRadarActiva && seleccionRadarActiva.mueble) {
+  const muebleAct = muebles.find(x => x.id_mueble === seleccionRadarActiva.mueble.id_mueble);
+  if (muebleAct) {
+   seleccionRadarActiva.mueble = muebleAct;
+   actualizarContenidoFichaCompacta();
+  }
+ }
 }
 
 // ==========================================
@@ -453,13 +608,23 @@ function abrirFichaMueble(mueble, items) {
     document.getElementById('stat-total-unidades').innerText = totalFisico;
     document.getElementById('stat-total-bins-ocupados').innerText = binsOcupados;
 
-   // Conectar disparador directo a la terminal stock en modo AUDITAR
-    const btnAuditarMueble = document.getElementById('btn-drawer-auditar-mueble');
-    if (btnAuditarMueble) {
-        btnAuditarMueble.onclick = function() {
-            window.location.href = enlaceStock(mueble, null, 'AUDITAR');
-        };
-    }
+    const btnVer25dDrawer = document.getElementById('btn-drawer-ver-25d');
+ if (btnVer25dDrawer) {
+  btnVer25dDrawer.onclick = function() {
+   const targetComp = (seleccionRadarActiva && seleccionRadarActiva.mueble && seleccionRadarActiva.mueble.id_mueble === mueble.id_mueble)
+    ? seleccionRadarActiva.idComp
+    : null;
+   abrirAlzadoElevacionMueble(mueble, targetComp);
+  };
+ }
+
+ // Conectar disparador directo a la terminal stock en modo AUDITAR
+ const btnAuditarMueble = document.getElementById('btn-drawer-auditar-mueble');
+ if (btnAuditarMueble) {
+  btnAuditarMueble.onclick = function() {
+   window.location.href = enlaceStock(mueble, null, 'AUDITAR');
+  };
+ }
 
 
     const listaEl = document.getElementById('lista-productos-estante');
@@ -597,13 +762,12 @@ function abrirAlzadoElevacionMueble(mueble, targetCompId = null) {
         tabsCarasEl.appendChild(btn);
     });
 
-    renderizarGeometriaAlzado();
-    widgetAlzado.classList.remove('oculto');
+     widgetAlzado.classList.remove('oculto');
+ renderizarGeometriaAlzado();
 }
 
 function renderizarGeometriaAlzado() {
-
-    if (!muebleAlzadoActivo || !svgAlzado) return;
+ if (!muebleAlzadoActivo || !svgAlzado || !widgetAlzado || widgetAlzado.classList.contains('oculto')) return;
 
     const m = muebleAlzadoActivo;
     const configCara = (m.caras && m.caras[caraAlzadoSeleccionada]) ? m.caras[caraAlzadoSeleccionada] : {};
@@ -675,8 +839,8 @@ function renderizarGeometriaAlzado() {
             const compRegistrado = m.compartimientos?.find(comp =>
                 comp.cara === caraAlzadoSeleccionada && comp.nivel === strNivel && comp.bin === strBin
             );
-            const idEspacio = compRegistrado?.id_comp || idCompGenerado;
-            const itemsEnBin = stockPosicionalGlobal.filter(s => s.id_compartimiento === idEspacio);
+             const idEspacio = compRegistrado?.id_comp || idCompGenerado;
+ const itemsEnBin = obtenerItemsPorBin(idEspacio);
 
             const cantFisica = itemsEnBin.reduce((acc, x) => acc + (Number(x.cantidad) || 0), 0);
             const ratioOcupacion = cantFisica / capMaxBin;
@@ -758,8 +922,8 @@ function desplegarMicroKardexFooter(binData) {
     const footer = document.querySelector('.alzado-pip-footer');
     if (!footer) return;
 
-    // Buscar si ya existe un producto asignado a este bin
-    const itemEnBin = stockPosicionalGlobal.find(s => s.id_compartimiento === binData.idComp && Number(s.cantidad) > 0);
+     // Buscar si ya existe un producto asignado a este bin
+ const itemEnBin = obtenerItemsPorBin(binData.idComp).find(s => Number(s.cantidad) > 0);
     const prod = itemEnBin ? catalogoTotal.find(p => p.id_prod === itemEnBin.id_prod) : null;
     const nombreProd = prod ? prod.nombre : (itemEnBin ? itemEnBin.id_prod : 'Bin Vacío');
 
@@ -925,52 +1089,52 @@ function poblarFiltros() {
     labelPrecioMax.innerText = "$" + maxP.toLocaleString(); 
 }
 
-function ejecutarBusquedaYFiltros() {
-    const rawInput = inputBusqueda.value.trim();
-    const query = rawInput.toLowerCase();
-    const catSel = filtroCat.value;
-    const precioMax = Number(filtroPrecio.value) || Infinity;
-    const reglaVenc = filtroVenc.value;
-    const hoy = new Date();
+function ejecutarBusquedaYFiltros(esRefresco) {
+ const modoRefresco = (esRefresco === true);
+ const rawInput = inputBusqueda.value.trim();
+ const query = rawInput.toLowerCase();
+ const catSel = filtroCat.value;
+ const precioMax = Number(filtroPrecio.value) || Infinity;
+ const reglaVenc = filtroVenc.value;
+ const hoy = new Date();
 
-    // 1. Limpieza de balizas GPS y estados visuales previos
-    document.querySelectorAll('.pin-radar-gps').forEach(p => p.remove());
-    document.querySelectorAll('.mueble-bloque').forEach(m => m.classList.remove('radar-activo'));
-    if (widgetAlzado) widgetAlzado.classList.add('oculto');
+ // 1. Limpieza de balizas GPS y estados visuales previos
+ document.querySelectorAll('.pin-radar-gps').forEach(p => p.remove());
+ document.querySelectorAll('.mueble-bloque').forEach(m => m.classList.remove('radar-activo'));
+ if (!modoRefresco && widgetAlzado) widgetAlzado.classList.add('oculto');
 
+ if (!rawInput && !catSel && precioMax >= Number(filtroPrecio.max) && reglaVenc === 'TODOS') {
+  return;
+ }
 
-    if (!rawInput && !catSel && precioMax >= Number(filtroPrecio.max) && reglaVenc === 'TODOS') {
-        return;
-    }
+ // --- CASO A: DETECCIÓN DIRECTA DE QR MAESTRO DE MUEBLE (GEO-M-) ---
+ if (rawInput.startsWith('GEO-M-')) {
+  const muebleEncontrado = muebles.find(m => m.qr === rawInput || rawInput.endsWith(m.id_mueble));
+  if (muebleEncontrado) {
+   colocarPinGpsEnMueble(muebleEncontrado, 'GEO-P-0-0-0-A-1-1');
+   if (!modoRefresco) {
+    centrarMuebleEnPantalla(muebleEncontrado);
+    abrirFichaCompactaRadar({ mueble: muebleEncontrado, prod: null, idComp: null });
+   }
+  }
+  return;
+ }
 
-    // --- CASO A: DETECCIÓN DIRECTA DE QR MAESTRO DE MUEBLE (GEO-M-) ---
-    if (rawInput.startsWith('GEO-M-')) {
-        const muebleEncontrado = muebles.find(m => m.qr === rawInput || rawInput.endsWith(m.id_mueble));
-        if (muebleEncontrado) {
-            centrarMuebleEnPantalla(muebleEncontrado);
-            colocarPinGpsEnMueble(muebleEncontrado, 'GEO-P-0-0-0-A-1-1');
-            const items = stockPosicionalGlobal.filter(s => s.id_estante === muebleEncontrado.id_mueble || s.id_estante === muebleEncontrado.qr);
-            abrirFichaMueble(muebleEncontrado, items);
-        }
-        return;
-    }
-
-   // --- CASO B: DETECCIÓN DIRECTA DE QR DE BIN (GEO-P-) ---
-    if (rawInput.startsWith('GEO-P-')) {
-        const muebleEncontrado = muebles.find(m => 
-            (m.compartimientos || []).some(c => c.id_comp === rawInput) ||
-            rawInput.indexOf('-' + m.id_mueble + '-') !== -1
-        );
-
-        if (muebleEncontrado) {
-            centrarMuebleEnPantalla(muebleEncontrado);
-            colocarPinGpsEnMueble(muebleEncontrado, rawInput);
-            abrirAlzadoElevacionMueble(muebleEncontrado, rawInput);
-            const items = stockPosicionalGlobal.filter(s => s.id_compartimiento === rawInput);
-            abrirFichaMueble(muebleEncontrado, items);
-        }
-        return;
-    }
+ // --- CASO B: DETECCIÓN DIRECTA DE QR DE BIN (GEO-P-) ---
+ if (rawInput.startsWith('GEO-P-')) {
+  const muebleEncontrado = muebles.find(m =>
+   (m.compartimientos || []).some(c => c.id_comp === rawInput) ||
+   rawInput.indexOf('-' + m.id_mueble + '-') !== -1
+  );
+  if (muebleEncontrado) {
+   colocarPinGpsEnMueble(muebleEncontrado, rawInput);
+   if (!modoRefresco) {
+    centrarMuebleEnPantalla(muebleEncontrado);
+    abrirFichaCompactaRadar({ mueble: muebleEncontrado, prod: null, idComp: rawInput });
+   }
+  }
+  return;
+ }
 
 
     // --- CASO C: FILTRO MULTICRITERIO (SKU, NOMBRE, BARRAS, LOTE, PRECIO, CATEGORÍA) ---
@@ -1039,29 +1203,31 @@ function ejecutarBusquedaYFiltros() {
 
     actualizarBrujulaDireccional();
 
-    if (primerMueble && query) {
-        centrarMuebleEnPantalla(primerMueble);
-        if (primerUbi) {
-            abrirAlzadoElevacionMueble(primerMueble, primerUbi.id_compartimiento);
-        }
+     if (primerMueble && query && !modoRefresco) {
+  centrarMuebleEnPantalla(primerMueble);
+  const prod = catalogoTotal.find(p => p.id_prod === (primerUbi ? primerUbi.id_prod : '')) || null;
+  abrirFichaCompactaRadar({
+   mueble: primerMueble,
+   prod: prod,
+   idComp: primerUbi ? primerUbi.id_compartimiento : null
+  });
 
-        const prod = catalogoTotal.find(p => p.id_prod === (primerUbi ? primerUbi.id_prod : ''));
-        const stockActual = prod ? Number(prod.stock_actual) : 1;
-        const diasVenc = (primerUbi && primerUbi.fecha_vencimiento)
-            ? Math.ceil((new Date(primerUbi.fecha_vencimiento) - hoy) / (1000 * 60 * 60 * 24))
-            : 999;
+  const stockActual = prod ? Number(prod.stock_actual) : 1;
+  const diasVenc = (primerUbi && primerUbi.fecha_vencimiento)
+   ? Math.ceil((new Date(primerUbi.fecha_vencimiento) - hoy) / (1000 * 60 * 60 * 24))
+   : 999;
 
-        if (diasVenc <= 5) {
-            reproducirTonoPiso('vencido');
-            dispararFeedbackHaptico('critico');
-        } else if (stockActual <= 0) {
-            reproducirTonoPiso('quiebre');
-            dispararFeedbackHaptico('quiebre');
-        } else {
-            reproducirTonoPiso('exito');
-            dispararFeedbackHaptico('exito');
-        }
-    }
+  if (diasVenc <= 5) {
+   reproducirTonoPiso('vencido');
+   dispararFeedbackHaptico('critico');
+  } else if (stockActual <= 0) {
+   reproducirTonoPiso('quiebre');
+   dispararFeedbackHaptico('quiebre');
+  } else {
+   reproducirTonoPiso('exito');
+   dispararFeedbackHaptico('exito');
+  }
+ }
 }
 
 
@@ -1211,10 +1377,12 @@ document.getElementById('btn-limpiar-filtros').addEventListener('click', () => {
     filtroVenc.value = 'TODOS';
     filtroPrecio.value = filtroPrecio.max;
     labelPrecioMax.innerText = '$' + Number(filtroPrecio.max).toLocaleString();
-    document.querySelectorAll('.pin-radar-gps').forEach(p => p.remove());
-    document.querySelectorAll('.mueble-bloque').forEach(m => m.classList.remove('radar-activo'));
-    if (widgetAlzado) widgetAlzado.classList.add('oculto');
-    detenerAnimacionRuta();
+     document.querySelectorAll('.pin-radar-gps').forEach(p => p.remove());
+ document.querySelectorAll('.mueble-bloque').forEach(m => m.classList.remove('radar-activo', 'mueble-seleccionado-2d'));
+ if (widgetAlzado) widgetAlzado.classList.add('oculto');
+ seleccionRadarActiva = null;
+ cerrarFichaCompactaRadar();
+ detenerAnimacionRuta();
     muebleObjetivoRadar = null;
     actualizarBrujulaDireccional();
 });
@@ -1585,9 +1753,10 @@ function procesarEventoBusVisor(e) {
    poblarFiltros();
    _pendienteRenderMuebles = true;
   } catch (err) {}
- } else if (e.key === 'geokatu_stock_ubis_' + idNegocio) {
+  } else if (e.key === 'geokatu_stock_ubis_' + idNegocio) {
   try {
    stockPosicionalGlobal = JSON.parse(e.newValue);
+   reconstruirIndiceStockPorBin();
    _pendienteRenderMuebles = true;
   } catch (err) {}
  } else if (e.key === 'geokatu_plano_' + idNegocio + '_' + idSedeActiva) {
@@ -1666,11 +1835,12 @@ async function hidratarVisor() {
         muebles = [];
         celdasMurosBloqueadas = new Set();
     }
-    stockPosicionalGlobal = [];
-    if (cacheUbis) {
-        try { stockPosicionalGlobal = JSON.parse(cacheUbis); } catch (eU) { stockPosicionalGlobal = []; }
-    }
-    catalogoTotal = GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio);
+     stockPosicionalGlobal = [];
+ if (cacheUbis) {
+  try { stockPosicionalGlobal = JSON.parse(cacheUbis); } catch (eU) { stockPosicionalGlobal = []; }
+ }
+ reconstruirIndiceStockPorBin();
+ catalogoTotal = GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio);
     poblarFiltros();
     redibujarArea();
     renderizarMueblesVisor();
@@ -1725,11 +1895,12 @@ async function hidratarVisor() {
             } else if (!resUbis.esDelta) {
                 stockPosicionalGlobal = resUbis.data;
             }
-            localStorage.setItem(claveCacheStockUbis, JSON.stringify(stockPosicionalGlobal));
-            localStorage.setItem(claveSyncTimestamp, resUbis.timestampCorte);
-            if (resUbis.data.length > 0 || !resUbis.esDelta) {
-                renderizarMueblesVisor();
-            }
+             localStorage.setItem(claveCacheStockUbis, JSON.stringify(stockPosicionalGlobal));
+ localStorage.setItem(claveSyncTimestamp, resUbis.timestampCorte);
+ reconstruirIndiceStockPorBin();
+ if (resUbis.data.length > 0 || !resUbis.esDelta) {
+  renderizarMueblesVisor();
+ }
         }
     } catch (err) {
         console.warn("[GEOKATU SIG] Error en sincronizacion delta:", err);
@@ -1794,12 +1965,15 @@ AuthGate.inicializar({
  }
  detenerAnimacionRuta();
  idNegocio = null;
-        muebles = [];
-        catalogoTotal = [];
-        stockPosicionalGlobal = [];
-        contenedorMuebles.innerHTML = '';
-        if (drawer) drawer.classList.remove('visible');
-        if (widgetAlzado) widgetAlzado.classList.add('oculto');
+         muebles = [];
+ catalogoTotal = [];
+ stockPosicionalGlobal = [];
+ stockPorBinMap.clear();
+ seleccionRadarActiva = null;
+ cerrarFichaCompactaRadar();
+ contenedorMuebles.innerHTML = '';
+ if (drawer) drawer.classList.remove('visible');
+ if (widgetAlzado) widgetAlzado.classList.add('oculto');
     }
 });
 
