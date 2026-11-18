@@ -36,15 +36,13 @@
   </div>
   <div class="status-item" style="position: relative;">
    <button id="btn-menu-tres-puntos" type="button" class="btn-opciones-cabecera" onclick="document.getElementById('dropdown-menu-emp').classList.toggle('activo')" title="Menú de Navegación">⋮</button>
-   <div id="dropdown-menu-emp" class="dropdown-pos-flotante">
-    <button type="button" class="item-dropdown-pos" onclick="window.irPortalEmpleado('pos')">💳 POS (Caja Registradora)</button>
-    <button type="button" class="item-dropdown-pos" onclick="window.irPortalEmpleado('stock')">📦 Stock (Bodega WMS)</button>
-    <button type="button" class="item-dropdown-pos" onclick="window.irPortalEmpleado('inventario')">🎯 Inventario (Radar Piso)</button>
-    <button type="button" class="item-dropdown-pos" onclick="window.irPortalEmpleado('mapatienda')">🗺️ Mapa de la Tienda</button>
-    <button type="button" id="btn-ir-oficina-propia" class="item-dropdown-pos" style="display: none; color: #00ff64;" onclick="window.location.href='oficina.html'">🏢 Mi Oficina Comercial</button>
-    <button type="button" class="item-dropdown-pos" onclick="window.location.href='/'">🧭 Radar Ciudad</button>
+      <div id="dropdown-menu-emp" class="dropdown-pos-flotante">
+    <button type="button" class="item-dropdown-pos" style="color: #ff6b00;" onclick="window.irPortalEmpleado('pos')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M2 20h20"/><path d="M8 16v4"/><path d="M16 16v4"/></svg><span>Caja y Tienda</span></button>
+    <button type="button" id="btn-menu-croquis-emp" class="item-dropdown-pos" style="display: none;" onclick="window.irPortalEmpleado('mapatienda')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h6"/><path d="M15 12h6"/><path d="M12 3v6"/><path d="M12 15v6"/></svg><span>Editor de Croquis</span></button>
+    <button type="button" id="btn-ir-oficina-propia" class="item-dropdown-pos" style="display: none; color: #00ff64;" onclick="window.location.href='/oficina'"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 22V12h6v10"/></svg><span>Mi Oficina Comercial</span></button>
+    <button type="button" class="item-dropdown-pos" onclick="window.location.href='/'"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg><span>Radar Ciudad</span></button>
     <div class="divisor-dropdown-pos"></div>
-    <button type="button" id="btn-salir-emp" class="item-dropdown-pos" style="color: #ff4444;">🚪 Cerrar Sesión</button>
+    <button type="button" id="btn-salir-emp" class="item-dropdown-pos" style="color: #ff4444;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span>Cerrar Sesión</span></button>
    </div>
   </div>
  </header>
@@ -96,12 +94,21 @@
   let sedeSeleccionadaId = localStorage.getItem('geokatu_sede_activa') || 'SALA_VENTAS';
   let uidEmpleadoActual = null;
 
-  window.irPortalEmpleado = function(portal, idNegocioParam, sedeParam) {
+    window.irPortalEmpleado = function(portal, idNegocioParam, sedeParam) {
    const neg = idNegocioParam || tiendaSeleccionadaId;
    const sed = sedeParam || sedeSeleccionadaId || 'SALA_VENTAS';
    if (neg) localStorage.setItem('geokatu_active_uid', neg);
-   if (sed) localStorage.setItem('geokatu_sede_activa', sed);
-   window.location.href = portal + '?sede=' + encodeURIComponent(sed);
+   if (sed) {
+    localStorage.setItem('geokatu_sede_activa', sed);
+    if (neg) localStorage.setItem('geokatu_sede_activa_' + neg, sed);
+   }
+   const mapaVistasTerminal = { pos: 'pos', stock: 'stock', inventario: 'mapa', mapa: 'mapa', terminal: 'pos' };
+   if (mapaVistasTerminal[portal]) {
+    const q = new URLSearchParams({ vista: mapaVistasTerminal[portal], sede: sed });
+    window.location.href = '/terminal?' + q.toString();
+    return;
+   }
+   window.location.href = '/' + String(portal || 'terminal').replace(/^\/+/, '') + '?sede=' + encodeURIComponent(sed);
   };
 
   function renderizarPerfil(res) {
@@ -120,18 +127,31 @@
    if (!Array.isArray(res.tiendas) || res.tiendas.length === 0) {
     contTiendas.innerHTML = '<p style="font-size:12px; color:#888;">No tienes comercios asignados actualmente.</p>';
    } else {
-    tiendaSeleccionadaId = res.tiendas[0].idNegocio;
+        tiendaSeleccionadaId = res.tiendas[0].idNegocio;
     sedeSeleccionadaId = res.tiendas[0].almacen || 'SALA_VENTAS';
-    const nombresPortales = { pos: '💳 Punto de Venta (POS)', stock: '📦 Terminal Stock WMS', inventario: '🎯 Radar Inventario', mapatienda: '🗺️ Croquis de Tienda' };
+    let tienePermisoCroquis = false;
+    const metaPortales = {
+     pos: { txt: 'POS', svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M2 20h20"/></svg>' },
+     stock: { txt: 'Stock', svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/></svg>' },
+     inventario: { txt: 'Mapa', svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h6"/><path d="M15 12h6"/></svg>' },
+     mapatienda: { txt: 'Croquis', svg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>' }
+    };
     res.tiendas.forEach(t => {
      const box = document.createElement('div');
      box.style.cssText = 'background:rgba(0,0,0,0.45); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:12px;';
      const h = t.horarioLaboral && t.horarioLaboral.activo
       ? (Math.floor((t.horarioLaboral.hora_inicio_minutos || 420)/60) + ':00 a ' + Math.floor((t.horarioLaboral.hora_fin_minutos || 960)/60) + ':00')
       : 'Turno Abierto';
+     const portales = Array.isArray(t.portales) && t.portales.length ? t.portales : ['pos', 'stock', 'inventario'];
+     if (portales.includes('mapatienda')) tienePermisoCroquis = true;
+     const vistaPrincipal = portales.includes('pos') ? 'pos' : (portales.includes('stock') ? 'stock' : (portales.includes('inventario') ? 'inventario' : portales[0]));
      let btnsHtml = '';
-     (t.portales || ['pos', 'stock', 'inventario']).forEach(p => {
-      btnsHtml += '<button type="button" class="btn-portal-emp" onclick="window.irPortalEmpleado(\'' + p + '\', \'' + t.idNegocio + '\', \'' + t.almacen + '\')"><span>' + (nombresPortales[p] || p) + '</span><span>→</span></button>';
+     if (portales.some(p => p === 'pos' || p === 'stock' || p === 'inventario')) {
+      btnsHtml += '<button type="button" class="btn-portal-emp" style="grid-column: 1 / -1; background: rgba(255,107,0,0.16); border-color: #ff6b00; color: #ffffff;" onclick="window.irPortalEmpleado(\'' + vistaPrincipal + '\', \'' + t.idNegocio + '\', \'' + t.almacen + '\')"><span style="display:flex; align-items:center; gap:8px;">' + metaPortales.pos.svg + '<span>Abrir Caja y Tienda</span></span><span>→</span></button>';
+     }
+     portales.forEach(p => {
+      const infoP = metaPortales[p] || { txt: p, svg: '' };
+      btnsHtml += '<button type="button" class="btn-portal-emp" onclick="window.irPortalEmpleado(\'' + p + '\', \'' + t.idNegocio + '\', \'' + t.almacen + '\')"><span style="display:flex; align-items:center; gap:6px;">' + infoP.svg + '<span>' + infoP.txt + '</span></span><span>→</span></button>';
      });
      box.innerHTML =
       '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">' +
@@ -141,6 +161,8 @@
       '<div class="grid-portales">' + btnsHtml + '</div>';
      contTiendas.appendChild(box);
     });
+    const btnCroquisMenu = document.getElementById('btn-menu-croquis-emp');
+    if (btnCroquisMenu) btnCroquisMenu.style.display = tienePermisoCroquis ? 'flex' : 'none';
    }
    const contCon = document.getElementById('lista-conexiones-24h');
    const listaC = Array.isArray(res.conexionesUltimoDia) ? res.conexionesUltimoDia : [];
