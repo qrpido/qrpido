@@ -538,6 +538,7 @@ bucket.file(`${pathBase}_reverso.enc`).save(encReverso, opcionesArchivo),
 bucket.file(`${pathBase}_rostro.enc`).save(encRostro, opcionesArchivo)
 ]);
 await admin.firestore().collection("Directorio").doc(uid).set({
+kyc_verificado: true,
 estado_moderacion: "en_revision_kyc",
 evidencia_kyc: {
 frente: `${pathBase}_frente.enc`,
@@ -606,25 +607,40 @@ const secretoMaestro = semillaMaestra.value();
 const pdfCifrado = encriptarBuffer(pdfBuffer, secretoMaestro, uid);
 const bucket = admin.storage().bucket();
 const nombreArchivo = wompi_ref.replace(/[^a-zA-Z0-9_-]/g, '');
-const fileEnc = bucket.file(`boveda_legal/uid/{nombreArchivo}.enc`);
+const fileEnc = bucket.file(`boveda_legal/${uid}/${nombreArchivo}.enc`);
 await fileEnc.save(pdfCifrado, { metadata: { contentType: 'application/octet-stream' }, private: true });
-const filePlano = bucket.file(`temporales_pdf/uid/{nombreArchivo}.pdf`);
+const filePlano = bucket.file(`temporales_pdf/${uid}/${nombreArchivo}.pdf`);
 await filePlano.save(pdfBuffer, { metadata: { contentType: 'application/pdf' }, private: true });
 const urlFriccionCero = await filePlano.getSignedUrl({
 action: 'read',
 expires: Date.now() + 15 * 60 * 1000
 });
 const db = admin.firestore();
+const listaParticipantes = Array.isArray(data.participantes) && data.participantes.length > 0
+    ? Array.from(new Set([uid, ...data.participantes.filter(Boolean)]))
+    : [uid];
 await db.collection('Boveda_Tramites').doc(wompi_ref).set({
 creador_uid: uid,
-participantes: [uid],
+participantes: listaParticipantes,
+tipo_documento: data.tipo_documento || "Contrato Digital",
+lugar: data.lugar || "Colombia",
+sala_id: data.sala_id || null,
+inmueble_id: data.inmueble_id || null,
 hash_documento: hashDocumento,
 tx_sui: txIdGenerado,
 fecha_creacion: admin.firestore.FieldValue.serverTimestamp(),
 estado: "Sellado en SUI",
 wompi_ref: wompi_ref,
-ruta_storage_enc: `boveda_legal/uid/{nombreArchivo}.enc`
+ruta_storage_enc: `boveda_legal/${uid}/${nombreArchivo}.enc`
 });
+if (data.sala_id) {
+    await db.collection('Salas_Legales_P2P').doc(String(data.sala_id)).set({
+        estado: "sellado_sui",
+        tx_sui: txIdGenerado,
+        boveda_doc_id: wompi_ref,
+        fecha_sellado: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+}
 return {
 success: true,
 txId: txIdGenerado,
@@ -722,7 +738,7 @@ firmas: {
 creador: firmasCreador
 }
 });
-const linkSala = `https://www.geokatu.com/tramites.html?sala=${salaId}`;
+const linkSala = `https://www.geokatu.com/tramites?sala=${salaId}`;
 const mailOptions = {
 from: '"Bóveda Geokatu" <geokatu@gmail.com>',
 to: contraparteEmail,
@@ -772,6 +788,79 @@ return { success: true, mensaje: "Firma anexada. El creador ya puede sellar el c
 throw new functions.https.HttpsError('internal', error.message);
 }
 });
+exports.descargarContratoDesbloqueado = onCall({ memory: '512MB', secrets: [semillaMaestra] }, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Acceso denegado.');
+    const uidSolicitante = request.auth.uid;
+    const { contratoId } = request.data || {};
+    if (!contratoId) throw new HttpsError('invalid-argument', 'Falta el identificador del contrato.');
+    const db = admin.firestore();
+    const docSnap = await db.collection('Boveda_Tramites').doc(String(contratoId)).get();
+    if (!docSnap.exists) throw new HttpsError('not-found', 'El contrato no existe en la bóveda.');
+    const info = docSnap.data();
+    const participantes = Array.isArray(info.participantes) ? info.participantes : [info.creador_uid];
+    if (!participantes.includes(uidSolicitante)) {
+        throw new HttpsError('permission-denied', 'No eres participante autorizado de este documento.');
+    }
+    const bucket = admin.storage().bucket();
+    const [bufferCifrado] = await bucket.file(info.ruta_storage_enc).download();
+    const iv = bufferCifrado.subarray(0, 16);
+    const authTag = bufferCifrado.subarray(16, 32);
+    const cifrado = bufferCifrado.subarray(32);
+    const llaveDerivada = crypto.createHash('sha256').update(semillaMaestra.value() + info.creador_uid).digest();
+    const decipher = crypto.createDecipheriv('aes-256-gcm', llaveDerivada, iv);
+    decipher.setAuthTag(authTag);
+    const pdfPlano = Buffer.concat([decipher.update(cifrado), decipher.final()]);
+    return {
+        success: true,
+        pdfData: `data:application/pdf;base64,${pdfPlano.toString('base64')}`,
+        tx_sui: info.tx_sui || ''
+    };
+});
+
+exports.gestionarSalaTramiteP2P = onCall({ memory: '256MB' }, async (request) => {
+    const { accion, salaId, observacion, textoSeleccionado } = request.data || {};
+    const db = admin.firestore();
+    if (accion === 'obtener_sala') {
+        if (!salaId) throw new HttpsError('invalid-argument', 'Falta salaId.');
+        const snap = await db.collection('Salas_Legales_P2P').doc(String(salaId)).get();
+        if (!snap.exists) throw new HttpsError('not-found', 'Sala no encontrada.');
+        return { success: true, sala: Object.assign({ id: snap.id }, snap.data()) };
+    }
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Inicia sesión para continuar.');
+    const uid = request.auth.uid;
+    const email = String(request.auth.token.email || '').toLowerCase();
+    if (accion === 'apelar') {
+        if (!salaId || !observacion) throw new HttpsError('invalid-argument', 'Faltan datos de apelación.');
+        const ref = db.collection('Salas_Legales_P2P').doc(String(salaId));
+        await ref.set({
+            estado: 'en_apelacion',
+            apelaciones: admin.firestore.FieldValue.arrayUnion({
+                autor_uid: uid,
+                autor_email: email,
+                fragmento: String(textoSeleccionado || '').slice(0, 400),
+                comentario: String(observacion).slice(0, 800),
+                fecha: new Date().toISOString()
+            })
+        }, { merge: true });
+        return { success: true };
+    }
+    if (accion === 'listar_activos') {
+        const [creadasSnap, invitadasSnap, bovedaSnap] = await Promise.all([
+            db.collection('Salas_Legales_P2P').where('creador_uid', '==', uid).limit(20).get(),
+            email ? db.collection('Salas_Legales_P2P').where('contraparte_email', '==', email).limit(20).get() : Promise.resolve({ docs: [] }),
+            db.collection('Boveda_Tramites').where('participantes', 'array-contains', uid).limit(30).get()
+        ]);
+        const mapaSalas = new Map();
+        creadasSnap.docs.forEach(d => mapaSalas.set(d.id, Object.assign({ id: d.id, rol: 'creador' }, d.data())));
+        invitadasSnap.docs.forEach(d => {
+            if (!mapaSalas.has(d.id)) mapaSalas.set(d.id, Object.assign({ id: d.id, rol: 'invitado' }, d.data()));
+        });
+        const historial = bovedaSnap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+        return { success: true, salas: Array.from(mapaSalas.values()), historial: historial };
+    }
+    throw new HttpsError('invalid-argument', 'Acción no soportada.');
+});
+
 // ============================================================================
 // 14. EL GUARDIÁN DE LA PUERTA (Creación Incorruptible de Bóvedas)
 // ============================================================================
