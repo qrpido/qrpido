@@ -183,6 +183,184 @@ window.nombrePngTemporalModal = null;
 window.timeoutTooltipNombre = null;
 window.trackCamaraActiva = null;
 window.torchEncendido = false;
+window.__gkBorradorRestaurado = false;
+
+// Aviso visual con identidad GeoKATU (prohibido alert nativo)
+window.mostrarAvisoOficina = function(mensaje, tipo) {
+    var colores = { ok: '#00ff64', error: '#ff4444', info: '#ff6b00' };
+    var col = colores[tipo || 'info'] || '#ff6b00';
+    var el = document.getElementById('gk-toast-oficina');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'gk-toast-oficina';
+        el.style.cssText = 'position:fixed; top:16px; left:50%; transform:translateX(-50%) translateY(-16px); z-index:250000; max-width:92vw; width:350px; background:rgba(16,17,24,0.96); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); color:#fff; padding:12px 15px; border-radius:14px; font-size:12px; font-weight:700; line-height:1.4; box-shadow:0 12px 34px rgba(0,0,0,0.85); opacity:0; pointer-events:none; transition:opacity 0.22s ease, transform 0.22s ease; text-align:left;';
+        document.body.appendChild(el);
+    }
+    el.style.border = '1px solid ' + col;
+    el.innerHTML = '<div style="display:flex; align-items:flex-start; gap:9px;"><span style="width:8px; height:8px; border-radius:50%; background:' + col + '; margin-top:4px; flex-shrink:0;"></span><span>' + String(mensaje || '') + '</span></div>';
+    el.style.opacity = '1';
+    el.style.transform = 'translateX(-50%) translateY(0)';
+    if (window.__gkToastTimer) clearTimeout(window.__gkToastTimer);
+    window.__gkToastTimer = setTimeout(function() {
+        el.style.opacity = '0';
+        el.style.transform = 'translateX(-50%) translateY(-16px)';
+    }, 3600);
+};
+
+// Búnker IndexedDB de Auto-Guardado (sobrevive recargas y apagones)
+window.GeokatuDraftDB = {
+    _abrir: function() {
+        return new Promise(function(resolve, reject) {
+            var req = indexedDB.open('geokatu_onboarding_drafts_v1', 1);
+            req.onupgradeneeded = function(e) {
+                var d = e.target.result;
+                if (!d.objectStoreNames.contains('drafts')) d.createObjectStore('drafts');
+            };
+            req.onsuccess = function() { resolve(req.result); };
+            req.onerror = function() { reject(req.error); };
+        });
+    },
+    guardar: async function(uid, payload) {
+        if (!uid) return;
+        try {
+            var d = await this._abrir();
+            await new Promise(function(res, rej) {
+                var tx = d.transaction('drafts', 'readwrite');
+                tx.objectStore('drafts').put(payload, 'onb_' + uid);
+                tx.oncomplete = function() { res(); };
+                tx.onerror = function() { rej(tx.error); };
+            });
+        } catch (e) {}
+    },
+    leer: async function(uid) {
+        if (!uid) return null;
+        try {
+            var d = await this._abrir();
+            return await new Promise(function(res, rej) {
+                var tx = d.transaction('drafts', 'readonly');
+                var req = tx.objectStore('drafts').get('onb_' + uid);
+                req.onsuccess = function() { res(req.result || null); };
+                req.onerror = function() { rej(req.error); };
+            });
+        } catch (e) { return null; }
+    },
+    limpiar: async function(uid) {
+        if (!uid) return;
+        try {
+            var d = await this._abrir();
+            var tx = d.transaction('drafts', 'readwrite');
+            tx.objectStore('drafts').delete('onb_' + uid);
+        } catch (e) {}
+    }
+};
+
+window.guardarBorradorOnboardingLocal = function() {
+    var uid = window.idNegocioLogueado || localStorage.getItem('geokatu_active_uid');
+    if (!uid) return;
+    var getV = function(id) { var el = document.getElementById(id); return el ? el.value : ''; };
+    var getC = function(id) { var el = document.getElementById(id); return Boolean(el && el.checked); };
+    var borrador = {
+        ts: Date.now(),
+        paso1: {
+            nombre: getV('wiz-nombre'), slogan: getV('wiz-slogan'), nicho: getV('wiz-nicho'),
+            whatsapp: getV('wiz-whatsapp'), pbx: getV('wiz-pbx'), correo: getV('wiz-correo-publico'),
+            mostrarCorreo: getC('wiz-check-correo-publico'), instagram: getV('wiz-instagram'),
+            web: getV('wiz-web'), es24: getC('wiz-check-24h'),
+            hIni: getV('wiz-hora-inicio'), hFin: getV('wiz-hora-fin')
+        },
+        paso2: {
+            forma: getV('select-forma'), anim: getV('select-animacion'), efecto: getV('select-efecto'),
+            tema: getV('select-tema-onboarding'),
+            c1: getV('wizColorHex1'), c2: getV('wizColorHex2'), c3: getV('wizColorHex3'), c4: getV('wizColorHex4'),
+            pinImg: window.imagenCargadaTemporalPaso1 || null,
+            logoImg: window.logoTemporalPaso2 || null,
+            portadaImg: window.portadaTemporalPaso2 || null,
+            nombrePngImg: window.nombrePngTemporalPaso1 || null
+        }
+    };
+    window.GeokatuDraftDB.guardar(uid, borrador);
+};
+
+window.restaurarBorradorOnboardingLocal = async function() {
+    var uid = window.idNegocioLogueado || localStorage.getItem('geokatu_active_uid');
+    if (!uid || window.__gkBorradorRestaurado) return;
+    if (Number((window.datosTienda && window.datosTienda.progreso_boveda) || 0) >= 100) return;
+    window.__gkBorradorRestaurado = true;
+    var b = await window.GeokatuDraftDB.leer(uid);
+    if (!b) return;
+    var setV = function(id, v) { var el = document.getElementById(id); if (el && v) el.value = v; };
+    if (b.paso1) {
+        setV('wiz-nombre', b.paso1.nombre); setV('wiz-slogan', b.paso1.slogan); setV('wiz-nicho', b.paso1.nicho);
+        setV('wiz-whatsapp', b.paso1.whatsapp); setV('wiz-pbx', b.paso1.pbx); setV('wiz-correo-publico', b.paso1.correo);
+        setV('wiz-instagram', b.paso1.instagram); setV('wiz-web', b.paso1.web);
+        setV('wiz-hora-inicio', b.paso1.hIni); setV('wiz-hora-fin', b.paso1.hFin);
+        var chkCor = document.getElementById('wiz-check-correo-publico');
+        if (chkCor && typeof b.paso1.mostrarCorreo === 'boolean') { chkCor.checked = b.paso1.mostrarCorreo; if (window.toggleVisibilidadCorreoWizard) window.toggleVisibilidadCorreoWizard(b.paso1.mostrarCorreo); }
+        var chk24 = document.getElementById('wiz-check-24h');
+        if (chk24 && typeof b.paso1.es24 === 'boolean') { chk24.checked = b.paso1.es24; if (window.toggleHorario24HWizard) window.toggleHorario24HWizard(b.paso1.es24); }
+    }
+    if (b.paso2) {
+        setV('select-forma', b.paso2.forma); setV('select-animacion', b.paso2.anim);
+        if (b.paso2.tema && window.seleccionarTemaPopupOnboarding) window.seleccionarTemaPopupOnboarding(b.paso2.tema);
+        if (b.paso2.efecto) {
+            var selEf = document.getElementById('select-efecto');
+            if (selEf) {
+                if (!Array.from(selEf.options).some(function(o){ return o.value === b.paso2.efecto; })) {
+                    var op = document.createElement('option'); op.value = b.paso2.efecto; op.text = b.paso2.efecto; selEf.appendChild(op);
+                }
+                selEf.value = b.paso2.efecto;
+                if (window.sincronizarEtiquetaBotonEmoji) window.sincronizarEtiquetaBotonEmoji('select-efecto');
+            }
+        }
+        if (b.paso2.c1 && window.setSlotColor) window.setSlotColor(1, b.paso2.c1);
+        if (b.paso2.c2 && window.setSlotColor) window.setSlotColor(2, b.paso2.c2);
+        if (b.paso2.c3 && window.setSlotColor) window.setSlotColor(3, b.paso2.c3);
+        if (b.paso2.c4 && window.setSlotColor) window.setSlotColor(4, b.paso2.c4);
+        if (b.paso2.pinImg) {
+            window.imagenCargadaTemporalPaso1 = b.paso2.pinImg;
+            window.blobPinEditadoPaso1 = window.dataUrlABlob(b.paso2.pinImg);
+        }
+        if (b.paso2.logoImg) {
+            window.logoTemporalPaso2 = b.paso2.logoImg;
+            window.blobLogoEditadoPaso2 = window.dataUrlABlob(b.paso2.logoImg);
+            var imgL = document.getElementById('fase2-img-logo-preview');
+            var phL = document.getElementById('fase2-placeholder-logo');
+            if (imgL) { imgL.src = b.paso2.logoImg; imgL.style.display = 'block'; }
+            if (phL) phL.style.display = 'none';
+        }
+        if (b.paso2.portadaImg) {
+            window.portadaTemporalPaso2 = b.paso2.portadaImg;
+            window.blobPortadaEditadaPaso2 = window.dataUrlABlob(b.paso2.portadaImg);
+            var imgP = document.getElementById('fase2-img-portada-preview');
+            var phP = document.getElementById('fase2-placeholder-portada');
+            if (imgP) { imgP.src = b.paso2.portadaImg; imgP.style.display = 'block'; }
+            if (phP) phP.style.display = 'none';
+        }
+        if (b.paso2.nombrePngImg) {
+            window.nombrePngTemporalPaso1 = b.paso2.nombrePngImg;
+            window.blobNombrePngEditadoFase1 = window.dataUrlABlob(b.paso2.nombrePngImg);
+            var imgN = document.getElementById('fase1-img-nombre-preview');
+            var phN = document.getElementById('fase1-placeholder-nombre');
+            if (imgN) { imgN.src = b.paso2.nombrePngImg; imgN.style.display = 'block'; }
+            if (phN) phN.style.display = 'none';
+            if (window.renderizarSimuladorNombrePng) window.renderizarSimuladorNombrePng(b.paso2.nombrePngImg, 2.5, 'fase1-simulador-nombre-png');
+        }
+        if (window.actualizarPinLive) window.actualizarPinLive();
+        if (b.paso2.pinImg || b.paso2.logoImg || b.paso2.portadaImg || b.paso2.nombrePngImg) {
+            window.mostrarAvisoOficina('Progreso restaurado automáticamente desde tu dispositivo.', 'ok');
+        }
+    }
+};
+document.addEventListener('input', function(e) {
+    if (e.target && (e.target.closest('#fase-1-identidad') || e.target.closest('#fase-1-pin'))) {
+        window.guardarBorradorOnboardingLocal();
+    }
+});
+document.addEventListener('change', function(e) {
+    if (e.target && (e.target.closest('#fase-1-identidad') || e.target.closest('#fase-1-pin'))) {
+        window.guardarBorradorOnboardingLocal();
+    }
+});
 
 window.normalizarHexOficina = function(hexRaw) {
     var limpio = String(hexRaw || '').replace('#', '').trim().toUpperCase();
@@ -777,9 +955,10 @@ window.cargarPreviewNombrePng = async function(input, contexto) {
         window.blobNombrePngEditadoFase1 = optimizada.blob;
         var img1 = document.getElementById('fase1-img-nombre-preview');
         var ph1 = document.getElementById('fase1-placeholder-nombre');
-        if (img1) { img1.src = optimizada.dataUrl; img1.style.display = 'block'; }
+                if (img1) { img1.src = optimizada.dataUrl; img1.style.display = 'block'; }
         if (ph1) ph1.style.display = 'none';
         window.renderizarSimuladorNombrePng(optimizada.dataUrl, optimizada.ratio, 'fase1-simulador-nombre-png');
+        window.guardarBorradorOnboardingLocal();
     } else {
         window.nombrePngTemporalModal = optimizada.dataUrl;
         window.blobNombrePngEditadoModal = optimizada.blob;
@@ -891,11 +1070,13 @@ AuthGate.inicializar({
             fasePin.style.display = 'block';
             window.cargarDiccionarioEmojis();
             window.actualizarPinLive();
+            window.restaurarBorradorOnboardingLocal();
             setTimeout(function() { if (window.lanzarGuiaOnboardingFase) window.lanzarGuiaOnboardingFase(2); }, 600);
         } else if (faseIdentidad) {
             faseIdentidad.style.display = 'block';
             var emailActivo = (contexto && contexto.email) || (auth && auth.currentUser && auth.currentUser.email) || (AuthGate && AuthGate._estado && AuthGate._estado.usuarioAuth && AuthGate._estado.usuarioAuth.email) || '';
             window.hidratarCamposPaso1Identidad(emailActivo);
+            window.restaurarBorradorOnboardingLocal();
             setTimeout(function() { if (window.lanzarGuiaOnboardingFase) window.lanzarGuiaOnboardingFase(1); }, 600);
         } else if (dashboardScreen) {
             dashboardScreen.style.display = 'flex';
@@ -2430,15 +2611,26 @@ window.actualizarContenedorPin = function(idContenedor, idImagen, forma, color1,
     contenedor.style.setProperty('--color-cuat', paleta.c4);
 
 
+        var badgeArcoHtml = '';
     if (emoji && emoji !== '|') {
-        contenedor.setAttribute('data-emoji', emoji);
-        contenedor.setAttribute('data-anclaje', anclaje);
+        if (anclaje.indexOf('anclaje-arco:') === 0) {
+            var deg = parseFloat(anclaje.split(':')[1]) || 0;
+            var rad = (deg - 90) * Math.PI / 180;
+            var posX = (50 + 48 * Math.cos(rad)).toFixed(2);
+            var posY = (50 + 48 * Math.sin(rad)).toFixed(2);
+            contenedor.removeAttribute('data-emoji');
+            contenedor.removeAttribute('data-anclaje');
+            badgeArcoHtml = '<span class="gk-pin-emoji-arco" style="position:absolute; left:' + posX + '%; top:' + posY + '%; transform:translate(-50%,-50%); font-size:20px; line-height:1; z-index:20; pointer-events:none; filter:drop-shadow(0 2px 5px rgba(0,0,0,0.9));">' + emoji + '</span>';
+        } else {
+            contenedor.setAttribute('data-emoji', emoji);
+            contenedor.setAttribute('data-anclaje', anclaje);
+        }
     } else {
         contenedor.removeAttribute('data-emoji');
         contenedor.removeAttribute('data-anclaje');
     }
 
-    contenedor.innerHTML = window.obtenerContenidoSVG(forma, fotoSrc, idImagen);
+    contenedor.innerHTML = window.obtenerContenidoSVG(forma, fotoSrc, idImagen) + badgeArcoHtml;
 };
 
 window.dataUrlABlob = function(dataUrl) {
@@ -2556,84 +2748,109 @@ window.sincronizarEtiquetaBotonEmoji = function(selectId) {
     }
 };
 
+window.anguloEmojiArco = 0;
+window.emojiSeleccionadoTemporal = '';
+
 window.inyectarModalTecladoEmojis = function() {
     if (document.getElementById('gk-modal-teclado-emojis')) return;
     var modal = document.createElement('div');
     modal.id = 'gk-modal-teclado-emojis';
-    modal.style.cssText = 'display:none; position:fixed; inset:0; z-index:200050; background:rgba(0,0,0,0.82); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); align-items:flex-end; justify-content:center; padding:0; box-sizing:border-box;';
-    modal.onclick = function(e) {
-        if (e.target === modal) modal.style.display = 'none';
-    };
+    modal.style.cssText = 'display:none; position:fixed; inset:0; z-index:200050; background:rgba(6,8,14,0.82); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); align-items:flex-end; justify-content:center; padding:12px; box-sizing:border-box;';
+    modal.onclick = function(e) { if (e.target === modal) modal.style.display = 'none'; };
 
     var htmlGrupos = '';
     window.DICCIONARIO_EMOJIS_GRID.forEach(function(cat) {
-        htmlGrupos += '<div style="font-size:10px; font-weight:900; color:#ff6b00; text-transform:uppercase; letter-spacing:0.8px; margin:10px 0 6px 2px;">' + cat.grupo + '</div>';
+        htmlGrupos += '<div style="font-size:10px; font-weight:800; color:#9ca3af; text-transform:uppercase; letter-spacing:0.8px; margin:12px 0 6px 2px;">' + cat.grupo + '</div>';
         htmlGrupos += '<div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:6px;">';
         cat.iconos.forEach(function(em) {
-            htmlGrupos += '<button type="button" class="gk-emoji-key-btn" data-emoji="' + em + '" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); border-radius:10px; height:42px; font-size:22px; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0;">' + em + '</button>';
+            htmlGrupos += '<button type="button" class="gk-emoji-key-btn" data-emoji="' + em + '" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:11px; height:40px; font-size:21px; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; transition:0.15s;">' + em + '</button>';
         });
         htmlGrupos += '</div>';
     });
 
     modal.innerHTML =
-        '<div style="background:#121217; border-top:2px solid #ff6b00; border-radius:22px 22px 0 0; width:100%; max-width:460px; max-height:76vh; display:flex; flex-direction:column; padding:14px 14px 18px 14px; box-sizing:border-box; box-shadow:0 -12px 40px rgba(0,0,0,0.95);">' +
+        '<div style="background:rgba(18,19,26,0.98); border:1px solid rgba(255,107,0,0.32); border-radius:26px; width:100%; max-width:410px; max-height:84dvh; display:flex; flex-direction:column; padding:12px 18px 16px 18px; box-sizing:border-box; box-shadow:0 20px 60px rgba(0,0,0,0.92);">' +
+            '<div style="width:42px; height:4px; border-radius:4px; background:rgba(255,255,255,0.18); margin:0 auto 10px auto;"></div>' +
             '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">' +
-                '<strong style="color:#fff; font-size:13px; text-transform:uppercase; letter-spacing:0.8px;">Elige un Emoticon para tu PIN</strong>' +
-                '<button type="button" id="gk-cerrar-teclado-emoji" style="background:rgba(255,255,255,0.08); border:none; color:#fff; width:28px; height:28px; border-radius:50%; cursor:pointer; font-weight:bold;">✕</button>' +
+                '<div>' +
+                    '<div style="font-size:15px; font-weight:900; color:#fff; letter-spacing:0.6px; text-transform:uppercase;">Distintivo del <span style="color:#ff6b00;">PIN</span></div>' +
+                    '<div style="font-size:11px; color:#9ca3af; margin-top:2px;">Elige un ícono y deslízalo sobre el semicírculo</div>' +
+                '</div>' +
+                '<button type="button" id="gk-cerrar-teclado-emoji" aria-label="Cerrar" style="width:32px; height:32px; border-radius:50%; border:1px solid rgba(255,255,255,0.14); background:rgba(255,255,255,0.06); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
             '</div>' +
-            '<div style="display:grid; grid-template-columns:1fr 1fr auto; gap:6px; margin-bottom:10px;">' +
-                                '<button type="button" id="gk-anc-arriba" style="padding:8px; border-radius:8px; border:1px solid #ff6b00; background:rgba(255,107,0,0.2); color:#fff; font-size:11px; font-weight:800; cursor:pointer;">Corona Arriba</button>' +
-                '<button type="button" id="gk-anc-esquina" style="padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.04); color:#aaa; font-size:11px; font-weight:800; cursor:pointer;">En Esquina</button>' +
-                '<button type="button" id="gk-sin-emoji" style="padding:8px 10px; border-radius:8px; border:1px solid rgba(255,68,68,0.4); background:rgba(255,68,68,0.12); color:#ff4444; font-size:11px; font-weight:800; cursor:pointer;">Quitar</button>' +
+            '<div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.09); border-radius:16px; padding:10px 12px; margin-bottom:10px;">' +
+                '<div id="gk-arco-stage" style="position:relative; width:170px; height:88px; margin:0 auto 6px auto; touch-action:none;">' +
+                    '<svg viewBox="0 0 170 88" width="170" height="88" style="display:block; overflow:visible;">' +
+                        '<path d="M 21 78 A 64 64 0 0 1 149 78" fill="none" stroke="rgba(255,107,0,0.42)" stroke-width="2.5" stroke-dasharray="4 4" stroke-linecap="round"/>' +
+                        '<circle cx="85" cy="78" r="24" fill="rgba(255,107,0,0.14)" stroke="#ff6b00" stroke-width="1.8"/>' +
+                        '<text x="85" y="82" text-anchor="middle" fill="#e2e8f0" font-size="9.5" font-weight="900">PIN</text>' +
+                    '</svg>' +
+                    '<div id="gk-arco-puntero" style="position:absolute; left:85px; top:14px; transform:translate(-50%,-50%); width:34px; height:34px; border-radius:50%; background:#181922; border:2px solid #ff6b00; box-shadow:0 0 14px rgba(255,107,0,0.55); display:flex; align-items:center; justify-content:center; font-size:19px; pointer-events:none;">✨</div>' +
+                '</div>' +
+                '<div style="display:flex; align-items:center; gap:10px;">' +
+                    '<input type="range" id="gk-slider-arco" min="-75" max="75" value="0" style="flex:1; accent-color:#ff6b00; cursor:pointer;">' +
+                    '<button type="button" id="gk-sin-emoji" style="padding:6px 10px; border-radius:9px; border:1px solid rgba(255,68,68,0.4); background:rgba(255,68,68,0.12); color:#ff6b6b; font-size:11px; font-weight:800; cursor:pointer;">Quitar</button>' +
+                '</div>' +
             '</div>' +
-            '<div id="gk-scroll-emojis-grid" style="overflow-y:auto; flex:1; padding-right:2px;">' +
+            '<div id="gk-scroll-emojis-grid" style="overflow-y:auto; flex:1; padding-right:2px; margin-bottom:10px;">' +
                 htmlGrupos +
             '</div>' +
+            '<button type="button" id="gk-aplicar-emoji-arco" style="width:100%; height:42px; border-radius:11px; border:none; background:linear-gradient(135deg,#ff8c00,#ff6b00); color:#fff; font-size:12.5px; font-weight:900; text-transform:uppercase; letter-spacing:0.6px; cursor:pointer; box-shadow:0 6px 16px rgba(255,107,0,0.34);">Aplicar al PIN</button>' +
         '</div>';
 
     document.body.appendChild(modal);
 
-    var actualizarBotonesAnclajeUI = function() {
-        var btnArr = document.getElementById('gk-anc-arriba');
-        var btnEsq = document.getElementById('gk-anc-esquina');
-        if (!btnArr || !btnEsq) return;
-        if (window.anclajeEmojiActivo === 'anclaje-esquina') {
-            btnEsq.style.borderColor = '#ff6b00';
-            btnEsq.style.background = 'rgba(255,107,0,0.2)';
-            btnEsq.style.color = '#fff';
-            btnArr.style.borderColor = 'rgba(255,255,255,0.15)';
-            btnArr.style.background = 'rgba(255,255,255,0.04)';
-            btnArr.style.color = '#aaa';
-        } else {
-            btnArr.style.borderColor = '#ff6b00';
-            btnArr.style.background = 'rgba(255,107,0,0.2)';
-            btnArr.style.color = '#fff';
-            btnEsq.style.borderColor = 'rgba(255,255,255,0.15)';
-            btnEsq.style.background = 'rgba(255,255,255,0.04)';
-            btnEsq.style.color = '#aaa';
-        }
+    window._actualizarVistaArcoEmoji = function() {
+        var ptr = document.getElementById('gk-arco-puntero');
+        var slider = document.getElementById('gk-slider-arco');
+        if (!ptr || !slider) return;
+        var deg = parseFloat(slider.value) || 0;
+        window.anguloEmojiArco = deg;
+        var rad = (deg - 90) * Math.PI / 180;
+        var x = 85 + 64 * Math.cos(rad);
+        var y = 78 + 64 * Math.sin(rad);
+        ptr.style.left = x.toFixed(1) + 'px';
+        ptr.style.top = y.toFixed(1) + 'px';
+        ptr.textContent = window.emojiSeleccionadoTemporal || '•';
     };
 
-    document.getElementById('gk-cerrar-teclado-emoji').onclick = function() {
+    var stage = document.getElementById('gk-arco-stage');
+    var moverPorPuntero = function(ev) {
+        var r = stage.getBoundingClientRect();
+        var cx = (ev.touches && ev.touches[0] ? ev.touches[0].clientX : ev.clientX) - r.left - 85;
+        var cy = (ev.touches && ev.touches[0] ? ev.touches[0].clientY : ev.clientY) - r.top - 78;
+        var ang = Math.atan2(cy, cx) * (180 / Math.PI) + 90;
+        if (ang > 180) ang -= 360;
+        ang = Math.max(-75, Math.min(75, Math.round(ang)));
+        document.getElementById('gk-slider-arco').value = ang;
+        window._actualizarVistaArcoEmoji();
+    };
+    stage.addEventListener('pointerdown', function(e) { moverPorPuntero(e); });
+    stage.addEventListener('pointermove', function(e) { if (e.buttons === 1) moverPorPuntero(e); });
+    document.getElementById('gk-slider-arco').addEventListener('input', window._actualizarVistaArcoEmoji);
+    document.getElementById('gk-cerrar-teclado-emoji').onclick = function() { modal.style.display = 'none'; };
+    document.getElementById('gk-sin-emoji').onclick = function() {
+        window.emojiSeleccionadoTemporal = '';
+        window.aplicarEmojiSeleccionadoGrid('|');
+        window.guardarBorradorOnboardingLocal();
         modal.style.display = 'none';
     };
-    document.getElementById('gk-anc-arriba').onclick = function() {
-        window.anclajeEmojiActivo = 'anclaje-arriba';
-        actualizarBotonesAnclajeUI();
-    };
-    document.getElementById('gk-anc-esquina').onclick = function() {
-        window.anclajeEmojiActivo = 'anclaje-esquina';
-        actualizarBotonesAnclajeUI();
-    };
-    document.getElementById('gk-sin-emoji').onclick = function() {
-        window.aplicarEmojiSeleccionadoGrid('|');
+    document.getElementById('gk-aplicar-emoji-arco').onclick = function() {
+        if (window.emojiSeleccionadoTemporal) {
+            window.aplicarEmojiSeleccionadoGrid('anclaje-arco:' + window.anguloEmojiArco + '|' + window.emojiSeleccionadoTemporal);
+            window.guardarBorradorOnboardingLocal();
+        }
         modal.style.display = 'none';
     };
     modal.querySelectorAll('.gk-emoji-key-btn').forEach(function(btn) {
         btn.onclick = function() {
-            var em = btn.getAttribute('data-emoji');
-            window.aplicarEmojiSeleccionadoGrid(window.anclajeEmojiActivo + '|' + em);
-            modal.style.display = 'none';
+            window.emojiSeleccionadoTemporal = btn.getAttribute('data-emoji');
+            modal.querySelectorAll('.gk-emoji-key-btn').forEach(function(b) { b.style.borderColor = 'rgba(255,255,255,0.08)'; b.style.background = 'rgba(255,255,255,0.04)'; });
+            btn.style.borderColor = '#ff6b00';
+            btn.style.background = 'rgba(255,107,0,0.22)';
+            window._actualizarVistaArcoEmoji();
+            window.aplicarEmojiSeleccionadoGrid('anclaje-arco:' + window.anguloEmojiArco + '|' + window.emojiSeleccionadoTemporal);
+            window.guardarBorradorOnboardingLocal();
         };
     });
 };
@@ -2643,13 +2860,15 @@ window.abrirTecladoEmojisGrid = function(selectId) {
     window.inyectarModalTecladoEmojis();
     window.selectEmojiTargetId = selectId;
     var sel = document.getElementById(selectId);
-    if (sel && sel.value && sel.value.indexOf('anclaje-esquina') === 0) {
-        window.anclajeEmojiActivo = 'anclaje-esquina';
-        document.getElementById('gk-anc-esquina').click();
-    } else {
-        window.anclajeEmojiActivo = 'anclaje-arriba';
-        document.getElementById('gk-anc-arriba').click();
-    }
+    var val = (sel && sel.value) ? sel.value : '|';
+    var partes = val.split('|');
+    window.emojiSeleccionadoTemporal = partes[1] || '';
+    var deg = 0;
+    if (partes[0] && partes[0].indexOf('anclaje-arco:') === 0) deg = parseFloat(partes[0].split(':')[1]) || 0;
+    else if (partes[0] === 'anclaje-esquina') deg = 45;
+    var slider = document.getElementById('gk-slider-arco');
+    if (slider) slider.value = deg;
+    if (window._actualizarVistaArcoEmoji) window._actualizarVistaArcoEmoji();
     var modal = document.getElementById('gk-modal-teclado-emojis');
     if (modal) modal.style.display = 'flex';
 };
@@ -3163,8 +3382,18 @@ window.CIUDADES_LOCALES_OFICINA = [
     { nombre: "Caracas, Venezuela", lat: 10.4806, lng: -66.9036 },
     { nombre: "Maracaibo, Venezuela", lat: 10.6666, lng: -71.6124 },
     { nombre: "Valencia, Venezuela", lat: 10.1620, lng: -68.0077 },
-    { nombre: "San Cristobal / Tachira, Venezuela", lat: 7.7794, lng: -72.2247 },
-    { nombre: "Lobatera, Tachira, Venezuela", lat: 7.9302, lng: -72.2442 }
+        { nombre: "San Cristobal / Tachira, Venezuela", lat: 7.7794, lng: -72.2247 },
+    { nombre: "Lobatera, Tachira, Venezuela", lat: 7.9302, lng: -72.2442 },
+    { nombre: "Michelena, Tachira, Venezuela", lat: 7.9564, lng: -72.2439 },
+    { nombre: "Colon / Ayacucho, Tachira, Venezuela", lat: 8.0315, lng: -72.2610 },
+    { nombre: "Rubio, Tachira, Venezuela", lat: 7.7014, lng: -72.3558 },
+    { nombre: "San Antonio del Tachira, Venezuela", lat: 7.8147, lng: -72.4431 },
+    { nombre: "Urena, Tachira, Venezuela", lat: 7.9178, lng: -72.4442 },
+    { nombre: "La Grita, Tachira, Venezuela", lat: 8.1342, lng: -71.9844 },
+    { nombre: "Tariba, Tachira, Venezuela", lat: 7.8186, lng: -72.2236 },
+    { nombre: "Merida, Venezuela", lat: 8.5897, lng: -71.1561 },
+    { nombre: "Barquisimeto, Venezuela", lat: 10.0647, lng: -69.3570 },
+    { nombre: "Maracay, Venezuela", lat: 10.2469, lng: -67.5958 }
 ];
 
 window.resolverCoordenadaLocalOficina = function(queryRaw) {
@@ -4437,11 +4666,12 @@ window.cargarPreviewLogoPaso2 = async function(input) {
     var ph = document.getElementById('fase2-placeholder-logo');
     if (img) { img.src = editada.dataUrl; img.style.display = 'block'; }
     if (ph) ph.style.display = 'none';
-    if (!window.imagenCargadaTemporalPaso1) {
+        if (!window.imagenCargadaTemporalPaso1) {
         window.imagenCargadaTemporalPaso1 = editada.dataUrl;
         window.blobPinEditadoPaso1 = editada.blob;
         window.actualizarPinLive();
     }
+    window.guardarBorradorOnboardingLocal();
 };
 
 window.cargarPreviewPortadaPaso2 = async function(input) {
@@ -4458,8 +4688,9 @@ window.cargarPreviewPortadaPaso2 = async function(input) {
     window.datosTienda.portada = editada.dataUrl;
     var img = document.getElementById('fase2-img-portada-preview');
     var ph = document.getElementById('fase2-placeholder-portada');
-    if (img) { img.src = editada.dataUrl; img.style.display = 'block'; }
+        if (img) { img.src = editada.dataUrl; img.style.display = 'block'; }
     if (ph) ph.style.display = 'none';
+    window.guardarBorradorOnboardingLocal();
 };
 window.cargarPreviewPin = async function(input) {
     if (input.files && input.files[0]) {
@@ -4474,12 +4705,13 @@ window.cargarPreviewPin = async function(input) {
         window.blobPinEditadoPaso1 = editada.blob;
         window.actualizarPinLive();
         window.extraerColoresDeImagen(window.imagenCargadaTemporalPaso1).then(function(pal) {
-            if (pal && pal.c1) {
+                        if (pal && pal.c1) {
                 window.setSlotColor(1, pal.c1);
                 if (pal.c2) window.setSlotColor(2, pal.c2);
                 window.actualizarPinLive();
             }
-        }).catch(function() {});
+            window.guardarBorradorOnboardingLocal();
+        }).catch(function() { window.guardarBorradorOnboardingLocal(); });
     }
 };
 
@@ -4841,19 +5073,30 @@ window.abrirGemeloDigitalEnMapa = function(instanciaMapa, instanciaMarker) {
     .addTo(instanciaMapa);
 };
 
-window.buscarDireccionWizard = function() {
+window.buscarDireccionWizard = async function() {
     var input = document.getElementById('wiz-direccion-inteligente');
     var query = input ? input.value.trim() : '';
     if (!query) return;
     var destino = window.resolverCoordenadaLocalOficina(query);
+    if (!destino && navigator.onLine) {
+        try {
+            window.mostrarAvisoOficina('Buscando ubicación en Colombia y Venezuela...', 'info');
+            var r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=co,ve&q=' + encodeURIComponent(query));
+            var arr = r.ok ? await r.json() : [];
+            if (arr && arr[0]) destino = { lat: parseFloat(arr[0].lat), lng: parseFloat(arr[0].lon) };
+        } catch (eGeo) {}
+    }
     if (destino && window.mapaOnboarding && window.markerOnboarding) {
-        window.mapaOnboarding.flyTo({ center: [destino.lng, destino.lat], zoom: 16.5, duration: 1200 });
+        window.mapaOnboarding.flyTo({ center: [destino.lng, destino.lat], zoom: 15.8, duration: 1100 });
         window.markerOnboarding.setLngLat([destino.lng, destino.lat]);
         window.datosTienda.Coordenadas = { latitude: destino.lat, longitude: destino.lng };
         window.datosTienda.direccion = query;
+        var selP = document.getElementById('wiz-pais-comercio');
+        if (selP) selP.value = window.detectarPaisPorCoordenadas(destino.lat, destino.lng);
+        window.mostrarAvisoOficina('Ubicación encontrada. Ajusta el PIN sobre tu local.', 'ok');
     } else {
         window.datosTienda.direccion = query;
-        alert("Direccion registrada. Toca cualquier punto del mapa o usa el boton GPS 📍 para colocar tu PIN sobre el local.");
+        window.mostrarAvisoOficina('Dirección guardada. Toca tu cuadra en el mapa o usa el botón GPS para fijar el PIN.', 'info');
     }
 };
 
@@ -5022,10 +5265,11 @@ window.guardarPaso3Ubicacion = async function() {
         }, { merge: true });
 
 
-        localStorage.setItem('geokatu_pais_' + window.idNegocioLogueado, paisElegido);
-
+                localStorage.setItem('geokatu_pais_' + window.idNegocioLogueado, paisElegido);
+        if (window.GeokatuDraftDB) window.GeokatuDraftDB.limpiar(window.idNegocioLogueado);
         btn.innerText = "Bóveda Lista";
-        setTimeout(function() { window.location.reload(); }, 500);
+        window.mostrarAvisoOficina('Paso 3 completado. Saltando a tu catálogo (Paso 4)...', 'ok');
+        setTimeout(function() { window.location.href = '/negocio?id=' + encodeURIComponent(window.idNegocioLogueado) + '&onboarding=paso4'; }, 650);
     } catch (e) {
         alert("Error al sellar ubicación: " + e.message);
         btn.disabled = false;
