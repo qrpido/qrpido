@@ -271,10 +271,21 @@
                 return;
             }
 
-                        const paso = this.pasos[this.pasoActual];
-            const targetEl = paso.target ? document.querySelector(paso.target) : null;
-            const esVisible = Boolean(targetEl && targetEl.offsetParent !== null);
+                                    const paso = this.pasos[this.pasoActual];
+            let targetEl = paso.target ? document.querySelector(paso.target) : null;
 
+            // Si el elemento está oculto o dentro de un menú cerrado, intentamos abrir su contenedor
+            if (targetEl && targetEl.offsetParent === null) {
+                const dropdownPadre = targetEl.closest('.menu-cabecera-dropdown, .submenu-llave, details, .drawer-lateral');
+                if (dropdownPadre) {
+                    dropdownPadre.classList.add('activo', 'abierto');
+                    dropdownPadre.hidden = false;
+                    const detailsPadre = dropdownPadre.closest('details');
+                    if (detailsPadre) detailsPadre.open = true;
+                }
+            }
+
+            const esVisible = Boolean(targetEl && targetEl.offsetParent !== null);
             this.overlay.classList.add('activo');
             let leftCard = Math.max(16, (window.innerWidth - Math.min(330, window.innerWidth - 32)) / 2);
             let topCard = Math.max(80, Math.round((window.innerHeight - 190) / 2));
