@@ -53,7 +53,7 @@ const geofire = {
         return bounds;
     }
 };
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
 import { getDatabase, ref as rtdbRef, set, get, onValue, child, serverTimestamp, query as queryRTDB, limitToLast, orderByChild } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js'; 
 import { db } from './firebase-config.js'; // Ajusta la ruta a tu inicialización de Firebase
@@ -3095,7 +3095,113 @@ obtenerContactoComercio: async (idNegocio) => {
                 return { success: false, error: e.message };
             }
         }
-    }, // <-- CIERRE CORRECTO CON COMA DE TopografiaService
+        }, // <-- CIERRE CORRECTO CON COMA DE TopografiaService
+
+    /**
+     * @namespace PirobonianosService
+     * Gestor privado EDT, progreso de tickets y bóveda de activos en Storage (Solo Superadmin)
+     */
+    PirobonianosService: {
+        listarProyectosEDT: async () => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesion no autorizada." };
+            try {
+                const snap = await getDocs(collection(db, "Pirobonianos_EDT"));
+                const proyectos = [];
+                snap.forEach((d) => proyectos.push({ id: d.id, ...d.data() }));
+                proyectos.sort((a, b) => String(b.fecha_actualizacion || "").localeCompare(String(a.fecha_actualizacion || "")));
+                return { success: true, data: proyectos };
+            } catch (e) {
+                return { success: false, error: e.message };
+            }
+        },
+        obtenerProyectoEDT: async (idProyecto) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesion no autorizada." };
+            const claveLocal = "piro_edt_cache_" + idProyecto;
+            if (!navigator.onLine) {
+                const local = localStorage.getItem(claveLocal);
+                return local ? { success: true, data: JSON.parse(local), origen: "local" } : { success: false, offline: true };
+            }
+            try {
+                const snap = await getDoc(doc(db, "Pirobonianos_EDT", String(idProyecto)));
+                if (snap.exists()) {
+                    const data = { id: snap.id, ...snap.data() };
+                    try { localStorage.setItem(claveLocal, JSON.stringify(data)); } catch (errL) {}
+                    return { success: true, data: data, origen: "nube" };
+                }
+                return { success: true, data: null, origen: "nube" };
+            } catch (e) {
+                const respaldo = localStorage.getItem(claveLocal);
+                if (respaldo) return { success: true, data: JSON.parse(respaldo), origen: "fallback_local" };
+                return { success: false, error: e.message };
+            }
+        },
+        guardarProyectoEDT: async (idProyecto, payloadProyecto) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesion no autorizada." };
+            const idLimpio = String(idProyecto || "edt_maestro_pirobonianos").trim().replace(/[^a-zA-Z0-9_-]/g, "_");
+            const claveLocal = "piro_edt_cache_" + idLimpio;
+            const payloadFinal = Object.assign({}, payloadProyecto, {
+                id: idLimpio,
+                fecha_actualizacion: new Date().toISOString(),
+                actualizado_por: (auth && auth.currentUser && auth.currentUser.email) ? auth.currentUser.email : "superadmin"
+            });
+            try { localStorage.setItem(claveLocal, JSON.stringify(payloadFinal)); } catch (errL) {}
+            if (!navigator.onLine) return { success: true, data: payloadFinal, offline: true };
+            try {
+                await setDoc(doc(db, "Pirobonianos_EDT", idLimpio), payloadFinal, { merge: true });
+                return { success: true, data: payloadFinal, offline: false };
+            } catch (e) {
+                return { success: false, error: e.message, offline: true };
+            }
+        },
+        eliminarProyectoEDT: async (idProyecto) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesion no autorizada." };
+            const idLimpio = String(idProyecto || "").trim();
+            if (!idLimpio) return { success: false, error: "ID requerido." };
+            try { localStorage.removeItem("piro_edt_cache_" + idLimpio); } catch (errL) {}
+            try {
+                await deleteDoc(doc(db, "Pirobonianos_EDT", idLimpio));
+                return { success: true };
+            } catch (e) {
+                return { success: false, error: e.message };
+            }
+        },
+        subirActivoPirobonianos: async (idProyecto, rutaInterna, archivoBlob) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesion no autorizada." };
+            if (!archivoBlob) return { success: false, error: "Archivo requerido." };
+            try {
+                const proySeguro = String(idProyecto || "general").replace(/[^a-zA-Z0-9_-]/g, "_");
+                const rutaLimpia = String(rutaInterna || ("archivo_" + Date.now())).replace(/^\/+/, "").replace(/\.\./g, "");
+                const rutaStorage = "pirobonianos/" + proySeguro + "/" + rutaLimpia;
+                const refArchivo = ref(storage, rutaStorage);
+                const contentType = archivoBlob.type || "application/octet-stream";
+                const snap = await uploadBytes(refArchivo, archivoBlob, { contentType: contentType });
+                const url = await getDownloadURL(snap.ref);
+                return {
+                    success: true,
+                    url: url,
+                    rutaStorage: rutaStorage,
+                    nombre: archivoBlob.name || rutaLimpia.split("/").pop(),
+                    tipo: contentType,
+                    bytes: archivoBlob.size || 0,
+                    fecha: new Date().toISOString()
+                };
+            } catch (e) {
+                return { success: false, error: e.message };
+            }
+        },
+        eliminarActivoPirobonianos: async (rutaStorage) => {
+            if (!_verificarAcceso()) return { success: false, error: "Sesion no autorizada." };
+            if (!rutaStorage || String(rutaStorage).indexOf("pirobonianos/") !== 0) {
+                return { success: false, error: "Ruta de almacenamiento invalida." };
+            }
+            try {
+                await deleteObject(ref(storage, rutaStorage));
+                return { success: true };
+            } catch (e) {
+                return { success: false, error: e.message };
+            }
+        }
+    },
 
     /**
      * @namespace MediaService
