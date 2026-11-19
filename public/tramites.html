@@ -500,18 +500,31 @@ html {
 <script type="module" src="./auth-mando.js"></script>
 <script type="module">
 import QRpidoDB from './core-db.js';
-import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js';
 
-const functionsInstance = getFunctions();
+window.__usuarioFirebaseActivo = null;
 
-// Invocador híbrido: usa QRpidoDB.SecurityService si existe el método o llama directo a la Cloud Function de CHG-046
+// Invocador agnóstico de versión SDK: usa SecurityService o protocolo Callable HTTPS con ID Token real
 async function invocarFuncionLegal(nombreFn, payload) {
     if (QRpidoDB.SecurityService && typeof QRpidoDB.SecurityService[nombreFn] === 'function') {
         return await QRpidoDB.SecurityService[nombreFn](payload);
     }
-    const fn = httpsCallable(functionsInstance, nombreFn);
-    const res = await fn(payload);
-    return res.data;
+    const u = window.__usuarioFirebaseActivo;
+    if (!u || typeof u.getIdToken !== 'function') {
+        throw new Error('Inicia sesión para ejecutar esta operación legal.');
+    }
+    const token = await u.getIdToken();
+    const projectId = (u.auth && u.auth.app && u.auth.app.options && u.auth.app.options.projectId) || 'qrpido-geokatu';
+    const endpoint = `https://us-central1-${projectId}.cloudfunctions.net/${nombreFn}`;
+    const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ data: payload || {} })
+    });
+    const json = await resp.json();
+    if (!resp.ok || json.error) {
+        throw new Error((json.error && json.error.message) || 'Error en servidor legal.');
+    }
+    return json.result;
 }
 
 // --- SISTEMA IN-APP TOAST Y CONFIRMACIÓN (CERO ALERT NATIVO) ---
@@ -744,8 +757,12 @@ QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
     const salaId = urlParams.get('sala');
     const kycOkParam = urlParams.get('kyc') === 'ok' || urlParams.get('action') === 'kyc_pagar';
 
-    if (salaId) {
+        window.__usuarioFirebaseActivo = user || null;
+    if (salaId && user) {
         await cargarSalaRealP2P(salaId);
+    } else if (salaId && !user) {
+        window.mostrarToastLegal('Inicia sesión con el correo invitado para abrir esta sala privada.');
+        if (document.getElementById('modal-login')) document.getElementById('modal-login').classList.add('activo');
     }
 
     if (!btnCta || !bloqueOperativo) return;
@@ -760,15 +777,18 @@ QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
         }
         if (document.getElementById('modal-login')) document.getElementById('modal-login').classList.remove('activo');
 
-        let tieneKyc = kycOkParam;
+        let tieneKyc = false;
+        let kycEnRevision = kycOkParam;
         try {
             const perfil = await QRpidoDB.LocalService.getDetails(user.uid);
             if (perfil && perfil.data) {
                 if (document.getElementById('perfil-nombre-ciudadano')) document.getElementById('perfil-nombre-ciudadano').value = perfil.data.nombre || '';
                 if (document.getElementById('perfil-telefono-ciudadano')) document.getElementById('perfil-telefono-ciudadano').value = perfil.data.telefono || perfil.data.whatsApp || '';
                 if (document.getElementById('img-perfil-ciudadano') && perfil.data.logo) document.getElementById('img-perfil-ciudadano').src = perfil.data.logo;
-                if (perfil.data.kyc_verificado || perfil.data.estado_moderacion === 'en_revision_kyc' || perfil.data.estado_moderacion === 'aprobado' || perfil.data.evidencia_kyc) {
+                if (perfil.data.kyc_verificado === true) {
                     tieneKyc = true;
+                } else if (perfil.data.kyc_pendiente_cruce_1a1 || perfil.data.evidencia_kyc) {
+                    kycEnRevision = true;
                 }
             }
         } catch (e) {
@@ -798,9 +818,9 @@ QRpidoDB.SecurityService.observarEstadoSesion(async (user) => {
                 <div style="margin-bottom: 10px; color: var(--verde-sui);">
                     <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M15 8h2"/><path d="M15 12h2"/><path d="M7 16h10"/></svg>
                 </div>
-                <h2 style="color: white; margin-top: 0; font-size: 18px; text-transform: uppercase;">Paso obligatorio pendiente</h2>
-                <p style="font-size: 14px; color: #f0f0f0; margin-bottom: 20px; text-align: justify; line-height: 1.4;">Para emitir firmas legales bajo la <b>Ley 527 de 1999</b>, debes validar tu identidad una única vez mediante el escáner facial y documental.</p>
-                <button class="btn-submit" style="font-size: 15px; background: var(--verde-sui); color: black; font-weight: bold; box-shadow: 0 0 15px var(--verde-sui);" onclick="window.location.href='/kyc.html'">REGISTRAR KYC AHORA</button>
+                                <h2 style="color: white; margin-top: 0; font-size: 18px; text-transform: uppercase;">${kycEnRevision ? "Biometría en Validación 1:1" : "Paso obligatorio pendiente"}</h2>
+                <p style="font-size: 14px; color: #f0f0f0; margin-bottom: 20px; text-align: justify; line-height: 1.4;">${kycEnRevision ? "Recibimos tu cédula y selfie en el búnker cifrado. Un moderador verificará la coincidencia 1:1 para activar tu firma digital bajo la Ley 527." : "Para emitir firmas legales bajo la <b>Ley 527 de 1999</b>, debes validar tu identidad una única vez mediante el escáner facial y documental."}</p>
+                <button class="btn-submit" style="font-size: 15px; background: var(--verde-sui); color: black; font-weight: bold; box-shadow: 0 0 15px var(--verde-sui);" onclick="window.location.href='/kyc.html'">${kycEnRevision ? "REENVIAR ESCANEO KYC" : "REGISTRAR KYC AHORA"}</button>
             `;
             btnCta.style.display = 'block';
             const tabTramites = document.getElementById('tab-tramites');
@@ -942,18 +962,18 @@ window.despacharBorrador = async () => {
     btn.disabled = true;
     btn.innerText = "Creando sala segura...";
 
-    const salaId = `SALA-${Date.now().toString().slice(-6)}`;
-    try {
+        try {
         const res = await invocarFuncionLegal('crearBorradorTramiteP2P', {
             textoContrato: texto,
             contraparteEmail: correo,
-            wompi_ref: salaId,
             firmasCreador: {
                 uid: window.idNegocioLogueado,
                 email: window.emailUsuarioLogueado || '',
                 fecha: new Date().toISOString()
             }
         });
+        const salaId = res && res.salaId ? res.salaId : '';
+        if (!salaId) throw new Error('El servidor no devolvió un identificador de sala.');
 
         if (window.inmuebleVinculadoId && window.idNegocioLogueado && QRpidoDB.AdminService?.actualizarProducto) {
             await QRpidoDB.AdminService.actualizarProducto(window.idNegocioLogueado, window.inmuebleVinculadoId, {
@@ -1063,7 +1083,7 @@ document.getElementById('input-selfie').addEventListener('change', function(e) {
             canvas.height = img.height * scaleSize;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            window.selfieComprimida = canvas.toDataURL('image/webp', 0.6);
+                        window.selfieComprimida = canvas.toDataURL('image/jpeg', 0.72);
             const status = document.getElementById('selfie-status');
             if (status) {
                 status.style.display = 'block';
@@ -1090,7 +1110,7 @@ window.procesarFirmaFinal = async () => {
         const bufferP = ctxT.getImageData(0, 0, canvasTrazo.width, canvasTrazo.height);
         const trazoVacio = !Array.from(bufferP.data).some(color => color !== 0);
         if (trazoVacio) return window.mostrarToastLegal("Dibuja tu firma manuscrita con el dedo en el recuadro verde antes de sellar.");
-        window.firmaDedoBase64 = canvasTrazo.toDataURL('image/webp', 0.5);
+                window.firmaDedoBase64 = canvasTrazo.toDataURL('image/png');
     }
 
     btn.innerText = "Abriendo pasarela de pago segura...";
@@ -1109,9 +1129,10 @@ window.procesarFirmaFinal = async () => {
         return;
     }
 
-    const totalPagar = window.esVistaInvitado ? 6990 : 4990;
-    const idReferenciaWompi = `GEOKATU-${Date.now()}-${window.idNegocioLogueado || 'INVITADO'}`;
+        const totalPagar = window.esVistaInvitado ? 6990 : 4990;
     const publicKeyWompi = localStorage.getItem('geokatu_wompi_pub_key') || 'pub_test_Q5YDA9nmBDCcb4mqzB8S9B69YreS78uG';
+    const prefijoRef = publicKeyWompi.startsWith('pub_test_') ? 'SANDBOX' : 'GEOKATU-TRAM';
+    const idReferenciaWompi = `${prefijoRef}-${Date.now()}-${String(window.idNegocioLogueado || 'USR').slice(0, 8)}`;
 
     const checkout = new WidgetCheckout({
         currency: 'COP',
@@ -1172,7 +1193,8 @@ window.procesarFirmaFinal = async () => {
                 gps: window.coordsFirma,
                 selfie: window.selfieComprimida || window.firmaDedoBase64,
                 codigo: window.codigoActualFirma || document.getElementById('codigo-selfie').innerText,
-                wompi_ref: idReferenciaWompi,
+                                wompi_ref: idReferenciaWompi,
+                wompi_tx_id: transaction.id,
                 timestamp: Date.now(),
                 sala_id: window.salaActivaId || null,
                 inmueble_id: window.inmuebleVinculadoId || null,
@@ -1200,7 +1222,7 @@ window.procesarFirmaFinal = async () => {
                                     DESCARGAR PDF (Acceso Rápido 15 min)
                                 </button>
                             </a>
-                            <button class="btn-submit" style="margin:0; background: transparent; border: 1px solid var(--naranja); color: var(--naranja);" onclick="window.descargarLlaveQR('${res.txId}')">
+                                                        <button class="btn-submit" style="margin:0; background: transparent; border: 1px solid var(--naranja); color: var(--naranja);" onclick="window.descargarLlaveQR('SHA256:${res.hashDocumento || ''}|SUI:${res.txId}')">
                                 Descargar Llave de Bóveda (QR PNG)
                             </button>
                         </div>
@@ -1226,20 +1248,31 @@ window.desencriptarBoveda = async (event) => {
     }
     btn.innerText = "Desencriptando en RAM...";
     btn.disabled = true;
-    try {
-        let llaveSui = "LLAVE_LOCAL_VERIFICADA";
+        try {
+        let payloadQr = '';
         if ('BarcodeDetector' in window) {
             try {
                 const barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
                 const imageBitmap = await createImageBitmap(inputQR.files[0]);
                 const codigos = await barcodeDetector.detect(imageBitmap);
-                if (codigos.length > 0) llaveSui = codigos[0].rawValue;
+                if (codigos.length > 0) payloadQr = String(codigos[0].rawValue || '').trim();
             } catch (eDet) {}
         }
 
         const archivoPDF = inputPDF.files[0];
-        const bufferCifrado = await archivoPDF.arrayBuffer();
-        const blobPDF = new Blob([bufferCifrado], { type: 'application/pdf' });
+        const bufferPdf = await archivoPDF.arrayBuffer();
+        const hashBuf = await crypto.subtle.digest('SHA-256', bufferPdf);
+        const hashLocal = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+        const matchSha = payloadQr.match(/SHA256:([a-f0-9]{64})/i);
+        const hashEsperado = matchSha ? matchSha[1].toLowerCase() : '';
+        const integridadOk = hashEsperado ? (hashEsperado === hashLocal) : null;
+        const estadoHtml = integridadOk === true
+            ? '<span style="color:#00ff64; font-weight:900;">INTEGRIDAD SHA-256 VERIFICADA (COINCIDE 100%)</span>'
+            : (integridadOk === false
+                ? '<span style="color:#ff4444; font-weight:900;">ALERTA: EL HASH NO COINCIDE — ARCHIVO ALTERADO</span>'
+                : '<span style="color:#ffd700; font-weight:800;">SHA-256 calculado en RAM (QR sin hash embebido o navegador sin BarcodeDetector)</span>');
+
+        const blobPDF = new Blob([bufferPdf], { type: 'application/pdf' });
         const urlSegura = URL.createObjectURL(blobPDF);
         const idBoveda = 'contenedor-lectura-segura';
         let contenedorDiv = document.getElementById(idBoveda);
@@ -1248,16 +1281,17 @@ window.desencriptarBoveda = async (event) => {
             contenedorDiv = document.createElement('div');
             contenedorDiv.id = idBoveda;
             contenedorDiv.className = 'panel-admin';
-            contenedorDiv.style.borderColor = 'var(--verde-sui)';
+            contenedorDiv.style.borderColor = integridadOk === false ? '#ff4444' : 'var(--verde-sui)';
             contenedorDiv.style.marginTop = '20px';
             document.getElementById('tab-boveda').appendChild(contenedorDiv);
         }
         contenedorDiv.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <h3 style="color: var(--verde-sui); margin:0;">Lectura Aislada en RAM</h3>
+                <h3 style="color: var(--verde-sui); margin:0;">Auditoría SHA-256 en RAM</h3>
                 <span style="font-size: 10px; background: var(--verde-sui); color: black; padding: 2px 6px; border-radius: 4px; font-weight:800;">RAM Only</span>
             </div>
-            <p style="font-size: 12px; color: #aaa;">Documento validado con llave: ${llaveSui.substring(0, 10)}***</p>
+            <p style="font-size: 11.5px; margin: 0 0 6px 0;">${estadoHtml}</p>
+            <p style="font-size: 10.5px; color: #9ca3af; font-family: monospace; word-break: break-all; margin: 0 0 10px 0;">SHA-256 Local: ${hashLocal}</p>
             <iframe src="${urlSegura}#toolbar=0" style="width:100%; height: 50vh; border:none; border-radius: 8px; background: white;"></iframe>
             <button class="btn-submit" style="margin-top:15px; background: transparent !important; border: 1px solid var(--rojo-alerta); color: var(--rojo-alerta);" onclick="destruirBovedaMemoria('${urlSegura}')">Destruir de la Memoria</button>
         `;
