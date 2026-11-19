@@ -746,12 +746,15 @@ window.imagenRotaToGlass = function(imgElement, nombreRef) {
         
         const btn = document.querySelector('.btn-hero-primario');
         if (btn) { btn.innerText = "Preparando Bóveda..."; btn.disabled = true; }
-        if (window.idUsuarioActual && window.GeokatuDB_Global) {
+                if (window.idUsuarioActual && window.GeokatuDB_Global) {
             try {
                 await window.GeokatuDB_Global.AdminService.actualizarNegocio(window.idUsuarioActual, {
                     tipo_modelo: perfil.tipo_modelo,
-                    categoria_maestra: perfil.categoria_maestra
+                    categoria_maestra: perfil.categoria_maestra,
+                    perfil_elegido: true
                 });
+                localStorage.setItem('geokatu_active_uid', window.idUsuarioActual);
+                localStorage.setItem('geokatu_perfil_elegido_' + window.idUsuarioActual, perfil.tipo_modelo);
             } catch (error) {
                 console.error("Error sellando el ADN inicial:", error);
             }
@@ -832,15 +835,11 @@ document.body.addEventListener('click', (e) => {
 import './profiler.js';
 import('./core-db.js').then(({ default: GeokatuDB }) => {
     window.GeokatuDB_Global = GeokatuDB;
-    GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
+        GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
         if (user) {
             window.idUsuarioActual = user.uid;
-            const uidActivoCache = localStorage.getItem('geokatu_active_uid');
-            const cacheCtx = localStorage.getItem('geokatu_contextos_cache_' + user.uid);
-            if (uidActivoCache || cacheCtx) {
-                return;
-            }
-                        const infoEmpleo = await GeokatuDB.SecurityService.obtenerPerfilLaboralEmpleado(user.uid, user.email);
+            if (typeof window.sincronizarBotonesLlave === 'function') window.sincronizarBotonesLlave();
+            const infoEmpleo = await GeokatuDB.SecurityService.obtenerPerfilLaboralEmpleado(user.uid, user.email);
             if (infoEmpleo && infoEmpleo.esEmpleado) {
                 const b1 = document.getElementById('btn-oficina-empleado');
                 const b2 = document.getElementById('btn-modal-oficina-empleado');
@@ -852,11 +851,16 @@ import('./core-db.js').then(({ default: GeokatuDB }) => {
                 }
             }
             const infoNegocio = await GeokatuDB.AdminService.obtenerNegocioPorUsuario(user.uid, user.email);
-            if (infoNegocio && infoNegocio.success && infoNegocio.data) {
-                localStorage.setItem('geokatu_active_uid', infoNegocio.data.id || user.uid);
+            const dNeg = (infoNegocio && infoNegocio.success && infoNegocio.data) ? infoNegocio.data : null;
+            const nombreLimpio = dNeg ? String(dNeg.nombre || '').trim().toLowerCase() : '';
+            const esBovedaGenerica = !dNeg || (!dNeg.perfil_elegido && Number(dNeg.progreso_boveda || 0) < 30 && (!nombreLimpio || nombreLimpio === 'mi nueva tienda' || nombreLimpio === 'mi negocio'));
+            const yaEligioLocal = Boolean(localStorage.getItem('geokatu_perfil_elegido_' + user.uid));
+            if (dNeg && (!esBovedaGenerica || yaEligioLocal)) {
+                localStorage.setItem('geokatu_active_uid', dNeg.id || user.uid);
                 return;
             }
-            console.log("FANTASMA DETECTADO: Forzando Onboarding...");
+            localStorage.removeItem('geokatu_active_uid');
+            console.log("USUARIO NUEVO DETECTADO: Lanzando Carrusel de Perfiles...");
             const modalLogin = document.getElementById('modal-login');
             if (modalLogin) modalLogin.classList.remove('activo');
             if (typeof window.dispararOnboardingPerfiles === 'function') window.dispararOnboardingPerfiles();
