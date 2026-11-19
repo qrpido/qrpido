@@ -671,6 +671,7 @@ window.vincularScrollSincronizadoCuarzos = function(idArriba, idAbajo) {
 };
 
 window.renderizarCarruselesCuarzo = function() {
+    if (!Array.isArray(window.CATALOGO_CUARZOS_GEOKATU)) return;
     var configs = [
         { trackId: 'carrusel-temas-onboarding', inputId: 'select-tema-onboarding', esModal: false, simTrackId: 'sim-track-fase1' },
         { trackId: 'carrusel-temas-modal', inputId: 'edit-select-tema', esModal: true, simTrackId: 'sim-track-modal' }
@@ -850,26 +851,29 @@ AuthGate.inicializar({
     tituloModulo: 'Oficina de Control',
     subtituloModulo: 'Consola de Administracion y Boveda Comercial',
     permitirPinDirecto: true,
-    onSesionLista: async function(contexto) {
+        onSesionLista: async function(contexto) {
         window.idNegocioLogueado = contexto.idNegocio;
-        await GeokatuDB.SecurityService.sellarSesionTerminalLocal(contexto.idNegocio);
+        try {
+            if (GeokatuDB && GeokatuDB.SecurityService && typeof GeokatuDB.SecurityService.sellarSesionTerminalLocal === 'function') {
+                await GeokatuDB.SecurityService.sellarSesionTerminalLocal(contexto.idNegocio);
+            }
+        } catch (eSel) { console.warn('[Oficina] Aviso sellado local:', eSel); }
 
-                var uidBadge = document.getElementById('ofi-uid-badge');
+        var uidBadge = document.getElementById('ofi-uid-badge');
         if (uidBadge) uidBadge.innerText = 'ID: ' + String(contexto.idNegocio).slice(0, 8) + '...';
 
-        window.activarEscudoAntiExtraccionOficina();
-        await inicializarConsolaOficina();
-        window.hidratarNichosOficina(false);
-        await window.cargarSedesRedOficina();
+        try { window.activarEscudoAntiExtraccionOficina(); } catch (eEsc) {}
+        try { await inicializarConsolaOficina(); } catch (eIni) { console.warn('[Oficina] Aviso init:', eIni); }
+        try { window.hidratarNichosOficina(false); } catch (eNic) {}
+        try { await window.cargarSedesRedOficina(); } catch (eSed) {}
 
         // Máquina de estados del onboarding inicial en 3 fases
-        var progreso = Number(window.datosTienda.progreso_boveda) || 0;
+        var progreso = Number((window.datosTienda && window.datosTienda.progreso_boveda) || 0);
         var dashboardScreen = document.getElementById('dashboard-screen');
         var faseIdentidad = document.getElementById('fase-1-identidad');
         var fasePin = document.getElementById('fase-1-pin');
         var faseMapa = document.getElementById('fase-mapa-sandbox');
 
-        // Ocultar todas las pantallas antes de despachar
         if (dashboardScreen) dashboardScreen.style.display = 'none';
         if (faseIdentidad) faseIdentidad.style.display = 'none';
         if (fasePin) fasePin.style.display = 'none';
@@ -880,21 +884,22 @@ AuthGate.inicializar({
             if (window.GeokatuTour && typeof window.GeokatuTour.iniciar === 'function') {
                 setTimeout(function() { window.GeokatuTour.iniciar('oficina'); }, 800);
             }
-        } else if (progreso >= 60) {
+        } else if (progreso >= 60 && faseMapa) {
             window.iniciarSandboxGeoespacial(false);
             setTimeout(function() { if (window.lanzarGuiaOnboardingFase) window.lanzarGuiaOnboardingFase(3); }, 600);
-        } else if (progreso >= 30) {
-            if (fasePin) fasePin.style.display = 'block';
+        } else if (progreso >= 30 && fasePin) {
+            fasePin.style.display = 'block';
             window.cargarDiccionarioEmojis();
             window.actualizarPinLive();
             setTimeout(function() { if (window.lanzarGuiaOnboardingFase) window.lanzarGuiaOnboardingFase(2); }, 600);
-        } else {
-            if (faseIdentidad) faseIdentidad.style.display = 'block';
-            var emailActivo = (AuthGate._estado.usuarioAuth && AuthGate._estado.usuarioAuth.email) ? AuthGate._estado.usuarioAuth.email : '';
+        } else if (faseIdentidad) {
+            faseIdentidad.style.display = 'block';
+            var emailActivo = (contexto && contexto.email) || (auth && auth.currentUser && auth.currentUser.email) || (AuthGate && AuthGate._estado && AuthGate._estado.usuarioAuth && AuthGate._estado.usuarioAuth.email) || '';
             window.hidratarCamposPaso1Identidad(emailActivo);
             setTimeout(function() { if (window.lanzarGuiaOnboardingFase) window.lanzarGuiaOnboardingFase(1); }, 600);
+        } else if (dashboardScreen) {
+            dashboardScreen.style.display = 'flex';
         }
-
     },
     onCerrarSesion: function() {
         // Purga atómica de memoria para que nunca quede rota la pantalla
@@ -1054,12 +1059,7 @@ elLogo.style.display = 'block';
 
 
 
-// Disparar tour guiado si el usuario entra por primera vez a la consola
-        if (window.GeokatuTour && typeof window.GeokatuTour.iniciar === 'function') {
-            setTimeout(function() {
-                window.GeokatuTour.iniciar('oficina');
-            }, 800);
-        }
+// El tour de oficina se dispara desde onSesionLista cuando progreso >= 100.
 
 
 // Diagnóstico Siigo Nube
