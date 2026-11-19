@@ -33,10 +33,14 @@
     <strong style="color: var(--naranja); letter-spacing: 0.8px;">GEOKATU <span style="color: #fff;">/ CROQUIS</span></strong>
     <span id="croquis-estado" class="croquis-estado" role="status" hidden style="margin-left: 6px;"></span>
    </div>
-      <div class="status-item" style="display: flex; align-items: center; gap: 8px;">
-    <button type="button" onclick="if(window.parent && window.parent.TerminalApp){window.parent.TerminalApp.alternarModoEditorMapa(false);}else{document.getElementById('croquis-volver').click();}" style="background:rgba(0,245,212,0.14); border:1px solid rgba(0,245,212,0.45); color:#00f5d4; border-radius:8px; padding:5px 10px; font-size:11px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:5px;">
-     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-     <span>Volver al Radar</span>
+         <div class="status-item" style="display: flex; align-items: center; gap: 6px;">
+    <button type="button" id="btn-tv-herramientas" onclick="window.gkAlternarDrawerCroquis()" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.16); color:#f3f4f6; border-radius:8px; padding:5px 10px; font-size:11px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:5px;">
+     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/></svg>
+     <span>Herramientas</span>
+    </button>
+    <button type="button" onclick="if(window.parent && window.parent.TerminalApp){window.parent.TerminalApp.alternarModoEditorMapa(false);}else{document.getElementById('croquis-volver').click();}" style="background:rgba(0,245,212,0.16); border:1px solid rgba(0,245,212,0.55); color:#00f5d4; border-radius:8px; padding:5px 10px; font-size:11px; font-weight:900; cursor:pointer; display:inline-flex; align-items:center; gap:5px;">
+     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+     <span>Listo</span>
     </button>
     <details class="croquis-mas" hidden></details>
     <div style="position: relative;">
@@ -2138,6 +2142,69 @@ menu.querySelector('.btn-editar-it').addEventListener('pointerdown', (e) => {
         
     </script>
 
+<style id="gk-tv-croquis-css">
+  .drawer-izq-seccion { padding: 12px 14px !important; display: flex; flex-direction: column; gap: 7px; border-bottom: 1px solid rgba(255,255,255,0.07) !important; }
+  .drawer-izq-titulo { font-size: 10px !important; letter-spacing: 0.9px !important; text-transform: uppercase !important; color: #9ca3af !important; font-weight: 800 !important; margin-bottom: 2px !important; }
+  .btn-herramienta-izq { width: 100% !important; text-align: left !important; padding: 10px 12px !important; border-radius: 10px !important; font-size: 12px !important; font-weight: 700 !important; background: rgba(255,255,255,0.04) !important; border: 1px solid rgba(255,255,255,0.09) !important; color: #f3f4f6 !important; display: flex !important; align-items: center !important; justify-content: space-between !important; }
+  .btn-herramienta-izq.destacado { background: rgba(255,107,0,0.14) !important; border-color: rgba(255,107,0,0.45) !important; color: #ff8c33 !important; }
+  .gk-radar-oculto { opacity: 0 !important; pointer-events: none !important; transform: scale(0.94) !important; transition: opacity 0.2s ease, transform 0.2s ease !important; }
+  .gk-radar-visible { opacity: 1 !important; pointer-events: auto !important; transform: scale(1) !important; }
+</style>
+<script id="gk-tv-croquis-js">
+(function(){
+  var radarCerradoManual = false;
+  var btnTabViejo = null;
+  function buscarTabNaranja(){
+    if (btnTabViejo) return btnTabViejo;
+    var candidatos = document.querySelectorAll("button, div");
+    for (var i = 0; i < candidatos.length; i++) {
+      var txt = (candidatos[i].textContent || "").trim();
+      if ((txt === ">" || txt === "<") && candidatos[i].id !== "btn-tv-herramientas") {
+        var st = window.getComputedStyle(candidatos[i]);
+        if (st.position === "fixed" || st.position === "absolute") {
+          btnTabViejo = candidatos[i];
+          btnTabViejo.style.display = "none";
+          break;
+        }
+      }
+    }
+    return btnTabViejo;
+  }
+  window.gkAlternarDrawerCroquis = function(){
+    var t = buscarTabNaranja();
+    if (t) { t.click(); return; }
+    var dr = document.querySelector("[id*='drawer'], .drawer-izq, .drawer-lateral");
+    if (dr) dr.classList.toggle("abierto");
+  };
+  function configurarRadarInteligente(){
+    var radar = document.querySelector(".minimapa-radar, #minimapa-radar, [id*='minimapa']");
+    if (!radar) return;
+    radar.classList.add("gk-radar-oculto");
+    var btnX = radar.querySelector("button, [class*='cerrar'], [id*='cerrar']");
+    if (btnX) {
+      btnX.style.cssText += ";width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;z-index:20;";
+      btnX.addEventListener("pointerdown", function(e){ e.stopPropagation(); radarCerradoManual = true; radar.classList.remove("gk-radar-visible"); radar.classList.add("gk-radar-oculto"); });
+      btnX.addEventListener("click", function(e){ e.stopPropagation(); radarCerradoManual = true; radar.classList.remove("gk-radar-visible"); radar.classList.add("gk-radar-oculto"); });
+    }
+    setInterval(function(){
+      var lienzo = document.querySelector("#mundo-croquis, #canvas-croquis, #lienzo-plano, .lienzo-transform");
+      if (!lienzo) return;
+      var tr = window.getComputedStyle(lienzo).transform || "";
+      var m = tr.match(/matrix\(([^,]+),/);
+      var escala = m ? parseFloat(m[1]) : 1;
+      if (escala >= 1.4 && !radarCerradoManual) {
+        radar.classList.remove("gk-radar-oculto");
+        radar.classList.add("gk-radar-visible");
+      } else if (escala < 1.35) {
+        radarCerradoManual = false;
+        radar.classList.remove("gk-radar-visible");
+        radar.classList.add("gk-radar-oculto");
+      }
+    }, 300);
+  }
+  window.addEventListener("DOMContentLoaded", function(){ setTimeout(function(){ buscarTabNaranja(); configurarRadarInteligente(); }, 350); });
+})();
+</script>
 </body>
 </html>
 
