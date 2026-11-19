@@ -110,8 +110,25 @@
         document.head.appendChild(style);
     }
 
-    // 2. Diccionarios de Pasos Especializados por Cada Módulo
+        // 2. Diccionarios de Pasos Especializados por Cada Módulo
     const GUIAS_MODULOS = {
+        'index': [
+            {
+                target: '#buscador-radar, input[type="search"], .buscador-flotante',
+                titulo: 'Radar de Comercios',
+                cuerpo: 'Busca tiendas, productos o servicios cercanos en el mapa de la ciudad en tiempo real.'
+            },
+            {
+                target: '#btn-portal-mando, .btn-login',
+                titulo: 'Llave Maestra',
+                cuerpo: 'Desde aquí inicias sesión y accedes a tu Oficina Comercial, Caja y Tienda (POS/WMS) o Notaría.'
+            },
+            {
+                target: '#map, .maplibregl-canvas',
+                titulo: 'Explora los Pines',
+                cuerpo: 'Toca cualquier pin del mapa para ver catálogo, horarios, WhatsApp directo o guardar en favoritos.'
+            }
+        ],
         'pos': [
             {
                 target: '#btn-iniciar-camara',
@@ -163,21 +180,21 @@
                 cuerpo: 'Escanea el QR del mueble o búscalo en la lista para que la mercancía quede ubicada en el plano SIG.'
             }
         ],
-        'inventario': [
+                'inventario': [
             {
-                target: '#btn-zoom-fit',
-                titulo: 'Centrado de Precisión',
-                cuerpo: 'Encuadra todo el plano de la tienda o bodega en el centro de tu pantalla táctil.'
+                target: 'input[type="search"], #buscador-sku, .cad-buscador',
+                titulo: 'Buscador Instantáneo WMS',
+                cuerpo: 'Escribe un SKU, nombre o código de mueble (ej. PVT001) para iluminar su ubicación exacta en el plano.'
             },
             {
-                target: '#btn-fab-trigger',
+                target: '.cinta-capas, .cad-capas, [data-capa]',
                 titulo: 'Capas y Heatmaps',
-                cuerpo: 'Filtra por calor de stock, niveles de precio, auditoría reciente o productos próximos a vencer.'
+                cuerpo: 'Alterna entre Todos los muebles, Heatmap de stock o Estado de auditoría con un toque.'
             },
             {
-                target: '#visor-alzado-pip',
-                titulo: 'Alzado Pseudo-3D',
-                cuerpo: 'Toca cualquier estante para ver sus niveles verticales, reponer unidades o declarar mermas físicas.'
+                target: '#plano-contenedor, #lienzo-mapa, canvas',
+                titulo: 'Toca Cualquier Góndola',
+                cuerpo: 'Presiona un mueble para ver su ficha, abrir el alzado 2.5D o saltar directo a Stock.'
             }
         ],
         'mapatienda': [
@@ -212,7 +229,7 @@
 
         iniciar(moduloId, forzar = false) {
             this.moduloId = moduloId;
-            this.claveStorage = 'geokatu_tour_' + moduloId + '_v1';
+                        this.claveStorage = 'geokatu_tour_' + moduloId + '_v2';
 
             if (!forzar && localStorage.getItem(this.claveStorage)) {
                 return; // Ya completó el tour previamente
@@ -254,28 +271,22 @@
                 return;
             }
 
-            const paso = this.pasos[this.pasoActual];
-            const targetEl = document.querySelector(paso.target);
+                        const paso = this.pasos[this.pasoActual];
+            const targetEl = paso.target ? document.querySelector(paso.target) : null;
+            const esVisible = Boolean(targetEl && targetEl.offsetParent !== null);
 
-            // Si el elemento no está visible en el DOM actual, salta al siguiente
-            if (!targetEl || targetEl.offsetParent === null) {
-                this.pasoActual++;
-                this._renderizarPaso();
-                return;
-            }
-
-            targetEl.classList.add('gk-tour-target-highlight');
             this.overlay.classList.add('activo');
+            let leftCard = Math.max(16, (window.innerWidth - Math.min(330, window.innerWidth - 32)) / 2);
+            let topCard = Math.max(80, Math.round((window.innerHeight - 190) / 2));
 
-            // Posicionamiento inteligente relativo al elemento
-            const rect = targetEl.getBoundingClientRect();
-            const margen = 12;
-            let topCard = rect.bottom + margen;
-            let leftCard = Math.max(16, (window.innerWidth - 330) / 2);
-
-            // Si se desborda por abajo, situarlo arriba del elemento
-            if (topCard + 180 > window.innerHeight) {
-                topCard = Math.max(16, rect.top - 180 - margen);
+            if (esVisible) {
+                targetEl.classList.add('gk-tour-target-highlight');
+                const rect = targetEl.getBoundingClientRect();
+                const margen = 12;
+                topCard = rect.bottom + margen;
+                if (topCard + 185 > window.innerHeight) {
+                    topCard = Math.max(16, rect.top - 185 - margen);
+                }
             }
 
             this.card.style.top = Math.round(topCard) + 'px';
@@ -317,7 +328,29 @@
         }
     }
 
-    window.GeokatuTour = new GeokatuTourEngine();
+        window.GeokatuTour = new GeokatuTourEngine();
+
+    // Auto-detección de módulo por ruta si la vista no lo invocó manualmente
+    function detectarModuloActual() {
+        const p = String(window.location.pathname || '').toLowerCase();
+        if (p === '/' || p.endsWith('/index.html')) return 'index';
+        if (p.includes('oficina')) return 'oficina';
+        if (p.includes('mapatienda')) return 'mapatienda';
+        if (p.includes('inventario')) return 'inventario';
+        if (p.includes('stock')) return 'stock';
+        if (p.includes('pos')) return 'pos';
+        return '';
+    }
+
+    window.addEventListener('DOMContentLoaded', function () {
+        const mod = detectarModuloActual();
+        if (!mod) return;
+        setTimeout(function () {
+            if (!document.getElementById('gk-tour-backdrop-node') || !document.getElementById('gk-tour-backdrop-node').classList.contains('activo')) {
+                window.GeokatuTour.iniciar(mod, false);
+            }
+        }, 900);
+    });
 
 })(window);
 
