@@ -493,7 +493,7 @@
                 <!-- Slot Logotipo Tipográfico PNG Transparente (Alineado con Oficina) -->
                 <div class="form-grupo-edicion">
                     <label>Logotipo Tipográfico (PNG / WebP Transparente)</label>
-                    <input type="file" id="input-file-nombre-png-modal" accept="image/png,image/webp" style="display:none;" onchange="window.previsualizarNombrePngModal(this)">
+                    <input type="file" id="input-file-nombre-png-modal" accept="image/*" style="display:none;" onchange="window.previsualizarNombrePngModal(this)">
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <div style="width: 110px; height: 38px; border-radius: 8px; background: #0a0a0c; border: 1px dashed var(--glass-border); display: flex; align-items: center; justify-content: center; padding: 3px; box-sizing: border-box;">
                             <img id="img-preview-nombre-png-modal" src="" alt="Logo tipográfico" style="max-height: 100%; max-width: 100%; object-fit: contain; display: none;">
@@ -1016,13 +1016,15 @@
                 const esSuperadmin = Boolean(rol && rol.success && rol.data && rol.data.rol === 'superadmin');
                 autorizado = Boolean(esDuenoRed || esSuperadmin);
             }
-            window.usuarioEsDueno = autorizado;
+                        window.usuarioEsDueno = autorizado;
             const btnEdit = document.getElementById('btn-modo-edicion');
             if (btnEdit) btnEdit.style.display = window.usuarioEsDueno ? 'flex' : 'none';
             if (!window.usuarioEsDueno) {
                 window.modoEdicionActivo = false;
                 document.body.classList.remove('modo-edicion');
                 document.getElementById('modal-editar-perfil-negocio').classList.remove('activo');
+            } else if (urlParams.get('onboarding') === 'paso4' && typeof window.activarOnboardingPaso4Catalogo === 'function') {
+                window.activarOnboardingPaso4Catalogo();
             }
             if (window.CatalogoUI) window.CatalogoUI.actualizarIdentidad();
         })).catch(error => console.warn('Servicios del catálogo no disponibles:', error));
@@ -2488,8 +2490,11 @@
                         codigo: retailCod,
                         detalle: retailDet
                     },
-                    unidad_medida: valorMedida > 0 ? (valorMedida + ' ' + unidadMedida) : unidadMedida,
+                                        unidad_medida: valorMedida > 0 ? (valorMedida + ' ' + unidadMedida) : unidadMedida,
                     en_piso_venta: true,
+                    stock_piso_venta: (productoEnEdicionInSitu && productoEnEdicionInSitu.ubicacion_mueble) ? (productoEnEdicionInSitu.stock_piso_venta ?? stock) : stock,
+                    stock_bodega: (productoEnEdicionInSitu && productoEnEdicionInSitu.ubicacion_mueble) ? (productoEnEdicionInSitu.stock_bodega ?? 0) : 0,
+                    ubicacion_wms: (productoEnEdicionInSitu && productoEnEdicionInSitu.ubicacion_mueble) ? productoEnEdicionInSitu.ubicacion_wms : 'PISO_VENTA_GENERAL',
                     eliminado: false,
                     fecha_actualizacion: new Date().toISOString()
                 };
@@ -2523,9 +2528,10 @@
                     await GeokatuDB.AdminService.guardarProducto(idSedeP, idProdPropagar, clonProd);
                 }
 
-                if (navigator.vibrate) navigator.vibrate([40, 80, 40]);
+                                if (navigator.vibrate) navigator.vibrate([40, 80, 40]);
                 window.cerrarModalManual('modal-edicion-producto');
                 await cargarCatalogoProductos(true);
+                if (typeof window.actualizarContadorPaso4 === 'function') window.actualizarContadorPaso4(productosMemoria.length);
             } catch (err) {
                 alert("Error al guardar producto: " + err.message);
             } finally {
@@ -2580,6 +2586,36 @@
             else window.addEventListener('load', registrarOffline, {once:true});
         }
     </script>
+<div id="barra-onboarding-paso4" style="display:none; position:fixed; bottom:12px; left:12px; right:12px; max-width:460px; margin:0 auto; z-index:9950; background:rgba(15,16,22,0.97); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1.5px solid #ff6b00; border-radius:18px; padding:12px 14px; box-shadow:0 16px 40px rgba(0,0,0,0.92); color:#fff; box-sizing:border-box;">
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px;">
+    <span style="font-size:10px; font-weight:900; color:#ff6b00; text-transform:uppercase; letter-spacing:0.8px;">Paso 4 de 5 · Tu Catálogo Público</span>
+    <span id="badge-conteo-paso4" style="font-size:10px; font-weight:800; color:#00ff64; background:rgba(0,255,100,0.12); border:1px solid rgba(0,255,100,0.35); border-radius:999px; padding:2px 8px;">0 cargados</span>
+  </div>
+  <p style="margin:0 0 10px 0; font-size:11.5px; color:#cbd5e1; line-height:1.35;">Sube tus primeros productos aquí. Todo lo que agregues suma automáticamente a tu <b>Piso de Venta</b> para que puedas probar tu caja POS.</p>
+  <div style="display:flex; gap:8px;">
+    <button type="button" onclick="window.abrirModalProductoNuevo()" style="flex:1; height:40px; border-radius:11px; border:1px solid rgba(0,245,212,0.55); background:rgba(0,245,212,0.14); color:#00f5d4; font-size:11.5px; font-weight:900; cursor:pointer;">+ Nuevo Producto</button>
+    <button type="button" onclick="window.finalizarPaso4IrAPOS()" style="flex:1.25; height:40px; border-radius:11px; border:none; background:linear-gradient(135deg,#ff8c00,#ff6b00); color:#fff; font-size:12px; font-weight:900; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; box-shadow:0 6px 16px rgba(255,107,0,0.38);">¡TERMINÉ! → POS</button>
+  </div>
+</div>
+<script>
+  window.actualizarContadorPaso4 = function(total) {
+    var b = document.getElementById("badge-conteo-paso4");
+    if (b) b.textContent = (Number(total) || 0) + " cargados";
+  };
+  window.activarOnboardingPaso4Catalogo = function() {
+    if (!window.modoEdicionActivo && typeof window.toggleModoEdicion === "function") {
+      window.toggleModoEdicion();
+    }
+    var barra = document.getElementById("barra-onboarding-paso4");
+    if (barra) barra.style.display = "block";
+    var cards = document.querySelectorAll("#catalogo-contenedor .producto-card").length;
+    window.actualizarContadorPaso4(cards);
+  };
+  window.finalizarPaso4IrAPOS = function() {
+    if (navigator.vibrate) navigator.vibrate(30);
+    window.location.href = "/terminal?vista=pos&onboarding=paso5";
+  };
+</script>
 </body>
 </html>
 
