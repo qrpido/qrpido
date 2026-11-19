@@ -1045,8 +1045,14 @@ const CIUDADES_REFERENCIA_GEO = [
     { nombre: "Pereira, Colombia", lat: 4.8133, lng: -75.6961 },
     { nombre: "Caracas, Venezuela", lat: 10.4806, lng: -66.9036 },
     { nombre: "Maracaibo, Venezuela", lat: 10.6666, lng: -71.6124 },
-    { nombre: "Valencia, Venezuela", lat: 10.1620, lng: -68.0077 },
-    { nombre: "Táchira (Lobatera / San Cristóbal), Venezuela", lat: 7.7794, lng: -72.2247 }
+        { nombre: "Valencia, Venezuela", lat: 10.1620, lng: -68.0077 },
+    { nombre: "Táchira (Lobatera / San Cristóbal), Venezuela", lat: 7.7794, lng: -72.2247 },
+    { nombre: "Michelena, Táchira, Venezuela", lat: 7.9564, lng: -72.2439 },
+    { nombre: "Colón / Ayacucho, Táchira, Venezuela", lat: 8.0315, lng: -72.2610 },
+    { nombre: "Rubio, Táchira, Venezuela", lat: 7.7014, lng: -72.3558 },
+    { nombre: "San Antonio del Táchira, Venezuela", lat: 7.8147, lng: -72.4431 },
+    { nombre: "Ureña, Táchira, Venezuela", lat: 7.9178, lng: -72.4442 },
+    { nombre: "Táriba, Táchira, Venezuela", lat: 7.8186, lng: -72.2236 }
 ];
 
 window.filtrarCiudadesSugeridas = function(texto) {
@@ -2039,8 +2045,15 @@ function esGestoSignificativo() {
     const st = document.createElement('style');
     st.id = 'geokatu-lunar-styles';
     st.textContent = `
+                #mapa-qrpido .pin-zoom-scaler {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transform: scale(var(--pin-zoom-scale, 0.75));
+            transform-origin: center bottom;
+            pointer-events: auto;
+        }
         #mapa-qrpido .pin-wrapper {
-            transform: scale(var(--pin-zoom-scale, 0.75)) !important;
             pointer-events: auto !important;
         }
         .pin-lunar-drop {
@@ -2727,9 +2740,18 @@ window.barridoRadar = function(filtroTexto = "", opciones = {}) {
         const favStyleBtn = esFav ? 'color: #ff4444; border-color: #ff4444; background: rgba(255,68,68,0.2);' : '';
         const esAliado = (p.red_afiliados === true || p.red_afiliados === 'SI');
         
-        let htmlAtributosGorras = '';
+                let htmlAtributosGorras = '';
+        let badgeArcoHtml = '';
         if (emojiGorra) {
-            htmlAtributosGorras = `data-emoji="${emojiGorra}" data-anclaje="${claseAnclaje}"`;
+            if (claseAnclaje && claseAnclaje.indexOf('anclaje-arco:') === 0) {
+                const deg = parseFloat(claseAnclaje.split(':')[1]) || 0;
+                const rad = (deg - 90) * Math.PI / 180;
+                const posX = (50 + 48 * Math.cos(rad)).toFixed(2);
+                const posY = (50 + 48 * Math.sin(rad)).toFixed(2);
+                badgeArcoHtml = `<span class="gk-pin-emoji-arco" style="left:${posX}%; top:${posY}%;">${emojiGorra}</span>`;
+            } else {
+                htmlAtributosGorras = `data-emoji="${emojiGorra}" data-anclaje="${claseAnclaje}"`;
+            }
         }
 
         var esTemaClasico = (p.tema_popup === 'clasico');
@@ -2918,7 +2940,7 @@ window.barridoRadar = function(filtroTexto = "", opciones = {}) {
 
             const urlFondoFinal = tieneFotoValida ? urlCandidata : fallbackSVGAureo;
 
-            var claseVisualPin = esAliado ? ('pin-moneda-magica ' + claseFuego) : (claseForma + ' ' + claseAnimacion + ' ' + claseFuego);
+                        var claseVisualPin = esAliado ? (claseForma + ' ' + claseAnimacion + ' pin-moneda-magica ' + claseFuego) : (claseForma + ' ' + claseAnimacion + ' ' + claseFuego);
             var colorPinMain = esAliado ? '#FFD700' : c1;
             var colorPinSec = esAliado ? '#1a1600' : c2;
 
@@ -2944,11 +2966,14 @@ window.barridoRadar = function(filtroTexto = "", opciones = {}) {
                 ? `<span style="position:absolute; top:-4px; right:-4px; background:#ff6b00; color:#fff; border:1.5px solid #fff; border-radius:10px; font-size:9px; font-weight:900; padding:1px 5px; z-index:20;">+${infoSpider.totalCoincidentes - 1}</span>`
                 : '';
 
-            elDOM.innerHTML = 
+                        elDOM.innerHTML = 
                 `<div class="pin-lunar-drop anim-entrada-lunar" style="--lunar-delay:${delayLunarMs}ms; --spider-dx:${dxSpider}px; --spider-dy:${dySpider}px;">` +
-                    `<div class="pin-wrapper ${claseVisualPin}" data-forma="${claseForma}" style="${cssVarsPin}" ${htmlAtributosGorras}>` +
-                        svgSiluetaCompleta +
-                        badgeClusterHtml +
+                    `<div class="pin-zoom-scaler">` +
+                        `<div class="pin-wrapper ${claseVisualPin}" data-forma="${claseForma}" style="${cssVarsPin}" ${htmlAtributosGorras}>` +
+                            svgSiluetaCompleta +
+                            badgeArcoHtml +
+                            badgeClusterHtml +
+                        `</div>` +
                     `</div>` +
                 `</div>`;
 
