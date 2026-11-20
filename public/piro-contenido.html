@@ -268,7 +268,10 @@
         Guiones
       </button>
     </div>
-    <span id="badge-sync-cont" class="sync-pill">Cargando...</span>
+        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+      <button type="button" class="btn btn-xs btn-blue" onclick="window.exportarManifiestoTermux()">Exportar JSON Termux</button>
+      <span id="badge-sync-cont" class="sync-pill">Cargando...</span>
+    </div>
   </header>
 
   <!-- RIEL DE ENTIDADES DE LA CATEGORÍA -->
@@ -354,8 +357,11 @@ let biblioteca = {
 };
 let catActiva = 'personajes';
 let selId = { personajes: null, escenarios: null, guiones: null };
-let subTabPersonaje = 'ficha'; // ficha | base | ojos | bocas | extremidades | variantes
+let subTabPersonaje = 'ficha'; // ficha | base | ojos | bocas | extremidades | variantes | sandwich
 let tipoPromptVista = 'cuerpo_completo';
+let filtroPropsCat = 'todos';
+let sandwichCfg = { ojos: 'ojos_neutro', boca: 'boca_cerrada', brazoDel: 'brazo_delantero_reposo', rotCab: 0, rotBrazo: 0, bg: 'checker', piernas: true };
+const sandwichImgCache = {};
 let slotUploadPendiente = null;
 let tipoModalCrear = null;
 let debounceGuardar = null;
@@ -677,7 +683,8 @@ function renderizarVistaPersonajes() {
       '<button type="button" class="sub-tab' + (subTabPersonaje === 'ojos' ? ' activo' : '') + '" onclick="window.setSubTabPersonaje(\'ojos\')">Ojos (' + contarGrupo('ojos') + ')</button>' +
       '<button type="button" class="sub-tab' + (subTabPersonaje === 'bocas' ? ' activo' : '') + '" onclick="window.setSubTabPersonaje(\'bocas\')">Bocas (' + contarGrupo('bocas') + ')</button>' +
       '<button type="button" class="sub-tab' + (subTabPersonaje === 'extremidades' ? ' activo' : '') + '" onclick="window.setSubTabPersonaje(\'extremidades\')">Brazos &amp; Piernas (' + contarGrupo('extremidades') + ')</button>' +
-      '<button type="button" class="sub-tab' + (subTabPersonaje === 'variantes' ? ' activo' : '') + '" onclick="window.setSubTabPersonaje(\'variantes\')">Variantes Extra (+' + pr.totalExtras + ')</button>' +
+            '<button type="button" class="sub-tab' + (subTabPersonaje === 'variantes' ? ' activo' : '') + '" onclick="window.setSubTabPersonaje(\'variantes\')">Variantes Extra (+' + pr.totalExtras + ')</button>' +
+      '<button type="button" class="sub-tab' + (subTabPersonaje === 'sandwich' ? ' activo' : '') + '" onclick="window.setSubTabPersonaje(\'sandwich\')">Probador Sándwich</button>' +
     '</div>';
 
   if (subTabPersonaje === 'ficha') {
@@ -696,7 +703,17 @@ function renderizarVistaPersonajes() {
           '<div class="field"><label>Pose Icónica (una sola pose fija)</label><input class="inp" value="' + esc(p.pose_iconica) + '" oninput="window.editarCampoPersonaje(\'pose_iconica\', this.value)"></div>' +
           '<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">' +
             '<div class="field"><label>Arquetipo / Forma de hablar</label><input class="inp" value="' + esc(p.personalidad) + '" oninput="window.editarCampoPersonaje(\'personalidad\', this.value)"></div>' +
-            '<div class="field"><label>ElevenLabs voice_id</label><input class="inp" value="' + esc(p.voice_id || '') + '" placeholder="ID de voz" oninput="window.editarCampoPersonaje(\'voice_id\', this.value)"></div>' +
+                        '<div class="field"><label>ElevenLabs voice_id</label><input class="inp" value="' + esc(p.voice_id || '') + '" placeholder="ID de voz" oninput="window.editarCampoPersonaje(\'voice_id\', this.value)"></div>' +
+          '</div>' +
+          '<div class="field" style="margin-bottom:0; padding-top:8px; border-top:1px solid var(--border);">' +
+            '<div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:6px;">' +
+              '<label style="margin:0;">Muestra de Voz (muestra_voz.mp3)</label>' +
+              '<div style="display:flex; gap:5px;">' +
+                '<button type="button" class="btn btn-xs btn-blue" onclick="window.subirMuestraVozPersonaje()">' + (p.muestra_voz && p.muestra_voz.url ? 'Cambiar Audio' : 'Subir Audio') + '</button>' +
+                (p.muestra_voz && p.muestra_voz.url ? '<button type="button" class="btn btn-xs btn-danger" onclick="window.quitarMuestraVozPersonaje()">Quitar</button>' : '') +
+              '</div>' +
+            '</div>' +
+            (p.muestra_voz && p.muestra_voz.url ? '<audio controls src="' + esc(p.muestra_voz.url) + '" style="width:100%; height:32px;"></audio>' : '<div style="font-size:11px; color:var(--muted);">Sin muestra de voz cargada todavía.</div>') +
           '</div>' +
         '</div>' +
 
@@ -749,16 +766,53 @@ function renderizarVistaPersonajes() {
       });
     }
     html += '</div>';
+    } else if (subTabPersonaje === 'sandwich') {
+    const bgStyle = sandwichCfg.bg === 'dark' ? 'background:#05070b;' : (sandwichCfg.bg === 'light' ? 'background:#f1f5f9;' : 'background-color:#151a22; background-image:linear-gradient(45deg,#212834 25%,transparent 25%),linear-gradient(-45deg,#212834 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#212834 75%),linear-gradient(-45deg,transparent 75%,#212834 75%); background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0;');
+    html +=
+      '<div class="art-grid">' +
+        '<div class="card-box" style="display:flex; flex-direction:column; align-items:center; gap:8px;">' +
+          '<div style="width:100%; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">' +
+            '<span style="font-size:11.5px; font-weight:800; color:var(--verde);">PROBADOR SÁNDWICH 2D (1000×1600)</span>' +
+            '<div style="display:flex; gap:4px;">' +
+              '<button type="button" class="btn btn-xs' + (sandwichCfg.bg === 'checker' ? ' btn-blue' : '') + '" onclick="window.actualizarSandwich(\'bg\',\'checker\')">Cuadrícula</button>' +
+              '<button type="button" class="btn btn-xs' + (sandwichCfg.bg === 'dark' ? ' btn-blue' : '') + '" onclick="window.actualizarSandwich(\'bg\',\'dark\')">Oscuro</button>' +
+              '<button type="button" class="btn btn-xs' + (sandwichCfg.bg === 'light' ? ' btn-blue' : '') + '" onclick="window.actualizarSandwich(\'bg\',\'light\')">Claro</button>' +
+            '</div>' +
+          '</div>' +
+          '<div style="width:100%; display:flex; justify-content:center; border:1px solid var(--border); border-radius:12px; padding:10px; ' + bgStyle + '">' +
+            '<canvas id="canvas-sandwich" width="1000" height="1600" style="max-width:100%; max-height:430px; width:auto; height:auto; display:block;"></canvas>' +
+          '</div>' +
+          '<div id="sandwich-estado-txt" style="font-size:11px; color:var(--muted); width:100%; text-align:center;">Verifica alineación, halos y pivotes antes de pasar a Python.</div>' +
+        '</div>' +
+        '<div class="card-box">' +
+          '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">' +
+            '<span style="font-size:12px; font-weight:800; color:var(--azul); text-transform:uppercase;">Controles de Marioneta</span>' +
+            '<button type="button" class="btn btn-xs" onclick="window.resetearSandwich()">Reset Poses</button>' +
+          '</div>' +
+          '<div class="field"><label>Ojos + Cejas</label><select class="sel" onchange="window.actualizarSandwich(\'ojos\', this.value)">' +
+            ['ojos_neutro','ojos_feliz','ojos_enojado','ojos_triste','ojos_duda','ojos_indignado'].map(function(k) { return '<option value="' + k + '"' + (sandwichCfg.ojos === k ? ' selected' : '') + '>' + k.replace('ojos_', '') + (p.piezas[k] && p.piezas[k].url ? ' (OK)' : ' (vacío)') + '</option>'; }).join('') +
+          '</select></div>' +
+          '<div class="field"><label>Boca (Lip-Sync)</label><select class="sel" onchange="window.actualizarSandwich(\'boca\', this.value)">' +
+            ['boca_cerrada','boca_media','boca_abierta','boca_sonrisa','boca_molesta'].map(function(k) { return '<option value="' + k + '"' + (sandwichCfg.boca === k ? ' selected' : '') + '>' + k.replace('boca_', '') + (p.piezas[k] && p.piezas[k].url ? ' (OK)' : ' (vacío)') + '</option>'; }).join('') +
+          '</select></div>' +
+          '<div class="field"><label>Brazo Delantero</label><select class="sel" onchange="window.actualizarSandwich(\'brazoDel\', this.value)">' +
+            '<option value="brazo_delantero_reposo"' + (sandwichCfg.brazoDel === 'brazo_delantero_reposo' ? ' selected' : '') + '>Reposo</option>' +
+            '<option value="brazo_delantero_prop"' + (sandwichCfg.brazoDel === 'brazo_delantero_prop' ? ' selected' : '') + '>Sosteniendo Prop</option>' +
+            '<option value="ninguno"' + (sandwichCfg.brazoDel === 'ninguno' ? ' selected' : '') + '>Oculto</option>' +
+          '</select></div>' +
+          '<div class="field"><label>Giro Cabeza sobre Cuello (<b id="sw-rot-cab-val">' + sandwichCfg.rotCab + '°</b>)</label><input type="range" min="-25" max="25" value="' + sandwichCfg.rotCab + '" style="width:100%; accent-color:var(--naranja);" oninput="window.actualizarSandwich(\'rotCab\', Number(this.value))"></div>' +
+          '<div class="field"><label>Giro Brazo sobre Hombro (<b id="sw-rot-brz-val">' + sandwichCfg.rotBrazo + '°</b>)</label><input type="range" min="-45" max="45" value="' + sandwichCfg.rotBrazo + '" style="width:100%; accent-color:var(--azul);" oninput="window.actualizarSandwich(\'rotBrazo\', Number(this.value))"></div>' +
+          '<label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); cursor:pointer;"><input type="checkbox"' + (sandwichCfg.piernas ? ' checked' : '') + ' style="accent-color:var(--verde);" onchange="window.actualizarSandwich(\'piernas\', this.checked)"> Mostrar piernas articuladas</label>' +
+        '</div>' +
+      '</div>';
   } else {
     const slotsGrupo = SLOTS_BASICOS_PERSONAJE.filter(function(s) { return s.grupo === subTabPersonaje; });
     html += '<div class="slots-grid">';
-    slotsGrupo.forEach(function(s) {
-      html += construirCardSlot(p, s, p.piezas[s.key] || null);
-    });
+    slotsGrupo.forEach(function(s) { html += construirCardSlot(p, s, p.piezas[s.key] || null); });
     html += '</div>';
   }
-
   ws.innerHTML = html;
+  if (subTabPersonaje === 'sandwich') setTimeout(function() { window.dibujarProbadorSandwich(); }, 25);
 }
 
 function construirCardSlot(personaje, spec, datoGuardado) {
@@ -839,8 +893,9 @@ window.iniciarSubidaSlotPersonaje = function(slotKey, esVariante) {
     esVariante: Boolean(esVariante),
     presetId: spec.preset || 'per_cuerpo',
     archivoNombre: spec.archivo || slotKey,
-    etiqueta: p.nombre + ' · ' + (spec.titulo || slotKey),
-    calcoUrl: (p.piezas && p.piezas.maestro_cuerpo && p.piezas.maestro_cuerpo.url) || null
+        etiqueta: p.nombre + ' · ' + (spec.titulo || slotKey),
+    calcoUrl: obtenerCalcoInteligente(p, slotKey),
+    pivotesIniciales: parsearPivotesPersonaje(p)
   };
   const inp = document.getElementById('input-file-slot');
   inp.accept = 'image/*';
@@ -861,8 +916,10 @@ window.abrirEstudioVacioParaSlot = function(slotKey, esVariante) {
     origen: 'contenido',
     etiqueta: p.nombre + ' · ' + spec.titulo,
     presetId: spec.preset,
-    entidadId: p.id,
+        entidadId: p.id,
     archivoNombre: spec.archivo,
+    calcoUrl: obtenerCalcoInteligente(p, slotKey),
+    pivotesIniciales: parsearPivotesPersonaje(p),
     slotMeta: { tipo: 'personaje', entidadId: p.id, slotKey: slotKey, esVariante: Boolean(esVariante) }
   }, '*');
 };
@@ -884,56 +941,130 @@ window.manejarArchivoSlotSeleccionado = async function(file) {
         entidadId: meta.entidadId,
         zonaId: meta.zonaId || 'zona_01',
         archivoNombre: meta.archivoNombre,
-        dataUrl: ev.target.result,
+                dataUrl: ev.target.result,
         calcoUrl: meta.calcoUrl || null,
+        pivotesIniciales: meta.pivotesIniciales || null,
         slotMeta: meta
       }, '*');
     };
     reader.readAsDataURL(file);
     return;
   }
-
-  // Subida directa (audio o standalone)
-  await subirYAsignarArchivoASlot(file, meta);
+  await subirYAsignarArchivoASlot(file, meta, null);
 };
 
-async function subirYAsignarArchivoASlot(fileObj, meta) {
-  if (!GeokatuDB.PirobonianosService) {
-    toast('Falta PirobonianosService en core-db.js.', 'error');
-    return;
-  }
-  setSyncBadge('Subiendo...', 'warn');
-  const ruta = meta.tipo + '/' + meta.entidadId + '/' + (meta.zonaId ? (meta.zonaId + '/') : '') + Date.now() + '_' + String(fileObj.name || 'activo.png').replace(/[^a-zA-Z0-9._-]+/g, '_');
-  const res = await GeokatuDB.PirobonianosService.subirActivoPirobonianos('biblioteca_contenido', ruta, fileObj);
-  if (!res.success) {
-    toast('Error subiendo archivo: ' + res.error, 'error');
-    setSyncBadge('Error', 'warn');
-    return;
-  }
-  const registro = { url: res.url, rutaStorage: res.rutaStorage, nombre: fileObj.name, tipo: res.tipo, fecha: res.fecha };
+function parsearPivotesPersonaje(p) {
+  if (!p || !p.pivotes_json) return null;
+  try { const o = JSON.parse(p.pivotes_json); return (o && typeof o === 'object') ? o : null; } catch (e) { return null; }
+}
 
+function obtenerCalcoInteligente(p, slotKey) {
+  if (!p || !p.piezas) return null;
+  if (String(slotKey || '').indexOf('ojos_') === 0 || String(slotKey || '').indexOf('boca_') === 0) {
+    return (p.piezas.cabeza_base && p.piezas.cabeza_base.url) || (p.piezas.maestro_perfil && p.piezas.maestro_perfil.url) || (p.piezas.maestro_cuerpo && p.piezas.maestro_cuerpo.url) || null;
+  }
+  return (p.piezas.maestro_cuerpo && p.piezas.maestro_cuerpo.url) || null;
+}
+
+function cargarImgSandwich(url) {
+  return new Promise(function(resolve) {
+    if (!url) { resolve(null); return; }
+    if (sandwichImgCache[url]) { resolve(sandwichImgCache[url]); return; }
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = function() { sandwichImgCache[url] = img; resolve(img); };
+    img.onerror = function() { resolve(null); };
+    img.src = url;
+  });
+}
+
+window.actualizarSandwich = function(campo, val) {
+  sandwichCfg[campo] = val;
+  if (campo === 'bg') { renderizarVistaPersonajes(); return; }
+  const c = document.getElementById('sw-rot-cab-val'), b = document.getElementById('sw-rot-brz-val');
+  if (c) c.textContent = sandwichCfg.rotCab + '°';
+  if (b) b.textContent = sandwichCfg.rotBrazo + '°';
+  window.dibujarProbadorSandwich();
+};
+
+window.resetearSandwich = function() {
+  sandwichCfg = { ojos: 'ojos_neutro', boca: 'boca_cerrada', brazoDel: 'brazo_delantero_reposo', rotCab: 0, rotBrazo: 0, bg: sandwichCfg.bg, piernas: true };
+  renderizarVistaPersonajes();
+};
+
+window.dibujarProbadorSandwich = async function() {
+  const canvas = document.getElementById('canvas-sandwich'), p = obtenerPersonajeActual();
+  if (!canvas || !p) return;
+  const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, 1000, 1600);
+  const piezas = p.piezas || {}, piv = parsearPivotesPersonaje(p) || {};
+  const getPt = function(k, fx, fy) {
+    const v = piv[k];
+    if (Array.isArray(v) && v.length >= 2) return { x: Number(v[0]) || fx, y: Number(v[1]) || fy };
+    if (v && typeof v.x === 'number' && typeof v.y === 'number') return { x: v.x, y: v.y };
+    return { x: fx, y: fy };
+  };
+  const claves = ['brazo_trasero_reposo', 'pierna_trasera', 'pierna_delantera', 'cuerpo_base', 'maestro_cuerpo', 'cabeza_base', sandwichCfg.ojos, sandwichCfg.boca, sandwichCfg.brazoDel];
+  const imgs = {};
+  await Promise.all(claves.map(async function(k) { if (k && k !== 'ninguno' && !imgs[k]) imgs[k] = await cargarImgSandwich(piezas[k] ? piezas[k].url : null); }));
+  let n = 0;
+  const drawP = function(im) { if (im) { ctx.drawImage(im, 0, 0, 1000, 1600); n++; } };
+  const drawR = function(im, pt, deg) { if (!im) return; ctx.save(); ctx.translate(pt.x, pt.y); ctx.rotate((deg * Math.PI) / 180); ctx.drawImage(im, -pt.x, -pt.y, 1000, 1600); ctx.restore(); n++; };
+  drawP(imgs.brazo_trasero_reposo);
+  if (sandwichCfg.piernas) { drawP(imgs.pierna_trasera); drawP(imgs.pierna_delantera); }
+  if (imgs.cuerpo_base) drawP(imgs.cuerpo_base); else if (imgs.maestro_cuerpo) { ctx.save(); ctx.globalAlpha = 0.45; drawP(imgs.maestro_cuerpo); ctx.restore(); }
+  const ptC = getPt('cuello', 500, 480);
+  drawR(imgs.cabeza_base, ptC, sandwichCfg.rotCab); drawR(imgs[sandwichCfg.ojos], ptC, sandwichCfg.rotCab); drawR(imgs[sandwichCfg.boca], ptC, sandwichCfg.rotCab);
+  if (sandwichCfg.brazoDel !== 'ninguno') drawR(imgs[sandwichCfg.brazoDel], getPt('hombro_delantero', 440, 560), sandwichCfg.rotBrazo);
+  ctx.save(); ctx.strokeStyle = 'rgba(34,197,94,0.75)'; ctx.lineWidth = 3; ctx.setLineDash([14, 10]); ctx.beginPath(); ctx.moveTo(0, 1480); ctx.lineTo(1000, 1480); ctx.stroke(); ctx.setLineDash([]);
+  ['cuello', 'hombro_trasero', 'hombro_delantero', 'mano_delantera'].forEach(function(k) { if (!piv[k]) return; const pt = getPt(k, 500, 500); ctx.fillStyle = '#f43f5e'; ctx.beginPath(); ctx.arc(pt.x, pt.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke(); });
+  ctx.restore();
+  const est = document.getElementById('sandwich-estado-txt');
+  if (est) est.textContent = n > 0 ? ('Capas activas visibles: ' + n + ' · Línea verde = suelo Y=1480.') : 'Sube piezas en Base, Ojos y Bocas para probar el apilado en vivo.';
+};
+
+window.subirMuestraVozPersonaje = function() {
+  const p = obtenerPersonajeActual(); if (!p) return;
+  slotUploadPendiente = { tipo: 'voz', entidadId: p.id, usarEstudio: false };
+  const inp = document.getElementById('input-file-slot'); inp.accept = 'audio/*'; inp.click();
+};
+
+window.quitarMuestraVozPersonaje = async function() {
+  const p = obtenerPersonajeActual(); if (!p || !p.muestra_voz) return;
+  if (!(await confirmar('Quitar Muestra de Voz', 'Se quitará el audio de muestra de ' + p.nombre + '.'))) return;
+  const reg = p.muestra_voz; delete p.muestra_voz;
+  if (reg && reg.rutaStorage && GeokatuDB.PirobonianosService) GeokatuDB.PirobonianosService.eliminarActivoPirobonianos(reg.rutaStorage).catch(function() {});
+  guardarBiblioteca(true); renderizarVistaPersonajes();
+};
+
+function aplicarRegistroEnSlot(meta, registro, pivotesRecibidos) {
   if (meta.tipo === 'personaje') {
     const p = biblioteca.personajes.find(function(x) { return x.id === meta.entidadId; });
     if (p) {
-      if (meta.esVariante) {
-        const v = (p.variantes || []).find(function(x) { return x.id === meta.slotKey; });
-        if (v) Object.assign(v, registro);
-      } else {
-        if (!p.piezas) p.piezas = {};
-        p.piezas[meta.slotKey] = registro;
+      if (meta.esVariante) { const v = (p.variantes || []).find(function(x) { return x.id === meta.slotKey; }); if (v) Object.assign(v, registro); }
+      else { if (!p.piezas) p.piezas = {}; p.piezas[meta.slotKey] = registro; }
+      if (pivotesRecibidos && typeof pivotesRecibidos === 'object' && Object.keys(pivotesRecibidos).some(function(k) { return Boolean(pivotesRecibidos[k]); })) {
+        p.pivotes_json = JSON.stringify(pivotesRecibidos, null, 2);
       }
     }
+  } else if (meta.tipo === 'voz') {
+    const p = biblioteca.personajes.find(function(x) { return x.id === meta.entidadId; }); if (p) p.muestra_voz = registro;
   } else if (meta.tipo === 'escenario') {
     const e = biblioteca.escenarios.find(function(x) { return x.id === meta.entidadId; });
-    const z = e ? (e.zonas || []).find(function(x) { return x.id === meta.zonaId; }) : null;
-    if (z) z[meta.campoZona] = registro;
+    const z = e ? (e.zonas || []).find(function(x) { return x.id === meta.zonaId; }) : null; if (z) z[meta.campoZona] = registro;
   } else if (meta.tipo === 'prop') {
-    const pr = biblioteca.props.find(function(x) { return x.id === meta.entidadId; });
-    if (pr) pr.archivo = registro;
+    const pr = biblioteca.props.find(function(x) { return x.id === meta.entidadId; }); if (pr) pr.archivo = registro;
   }
+}
 
-  guardarBiblioteca(true);
-  renderizarTodo();
+async function subirYAsignarArchivoASlot(fileObj, meta, pivotesRecibidos) {
+  if (!GeokatuDB.PirobonianosService) { toast('Falta PirobonianosService en core-db.js.', 'error'); return; }
+  setSyncBadge('Subiendo...', 'warn');
+  const ruta = meta.tipo + '/' + meta.entidadId + '/' + (meta.zonaId ? (meta.zonaId + '/') : '') + Date.now() + '_' + String(fileObj.name || 'activo.png').replace(/[^a-zA-Z0-9._-]+/g, '_');
+  const res = await GeokatuDB.PirobonianosService.subirActivoPirobonianos('biblioteca_contenido', ruta, fileObj);
+  if (!res.success) { toast('Error subiendo archivo: ' + res.error, 'error'); setSyncBadge('Error', 'warn'); return; }
+  const registro = { url: res.url, rutaStorage: res.rutaStorage, nombre: fileObj.name, tipo: res.tipo, fecha: res.fecha };
+  aplicarRegistroEnSlot(meta, registro, pivotesRecibidos);
+  guardarBiblioteca(true); renderizarTodo();
+  if (window.self !== window.top && meta.tipo !== 'voz') window.parent.postMessage({ tipo: 'PIRO_SLOT_COMPLETADO', slotMeta: meta }, '*');
   toast('Activo guardado en la nube.', 'exito');
 }
 
@@ -975,8 +1106,9 @@ window.crearTicketDesdeSlot = function(slotKey, esVariante) {
   const ticket = {
     codigo: p.id.toUpperCase() + '-' + String(spec.archivo || slotKey).slice(0, 6).toUpperCase(),
     mision: 'Personaje: ' + p.nombre,
-    titulo: 'Crear ' + (spec.titulo || slotKey) + ' (' + p.nombre + ')',
-    detalle: 'Pieza de marioneta para ' + p.nombre + ' (' + p.id + ').\nPreset Estudio PNG: ' + (spec.preset || 'per_cuerpo') + ' (1000x1600).\n\nPrompt sugerido para Gemini:\nPlaintext\n' + generarPromptPersonaje(p, slotKey)
+        titulo: 'Crear ' + (spec.titulo || slotKey) + ' (' + p.nombre + ')',
+    detalle: 'Pieza de marioneta para ' + p.nombre + ' (' + p.id + ').\nPreset Estudio PNG: ' + (spec.preset || 'per_cuerpo') + ' (1000x1600).\n\nPrompt sugerido para Gemini:\nPlaintext\n' + generarPromptPersonaje(p, slotKey),
+    slotMeta: { tipo: 'personaje', entidadId: p.id, slotKey: slotKey, esVariante: Boolean(esVariante) }
   };
   enviarTicketAShell(ticket);
 };
@@ -1089,18 +1221,26 @@ window.ticketSlotEscenario = function(zonaId, campo) {
   enviarTicketAShell({
     codigo: e.id.toUpperCase() + '-' + zonaId.toUpperCase(),
     mision: 'Escenario: ' + e.nombre,
-    titulo: 'Crear ' + campo + '.png de ' + (z ? z.nombre : zonaId),
-    detalle: 'Escenario 1920x1920.\n\nPrompt Gemini:\nPlaintext\n' + prompt
+        titulo: 'Crear ' + campo + '.png de ' + (z ? z.nombre : zonaId),
+    detalle: 'Escenario 1920x1920.\n\nPrompt Gemini:\nPlaintext\n' + prompt,
+    slotMeta: { tipo: 'escenario', entidadId: e.id, zonaId: zonaId, campoZona: campo }
   });
 };
 
 // =========================================================================
 // VISTA 3: PROPS & AUDIO
 // =========================================================================
+window.setFiltroProps = function(cat) { filtroPropsCat = cat; renderizarVistaProps(); };
 function renderizarVistaProps() {
   const ws = document.getElementById('workspace-body');
-  let html = '<div class="slots-grid">';
-  (biblioteca.props || []).forEach(function(pr) {
+  const lista = (biblioteca.props || []).filter(function(pr) { return filtroPropsCat === 'todos' || pr.categoria === filtroPropsCat; });
+  let html = '<div class="sub-tabs" style="margin-bottom:10px;">' +
+    '<button type="button" class="sub-tab' + (filtroPropsCat === 'todos' ? ' activo' : '') + '" onclick="window.setFiltroProps(\'todos\')">Todos (' + (biblioteca.props || []).length + ')</button>' +
+    '<button type="button" class="sub-tab' + (filtroPropsCat === 'prop' ? ' activo' : '') + '" onclick="window.setFiltroProps(\'prop\')">Props PNG</button>' +
+    '<button type="button" class="sub-tab' + (filtroPropsCat === 'fx' ? ' activo' : '') + '" onclick="window.setFiltroProps(\'fx\')">Íconos FX</button>' +
+    '<button type="button" class="sub-tab' + (filtroPropsCat === 'audio' ? ' activo' : '') + '" onclick="window.setFiltroProps(\'audio\')">Audio &amp; Fuentes</button>' +
+    '</div><div class="slots-grid">';
+  lista.forEach(function(pr) {
     const tiene = Boolean(pr.archivo && pr.archivo.url);
     const esAudio = pr.categoria === 'audio';
     const preview = tiene
@@ -1147,45 +1287,64 @@ window.ticketSlotProp = function(propId) {
     codigo: pr.id.slice(0, 10).toUpperCase(),
     mision: 'Capa 2 · Props & Audio',
     titulo: 'Preparar ' + pr.nombre + ' (' + pr.id + ')',
-    detalle: 'Elemento de utilería (' + pr.categoria + '). Subir en Contenido -> Props & Audio.'
+        detalle: 'Elemento de utilería (' + pr.categoria + '). Subir en Contenido -> Props & Audio.',
+    slotMeta: { tipo: 'prop', entidadId: pr.id }
   });
 };
 
 // =========================================================================
-// VISTA 4: GUIONES
+// VISTA 4: GUIONES + DIRECTOR DE ESCENAS
 // =========================================================================
 function renderizarVistaGuiones() {
   const ws = document.getElementById('workspace-body');
   const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; }) || biblioteca.guiones[0];
-  if (!g) {
-    ws.innerHTML = '<div style="text-align:center; padding:40px; color:var(--muted);">Crea tu primer guion arriba.</div>';
-    return;
-  }
-  selId.guiones = g.id;
+  if (!g) { ws.innerHTML = '<div style="text-align:center; padding:40px; color:var(--muted);">Crea tu primer guion arriba.</div>'; return; }
+  selId.guiones = g.id; if (!Array.isArray(g.escenas)) g.escenas = [];
   const repartoSet = new Set(g.reparto || []);
-  const chipsReparto = biblioteca.personajes.map(function(p) {
-    const activo = repartoSet.has(p.id);
-    return '<button type="button" class="btn btn-xs ' + (activo ? 'btn-green' : '') + '" onclick="window.toggleActorGuion(\'' + esc(p.id) + '\')">' + esc(p.nombre) + '</button>';
-  }).join(' ');
-
-  const optsEsc = biblioteca.escenarios.map(function(e) {
-    return '<option value="' + esc(e.id) + '"' + (g.escenario_id === e.id ? ' selected' : '') + '>' + esc(e.id + ' · ' + e.nombre) + '</option>';
+  const chipsReparto = biblioteca.personajes.map(function(p) { return '<button type="button" class="btn btn-xs ' + (repartoSet.has(p.id) ? 'btn-green' : '') + '" onclick="window.toggleActorGuion(\'' + esc(p.id) + '\')">' + esc(p.nombre) + '</button>'; }).join(' ');
+  const optsEsc = biblioteca.escenarios.map(function(e) { return '<option value="' + esc(e.id) + '"' + (g.escenario_id === e.id ? ' selected' : '') + '>' + esc(e.id + ' · ' + e.nombre) + '</option>'; }).join('');
+  const optsAct = function(s) { return biblioteca.personajes.map(function(p) { return '<option value="' + esc(p.id) + '"' + (s === p.id ? ' selected' : '') + '>' + esc(p.nombre) + '</option>'; }).join(''); };
+  const optsPr = function(s) { return '<option value="">Sin prop</option>' + (biblioteca.props || []).filter(function(x) { return x.categoria !== 'audio'; }).map(function(x) { return '<option value="' + esc(x.id) + '"' + (s === x.id ? ' selected' : '') + '>' + esc(x.nombre) + '</option>'; }).join(''); };
+  const optsSfx = function(s) { return '<option value="">Sin SFX</option>' + (biblioteca.props || []).filter(function(x) { return x.categoria === 'audio'; }).map(function(x) { return '<option value="' + esc(x.id) + '"' + (s === x.id ? ' selected' : '') + '>' + esc(x.nombre) + '</option>'; }).join(''); };
+  const htmlEsc = g.escenas.length === 0 ? '<div style="text-align:center; padding:16px; color:var(--muted); border:1px dashed var(--border); border-radius:10px; font-size:12px;">Sin escenas aún. Añade líneas o usa Prompt IA → JSON.</div>' : g.escenas.map(function(sc, idx) {
+    return '<div style="border:1px solid var(--border); border-radius:10px; padding:9px; margin-bottom:8px; background:rgba(8,11,18,0.65);">' +
+      '<div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:6px;"><span style="font-family:monospace; font-size:11px; font-weight:900; color:var(--naranja);">LÍNEA #' + (idx + 1) + '</span>' +
+      '<div style="display:flex; gap:4px;"><button type="button" class="btn btn-xs" onclick="window.moverEscenaGuion(' + idx + ',-1)">Subir</button><button type="button" class="btn btn-xs" onclick="window.moverEscenaGuion(' + idx + ',1)">Bajar</button><button type="button" class="btn btn-xs btn-danger" onclick="window.eliminarEscenaGuion(' + idx + ')">Borrar</button></div></div>' +
+      '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(115px, 1fr)); gap:6px; margin-bottom:6px;">' +
+        '<select class="sel" onchange="window.editarEscenaGuion(' + idx + ',\'actor\',this.value)">' + optsAct(sc.actor) + '</select>' +
+        '<select class="sel" onchange="window.editarEscenaGuion(' + idx + ',\'ojos\',this.value)">' + ['neutro','feliz','enojado','triste','duda','indignado'].map(function(e) { return '<option value="' + e + '"' + ((sc.ojos || 'neutro') === e ? ' selected' : '') + '>Ojos: ' + e + '</option>'; }).join('') + '</select>' +
+        '<select class="sel" onchange="window.editarEscenaGuion(' + idx + ',\'camara\',this.value)">' + [['centro','Cám: Centro'],['izq','Cám: Izq'],['der','Cám: Der'],['zoom_actor','Cám: Zoom'],['plano_general','Cám: General']].map(function(c) { return '<option value="' + c[0] + '"' + ((sc.camara || 'centro') === c[0] ? ' selected' : '') + '>' + c[1] + '</option>'; }).join('') + '</select>' +
+        '<select class="sel" onchange="window.editarEscenaGuion(' + idx + ',\'prop\',this.value)">' + optsPr(sc.prop || '') + '</select>' +
+        '<select class="sel" onchange="window.editarEscenaGuion(' + idx + ',\'sfx\',this.value)">' + optsSfx(sc.sfx || '') + '</select>' +
+      '</div><input class="inp" value="' + esc(sc.texto || '') + '" placeholder="Diálogo exacto para ElevenLabs..." oninput="window.editarEscenaGuion(' + idx + ',\'texto\',this.value)"></div>';
   }).join('');
-
-  ws.innerHTML =
-    '<div class="card-box">' +
-      '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap;">' +
-        '<strong>' + esc(g.id) + ' · ' + esc(g.titulo) + '</strong>' +
-        '<button type="button" class="btn btn-xs btn-blue" onclick="window.enviarGuionATickets()">+ Enviar Episodio a Tickets</button>' +
-      '</div>' +
-      '<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">' +
-        '<div class="field"><label>Título del Short</label><input class="inp" value="' + esc(g.titulo) + '" oninput="window.editarCampoGuion(\'titulo\', this.value)"></div>' +
-        '<div class="field"><label>Escenario Principal</label><select class="sel" onchange="window.editarCampoGuion(\'escenario_id\', this.value)">' + optsEsc + '</select></div>' +
-      '</div>' +
-      '<div class="field"><label>Reparto del Capítulo</label><div style="display:flex; gap:6px; flex-wrap:wrap;">' + chipsReparto + '</div></div>' +
-      '<div class="field"><label>Anécdota y Remate (30 a 45 segundos)</label><textarea class="txt" style="min-height:150px;" placeholder="Escribe la situación cotidiana y el remate..." oninput="window.editarCampoGuion(\'anecdota\', this.value)">' + esc(g.anecdota || '') + '</textarea></div>' +
-    '</div>';
+  ws.innerHTML = '<div class="card-box" style="margin-bottom:12px;">' +
+    '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap;"><strong>' + esc(g.id) + ' · ' + esc(g.titulo) + '</strong><button type="button" class="btn btn-xs btn-blue" onclick="window.enviarGuionATickets()">+ Enviar Episodio a Tickets</button></div>' +
+    '<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;"><div class="field"><label>Título del Short</label><input class="inp" value="' + esc(g.titulo) + '" oninput="window.editarCampoGuion(\'titulo\', this.value)"></div><div class="field"><label>Escenario Principal</label><select class="sel" onchange="window.editarCampoGuion(\'escenario_id\', this.value)">' + optsEsc + '</select></div></div>' +
+    '<div class="field"><label>Reparto del Capítulo</label><div style="display:flex; gap:6px; flex-wrap:wrap;">' + chipsReparto + '</div></div>' +
+    '<div class="field" style="margin-bottom:0;"><label>Anécdota y Remate (30 a 45 segundos)</label><textarea class="txt" style="min-height:90px;" placeholder="Escribe la situación cotidiana y el remate..." oninput="window.editarCampoGuion(\'anecdota\', this.value)">' + esc(g.anecdota || '') + '</textarea></div></div>' +
+    '<div class="card-box"><div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap;"><strong style="color:var(--azul);">Director de Escenas (' + g.escenas.length + ' líneas)</strong><div style="display:flex; gap:6px; flex-wrap:wrap;">' +
+    '<button type="button" class="btn btn-xs" onclick="window.copiarPromptDirectorEscenas()">Prompt IA → JSON</button><button type="button" class="btn btn-xs btn-blue" onclick="window.abrirModalCrear(\'importar_escenas\')">Pegar JSON</button><button type="button" class="btn btn-xs btn-primary" onclick="window.agregarEscenaGuion()">+ Añadir Línea</button></div></div>' + htmlEsc + '</div>';
 }
+
+window.agregarEscenaGuion = function() {
+  const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; }); if (!g) return;
+  if (!Array.isArray(g.escenas)) g.escenas = [];
+  const act = (g.reparto && g.reparto[0]) || (biblioteca.personajes[0] ? biblioteca.personajes[0].id : 'per_001');
+  g.escenas.push({ actor: act, ojos: 'neutro', camara: 'centro', prop: '', sfx: '', texto: '' });
+  guardarBiblioteca(true); renderizarVistaGuiones();
+};
+window.editarEscenaGuion = function(idx, c, v) { const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; }); if (!g || !g.escenas || !g.escenas[idx]) return; g.escenas[idx][c] = v; guardarBiblioteca(false); };
+window.moverEscenaGuion = function(idx, d) { const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; }); if (!g || !g.escenas) return; const t = idx + d; if (t < 0 || t >= g.escenas.length) return; const tmp = g.escenas[idx]; g.escenas[idx] = g.escenas[t]; g.escenas[t] = tmp; guardarBiblioteca(true); renderizarVistaGuiones(); };
+window.eliminarEscenaGuion = function(idx) { const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; }); if (!g || !g.escenas) return; g.escenas.splice(idx, 1); guardarBiblioteca(true); renderizarVistaGuiones(); };
+window.copiarPromptDirectorEscenas = function() {
+  const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; }); if (!g) return;
+  const act = biblioteca.personajes.map(function(p) { return p.id + ' (' + p.nombre + ')'; }).join(', ');
+  const pr = (biblioteca.props || []).filter(function(x) { return x.categoria !== 'audio'; }).map(function(x) { return x.id; }).join(', ');
+  const sfx = (biblioteca.props || []).filter(function(x) { return x.categoria === 'audio'; }).map(function(x) { return x.id; }).join(', ');
+  const txt = 'Convierte esta anécdota colombiana en un guion ágil de 35-45s para YouTube Shorts. Devuelve SOLO un array JSON válido sin markdown con objetos: {"actor":"per_001","ojos":"neutro|feliz|enojado|triste|duda|indignado","camara":"centro|izq|der|zoom_actor|plano_general","prop":"","sfx":"","texto":"diálogo corto"}.\nActores: ' + act + '\nProps: ' + (pr || 'ninguno') + '\nSFX: ' + (sfx || 'ninguno') + '\nAnécdota: ' + (g.anecdota || g.titulo);
+  navigator.clipboard.writeText(txt).then(function() { toast('Prompt IA → JSON copiado.', 'exito'); });
+};
 
 window.editarCampoGuion = function(campo, val) {
   const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; });
@@ -1272,7 +1431,11 @@ window.abrirModalCrear = function(tipo) {
     form.innerHTML =
       '<div class="field"><label>ID Episodio</label><input id="mc-id" class="inp" value="ep' + nextNum + '" required></div>' +
       '<div class="field"><label>Título</label><input id="mc-nom" class="inp" placeholder="Ej: El descuento del almacén" required></div>' +
-      '<div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px;"><button type="submit" class="btn btn-primary">Crear Guion</button></div>';
+            '<div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px;"><button type="submit" class="btn btn-primary">Crear Guion</button></div>';
+  } else if (tipo === 'importar_escenas') {
+    tit.textContent = 'Pegar JSON de Escenas (IA → Director)';
+    form.innerHTML = '<div class="field"><label>Array JSON de escenas</label><textarea id="mc-json-esc" class="txt" style="min-height:170px; font-family:monospace; font-size:11.5px;" placeholder="[{&quot;actor&quot;:&quot;per_001&quot;,&quot;ojos&quot;:&quot;indignado&quot;,&quot;camara&quot;:&quot;zoom_actor&quot;,&quot;prop&quot;:&quot;&quot;,&quot;sfx&quot;:&quot;sfx_pop&quot;,&quot;texto&quot;:&quot;...&quot;}]" required></textarea></div>' +
+      '<div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px;"><button type="submit" class="btn btn-primary">Cargar Escenas</button></div>';
   }
 
   document.getElementById('modal-crear-entidad').classList.add('open');
@@ -1342,16 +1505,55 @@ window.confirmarCrearEntidad = function() {
     biblioteca.guiones.push({
       id: id, titulo: document.getElementById('mc-nom').value.trim(),
       escenario_id: biblioteca.escenarios[0] ? biblioteca.escenarios[0].id : '',
-      reparto: [], estado: 'Borrador', anecdota: ''
+            reparto: [], estado: 'Borrador', anecdota: '', escenas: []
     });
     catActiva = 'guiones';
     selId.guiones = id;
+  } else if (tipoModalCrear === 'importar_escenas') {
+    const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; }); if (!g) return;
+    try {
+      const raw = document.getElementById('mc-json-esc').value.trim().replace(/^```json\s*/i, '').replace(/```$/, '').trim();
+      const arr = JSON.parse(raw); if (!Array.isArray(arr)) throw new Error('Debe ser un array JSON');
+      g.escenas = arr.map(function(i) { return { actor: String(i.actor || 'per_001'), ojos: String(i.ojos || 'neutro'), camara: String(i.camara || 'centro'), prop: String(i.prop || ''), sfx: String(i.sfx || ''), texto: String(i.texto || '') }; });
+      catActiva = 'guiones';
+    } catch (err) { toast('JSON inválido: ' + err.message, 'error'); return; }
   }
+  window.cerrarModalC('modal-crear-entidad'); guardarBiblioteca(true); window.cambiarCategoria(catActiva); toast('Cambios guardados.', 'exito');
+};
 
-  window.cerrarModalC('modal-crear-entidad');
-  guardarBiblioteca(true);
-  window.cambiarCategoria(catActiva);
-  toast('Elemento creado y guardado.', 'exito');
+window.exportarManifiestoTermux = function() {
+  const descargas = [];
+  const addDl = function(r, reg) { if (reg && reg.url) descargas.push({ ruta_local: r, url: reg.url, tipo: reg.tipo || 'application/octet-stream' }); };
+  const rutaSlot = function(pid, s) {
+    const sub = s.preset === 'per_ref' ? 'referencia/' : (s.preset === 'per_cabeza' ? 'piezas/cabeza/' : (s.preset === 'per_ojos' ? 'piezas/ojos/' : (s.preset === 'per_boca' ? 'piezas/bocas/' : (s.preset === 'per_brazo' ? 'piezas/brazos/' : 'piezas/cuerpo/'))));
+    return 'biblioteca/personajes/' + pid + '/' + sub + s.archivo + '.png';
+  };
+  const perOut = (biblioteca.personajes || []).map(function(p) {
+    const pz = {}, vr = {};
+    SLOTS_BASICOS_PERSONAJE.forEach(function(s) { const reg = p.piezas && p.piezas[s.key]; if (reg && reg.url) { const r = rutaSlot(p.id, s); pz[s.key] = r; addDl(r, reg); } });
+    (p.variantes || []).forEach(function(v) { if (v && v.url) { const r = 'biblioteca/personajes/' + p.id + '/piezas/variantes/' + (v.archivo || v.id) + '.png'; vr[v.archivo || v.id] = r; addDl(r, v); } });
+    if (p.muestra_voz && p.muestra_voz.url) addDl('biblioteca/personajes/' + p.id + '/referencia/muestra_voz.mp3', p.muestra_voz);
+    return { id: p.id, nombre: p.nombre, raza: p.raza, voice_id: p.voice_id || '', pivotes: parsearPivotesPersonaje(p), piezas: pz, variantes: vr };
+  });
+  const escOut = (biblioteca.escenarios || []).map(function(e) {
+    return { id: e.id, nombre: e.nombre, iluminacion: e.iluminacion || '', zonas: (e.zonas || []).map(function(z) {
+      const o = { id: z.id, nombre: z.nombre, puntos_camara: z.puntos_camara || '' };
+      if (z.fondo && z.fondo.url) { o.fondo = 'biblioteca/escenarios/' + e.id + '/zonas/' + z.id + '/fondo.png'; addDl(o.fondo, z.fondo); }
+      if (z.frente && z.frente.url) { o.frente = 'biblioteca/escenarios/' + e.id + '/zonas/' + z.id + '/frente.png'; addDl(o.frente, z.frente); }
+      return o;
+    }) };
+  });
+  const propsOut = {};
+  (biblioteca.props || []).forEach(function(pr) {
+    if (pr.archivo && pr.archivo.url) {
+      const ext = pr.categoria === 'audio' ? (String(pr.archivo.nombre || '').toLowerCase().indexOf('.ttf') >= 0 ? '.ttf' : '.mp3') : '.png';
+      const dir = pr.categoria === 'audio' ? (ext === '.ttf' ? 'biblioteca/fuentes/' : 'biblioteca/audio/sfx/') : 'biblioteca/props/';
+      const r = dir + pr.id + ext; propsOut[pr.id] = r; addDl(r, pr.archivo);
+    }
+  });
+  const man = { proyecto: 'piro_rig_2d', generado_en: new Date().toISOString(), total_archivos: descargas.length, descargas: descargas, catalogo: { personajes: perOut, escenarios: escOut, props: propsOut, guiones: biblioteca.guiones || [] } };
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(man, null, 2)], { type: 'application/json' })); a.download = 'catalogo_sync.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+  toast('Manifiesto catalogo_sync.json exportado (' + descargas.length + ' activos).', 'exito');
 };
 
 // =========================================================================
@@ -1359,17 +1561,19 @@ window.confirmarCrearEntidad = function() {
 // =========================================================================
 window.addEventListener('message', async function(e) {
   if (!e.data || !e.data.tipo) return;
-  if (e.data.tipo === 'PIRO_SHELL_AUTH') {
-    cargarBiblioteca();
-  } else if (e.data.tipo === 'PIRO_SHELL_ABRIR_CREAR') {
+  if (e.data.tipo === 'PIRO_SHELL_AUTH') { cargarBiblioteca(); }
+  else if (e.data.tipo === 'PIRO_SHELL_ABRIR_CREAR') {
     if (e.data.entidad === 'personaje') window.cambiarCategoria('personajes');
     else if (e.data.entidad === 'escenario') window.cambiarCategoria('escenarios');
     else if (e.data.entidad === 'guion') window.cambiarCategoria('guiones');
     window.abrirModalCrear(e.data.entidad);
   } else if (e.data.tipo === 'PIRO_PNG_RECIBIDO' && e.data.blob && e.data.slotMeta) {
-    const nombreFinal = e.data.nombreArchivo || 'pieza.png';
-    const fileObj = new File([e.data.blob], nombreFinal, { type: 'image/png' });
-    await subirYAsignarArchivoASlot(fileObj, e.data.slotMeta);
+    const fileObj = new File([e.data.blob], e.data.nombreArchivo || 'pieza.png', { type: 'image/png' });
+    await subirYAsignarArchivoASlot(fileObj, e.data.slotMeta, e.data.pivotes || null);
+  } else if (e.data.tipo === 'PIRO_SHELL_VINCULAR_ASSET_TICKET' && e.data.slotMeta && e.data.registro) {
+    aplicarRegistroEnSlot(e.data.slotMeta, e.data.registro, null);
+    guardarBiblioteca(true); renderizarTodo();
+    toast('Pieza vinculada automáticamente desde Tickets.', 'exito');
   }
 });
 
