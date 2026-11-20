@@ -1,0 +1,2159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>GEOKATU Privado · Gestor EDT Pirobonianos</title>
+<style>
+  :root {
+    --bg: #080a0f;
+    --bg-grad: radial-gradient(circle at 15% 10%, rgba(255, 107, 0, 0.12), transparent 40%),
+               radial-gradient(circle at 85% 90%, rgba(56, 189, 248, 0.10), transparent 45%),
+               #080a0f;
+    --glass: rgba(17, 21, 29, 0.82);
+    --glass-strong: rgba(13, 16, 23, 0.94);
+    --glass-border: rgba(255, 255, 255, 0.10);
+    --glass-border-hi: rgba(255, 255, 255, 0.20);
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --naranja: #ff6b00;
+    --naranja-glow: rgba(255, 107, 0, 0.35);
+    --miel: #ffb300;
+    --verde: #22c55e;
+    --verde-bg: rgba(34, 197, 94, 0.14);
+    --azul: #38bdf8;
+    --azul-bg: rgba(56, 189, 248, 0.14);
+    --rojo: #ef4444;
+    --radius-lg: 16px;
+    --radius-md: 12px;
+    --radius-sm: 8px;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg-grad);
+    background-attachment: fixed;
+    color: var(--text);
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    min-height: 100vh;
+  }
+
+  button, input, textarea, select {
+    font-family: inherit;
+    color: var(--text);
+  }
+
+  .svg-ico {
+    width: 16px; height: 16px; fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0;
+  }
+  .svg-ico-sm {
+    width: 14px; height: 14px; fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0;
+  }
+  .svg-ico-lg {
+    width: 22px; height: 22px; fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0;
+  }
+
+  /* =====================================================================
+     COMPUERTA BÚNKER ZERO-TRUST (SUPERADMIN)
+     ===================================================================== */
+  #bunker-auth-gate {
+    position: fixed; inset: 0; z-index: 90000;
+    background: rgba(6, 8, 12, 0.96);
+    backdrop-filter: blur(18px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .bunker-card {
+    width: 100%; max-width: 390px;
+    background: linear-gradient(145deg, rgba(22, 27, 38, 0.96), rgba(11, 14, 20, 0.98));
+    border: 1px solid rgba(255, 107, 0, 0.35);
+    border-radius: 20px;
+    padding: 28px 24px;
+    text-align: center;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75);
+  }
+  .bunker-shield {
+    width: 56px; height: 56px; border-radius: 16px;
+    margin: 0 auto 12px auto;
+    background: rgba(255, 107, 0, 0.14);
+    border: 1px solid rgba(255, 107, 0, 0.45);
+    color: var(--naranja);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .bunker-input {
+    width: 100%; padding: 11px 14px; margin-bottom: 10px;
+    border-radius: 10px; border: 1px solid var(--glass-border);
+    background: rgba(0, 0, 0, 0.45); font-size: 13px; outline: none;
+  }
+  .bunker-input:focus { border-color: var(--naranja); }
+  .btn-bunker-google {
+    width: 100%; padding: 11px 14px; border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.06);
+    font-weight: 700; font-size: 13px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  }
+  .btn-bunker-google:hover { background: rgba(255, 255, 255, 0.11); }
+  .btn-bunker-submit {
+    width: 100%; padding: 12px; border-radius: 10px; border: none;
+    background: linear-gradient(135deg, var(--naranja), #ea580c);
+    color: #fff; font-weight: 800; font-size: 13px; cursor: pointer;
+    margin-top: 4px;
+  }
+  .alerta-denegado-box {
+    background: rgba(239, 68, 68, 0.10);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: 12px; padding: 14px; margin-top: 12px;
+  }
+  .spinner-ring {
+    width: 30px; height: 30px; margin: 0 auto;
+    border: 3px solid rgba(255, 255, 255, 0.12);
+    border-top-color: var(--naranja);
+    border-radius: 50%;
+    animation: giro 0.85s linear infinite;
+  }
+  @keyframes giro { to { transform: rotate(360deg); } }
+
+  /* =====================================================================
+     BOTONES Y ELEMENTOS BASE
+     ===================================================================== */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 8px 13px; border-radius: 10px;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 12.5px; font-weight: 700; cursor: pointer;
+    transition: transform .08s, background .15s, border-color .15s;
+    white-space: nowrap;
+  }
+  .btn:hover { background: rgba(255, 255, 255, 0.10); border-color: var(--glass-border-hi); }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--naranja), #e65100);
+    border-color: var(--naranja); color: #fff;
+  }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-green {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    border-color: #22c55e; color: #052e16; font-weight: 800;
+  }
+  .btn-blue {
+    background: var(--azul-bg); border-color: rgba(56, 189, 248, 0.4); color: var(--azul);
+  }
+  .btn-danger {
+    background: rgba(239, 68, 68, 0.14); border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;
+  }
+  .btn-sm { padding: 5px 9px; font-size: 11.5px; border-radius: 8px; }
+
+  .pill-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 700;
+    background: rgba(255, 255, 255, 0.06); border: 1px solid var(--glass-border);
+    color: var(--muted);
+  }
+  .pill-badge.ok { color: #86efac; border-color: rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.12); }
+  .pill-badge.warn { color: #fcd34d; border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.12); }
+  .pill-badge.live { color: #7dd3fc; border-color: rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.12); }
+
+  /* =====================================================================
+     HEADER & SELECTOR DE PROYECTO
+     ===================================================================== */
+  header {
+    position: sticky; top: 0; z-index: 40;
+    background: var(--glass-strong);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--glass-border);
+    padding: 10px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; flex-wrap: wrap;
+  }
+  .header-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .logo-tag {
+    padding: 5px 9px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--naranja), #ea580c);
+    color: #fff; font-weight: 900; font-size: 11px; letter-spacing: 0.8px;
+  }
+  .header-title h1 { margin: 0; font-size: 15px; font-weight: 900; letter-spacing: 0.4px; }
+  .header-title small { display: block; font-size: 11px; color: var(--muted); }
+  .header-right { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+
+  .project-bar {
+    background: rgba(13, 16, 23, 0.72);
+    border-bottom: 1px solid var(--glass-border);
+    padding: 10px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; flex-wrap: wrap;
+  }
+  .project-select-wrap {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; min-width: 220px;
+  }
+  .select-glass {
+    padding: 7px 10px; border-radius: 9px;
+    border: 1px solid var(--glass-border);
+    background: rgba(0, 0, 0, 0.48); font-size: 12.5px; font-weight: 700;
+    outline: none; min-width: 190px;
+  }
+  .select-glass:focus { border-color: var(--naranja); }
+
+  .progress-wrap {
+    display: flex; align-items: center; gap: 10px; min-width: 220px;
+  }
+  .progress-track {
+    flex: 1; min-width: 110px; height: 8px; border-radius: 99px;
+    background: rgba(255, 255, 255, 0.08); overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--naranja), var(--verde));
+    transition: width 0.3s ease;
+  }
+
+  /* =====================================================================
+     RIEL SUPERIOR HORIZONTAL DE TICKETS EN SERIE
+     ===================================================================== */
+  .rail-section {
+    background: rgba(12, 15, 22, 0.85);
+    border-bottom: 1px solid var(--glass-border);
+    padding: 14px 16px 16px 16px;
+  }
+  .rail-header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; margin-bottom: 10px; flex-wrap: wrap;
+  }
+  .rail-header-title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.7px; color: var(--muted);
+  }
+  .rail-controls {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .rail-track {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 12px 6px 14px 6px;
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 107, 0, 0.5) rgba(255, 255, 255, 0.05);
+  }
+  .rail-track::-webkit-scrollbar { height: 7px; }
+  .rail-track::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.04); border-radius: 99px; }
+  .rail-track::-webkit-scrollbar-thumb { background: rgba(255, 107, 0, 0.45); border-radius: 99px; }
+
+  .rail-connector {
+    width: 16px; height: 2px; flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 2px;
+  }
+  .rail-connector.done { background: rgba(34, 197, 94, 0.55); }
+
+  /* Ticket base compacto (en cola o completado) */
+  .ticket-chip {
+    flex: 0 0 auto;
+    width: 170px;
+    min-height: 86px;
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    background: rgba(22, 27, 36, 0.85);
+    border: 1px solid var(--glass-border);
+    display: flex; flex-direction: column; justify-content: space-between; gap: 6px;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+    position: relative;
+    text-align: left;
+  }
+  .ticket-chip .t-top {
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  }
+  .ticket-chip .t-code {
+    font-family: monospace; font-size: 11px; font-weight: 800;
+    padding: 2px 6px; border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08); color: var(--muted);
+  }
+  .ticket-chip .t-mission {
+    font-size: 9.5px; color: var(--muted); text-transform: uppercase;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 95px;
+  }
+  .ticket-chip .t-title {
+    font-size: 12px; font-weight: 700; color: #cbd5e1;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .ticket-chip .t-foot {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 10px; color: var(--muted);
+  }
+
+  /* Estado: PENDIENTE FUTURO (En cola) */
+  .ticket-chip.queued {
+    opacity: 0.62;
+    cursor: not-allowed;
+  }
+  .ticket-chip.queued.libre {
+    opacity: 0.84;
+    cursor: pointer;
+  }
+  .ticket-chip.queued.libre:hover {
+    opacity: 1;
+    border-color: var(--azul);
+    transform: translateY(-2px);
+  }
+
+  /* Estado: COMPLETADO */
+  .ticket-chip.done {
+    background: rgba(16, 38, 28, 0.72);
+    border-color: rgba(34, 197, 94, 0.38);
+    opacity: 0.86;
+    cursor: pointer;
+  }
+  .ticket-chip.done:hover { opacity: 1; border-color: var(--verde); }
+  .ticket-chip.done .t-code { background: rgba(34, 197, 94, 0.22); color: #86efac; }
+  .ticket-chip.done .t-title { color: #bbf7d0; text-decoration: line-through; text-decoration-color: rgba(134, 239, 172, 0.55); }
+
+  /* Estado: SIGUIENTE A GESTIONAR (MÁS GRANDE, OTRO COLOR, HABILITADO) */
+  .ticket-chip.next-active {
+    width: 260px;
+    min-height: 118px;
+    padding: 14px 16px;
+    background: linear-gradient(145deg, rgba(255, 107, 0, 0.28), rgba(245, 158, 11, 0.14) 55%, rgba(20, 24, 34, 0.96));
+    border: 2px solid var(--naranja);
+    box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.18), 0 12px 28px rgba(255, 107, 0, 0.25);
+    cursor: pointer;
+    opacity: 1;
+    transform: scale(1.02);
+  }
+  .ticket-chip.next-active:hover {
+    transform: scale(1.04) translateY(-2px);
+    box-shadow: 0 0 0 4px rgba(255, 107, 0, 0.28), 0 16px 34px rgba(255, 107, 0, 0.35);
+  }
+  .ticket-chip.next-active .t-code {
+    background: var(--naranja);
+    color: #fff;
+    font-size: 12px;
+    padding: 3px 8px;
+  }
+  .ticket-chip.next-active .t-title {
+    font-size: 14px; font-weight: 800; color: #ffffff;
+    -webkit-line-clamp: 2;
+  }
+  .ticket-chip.next-active .t-cta {
+    color: var(--miel); font-weight: 800; font-size: 11px;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+
+  /* Indicador de ticket abierto actualmente en el visor */
+  .ticket-chip.viewing {
+    outline: 2px solid var(--azul);
+    outline-offset: 2px;
+  }
+
+  /* =====================================================================
+     CONTENIDO PRINCIPAL (CONSOLA DE EJECUCIÓN + INGESTA + BÓVEDA)
+     ===================================================================== */
+  main {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  .glass-card {
+    background: var(--glass);
+    backdrop-filter: blur(14px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.35);
+  }
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; flex-wrap: wrap;
+    padding-bottom: 12px; margin-bottom: 12px;
+    border-bottom: 1px solid var(--glass-border);
+  }
+  .card-head h2 {
+    margin: 0; font-size: 14.5px; font-weight: 800;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  /* Panel de ingesta de pasos */
+  .ingest-textarea {
+    width: 100%; min-height: 190px;
+    padding: 12px; border-radius: var(--radius-md);
+    border: 1px solid var(--glass-border);
+    background: rgba(5, 8, 13, 0.78);
+    color: #e2e8f0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px; line-height: 1.5; resize: vertical; outline: none;
+  }
+  .ingest-textarea:focus { border-color: var(--naranja); }
+
+  /* Visor de ticket abierto */
+  .ticket-focus-grid {
+    display: grid;
+    grid-template-columns: 1.618fr 1fr; /* Proporción Áurea */
+    gap: 16px;
+    align-items: start;
+  }
+  @media (max-width: 860px) {
+    .ticket-focus-grid { grid-template-columns: 1fr; }
+  }
+
+  .ticket-body-rich {
+    background: rgba(6, 9, 14, 0.62);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: #e2e8f0;
+  }
+  .ticket-body-rich p { margin: 0 0 10px 0; }
+  .ticket-body-rich p:last-child { margin-bottom: 0; }
+  .code-block-wrap {
+    position: relative;
+    margin: 10px 0;
+    background: #05070b;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .code-block-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 5px 10px;
+    background: rgba(56, 189, 248, 0.08);
+    border-bottom: 1px solid rgba(56, 189, 248, 0.16);
+    font-size: 10.5px; color: var(--azul); font-family: monospace;
+  }
+  .code-block-wrap pre {
+    margin: 0; padding: 11px 12px;
+    overflow-x: auto; font-size: 12px; line-height: 1.45;
+    color: #86efac; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    user-select: text;
+  }
+
+  .notes-box {
+    width: 100%; min-height: 92px;
+    padding: 10px 12px; border-radius: 10px;
+    border: 1px solid var(--glass-border);
+    background: rgba(5, 8, 13, 0.65);
+    font-size: 12.5px; resize: vertical; outline: none;
+  }
+  .notes-box:focus { border-color: var(--azul); }
+
+  /* Adjuntos en Firebase Storage */
+  .upload-zone {
+    border: 1.5px dashed rgba(56, 189, 248, 0.35);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    background: rgba(56, 189, 248, 0.04);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .upload-zone:hover { border-color: var(--azul); background: rgba(56, 189, 248, 0.09); }
+
+  .asset-list {
+    display: flex; flex-direction: column; gap: 8px; margin-top: 10px;
+  }
+  .asset-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 10px;
+    background: rgba(6, 9, 14, 0.7);
+    border: 1px solid var(--glass-border);
+  }
+  .asset-thumb {
+    width: 44px; height: 44px; border-radius: 8px;
+    object-fit: contain; flex-shrink: 0;
+    background-color: #1c2128;
+    background-image:
+      linear-gradient(45deg, #2b323c 25%, transparent 25%),
+      linear-gradient(-45deg, #2b323c 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #2b323c 75%),
+      linear-gradient(-45deg, transparent 75%, #2b323c 75%);
+    background-size: 12px 12px;
+    background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+    border: 1px solid var(--glass-border);
+  }
+  .asset-icon-box {
+    width: 44px; height: 44px; border-radius: 8px; flex-shrink: 0;
+    background: rgba(56, 189, 248, 0.12); color: var(--azul);
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+  }
+  .asset-meta { flex: 1; min-width: 0; }
+  .asset-meta strong {
+    display: block; font-size: 12px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .asset-meta small { font-size: 10.5px; color: var(--muted); font-family: monospace; }
+
+  /* Grid de bóveda global */
+  .vault-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px;
+  }
+
+  /* =====================================================================
+     MODALES GLASSMORPHIC Y TOASTS (CERO ALERT/CONFIRM NATIVOS)
+     ===================================================================== */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 80000;
+    background: rgba(4, 6, 10, 0.82);
+    backdrop-filter: blur(10px);
+    display: none; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto;
+    background: linear-gradient(145deg, rgba(22, 27, 38, 0.98), rgba(11, 14, 20, 0.98));
+    border: 1px solid var(--glass-border-hi);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+  }
+
+  #toast-container {
+    position: fixed; bottom: 18px; right: 18px; z-index: 99999;
+    display: flex; flex-direction: column; gap: 8px; max-width: 90vw;
+  }
+  .toast-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 10px 14px; border-radius: 12px;
+    background: rgba(15, 19, 28, 0.96);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+    font-size: 12.5px; font-weight: 600;
+    animation: toastIn 0.2s ease;
+  }
+  .toast-item.exito { border-color: rgba(34, 197, 94, 0.55); color: #86efac; }
+  .toast-item.error { border-color: rgba(239, 68, 68, 0.55); color: #fca5a5; }
+  .toast-item.info { border-color: rgba(56, 189, 248, 0.55); color: #7dd3fc; }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+  .hidden { display: none !important; }
+  .empty-state {
+    text-align: center; padding: 36px 18px; color: var(--muted);
+  }
+  .empty-state h3 { margin: 10px 0 6px; color: var(--text); font-size: 15px; }
+</style>
+</head>
+<body>
+
+<!-- =========================================================================
+     COMPUERTA BÚNKER ZERO-TRUST (SOLO SUPERADMIN GEOKATU)
+     ========================================================================= -->
+<div id="bunker-auth-gate">
+  <div class="bunker-card">
+    <div class="bunker-shield">
+      <svg class="svg-ico-lg" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </div>
+    <h2 style="margin:0 0 4px 0; font-size:18px; font-weight:900; letter-spacing:0.8px;">
+      PIROBONIANOS <span style="color:var(--naranja);">EDT</span>
+    </h2>
+    <p style="font-size:11px; color:var(--muted); text-transform:uppercase; margin:0 0 18px 0; letter-spacing:0.6px;">
+      Consola Privada GEOKATU · Acceso Exclusivo Superadmin
+    </p>
+
+    <div id="panel-login-bunker">
+      <button type="button" class="btn-bunker-google" onclick="window.iniciarConGoogle()">
+        <svg width="18" height="18" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+        </svg>
+        Continuar con Google
+      </button>
+
+      <div style="display:flex; align-items:center; color:#64748b; font-size:11px; margin:14px 0;">
+        <div style="flex:1; border-bottom:1px solid rgba(255,255,255,0.1);"></div>
+        <span style="padding:0 10px;">o credenciales de bóveda</span>
+        <div style="flex:1; border-bottom:1px solid rgba(255,255,255,0.1);"></div>
+      </div>
+
+      <form onsubmit="event.preventDefault(); window.iniciarSesion();">
+        <input type="email" id="login-email" class="bunker-input" placeholder="Correo institucional" required autocomplete="username">
+        <div style="position:relative; width:100%;">
+          <input type="password" id="login-pass" class="bunker-input" placeholder="Contraseña" required autocomplete="current-password" style="padding-right:42px;">
+          <button type="button" onclick="window.toggleVerPassword('login-pass', this)" style="position:absolute; right:10px; top:10px; background:transparent; border:none; color:#94a3b8; cursor:pointer; padding:2px;">
+            <svg class="svg-ico" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+        <button type="submit" class="btn-bunker-submit">Validar e Ingresar</button>
+      </form>
+    </div>
+
+    <div id="panel-verificando-bunker" style="display:none; padding:20px 0;">
+      <div class="spinner-ring"></div>
+      <p style="color:var(--muted); font-size:12px; margin:12px 0 0;">Validando rol Superadmin en Firestore...</p>
+    </div>
+
+    <div id="caja-acceso-denegado" class="alerta-denegado-box" style="display:none;">
+      <strong style="color:#fca5a5; font-size:13px; display:block; margin-bottom:6px;">ACCESO DENEGADO</strong>
+      <p id="txt-motivo-denegado" style="color:#cbd5e1; font-size:12px; margin:0 0 12px 0;">
+        Se requiere rol <code>superadmin</code> en <code>Usuarios_Admin</code>.
+      </p>
+      <button type="button" class="btn btn-danger" style="width:100%;" onclick="window.cerrarSesion()">
+        Cerrar Sesión
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- =========================================================================
+     CABECERA DE CONSOLA
+     ========================================================================= -->
+<header>
+  <div class="header-left">
+    <span class="logo-tag">PIROBONIANOS</span>
+    <div class="header-title">
+      <h1>Hoja de Ruta EDT · Producción en Serie</h1>
+      <small>Bóveda privada conectada a GEOKATU Firestore &amp; Storage</small>
+    </div>
+    <span id="badge-sync" class="pill-badge live">Sincronizado</span>
+  </div>
+
+  <div class="header-right">
+    <button type="button" class="btn btn-primary" onclick="window.togglePanelIngesta()">
+      <svg class="svg-ico-sm" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+      Pegar Pasos EDT
+    </button>
+    <button type="button" class="btn btn-blue" onclick="window.abrirModalBoveda()">
+      <svg class="svg-ico-sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Bóveda Cloud (<span id="conteo-activos-boveda">0</span>)
+    </button>
+    <button type="button" class="btn" onclick="window.abrirModalRespaldo()">
+      <svg class="svg-ico-sm" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+      Respaldo
+    </button>
+    <span id="badge-superadmin" class="pill-badge ok hidden">Superadmin</span>
+    <button type="button" id="btn-logout-header" class="btn btn-danger hidden" onclick="window.cerrarSesion()">Salir</button>
+  </div>
+</header>
+
+<!-- BARRA DE PROYECTOS Y PROGRESO -->
+<div class="project-bar">
+  <div class="project-select-wrap">
+    <span style="font-size:11px; color:var(--muted); font-weight:800; text-transform:uppercase;">Tablero:</span>
+    <select id="select-proyecto" class="select-glass" onchange="window.cambiarProyectoActivo(this.value)"></select>
+    <button type="button" class="btn btn-sm" onclick="window.abrirModalNuevoProyecto()">
+      <svg class="svg-ico-sm" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      Nuevo Tablero
+    </button>
+    <button type="button" class="btn btn-sm btn-danger" onclick="window.eliminarProyectoActual()" title="Eliminar tablero actual">
+      <svg class="svg-ico-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+    </button>
+  </div>
+
+  <div class="progress-wrap">
+    <span id="txt-progreso-conteo" style="font-size:12px; font-weight:800; font-family:monospace; color:#fff;">0 / 0</span>
+    <div class="progress-track">
+      <div class="progress-fill" id="barra-progreso"></div>
+    </div>
+    <span id="txt-progreso-pct" style="font-size:12px; font-weight:800; color:var(--verde); min-width:36px; text-align:right;">0%</span>
+  </div>
+</div>
+
+<!-- =========================================================================
+     PANEL SUPERIOR: RIEL HORIZONTAL EN SERIE (SCROLL A LA DERECHA)
+     ========================================================================= -->
+<section class="rail-section">
+  <div class="rail-header">
+    <div class="rail-header-title">
+      <svg class="svg-ico-sm" viewBox="0 0 24 24" style="color:var(--naranja);"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      <span>Riel de Tickets en Serie</span>
+      <span class="pill-badge" id="badge-siguiente-paso">Sin tickets</span>
+    </div>
+    <div class="rail-controls">
+      <select id="filtro-mision" class="select-glass" style="min-width:140px; padding:4px 8px; font-size:11.5px;" onchange="window.renderizarRiel()">
+        <option value="TODAS">Todas las Misiones</option>
+      </select>
+      <label style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; color:var(--muted); cursor:pointer;">
+        <input type="checkbox" id="chk-modo-libre" style="accent-color:var(--azul);" onchange="window.renderizarRiel()">
+        <span>Permitir saltar orden</span>
+      </label>
+      <button type="button" class="btn btn-sm btn-blue" onclick="window.enfocarSiguienteTicket()">
+        Ir al Siguiente
+      </button>
+    </div>
+  </div>
+
+  <div class="rail-track" id="riel-tickets">
+    <div style="color:var(--muted); font-size:12px; padding:18px 8px;">
+      Pega tus pasos EDT en el cuadro inferior para generar la fila de tickets en serie.
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================================
+     ESPACIO PRINCIPAL: INGESTA DE TEXTO + VISOR DE TICKET ACTIVO
+     ========================================================================= -->
+<main>
+  <!-- CUADRO DE TEXTO PARA INTRODUCIR PASOS EDT -->
+  <section class="glass-card" id="panel-ingesta">
+    <div class="card-head">
+      <h2>
+        <svg class="svg-ico" viewBox="0 0 24 24" style="color:var(--naranja);"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Ingesta de Hoja de Ruta (Pega aquí tus pasos EDT)
+      </h2>
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button type="button" class="btn btn-sm btn-blue" onclick="window.cargarPlantillaPiroRig()">
+          Cargar Ejemplo Piro-Rig
+        </button>
+        <button type="button" class="btn btn-sm" onclick="window.togglePanelIngesta(false)">
+          Ocultar
+        </button>
+      </div>
+    </div>
+
+    <textarea id="input-edt-texto" class="ingest-textarea" placeholder="Pega aquí tus pasos tal cual, por ejemplo:
+
+## Misión 0. Seguridad y árbol limpio
+[ ] 0.1. Revocar claves antiguas: Entra a los paneles de DeepSeek, ElevenLabs y Gemini...
+[ ] 0.2. Crear la carpeta raíz limpia: Abre el administrador de archivos...
+[ ] 0.3. Crear la estructura completa de carpetas:
+Plaintext
+Pirobonianos/
+├── biblioteca/
+└── motor/"></textarea>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:12px; flex-wrap:wrap;">
+      <span id="txt-preview-parser" style="font-size:11.5px; color:var(--muted);">
+        Reconoce encabezados de Misión, casillas [ ] / [x], numeración 0.1 / 1.2 y bloques de texto o árboles de carpetas.
+      </span>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button type="button" class="btn btn-blue" onclick="window.procesarTextoEDT('anexar')">
+          Anexar al Final
+        </button>
+        <button type="button" class="btn btn-primary" onclick="window.procesarTextoEDT('reemplazar')">
+          Generar Hoja de Ruta en Tickets
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- VISOR DETALLADO DEL TICKET ABIERTO -->
+  <section class="glass-card hidden" id="panel-ticket-activo">
+    <div class="card-head">
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <span id="visor-codigo" class="logo-tag" style="font-family:monospace; font-size:12.5px;">0.1</span>
+        <div>
+          <h2 id="visor-titulo" style="margin:0;">Título del paso</h2>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:3px; flex-wrap:wrap;">
+            <span id="visor-mision" class="pill-badge">Misión</span>
+            <span id="visor-posicion" class="pill-badge live">Ticket 1 de 1</span>
+            <span id="visor-estado-badge" class="pill-badge warn">En Curso</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap;">
+        <button type="button" id="btn-timer-ticket" class="btn btn-sm" onclick="window.toggleTimerTicket()">
+          <svg class="svg-ico-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span id="txt-timer-ticket">00:00</span>
+        </button>
+        <button type="button" class="btn btn-sm" onclick="window.abrirModalEditarTicket()">
+          Editar
+        </button>
+        <button type="button" class="btn btn-sm btn-danger" onclick="window.eliminarTicketAbierto()">
+          Eliminar
+        </button>
+        <button type="button" class="btn btn-sm" onclick="window.cerrarVisorTicket()">
+          Cerrar
+        </button>
+      </div>
+    </div>
+
+    <div class="ticket-focus-grid">
+      <!-- COLUMNA IZQUIERDA (ÁUREA 61.8%): INSTRUCCIONES Y ACCIÓN PRINCIPAL -->
+      <div>
+        <div style="font-size:11px; font-weight:800; color:var(--muted); text-transform:uppercase; margin-bottom:6px; letter-spacing:0.6px;">
+          Instrucciones a realizar
+        </div>
+        <div id="visor-cuerpo-instrucciones" class="ticket-body-rich"></div>
+
+        <div style="margin-top:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <span style="font-size:11px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:0.6px;">
+              Bitácora / Datos obtenidos en este paso (voice_id, pivotes, notas)
+            </span>
+            <span id="txt-nota-guardada" style="font-size:10.5px; color:var(--verde); opacity:0; transition:opacity .2s;">Guardado</span>
+          </div>
+          <textarea id="visor-notas-input" class="notes-box" placeholder="Anota aquí resultados, rutas, voice_id de ElevenLabs o coordenadas de pivotes..." oninput="window.programarGuardadoNota()"></textarea>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;">
+          <button type="button" id="btn-completar-ticket" class="btn btn-green" style="flex:1; padding:12px 16px; font-size:13.5px;" onclick="window.alternarCompletadoTicketAbierto()">
+            <svg class="svg-ico" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+            <span id="txt-btn-completar">Completar Ticket y Activar Siguiente</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- COLUMNA DERECHA (38.2%): ARCHIVOS EN FIREBASE STORAGE -->
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap;">
+          <span style="font-size:11px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:0.6px;">
+            Archivos y Evidencias en la Nube (Firebase Storage)
+          </span>
+          <label style="display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--azul); font-weight:700; cursor:pointer;">
+            <input type="checkbox" id="chk-abrir-estudio-png" checked style="accent-color:var(--naranja);">
+            <span>Editar PNG al subir</span>
+          </label>
+        </div>
+        <input type="file" id="input-subir-archivo-ticket" multiple class="hidden" onchange="window.subirArchivosAlTicket(this.files); this.value='';">
+        <div class="upload-zone" onclick="document.getElementById('input-subir-archivo-ticket').click()">
+          <svg class="svg-ico-lg" viewBox="0 0 24 24" style="color:var(--azul); margin-bottom:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <div style="font-size:12.5px; font-weight:700;">Subir PNG, Audio, JSON o Script a este ticket</div>
+          <div style="font-size:11px; color:var(--muted); margin-top:2px;">Se guarda en <code>pirobonianos/{tablero}/</code> (máx. 15 MB)</div>
+        </div>
+
+        <div id="progreso-subida-box" class="hidden" style="margin-top:8px; padding:8px 10px; border-radius:8px; background:var(--azul-bg); color:var(--azul); font-size:11.5px; font-weight:700;">
+          Subiendo archivo a Firebase Storage...
+        </div>
+
+        <div id="visor-lista-archivos" class="asset-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ESTADO VACÍO / GUÍA CUANDO NO HAY TICKET ABIERTO -->
+  <section class="glass-card empty-state" id="panel-placeholder-visor">
+    <svg class="svg-ico-lg" viewBox="0 0 24 24" style="color:var(--naranja); width:36px; height:36px;"><circle cx="12" cy="12" r="10"/><polyline points="12 16 16 12 12 8"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    <h3 id="placeholder-titulo">Selecciona el ticket resaltado en el riel superior</h3>
+    <p id="placeholder-sub" style="margin:0 auto; max-width:520px; font-size:12.5px;">
+      El siguiente paso pendiente aparece más grande y en color naranja en la fila superior. Tócalo para desplegar sus instrucciones, anotar resultados y subir los activos a tu bóveda en la nube.
+    </p>
+  </section>
+</main>
+
+<!-- =========================================================================
+     MODAL: NUEVO TABLERO / PROYECTO
+     ========================================================================= -->
+<div class="modal-overlay" id="modal-nuevo-proyecto" onclick="if(event.target.id==='modal-nuevo-proyecto') window.cerrarModal('modal-nuevo-proyecto')">
+  <div class="modal-box" style="max-width:430px;">
+    <div class="card-head">
+      <h2>Crear Nuevo Tablero EDT</h2>
+      <button type="button" class="btn btn-sm" onclick="window.cerrarModal('modal-nuevo-proyecto')">Cerrar</button>
+    </div>
+    <form onsubmit="event.preventDefault(); window.confirmarNuevoProyecto();">
+      <label style="display:block; font-size:11.5px; color:var(--muted); margin-bottom:5px; font-weight:700;">Nombre del tablero (ej. EDT Maestro, Personaje per_001, Episodio ep001)</label>
+      <input type="text" id="input-nuevo-proy-nombre" class="bunker-input" placeholder="Ej: Personaje 001 - Fernando" required>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:10px;">
+        <button type="button" class="btn" onclick="window.cerrarModal('modal-nuevo-proyecto')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Crear Tablero</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- =========================================================================
+     MODAL: EDITAR TICKET
+     ========================================================================= -->
+<div class="modal-overlay" id="modal-editar-ticket" onclick="if(event.target.id==='modal-editar-ticket') window.cerrarModal('modal-editar-ticket')">
+  <div class="modal-box">
+    <div class="card-head">
+      <h2>Editar Ticket</h2>
+      <button type="button" class="btn btn-sm" onclick="window.cerrarModal('modal-editar-ticket')">Cerrar</button>
+    </div>
+    <form onsubmit="event.preventDefault(); window.guardarEdicionTicket();">
+      <div style="display:grid; grid-template-columns:120px 1fr; gap:8px;">
+        <div>
+          <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:4px;">Código</label>
+          <input type="text" id="edit-t-codigo" class="bunker-input" required>
+        </div>
+        <div>
+          <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:4px;">Misión / Fase</label>
+          <input type="text" id="edit-t-mision" class="bunker-input">
+        </div>
+      </div>
+      <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:4px;">Título del paso</label>
+      <input type="text" id="edit-t-titulo" class="bunker-input" required>
+      <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:4px;">Descripción e instrucciones (soporta bloques de código / árbol)</label>
+      <textarea id="edit-t-detalle" class="ingest-textarea" style="min-height:160px;"></textarea>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px;">
+        <button type="button" class="btn" onclick="window.cerrarModal('modal-editar-ticket')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- =========================================================================
+     MODAL: BÓVEDA GLOBAL DE ARCHIVOS EN STORAGE
+     ========================================================================= -->
+<div class="modal-overlay" id="modal-boveda" onclick="if(event.target.id==='modal-boveda') window.cerrarModal('modal-boveda')">
+  <div class="modal-box" style="max-width:860px;">
+    <div class="card-head">
+      <h2>Bóveda de Activos en la Nube (Tablero Actual)</h2>
+      <div style="display:flex; gap:6px;">
+        <input type="file" id="input-subir-boveda-directo" multiple class="hidden" onchange="window.subirArchivosDirectoBoveda(this.files); this.value='';">
+        <button type="button" class="btn btn-sm btn-primary" onclick="document.getElementById('input-subir-boveda-directo').click()">Subir Archivo</button>
+        <button type="button" class="btn btn-sm" onclick="window.cerrarModal('modal-boveda')">Cerrar</button>
+      </div>
+    </div>
+    <div id="grid-boveda-activos" class="vault-grid"></div>
+  </div>
+</div>
+
+<!-- =========================================================================
+     MODAL: RESPALDO JSON (EXPORTAR / IMPORTAR)
+     ========================================================================= -->
+<div class="modal-overlay" id="modal-respaldo" onclick="if(event.target.id==='modal-respaldo') window.cerrarModal('modal-respaldo')">
+  <div class="modal-box" style="max-width:460px;">
+    <div class="card-head">
+      <h2>Respaldo y Sincronización</h2>
+      <button type="button" class="btn btn-sm" onclick="window.cerrarModal('modal-respaldo')">Cerrar</button>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <button type="button" class="btn btn-blue" onclick="window.forzarSincronizacionNube()">Forzar Sincronización con Firestore</button>
+      <button type="button" class="btn btn-primary" onclick="window.exportarTableroJSON()">Descargar Respaldo JSON del Tablero</button>
+      <input type="file" id="input-importar-json" accept=".json" class="hidden" onchange="window.importarTableroJSON(this.files[0]); this.value='';">
+      <button type="button" class="btn" onclick="document.getElementById('input-importar-json').click()">Importar Respaldo JSON</button>
+    </div>
+  </div>
+</div>
+
+<!-- =========================================================================
+     MODAL DE CONFIRMACIÓN GLASSMORPHIC (CERO CONFIRM NATIVO)
+     ========================================================================= -->
+<div class="modal-overlay" id="modal-confirm-piro" style="z-index:95000;">
+  <div class="modal-box" style="max-width:390px;">
+    <h3 id="confirm-piro-titulo" style="margin:0 0 8px 0; font-size:14.5px;">Confirmación</h3>
+    <p id="confirm-piro-msg" style="margin:0 0 16px 0; font-size:12.5px; color:var(--muted);"></p>
+    <div style="display:flex; justify-content:flex-end; gap:8px;">
+      <button type="button" class="btn" id="confirm-piro-cancel">Cancelar</button>
+      <button type="button" class="btn btn-primary" id="confirm-piro-ok">Confirmar</button>
+    </div>
+  </div>
+</div>
+<!-- MODAL EMBEBIDO: PIRO-ESTUDIO PNG -->
+<div class="modal-overlay" id="modal-estudio-png-embed" style="z-index:92000; padding:8px;">
+  <div class="modal-box" style="max-width:1220px; width:100%; height:92vh; max-height:92vh; padding:0; display:flex; flex-direction:column; overflow:hidden;">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:rgba(13,16,23,0.98); border-bottom:1px solid var(--glass-border);">
+      <strong style="font-size:12.5px; color:var(--naranja); letter-spacing:0.5px;">PIRO-ESTUDIO PNG · EDICIÓN EN CALIENTE PARA EL TICKET</strong>
+      <button type="button" class="btn btn-sm btn-danger" onclick="window.cerrarEstudioPNGModal()">Cerrar Estudio</button>
+    </div>
+    <iframe id="iframe-estudio-png" src="./piro-estudio-png.html?embed=1" style="flex:1; width:100%; border:none; background:#0d1117;"></iframe>
+  </div>
+</div>
+<div id="toast-container"></div>
+
+<!-- =========================================================================
+     CONEXIÓN CON GEOKATU (auth-mando.js + core-db.js)
+     ========================================================================= -->
+<script type="module" src="./auth-mando.js"></script>
+<script type="module">
+import GeokatuDB from './core-db.js';
+
+// =========================================================================
+// 1. ESTADO DE LA APLICACIÓN
+// =========================================================================
+const CLAVE_INDICE_LOCAL = 'piro_edt_indice_proyectos';
+let superadminAutorizado = false;
+let listaProyectos = [];
+let proyectoActual = null;
+let ticketAbiertoId = null;
+let debounceNota = null;
+let debounceSync = null;
+let timerInterval = null;
+
+// Sintetizador Web Audio ligero
+let audioCtx = null;
+function emitirTono(tipo) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    const t = audioCtx.currentTime;
+    osc.type = tipo === 'ERROR' ? 'sawtooth' : 'sine';
+    osc.frequency.setValueAtTime(tipo === 'ERROR' ? 240 : 1240, t);
+    gain.gain.setValueAtTime(0.08, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+    osc.start(t); osc.stop(t + 0.12);
+  } catch (e) {}
+}
+
+function mostrarToast(mensaje, tipo, duracion) {
+  const cont = document.getElementById('toast-container');
+  if (!cont) return;
+  const el = document.createElement('div');
+  el.className = 'toast-item ' + (tipo || 'info');
+  el.innerHTML = '<span>' + escaparHTML(mensaje) + '</span>' +
+    '<button type="button" style="background:none;border:none;color:inherit;cursor:pointer;font-weight:800;padding:0 2px;" onclick="this.parentElement.remove()">x</button>';
+  cont.appendChild(el);
+  setTimeout(function() {
+    el.style.opacity = '0';
+    el.style.transition = 'opacity .2s';
+    setTimeout(function() { el.remove(); }, 220);
+  }, duracion || 3000);
+}
+
+function solicitarConfirmacion(titulo, mensaje) {
+  return new Promise(function(resolve) {
+    const modal = document.getElementById('modal-confirm-piro');
+    document.getElementById('confirm-piro-titulo').textContent = titulo;
+    document.getElementById('confirm-piro-msg').textContent = mensaje;
+    const btnC = document.getElementById('confirm-piro-cancel');
+    const btnO = document.getElementById('confirm-piro-ok');
+    modal.classList.add('open');
+    const cerrar = function(val) {
+      modal.classList.remove('open');
+      btnC.onclick = null;
+      btnO.onclick = null;
+      resolve(val);
+    };
+    btnC.onclick = function() { cerrar(false); };
+    btnO.onclick = function() { cerrar(true); };
+  });
+}
+
+function escaparHTML(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function setEstadoSync(texto, clase) {
+  const b = document.getElementById('badge-sync');
+  if (!b) return;
+  b.textContent = texto;
+  b.className = 'pill-badge ' + (clase || 'live');
+}
+
+// =========================================================================
+// 2. BÚNKER ZERO-TRUST (EXCLUSIVO SUPERADMIN)
+// =========================================================================
+GeokatuDB.SecurityService.observarEstadoSesion(async function(user) {
+  const gate = document.getElementById('bunker-auth-gate');
+  const panelLogin = document.getElementById('panel-login-bunker');
+  const panelVer = document.getElementById('panel-verificando-bunker');
+  const cajaDen = document.getElementById('caja-acceso-denegado');
+  const badgeSuper = document.getElementById('badge-superadmin');
+  const btnLogout = document.getElementById('btn-logout-header');
+
+  if (user) {
+    panelLogin.style.display = 'none';
+    cajaDen.style.display = 'none';
+    panelVer.style.display = 'block';
+    try {
+      const res = await GeokatuDB.SecurityService.obtenerRolAdmin(user.uid);
+      if (res.success && res.data && String(res.data.rol || '').toLowerCase() === 'superadmin') {
+        superadminAutorizado = true;
+        if (GeokatuDB.SecurityService.sellarSesionTerminalLocal) {
+          await GeokatuDB.SecurityService.sellarSesionTerminalLocal(user.uid);
+        }
+        panelVer.style.display = 'none';
+        gate.style.display = 'none';
+        badgeSuper.classList.remove('hidden');
+        badgeSuper.title = user.email;
+        btnLogout.classList.remove('hidden');
+        await inicializarProyectos();
+      } else {
+        superadminAutorizado = false;
+        panelVer.style.display = 'none';
+        gate.style.display = 'flex';
+        const rol = (res.data && res.data.rol) ? res.data.rol : 'estandar';
+        document.getElementById('txt-motivo-denegado').innerHTML =
+          'Sesión: <b>' + escaparHTML(user.email) + '</b>.<br>Rol detectado: <code>' + escaparHTML(rol) + '</code>.<br>Se requiere <code>superadmin</code>.';
+        cajaDen.style.display = 'block';
+      }
+    } catch (err) {
+      panelVer.style.display = 'none';
+      cajaDen.style.display = 'block';
+      document.getElementById('txt-motivo-denegado').textContent = 'Error validando privilegios en Firestore.';
+    }
+  } else {
+    superadminAutorizado = false;
+    gate.style.display = 'flex';
+    panelLogin.style.display = 'block';
+    panelVer.style.display = 'none';
+    cajaDen.style.display = 'none';
+    badgeSuper.classList.add('hidden');
+    btnLogout.classList.add('hidden');
+  }
+});
+
+// =========================================================================
+// 3. GESTIÓN DE PROYECTOS (OFFLINE-FIRST + FIRESTORE)
+// =========================================================================
+function crearEstructuraProyectoBase(id, nombre) {
+  return {
+    id: id,
+    nombre: nombre,
+    tickets: [],
+    activos_generales: [],
+    fecha_creacion: new Date().toISOString(),
+    fecha_actualizacion: new Date().toISOString()
+  };
+}
+
+async function inicializarProyectos() {
+  setEstadoSync('Cargando nube...', 'warn');
+  // 1. Cargar índice local rápido
+  try {
+    const rawIdx = localStorage.getItem(CLAVE_INDICE_LOCAL);
+    if (rawIdx) listaProyectos = JSON.parse(rawIdx) || [];
+  } catch (e) { listaProyectos = []; }
+
+  // 2. Consultar nube si hay PirobonianosService disponible
+  if (GeokatuDB.PirobonianosService && navigator.onLine) {
+    const res = await GeokatuDB.PirobonianosService.listarProyectosEDT();
+    if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+      const mapa = new Map();
+      listaProyectos.forEach(function(p) { mapa.set(p.id, p); });
+      res.data.forEach(function(pNube) {
+        const local = mapa.get(pNube.id);
+        if (!local || String(pNube.fecha_actualizacion || '') >= String(local.fecha_actualizacion || '')) {
+          mapa.set(pNube.id, pNube);
+        }
+      });
+      listaProyectos = Array.from(mapa.values());
+      guardarIndiceLocal();
+      setEstadoSync('Sincronizado en Nube', 'ok');
+    } else if (res.success) {
+      setEstadoSync('Nube lista', 'ok');
+    } else {
+      setEstadoSync('Modo Local', 'warn');
+    }
+  } else {
+    setEstadoSync(GeokatuDB.PirobonianosService ? 'Offline (Local)' : 'Falta patch core-db.js', 'warn');
+  }
+
+  if (listaProyectos.length === 0) {
+    const base = crearEstructuraProyectoBase('edt_maestro_pirobonianos', 'EDT Maestro · Pirobonianos');
+    listaProyectos.push(base);
+    guardarIndiceLocal();
+  }
+
+  const ultimoId = localStorage.getItem('piro_edt_ultimo_proyecto_id');
+  const elegido = listaProyectos.find(function(p) { return p.id === ultimoId; }) || listaProyectos[0];
+  proyectoActual = elegido;
+  renderizarSelectorProyectos();
+  actualizarUIProyecto();
+
+  // Si el tablero ya tiene tickets, ocultar ingesta y abrir automáticamente el siguiente ticket
+  if (proyectoActual.tickets && proyectoActual.tickets.length > 0) {
+    window.togglePanelIngesta(false);
+    const sig = obtenerSiguienteTicketPendiente();
+    if (sig) abrirTicket(sig.id);
+  } else {
+    window.togglePanelIngesta(true);
+  }
+}
+
+function guardarIndiceLocal() {
+  try {
+    localStorage.setItem(CLAVE_INDICE_LOCAL, JSON.stringify(listaProyectos));
+    if (proyectoActual) {
+      localStorage.setItem('piro_edt_ultimo_proyecto_id', proyectoActual.id);
+    }
+  } catch (e) {}
+}
+
+function programarGuardadoProyecto(inmediato) {
+  if (!proyectoActual) return;
+  proyectoActual.fecha_actualizacion = new Date().toISOString();
+  const idx = listaProyectos.findIndex(function(p) { return p.id === proyectoActual.id; });
+  if (idx >= 0) listaProyectos[idx] = proyectoActual;
+  else listaProyectos.unshift(proyectoActual);
+  guardarIndiceLocal();
+
+  setEstadoSync('Guardando...', 'warn');
+  clearTimeout(debounceSync);
+  const ejecutar = async function() {
+    if (!GeokatuDB.PirobonianosService) {
+      setEstadoSync('Guardado Local', 'warn');
+      return;
+    }
+    const res = await GeokatuDB.PirobonianosService.guardarProyectoEDT(proyectoActual.id, proyectoActual);
+    if (res.success && !res.offline) {
+      setEstadoSync('Sincronizado en Nube', 'ok');
+    } else if (res.offline) {
+      setEstadoSync('Guardado Local (Offline)', 'warn');
+    } else {
+      setEstadoSync('Error Nube (Respaldo Local)', 'warn');
+      mostrarToast('Aviso Firestore: ' + (res.error || 'Verifica reglas de Firestore'), 'error', 4000);
+    }
+  };
+  if (inmediato) ejecutar();
+  else debounceSync = setTimeout(ejecutar, 650);
+}
+
+function renderizarSelectorProyectos() {
+  const sel = document.getElementById('select-proyecto');
+  sel.innerHTML = '';
+  listaProyectos.forEach(function(p) {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    const tot = (p.tickets || []).length;
+    const done = (p.tickets || []).filter(function(t) { return t.completado; }).length;
+    opt.textContent = p.nombre + ' (' + done + '/' + tot + ')';
+    if (proyectoActual && p.id === proyectoActual.id) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+window.cambiarProyectoActivo = function(id) {
+  const encontrado = listaProyectos.find(function(p) { return p.id === id; });
+  if (!encontrado) return;
+  detenerTimerTicket();
+  proyectoActual = encontrado;
+  ticketAbiertoId = null;
+  localStorage.setItem('piro_edt_ultimo_proyecto_id', proyectoActual.id);
+  actualizarUIProyecto();
+  const sig = obtenerSiguienteTicketPendiente();
+  if (sig) abrirTicket(sig.id);
+  else window.cerrarVisorTicket();
+};
+
+window.abrirModalNuevoProyecto = function() {
+  document.getElementById('input-nuevo-proy-nombre').value = '';
+  document.getElementById('modal-nuevo-proyecto').classList.add('open');
+  setTimeout(function() { document.getElementById('input-nuevo-proy-nombre').focus(); }, 60);
+};
+
+window.confirmarNuevoProyecto = function() {
+  const nombre = document.getElementById('input-nuevo-proy-nombre').value.trim();
+  if (!nombre) return;
+  const slug = nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 36) || ('edt_' + Date.now());
+  const idUnico = listaProyectos.some(function(p) { return p.id === slug; }) ? (slug + '_' + String(Date.now()).slice(-4)) : slug;
+  const nuevo = crearEstructuraProyectoBase(idUnico, nombre);
+  listaProyectos.unshift(nuevo);
+  proyectoActual = nuevo;
+  ticketAbiertoId = null;
+  window.cerrarModal('modal-nuevo-proyecto');
+  renderizarSelectorProyectos();
+  actualizarUIProyecto();
+  window.cerrarVisorTicket();
+  window.togglePanelIngesta(true);
+  programarGuardadoProyecto(true);
+  emitirTono('EXITO');
+  mostrarToast('Tablero "' + nombre + '" creado.', 'exito');
+};
+
+window.eliminarProyectoActual = async function() {
+  if (!proyectoActual) return;
+  if (listaProyectos.length <= 1) {
+    mostrarToast('Debes conservar al menos un tablero.', 'info');
+    return;
+  }
+  const ok = await solicitarConfirmacion('Eliminar Tablero', 'Se eliminará "' + proyectoActual.nombre + '" y sus tickets de Firestore y local.');
+  if (!ok) return;
+  const idBorrar = proyectoActual.id;
+  listaProyectos = listaProyectos.filter(function(p) { return p.id !== idBorrar; });
+  if (GeokatuDB.PirobonianosService) {
+    await GeokatuDB.PirobonianosService.eliminarProyectoEDT(idBorrar);
+  }
+  proyectoActual = listaProyectos[0];
+  ticketAbiertoId = null;
+  guardarIndiceLocal();
+  renderizarSelectorProyectos();
+  actualizarUIProyecto();
+  window.cerrarVisorTicket();
+  mostrarToast('Tablero eliminado.', 'info');
+};
+
+// =========================================================================
+// 4. PARSER INTELIGENTE DE PASOS EDT
+// =========================================================================
+function parsearTextoEDT(textoCrudo) {
+  const lineas = String(textoCrudo || '').replace(/\r\n/g, '\n').split('\n');
+  const tickets = [];
+  let misionActual = 'General';
+  let actual = null;
+  let contadorAuto = 1;
+
+  const guardarActual = function() {
+    if (!actual) return;
+    actual.detalle = actual.lineasDetalle.join('\n').trim();
+    delete actual.lineasDetalle;
+    tickets.push(actual);
+    actual = null;
+  };
+
+  for (let i = 0; i < lineas.length; i++) {
+    const raw = lineas[i];
+    const trimmed = raw.trim();
+
+    // Ignorar separadores Markdown ---
+    if (/^[-*_]{3,}$/.test(trimmed)) continue;
+
+    // Detectar encabezados de Misión o Sección (## Misión 0..., Misión 1..., ### Fase...)
+    const mEncabezado = trimmed.match(/^(?:#{1,4}\s+)?((?:Misi[oó]n|Fase|Etapa|Paso\s+Maestro)\s*[0-9A-Za-z._-]*.*)/i);
+    if (mEncabezado && !/^[-*•]?\s*\[[ xX]?\]/.test(trimmed)) {
+      guardarActual();
+      misionActual = mEncabezado[1].replace(/\*\*/g, '').trim();
+      continue;
+    }
+
+    // Detectar línea de tarea con casilla: [ ] 0.1. Título: detalle  ó  * [ ] **0.1. Título:** detalle
+    const mCheck = trimmed.match(/^(?:[-*•]\s*)?\[([ xX]?)\]\s*(.+)$/);
+    // También permitir formato numerado jerárquico sin casilla: 0.1. Título: detalle
+    const mNum = !mCheck ? trimmed.match(/^\*{0,2}(\d+\.\d+(?:\.\d+)?)\.?\s+(.+)$/) : null;
+
+    if (mCheck || mNum) {
+      guardarActual();
+      const completado = mCheck ? (mCheck[1].toLowerCase() === 'x') : false;
+      let cuerpoLinea = mCheck ? mCheck[2].trim() : (mNum[1] + '. ' + mNum[2].trim());
+      // Quitar negritas Markdown envolventes para extraer código y título limpios
+      const sinEstrellas = cuerpoLinea.replace(/\*\*/g, '');
+
+      let codigo = '';
+      let resto = sinEstrellas;
+      const mCod = sinEstrellas.match(/^(\d+(?:\.\d+)*|[A-Za-z]\d+)\.?\)?\s+(.+)$/);
+      if (mCod) {
+        codigo = mCod[1];
+        resto = mCod[2].trim();
+      } else {
+        codigo = String(contadorAuto);
+      }
+
+      let titulo = resto;
+      let detalleInicial = '';
+      const idxDosPuntos = resto.indexOf(':');
+      if (idxDosPuntos > 0 && idxDosPuntos <= 95) {
+        titulo = resto.slice(0, idxDosPuntos).trim();
+        detalleInicial = resto.slice(idxDosPuntos + 1).trim();
+      }
+
+      actual = {
+        id: 'tk_' + Date.now() + '_' + contadorAuto + '_' + Math.random().toString(36).slice(2, 6),
+        orden: contadorAuto,
+        codigo: codigo,
+        mision: misionActual,
+        titulo: titulo || ('Paso ' + codigo),
+        lineasDetalle: detalleInicial ? [detalleInicial] : [],
+        completado: completado,
+        notas: '',
+        segundos_invertidos: 0,
+        adjuntos: []
+      };
+      contadorAuto++;
+      continue;
+    }
+
+    // Línea de continuación del ticket actual (árboles de carpetas, Plaintext, sub-viñetas, comandos)
+    if (actual) {
+      if (trimmed === '' && actual.lineasDetalle.length === 0) continue;
+      actual.lineasDetalle.push(raw);
+    }
+  }
+  guardarActual();
+  return tickets;
+}
+
+window.procesarTextoEDT = async function(modo) {
+  if (!proyectoActual) return;
+  const texto = document.getElementById('input-edt-texto').value;
+  if (!texto.trim()) {
+    mostrarToast('Pega primero tus pasos EDT en el cuadro de texto.', 'error');
+    return;
+  }
+
+  const nuevos = parsearTextoEDT(texto);
+  if (nuevos.length === 0) {
+    mostrarToast('No se detectaron pasos válidos. Usa líneas con [ ] 0.1. Título: detalle.', 'error', 4000);
+    return;
+  }
+
+  if (modo === 'reemplazar' && proyectoActual.tickets.length > 0) {
+    const ok = await solicitarConfirmacion(
+      'Reemplazar Hoja de Ruta',
+      'Este tablero ya tiene ' + proyectoActual.tickets.length + ' tickets. ¿Deseas reemplazarlos por los ' + nuevos.length + ' tickets nuevos?'
+    );
+    if (!ok) return;
+  }
+
+  if (modo === 'anexar') {
+    const baseOrden = proyectoActual.tickets.length;
+    nuevos.forEach(function(t, i) { t.orden = baseOrden + i + 1; });
+    proyectoActual.tickets = proyectoActual.tickets.concat(nuevos);
+  } else {
+    proyectoActual.tickets = nuevos;
+  }
+
+  document.getElementById('input-edt-texto').value = '';
+  window.togglePanelIngesta(false);
+  actualizarUIProyecto();
+  programarGuardadoProyecto(true);
+
+  const sig = obtenerSiguienteTicketPendiente();
+  if (sig) abrirTicket(sig.id);
+  emitirTono('EXITO');
+  mostrarToast(nuevos.length + ' tickets generados en serie.', 'exito');
+};
+
+window.togglePanelIngesta = function(forzarEstado) {
+  const el = document.getElementById('panel-ingesta');
+  if (typeof forzarEstado === 'boolean') {
+    el.classList.toggle('hidden', !forzarEstado);
+  } else {
+    el.classList.toggle('hidden');
+  }
+};
+
+window.cargarPlantillaPiroRig = function() {
+  const plantilla =
+    '## Misión 0. Seguridad y árbol limpio en Android\n' +
+    '[ ] 0.1. Revocar claves antiguas: Entra a los paneles de DeepSeek, ElevenLabs y Gemini y revoca/genera claves nuevas, ya que las anteriores quedaron escritas en texto plano dentro de tu script viejo. No las pegues en ningún archivo del proyecto todavía.\n' +
+    '[ ] 0.2. Crear la carpeta raíz limpia: Abre el administrador de archivos en Almacenamiento interno compartido y crea una carpeta nueva llamada Pirobonianos (aparte de PiroFabrica y Pirobos).\n' +
+    '[ ] 0.3. Crear la estructura completa de carpetas: Dentro de Pirobonianos, crea exactamente este árbol (todo en minúsculas, sin tildes ni espacios):\n' +
+    'Plaintext\n' +
+    'Pirobonianos/\n' +
+    '├── biblioteca/\n' +
+    '│   ├── escenarios/\n' +
+    '│   ├── personajes/\n' +
+    '│   ├── props/\n' +
+    '│   ├── audio/\n' +
+    '│   │   ├── sfx/\n' +
+    '│   │   ├── ambientes/\n' +
+    '│   │   └── musica/\n' +
+    '│   └── fuentes/\n' +
+    '├── episodios/\n' +
+    '└── motor/\n' +
+    '[ ] 0.4. Verificar acceso en Acode y Termux: Abre Pirobonianos en Acode y verifica en Termux con:\n' +
+    'ls ~/storage/shared/Pirobonianos\n\n' +
+    '## Misión 2. Escenario Reutilizable (Capa 0)\n' +
+    '[ ] 2.1. Crear carpeta esc_001/zonas/zona_01: Define identidad visual, iluminación y guarda fondo.png en 1920x1920.\n' +
+    '[ ] 2.2. Recortar capa frontal (frente.png): Si hay mostrador, escritorio o barra, expórtalo transparente en 1920x1920.\n\n' +
+    '## Misión 3. Marioneta Modular Piro-Rig (1000x1600)\n' +
+    '[ ] 3.1. Generar maestro_vest_01.png: Cuerpo completo mirando a la derecha con brazos en A sobre fondo verde #00FF00.\n' +
+    '[ ] 3.2. Separar piezas estructurales: Exportar cuerpo/vest_01.png, cabeza/base.png y brazos en 1000x1600 con pies en Y=1480.\n' +
+    '[ ] 3.3. Paquete de 6 ojos y 5 bocas: Alinear con calco sobre cabeza/base.png y anotar los 4 pivotes en Notas.';
+  document.getElementById('input-edt-texto').value = plantilla;
+  mostrarToast('Ejemplo cargado. Pulsa "Generar Hoja de Ruta en Tickets".', 'info');
+};
+
+// =========================================================================
+// 5. RENDERIZADO DEL RIEL HORIZONTAL EN SERIE
+// =========================================================================
+function obtenerSiguienteTicketPendiente() {
+  if (!proyectoActual || !Array.isArray(proyectoActual.tickets)) return null;
+  return proyectoActual.tickets.find(function(t) { return !t.completado; }) || null;
+}
+
+function actualizarUIProyecto() {
+  renderizarSelectorProyectos();
+  actualizarBarraProgreso();
+  actualizarFiltroMisiones();
+  actualizarContadorBoveda();
+  window.renderizarRiel();
+}
+
+function actualizarBarraProgreso() {
+  const lista = (proyectoActual && proyectoActual.tickets) || [];
+  const total = lista.length;
+  const hechos = lista.filter(function(t) { return t.completado; }).length;
+  const pct = total > 0 ? Math.round((hechos / total) * 100) : 0;
+  document.getElementById('txt-progreso-conteo').textContent = hechos + ' / ' + total;
+  document.getElementById('txt-progreso-pct').textContent = pct + '%';
+  document.getElementById('barra-progreso').style.width = pct + '%';
+}
+
+function actualizarFiltroMisiones() {
+  const sel = document.getElementById('filtro-mision');
+  const prev = sel.value;
+  const lista = (proyectoActual && proyectoActual.tickets) || [];
+  const misiones = [];
+  lista.forEach(function(t) {
+    if (t.mision && misiones.indexOf(t.mision) === -1) misiones.push(t.mision);
+  });
+  sel.innerHTML = '<option value="TODAS">Todas las Misiones (' + lista.length + ')</option>';
+  misiones.forEach(function(m) {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m;
+    if (m === prev) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+window.renderizarRiel = function() {
+  const riel = document.getElementById('riel-tickets');
+  const badgeSig = document.getElementById('badge-siguiente-paso');
+  const lista = (proyectoActual && proyectoActual.tickets) || [];
+
+  if (lista.length === 0) {
+    riel.innerHTML = '<div style="color:var(--muted); font-size:12px; padding:18px 8px;">No hay tickets en este tablero. Usa "Pegar Pasos EDT" para construir tu hoja de ruta.</div>';
+    badgeSig.textContent = 'Sin tickets';
+    badgeSig.className = 'pill-badge';
+    return;
+  }
+
+  const siguiente = obtenerSiguienteTicketPendiente();
+  if (siguiente) {
+    badgeSig.textContent = 'Siguiente: ' + siguiente.codigo + ' · ' + siguiente.titulo.slice(0, 32);
+    badgeSig.className = 'pill-badge warn';
+  } else {
+    badgeSig.textContent = 'Hoja de ruta completada 100%';
+    badgeSig.className = 'pill-badge ok';
+  }
+
+  const filtroMision = document.getElementById('filtro-mision').value;
+  const modoLibre = document.getElementById('chk-modo-libre').checked;
+
+  const visibles = lista.filter(function(t) {
+    return filtroMision === 'TODAS' || t.mision === filtroMision;
+  });
+
+  riel.innerHTML = '';
+  visibles.forEach(function(t, idx) {
+    if (idx > 0) {
+      const conn = document.createElement('div');
+      conn.className = 'rail-connector' + (t.completado || visibles[idx - 1].completado ? ' done' : '');
+      riel.appendChild(conn);
+    }
+
+    const esSiguiente = Boolean(siguiente && t.id === siguiente.id);
+    const habilitado = t.completado || esSiguiente || modoLibre;
+
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.dataset.ticketId = t.id;
+    let clase = 'ticket-chip ';
+    if (esSiguiente) clase += 'next-active';
+    else if (t.completado) clase += 'done';
+    else clase += 'queued' + (modoLibre ? ' libre' : '');
+    if (ticketAbiertoId === t.id) clase += ' viewing';
+    card.className = clase;
+
+    const numAdj = (t.adjuntos || []).length;
+    const estadoFooter = esSiguiente
+      ? '<span class="t-cta">EJECUTAR AHORA →</span>'
+      : (t.completado ? '<span style="color:#86efac;">Completado</span>' : '<span>En cola #' + t.orden + '</span>');
+
+    const iconoEstado = t.completado
+      ? '<svg class="svg-ico-sm" viewBox="0 0 24 24" style="color:var(--verde);"><polyline points="20 6 9 17 4 12"/></svg>'
+      : (esSiguiente
+          ? '<svg class="svg-ico-sm" viewBox="0 0 24 24" style="color:var(--miel);"><polygon points="5 3 19 12 5 21 5 3"/></svg>'
+          : '<svg class="svg-ico-sm" viewBox="0 0 24 24" style="color:#64748b;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>');
+
+    card.innerHTML =
+      '<div class="t-top">' +
+        '<span class="t-code">' + escaparHTML(t.codigo) + '</span>' +
+        '<span class="t-mission" title="' + escaparHTML(t.mision) + '">' + escaparHTML(t.mision) + '</span>' +
+        iconoEstado +
+      '</div>' +
+      '<div class="t-title">' + escaparHTML(t.titulo) + '</div>' +
+      '<div class="t-foot">' +
+        estadoFooter +
+        (numAdj > 0 ? '<span style="color:var(--azul); font-family:monospace;">' + numAdj + ' arch</span>' : '') +
+      '</div>';
+
+    card.onclick = function() {
+      if (!habilitado) {
+        emitirTono('ERROR');
+        mostrarToast('Completa primero el paso ' + (siguiente ? siguiente.codigo : '') + ' o activa "Permitir saltar orden".', 'info', 2600);
+        return;
+      }
+      abrirTicket(t.id);
+    };
+
+    riel.appendChild(card);
+  });
+};
+
+window.enfocarSiguienteTicket = function() {
+  const sig = obtenerSiguienteTicketPendiente();
+  if (!sig) {
+    mostrarToast('Todos los tickets de este tablero están completados.', 'exito');
+    return;
+  }
+  document.getElementById('filtro-mision').value = 'TODAS';
+  window.renderizarRiel();
+  abrirTicket(sig.id);
+  desplazarRielATicket(sig.id);
+};
+
+function desplazarRielATicket(id) {
+  setTimeout(function() {
+    const el = document.querySelector('#riel-tickets .ticket-chip[data-ticket-id="' + id + '"]');
+    if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, 60);
+}
+
+// =========================================================================
+// 6. VISOR DETALLADO DEL TICKET (CON DETECCIÓN DE BLOQUES COPIABLES)
+// =========================================================================
+function formatearInstruccionesHTML(texto) {
+  if (!texto || !texto.trim()) {
+    return '<p style="color:var(--muted); font-style:italic;">Sin detalles adicionales. Usa el botón Editar para añadir instrucciones.</p>';
+  }
+  const lineas = texto.split('\n');
+  const bloques = [];
+  let enCodigo = false;
+  let buffer = [];
+
+  const esLineaTecnica = function(l) {
+    const t = l.trim();
+    if (/^(├──|└──|│|Pirobonianos\/|pkg |cd |ls |pip |python |bash |ffmpeg |mkdir |mv |export |read )/.test(t)) return true;
+    if (/^[a-z0-9_]+\/$/.test(t)) return true;
+    return false;
+  };
+
+  for (let i = 0; i < lineas.length; i++) {
+    const l = lineas[i];
+    const t = l.trim();
+    if (/^```/.test(t) || /^Plaintext$/i.test(t)) {
+      if (buffer.length > 0) {
+        bloques.push({ tipo: enCodigo ? 'code' : 'text', contenido: buffer.join('\n') });
+        buffer = [];
+      }
+      enCodigo = /^Plaintext$/i.test(t) ? true : !enCodigo;
+      continue;
+    }
+    const tec = esLineaTecnica(l);
+    if (!enCodigo && tec) {
+      if (buffer.length > 0) {
+        bloques.push({ tipo: 'text', contenido: buffer.join('\n') });
+        buffer = [];
+      }
+      enCodigo = true;
+      buffer.push(l);
+    } else if (enCodigo && !tec && t !== '' && !/^```/.test(t) && !/^\s{2,}/.test(l)) {
+      bloques.push({ tipo: 'code', contenido: buffer.join('\n') });
+      buffer = [];
+      enCodigo = false;
+      buffer.push(l);
+    } else {
+      buffer.push(l);
+    }
+  }
+  if (buffer.length > 0) {
+    bloques.push({ tipo: enCodigo ? 'code' : 'text', contenido: buffer.join('\n') });
+  }
+
+  let html = '';
+  bloques.forEach(function(b, idx) {
+    const limpio = b.contenido.trim();
+    if (!limpio) return;
+    if (b.tipo === 'code') {
+      const idPre = 'code-blk-' + idx;
+      html +=
+        '<div class="code-block-wrap">' +
+          '<div class="code-block-bar">' +
+            '<span>BLOQUE / COMANDO</span>' +
+            '<button type="button" class="btn btn-sm btn-blue" style="padding:2px 8px; font-size:10.5px;" onclick="window.copiarBloqueCodigo(\'' + idPre + '\')">Copiar</button>' +
+          '</div>' +
+          '<pre id="' + idPre + '">' + escaparHTML(limpio) + '</pre>' +
+        '</div>';
+    } else {
+      const parrafos = limpio.split(/\n{2,}/);
+      parrafos.forEach(function(p) {
+        html += '<p>' + escaparHTML(p).replace(/\n/g, '<br>') + '</p>';
+      });
+    }
+  });
+  return html;
+}
+
+window.copiarBloqueCodigo = function(idPre) {
+  const el = document.getElementById(idPre);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent).then(function() {
+    emitirTono('EXITO');
+    mostrarToast('Bloque copiado al portapapeles.', 'exito', 1800);
+  });
+};
+
+function obtenerTicketPorId(id) {
+  if (!proyectoActual || !proyectoActual.tickets) return null;
+  return proyectoActual.tickets.find(function(t) { return t.id === id; }) || null;
+}
+
+function abrirTicket(id) {
+  const t = obtenerTicketPorId(id);
+  if (!t) return;
+  detenerTimerTicket();
+  ticketAbiertoId = t.id;
+
+  const idx = proyectoActual.tickets.findIndex(function(x) { return x.id === t.id; });
+  document.getElementById('visor-codigo').textContent = t.codigo;
+  document.getElementById('visor-titulo').textContent = t.titulo;
+  document.getElementById('visor-mision').textContent = t.mision || 'General';
+  document.getElementById('visor-posicion').textContent = 'Ticket ' + (idx + 1) + ' de ' + proyectoActual.tickets.length;
+
+  const badgeEst = document.getElementById('visor-estado-badge');
+  const btnComp = document.getElementById('btn-completar-ticket');
+  const txtComp = document.getElementById('txt-btn-completar');
+
+  if (t.completado) {
+    badgeEst.textContent = 'Completado';
+    badgeEst.className = 'pill-badge ok';
+    btnComp.className = 'btn btn-blue';
+    txtComp.textContent = 'Reabrir Ticket como Pendiente';
+  } else {
+    badgeEst.textContent = 'En Curso';
+    badgeEst.className = 'pill-badge warn';
+    btnComp.className = 'btn btn-green';
+    txtComp.textContent = 'Completar Ticket y Activar Siguiente';
+  }
+
+  document.getElementById('visor-cuerpo-instrucciones').innerHTML = formatearInstruccionesHTML(t.detalle);
+  document.getElementById('visor-notas-input').value = t.notas || '';
+  actualizarTextoTimer(t.segundos_invertidos || 0);
+  renderizarAdjuntosTicket(t);
+
+  document.getElementById('panel-ticket-activo').classList.remove('hidden');
+  document.getElementById('panel-placeholder-visor').classList.add('hidden');
+  window.renderizarRiel();
+  desplazarRielATicket(t.id);
+}
+
+window.cerrarVisorTicket = function() {
+  detenerTimerTicket();
+  ticketAbiertoId = null;
+  document.getElementById('panel-ticket-activo').classList.add('hidden');
+  document.getElementById('panel-placeholder-visor').classList.remove('hidden');
+  window.renderizarRiel();
+};
+
+window.programarGuardadoNota = function() {
+  const t = obtenerTicketPorId(ticketAbiertoId);
+  if (!t) return;
+  t.notas = document.getElementById('visor-notas-input').value;
+  clearTimeout(debounceNota);
+  debounceNota = setTimeout(function() {
+    const lbl = document.getElementById('txt-nota-guardada');
+    lbl.style.opacity = '1';
+    setTimeout(function() { lbl.style.opacity = '0'; }, 1200);
+    programarGuardadoProyecto(false);
+  }, 500);
+};
+
+window.alternarCompletadoTicketAbierto = function() {
+  const t = obtenerTicketPorId(ticketAbiertoId);
+  if (!t) return;
+  detenerTimerTicket();
+  t.completado = !t.completado;
+  t.fecha_completado = t.completado ? new Date().toISOString() : null;
+
+  emitirTono('EXITO');
+  actualizarUIProyecto();
+  programarGuardadoProyecto(true);
+
+  if (t.completado) {
+    const sig = obtenerSiguienteTicketPendiente();
+    if (sig) {
+      mostrarToast('Paso ' + t.codigo + ' completado. Siguiente activado: ' + sig.codigo, 'exito');
+      abrirTicket(sig.id);
+    } else {
+      mostrarToast('Tablero completado al 100%.', 'exito', 4000);
+      abrirTicket(t.id);
+    }
+  } else {
+    mostrarToast('Paso ' + t.codigo + ' reabierto.', 'info');
+    abrirTicket(t.id);
+  }
+};
+
+// Cronómetro por ticket
+function actualizarTextoTimer(segs) {
+  const m = String(Math.floor(segs / 60)).padStart(2, '0');
+  const s = String(segs % 60).padStart(2, '0');
+  document.getElementById('txt-timer-ticket').textContent = m + ':' + s;
+}
+
+function detenerTimerTicket() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    document.getElementById('btn-timer-ticket').classList.remove('btn-primary');
+    programarGuardadoProyecto(false);
+  }
+}
+
+window.toggleTimerTicket = function() {
+  const t = obtenerTicketPorId(ticketAbiertoId);
+  if (!t) return;
+  if (timerInterval) {
+    detenerTimerTicket();
+    return;
+  }
+  document.getElementById('btn-timer-ticket').classList.add('btn-primary');
+  timerInterval = setInterval(function() {
+    t.segundos_invertidos = (t.segundos_invertidos || 0) + 1;
+    actualizarTextoTimer(t.segundos_invertidos);
+  }, 1000);
+};
+
+// Editar / Eliminar ticket
+window.abrirModalEditarTicket = function() {
+  const t = obtenerTicketPorId(ticketAbiertoId);
+  if (!t) return;
+  document.getElementById('edit-t-codigo').value = t.codigo || '';
+  document.getElementById('edit-t-mision').value = t.mision || '';
+  document.getElementById('edit-t-titulo').value = t.titulo || '';
+  document.getElementById('edit-t-detalle').value = t.detalle || '';
+  document.getElementById('modal-editar-ticket').classList.add('open');
+};
+
+window.guardarEdicionTicket = function() {
+  const t = obtenerTicketPorId(ticketAbiertoId);
+  if (!t) return;
+  t.codigo = document.getElementById('edit-t-codigo').value.trim() || t.codigo;
+  t.mision = document.getElementById('edit-t-mision').value.trim() || 'General';
+  t.titulo = document.getElementById('edit-t-titulo').value.trim() || t.titulo;
+  t.detalle = document.getElementById('edit-t-detalle').value;
+  window.cerrarModal('modal-editar-ticket');
+  actualizarUIProyecto();
+  abrirTicket(t.id);
+  programarGuardadoProyecto(true);
+  mostrarToast('Ticket actualizado.', 'exito');
+};
+
+window.eliminarTicketAbierto = async function() {
+  const t = obtenerTicketPorId(ticketAbiertoId);
+  if (!t) return;
+  const ok = await solicitarConfirmacion('Eliminar Ticket', '¿Deseas eliminar el paso ' + t.codigo + ' ("' + t.titulo + '")?');
+  if (!ok) return;
+  proyectoActual.tickets = proyectoActual.tickets.filter(function(x) { return x.id !== t.id; });
+  proyectoActual.tickets.forEach(function(x, i) { x.orden = i + 1; });
+  ticketAbiertoId = null;
+  actualizarUIProyecto();
+  programarGuardadoProyecto(true);
+  const sig = obtenerSiguienteTicketPendiente();
+  if (sig) abrirTicket(sig.id);
+  else window.cerrarVisorTicket();
+  mostrarToast('Ticket eliminado.', 'info');
+};
+
+// =========================================================================
+// 7. BÓVEDA DE ACTIVOS EN FIREBASE STORAGE (POR TICKET Y GLOBAL)
+// =========================================================================
+function construirTarjetaActivoHTML(adj, origenTipo, idx) {
+  const esImg = String(adj.tipo || '').indexOf('image/') === 0;
+  const esAudio = String(adj.tipo || '').indexOf('audio/') === 0;
+  const kb = Math.max(1, Math.round((adj.bytes || 0) / 1024));
+
+  const thumb = esImg
+    ? '<img class="asset-thumb" src="' + escaparHTML(adj.url) + '" alt="' + escaparHTML(adj.nombre) + '">'
+    : '<div class="asset-icon-box"><svg class="svg-ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>';
+
+  const audioHtml = esAudio
+    ? '<audio controls src="' + escaparHTML(adj.url) + '" style="width:100%; height:28px; margin-top:6px;"></audio>'
+    : '';
+
+  return '<div class="asset-item">' +
+      thumb +
+      '<div class="asset-meta">' +
+        '<strong title="' + escaparHTML(adj.nombre) + '">' + escaparHTML(adj.nombre) + '</strong>' +
+        '<small>' + kb + ' KB · ' + escaparHTML((adj.rutaStorage || '').split('/').slice(-2).join('/')) + '</small>' +
+        audioHtml +
+        '<div style="display:flex; gap:5px; margin-top:6px; flex-wrap:wrap;">' +
+          '<a class="btn btn-sm btn-blue" href="' + escaparHTML(adj.url) + '" target="_blank" style="text-decoration:none;">Abrir</a>' +
+          '<button type="button" class="btn btn-sm" onclick="window.copiarUrlActivo(\'' + encodeURIComponent(adj.url) + '\')">Copiar URL</button>' +
+          '<button type="button" class="btn btn-sm btn-danger" onclick="window.eliminarActivoCloud(\'' + origenTipo + '\',' + idx + ')">Quitar</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+}
+
+function renderizarAdjuntosTicket(t) {
+  const cont = document.getElementById('visor-lista-archivos');
+  const lista = (t && t.adjuntos) || [];
+  if (lista.length === 0) {
+    cont.innerHTML = '<div style="font-size:11.5px; color:var(--muted); padding:10px 4px;">Aún no hay archivos adjuntos en este paso.</div>';
+    return;
+  }
+  cont.innerHTML = lista.map(function(adj, idx) {
+    return construirTarjetaActivoHTML(adj, 'ticket', idx);
+  }).join('');
+}
+
+function actualizarContadorBoveda() {
+  if (!proyectoActual) return;
+  let total = (proyectoActual.activos_generales || []).length;
+  (proyectoActual.tickets || []).forEach(function(t) { total += (t.adjuntos || []).length; });
+  document.getElementById('conteo-activos-boveda').textContent = total;
+}
+
+let colaImagenesEstudio = [];
+let archivoImagenEnEstudio = null;
+
+function abrirEstudioPNGConArchivo(file) {
+  const modal = document.getElementById('modal-estudio-png-embed');
+  const iframe = document.getElementById('iframe-estudio-png');
+  if (!modal || !iframe) return;
+
+  archivoImagenEnEstudio = file;
+  modal.classList.add('open');
+
+  const enviarAlIframe = function(dataUrl) {
+    if (iframe.contentWindow) {
+      iframe.contentWindow.postMessage({
+        tipo: 'PIRO_CARGAR_IMAGEN',
+        dataUrl: dataUrl,
+        nombre: file.name || 'imagen.png'
+      }, '*');
+    }
+  };
+
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    if (iframe.dataset.cargado === '1') {
+      enviarAlIframe(ev.target.result);
+    } else {
+      iframe.onload = function() {
+        iframe.dataset.cargado = '1';
+        setTimeout(function() { enviarAlIframe(ev.target.result); }, 150);
+      };
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+window.cerrarEstudioPNGModal = function() {
+  const modal = document.getElementById('modal-estudio-png-embed');
+  if (modal) modal.classList.remove('open');
+  archivoImagenEnEstudio = null;
+  colaImagenesEstudio = [];
+};
+
+async function subirUnArchivoDirectoAlTicket(t, fileObj, rutaForzada) {
+  const boxProg = document.getElementById('progreso-subida-box');
+  boxProg.classList.remove('hidden');
+  boxProg.textContent = 'Subiendo a Firebase Storage: ' + (fileObj.name || 'activo.png') + '...';
+  if (!t.adjuntos) t.adjuntos = [];
+
+  const nombreLimpio = String(fileObj.name || 'activo.png').replace(/[^a-zA-Z0-9._-]+/g, '_');
+  const rutaInterna = rutaForzada
+    ? rutaForzada.replace(/^biblioteca\//, '')
+    : ('paso_' + String(t.codigo).replace(/[^a-zA-Z0-9_-]/g, '_') + '/' + Date.now() + '_' + nombreLimpio);
+
+  const res = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(proyectoActual.id, rutaInterna, fileObj);
+  boxProg.classList.add('hidden');
+
+  if (res.success) {
+    t.adjuntos.unshift({
+      nombre: fileObj.name || nombreLimpio,
+      url: res.url,
+      rutaStorage: res.rutaStorage,
+      tipo: res.tipo,
+      bytes: res.bytes,
+      fecha: res.fecha
+    });
+    renderizarAdjuntosTicket(t);
+    actualizarContadorBoveda();
+    window.renderizarRiel();
+    programarGuardadoProyecto(true);
+    emitirTono('EXITO');
+    mostrarToast('PNG editado y guardado en Firebase Storage.', 'exito');
+  } else {
+    mostrarToast('Error subiendo archivo: ' + res.error, 'error', 4500);
+  }
+}
+
+window.addEventListener('message', async function(e) {
+  if (!e.data || e.data.tipo !== 'PIRO_EXPORTAR_PNG') return;
+  const t = obtenerTicketPorId(ticketAbiertoId);
+  if (!t || !e.data.blob) return;
+
+  const nombreFinal = e.data.nombreArchivo || 'activo.png';
+  const archivoFinal = new File([e.data.blob], nombreFinal, { type: 'image/png' });
+
+  const modal = document.getElementById('modal-estudio-png-embed');
+  if (modal) modal.classList.remove('open');
+
+  await subirUnArchivoDirectoAlTicket(t, archivoFinal, e.data.rutaRelativa || '');
+
+  if (colaImagenesEstudio.length > 0) {
+    const siguienteImg = colaImagenesEstudio.shift();
+    abrirEstudioPNGConArchivo(siguienteImg);
+  }
+});
+
+window.subirArchivosAlTicket = async function(files) {
+  const t = obtenerTicketPorId(ticketAbiertoId);
+  if (!t || !files || files.length === 0) return;
+  if (!GeokatuDB.PirobonianosService) {
+    mostrarToast('Aplica primero el corte de PirobonianosService en core-db.js.', 'error', 4000);
+    return;
+  }
+
+  const chkEstudio = document.getElementById('chk-abrir-estudio-png');
+  const usarEstudio = chkEstudio ? chkEstudio.checked : true;
+  const listaImagenes = [];
+
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    if (usarEstudio && String(f.type || '').indexOf('image/') === 0) {
+      listaImagenes.push(f);
+    } else {
+      await subirUnArchivoDirectoAlTicket(t, f, '');
+    }
+  }
+
+  if (listaImagenes.length > 0) {
+    const primera = listaImagenes.shift();
+    colaImagenesEstudio = listaImagenes;
+    abrirEstudioPNGConArchivo(primera);
+  }
+};
+
+window.subirArchivosDirectoBoveda = async function(files) {
+  if (!proyectoActual || !files || files.length === 0) return;
+  if (!GeokatuDB.PirobonianosService) {
+    mostrarToast('Falta PirobonianosService en core-db.js.', 'error');
+    return;
+  }
+  if (!proyectoActual.activos_generales) proyectoActual.activos_generales = [];
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    const nombreLimpio = f.name.replace(/[^a-zA-Z0-9._-]+/g, '_');
+    const res = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(proyectoActual.id, 'boveda/' + Date.now() + '_' + nombreLimpio, f);
+    if (res.success) {
+      proyectoActual.activos_generales.unshift({
+        nombre: f.name, url: res.url, rutaStorage: res.rutaStorage, tipo: res.tipo, bytes: res.bytes, fecha: res.fecha
+      });
+    } else {
+      mostrarToast('Error: ' + res.error, 'error');
+    }
+  }
+  actualizarContadorBoveda();
+  renderizarBovedaGlobal();
+  programarGuardadoProyecto(true);
+  emitirTono('EXITO');
+};
+
+window.copiarUrlActivo = function(encodedUrl) {
+  const url = decodeURIComponent(encodedUrl);
+  navigator.clipboard.writeText(url).then(function() {
+    mostrarToast('URL copiada al portapapeles.', 'exito', 1800);
+  });
+};
+
+window.eliminarActivoCloud = async function(origen, idx) {
+  const ok = await solicitarConfirmacion('Eliminar Archivo', 'Se eliminará este archivo de Firebase Storage y del tablero.');
+  if (!ok) return;
+  let item = null;
+  if (origen === 'ticket') {
+    const t = obtenerTicketPorId(ticketAbiertoId);
+    if (!t || !t.adjuntos[idx]) return;
+    item = t.adjuntos.splice(idx, 1)[0];
+    renderizarAdjuntosTicket(t);
+  } else if (origen === 'general') {
+    if (!proyectoActual.activos_generales[idx]) return;
+    item = proyectoActual.activos_generales.splice(idx, 1)[0];
+    renderizarBovedaGlobal();
+  }
+  if (item && item.rutaStorage && GeokatuDB.PirobonianosService) {
+    await GeokatuDB.PirobonianosService.eliminarActivoPirobonianos(item.rutaStorage);
+  }
+  actualizarContadorBoveda();
+  window.renderizarRiel();
+  programarGuardadoProyecto(true);
+  mostrarToast('Archivo eliminado.', 'info');
+};
+
+window.abrirModalBoveda = function() {
+  renderizarBovedaGlobal();
+  document.getElementById('modal-boveda').classList.add('open');
+};
+
+function renderizarBovedaGlobal() {
+  const grid = document.getElementById('grid-boveda-activos');
+  const htmlItems = [];
+  (proyectoActual.activos_generales || []).forEach(function(adj, idx) {
+    htmlItems.push(construirTarjetaActivoHTML(adj, 'general', idx));
+  });
+  (proyectoActual.tickets || []).forEach(function(t) {
+    (t.adjuntos || []).forEach(function(adj) {
+      const esImg = String(adj.tipo || '').indexOf('image/') === 0;
+      const thumb = esImg
+        ? '<img class="asset-thumb" src="' + escaparHTML(adj.url) + '">'
+        : '<div class="asset-icon-box"><svg class="svg-ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg></div>';
+      htmlItems.push(
+        '<div class="asset-item">' + thumb +
+          '<div class="asset-meta">' +
+            '<span class="pill-badge" style="margin-bottom:3px;">Paso ' + escaparHTML(t.codigo) + '</span>' +
+            '<strong>' + escaparHTML(adj.nombre) + '</strong>' +
+            '<div style="display:flex; gap:5px; margin-top:5px;">' +
+              '<a class="btn btn-sm btn-blue" href="' + escaparHTML(adj.url) + '" target="_blank" style="text-decoration:none;">Abrir</a>' +
+              '<button type="button" class="btn btn-sm" onclick="window.copiarUrlActivo(\'' + encodeURIComponent(adj.url) + '\')">URL</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>'
+      );
+    });
+  });
+  grid.innerHTML = htmlItems.length > 0
+    ? htmlItems.join('')
+    : '<div style="grid-column:1/-1; text-align:center; padding:30px; color:var(--muted);">Aún no has subido activos en este tablero.</div>';
+}
+
+// =========================================================================
+// 8. RESPALDO JSON Y MODALES
+// =========================================================================
+window.abrirModalRespaldo = function() {
+  document.getElementById('modal-respaldo').classList.add('open');
+};
+
+window.cerrarModal = function(id) {
+  const m = document.getElementById(id);
+  if (m) m.classList.remove('open');
+};
+
+window.forzarSincronizacionNube = async function() {
+  window.cerrarModal('modal-respaldo');
+  programarGuardadoProyecto(true);
+  mostrarToast('Sincronización forzada enviada.', 'info');
+};
+
+window.exportarTableroJSON = function() {
+  if (!proyectoActual) return;
+  const blob = new Blob([JSON.stringify(proyectoActual, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = proyectoActual.id + '_respaldo.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+  mostrarToast('Respaldo JSON descargado.', 'exito');
+};
+
+window.importarTableroJSON = function(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!data || !Array.isArray(data.tickets)) throw new Error('JSON sin array de tickets.');
+      data.id = data.id || ('import_' + Date.now());
+      data.nombre = data.nombre || file.name.replace(/\.json$/i, '');
+      const idx = listaProyectos.findIndex(function(p) { return p.id === data.id; });
+      if (idx >= 0) listaProyectos[idx] = data;
+      else listaProyectos.unshift(data);
+      proyectoActual = data;
+      window.cerrarModal('modal-respaldo');
+      actualizarUIProyecto();
+      programarGuardadoProyecto(true);
+      const sig = obtenerSiguienteTicketPendiente();
+      if (sig) abrirTicket(sig.id);
+      mostrarToast('Tablero importado (' + data.tickets.length + ' tickets).', 'exito');
+    } catch (err) {
+      mostrarToast('Archivo inválido: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+};
+</script>
+</body>
+</html>
