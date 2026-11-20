@@ -212,6 +212,7 @@
         <svg class="svg-ico" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
         <span id="txt-btn-apis">APIs</span>
       </button>
+            <span id="badge-proy-ed" class="pill ok">Pirobonianos</span>
       <button type="button" class="btn btn-xs btn-blue" onclick="window.exportarPaqueteEpisodio()">Exportar Termux</button>
       <span id="badge-sync-ed" class="pill">Cargando...</span>
     </div>
@@ -356,9 +357,35 @@
 <script type="module">
 import GeokatuDB from './core-db.js';
 
-const DOC_BIB_ID = '__biblioteca_maestra__';
-const CLAVE_LOCAL_BIB = 'piro_biblioteca_maestra_v1';
+const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
 const CLAVE_VAULT = 'piro_api_vault_v1';
+let proyectoActivo = {
+  id: 'pirobonianos', nombre: 'Pirobonianos', docBibId: '__biblioteca_maestra__',
+  storageDir: 'biblioteca_contenido', plantilla: 'piro_rig', bilingue: false,
+  estilo_visual: 'Vertical 9:16 2D cartoon animation frame, BoJack Horseman art style, clean black ink outlines, flat vibrant colors, no text or speech bubbles.'
+};
+try {
+  const rawP = localStorage.getItem(CLAVE_PROY_ACTIVO);
+  if (rawP) { const parsed = JSON.parse(rawP); if (parsed && parsed.docBibId) proyectoActivo = Object.assign(proyectoActivo, parsed); }
+} catch (e) {}
+function getDocBibId() { return proyectoActivo.docBibId || '__biblioteca_maestra__'; }
+function getLocalBibKey() { return proyectoActivo.id === 'pirobonianos' ? 'piro_biblioteca_maestra_v1' : ('piro_bib_' + proyectoActivo.id + '_v1'); }
+function getEpStorageBucket(epId) { return proyectoActivo.id === 'pirobonianos' ? ('episodios_' + epId) : ('ep_' + proyectoActivo.id + '_' + epId); }
+function romanoAEntero(s) {
+  const m = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
+  const str = String(s || '').toUpperCase().replace(/[^IVXLCDM]/g, '');
+  if (!str) return 999;
+  let total = 0;
+  for (let i = 0; i < str.length; i++) {
+    const curr = m[str[i]] || 0, nxt = m[str[i + 1]] || 0;
+    total += curr < nxt ? -curr : curr;
+  }
+  return total || 999;
+}
+function calcularPlanVeo(tension) {
+  const t = Number(tension) || 8;
+  return t > 8 ? { cat: 'ALTA_TENSION (>8/10)', clips: 5, indices: [1, 3, 4, 6, 7], costo: 1.45 } : { cat: 'TENSION_ESTANDAR (<=8/10)', clips: 3, indices: [1, 4, 7], costo: 0.90 };
+}
 
 const MODELOS_DEF = {
   deepseek: ['deepseek-chat', 'deepseek-reasoner'],
@@ -554,18 +581,21 @@ window.copiarVoiceIdDetectado = function(id) {
 // 2. CARGA Y SINCRONIZACIÓN DE BIBLIOTECA COMPARTIDA
 // =========================================================================
 async function cargarBiblioteca() {
+  const bp = document.getElementById('badge-proy-ed'); if (bp) bp.textContent = proyectoActivo.nombre || 'Pirobonianos';
   setSync('Cargando...', 'warn');
+  biblioteca = { tipo_doc: 'biblioteca', personajes: [], escenarios: [], props: [], guiones: [] };
+  const kLoc = getLocalBibKey();
   try {
-    const raw = localStorage.getItem(CLAVE_LOCAL_BIB);
+    const raw = localStorage.getItem(kLoc);
     if (raw) biblioteca = JSON.parse(raw);
   } catch (e) {}
 
   if (GeokatuDB.PirobonianosService && navigator.onLine) {
-    const res = await GeokatuDB.PirobonianosService.obtenerProyectoEDT(DOC_BIB_ID);
+    const res = await GeokatuDB.PirobonianosService.obtenerProyectoEDT(getDocBibId());
     if (res.success && res.data && Array.isArray(res.data.personajes)) {
       if (!biblioteca.fecha_actualizacion || String(res.data.fecha_actualizacion || '') >= String(biblioteca.fecha_actualizacion)) {
         biblioteca = res.data;
-        try { localStorage.setItem(CLAVE_LOCAL_BIB, JSON.stringify(biblioteca)); } catch (e) {}
+        try { localStorage.setItem(kLoc, JSON.stringify(biblioteca)); } catch (e) {}
       }
       setSync('Nube OK', 'ok');
     } else {
@@ -592,13 +622,14 @@ async function cargarBiblioteca() {
 
 function guardarBiblioteca(inmediato) {
   biblioteca.tipo_doc = 'biblioteca';
+  biblioteca.meta_proyecto = proyectoActivo;
   biblioteca.fecha_actualizacion = new Date().toISOString();
-  try { localStorage.setItem(CLAVE_LOCAL_BIB, JSON.stringify(biblioteca)); } catch (e) {}
+  try { localStorage.setItem(getLocalBibKey(), JSON.stringify(biblioteca)); } catch (e) {}
   setSync('Guardando...', 'warn');
   clearTimeout(debounceSync);
   const run = async function() {
     if (!GeokatuDB.PirobonianosService) { setSync('Local', 'warn'); return; }
-    const res = await GeokatuDB.PirobonianosService.guardarProyectoEDT(DOC_BIB_ID, biblioteca);
+    const res = await GeokatuDB.PirobonianosService.guardarProyectoEDT(getDocBibId(), biblioteca);
     if (res.success && !res.offline) setSync('Nube OK', 'ok');
     else setSync('Local', 'warn');
     if (window.self !== window.top) window.parent.postMessage({ tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA' }, '*');
@@ -718,7 +749,20 @@ function renderVistaGuionIA() {
         '</div>' +
       '</div>' +
       '<div class="field"><label>Etiquetas de Personajes en Escena (clic para activar)</label><div style="display:flex; gap:6px; flex-wrap:wrap;">' + chipsActores + '</div></div>' +
-      '<div class="field"><label>Chisme / Anécdota Semilla</label><textarea id="txt-chisme-input" class="txt" style="min-height:96px;" placeholder="Cuenta aquí el chisme o situación cotidiana con remate..." oninput="window.editEp(\'anecdota\', this.value)">' + esc(g.anecdota || '') + '</textarea></div>' +
+            '<div class="field">' +
+        '<div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:4px; flex-wrap:wrap;">' +
+          '<label style="margin:0;">' + (proyectoActivo.bilingue ? 'Capítulo(s) Fuente (.md) / Texto Base' : 'Chisme / Anécdota Semilla') + '</label>' +
+          '<div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">' +
+            '<input type="file" id="input-md-caps" accept=".md,.txt" multiple style="display:none;" onchange="window.cargarCapitulosMD(this.files); this.value=\'\';">' +
+            '<button type="button" class="btn btn-xs btn-blue" onclick="document.getElementById(\'input-md-caps\').click()">Cargar .md (1 o 2 caps)</button>' +
+            '<label style="margin:0; display:inline-flex; align-items:center; gap:4px; font-size:10.5px; text-transform:none; cursor:pointer;"><input type="checkbox"' + ((typeof g.bilingue === 'boolean' ? g.bilingue : proyectoActivo.bilingue) ? ' checked' : '') + ' style="accent-color:var(--naranja);" onchange="window.editEp(\'bilingue\', this.checked)"> Bilingüe ES/EN + Veo</label>' +
+            '<select class="sel" style="width:auto; padding:3px 6px; font-size:10.5px;" onchange="window.editEp(\'tension\', Number(this.value))">' +
+              [6,7,8,9,10].map(function(n) { const pv = calcularPlanVeo(n); return '<option value="' + n + '"' + ((Number(g.tension) || 8) === n ? ' selected' : '') + '>Tensión ' + n + '/10 (' + pv.clips + ' Veo · $' + pv.costo.toFixed(2) + ')</option>'; }).join('') +
+            '</select>' +
+          '</div>' +
+        '</div>' +
+        '<textarea id="txt-chisme-input" class="txt" style="min-height:105px;" placeholder="Escribe tu anécdota o carga I.md / II.md para fusionar capítulos..." oninput="window.editEp(\'anecdota\', this.value)">' + esc(g.anecdota || '') + '</textarea>' +
+      '</div>' +
       '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">' +
         '<div style="display:flex; align-items:center; gap:6px;">' +
           '<label style="font-size:11px; color:var(--muted); font-weight:700;">Duración objetivo:</label>' +
@@ -745,11 +789,28 @@ function renderVistaGuionIA() {
 
 window.setDuracionObjetivo = function(v) { duracionObjetivoSeg = v || 40; };
 
+window.cargarCapitulosMD = async function(files) {
+  const g = getEp(); if (!g || !files || files.length === 0) return;
+  const arr = Array.from(files).sort(function(a, b) {
+    const ra = romanoAEntero(a.name.replace(/\.[^.]+$/, ''));
+    const rb = romanoAEntero(b.name.replace(/\.[^.]+$/, ''));
+    return ra !== rb ? (ra - rb) : a.name.localeCompare(b.name);
+  });
+  const textos = await Promise.all(arr.map(function(f) {
+    return new Promise(function(res) { const r = new FileReader(); r.onload = function(ev) { res({ nom: f.name, txt: String(ev.target.result || '') }); }; r.readAsText(f); });
+  }));
+  g.anecdota = textos.map(function(t) { return '=== ' + t.nom + ' ===\n' + t.txt.trim(); }).join('\n\n');
+  if (!g.titulo || /^Episodio\s/i.test(g.titulo)) g.titulo = textos.map(function(t) { return t.nom.replace(/\.[^.]+$/, ''); }).join(' + ');
+  guardarBiblioteca(true);
+  renderTodo();
+  toast(textos.length + ' archivo(s) .md cargados y fusionados en orden romano.', 'exito');
+};
+
 window.editEp = function(campo, val) {
   const g = getEp(); if (!g) return;
   g[campo] = val;
   if (campo === 'titulo') renderSelectorEpisodios();
-  if (campo === 'escenario_id') renderVistaGuionIA();
+  if (campo === 'escenario_id' || campo === 'bilingue' || campo === 'tension') renderVistaGuionIA();
   guardarBiblioteca(false);
 };
 
@@ -819,12 +880,21 @@ window.generarGuionConAPI = async function() {
     const propsTxt = (biblioteca.props || []).filter(function(x) { return x.categoria !== 'audio'; }).map(function(x) { return x.id; }).join(', ');
     const sfxTxt = (biblioteca.props || []).filter(function(x) { return x.categoria === 'audio'; }).map(function(x) { return x.id; }).join(', ');
 
-    const sys = 'Eres guionista experto en comedia corta colombiana vertical (YouTube Shorts estilo South Park / BoJack Horseman). Responde ÚNICAMENTE con un array JSON válido sin markdown ni explicaciones.';
-    const usr =
-      'Convierte esta anécdota en un guion dinámico de ~' + duracionObjetivoSeg + ' segundos (7 a 12 líneas cortas, gancho fuerte en los primeros 2 segundos y remate cómico).\n' +
-      'Cada objeto del array JSON DEBE tener exactamente estas claves:\n' +
-      '{"actor":"per_001","escenario":"' + (g.escenario_id || 'esc_001') + '","zona":"' + (g.zona_id || 'zona_01') + '","posicion":"izq|centro|der","ojos":"neutro|feliz|enojado|triste|duda|indignado","camara":"centro|izq|der|zoom_actor|plano_general","modo":"rig","prop":"","sfx":"","duracion":3.5,"texto":"diálogo colombiano natural","prompt_plano":"breve descripción visual en inglés estilo BoJack 2D si se requiere plano especial"}\n\n' +
-      'ETIQUETAS DISPONIBLES:\nPersonajes:\n' + actoresTxt + '\nEscenarios:\n' + escTxt + '\nProps: ' + (propsTxt || 'ninguno') + '\nSFX: ' + (sfxTxt || 'ninguno') + '\n\nCHISME / ANÉCDOTA:\n' + g.anecdota;
+        const esBilingue = typeof g.bilingue === 'boolean' ? g.bilingue : Boolean(proyectoActivo.bilingue);
+    const planVeo = calcularPlanVeo(g.tension || 8);
+    const sys = esBilingue
+      ? 'Eres showrunner técnico de animación 2D hard sci-fi y motion-comic híbrido (Veo + cómic estático, presupuesto máx $1.50 USD/Short). Responde ÚNICAMENTE con un array JSON válido sin markdown ni explicaciones.'
+      : 'Eres guionista experto en comedia corta colombiana vertical (YouTube Shorts estilo South Park / BoJack Horseman). Responde ÚNICAMENTE con un array JSON válido sin markdown ni explicaciones.';
+    const usr = esBilingue
+      ? ('Adapta este texto fuente de "' + proyectoActivo.nombre + '" en un Short vertical de 8 escenas (Tensión ' + (g.tension || 8) + '/10, ' + planVeo.cat + ', presupuesto ~$' + planVeo.costo + ' USD).\n' +
+        'REGLA HÍBRIDA VEO: Las escenas en los índices [' + planVeo.indices.join(', ') + '] (base 1) DEBEN llevar "render_mode":"VEO_ANIMATED" y "modo":"plano" con "veo_bridge_prompt" describiendo cómo el frame inicial cobra vida 5-6s. Las demás llevan "render_mode":"STATIC_COMIC" y "veo_bridge_prompt":"slow_zoom_in".\n' +
+        'Cada objeto del array JSON DEBE tener estas claves:\n' +
+        '{"actor":"NARRADOR","escenario":"' + (g.escenario_id || 'esc_001') + '","zona":"' + (g.zona_id || 'zona_01') + '","posicion":"centro","ojos":"neutro|enojado|duda|indignado","camara":"centro|zoom_actor|plano_general","modo":"plano","render_mode":"STATIC_COMIC|VEO_ANIMATED","prop":"","sfx":"","duracion":5.5,"texto":"diálogo en español","texto_en":"English equivalent dialogue (15-20 words)","prompt_plano":"base static 9:16 frame prompt in English","veo_bridge_prompt":"5-6s Veo animation instruction or slow_zoom_in"}\n\n' +
+        'ETIQUETAS DISPONIBLES:\nPersonajes:\n' + actoresTxt + '\nEscenarios:\n' + escTxt + '\nProps: ' + (propsTxt || 'ninguno') + '\nSFX: ' + (sfxTxt || 'ninguno') + '\n\nTEXTO FUENTE (recortado a 12000 car.):\n' + g.anecdota.slice(0, 12000))
+      : ('Convierte esta anécdota en un guion dinámico de ~' + duracionObjetivoSeg + ' segundos (7 a 12 líneas cortas, gancho fuerte en los primeros 2 segundos y remate cómico).\n' +
+        'Cada objeto del array JSON DEBE tener exactamente estas claves:\n' +
+        '{"actor":"per_001","escenario":"' + (g.escenario_id || 'esc_001') + '","zona":"' + (g.zona_id || 'zona_01') + '","posicion":"izq|centro|der","ojos":"neutro|feliz|enojado|triste|duda|indignado","camara":"centro|izq|der|zoom_actor|plano_general","modo":"rig","prop":"","sfx":"","duracion":3.5,"texto":"diálogo colombiano natural","prompt_plano":"breve descripción visual en inglés"}\n\n' +
+        'ETIQUETAS DISPONIBLES:\nPersonajes:\n' + actoresTxt + '\nEscenarios:\n' + escTxt + '\nProps: ' + (propsTxt || 'ninguno') + '\nSFX: ' + (sfxTxt || 'ninguno') + '\n\nCHISME / ANÉCDOTA:\n' + g.anecdota);
 
     const raw = await llamarLLM(sys, usr);
     const limpio = String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim();
@@ -849,7 +919,10 @@ window.generarGuionConAPI = async function() {
         prop: String(it.prop || ''),
         sfx: String(it.sfx || ''),
         duracion: durEst,
-        texto: String(it.texto || ''),
+                texto: String(it.texto || ''),
+        texto_en: String(it.texto_en || ''),
+        render_mode: String(it.render_mode || 'STATIC_COMIC'),
+        veo_bridge_prompt: String(it.veo_bridge_prompt || 'slow_zoom_in'),
         prompt_plano: String(it.prompt_plano || ''),
         audio_url: '',
         plano_url: ''
@@ -1015,8 +1088,10 @@ function renderInspectorClip() {
       '<div class="field" style="margin:0;"><label>Prop</label><select class="sel" onchange="window.editEscena(' + clipSelIdx + ',\'prop\',this.value)">' + propOpts + '</select></div>' +
       '<div class="field" style="margin:0;"><label>SFX</label><select class="sel" onchange="window.editEscena(' + clipSelIdx + ',\'sfx\',this.value)">' + sfxOpts + '</select></div>' +
     '</div>' +
-    '<div class="field"><label>Diálogo (ElevenLabs + Subtítulos)</label><textarea class="txt" style="min-height:54px;" oninput="window.editEscena(' + clipSelIdx + ',\'texto\',this.value)">' + esc(sc.texto || '') + '</textarea></div>' +
-    '<div class="field"><label>Prompt Visual de Plano (Solo si usas Imagen Gemini)</label><input class="inp" value="' + esc(sc.prompt_plano || '') + '" placeholder="Describe acción puntual en inglés estilo BoJack 2D..." oninput="window.editEscena(' + clipSelIdx + ',\'prompt_plano\',this.value)"></div>' +
+        '<div class="field"><label>Diálogo ES (ElevenLabs + Subtítulos)</label><textarea class="txt" style="min-height:52px;" oninput="window.editEscena(' + clipSelIdx + ',\'texto\',this.value)">' + esc(sc.texto || '') + '</textarea></div>' +
+    ((proyectoActivo.bilingue || sc.texto_en) ? '<div class="field"><label>Diálogo EN (Inglés bilingüe)</label><textarea class="txt" style="min-height:46px;" oninput="window.editEscena(' + clipSelIdx + ',\'texto_en\',this.value)">' + esc(sc.texto_en || '') + '</textarea></div>' : '') +
+    '<div class="field"><label>Prompt Visual de Plano (Imagen Gemini)</label><input class="inp" value="' + esc(sc.prompt_plano || '') + '" placeholder="Describe el frame en inglés..." oninput="window.editEscena(' + clipSelIdx + ',\'prompt_plano\',this.value)"></div>' +
+    ((proyectoActivo.bilingue || sc.render_mode === 'VEO_ANIMATED') ? '<div style="display:grid; grid-template-columns:140px 1fr; gap:6px; margin-bottom:7px;"><div class="field" style="margin:0;"><label>Render Híbrido</label><select class="sel" onchange="window.editEscena(' + clipSelIdx + ',\'render_mode\',this.value)"><option value="STATIC_COMIC"' + ((sc.render_mode || 'STATIC_COMIC') === 'STATIC_COMIC' ? ' selected' : '') + '>STATIC_COMIC</option><option value="VEO_ANIMATED"' + (sc.render_mode === 'VEO_ANIMATED' ? ' selected' : '') + '>VEO_ANIMATED</option></select></div><div class="field" style="margin:0;"><label>Puente Mágico Veo (5-6s)</label><input class="inp" value="' + esc(sc.veo_bridge_prompt || '') + '" oninput="window.editEscena(' + clipSelIdx + ',\'veo_bridge_prompt\',this.value)"></div></div>' : '') +
     '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">' +
       '<button type="button" class="btn btn-xs btn-green" id="btn-gen-voz-clip" onclick="window.generarVozClip(' + clipSelIdx + ')">Generar Voz ElevenLabs</button>' +
       '<button type="button" class="btn btn-xs btn-purple" id="btn-gen-img-clip" onclick="window.generarPlanoClip(' + clipSelIdx + ')">Generar Imagen Gemini</button>' +
@@ -1062,7 +1137,7 @@ window.generarVozClip = async function(idx) {
     const blob = await r.blob();
     const dur = await medirDuracionAudio(blob);
     const fileObj = new File([blob], 'voz_' + (idx + 1) + '.mp3', { type: 'audio/mpeg' });
-    const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos('episodios_' + g.id, 'voces/' + Date.now() + '_clip_' + (idx + 1) + '.mp3', fileObj);
+        const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(getEpStorageBucket(g.id), 'voces/' + Date.now() + '_clip_' + (idx + 1) + '.mp3', fileObj);
     if (!up.success) throw new Error(up.error || 'Error subiendo MP3');
     sc.audio_url = up.url;
     sc.audio_storage = up.rutaStorage;
@@ -1105,7 +1180,8 @@ window.generarPlanoClip = async function(idx) {
   const per = biblioteca.personajes.find(function(p) { return p.id === sc.actor; });
   const escObj = biblioteca.escenarios.find(function(e) { return e.id === (sc.escenario || g.escenario_id); });
 
-  const promptFinal = 'Vertical 9:16 2D cartoon animation frame, BoJack Horseman art style, clean black ink outlines, flat vibrant colors, no text or speech bubbles. ' +
+    const baseEstilo = proyectoActivo.estilo_visual || 'Vertical 9:16 2D cartoon animation frame, BoJack Horseman art style, clean black ink outlines, flat vibrant colors, no text or speech bubbles.';
+  const promptFinal = baseEstilo + ' ' +
     'Character: ' + (per ? (per.raza + ', ' + per.contextura + ', ' + per.pelaje_rasgos + ', wearing ' + per.vestuario_base) : sc.actor) + '. ' +
     'Expression: ' + (sc.ojos || 'neutro') + '. Setting: ' + (escObj ? (escObj.nombre + ', ' + escObj.iluminacion) : 'Colombian urban setting') + '. ' +
     'Action: ' + (sc.prompt_plano || sc.texto || 'talking expressively') + '.';
@@ -1147,7 +1223,7 @@ window.generarPlanoClip = async function(idx) {
     if (!b64) throw new Error('El modelo no devolvió datos de imagen.');
     const blob = base64ABlob(b64, mime);
     const fileObj = new File([blob], 'plano_' + (idx + 1) + '.png', { type: mime });
-    const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos('episodios_' + g.id, 'planos/' + Date.now() + '_clip_' + (idx + 1) + '.png', fileObj);
+        const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(getEpStorageBucket(g.id), 'planos/' + Date.now() + '_clip_' + (idx + 1) + '.png', fileObj);
     if (!up.success) throw new Error(up.error || 'Error subiendo plano');
     sc.plano_url = up.url;
     sc.plano_storage = up.rutaStorage;
@@ -1399,10 +1475,14 @@ window.exportarPaqueteEpisodio = function() {
     if (sc.audio_url) descargas.push({ ruta_local: 'episodios/' + g.id + '/voces/clip_' + (idx + 1) + '.mp3', url: sc.audio_url });
     if (sc.plano_url) descargas.push({ ruta_local: 'episodios/' + g.id + '/medios/plano_' + (idx + 1) + '.png', url: sc.plano_url });
   });
-  const payload = { episodio: g, descargas_episodio: descargas, biblioteca: biblioteca, exportado_en: new Date().toISOString() };
+    const instruccionesVeo = (g.escenas || []).map(function(sc, i) {
+    if (sc.render_mode !== 'VEO_ANIMATED') return null;
+    return '[ESCENA ' + String(i + 1).padStart(2, '0') + ' · ANIMAR CON VEO]\nFrame 0: plano_' + (i + 1) + '.png\nDuración: ' + (sc.duracion || 6) + 's\nPrompt: ' + (proyectoActivo.estilo_visual || '') + ' ' + (sc.veo_bridge_prompt || '');
+  }).filter(Boolean);
+  const payload = { proyecto: proyectoActivo, plan_veo: calcularPlanVeo(g.tension || 8), instrucciones_puente_veo: instruccionesVeo, episodio: g, descargas_episodio: descargas, biblioteca: biblioteca, exportado_en: new Date().toISOString() };
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
-  a.download = g.id + '_produccion_termux.json';
+  a.download = proyectoActivo.id + '_' + g.id + '_produccion_termux.json';
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
   toast('Paquete ' + g.id + '_produccion_termux.json descargado (' + descargas.length + ' medios).', 'exito');
 };
@@ -1412,7 +1492,13 @@ window.exportarPaqueteEpisodio = function() {
 // =========================================================================
 window.addEventListener('message', function(e) {
   if (!e.data || !e.data.tipo) return;
-  if (e.data.tipo === 'PIRO_SHELL_AUTH' || e.data.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA') {
+    if (e.data.tipo === 'PIRO_SHELL_CAMBIAR_PROYECTO' && e.data.proyecto) {
+    window.detenerTimeline();
+    proyectoActivo = Object.assign(proyectoActivo, e.data.proyecto);
+    epIdActivo = null; clipSelIdx = 0;
+    cargarBiblioteca();
+  } else if (e.data.tipo === 'PIRO_SHELL_AUTH' || e.data.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA') {
+    if (e.data.proyecto) proyectoActivo = Object.assign(proyectoActivo, e.data.proyecto);
     cargarBiblioteca();
   } else if (e.data.tipo === 'PIRO_EDITOR_ABRIR_EPISODIO') {
     cargarBiblioteca().then(function() {
