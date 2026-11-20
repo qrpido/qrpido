@@ -1941,15 +1941,19 @@ async function subirUnArchivoDirectoAlTicket(t, fileObj, rutaForzada) {
   const res = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(proyectoActual.id, rutaInterna, fileObj);
   boxProg.classList.add('hidden');
 
-  if (res.success) {
-    t.adjuntos.unshift({
+    if (res.success) {
+    const regNuevo = {
       nombre: fileObj.name || nombreLimpio,
       url: res.url,
       rutaStorage: res.rutaStorage,
       tipo: res.tipo,
       bytes: res.bytes,
       fecha: res.fecha
-    });
+    };
+    t.adjuntos.unshift(regNuevo);
+    if (t.slotMeta && window.self !== window.top) {
+      window.parent.postMessage({ tipo: 'PIRO_TICKET_SUBIO_ASSET', slotMeta: t.slotMeta, registro: regNuevo }, '*');
+    }
     renderizarAdjuntosTicket(t);
     actualizarContadorBoveda();
     window.renderizarRiel();
@@ -2161,8 +2165,15 @@ window.addEventListener('message', function(e) {
   if (e.data.tipo === 'PIRO_SHELL_ABRIR_INGESTA') {
     window.togglePanelIngesta(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  } else if (e.data.tipo === 'PIRO_SHELL_INYECTAR_TICKET' && e.data.ticket && proyectoActual) {
+    } else if (e.data.tipo === 'PIRO_SHELL_INYECTAR_TICKET' && e.data.ticket && proyectoActual) {
     const t = e.data.ticket;
+    const mismaMeta = function(a, b) {
+      return Boolean(a && b && a.tipo === b.tipo && a.entidadId === b.entidadId && (a.slotKey || '') === (b.slotKey || '') && (a.zonaId || '') === (b.zonaId || '') && (a.campoZona || '') === (b.campoZona || ''));
+    };
+    if (t.slotMeta && (proyectoActual.tickets || []).some(function(x) { return !x.completado && mismaMeta(x.slotMeta, t.slotMeta); })) {
+      mostrarToast('Ya existe un ticket pendiente para esta pieza.', 'info');
+      return;
+    }
     const nuevo = {
       id: 'tk_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
       orden: (proyectoActual.tickets || []).length + 1,
@@ -2170,6 +2181,7 @@ window.addEventListener('message', function(e) {
       mision: t.mision || 'Biblioteca',
       titulo: t.titulo || 'Nueva tarea',
       detalle: t.detalle || '',
+      slotMeta: t.slotMeta || null,
       completado: false,
       notas: '',
       segundos_invertidos: 0,
@@ -2178,6 +2190,21 @@ window.addEventListener('message', function(e) {
     proyectoActual.tickets.push(nuevo);
     actualizarUIProyecto();
     programarGuardadoProyecto(true);
+  } else if (e.data.tipo === 'PIRO_SHELL_AUTOCOMPLETAR_TICKET' && e.data.slotMeta && proyectoActual) {
+    const sm = e.data.slotMeta;
+    let cambio = false;
+    (proyectoActual.tickets || []).forEach(function(tk) {
+      if (!tk.completado && tk.slotMeta && tk.slotMeta.tipo === sm.tipo && tk.slotMeta.entidadId === sm.entidadId && (tk.slotMeta.slotKey || '') === (sm.slotKey || '') && (tk.slotMeta.zonaId || '') === (sm.zonaId || '') && (tk.slotMeta.campoZona || '') === (sm.campoZona || '')) {
+        tk.completado = true;
+        tk.fecha_completado = new Date().toISOString();
+        cambio = true;
+      }
+    });
+    if (cambio) {
+      actualizarUIProyecto();
+      programarGuardadoProyecto(true);
+      mostrarToast('Ticket cerrado automáticamente desde Contenido.', 'exito');
+    }
   }
 });
 </script>
