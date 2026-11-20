@@ -544,8 +544,9 @@ window.addEventListener('message', function(e) {
       entidadId: d.entidadId || 'per_001',
       zonaId: d.zonaId || 'zona_01',
       archivoNombre: d.archivoNombre || 'pieza',
-      dataUrl: d.dataUrl || null,
-      calcoUrl: d.calcoUrl || null
+            dataUrl: d.dataUrl || null,
+      calcoUrl: d.calcoUrl || null,
+      pivotesIniciales: d.pivotesIniciales || null
     });
   } else if (d.tipo === 'PIRO_EXPORTAR_PNG') {
     if (contextoEstudio && contextoEstudio.origen === 'contenido') {
@@ -557,6 +558,7 @@ window.addEventListener('message', function(e) {
         blob: d.blob,
         rutaRelativa: d.rutaRelativa,
         nombreArchivo: d.nombreArchivo,
+        pivotes: d.pivotes || null,
         slotMeta: meta
       });
       window.PiroShell.irA('contenido');
@@ -573,6 +575,17 @@ window.addEventListener('message', function(e) {
       ticket: d.ticket
     });
     mostrarToastShell('Ticket enviado a la cola: ' + (d.ticket ? d.ticket.titulo : ''), 'exito');
+  } else if (d.tipo === 'PIRO_SLOT_COMPLETADO' && d.slotMeta) {
+    enviarAFrame('tickets', {
+      tipo: 'PIRO_SHELL_AUTOCOMPLETAR_TICKET',
+      slotMeta: d.slotMeta
+    });
+  } else if (d.tipo === 'PIRO_TICKET_SUBIO_ASSET' && d.slotMeta && d.registro) {
+    enviarAFrame('contenido', {
+      tipo: 'PIRO_SHELL_VINCULAR_ASSET_TICKET',
+      slotMeta: d.slotMeta,
+      registro: d.registro
+    });
   }
 });
 
