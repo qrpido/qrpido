@@ -4,7 +4,7 @@
  * Soporte: PMTiles (Range Requests), Matriz Comercial y URLs Limpias
  */
 
-const CACHE_NAME = 'geokatu-cache-v19-terminal-unificada';
+const CACHE_NAME = 'geokatu-cache-v20-piro-studio';
 const MAP_CACHE_NAME = 'geokatu-map-tiles-v3';
 
 // 1. Módulos esenciales del ecosistema GEOKATU (Cero 404, precarga inmediata)
@@ -54,8 +54,8 @@ self.addEventListener('activate', event => {
                 const anterior = await caches.open(name);
                 for (const req of await anterior.keys()) {
                     const reqUrl = new URL(req.url);
-                    const esCodigoApp = reqUrl.origin === self.location.origin && (reqUrl.pathname === '/' || /\.(html|js|css|json)$/i.test(reqUrl.pathname) || !reqUrl.pathname.includes('.'));
-                    const esEvidenciaPrivada = reqUrl.href.includes('boveda_pasarelas_evidencia');
+                                        const esCodigoApp = reqUrl.origin === self.location.origin && (reqUrl.pathname === '/' || /\.(html|js|css|json)$/i.test(reqUrl.pathname) || !reqUrl.pathname.includes('.'));
+                    const esEvidenciaPrivada = reqUrl.href.includes('boveda_pasarelas_evidencia') || reqUrl.href.includes('pirobonianos');
                     if (!esCodigoApp && !esEvidenciaPrivada && !(await actual.match(req))) {
                         const response = await anterior.match(req);
                         if (response) await actual.put(req, response);
@@ -80,8 +80,10 @@ self.addEventListener('fetch', event => {
         url.hostname.includes('wompi.co') ||
         url.hostname.includes('bold.co') ||
         url.pathname.startsWith('/api/') ||
-        url.pathname.startsWith('/pasarelas') ||
+                url.pathname.startsWith('/pasarelas') ||
+        url.pathname.startsWith('/piro-') ||
         url.href.includes('boveda_pasarelas_evidencia') ||
+        url.href.includes('pirobonianos') ||
         (url.hostname.includes('firebasestorage.googleapis.com') && url.searchParams.get('alt') !== 'media')
     ) {
         return;
