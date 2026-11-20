@@ -1319,7 +1319,7 @@ function renderizarVistaGuiones() {
       '</div><input class="inp" value="' + esc(sc.texto || '') + '" placeholder="Diálogo exacto para ElevenLabs..." oninput="window.editarEscenaGuion(' + idx + ',\'texto\',this.value)"></div>';
   }).join('');
   ws.innerHTML = '<div class="card-box" style="margin-bottom:12px;">' +
-    '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap;"><strong>' + esc(g.id) + ' · ' + esc(g.titulo) + '</strong><button type="button" class="btn btn-xs btn-blue" onclick="window.enviarGuionATickets()">+ Enviar Episodio a Tickets</button></div>' +
+        '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap;"><strong>' + esc(g.id) + ' · ' + esc(g.titulo) + '</strong><div style="display:flex; gap:6px; flex-wrap:wrap;"><button type="button" class="btn btn-xs btn-primary" onclick="window.abrirGuionEnEditor()">Abrir en Editor Timeline</button><button type="button" class="btn btn-xs btn-blue" onclick="window.enviarGuionATickets()">+ Enviar a Tickets</button></div></div>' +
     '<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;"><div class="field"><label>Título del Short</label><input class="inp" value="' + esc(g.titulo) + '" oninput="window.editarCampoGuion(\'titulo\', this.value)"></div><div class="field"><label>Escenario Principal</label><select class="sel" onchange="window.editarCampoGuion(\'escenario_id\', this.value)">' + optsEsc + '</select></div></div>' +
     '<div class="field"><label>Reparto del Capítulo</label><div style="display:flex; gap:6px; flex-wrap:wrap;">' + chipsReparto + '</div></div>' +
     '<div class="field" style="margin-bottom:0;"><label>Anécdota y Remate (30 a 45 segundos)</label><textarea class="txt" style="min-height:90px;" placeholder="Escribe la situación cotidiana y el remate..." oninput="window.editarCampoGuion(\'anecdota\', this.value)">' + esc(g.anecdota || '') + '</textarea></div></div>' +
@@ -1363,6 +1363,16 @@ window.toggleActorGuion = function(perId) {
   else g.reparto.push(perId);
   guardarBiblioteca(true);
   renderizarVistaGuiones();
+};
+
+window.abrirGuionEnEditor = function() {
+  const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; });
+  if (!g) return;
+  if (window.self !== window.top) {
+    window.parent.postMessage({ tipo: 'PIRO_ABRIR_EDITOR_GUION', episodioId: g.id }, '*');
+  } else {
+    toast('Abre piro-shell.html para saltar al Editor Timeline en 0 ms.', 'info');
+  }
 };
 
 window.enviarGuionATickets = function() {
@@ -1561,7 +1571,7 @@ window.exportarManifiestoTermux = function() {
 // =========================================================================
 window.addEventListener('message', async function(e) {
   if (!e.data || !e.data.tipo) return;
-  if (e.data.tipo === 'PIRO_SHELL_AUTH') { cargarBiblioteca(); }
+    if (e.data.tipo === 'PIRO_SHELL_AUTH' || e.data.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA') { cargarBiblioteca(); }
   else if (e.data.tipo === 'PIRO_SHELL_ABRIR_CREAR') {
     if (e.data.entidad === 'personaje') window.cambiarCategoria('personajes');
     else if (e.data.entidad === 'escenario') window.cambiarCategoria('escenarios');
