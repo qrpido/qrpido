@@ -295,12 +295,16 @@
         </div>
       </header>
       <div class="resumen-body">
-        <div class="resumen-banner">
-          <div>
-            <div style="font-size:15px; font-weight:900;">Fábrica Modular Piro-Rig 2D</div>
-            <div style="font-size:12px; color:var(--muted); margin-top:2px;">Cambia entre Tickets, Biblioteca de Contenido y Estudio PNG en 0 ms sin perder tu trabajo.</div>
+                <div class="resumen-banner">
+          <div style="flex:1; min-width:220px;">
+            <div style="font-size:11px; color:var(--naranja); font-weight:800; text-transform:uppercase; letter-spacing:0.6px;">Proyecto Activo</div>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:5px; flex-wrap:wrap;">
+              <select id="shell-select-proyecto" onchange="window.PiroShell.cambiarProyecto(this.value)" style="padding:8px 10px; border-radius:10px; border:1px solid rgba(255,107,0,0.45); background:rgba(8,10,16,0.9); color:#fff; font-weight:800; font-size:13px; min-width:200px; outline:none;"></select>
+              <button type="button" onclick="window.PiroShell.abrirModalProyecto()" style="background:rgba(56,189,248,0.16); border:1px solid rgba(56,189,248,0.45); color:#7dd3fc; padding:8px 12px; border-radius:10px; font-weight:800; font-size:12px; cursor:pointer;">+ Nuevo Proyecto</button>
+            </div>
+            <div id="shell-desc-proyecto" style="font-size:11.5px; color:var(--muted); margin-top:5px;">Cambia de proyecto para aislar personajes, escenarios, guiones y Timeline.</div>
           </div>
-          <button type="button" onclick="window.PiroShell.abrirMenuCrear()" style="background:linear-gradient(135deg,#ff8c00,#ff6b00); border:none; color:#fff; padding:9px 14px; border-radius:10px; font-weight:800; font-size:12px; cursor:pointer;">+ Crear Nuevo</button>
+          <button type="button" onclick="window.PiroShell.abrirMenuCrear()" style="background:linear-gradient(135deg,#ff8c00,#ff6b00); border:none; color:#fff; padding:9px 14px; border-radius:10px; font-weight:800; font-size:12px; cursor:pointer;">+ Crear Elemento</button>
         </div>
 
         <div class="portal-grid">
@@ -416,6 +420,30 @@
   </div>
 </div>
 
+<!-- MODAL: CREAR NUEVO PROYECTO / SERIE -->
+<div id="modal-nuevo-proyecto-shell" onclick="if(event.target.id==='modal-nuevo-proyecto-shell') window.PiroShell.cerrarModalProyecto()" style="position:fixed; inset:0; z-index:86000; background:rgba(4,6,10,0.82); backdrop-filter:blur(8px); display:none; align-items:center; justify-content:center; padding:16px;">
+  <div style="width:100%; max-width:440px; background:linear-gradient(150deg, rgba(22,27,38,0.99), rgba(11,14,20,0.99)); border:1px solid rgba(255,255,255,0.2); border-radius:18px; padding:18px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <strong style="font-size:14px;">Crear Nuevo Proyecto / Serie</strong>
+      <button type="button" onclick="window.PiroShell.cerrarModalProyecto()" style="background:none; border:1px solid var(--border); color:var(--muted); border-radius:8px; padding:4px 9px; font-size:11px; cursor:pointer;">Cerrar</button>
+    </div>
+    <form onsubmit="event.preventDefault(); window.PiroShell.guardarNuevoProyecto();">
+      <label style="display:block; font-size:11px; color:var(--muted); font-weight:700; margin-bottom:4px;">Nombre del Proyecto</label>
+      <input id="np-nombre" class="bunker-input" placeholder="Ej: Cruzando la Frontera · Libro 2" required>
+      <label style="display:block; font-size:11px; color:var(--muted); font-weight:700; margin-bottom:4px;">Plantilla Base</label>
+      <select id="np-plantilla" class="bunker-input" onchange="window.PiroShell.actualizarEstiloPlantilla(this.value)">
+        <option value="piro_rig">Comedia 2D / Marionetas Piro-Rig</option>
+        <option value="scifi_hibrido">Novela / Serie Sci-Fi Híbrida (Bilingüe + Veo)</option>
+      </select>
+      <label style="display:block; font-size:11px; color:var(--muted); font-weight:700; margin-bottom:4px;">Estilo Visual Maestro (para prompts IA)</label>
+      <textarea id="np-estilo" class="bunker-input" style="min-height:72px; resize:vertical;">A 2D cartoon animation character, BoJack Horseman style, clean black ink outlines, flat vibrant colors.</textarea>
+      <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-bottom:12px; cursor:pointer;">
+        <input type="checkbox" id="np-bilingue" style="accent-color:var(--naranja);"> Habilitar guiones bilingües (ES + EN) y modo Veo
+      </label>
+      <button type="submit" class="btn-bunker-submit">Crear y Activar Proyecto</button>
+    </form>
+  </div>
+</div>
 <div id="shell-toasts"></div>
 
 <script type="module" src="./auth-mando.js"></script>
@@ -449,6 +477,92 @@ const pendientes = { tickets: [], contenido: [], estudio: [], editor: [] };
 let vistaActiva = 'resumen';
 let contextoEstudio = null;
 let usuarioActual = null;
+const CLAVE_INDICE_PROY = 'piro_indice_proyectos_v1';
+const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
+const DOC_INDICE_PROY = '__indice_proyectos__';
+const PROYECTOS_BASE = [
+  {
+    id: 'pirobonianos',
+    nombre: 'Pirobonianos',
+    docBibId: '__biblioteca_maestra__',
+    storageDir: 'biblioteca_contenido',
+    plantilla: 'piro_rig',
+    bilingue: false,
+    tipo_personaje: 'Anthropomorphic dog',
+    estilo_visual: 'A 2D cartoon animation character, BoJack Horseman style, clean black ink outlines, flat vibrant colors.'
+  },
+  {
+    id: 'cruzando_la_frontera',
+    nombre: 'Cruzando la Frontera',
+    docBibId: '__bib_cruzando_la_frontera__',
+    storageDir: 'bib_cruzando_la_frontera',
+    plantilla: 'scifi_hibrido',
+    bilingue: true,
+    tipo_personaje: 'Human / Hard Sci-Fi character',
+    estilo_visual: '2D adult animation style blending Rick and Morty season 1 expressive linework with BoJack Horseman atmospheric shading and gritty hard sci-fi cyberpunk lighting, vertical 9:16 aspect ratio, cinematic composition, deep shadows, neon telemetry glow, no text.'
+  }
+];
+let listaProyectosStudio = PROYECTOS_BASE.slice();
+let proyectoActivo = PROYECTOS_BASE[0];
+
+function sincronizarProyectosLocal() {
+  try {
+    localStorage.setItem(CLAVE_INDICE_PROY, JSON.stringify(listaProyectosStudio));
+    localStorage.setItem(CLAVE_PROY_ACTIVO, JSON.stringify(proyectoActivo));
+  } catch (e) {}
+}
+
+function renderSelectorProyectosShell() {
+  const sel = document.getElementById('shell-select-proyecto');
+  const desc = document.getElementById('shell-desc-proyecto');
+  if (!sel) return;
+  sel.innerHTML = listaProyectosStudio.map(function(p) {
+    return '<option value="' + p.id + '"' + (p.id === proyectoActivo.id ? ' selected' : '') + '>' + p.nombre + (p.bilingue ? ' (ES/EN · Híbrido)' : ' (Piro-Rig 2D)') + '</option>';
+  }).join('');
+  if (desc) desc.textContent = proyectoActivo.bilingue ? 'Modo Novela / Serie Híbrida (capítulos .md, bilingüe ES/EN, Veo + cómic, personajes ilimitados).' : 'Modo Comedia 2D Piro-Rig (marionetas modulares 1000x1600, escenarios y Shorts).';
+}
+
+async function cargarProyectosStudio() {
+  try {
+    const rawL = localStorage.getItem(CLAVE_INDICE_PROY);
+    if (rawL) {
+      const arr = JSON.parse(rawL);
+      if (Array.isArray(arr) && arr.length > 0) listaProyectosStudio = arr;
+    }
+    const rawA = localStorage.getItem(CLAVE_PROY_ACTIVO);
+    if (rawA) {
+      const act = JSON.parse(rawA);
+      const found = listaProyectosStudio.find(function(x) { return x.id === act.id; });
+      if (found) proyectoActivo = found;
+    }
+  } catch (e) {}
+  if (GeokatuDB.PirobonianosService && navigator.onLine) {
+    try {
+      const res = await GeokatuDB.PirobonianosService.obtenerProyectoEDT(DOC_INDICE_PROY);
+      if (res.success && res.data && Array.isArray(res.data.proyectos) && res.data.proyectos.length > 0) {
+        listaProyectosStudio = res.data.proyectos;
+        const found = listaProyectosStudio.find(function(x) { return x.id === (proyectoActivo ? proyectoActivo.id : res.data.activo_id); });
+        proyectoActivo = found || listaProyectosStudio[0];
+      }
+    } catch (e) {}
+  }
+  PROYECTOS_BASE.forEach(function(base) {
+    if (!listaProyectosStudio.some(function(x) { return x.id === base.id; })) listaProyectosStudio.push(base);
+  });
+  sincronizarProyectosLocal();
+  renderSelectorProyectosShell();
+}
+
+function guardarIndiceProyectosNube() {
+  sincronizarProyectosLocal();
+  if (GeokatuDB.PirobonianosService && navigator.onLine) {
+    GeokatuDB.PirobonianosService.guardarProyectoEDT(DOC_INDICE_PROY, {
+      tipo_doc: 'biblioteca',
+      proyectos: listaProyectosStudio,
+      activo_id: proyectoActivo.id
+    }).catch(function() {});
+  }
+}
 
 function mostrarToastShell(msg, tipo, ms) {
   const cont = document.getElementById('shell-toasts');
@@ -469,8 +583,8 @@ function asegurarFrame(nombre) {
     frame.dataset.listoListener = '1';
     frame.addEventListener('load', function() {
       cargados[nombre] = true;
-      if (usuarioActual && frame.contentWindow) {
-        frame.contentWindow.postMessage({ tipo: 'PIRO_SHELL_AUTH', email: usuarioActual.email, uid: usuarioActual.uid }, '*');
+            if (usuarioActual && frame.contentWindow) {
+        frame.contentWindow.postMessage({ tipo: 'PIRO_SHELL_AUTH', email: usuarioActual.email, uid: usuarioActual.uid, proyecto: proyectoActivo }, '*');
       }
       const cola = pendientes[nombre].splice(0);
       cola.forEach(function(fn) { try { fn(frame.contentWindow); } catch (e) {} });
@@ -527,11 +641,57 @@ window.PiroShell = {
       enviarAFrame('contenido', { tipo: 'PIRO_SHELL_ABRIR_CREAR', entidad: tipo });
     }
   },
-  cancelarContextoEstudio: function() {
+    cancelarContextoEstudio: function() {
     const destino = (contextoEstudio && contextoEstudio.origen) ? contextoEstudio.origen : 'contenido';
     contextoEstudio = null;
     document.getElementById('barra-contexto-estudio').classList.remove('visible');
     this.irA(destino);
+  },
+  cambiarProyecto: function(idProy) {
+    const p = listaProyectosStudio.find(function(x) { return x.id === idProy; });
+    if (!p) return;
+    proyectoActivo = p;
+    guardarIndiceProyectosNube();
+    renderSelectorProyectosShell();
+    if (cargados.contenido) enviarAFrame('contenido', { tipo: 'PIRO_SHELL_CAMBIAR_PROYECTO', proyecto: proyectoActivo });
+    if (cargados.editor) enviarAFrame('editor', { tipo: 'PIRO_SHELL_CAMBIAR_PROYECTO', proyecto: proyectoActivo });
+    mostrarToastShell('Proyecto activo: ' + p.nombre, 'exito');
+  },
+  abrirModalProyecto: function() {
+    document.getElementById('np-nombre').value = '';
+    document.getElementById('np-plantilla').value = 'piro_rig';
+    this.actualizarEstiloPlantilla('piro_rig');
+    document.getElementById('modal-nuevo-proyecto-shell').style.display = 'flex';
+  },
+  cerrarModalProyecto: function() {
+    document.getElementById('modal-nuevo-proyecto-shell').style.display = 'none';
+  },
+  actualizarEstiloPlantilla: function(pl) {
+    const esSciFi = pl === 'scifi_hibrido';
+    document.getElementById('np-estilo').value = esSciFi ? PROYECTOS_BASE[1].estilo_visual : PROYECTOS_BASE[0].estilo_visual;
+    document.getElementById('np-bilingue').checked = esSciFi;
+  },
+  guardarNuevoProyecto: function() {
+    const nom = document.getElementById('np-nombre').value.trim();
+    if (!nom) return;
+    const pl = document.getElementById('np-plantilla').value;
+    const est = document.getElementById('np-estilo').value.trim();
+    const bil = document.getElementById('np-bilingue').checked;
+    const slug = nom.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 32) || ('proy_' + Date.now());
+    const idUnico = listaProyectosStudio.some(function(x) { return x.id === slug; }) ? (slug + '_' + String(Date.now()).slice(-4)) : slug;
+    const nuevo = {
+      id: idUnico,
+      nombre: nom,
+      docBibId: '__bib_' + idUnico + '__',
+      storageDir: 'bib_' + idUnico,
+      plantilla: pl,
+      bilingue: bil,
+      tipo_personaje: pl === 'scifi_hibrido' ? 'Human / Hard Sci-Fi character' : 'Anthropomorphic dog',
+      estilo_visual: est || PROYECTOS_BASE[0].estilo_visual
+    };
+    listaProyectosStudio.push(nuevo);
+    this.cerrarModalProyecto();
+    this.cambiarProyecto(nuevo.id);
   }
 };
 
@@ -640,6 +800,7 @@ GeokatuDB.SecurityService.observarEstadoSesion(async function(user) {
         pVer.style.display = 'none';
         gate.style.display = 'none';
         shell.classList.add('listo');
+                await cargarProyectosStudio();
         // Precargar Contenido y Tickets en segundo plano para cambio 0ms
         asegurarFrame('contenido');
         setTimeout(function() { asegurarFrame('tickets'); }, 500);
