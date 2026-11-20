@@ -87,8 +87,8 @@
   @media (max-width: 780px) { .grid-2 { grid-template-columns: 1fr; } }
 
   /* WORKSPACE TIMELINE ESTILO YOUCUT */
-  .editor-upper {
-    flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(220px, 340px) 1fr;
+    .editor-upper {
+    flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(240px, 420px) 1fr;
     gap: 10px; padding: 10px; overflow: hidden;
   }
   @media (max-width: 760px) {
@@ -198,13 +198,17 @@
           <svg class="svg-ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           Guion IA
         </button>
-        <button type="button" class="tab-btn" id="tab-timeline" onclick="window.setVistaEditor('timeline')">
+                <button type="button" class="tab-btn" id="tab-timeline" onclick="window.setVistaEditor('timeline')">
           <svg class="svg-ico" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-          Timeline 9:16
+          Timeline
         </button>
       </div>
-      <select id="sel-episodio" class="sel" style="width:auto; min-width:155px; max-width:210px;" onchange="window.seleccionarEpisodio(this.value)"></select>
+      <select id="sel-episodio" class="sel" style="width:auto; min-width:140px; max-width:195px;" onchange="window.seleccionarEpisodio(this.value)"></select>
       <button type="button" class="btn btn-xs" onclick="window.crearEpisodioRapido()">+ Ep</button>
+      <select id="sel-aspecto" class="sel" style="width:auto; padding:5px 8px; font-size:11px; font-weight:800; border-color:rgba(56,189,248,0.45); color:var(--azul);" onchange="window.cambiarAspectoEpisodio(this.value)">
+        <option value="9:16">9:16 Vertical</option>
+        <option value="16:9">16:9 Horizontal</option>
+      </select>
     </div>
 
     <div class="topbar-grp">
@@ -674,11 +678,25 @@ window.crearEpisodioRapido = function() {
   toast('Episodio ' + nuevo.id + ' creado.', 'exito');
 };
 
+function getAspectoEp(g) {
+  return (g && g.aspecto === '16:9') ? '16:9' : '9:16';
+}
+
+window.cambiarAspectoEpisodio = function(asp) {
+  const g = getEp(); if (!g) return;
+  g.aspecto = (asp === '16:9') ? '16:9' : '9:16';
+  guardarBiblioteca(true);
+  if (vistaActual === 'timeline') window.renderPreviewCanvas();
+  toast('Formato del episodio cambiado a ' + g.aspecto + (g.aspecto === '16:9' ? ' (YouTube Horizontal 1920x1080)' : ' (Shorts/Reels 1080x1920)') + '.', 'info');
+};
+
 function renderSelectorEpisodios() {
   const sel = document.getElementById('sel-episodio');
   sel.innerHTML = (biblioteca.guiones || []).map(function(g) {
     return '<option value="' + esc(g.id) + '"' + (g.id === epIdActivo ? ' selected' : '') + '>' + esc(g.id + ' · ' + g.titulo) + '</option>';
   }).join('');
+  const selAsp = document.getElementById('sel-aspecto');
+  if (selAsp) selAsp.value = getAspectoEp(getEp());
 }
 
 function renderTodo() {
@@ -880,20 +898,22 @@ window.generarGuionConAPI = async function() {
     const propsTxt = (biblioteca.props || []).filter(function(x) { return x.categoria !== 'audio'; }).map(function(x) { return x.id; }).join(', ');
     const sfxTxt = (biblioteca.props || []).filter(function(x) { return x.categoria === 'audio'; }).map(function(x) { return x.id; }).join(', ');
 
-        const esBilingue = typeof g.bilingue === 'boolean' ? g.bilingue : Boolean(proyectoActivo.bilingue);
+            const esBilingue = typeof g.bilingue === 'boolean' ? g.bilingue : Boolean(proyectoActivo.bilingue);
+    const asp = getAspectoEp(g);
+    const fmtTxt = asp === '16:9' ? 'horizontal panorámico 16:9 (YouTube serie animada)' : 'vertical 9:16 (YouTube Shorts / Reels / TikTok)';
     const planVeo = calcularPlanVeo(g.tension || 8);
     const sys = esBilingue
-      ? 'Eres showrunner técnico de animación 2D hard sci-fi y motion-comic híbrido (Veo + cómic estático, presupuesto máx $1.50 USD/Short). Responde ÚNICAMENTE con un array JSON válido sin markdown ni explicaciones.'
-      : 'Eres guionista experto en comedia corta colombiana vertical (YouTube Shorts estilo South Park / BoJack Horseman). Responde ÚNICAMENTE con un array JSON válido sin markdown ni explicaciones.';
+      ? 'Eres showrunner técnico de animación 2D hard sci-fi y motion-comic híbrido (Veo + cómic estático, presupuesto máx $1.50 USD/episodio). Responde ÚNICAMENTE con un array JSON válido sin markdown ni explicaciones.'
+      : 'Eres guionista experto en comedia corta colombiana (estilo South Park / BoJack Horseman). Responde ÚNICAMENTE con un array JSON válido sin markdown ni explicaciones.';
     const usr = esBilingue
-      ? ('Adapta este texto fuente de "' + proyectoActivo.nombre + '" en un Short vertical de 8 escenas (Tensión ' + (g.tension || 8) + '/10, ' + planVeo.cat + ', presupuesto ~$' + planVeo.costo + ' USD).\n' +
+      ? ('Adapta este texto fuente de "' + proyectoActivo.nombre + '" en un episodio en formato ' + fmtTxt + ' de 8 escenas (Tensión ' + (g.tension || 8) + '/10, ' + planVeo.cat + ', presupuesto ~$' + planVeo.costo + ' USD).\n' +
         'REGLA HÍBRIDA VEO: Las escenas en los índices [' + planVeo.indices.join(', ') + '] (base 1) DEBEN llevar "render_mode":"VEO_ANIMATED" y "modo":"plano" con "veo_bridge_prompt" describiendo cómo el frame inicial cobra vida 5-6s. Las demás llevan "render_mode":"STATIC_COMIC" y "veo_bridge_prompt":"slow_zoom_in".\n' +
         'Cada objeto del array JSON DEBE tener estas claves:\n' +
-        '{"actor":"NARRADOR","escenario":"' + (g.escenario_id || 'esc_001') + '","zona":"' + (g.zona_id || 'zona_01') + '","posicion":"centro","ojos":"neutro|enojado|duda|indignado","camara":"centro|zoom_actor|plano_general","modo":"plano","render_mode":"STATIC_COMIC|VEO_ANIMATED","prop":"","sfx":"","duracion":5.5,"texto":"diálogo en español","texto_en":"English equivalent dialogue (15-20 words)","prompt_plano":"base static 9:16 frame prompt in English","veo_bridge_prompt":"5-6s Veo animation instruction or slow_zoom_in"}\n\n' +
+        '{"actor":"NARRADOR","escenario":"' + (g.escenario_id || 'esc_001') + '","zona":"' + (g.zona_id || 'zona_01') + '","posicion":"centro","ojos":"neutro|enojado|duda|indignado","camara":"centro|zoom_actor|plano_general","modo":"plano","render_mode":"STATIC_COMIC|VEO_ANIMATED","prop":"","sfx":"","duracion":5.5,"texto":"diálogo en español","texto_en":"English equivalent dialogue (15-20 words)","prompt_plano":"base static ' + asp + ' frame prompt in English","veo_bridge_prompt":"5-6s Veo animation instruction or slow_zoom_in"}\n\n' +
         'ETIQUETAS DISPONIBLES:\nPersonajes:\n' + actoresTxt + '\nEscenarios:\n' + escTxt + '\nProps: ' + (propsTxt || 'ninguno') + '\nSFX: ' + (sfxTxt || 'ninguno') + '\n\nTEXTO FUENTE (recortado a 12000 car.):\n' + g.anecdota.slice(0, 12000))
-      : ('Convierte esta anécdota en un guion dinámico de ~' + duracionObjetivoSeg + ' segundos (7 a 12 líneas cortas, gancho fuerte en los primeros 2 segundos y remate cómico).\n' +
+      : ('Convierte esta anécdota en un guion dinámico en formato ' + fmtTxt + ' de ~' + duracionObjetivoSeg + ' segundos (7 a 12 líneas cortas, gancho fuerte en los primeros 2 segundos y remate cómico).\n' +
         'Cada objeto del array JSON DEBE tener exactamente estas claves:\n' +
-        '{"actor":"per_001","escenario":"' + (g.escenario_id || 'esc_001') + '","zona":"' + (g.zona_id || 'zona_01') + '","posicion":"izq|centro|der","ojos":"neutro|feliz|enojado|triste|duda|indignado","camara":"centro|izq|der|zoom_actor|plano_general","modo":"rig","prop":"","sfx":"","duracion":3.5,"texto":"diálogo colombiano natural","prompt_plano":"breve descripción visual en inglés"}\n\n' +
+        '{"actor":"per_001","escenario":"' + (g.escenario_id || 'esc_001') + '","zona":"' + (g.zona_id || 'zona_01') + '","posicion":"izq|centro|der","ojos":"neutro|feliz|enojado|triste|duda|indignado","camara":"centro|izq|der|zoom_actor|plano_general","modo":"rig","prop":"","sfx":"","duracion":3.5,"texto":"diálogo colombiano natural","prompt_plano":"breve descripción visual ' + asp + ' en inglés"}\n\n' +
         'ETIQUETAS DISPONIBLES:\nPersonajes:\n' + actoresTxt + '\nEscenarios:\n' + escTxt + '\nProps: ' + (propsTxt || 'ninguno') + '\nSFX: ' + (sfxTxt || 'ninguno') + '\n\nCHISME / ANÉCDOTA:\n' + g.anecdota);
 
     const raw = await llamarLLM(sys, usr);
@@ -1180,7 +1200,11 @@ window.generarPlanoClip = async function(idx) {
   const per = biblioteca.personajes.find(function(p) { return p.id === sc.actor; });
   const escObj = biblioteca.escenarios.find(function(e) { return e.id === (sc.escenario || g.escenario_id); });
 
-    const baseEstilo = proyectoActivo.estilo_visual || 'Vertical 9:16 2D cartoon animation frame, BoJack Horseman art style, clean black ink outlines, flat vibrant colors, no text or speech bubbles.';
+      const asp = getAspectoEp(g);
+  const estiloRaw = proyectoActivo.estilo_visual || '2D cartoon animation frame, BoJack Horseman art style, clean black ink outlines, flat vibrant colors, no text or speech bubbles.';
+  const baseEstilo = asp === '16:9'
+    ? ('Horizontal 16:9 widescreen cinematic frame. ' + estiloRaw.replace(/vertical\s*9:16/ig, 'horizontal 16:9 widescreen').replace(/9:16/g, '16:9'))
+    : ('Vertical 9:16 portrait frame. ' + estiloRaw);
   const promptFinal = baseEstilo + ' ' +
     'Character: ' + (per ? (per.raza + ', ' + per.contextura + ', ' + per.pelaje_rasgos + ', wearing ' + per.vestuario_base) : sc.actor) + '. ' +
     'Expression: ' + (sc.ojos || 'neutro') + '. Setting: ' + (escObj ? (escObj.nombre + ', ' + escObj.iluminacion) : 'Colombian urban setting') + '. ' +
@@ -1193,7 +1217,7 @@ window.generarPlanoClip = async function(idx) {
     if (model.indexOf('imagen-') === 0) {
       const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':predict?key=' + encodeURIComponent(key), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instances: [{ prompt: promptFinal }], parameters: { sampleCount: 1, aspectRatio: '9:16' } })
+        body: JSON.stringify({ instances: [{ prompt: promptFinal }], parameters: { sampleCount: 1, aspectRatio: asp } })
       });
       if (!r.ok) throw new Error('Imagen HTTP ' + r.status);
       const j = await r.json();
@@ -1272,27 +1296,28 @@ function cargarImg(url) {
   });
 }
 
-function dibujarTextoSubtitulo(ctx, texto) {
+function dibujarTextoSubtitulo(ctx, texto, W, H, esH) {
   if (!texto || !texto.trim()) return;
+  const maxChars = esH ? 46 : 26;
   const palabras = texto.trim().split(/\s+/);
   const lineas = [];
   let act = '';
   palabras.forEach(function(w) {
-    if ((act + ' ' + w).trim().length > 26) { if (act) lineas.push(act); act = w; }
+    if ((act + ' ' + w).trim().length > maxChars) { if (act) lineas.push(act); act = w; }
     else act = (act + ' ' + w).trim();
   });
   if (act) lineas.push(act);
-  const visibles = lineas.slice(0, 3);
+  const visibles = lineas.slice(0, esH ? 2 : 3);
   ctx.save();
-  ctx.font = '900 26px system-ui, sans-serif';
+  ctx.font = esH ? '900 28px system-ui, sans-serif' : '900 26px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.lineWidth = 6;
   ctx.strokeStyle = 'rgba(0,0,0,0.92)';
   ctx.fillStyle = '#ffffff';
-  const yBase = 710 - (visibles.length - 1) * 30;
+  const yBase = (esH ? (H - 58) : 710) - (visibles.length - 1) * 30;
   visibles.forEach(function(l, i) {
-    ctx.strokeText(l, 270, yBase + i * 32);
-    ctx.fillText(l, 270, yBase + i * 32);
+    ctx.strokeText(l, W / 2, yBase + i * 32);
+    ctx.fillText(l, W / 2, yBase + i * 32);
   });
   ctx.restore();
 }
@@ -1301,23 +1326,30 @@ window.renderPreviewCanvas = async function(bocaForzada) {
   const cv = document.getElementById('canvas-preview');
   const g = getEp();
   if (!cv || !g) return;
+  const esH = getAspectoEp(g) === '16:9';
+  const W = esH ? 960 : 540;
+  const H = esH ? 540 : 960;
+  if (cv.width !== W || cv.height !== H) {
+    cv.width = W; cv.height = H;
+    cv.style.aspectRatio = esH ? '16 / 9' : '9 / 16';
+  }
   const ctx = cv.getContext('2d');
   ctx.fillStyle = '#0d1117';
-  ctx.fillRect(0, 0, 540, 960);
+  ctx.fillRect(0, 0, W, H);
 
   const sc = (g.escenas || [])[clipSelIdx];
   if (!sc) {
     ctx.fillStyle = '#64748b'; ctx.font = '700 18px system-ui'; ctx.textAlign = 'center';
-    ctx.fillText('Sin escenas en el timeline', 270, 480);
+    ctx.fillText('Sin escenas en el timeline', W / 2, H / 2);
     return;
   }
 
   if (sc.modo === 'plano' && sc.plano_url) {
     const imPlano = await cargarImg(sc.plano_url);
     if (imPlano) {
-      const r = Math.max(540 / imPlano.width, 960 / imPlano.height);
+      const r = Math.max(W / imPlano.width, H / imPlano.height);
       const dw = imPlano.width * r, dh = imPlano.height * r;
-      ctx.drawImage(imPlano, (540 - dw) / 2, (960 - dh) / 2, dw, dh);
+      ctx.drawImage(imPlano, (W - dw) / 2, (H - dh) / 2, dw, dh);
     }
   } else {
     const escObj = biblioteca.escenarios.find(function(e) { return e.id === (sc.escenario || g.escenario_id); }) || biblioteca.escenarios[0];
@@ -1326,12 +1358,10 @@ window.renderPreviewCanvas = async function(bocaForzada) {
     const imFrente = zObj && zObj.frente ? await cargarImg(zObj.frente.url) : null;
 
     const zoom = sc.camara === 'zoom_actor' ? 1.18 : 1.0;
-    const panX = sc.camara === 'izq' ? 140 : (sc.camara === 'der' ? -140 : 0);
+    const panX = esH ? (sc.camara === 'izq' ? 60 : (sc.camara === 'der' ? -60 : 0)) : (sc.camara === 'izq' ? 140 : (sc.camara === 'der' ? -140 : 0));
+    const bgSize = 960 * zoom;
 
-    if (imFondo) {
-      const dw = 960 * zoom, dh = 960 * zoom;
-      ctx.drawImage(imFondo, (540 - dw) / 2 + panX, (960 - dh) / 2, dw, dh);
-    }
+    if (imFondo) ctx.drawImage(imFondo, (W - bgSize) / 2 + panX, (H - bgSize) / 2, bgSize, bgSize);
 
     const per = biblioteca.personajes.find(function(p) { return p.id === sc.actor; });
     if (per && per.piezas) {
@@ -1343,11 +1373,12 @@ window.renderPreviewCanvas = async function(bocaForzada) {
       const hayPiezas = imgs.some(Boolean);
       const imMaestro = !hayPiezas && pz.maestro_cuerpo ? await cargarImg(pz.maestro_cuerpo.url) : null;
 
-      const xPos = sc.posicion === 'izq' ? 175 : (sc.posicion === 'der' ? 365 : 270);
+      const xPos = esH ? (sc.posicion === 'izq' ? 270 : (sc.posicion === 'der' ? 690 : 480)) : (sc.posicion === 'izq' ? 175 : (sc.posicion === 'der' ? 365 : 270));
+      const yPos = esH ? 310 : 530;
       const flip = sc.posicion === 'der';
-      const scPer = 0.44 * zoom;
+      const scPer = (esH ? 0.31 : 0.44) * zoom;
       ctx.save();
-      ctx.translate(xPos + panX * 0.45, 530);
+      ctx.translate(xPos + panX * 0.45, yPos);
       if (flip) ctx.scale(-1, 1);
       if (hayPiezas) {
         imgs.forEach(function(im) { if (im) ctx.drawImage(im, -500 * scPer, -800 * scPer, 1000 * scPer, 1600 * scPer); });
@@ -1357,29 +1388,31 @@ window.renderPreviewCanvas = async function(bocaForzada) {
       ctx.restore();
     }
 
-    if (imFrente) {
-      const dw = 960 * zoom, dh = 960 * zoom;
-      ctx.drawImage(imFrente, (540 - dw) / 2 + panX, (960 - dh) / 2, dw, dh);
-    }
+    if (imFrente) ctx.drawImage(imFrente, (W - bgSize) / 2 + panX, (H - bgSize) / 2, bgSize, bgSize);
 
     if (sc.prop) {
       const pr = (biblioteca.props || []).find(function(x) { return x.id === sc.prop; });
       if (pr && pr.archivo && pr.archivo.url) {
         const imPr = await cargarImg(pr.archivo.url);
-        if (imPr) ctx.drawImage(imPr, 320, 210, 150, 150);
+        if (imPr) ctx.drawImage(imPr, esH ? 710 : 320, esH ? 90 : 210, 140, 140);
       }
     }
   }
 
-  dibujarTextoSubtitulo(ctx, sc.texto || '');
+  dibujarTextoSubtitulo(ctx, sc.texto || '', W, H, esH);
 
   if (document.getElementById('chk-safe-zones').checked) {
     ctx.save();
-    ctx.fillStyle = 'rgba(239, 68, 68, 0.16)';
-    ctx.fillRect(0, 768, 540, 192);
-    ctx.fillRect(455, 420, 85, 348);
-    ctx.strokeStyle = 'rgba(239, 68, 68, 0.55)'; ctx.setLineDash([8, 6]);
-    ctx.strokeRect(10, 80, 440, 680);
+    if (esH) {
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)'; ctx.setLineDash([10, 8]);
+      ctx.strokeRect(48, 28, W - 96, H - 56);
+    } else {
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.16)';
+      ctx.fillRect(0, 768, 540, 192);
+      ctx.fillRect(455, 420, 85, 348);
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.55)'; ctx.setLineDash([8, 6]);
+      ctx.strokeRect(10, 80, 440, 680);
+    }
     ctx.restore();
   }
 };
@@ -1479,7 +1512,8 @@ window.exportarPaqueteEpisodio = function() {
     if (sc.render_mode !== 'VEO_ANIMATED') return null;
     return '[ESCENA ' + String(i + 1).padStart(2, '0') + ' · ANIMAR CON VEO]\nFrame 0: plano_' + (i + 1) + '.png\nDuración: ' + (sc.duracion || 6) + 's\nPrompt: ' + (proyectoActivo.estilo_visual || '') + ' ' + (sc.veo_bridge_prompt || '');
   }).filter(Boolean);
-  const payload = { proyecto: proyectoActivo, plan_veo: calcularPlanVeo(g.tension || 8), instrucciones_puente_veo: instruccionesVeo, episodio: g, descargas_episodio: descargas, biblioteca: biblioteca, exportado_en: new Date().toISOString() };
+    const asp = getAspectoEp(g);
+  const payload = { proyecto: proyectoActivo, formato_video: { aspecto: asp, ancho: asp === '16:9' ? 1920 : 1080, alto: asp === '16:9' ? 1080 : 1920 }, plan_veo: calcularPlanVeo(g.tension || 8), instrucciones_puente_veo: instruccionesVeo, episodio: g, descargas_episodio: descargas, biblioteca: biblioteca, exportado_en: new Date().toISOString() };
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
   a.download = proyectoActivo.id + '_' + g.id + '_produccion_termux.json';
