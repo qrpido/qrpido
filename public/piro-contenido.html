@@ -268,7 +268,8 @@
         Guiones
       </button>
     </div>
-        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+      <span id="badge-proy-cont" class="sync-pill ok">Pirobonianos</span>
       <button type="button" class="btn btn-xs btn-blue" onclick="window.exportarManifiestoTermux()">Exportar JSON Termux</button>
       <span id="badge-sync-cont" class="sync-pill">Cargando...</span>
     </div>
@@ -312,8 +313,61 @@
 <script type="module">
 import GeokatuDB from './core-db.js';
 
-const DOC_BIBLIOTECA_ID = '__biblioteca_maestra__';
-const CLAVE_LOCAL_BIB = 'piro_biblioteca_maestra_v1';
+const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
+let proyectoActivo = {
+  id: 'pirobonianos', nombre: 'Pirobonianos', docBibId: '__biblioteca_maestra__',
+  storageDir: 'biblioteca_contenido', plantilla: 'piro_rig', bilingue: false,
+  tipo_personaje: 'Anthropomorphic dog',
+  estilo_visual: 'A 2D cartoon animation character, BoJack Horseman style, clean black ink outlines, flat vibrant colors.'
+};
+try {
+  const rawP = localStorage.getItem(CLAVE_PROY_ACTIVO);
+  if (rawP) { const parsed = JSON.parse(rawP); if (parsed && parsed.docBibId) proyectoActivo = Object.assign(proyectoActivo, parsed); }
+} catch (e) {}
+function getDocBibId() { return proyectoActivo.docBibId || '__biblioteca_maestra__'; }
+function getLocalBibKey() { return proyectoActivo.id === 'pirobonianos' ? 'piro_biblioteca_maestra_v1' : ('piro_bib_' + proyectoActivo.id + '_v1'); }
+function getStorageDir() { return proyectoActivo.storageDir || 'biblioteca_contenido'; }
+function actualizarBadgeProy() { const b = document.getElementById('badge-proy-cont'); if (b) b.textContent = proyectoActivo.nombre || 'Pirobonianos'; }
+
+function crearSemillaPorProyecto() {
+  if (proyectoActivo.id === 'pirobonianos') return crearBibliotecaSemilla();
+  if (proyectoActivo.id === 'cruzando_la_frontera' || proyectoActivo.plantilla === 'scifi_hibrido') {
+    const baseCast = [
+      ['NARRADOR', 'Narrador', 'Voz en off documental', 'en-US-BrianNeural', 'es-MX-JorgeNeural'],
+      ['DANIEL_CHEN', 'Daniel Chen', 'Ingeniero protagonista', 'en-US-ChristopherNeural', 'es-CO-GonzaloNeural'],
+      ['DARIO_KELLER', 'Darío Keller', 'Analista técnico', 'en-US-GuyNeural', 'es-ES-AlvaroNeural'],
+      ['MAGNUS_STERLING', 'Magnus Sterling', 'Ejecutivo corporativo', 'en-US-EricNeural', 'es-AR-TomasNeural'],
+      ['JULIAN_VANCE', 'Julian Vance', 'Estratega', 'en-US-RogerNeural', 'es-CL-LorenzoNeural'],
+      ['ELENA_ROSTOVA', 'Elena Rostova', 'Científica', 'en-US-JennyNeural', 'es-ES-ElviraNeural'],
+      ['ARIS_THORNE', 'Aris Thorne', 'Investigador', 'en-GB-RyanNeural', 'es-PE-AlexNeural'],
+      ['MATEO_VARGAS', 'Mateo Vargas', 'Operador de campo', 'en-US-AndrewNeural', 'es-US-AlonsoNeural'],
+      ['ARTHUR_WARD', 'Arthur Ward', 'Militar / Defensa', 'en-US-TonyNeural', 'es-VE-SebastianNeural'],
+      ['PRESIDENTE', 'Presidente', 'Mandatario', 'en-US-DavisNeural', 'es-BO-MarceloNeural'],
+      ['LIN_WEI', 'Lin Wei', 'Ingeniera hardware', 'en-US-MichelleNeural', 'es-CO-SalomeNeural'],
+      ['JACK_NOVAK', 'Jack Novak', 'Agente táctico', 'en-US-SteffanNeural', 'es-UY-MateoNeural'],
+      ['MARCOS_MORENO', 'Marcos Moreno', 'Especialista sistemas', 'en-US-BrandonNeural', 'es-ES-ArnauNeural'],
+      ['AGI_CORE', 'AGI Core', 'Entidad sintética IA', 'en-US-AriaNeural', 'es-MX-DaliaNeural']
+    ];
+    return {
+      tipo_doc: 'biblioteca',
+      meta_proyecto: proyectoActivo,
+      personajes: baseCast.map(function(c) {
+        return { id: c[0], nombre: c[1], raza: c[2], contextura: 'Humano adulto estilizado', pelaje_rasgos: '', vestuario_base: '', pose_iconica: 'De pie en plano 3/4 mirando a la derecha', personalidad: c[2], voice_id: '', voz_en: c[3], voz_es: c[4], pivotes_json: '', piezas: {}, variantes: [] };
+      }),
+      escenarios: [{ id: 'esc_001', nombre: 'Centro de Control / Laboratorio EUV', iluminacion: 'Sombras profundas con destellos neón cian y ámbar', zonas: [{ id: 'zona_01', nombre: 'Sala Principal', puntos_camara: 'Plano general + zoom consolas', fondo: null, frente: null }] }],
+      props: [{ id: 'prop_terminal', nombre: 'Terminal Holográfica', categoria: 'prop', archivo: null }, { id: 'sfx_alarma', nombre: 'Alarma Táctica', categoria: 'audio', archivo: null }],
+      guiones: [{ id: 'cap_01', titulo: 'Capítulo I · Short 01', escenario_id: 'esc_001', zona_id: 'zona_01', reparto: ['NARRADOR', 'DANIEL_CHEN'], estado: 'Borrador', anecdota: '', escenas: [] }],
+      fecha_actualizacion: new Date().toISOString()
+    };
+  }
+  return {
+    tipo_doc: 'biblioteca', meta_proyecto: proyectoActivo,
+    personajes: [{ id: 'per_001', nombre: 'Protagonista 01', raza: proyectoActivo.tipo_personaje || 'Personaje', contextura: '', pelaje_rasgos: '', vestuario_base: '', pose_iconica: 'De pie mirando a la derecha', personalidad: '', voice_id: '', voz_en: '', voz_es: '', pivotes_json: '', piezas: {}, variantes: [] }],
+    escenarios: [{ id: 'esc_001', nombre: 'Escenario Principal', iluminacion: 'Iluminación base', zonas: [{ id: 'zona_01', nombre: 'Zona 01', puntos_camara: '', fondo: null, frente: null }] }],
+    props: [], guiones: [{ id: 'ep001', titulo: 'Episodio 001', escenario_id: 'esc_001', reparto: ['per_001'], estado: 'Borrador', anecdota: '', escenas: [] }],
+    fecha_actualizacion: new Date().toISOString()
+  };
+}
 
 // PLANTILLA ESTÁNDAR DE 20 PIEZAS BÁSICAS POR PERSONAJE (MARIONETA SOUTH PARK / PIRO-RIG)
 const SLOTS_BASICOS_PERSONAJE = [
@@ -455,18 +509,21 @@ function crearBibliotecaSemilla() {
 }
 
 async function cargarBiblioteca() {
+  actualizarBadgeProy();
   setSyncBadge('Cargando...', 'warn');
+  biblioteca = { tipo_doc: 'biblioteca', personajes: [], escenarios: [], props: [], guiones: [] };
+  const kLoc = getLocalBibKey();
   try {
-    const raw = localStorage.getItem(CLAVE_LOCAL_BIB);
+    const raw = localStorage.getItem(kLoc);
     if (raw) biblioteca = JSON.parse(raw);
   } catch (e) {}
 
   if (GeokatuDB.PirobonianosService && navigator.onLine) {
-    const res = await GeokatuDB.PirobonianosService.obtenerProyectoEDT(DOC_BIBLIOTECA_ID);
+    const res = await GeokatuDB.PirobonianosService.obtenerProyectoEDT(getDocBibId());
     if (res.success && res.data && Array.isArray(res.data.personajes)) {
       if (!biblioteca.fecha_actualizacion || String(res.data.fecha_actualizacion || '') >= String(biblioteca.fecha_actualizacion)) {
         biblioteca = res.data;
-        try { localStorage.setItem(CLAVE_LOCAL_BIB, JSON.stringify(biblioteca)); } catch (e) {}
+        try { localStorage.setItem(kLoc, JSON.stringify(biblioteca)); } catch (e) {}
       }
       setSyncBadge('Nube OK', 'ok');
     } else if (res.success) {
@@ -479,9 +536,12 @@ async function cargarBiblioteca() {
   }
 
   if (!Array.isArray(biblioteca.personajes) || biblioteca.personajes.length === 0) {
-    biblioteca = crearBibliotecaSemilla();
+    biblioteca = crearSemillaPorProyecto();
     guardarBiblioteca(true);
   }
+  if (!biblioteca.personajes.some(function(x) { return x.id === selId.personajes; })) selId.personajes = biblioteca.personajes[0] ? biblioteca.personajes[0].id : null;
+  if (!biblioteca.escenarios.some(function(x) { return x.id === selId.escenarios; })) selId.escenarios = biblioteca.escenarios[0] ? biblioteca.escenarios[0].id : null;
+  if (!biblioteca.guiones.some(function(x) { return x.id === selId.guiones; })) selId.guiones = biblioteca.guiones[0] ? biblioteca.guiones[0].id : null;
   if (!selId.personajes && biblioteca.personajes[0]) selId.personajes = biblioteca.personajes[0].id;
   if (!selId.escenarios && biblioteca.escenarios[0]) selId.escenarios = biblioteca.escenarios[0].id;
   if (!selId.guiones && biblioteca.guiones[0]) selId.guiones = biblioteca.guiones[0].id;
@@ -491,13 +551,14 @@ async function cargarBiblioteca() {
 
 function guardarBiblioteca(inmediato) {
   biblioteca.tipo_doc = 'biblioteca';
+  biblioteca.meta_proyecto = proyectoActivo;
   biblioteca.fecha_actualizacion = new Date().toISOString();
-  try { localStorage.setItem(CLAVE_LOCAL_BIB, JSON.stringify(biblioteca)); } catch (e) {}
+  try { localStorage.setItem(getLocalBibKey(), JSON.stringify(biblioteca)); } catch (e) {}
   setSyncBadge('Guardando...', 'warn');
   clearTimeout(debounceGuardar);
   const run = async function() {
     if (!GeokatuDB.PirobonianosService) { setSyncBadge('Local', 'warn'); return; }
-    const res = await GeokatuDB.PirobonianosService.guardarProyectoEDT(DOC_BIBLIOTECA_ID, biblioteca);
+    const res = await GeokatuDB.PirobonianosService.guardarProyectoEDT(getDocBibId(), biblioteca);
     if (res.success && !res.offline) setSyncBadge('Nube OK', 'ok');
     else setSyncBadge('Local', 'warn');
   };
@@ -509,8 +570,9 @@ function guardarBiblioteca(inmediato) {
 // MOTOR DE PROMPTS DE DIRECTOR DE ARTE (BASADO EN EL PROMPT DE FERNANDO)
 // =========================================================================
 function generarPromptPersonaje(p, tipo) {
-  const baseStyle = 'A 2D cartoon animation character, BoJack Horseman style, clean black ink outlines, flat vibrant colors.';
-  const identidad = 'Anthropomorphic ' + (p.raza || 'dog') + ' character. Physique: ' + (p.contextura || 'slender') + '. Features: ' + (p.pelaje_rasgos || 'clean fur') + '.';
+  const baseStyle = proyectoActivo.estilo_visual || 'A 2D cartoon animation character, BoJack Horseman style, clean black ink outlines, flat vibrant colors.';
+  const prefId = proyectoActivo.plantilla === 'scifi_hibrido' ? ('Character profile: ' + (p.raza || 'human sci-fi character')) : ('Anthropomorphic ' + (p.raza || 'dog') + ' character');
+  const identidad = prefId + '. Physique: ' + (p.contextura || 'adult stylized') + '. Features: ' + (p.pelaje_rasgos || 'distinctive look') + '.';
   const ropa = 'Wearing: ' + (p.vestuario_base || 'casual clothes') + '.';
 
   if (tipo === 'cuerpo_completo' || tipo === 'maestro_cuerpo') {
@@ -694,8 +756,8 @@ function renderizarVistaPersonajes() {
         '<div class="card-box">' +
           '<div style="font-size:12px; font-weight:800; color:var(--naranja); text-transform:uppercase; margin-bottom:10px;">Biblia de Arte (Directrices Visuales)</div>' +
           '<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">' +
-            '<div class="field"><label>Nombre del Personaje</label><input class="inp" value="' + esc(p.nombre) + '" oninput="window.editarCampoPersonaje(\'nombre\', this.value)"></div>' +
-            '<div class="field"><label>Raza de Perro</label><input class="inp" value="' + esc(p.raza) + '" oninput="window.editarCampoPersonaje(\'raza\', this.value)"></div>' +
+                        '<div class="field"><label>Nombre del Personaje</label><input class="inp" value="' + esc(p.nombre) + '" oninput="window.editarCampoPersonaje(\'nombre\', this.value)"></div>' +
+            '<div class="field"><label>' + (proyectoActivo.plantilla === 'scifi_hibrido' ? 'Rol / Perfil Físico' : 'Raza / Especie') + '</label><input class="inp" value="' + esc(p.raza) + '" oninput="window.editarCampoPersonaje(\'raza\', this.value)"></div>' +
           '</div>' +
           '<div class="field"><label>Contextura Física (visual, sin kg ni metros)</label><input class="inp" value="' + esc(p.contextura) + '" oninput="window.editarCampoPersonaje(\'contextura\', this.value)"></div>' +
           '<div class="field"><label>Pelaje y Rasgos Faciales exactos (corte, barba, manchas)</label><textarea class="txt" oninput="window.editarCampoPersonaje(\'pelaje_rasgos\', this.value)">' + esc(p.pelaje_rasgos) + '</textarea></div>' +
@@ -703,8 +765,9 @@ function renderizarVistaPersonajes() {
           '<div class="field"><label>Pose Icónica (una sola pose fija)</label><input class="inp" value="' + esc(p.pose_iconica) + '" oninput="window.editarCampoPersonaje(\'pose_iconica\', this.value)"></div>' +
           '<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">' +
             '<div class="field"><label>Arquetipo / Forma de hablar</label><input class="inp" value="' + esc(p.personalidad) + '" oninput="window.editarCampoPersonaje(\'personalidad\', this.value)"></div>' +
-                        '<div class="field"><label>ElevenLabs voice_id</label><input class="inp" value="' + esc(p.voice_id || '') + '" placeholder="ID de voz" oninput="window.editarCampoPersonaje(\'voice_id\', this.value)"></div>' +
+                                    '<div class="field"><label>ElevenLabs voice_id</label><input class="inp" value="' + esc(p.voice_id || '') + '" placeholder="ID de voz" oninput="window.editarCampoPersonaje(\'voice_id\', this.value)"></div>' +
           '</div>' +
+          (proyectoActivo.bilingue ? '<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;"><div class="field"><label>Voz EN (edge-tts)</label><input class="inp" value="' + esc(p.voz_en || '') + '" placeholder="en-US-JennyNeural" oninput="window.editarCampoPersonaje(\'voz_en\', this.value)"></div><div class="field"><label>Voz ES (edge-tts)</label><input class="inp" value="' + esc(p.voz_es || '') + '" placeholder="es-CO-SalomeNeural" oninput="window.editarCampoPersonaje(\'voz_es\', this.value)"></div></div>' : '') +
           '<div class="field" style="margin-bottom:0; padding-top:8px; border-top:1px solid var(--border);">' +
             '<div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:6px;">' +
               '<label style="margin:0;">Muestra de Voz (muestra_voz.mp3)</label>' +
@@ -1059,7 +1122,7 @@ async function subirYAsignarArchivoASlot(fileObj, meta, pivotesRecibidos) {
   if (!GeokatuDB.PirobonianosService) { toast('Falta PirobonianosService en core-db.js.', 'error'); return; }
   setSyncBadge('Subiendo...', 'warn');
   const ruta = meta.tipo + '/' + meta.entidadId + '/' + (meta.zonaId ? (meta.zonaId + '/') : '') + Date.now() + '_' + String(fileObj.name || 'activo.png').replace(/[^a-zA-Z0-9._-]+/g, '_');
-  const res = await GeokatuDB.PirobonianosService.subirActivoPirobonianos('biblioteca_contenido', ruta, fileObj);
+    const res = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(getStorageDir(), ruta, fileObj);
   if (!res.success) { toast('Error subiendo archivo: ' + res.error, 'error'); setSyncBadge('Error', 'warn'); return; }
   const registro = { url: res.url, rutaStorage: res.rutaStorage, nombre: fileObj.name, tipo: res.tipo, fecha: res.fecha };
   aplicarRegistroEnSlot(meta, registro, pivotesRecibidos);
@@ -1394,13 +1457,15 @@ window.abrirModalCrear = function(tipo) {
   const tit = document.getElementById('modal-crear-titulo');
   const form = document.getElementById('form-crear-entidad');
 
-  if (tipo === 'personaje') {
+    if (tipo === 'personaje') {
     const nextNum = String(biblioteca.personajes.length + 1).padStart(3, '0');
-    tit.textContent = 'Nuevo Personaje (Piro-Rig 2D)';
+    const esSciFi = proyectoActivo.plantilla === 'scifi_hibrido';
+    tit.textContent = 'Nuevo Personaje (' + (proyectoActivo.nombre || 'Proyecto') + ')';
     form.innerHTML =
-      '<div class="field"><label>ID Permanente</label><input id="mc-id" class="inp" value="per_' + nextNum + '" required></div>' +
-      '<div class="field"><label>Nombre Visible</label><input id="mc-nom" class="inp" placeholder="Ej: Brayan el Bully" required></div>' +
-      '<div class="field"><label>Raza de Perro</label><input id="mc-raza" class="inp" placeholder="Ej: Pitbull, Schnauzer, Criollo" required></div>' +
+      '<div class="field"><label>ID Permanente (ej. per_' + nextNum + ' o CLARA)</label><input id="mc-id" class="inp" value="per_' + nextNum + '" required></div>' +
+      '<div class="field"><label>Nombre Visible</label><input id="mc-nom" class="inp" placeholder="' + (esSciFi ? 'Ej: Clara (Libro 2)' : 'Ej: Brayan el Bully') + '" required></div>' +
+      '<div class="field"><label>' + (esSciFi ? 'Rol / Perfil Físico' : 'Raza / Especie') + '</label><input id="mc-raza" class="inp" placeholder="' + (esSciFi ? 'Ej: Ingeniera criptógrafa humana' : 'Ej: Pitbull, Schnauzer, Criollo') + '" required></div>' +
+      (proyectoActivo.bilingue ? '<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;"><div class="field"><label>Voz EN (opcional)</label><input id="mc-voz-en" class="inp" placeholder="en-US-JennyNeural"></div><div class="field"><label>Voz ES (opcional)</label><input id="mc-voz-es" class="inp" placeholder="es-CO-SalomeNeural"></div></div>' : '') +
       '<div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px;"><button type="submit" class="btn btn-primary">Crear Personaje</button></div>';
   } else if (tipo === 'variante') {
     tit.textContent = 'Añadir Variante Extra al Personaje';
@@ -1468,7 +1533,10 @@ window.confirmarCrearEntidad = function() {
       nombre: document.getElementById('mc-nom').value.trim(),
       raza: document.getElementById('mc-raza').value.trim(),
       contextura: '', pelaje_rasgos: '', vestuario_base: '', pose_iconica: 'De pie mirando a la derecha',
-      personalidad: '', voice_id: '', pivotes_json: '', piezas: {}, variantes: []
+            personalidad: '', voice_id: '',
+      voz_en: document.getElementById('mc-voz-en') ? document.getElementById('mc-voz-en').value.trim() : '',
+      voz_es: document.getElementById('mc-voz-es') ? document.getElementById('mc-voz-es').value.trim() : '',
+      pivotes_json: '', piezas: {}, variantes: []
     };
     biblioteca.personajes.push(nuevo);
     catActiva = 'personajes';
@@ -1571,7 +1639,14 @@ window.exportarManifiestoTermux = function() {
 // =========================================================================
 window.addEventListener('message', async function(e) {
   if (!e.data || !e.data.tipo) return;
-    if (e.data.tipo === 'PIRO_SHELL_AUTH' || e.data.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA') { cargarBiblioteca(); }
+      if (e.data.tipo === 'PIRO_SHELL_CAMBIAR_PROYECTO' && e.data.proyecto) {
+    proyectoActivo = Object.assign(proyectoActivo, e.data.proyecto);
+    selId = { personajes: null, escenarios: null, guiones: null };
+    cargarBiblioteca();
+  } else if (e.data.tipo === 'PIRO_SHELL_AUTH' || e.data.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA') {
+    if (e.data.proyecto) proyectoActivo = Object.assign(proyectoActivo, e.data.proyecto);
+    cargarBiblioteca();
+  }
   else if (e.data.tipo === 'PIRO_SHELL_ABRIR_CREAR') {
     if (e.data.entidad === 'personaje') window.cambiarCategoria('personajes');
     else if (e.data.entidad === 'escenario') window.cambiarCategoria('escenarios');
