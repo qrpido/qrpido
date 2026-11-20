@@ -1672,12 +1672,13 @@ async function guardarYExportarPNG() {
  const rutaRelativa = obtenerRutaRelativaActual();
  const blob = await generarBlobPNGFinal();
  if (!blob) { mostrarToast('Error generando PNG.', 'error'); return; }
- if (ES_MODO_EMBEBIDO) {
+  if (ES_MODO_EMBEBIDO) {
   window.parent.postMessage({
    tipo: 'PIRO_EXPORTAR_PNG',
    blob: blob,
    rutaRelativa: rutaRelativa,
-   nombreArchivo: rutaRelativa.split('/').pop()
+   nombreArchivo: rutaRelativa.split('/').pop(),
+   pivotes: pivotes
   }, '*');
   emitirTono('EXITO');
   mostrarToast('Enviando PNG transparente al portal...', 'exito', 2000);
@@ -1807,12 +1808,22 @@ window.addEventListener('message', function(e) {
   if (e.data.zonaId) document.getElementById('input-zona-id').value = e.data.zonaId;
   if (e.data.archivoNombre) document.getElementById('input-nombre-archivo').value = e.data.archivoNombre;
   normalizarYActualizarRuta();
+    imgCalco = null;
   if (e.data.calcoUrl) {
    const cImg = new Image();
    cImg.crossOrigin = 'anonymous';
-   cImg.onload = function() { imgCalco = cImg; };
+   cImg.onload = function() { imgCalco = cImg; if (pasoActual === 3) renderizarStage(); };
    cImg.src = e.data.calcoUrl;
   }
+  const pivInit = e.data.pivotesIniciales;
+  ['cuello', 'hombro_trasero', 'hombro_delantero', 'mano_delantera'].forEach(function(k) {
+   const val = pivInit && pivInit[k] ? pivInit[k] : null;
+   if (Array.isArray(val) && val.length >= 2) pivotes[k] = { x: Number(val[0]) || 0, y: Number(val[1]) || 0 };
+   else if (val && typeof val.x === 'number' && typeof val.y === 'number') pivotes[k] = { x: val.x, y: val.y };
+   else pivotes[k] = null;
+   const elPv = document.getElementById('pv-' + k);
+   if (elPv) elPv.textContent = pivotes[k] ? ('[' + pivotes[k].x + ', ' + pivotes[k].y + ']') : 'sin marcar';
+  });
   if (e.data.dataUrl) {
    const img = new Image();
    img.onload = function() {
