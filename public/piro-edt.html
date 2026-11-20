@@ -1116,7 +1116,8 @@ async function inicializarProyectos() {
     if (res.success && Array.isArray(res.data) && res.data.length > 0) {
       const mapa = new Map();
       listaProyectos.forEach(function(p) { mapa.set(p.id, p); });
-      res.data.forEach(function(pNube) {
+            res.data.forEach(function(pNube) {
+        if (pNube.id === '__biblioteca_maestra__' || pNube.tipo_doc === 'biblioteca') return;
         const local = mapa.get(pNube.id);
         if (!local || String(pNube.fecha_actualizacion || '') >= String(local.fecha_actualizacion || '')) {
           mapa.set(pNube.id, pNube);
@@ -2152,8 +2153,33 @@ window.importarTableroJSON = function(file) {
       mostrarToast('Archivo inválido: ' + err.message, 'error');
     }
   };
-  reader.readAsText(file);
+    reader.readAsText(file);
 };
+
+window.addEventListener('message', function(e) {
+  if (!e.data || !e.data.tipo) return;
+  if (e.data.tipo === 'PIRO_SHELL_ABRIR_INGESTA') {
+    window.togglePanelIngesta(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } else if (e.data.tipo === 'PIRO_SHELL_INYECTAR_TICKET' && e.data.ticket && proyectoActual) {
+    const t = e.data.ticket;
+    const nuevo = {
+      id: 'tk_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      orden: (proyectoActual.tickets || []).length + 1,
+      codigo: t.codigo || ('P' + ((proyectoActual.tickets || []).length + 1)),
+      mision: t.mision || 'Biblioteca',
+      titulo: t.titulo || 'Nueva tarea',
+      detalle: t.detalle || '',
+      completado: false,
+      notas: '',
+      segundos_invertidos: 0,
+      adjuntos: []
+    };
+    proyectoActual.tickets.push(nuevo);
+    actualizarUIProyecto();
+    programarGuardadoProyecto(true);
+  }
+});
 </script>
 </body>
 </html>
