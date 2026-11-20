@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#080a0f">
+<title>GEOKATU Studio · Consola Unificada Piro-Rig</title>
+<style>
+  :root {
+    --bg: #080a0f;
+    --panel: rgba(15, 19, 28, 0.94);
+    --border: rgba(255, 255, 255, 0.11);
+    --border-hi: rgba(255, 255, 255, 0.22);
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --naranja: #ff6b00;
+    --miel: #ffb300;
+    --verde: #22c55e;
+    --azul: #38bdf8;
+    --rojo: #ef4444;
+    --dock-h: 64px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; width: 100vw; height: 100%; height: 100dvh;
+    overflow: hidden; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  button, input { font-family: inherit; color: var(--text); }
+  .svg-ico {
+    width: 20px; height: 20px; fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0;
+  }
+  .svg-ico-sm {
+    width: 15px; height: 15px; fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0;
+  }
+
+  /* BÚNKER SUPERADMIN ÚNICO (SHELL) */
+  #bunker-auth-gate {
+    position: fixed; inset: 0; z-index: 95000;
+    background: radial-gradient(circle at 20% 15%, rgba(255, 107, 0, 0.16), transparent 45%), rgba(6, 8, 12, 0.98);
+    backdrop-filter: blur(18px);
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .bunker-card {
+    width: 100%; max-width: 390px;
+    background: linear-gradient(145deg, rgba(22, 27, 38, 0.96), rgba(11, 14, 20, 0.98));
+    border: 1px solid rgba(255, 107, 0, 0.4); border-radius: 22px;
+    padding: 26px 22px; text-align: center;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8);
+  }
+  .bunker-shield {
+    width: 54px; height: 54px; border-radius: 16px; margin: 0 auto 12px;
+    background: rgba(255, 107, 0, 0.14); border: 1px solid rgba(255, 107, 0, 0.45);
+    color: var(--naranja); display: flex; align-items: center; justify-content: center;
+  }
+  .bunker-input {
+    width: 100%; padding: 11px 13px; margin-bottom: 10px;
+    border-radius: 10px; border: 1px solid var(--border);
+    background: rgba(0, 0, 0, 0.48); font-size: 13px; outline: none;
+  }
+  .bunker-input:focus { border-color: var(--naranja); }
+  .btn-bunker-google {
+    width: 100%; padding: 11px 14px; border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.06);
+    font-weight: 700; font-size: 13px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  }
+  .btn-bunker-submit {
+    width: 100%; padding: 12px; border-radius: 10px; border: none;
+    background: linear-gradient(135deg, var(--naranja), #ea580c);
+    color: #fff; font-weight: 800; font-size: 13px; cursor: pointer; margin-top: 4px;
+  }
+  .spinner-ring {
+    width: 30px; height: 30px; margin: 0 auto;
+    border: 3px solid rgba(255, 255, 255, 0.12); border-top-color: var(--naranja);
+    border-radius: 50%; animation: giro 0.85s linear infinite;
+  }
+  @keyframes giro { to { transform: rotate(360deg); } }
+
+  /* SHELL DE PORTALES 0ms */
+  #piro-shell {
+    position: relative; width: 100vw; height: 100%; height: 100dvh;
+    overflow: hidden; display: none;
+  }
+  #piro-shell.listo { display: block; }
+
+  #piro-stage {
+    position: absolute; inset: 0;
+    bottom: calc(var(--dock-h) + env(safe-area-inset-bottom));
+    background: var(--bg);
+  }
+  .vista-portal {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    visibility: hidden; pointer-events: none; opacity: 0; z-index: 1;
+  }
+  .vista-portal.activa {
+    visibility: visible; pointer-events: auto; opacity: 1; z-index: 10;
+  }
+  .portal-iframe {
+    width: 100%; height: 100%; border: none; display: block; background: var(--bg);
+  }
+
+  /* VISTA RESUMEN / MAPA GENERAL (INICIO NATIVO 0ms) */
+  #vista-resumen {
+    background: radial-gradient(circle at 50% 0%, rgba(255, 107, 0, 0.12) 0%, #080a0f 65%);
+    display: flex; flex-direction: column; overflow-y: auto;
+  }
+  .resumen-head {
+    height: 54px; padding: 0 16px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(13, 16, 23, 0.94); border-bottom: 1px solid var(--border);
+  }
+  .resumen-marca { font-size: 17px; font-weight: 900; letter-spacing: 0.4px; }
+  .resumen-marca span { color: var(--naranja); }
+  .resumen-body {
+    max-width: 720px; width: 100%; margin: 0 auto; padding: 16px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .resumen-banner {
+    background: rgba(20, 24, 34, 0.85); border: 1px solid var(--border);
+    border-radius: 16px; padding: 14px 16px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  }
+  .portal-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+  }
+  @media (max-width: 520px) { .portal-grid { grid-template-columns: 1fr; } }
+  .portal-card {
+    background: rgba(20, 24, 34, 0.88); border: 1px solid var(--border);
+    border-radius: 16px; padding: 15px; text-align: left; cursor: pointer;
+    display: flex; flex-direction: column; gap: 7px;
+    transition: transform .12s, border-color .15s;
+  }
+  .portal-card:hover { border-color: rgba(255, 107, 0, 0.55); }
+  .portal-card:active { transform: scale(0.98); }
+  .portal-card.destacada {
+    border-color: rgba(255, 107, 0, 0.45);
+    background: linear-gradient(145deg, rgba(255, 107, 0, 0.14), rgba(16, 20, 29, 0.95));
+  }
+  .portal-card-top { display: flex; align-items: center; justify-content: space-between; color: var(--naranja); }
+  .portal-card strong { font-size: 14px; font-weight: 800; color: #fff; }
+  .portal-card span { font-size: 12px; color: var(--muted); line-height: 1.35; }
+
+  /* DOCK INFERIOR UNIFICADO (EXACTAMENTE COMO TERMINAL.HTML) */
+  #piro-dock {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    height: calc(var(--dock-h) + env(safe-area-inset-bottom));
+    padding: 6px 8px env(safe-area-inset-bottom) 8px;
+    background: rgba(11, 13, 19, 0.97);
+    border-top: 1px solid var(--border);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    display: grid; grid-template-columns: 1fr 1fr 64px 1fr 1fr;
+    align-items: center; gap: 4px; z-index: 5000;
+  }
+  .dock-item {
+    background: transparent; border: none; color: var(--muted);
+    height: 50px; border-radius: 11px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    font-size: 10.5px; font-weight: 700; cursor: pointer;
+    transition: color .15s, background .15s;
+  }
+  .dock-item.activo { color: var(--naranja); background: rgba(255, 107, 0, 0.08); }
+  .dock-item:active { background: rgba(255, 255, 255, 0.06); }
+
+  .dock-btn-crear {
+    width: 54px; height: 48px; margin: 0 auto; border-radius: 15px; border: none;
+    background: linear-gradient(135deg, #ff8c00, var(--naranja));
+    color: #fff; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 18px rgba(255, 107, 0, 0.45); cursor: pointer;
+    transition: transform .12s;
+  }
+  .dock-btn-crear:active { transform: scale(0.93); }
+
+  /* MENÚ RÁPIDO (+) ESTILO SHEET INFERIOR */
+  #modal-crear-rapido {
+    position: fixed; inset: 0; z-index: 70000;
+    background: rgba(5, 7, 12, 0.78); backdrop-filter: blur(8px);
+    display: none; align-items: flex-end; justify-content: center;
+    padding: 14px 14px calc(var(--dock-h) + 14px) 14px;
+  }
+  #modal-crear-rapido.open { display: flex; }
+  .sheet-crear {
+    width: 100%; max-width: 440px;
+    background: linear-gradient(155deg, rgba(22, 27, 38, 0.98), rgba(11, 14, 20, 0.99));
+    border: 1px solid rgba(255, 107, 0, 0.4); border-radius: 22px;
+    padding: 16px; box-shadow: 0 20px 55px rgba(0, 0, 0, 0.85);
+  }
+  .sheet-title {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
+  }
+  .sheet-title strong { font-size: 13.5px; text-transform: uppercase; letter-spacing: 0.6px; }
+  .sheet-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  }
+  .sheet-opt {
+    padding: 12px; border-radius: 13px; border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.04); text-align: left; cursor: pointer;
+    display: flex; flex-direction: column; gap: 4px;
+    transition: border-color .15s, background .15s;
+  }
+  .sheet-opt:hover { border-color: var(--naranja); background: rgba(255, 107, 0, 0.10); }
+  .sheet-opt strong { font-size: 13px; color: #fff; display: flex; align-items: center; gap: 6px; }
+  .sheet-opt small { font-size: 11px; color: var(--muted); }
+
+  /* BARRA DE RETORNO AL SLOT CUANDO SE ABRE ESTUDIO DESDE CONTENIDO */
+  #barra-contexto-estudio {
+    position: fixed; top: 8px; left: 50%; transform: translateX(-50%);
+    z-index: 6000; display: none; align-items: center; gap: 10px;
+    padding: 7px 12px; border-radius: 99px;
+    background: rgba(15, 23, 42, 0.96); border: 1.5px solid var(--azul);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.75);
+    font-size: 11.5px; font-weight: 700; max-width: 94vw;
+  }
+  #barra-contexto-estudio.visible { display: flex; }
+
+  #shell-toasts {
+    position: fixed; bottom: calc(var(--dock-h) + 14px); right: 14px;
+    z-index: 98000; display: flex; flex-direction: column; gap: 8px; max-width: 90vw;
+  }
+  .shell-toast {
+    padding: 10px 14px; border-radius: 12px; font-size: 12.5px; font-weight: 700;
+    background: rgba(15, 19, 28, 0.97); border: 1px solid var(--border);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.65);
+  }
+  .shell-toast.exito { border-color: rgba(34, 197, 94, 0.55); color: #86efac; }
+  .shell-toast.error { border-color: rgba(239, 68, 68, 0.55); color: #fca5a5; }
+  .shell-toast.info { border-color: rgba(56, 189, 248, 0.55); color: #7dd3fc; }
+</style>
+</head>
+<body>
+
+<!-- COMPUERTA BÚNKER ÚNICA SUPERADMIN -->
+<div id="bunker-auth-gate">
+  <div class="bunker-card">
+    <div class="bunker-shield">
+      <svg class="svg-ico" style="width:24px;height:24px;" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </div>
+    <h2 style="margin:0 0 4px 0; font-size:18px; font-weight:900; letter-spacing:0.6px;">
+      PIRO <span style="color:var(--naranja);">STUDIO SHELL</span>
+    </h2>
+    <p style="font-size:11px; color:var(--muted); text-transform:uppercase; margin:0 0 18px 0;">
+      Bóveda Unificada GEOKATU · Rol Superadmin
+    </p>
+    <div id="panel-login-bunker">
+      <button type="button" class="btn-bunker-google" onclick="window.iniciarConGoogle()">
+        <svg width="18" height="18" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+        </svg>
+        Continuar con Google
+      </button>
+      <div style="display:flex; align-items:center; color:#64748b; font-size:11px; margin:14px 0;">
+        <div style="flex:1; border-bottom:1px solid rgba(255,255,255,0.1);"></div>
+        <span style="padding:0 10px;">o credenciales</span>
+        <div style="flex:1; border-bottom:1px solid rgba(255,255,255,0.1);"></div>
+      </div>
+      <form onsubmit="event.preventDefault(); window.iniciarSesion();">
+        <input type="email" id="login-email" class="bunker-input" placeholder="Correo institucional" required autocomplete="username">
+        <input type="password" id="login-pass" class="bunker-input" placeholder="Contraseña" required autocomplete="current-password">
+        <button type="submit" class="btn-bunker-submit">Validar e Ingresar</button>
+      </form>
+    </div>
+    <div id="panel-verificando-bunker" style="display:none; padding:20px 0;">
+      <div class="spinner-ring"></div>
+      <p style="color:var(--muted); font-size:12px; margin:12px 0 0;">Validando Superadmin...</p>
+    </div>
+    <div id="caja-acceso-denegado" style="display:none; margin-top:12px; padding:12px; border-radius:12px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.4);">
+      <strong style="color:#fca5a5; font-size:13px; display:block; margin-bottom:6px;">ACCESO DENEGADO</strong>
+      <p id="txt-motivo-denegado" style="font-size:12px; color:#cbd5e1; margin:0 0 10px 0;"></p>
+      <button type="button" onclick="window.cerrarSesion()" style="width:100%; padding:9px; border-radius:8px; border:1px solid #ef4444; background:rgba(239,68,68,0.2); color:#fca5a5; font-weight:700; cursor:pointer;">Cerrar Sesión</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHELL DE PORTALES PERSISTENTES EN RAM (0ms) -->
+<div id="piro-shell">
+  <div id="barra-contexto-estudio">
+    <span style="color:var(--azul);" id="txt-contexto-estudio">Editando pieza...</span>
+    <button type="button" onclick="window.PiroShell.cancelarContextoEstudio()" style="background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.45); color:#fca5a5; border-radius:99px; padding:3px 9px; font-size:11px; font-weight:700; cursor:pointer;">Volver</button>
+  </div>
+
+  <main id="piro-stage">
+    <!-- PORTAL 0: MAPA GENERAL / INICIO -->
+    <section id="vista-resumen" class="vista-portal activa">
+      <header class="resumen-head">
+        <div class="resumen-marca">PIRO<span>STUDIO</span></div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span id="shell-email-badge" style="font-size:11px; color:#86efac; font-weight:700;">Superadmin</span>
+          <button type="button" onclick="window.cerrarSesion()" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); color:#fca5a5; border-radius:8px; padding:5px 10px; font-size:11px; font-weight:700; cursor:pointer;">Salir</button>
+        </div>
+      </header>
+      <div class="resumen-body">
+        <div class="resumen-banner">
+          <div>
+            <div style="font-size:15px; font-weight:900;">Fábrica Modular Piro-Rig 2D</div>
+            <div style="font-size:12px; color:var(--muted); margin-top:2px;">Cambia entre Tickets, Biblioteca de Contenido y Estudio PNG en 0 ms sin perder tu trabajo.</div>
+          </div>
+          <button type="button" onclick="window.PiroShell.abrirMenuCrear()" style="background:linear-gradient(135deg,#ff8c00,#ff6b00); border:none; color:#fff; padding:9px 14px; border-radius:10px; font-weight:800; font-size:12px; cursor:pointer;">+ Crear Nuevo</button>
+        </div>
+
+        <div class="portal-grid">
+          <button type="button" class="portal-card destacada" onclick="window.PiroShell.irA('contenido')">
+            <div class="portal-card-top">
+              <strong>Contenido &amp; Marionetas</strong>
+              <svg class="svg-ico" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <span>Construye personajes estilo Fernando Azules con generador de prompts, plantilla de piezas 100%, variantes extra, escenarios y guiones.</span>
+          </button>
+
+          <button type="button" class="portal-card" onclick="window.PiroShell.irA('tickets')">
+            <div class="portal-card-top" style="color:var(--azul);">
+              <strong>Tickets EDT en Serie</strong>
+              <svg class="svg-ico" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </div>
+            <span>Riel superior en serie con las tareas pendientes, bitácora, cronómetro y archivos en Firebase Storage.</span>
+          </button>
+
+          <button type="button" class="portal-card" onclick="window.PiroShell.irA('estudio')">
+            <div class="portal-card-top" style="color:var(--verde);">
+              <strong>Estudio PNG 2D</strong>
+              <svg class="svg-ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            </div>
+            <span>Quita fondos chroma, elimina halos, alinea con calco en 1000×1600 / 1920×1920 / 512×512 y mide pivotes.</span>
+          </button>
+
+          <button type="button" class="portal-card" onclick="window.PiroShell.crearElemento('personaje')">
+            <div class="portal-card-top" style="color:var(--miel);">
+              <strong>Nuevo Personaje Rápido</strong>
+              <svg class="svg-ico" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </div>
+            <span>Abre la ficha de Director de Arte para crear un nuevo perro y generar sus prompts al instante.</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- PORTAL 1: TICKETS EDT -->
+    <section id="vista-tickets" class="vista-portal">
+      <iframe id="frame-tickets" class="portal-iframe" title="Tickets EDT"></iframe>
+    </section>
+
+    <!-- PORTAL 2: CONTENIDO (PERSONAJES, ESCENARIOS, PROPS, GUIONES) -->
+    <section id="vista-contenido" class="vista-portal">
+      <iframe id="frame-contenido" class="portal-iframe" title="Contenido Piro-Rig"></iframe>
+    </section>
+
+    <!-- PORTAL 3: ESTUDIO PNG -->
+    <section id="vista-estudio" class="vista-portal">
+      <iframe id="frame-estudio" class="portal-iframe" title="Estudio PNG"></iframe>
+    </section>
+  </main>
+
+  <!-- DOCK INFERIOR PERSISTENTE (0ms SWITCH) -->
+  <nav id="piro-dock" aria-label="Navegación Studio">
+    <button type="button" class="dock-item activo" data-vista="resumen" onclick="window.PiroShell.irA('resumen')">
+      <svg class="svg-ico" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/></svg>
+      <span>Inicio</span>
+    </button>
+    <button type="button" class="dock-item" data-vista="tickets" onclick="window.PiroShell.irA('tickets')">
+      <svg class="svg-ico" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      <span>Tickets</span>
+    </button>
+    <button type="button" class="dock-btn-crear" aria-label="Crear nuevo" onclick="window.PiroShell.abrirMenuCrear()">
+      <svg class="svg-ico" style="width:24px;height:24px;" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+    <button type="button" class="dock-item" data-vista="contenido" onclick="window.PiroShell.irA('contenido')">
+      <svg class="svg-ico" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span>Contenido</span>
+    </button>
+    <button type="button" class="dock-item" data-vista="estudio" onclick="window.PiroShell.irA('estudio')">
+      <svg class="svg-ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      <span>Estudio PNG</span>
+    </button>
+  </nav>
+</div>
+
+<!-- MENÚ (+) CREAR NUEVO ELEMENTO -->
+<div id="modal-crear-rapido" onclick="if(event.target.id==='modal-crear-rapido') window.PiroShell.cerrarMenuCrear()">
+  <div class="sheet-crear">
+    <div class="sheet-title">
+      <strong>Crear Nuevo Elemento</strong>
+      <button type="button" onclick="window.PiroShell.cerrarMenuCrear()" style="background:rgba(255,255,255,0.08); border:1px solid var(--border); border-radius:8px; padding:4px 10px; font-size:11px; font-weight:700; cursor:pointer;">Cerrar</button>
+    </div>
+    <div class="sheet-grid">
+      <button type="button" class="sheet-opt" onclick="window.PiroShell.crearElemento('ticket')">
+        <strong><svg class="svg-ico-sm" style="color:var(--azul);" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Ticket Genérico</strong>
+        <small>Pegar pasos EDT o crear tarea en el riel</small>
+      </button>
+      <button type="button" class="sheet-opt" onclick="window.PiroShell.crearElemento('personaje')">
+        <strong><svg class="svg-ico-sm" style="color:var(--naranja);" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Personaje</strong>
+        <small>Ficha de arte, prompts y plantilla de piezas</small>
+      </button>
+      <button type="button" class="sheet-opt" onclick="window.PiroShell.crearElemento('escenario')">
+        <strong><svg class="svg-ico-sm" style="color:var(--verde);" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Escenario</strong>
+        <small>Local 1920×1920, sub-zonas y capa frontal</small>
+      </button>
+      <button type="button" class="sheet-opt" onclick="window.PiroShell.crearElemento('guion')">
+        <strong><svg class="svg-ico-sm" style="color:var(--miel);" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Guion</strong>
+        <small>Anécdota, reparto del capítulo y escenario</small>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="shell-toasts"></div>
+
+<script type="module" src="./auth-mando.js"></script>
+<script type="module">
+import GeokatuDB from './core-db.js';
+
+const RUTAS = {
+  tickets: './piro-edt.html?embed=shell',
+  contenido: './piro-contenido.html?embed=shell',
+  estudio: './piro-estudio-png.html?embed=shell'
+};
+
+const FRAMES = {
+  tickets: document.getElementById('frame-tickets'),
+  contenido: document.getElementById('frame-contenido'),
+  estudio: document.getElementById('frame-estudio')
+};
+
+const VISTAS = {
+  resumen: document.getElementById('vista-resumen'),
+  tickets: document.getElementById('vista-tickets'),
+  contenido: document.getElementById('vista-contenido'),
+  estudio: document.getElementById('vista-estudio')
+};
+
+const cargados = { tickets: false, contenido: false, estudio: false };
+const pendientes = { tickets: [], contenido: [], estudio: [] };
+let vistaActiva = 'resumen';
+let contextoEstudio = null;
+let usuarioActual = null;
+
+function mostrarToastShell(msg, tipo, ms) {
+  const cont = document.getElementById('shell-toasts');
+  const el = document.createElement('div');
+  el.className = 'shell-toast ' + (tipo || 'info');
+  el.textContent = msg;
+  cont.appendChild(el);
+  setTimeout(function() {
+    el.style.opacity = '0'; el.style.transition = 'opacity .2s';
+    setTimeout(function() { el.remove(); }, 220);
+  }, ms || 2800);
+}
+
+function asegurarFrame(nombre) {
+  const frame = FRAMES[nombre];
+  if (!frame) return;
+  if (!frame.dataset.listoListener) {
+    frame.dataset.listoListener = '1';
+    frame.addEventListener('load', function() {
+      cargados[nombre] = true;
+      if (usuarioActual && frame.contentWindow) {
+        frame.contentWindow.postMessage({ tipo: 'PIRO_SHELL_AUTH', email: usuarioActual.email, uid: usuarioActual.uid }, '*');
+      }
+      const cola = pendientes[nombre].splice(0);
+      cola.forEach(function(fn) { try { fn(frame.contentWindow); } catch (e) {} });
+    });
+  }
+  if (!frame.dataset.iniciado) {
+    frame.dataset.iniciado = '1';
+    frame.src = RUTAS[nombre];
+  }
+}
+
+function enviarAFrame(nombre, mensaje) {
+  const frame = FRAMES[nombre];
+  if (!frame) return;
+  if (cargados[nombre] && frame.contentWindow) {
+    frame.contentWindow.postMessage(mensaje, '*');
+  } else {
+    pendientes[nombre].push(function(win) {
+      if (win) win.postMessage(mensaje, '*');
+    });
+    asegurarFrame(nombre);
+  }
+}
+
+window.PiroShell = {
+  irA: function(destino, sinHistorial) {
+    const v = VISTAS[destino] ? destino : 'resumen';
+    vistaActiva = v;
+    Object.keys(VISTAS).forEach(function(k) {
+      VISTAS[k].classList.toggle('activa', k === v);
+    });
+    document.querySelectorAll('#piro-dock .dock-item').forEach(function(b) {
+      b.classList.toggle('activo', b.getAttribute('data-vista') === v);
+    });
+    if (v !== 'resumen') asegurarFrame(v);
+    document.getElementById('barra-contexto-estudio').classList.toggle('visible', Boolean(contextoEstudio && v === 'estudio'));
+    if (!sinHistorial) {
+      try { window.history.pushState({ piroVista: v }, ''); } catch (e) {}
+    }
+  },
+  abrirMenuCrear: function() {
+    document.getElementById('modal-crear-rapido').classList.add('open');
+  },
+  cerrarMenuCrear: function() {
+    document.getElementById('modal-crear-rapido').classList.remove('open');
+  },
+  crearElemento: function(tipo) {
+    this.cerrarMenuCrear();
+    if (tipo === 'ticket') {
+      this.irA('tickets');
+      enviarAFrame('tickets', { tipo: 'PIRO_SHELL_ABRIR_INGESTA' });
+    } else {
+      this.irA('contenido');
+      enviarAFrame('contenido', { tipo: 'PIRO_SHELL_ABRIR_CREAR', entidad: tipo });
+    }
+  },
+  cancelarContextoEstudio: function() {
+    const destino = (contextoEstudio && contextoEstudio.origen) ? contextoEstudio.origen : 'contenido';
+    contextoEstudio = null;
+    document.getElementById('barra-contexto-estudio').classList.remove('visible');
+    this.irA(destino);
+  }
+};
+
+// Bus de mensajes entre portales (Contenido <-> Estudio PNG <-> Tickets)
+window.addEventListener('message', function(e) {
+  if (!e.data || !e.data.tipo) return;
+  const d = e.data;
+
+  if (d.tipo === 'PIRO_TOAST') {
+    mostrarToastShell(d.mensaje, d.nivel, d.duracion);
+  } else if (d.tipo === 'PIRO_IR_A_ESTUDIO') {
+    contextoEstudio = {
+      origen: d.origen || 'contenido',
+      etiqueta: d.etiqueta || 'Editando activo',
+      slotMeta: d.slotMeta || null
+    };
+    document.getElementById('txt-contexto-estudio').textContent = 'Editando: ' + contextoEstudio.etiqueta;
+    window.PiroShell.irA('estudio');
+    enviarAFrame('estudio', {
+      tipo: 'PIRO_ESTUDIO_CONFIG',
+      presetId: d.presetId || 'per_cuerpo',
+      entidadId: d.entidadId || 'per_001',
+      zonaId: d.zonaId || 'zona_01',
+      archivoNombre: d.archivoNombre || 'pieza',
+      dataUrl: d.dataUrl || null,
+      calcoUrl: d.calcoUrl || null
+    });
+  } else if (d.tipo === 'PIRO_EXPORTAR_PNG') {
+    if (contextoEstudio && contextoEstudio.origen === 'contenido') {
+      const meta = contextoEstudio.slotMeta;
+      contextoEstudio = null;
+      document.getElementById('barra-contexto-estudio').classList.remove('visible');
+      enviarAFrame('contenido', {
+        tipo: 'PIRO_PNG_RECIBIDO',
+        blob: d.blob,
+        rutaRelativa: d.rutaRelativa,
+        nombreArchivo: d.nombreArchivo,
+        slotMeta: meta
+      });
+      window.PiroShell.irA('contenido');
+      mostrarToastShell('PNG recibido. Guardando en la pieza...', 'exito');
+    } else if (contextoEstudio && contextoEstudio.origen === 'tickets') {
+      contextoEstudio = null;
+      document.getElementById('barra-contexto-estudio').classList.remove('visible');
+      enviarAFrame('tickets', d);
+      window.PiroShell.irA('tickets');
+    }
+  } else if (d.tipo === 'PIRO_CREAR_TICKET_EN_COLA') {
+    enviarAFrame('tickets', {
+      tipo: 'PIRO_SHELL_INYECTAR_TICKET',
+      ticket: d.ticket
+    });
+    mostrarToastShell('Ticket enviado a la cola: ' + (d.ticket ? d.ticket.titulo : ''), 'exito');
+  }
+});
+
+// Botón Atrás de Android
+window.addEventListener('popstate', function(e) {
+  const st = e && e.state ? e.state : null;
+  if (st && st.piroVista) window.PiroShell.irA(st.piroVista, true);
+  else if (vistaActiva !== 'resumen') window.PiroShell.irA('resumen', true);
+});
+
+// Validación única Superadmin
+GeokatuDB.SecurityService.observarEstadoSesion(async function(user) {
+  const gate = document.getElementById('bunker-auth-gate');
+  const pLogin = document.getElementById('panel-login-bunker');
+  const pVer = document.getElementById('panel-verificando-bunker');
+  const pDen = document.getElementById('caja-acceso-denegado');
+  const shell = document.getElementById('piro-shell');
+
+  if (user) {
+    pLogin.style.display = 'none';
+    pDen.style.display = 'none';
+    pVer.style.display = 'block';
+    try {
+      const res = await GeokatuDB.SecurityService.obtenerRolAdmin(user.uid);
+      if (res.success && res.data && String(res.data.rol || '').toLowerCase() === 'superadmin') {
+        usuarioActual = user;
+        if (GeokatuDB.SecurityService.sellarSesionTerminalLocal) {
+          await GeokatuDB.SecurityService.sellarSesionTerminalLocal(user.uid);
+        }
+        document.getElementById('shell-email-badge').textContent = user.email;
+        pVer.style.display = 'none';
+        gate.style.display = 'none';
+        shell.classList.add('listo');
+        // Precargar Contenido y Tickets en segundo plano para cambio 0ms
+        asegurarFrame('contenido');
+        setTimeout(function() { asegurarFrame('tickets'); }, 500);
+        try { window.history.replaceState({ piroVista: 'resumen' }, ''); } catch (e) {}
+      } else {
+        pVer.style.display = 'none';
+        pDen.style.display = 'block';
+        document.getElementById('txt-motivo-denegado').textContent = 'Cuenta sin rol superadmin en Usuarios_Admin.';
+      }
+    } catch (e) {
+      pVer.style.display = 'none';
+      pDen.style.display = 'block';
+      document.getElementById('txt-motivo-denegado').textContent = 'Error validando sesión en Firestore.';
+    }
+  } else {
+    usuarioActual = null;
+    shell.classList.remove('listo');
+    gate.style.display = 'flex';
+    pLogin.style.display = 'block';
+    pVer.style.display = 'none';
+    pDen.style.display = 'none';
+  }
+});
+</script>
+</body>
+</html>
