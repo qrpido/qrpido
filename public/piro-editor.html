@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>GEOKATU Studio · Editor Timeline y Guion IA</title>
+<style>
+  :root {
+    --bg: #080a0f;
+    --panel: rgba(16, 20, 29, 0.92);
+    --panel-2: rgba(24, 30, 42, 0.94);
+    --border: rgba(255, 255, 255, 0.10);
+    --border-hi: rgba(255, 255, 255, 0.22);
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --naranja: #ff6b00;
+    --miel: #ffb300;
+    --verde: #22c55e;
+    --azul: #38bdf8;
+    --rojo: #ef4444;
+    --morado: #a855f7;
+    --radius: 13px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; height: 100dvh;
+    overflow: hidden; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px; line-height: 1.4;
+  }
+  button, input, textarea, select { font-family: inherit; color: var(--text); }
+  .svg-ico { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+  .app { display: flex; flex-direction: column; width: 100%; height: 100%; height: 100dvh; overflow: hidden; }
+  .topbar {
+    flex-shrink: 0; padding: 7px 10px; background: rgba(12, 15, 22, 0.97);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap;
+  }
+  .topbar-grp { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .tabs-bar {
+    display: flex; gap: 3px; padding: 3px; border-radius: 10px;
+    background: rgba(0, 0, 0, 0.45); border: 1px solid var(--border);
+  }
+  .tab-btn {
+    border: none; background: transparent; color: var(--muted);
+    padding: 5px 11px; border-radius: 7px; font-size: 11.5px; font-weight: 800; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .tab-btn.activo { background: var(--naranja); color: #fff; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    padding: 6px 10px; border-radius: 9px; border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.05); font-size: 11.5px; font-weight: 700;
+    cursor: pointer; white-space: nowrap; transition: background .12s, transform .08s;
+  }
+  .btn:hover { background: rgba(255, 255, 255, 0.10); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-primary { background: linear-gradient(135deg, var(--naranja), #ea580c); border-color: var(--naranja); color: #fff; }
+  .btn-blue { background: rgba(56, 189, 248, 0.14); border-color: rgba(56, 189, 248, 0.45); color: var(--azul); }
+  .btn-green { background: rgba(34, 197, 94, 0.16); border-color: rgba(34, 197, 94, 0.45); color: #86efac; }
+  .btn-purple { background: rgba(168, 85, 247, 0.16); border-color: rgba(168, 85, 247, 0.45); color: #d8b4fe; }
+  .btn-danger { background: rgba(239, 68, 68, 0.14); border-color: rgba(239, 68, 68, 0.42); color: #fca5a5; }
+  .btn-xs { padding: 4px 8px; font-size: 10.5px; border-radius: 7px; }
+  .inp, .txt, .sel {
+    width: 100%; padding: 7px 9px; border-radius: 8px;
+    border: 1px solid var(--border); background: rgba(5, 8, 13, 0.78);
+    font-size: 12px; outline: none;
+  }
+  .inp:focus, .txt:focus, .sel:focus { border-color: var(--naranja); }
+  .txt { min-height: 76px; resize: vertical; }
+  .pill {
+    font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 99px;
+    border: 1px solid var(--border); background: rgba(255, 255, 255, 0.05); color: var(--muted);
+  }
+  .pill.ok { color: #86efac; border-color: rgba(34, 197, 94, 0.45); background: rgba(34, 197, 94, 0.12); }
+  .pill.warn { color: #fcd34d; border-color: rgba(245, 158, 11, 0.45); background: rgba(245, 158, 11, 0.12); }
+
+  /* VISTAS INTERNAS */
+  .view-pane { flex: 1; min-height: 0; overflow: hidden; display: none; flex-direction: column; }
+  .view-pane.activa { display: flex; }
+  .scroll-pane { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; max-width: 1180px; width: 100%; margin: 0 auto; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; margin-bottom: 10px; }
+  .field { margin-bottom: 8px; }
+  .field label { display: block; font-size: 10.5px; font-weight: 700; color: var(--muted); margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 780px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* WORKSPACE TIMELINE ESTILO YOUCUT */
+  .editor-upper {
+    flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(220px, 340px) 1fr;
+    gap: 10px; padding: 10px; overflow: hidden;
+  }
+  @media (max-width: 760px) {
+    .editor-upper { grid-template-columns: 1fr; overflow-y: auto; }
+  }
+  .stage-col {
+    background: #04060a; border: 1px solid var(--border); border-radius: var(--radius);
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    padding: 8px; gap: 6px; min-height: 240px;
+  }
+  .canvas-wrap {
+    flex: 1; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+  }
+  #canvas-preview {
+    max-height: 100%; max-width: 100%; aspect-ratio: 9 / 16;
+    border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.16);
+    background: #0d1117; display: block;
+  }
+  .transport {
+    width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    padding-top: 6px; border-top: 1px solid var(--border);
+  }
+  .timecode { font-family: monospace; font-size: 11.5px; font-weight: 800; color: var(--azul); }
+  .inspector-col {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 12px; overflow-y: auto; min-height: 0;
+  }
+
+  /* PISTAS HORIZONTALES TIPO YOUCUT */
+  .timeline-dock {
+    flex-shrink: 0; height: 208px; background: rgba(10, 13, 20, 0.98);
+    border-top: 1px solid var(--border-hi); display: flex; flex-direction: column;
+  }
+  .tl-toolbar {
+    flex-shrink: 0; padding: 5px 10px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap;
+  }
+  .tl-scroll {
+    flex: 1; overflow-x: auto; overflow-y: hidden; position: relative;
+    padding: 6px 10px 8px 10px; display: flex; flex-direction: column; gap: 5px;
+  }
+  .tl-playhead {
+    position: absolute; top: 0; bottom: 0; width: 2px; background: var(--naranja);
+    box-shadow: 0 0 8px var(--naranja); pointer-events: none; z-index: 20; left: 74px;
+  }
+  .tl-row { display: flex; align-items: stretch; gap: 6px; min-height: 44px; position: relative; }
+  .tl-label {
+    position: sticky; left: 0; z-index: 15; width: 58px; flex-shrink: 0;
+    background: rgba(14, 18, 28, 0.96); border: 1px solid var(--border); border-radius: 7px;
+    font-size: 9.5px; font-weight: 800; color: var(--muted); text-transform: uppercase;
+    display: flex; align-items: center; justify-content: center; text-align: center; padding: 2px;
+  }
+  .tl-clips { display: flex; align-items: stretch; gap: 4px; }
+  .tl-clip {
+    flex-shrink: 0; border-radius: 8px; border: 1px solid var(--border);
+    background: rgba(30, 41, 59, 0.72); padding: 4px 6px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px; overflow: hidden; text-align: left;
+    transition: border-color .12s, background .12s;
+  }
+  .tl-clip.activo { border-color: var(--naranja); box-shadow: 0 0 0 1px var(--naranja) inset; background: rgba(255, 107, 0, 0.16); }
+  .tl-clip-thumb { width: 28px; height: 34px; border-radius: 5px; object-fit: cover; flex-shrink: 0; background: #05070b; border: 1px solid var(--border); }
+  .tl-clip-txt { min-width: 0; flex: 1; }
+  .tl-clip-txt strong { display: block; font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
+  .tl-clip-txt small { display: block; font-size: 9.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tl-audio {
+    flex-shrink: 0; border-radius: 7px; border: 1px dashed rgba(245, 158, 11, 0.45);
+    background: rgba(245, 158, 11, 0.08); padding: 4px 7px; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between; gap: 4px; font-size: 10px; color: #fcd34d;
+  }
+  .tl-audio.listo { border-style: solid; border-color: rgba(34, 197, 94, 0.55); background: rgba(34, 197, 94, 0.14); color: #86efac; }
+  .tl-audio.activo { outline: 1.5px solid var(--naranja); }
+  .tl-fx {
+    flex-shrink: 0; border-radius: 7px; border: 1px solid rgba(56, 189, 248, 0.25);
+    background: rgba(56, 189, 248, 0.07); padding: 3px 6px; cursor: pointer;
+    display: flex; align-items: center; gap: 4px; font-size: 9.5px; color: #7dd3fc; overflow: hidden;
+  }
+
+  /* MODALES Y TOASTS */
+  .modal-ov {
+    position: fixed; inset: 0; z-index: 80000; background: rgba(4, 6, 10, 0.84);
+    backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; padding: 12px;
+  }
+  .modal-ov.open { display: flex; }
+  .modal-card {
+    width: 100%; max-width: 540px; max-height: 90vh; overflow-y: auto;
+    background: linear-gradient(155deg, rgba(22, 27, 38, 0.99), rgba(10, 13, 20, 0.99));
+    border: 1px solid var(--border-hi); border-radius: 16px; padding: 16px;
+  }
+  .modal-head { display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .modal-head h3 { margin: 0; font-size: 14px; font-weight: 800; }
+  #toasts-ed { position: fixed; bottom: 14px; right: 14px; z-index: 95000; display: flex; flex-direction: column; gap: 6px; max-width: 90vw; }
+  .toast-ed { padding: 9px 13px; border-radius: 10px; font-size: 12px; font-weight: 700; background: rgba(15, 19, 28, 0.97); border: 1px solid var(--border); }
+  .toast-ed.exito { border-color: rgba(34, 197, 94, 0.55); color: #86efac; }
+  .toast-ed.error { border-color: rgba(239, 68, 68, 0.55); color: #fca5a5; }
+  .toast-ed.info { border-color: rgba(56, 189, 248, 0.55); color: #7dd3fc; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- BARRA SUPERIOR -->
+  <header class="topbar">
+    <div class="topbar-grp">
+      <div class="tabs-bar">
+        <button type="button" class="tab-btn activo" id="tab-guion" onclick="window.setVistaEditor('guion')">
+          <svg class="svg-ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Guion IA
+        </button>
+        <button type="button" class="tab-btn" id="tab-timeline" onclick="window.setVistaEditor('timeline')">
+          <svg class="svg-ico" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Timeline 9:16
+        </button>
+      </div>
+      <select id="sel-episodio" class="sel" style="width:auto; min-width:155px; max-width:210px;" onchange="window.seleccionarEpisodio(this.value)"></select>
+      <button type="button" class="btn btn-xs" onclick="window.crearEpisodioRapido()">+ Ep</button>
+    </div>
+
+    <div class="topbar-grp">
+      <button type="button" class="btn btn-xs btn-purple" onclick="window.abrirModalApis()">
+        <svg class="svg-ico" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+        <span id="txt-btn-apis">APIs</span>
+      </button>
+      <button type="button" class="btn btn-xs btn-blue" onclick="window.exportarPaqueteEpisodio()">Exportar Termux</button>
+      <span id="badge-sync-ed" class="pill">Cargando...</span>
+    </div>
+  </header>
+
+  <!-- PESTAÑA 1: GENERADOR DE GUION IA DESDE CHISME -->
+  <section id="pane-guion" class="view-pane activa">
+    <div class="scroll-pane" id="wrap-guion-ia"></div>
+  </section>
+
+  <!-- PESTAÑA 2: EDITOR TIMELINE ESTILO YOUCUT + VISOR 9:16 -->
+  <section id="pane-timeline" class="view-pane">
+    <div class="editor-upper">
+      <div class="stage-col">
+        <div class="canvas-wrap">
+          <canvas id="canvas-preview" width="540" height="960"></canvas>
+        </div>
+        <div class="transport">
+          <div style="display:flex; gap:5px; align-items:center;">
+            <button type="button" class="btn btn-xs btn-primary" id="btn-play-tl" onclick="window.togglePlayTimeline()">Play</button>
+            <button type="button" class="btn btn-xs" onclick="window.detenerTimeline()">Stop</button>
+            <label style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--muted); cursor:pointer;">
+              <input type="checkbox" id="chk-safe-zones" checked style="accent-color:var(--naranja);" onchange="window.renderPreviewCanvas()"> Safe Zones
+            </label>
+          </div>
+          <span class="timecode" id="txt-timecode">00:00 / 00:00</span>
+        </div>
+      </div>
+
+      <div class="inspector-col" id="clip-inspector"></div>
+    </div>
+
+    <div class="timeline-dock">
+      <div class="tl-toolbar">
+        <div style="display:flex; gap:5px; align-items:center; flex-wrap:wrap;">
+          <button type="button" class="btn btn-xs btn-primary" onclick="window.agregarClipTimeline()">+ Clip</button>
+          <button type="button" class="btn btn-xs btn-green" id="btn-lote-voces" onclick="window.generarVocesLote()">Voces ElevenLabs (Lote)</button>
+          <button type="button" class="btn btn-xs btn-purple" id="btn-lote-planos" onclick="window.generarPlanosLote()">Planos Gemini (Lote)</button>
+        </div>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <span style="font-size:10px; color:var(--muted);">Zoom</span>
+          <input type="range" min="24" max="80" value="44" style="width:76px; accent-color:var(--azul);" oninput="window.setZoomTimeline(Number(this.value))">
+        </div>
+      </div>
+      <div class="tl-scroll" id="tl-scroll">
+        <div class="tl-playhead" id="tl-playhead"></div>
+        <div class="tl-row"><div class="tl-label">Visual</div><div class="tl-clips" id="track-visual"></div></div>
+        <div class="tl-row"><div class="tl-label">Voces</div><div class="tl-clips" id="track-voces"></div></div>
+        <div class="tl-row"><div class="tl-label">FX / Prop</div><div class="tl-clips" id="track-fx"></div></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- MODAL: BÓVEDA LOCAL DE APIs (SOLO LOCALSTORAGE) -->
+<div class="modal-ov" id="modal-apis" onclick="if(event.target.id==='modal-apis') window.cerrarModalApis()">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>Bóveda de APIs (Solo este dispositivo)</h3>
+      <button type="button" class="btn btn-xs" onclick="window.cerrarModalApis()">Cerrar</button>
+    </div>
+    <p style="margin:0 0 12px 0; font-size:11px; color:var(--muted);">
+      Tus claves se guardan únicamente en <code>localStorage</code> de este navegador. Nunca se envían a Firestore ni a GitHub.
+    </p>
+
+    <div class="card">
+      <div style="font-size:11.5px; font-weight:800; color:var(--naranja); margin-bottom:8px;">1. API DE GUIONES (LLM)</div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Proveedor Principal</label>
+          <select id="api-llm-prov" class="sel" onchange="window.alCambiarProveedorLLM()">
+            <option value="deepseek">DeepSeek</option>
+            <option value="gemini">Google Gemini</option>
+            <option value="openai">OpenAI (ChatGPT)</option>
+            <option value="openrouter">OpenRouter</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>API Key del Proveedor</label>
+          <input id="api-llm-key" type="password" class="inp" placeholder="Pega tu API Key aquí" oninput="window.guardarVaultLive()">
+        </div>
+      </div>
+      <div style="display:flex; gap:6px; align-items:flex-end; margin-bottom:8px;">
+        <div style="flex:1;">
+          <label style="display:block; font-size:10.5px; font-weight:700; color:var(--muted); margin-bottom:3px; text-transform:uppercase;">Modelo Disponible</label>
+          <select id="api-llm-model" class="sel" onchange="window.guardarVaultLive()"></select>
+        </div>
+        <button type="button" class="btn btn-blue" id="btn-detect-llm" onclick="window.detectarModelosLLM()">Detectar Modelos</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-size:11.5px; font-weight:800; color:var(--verde); margin-bottom:8px;">2. ELEVENLABS (VOCES DEL TIMELINE)</div>
+      <div style="display:flex; gap:6px; align-items:flex-end; margin-bottom:8px;">
+        <div style="flex:1;">
+          <label style="display:block; font-size:10.5px; font-weight:700; color:var(--muted); margin-bottom:3px; text-transform:uppercase;">API Key ElevenLabs</label>
+          <input id="api-el-key" type="password" class="inp" placeholder="sk_..." oninput="window.guardarVaultLive()">
+        </div>
+        <button type="button" class="btn btn-green" id="btn-detect-el" onclick="window.detectarVocesEleven()">Detectar Voces</button>
+      </div>
+      <div class="grid-2">
+        <div class="field" style="margin-bottom:0;">
+          <label>Modelo de Voz</label>
+          <select id="api-el-model" class="sel" onchange="window.guardarVaultLive()">
+            <option value="eleven_multilingual_v2">eleven_multilingual_v2</option>
+            <option value="eleven_flash_v2_5">eleven_flash_v2_5 (Rápido)</option>
+            <option value="eleven_turbo_v2_5">eleven_turbo_v2_5</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label>Voces Detectadas (referencia rápida)</label>
+          <select id="api-el-voices" class="sel" onchange="window.copiarVoiceIdDetectado(this.value)">
+            <option value="">Pulsa Detectar Voces...</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:0;">
+      <div style="font-size:11.5px; font-weight:800; color:var(--azul); margin-bottom:8px;">3. GEMINI IMAGEN (PLANOS ILUSTRADOS 9:16)</div>
+      <div class="grid-2">
+        <div class="field" style="margin-bottom:0;">
+          <label>API Key Gemini (vacío = usa clave LLM si es Gemini)</label>
+          <input id="api-gem-img-key" type="password" class="inp" placeholder="AIza..." oninput="window.guardarVaultLive()">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label>Modelo de Imagen</label>
+          <select id="api-gem-img-model" class="sel" onchange="window.guardarVaultLive()">
+            <option value="gemini-2.5-flash-image">gemini-2.5-flash-image</option>
+            <option value="gemini-2.0-flash-exp-image-generation">gemini-2.0-flash-exp-image-generation</option>
+            <option value="imagen-3.0-generate-002">imagen-3.0-generate-002</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<audio id="audio-player-tl" crossorigin="anonymous" style="display:none;"></audio>
+<div id="toasts-ed"></div>
+
+<script type="module">
+import GeokatuDB from './core-db.js';
+
+const DOC_BIB_ID = '__biblioteca_maestra__';
+const CLAVE_LOCAL_BIB = 'piro_biblioteca_maestra_v1';
+const CLAVE_VAULT = 'piro_api_vault_v1';
+
+const MODELOS_DEF = {
+  deepseek: ['deepseek-chat', 'deepseek-reasoner'],
+  gemini: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
+  openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'],
+  openrouter: ['deepseek/deepseek-chat', 'google/gemini-2.5-flash', 'openai/gpt-4o-mini']
+};
+
+let biblioteca = { tipo_doc: 'biblioteca', personajes: [], escenarios: [], props: [], guiones: [] };
+let epIdActivo = null;
+let clipSelIdx = 0;
+let vistaActual = 'guion';
+let zoomPxSeg = 44;
+let debounceSync = null;
+let vault = {
+  llmProv: 'deepseek',
+  keys: { deepseek: '', gemini: '', openai: '', openrouter: '' },
+  models: { deepseek: 'deepseek-chat', gemini: 'gemini-2.5-flash', openai: 'gpt-4o-mini', openrouter: 'deepseek/deepseek-chat' },
+  modelosCache: {},
+  elKey: '',
+  elModel: 'eleven_multilingual_v2',
+  gemImgKey: '',
+  gemImgModel: 'gemini-2.5-flash-image'
+};
+
+const imgCache = {};
+let reproduciendo = false;
+let playRaf = null;
+let playInicioMs = 0;
+let playOffsetSeg = 0;
+let clipSonandoIdx = -1;
+let duracionObjetivoSeg = 40;
+
+function esc(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function toast(msg, tipo) {
+  if (window.self !== window.top) {
+    window.parent.postMessage({ tipo: 'PIRO_TOAST', mensaje: msg, nivel: tipo || 'info' }, '*');
+    return;
+  }
+  const c = document.getElementById('toasts-ed');
+  const el = document.createElement('div');
+  el.className = 'toast-ed ' + (tipo || 'info');
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(function() { el.remove(); }, 3000);
+}
+
+function setSync(txt, cls) {
+  const b = document.getElementById('badge-sync-ed');
+  if (b) { b.textContent = txt; b.className = 'pill ' + (cls || ''); }
+}
+
+// =========================================================================
+// 1. BÓVEDA LOCAL DE APIs + DETECCIÓN DINÁMICA DE MODELOS
+// =========================================================================
+function cargarVault() {
+  try {
+    const raw = localStorage.getItem(CLAVE_VAULT);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      vault = Object.assign(vault, parsed);
+      vault.keys = Object.assign({ deepseek: '', gemini: '', openai: '', openrouter: '' }, parsed.keys || {});
+      vault.models = Object.assign({ deepseek: 'deepseek-chat', gemini: 'gemini-2.5-flash', openai: 'gpt-4o-mini', openrouter: 'deepseek/deepseek-chat' }, parsed.models || {});
+    }
+  } catch (e) {}
+  actualizarBadgeApis();
+}
+
+function guardarVault() {
+  try { localStorage.setItem(CLAVE_VAULT, JSON.stringify(vault)); } catch (e) {}
+  actualizarBadgeApis();
+}
+
+function actualizarBadgeApis() {
+  const tieneLlm = Boolean(vault.keys[vault.llmProv]);
+  const tieneEl = Boolean(vault.elKey);
+  const el = document.getElementById('txt-btn-apis');
+  if (el) el.textContent = 'APIs (' + (tieneLlm ? vault.llmProv.toUpperCase() : 'Sin LLM') + (tieneEl ? ' + Voz' : '') + ')';
+}
+
+function rellenarSelectModelosLLM(lista, sel) {
+  const s = document.getElementById('api-llm-model');
+  if (!s) return;
+  const arr = (lista && lista.length > 0) ? lista : (MODELOS_DEF[vault.llmProv] || ['deepseek-chat']);
+  s.innerHTML = arr.map(function(m) {
+    return '<option value="' + esc(m) + '"' + (m === sel ? ' selected' : '') + '>' + esc(m) + '</option>';
+  }).join('');
+  if (arr.indexOf(sel) === -1) vault.models[vault.llmProv] = arr[0];
+}
+
+window.abrirModalApis = function() {
+  document.getElementById('api-llm-prov').value = vault.llmProv;
+  document.getElementById('api-llm-key').value = vault.keys[vault.llmProv] || '';
+  rellenarSelectModelosLLM(vault.modelosCache[vault.llmProv], vault.models[vault.llmProv]);
+  document.getElementById('api-el-key').value = vault.elKey || '';
+  document.getElementById('api-el-model').value = vault.elModel || 'eleven_multilingual_v2';
+  document.getElementById('api-gem-img-key').value = vault.gemImgKey || '';
+  document.getElementById('api-gem-img-model').value = vault.gemImgModel || 'gemini-2.5-flash-image';
+  document.getElementById('modal-apis').classList.add('open');
+};
+
+window.cerrarModalApis = function() {
+  document.getElementById('modal-apis').classList.remove('open');
+};
+
+window.alCambiarProveedorLLM = function() {
+  vault.llmProv = document.getElementById('api-llm-prov').value;
+  document.getElementById('api-llm-key').value = vault.keys[vault.llmProv] || '';
+  rellenarSelectModelosLLM(vault.modelosCache[vault.llmProv], vault.models[vault.llmProv]);
+  guardarVault();
+};
+
+window.guardarVaultLive = function() {
+  vault.llmProv = document.getElementById('api-llm-prov').value;
+  vault.keys[vault.llmProv] = document.getElementById('api-llm-key').value.trim();
+  vault.models[vault.llmProv] = document.getElementById('api-llm-model').value;
+  vault.elKey = document.getElementById('api-el-key').value.trim();
+  vault.elModel = document.getElementById('api-el-model').value;
+  vault.gemImgKey = document.getElementById('api-gem-img-key').value.trim();
+  vault.gemImgModel = document.getElementById('api-gem-img-model').value;
+  guardarVault();
+};
+
+window.detectarModelosLLM = async function() {
+  window.guardarVaultLive();
+  const prov = vault.llmProv;
+  const key = vault.keys[prov];
+  if (!key) { toast('Ingresa primero la API Key de ' + prov + '.', 'error'); return; }
+  const btn = document.getElementById('btn-detect-llm');
+  btn.disabled = true; btn.textContent = 'Consultando...';
+  try {
+    let modelos = [];
+    if (prov === 'gemini') {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?key=' + encodeURIComponent(key));
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      modelos = (j.models || [])
+        .filter(function(m) { return Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.indexOf('generateContent') >= 0; })
+        .map(function(m) { return String(m.name || '').replace(/^models\//, ''); });
+    } else {
+      const url = prov === 'deepseek' ? 'https://api.deepseek.com/v1/models'
+        : (prov === 'openai' ? 'https://api.openai.com/v1/models' : 'https://openrouter.ai/api/v1/models');
+      const r = await fetch(url, { headers: { Authorization: 'Bearer ' + key } });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      modelos = (j.data || []).map(function(m) { return m.id; }).filter(Boolean);
+      if (prov === 'openai') modelos = modelos.filter(function(id) { return /^(gpt-|o1|o3|o4)/.test(id); });
+      if (prov === 'openrouter') modelos = modelos.slice(0, 80);
+    }
+    if (modelos.length === 0) throw new Error('Sin modelos devueltos');
+    vault.modelosCache[prov] = modelos;
+    vault.models[prov] = modelos[0];
+    rellenarSelectModelosLLM(modelos, modelos[0]);
+    guardarVault();
+    toast(modelos.length + ' modelos detectados en ' + prov.toUpperCase() + '.', 'exito');
+  } catch (err) {
+    toast('Error detectando modelos (' + err.message + '). Se mantienen modelos base.', 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Detectar Modelos';
+  }
+};
+
+window.detectarVocesEleven = async function() {
+  window.guardarVaultLive();
+  if (!vault.elKey) { toast('Ingresa primero tu API Key de ElevenLabs.', 'error'); return; }
+  const btn = document.getElementById('btn-detect-el');
+  btn.disabled = true; btn.textContent = 'Buscando...';
+  try {
+    const r = await fetch('https://api.elevenlabs.io/v1/voices', { headers: { 'xi-api-key': vault.elKey } });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    const voces = j.voices || [];
+    const sel = document.getElementById('api-el-voices');
+    sel.innerHTML = '<option value="">Selecciona para copiar voice_id (' + voces.length + ')</option>' +
+      voces.map(function(v) { return '<option value="' + esc(v.voice_id) + '">' + esc(v.name) + ' (' + esc(v.voice_id.slice(0, 8)) + '...)</option>'; }).join('');
+    toast(voces.length + ' voces cargadas desde ElevenLabs.', 'exito');
+  } catch (err) {
+    toast('Error consultando ElevenLabs: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Detectar Voces';
+  }
+};
+
+window.copiarVoiceIdDetectado = function(id) {
+  if (!id) return;
+  navigator.clipboard.writeText(id).then(function() { toast('voice_id copiado: ' + id, 'exito'); });
+};
+
+// =========================================================================
+// 2. CARGA Y SINCRONIZACIÓN DE BIBLIOTECA COMPARTIDA
+// =========================================================================
+async function cargarBiblioteca() {
+  setSync('Cargando...', 'warn');
+  try {
+    const raw = localStorage.getItem(CLAVE_LOCAL_BIB);
+    if (raw) biblioteca = JSON.parse(raw);
+  } catch (e) {}
+
+  if (GeokatuDB.PirobonianosService && navigator.onLine) {
+    const res = await GeokatuDB.PirobonianosService.obtenerProyectoEDT(DOC_BIB_ID);
+    if (res.success && res.data && Array.isArray(res.data.personajes)) {
+      if (!biblioteca.fecha_actualizacion || String(res.data.fecha_actualizacion || '') >= String(biblioteca.fecha_actualizacion)) {
+        biblioteca = res.data;
+        try { localStorage.setItem(CLAVE_LOCAL_BIB, JSON.stringify(biblioteca)); } catch (e) {}
+      }
+      setSync('Nube OK', 'ok');
+    } else {
+      setSync('Local', 'warn');
+    }
+  } else {
+    setSync('Offline', 'warn');
+  }
+
+  if (!Array.isArray(biblioteca.guiones)) biblioteca.guiones = [];
+  if (biblioteca.guiones.length === 0) {
+    biblioteca.guiones.push({
+      id: 'ep001', titulo: 'Episodio 001',
+      escenario_id: biblioteca.escenarios[0] ? biblioteca.escenarios[0].id : '',
+      zona_id: 'zona_01', reparto: biblioteca.personajes[0] ? [biblioteca.personajes[0].id] : [],
+      estado: 'Borrador', anecdota: '', escenas: []
+    });
+  }
+  if (!epIdActivo || !biblioteca.guiones.some(function(g) { return g.id === epIdActivo; })) {
+    epIdActivo = biblioteca.guiones[0].id;
+  }
+  renderTodo();
+}
+
+function guardarBiblioteca(inmediato) {
+  biblioteca.tipo_doc = 'biblioteca';
+  biblioteca.fecha_actualizacion = new Date().toISOString();
+  try { localStorage.setItem(CLAVE_LOCAL_BIB, JSON.stringify(biblioteca)); } catch (e) {}
+  setSync('Guardando...', 'warn');
+  clearTimeout(debounceSync);
+  const run = async function() {
+    if (!GeokatuDB.PirobonianosService) { setSync('Local', 'warn'); return; }
+    const res = await GeokatuDB.PirobonianosService.guardarProyectoEDT(DOC_BIB_ID, biblioteca);
+    if (res.success && !res.offline) setSync('Nube OK', 'ok');
+    else setSync('Local', 'warn');
+    if (window.self !== window.top) window.parent.postMessage({ tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA' }, '*');
+  };
+  if (inmediato) run();
+  else debounceSync = setTimeout(run, 600);
+}
+
+function getEp() {
+  return biblioteca.guiones.find(function(g) { return g.id === epIdActivo; }) || biblioteca.guiones[0] || null;
+}
+
+window.setVistaEditor = function(v) {
+  vistaActual = v;
+  document.getElementById('tab-guion').classList.toggle('activo', v === 'guion');
+  document.getElementById('tab-timeline').classList.toggle('activo', v === 'timeline');
+  document.getElementById('pane-guion').classList.toggle('activa', v === 'guion');
+  document.getElementById('pane-timeline').classList.toggle('activa', v === 'timeline');
+  if (v === 'timeline') { renderTimeline(); window.renderPreviewCanvas(); }
+};
+
+window.seleccionarEpisodio = function(id) {
+  window.detenerTimeline();
+  epIdActivo = id;
+  clipSelIdx = 0;
+  renderTodo();
+};
+
+window.crearEpisodioRapido = function() {
+  const num = String(biblioteca.guiones.length + 1).padStart(3, '0');
+  const nuevo = {
+    id: 'ep' + num, titulo: 'Episodio ' + num,
+    escenario_id: biblioteca.escenarios[0] ? biblioteca.escenarios[0].id : '',
+    zona_id: 'zona_01', reparto: biblioteca.personajes.slice(0, 2).map(function(p) { return p.id; }),
+    estado: 'Borrador', anecdota: '', escenas: []
+  };
+  biblioteca.guiones.push(nuevo);
+  epIdActivo = nuevo.id;
+  clipSelIdx = 0;
+  guardarBiblioteca(true);
+  renderTodo();
+  toast('Episodio ' + nuevo.id + ' creado.', 'exito');
+};
+
+function renderSelectorEpisodios() {
+  const sel = document.getElementById('sel-episodio');
+  sel.innerHTML = (biblioteca.guiones || []).map(function(g) {
+    return '<option value="' + esc(g.id) + '"' + (g.id === epIdActivo ? ' selected' : '') + '>' + esc(g.id + ' · ' + g.titulo) + '</option>';
+  }).join('');
+}
+
+function renderTodo() {
+  renderSelectorEpisodios();
+  renderVistaGuionIA();
+  if (vistaActual === 'timeline') { renderTimeline(); window.renderPreviewCanvas(); }
+}
+
+// =========================================================================
+// 3. PESTAÑA 1: GENERADOR DE GUION CON IA (ETIQUETAS REALES DE BIBLIOTECA)
+// =========================================================================
+function renderVistaGuionIA() {
+  const wrap = document.getElementById('wrap-guion-ia');
+  const g = getEp();
+  if (!g) return;
+  if (!Array.isArray(g.escenas)) g.escenas = [];
+  const repSet = new Set(g.reparto || []);
+
+  const optsEsc = (biblioteca.escenarios || []).map(function(e) {
+    return '<option value="' + esc(e.id) + '"' + (g.escenario_id === e.id ? ' selected' : '') + '>' + esc(e.id + ' · ' + e.nombre) + '</option>';
+  }).join('');
+
+  const escObj = (biblioteca.escenarios || []).find(function(e) { return e.id === g.escenario_id; }) || biblioteca.escenarios[0];
+  const optsZona = escObj ? (escObj.zonas || []).map(function(z) {
+    return '<option value="' + esc(z.id) + '"' + ((g.zona_id || 'zona_01') === z.id ? ' selected' : '') + '>' + esc(z.id + ' · ' + z.nombre) + '</option>';
+  }).join('') : '<option value="zona_01">zona_01</option>';
+
+  const chipsActores = (biblioteca.personajes || []).map(function(p) {
+    const on = repSet.has(p.id);
+    const vTag = p.voice_id ? 'Voz OK' : 'Sin voice_id';
+    return '<button type="button" class="btn btn-xs ' + (on ? 'btn-green' : '') + '" onclick="window.toggleRepartoEp(\'' + esc(p.id) + '\')">' +
+      esc(p.id + ' · ' + p.nombre) + ' <span style="opacity:.75;">(' + vTag + ')</span></button>';
+  }).join(' ');
+
+  const listaEscHtml = g.escenas.length === 0
+    ? '<div style="text-align:center; padding:18px; color:var(--muted); border:1px dashed var(--border); border-radius:10px;">Ingresa tu chisme arriba y pulsa "Ingresar y Generar Guion" para crear las escenas automáticamente.</div>'
+    : g.escenas.map(function(sc, idx) {
+        const actorOpts = (biblioteca.personajes || []).map(function(p) {
+          return '<option value="' + esc(p.id) + '"' + (sc.actor === p.id ? ' selected' : '') + '>' + esc(p.id + ' · ' + p.nombre) + '</option>';
+        }).join('');
+        return '<div style="border:1px solid var(--border); border-radius:10px; padding:8px 10px; margin-bottom:7px; background:rgba(7,10,16,0.7);">' +
+          '<div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:6px; flex-wrap:wrap;">' +
+            '<span style="font-family:monospace; font-size:11px; font-weight:900; color:var(--naranja);">#' + (idx + 1) + ' · ' + esc(sc.escenario || g.escenario_id || 'esc_001') + '</span>' +
+            '<div style="display:flex; gap:4px; align-items:center;">' +
+              '<select class="sel" style="width:auto; padding:3px 6px; font-size:11px;" onchange="window.editEscena(' + idx + ',\'actor\',this.value)">' + actorOpts + '</select>' +
+              '<select class="sel" style="width:auto; padding:3px 6px; font-size:11px;" onchange="window.editEscena(' + idx + ',\'ojos\',this.value)">' +
+                ['neutro','feliz','enojado','triste','duda','indignado'].map(function(o) { return '<option value="' + o + '"' + ((sc.ojos || 'neutro') === o ? ' selected' : '') + '>' + o + '</option>'; }).join('') +
+              '</select>' +
+              '<button type="button" class="btn btn-xs btn-blue" onclick="window.irAClipTimeline(' + idx + ')">Ver en Timeline</button>' +
+              '<button type="button" class="btn btn-xs btn-danger" onclick="window.borrarEscena(' + idx + ')">Borrar</button>' +
+            '</div>' +
+          '</div>' +
+          '<input class="inp" value="' + esc(sc.texto || '') + '" oninput="window.editEscena(' + idx + ',\'texto\',this.value)" placeholder="Diálogo de esta escena...">' +
+        '</div>';
+      }).join('');
+
+  wrap.innerHTML =
+    '<div class="card">' +
+      '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap;">' +
+        '<strong style="font-size:14px;">Generador de Guion IA · ' + esc(g.id) + '</strong>' +
+        '<span class="pill ok">Modelo activo: ' + esc(vault.llmProv.toUpperCase() + ' / ' + (vault.models[vault.llmProv] || '')) + '</span>' +
+      '</div>' +
+      '<div class="grid-2">' +
+        '<div class="field"><label>Título del Episodio</label><input class="inp" value="' + esc(g.titulo) + '" oninput="window.editEp(\'titulo\', this.value)"></div>' +
+        '<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">' +
+          '<div class="field"><label>Escenario Base</label><select class="sel" onchange="window.editEp(\'escenario_id\', this.value)">' + optsEsc + '</select></div>' +
+          '<div class="field"><label>Sub-Zona</label><select class="sel" onchange="window.editEp(\'zona_id\', this.value)">' + optsZona + '</select></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="field"><label>Etiquetas de Personajes en Escena (clic para activar)</label><div style="display:flex; gap:6px; flex-wrap:wrap;">' + chipsActores + '</div></div>' +
+      '<div class="field"><label>Chisme / Anécdota Semilla</label><textarea id="txt-chisme-input" class="txt" style="min-height:96px;" placeholder="Cuenta aquí el chisme o situación cotidiana con remate..." oninput="window.editEp(\'anecdota\', this.value)">' + esc(g.anecdota || '') + '</textarea></div>' +
+      '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">' +
+        '<div style="display:flex; align-items:center; gap:6px;">' +
+          '<label style="font-size:11px; color:var(--muted); font-weight:700;">Duración objetivo:</label>' +
+          '<select class="sel" style="width:auto;" onchange="window.setDuracionObjetivo(Number(this.value))">' +
+            '<option value="30"' + (duracionObjetivoSeg === 30 ? ' selected' : '') + '>30 seg</option>' +
+            '<option value="40"' + (duracionObjetivoSeg === 40 ? ' selected' : '') + '>40 seg</option>' +
+            '<option value="55"' + (duracionObjetivoSeg === 55 ? ' selected' : '') + '>55 seg</option>' +
+          '</select>' +
+        '</div>' +
+        '<div style="display:flex; gap:6px; flex-wrap:wrap;">' +
+          '<button type="button" class="btn btn-primary" id="btn-gen-guion-ia" onclick="window.generarGuionConAPI()">Ingresar y Generar Guion</button>' +
+          '<button type="button" class="btn btn-green" onclick="window.setVistaEditor(\'timeline\')">Ir al Timeline 9:16 →</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">' +
+        '<strong style="color:var(--azul);">Guion Generado Editable (' + g.escenas.length + ' escenas)</strong>' +
+        '<button type="button" class="btn btn-xs btn-blue" onclick="window.agregarClipTimeline()">+ Añadir Línea Manual</button>' +
+      '</div>' +
+      listaEscHtml +
+    '</div>';
+}
+
+window.setDuracionObjetivo = function(v) { duracionObjetivoSeg = v || 40; };
+
+window.editEp = function(campo, val) {
+  const g = getEp(); if (!g) return;
+  g[campo] = val;
+  if (campo === 'titulo') renderSelectorEpisodios();
+  if (campo === 'escenario_id') renderVistaGuionIA();
+  guardarBiblioteca(false);
+};
+
+window.toggleRepartoEp = function(perId) {
+  const g = getEp(); if (!g) return;
+  if (!Array.isArray(g.reparto)) g.reparto = [];
+  const i = g.reparto.indexOf(perId);
+  if (i >= 0) g.reparto.splice(i, 1); else g.reparto.push(perId);
+  guardarBiblioteca(true);
+  renderVistaGuionIA();
+};
+
+window.irAClipTimeline = function(idx) {
+  clipSelIdx = idx;
+  window.setVistaEditor('timeline');
+};
+
+async function llamarLLM(sysPrompt, userPrompt) {
+  const prov = vault.llmProv;
+  const key = vault.keys[prov];
+  const model = vault.models[prov] || (MODELOS_DEF[prov] ? MODELOS_DEF[prov][0] : 'deepseek-chat');
+  if (!key) throw new Error('Configura primero la API Key de ' + prov.toUpperCase() + ' en el botón APIs.');
+
+  if (prov === 'gemini') {
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(key);
+    const r = await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: sysPrompt }] },
+        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        generationConfig: { temperature: 0.8 }
+      })
+    });
+    if (!r.ok) throw new Error('Gemini HTTP ' + r.status + ': ' + (await r.text()).slice(0, 120));
+    const j = await r.json();
+    return (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts)
+      ? j.candidates[0].content.parts.map(function(p) { return p.text || ''; }).join('') : '';
+  }
+
+  const url = prov === 'deepseek' ? 'https://api.deepseek.com/v1/chat/completions'
+    : (prov === 'openai' ? 'https://api.openai.com/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions');
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+    body: JSON.stringify({
+      model: model,
+      temperature: 0.8,
+      messages: [{ role: 'system', content: sysPrompt }, { role: 'user', content: userPrompt }]
+    })
+  });
+  if (!r.ok) throw new Error(prov.toUpperCase() + ' HTTP ' + r.status + ': ' + (await r.text()).slice(0, 120));
+  const j = await r.json();
+  return (j.choices && j.choices[0] && j.choices[0].message) ? (j.choices[0].message.content || '') : '';
+}
+
+window.generarGuionConAPI = async function() {
+  const g = getEp(); if (!g) return;
+  if (!g.anecdota || !g.anecdota.trim()) { toast('Escribe primero el chisme o anécdota.', 'error'); return; }
+  const btn = document.getElementById('btn-gen-guion-ia');
+  btn.disabled = true; btn.textContent = 'Generando guion...';
+  try {
+    const rep = (g.reparto && g.reparto.length > 0)
+      ? biblioteca.personajes.filter(function(p) { return g.reparto.indexOf(p.id) >= 0; })
+      : biblioteca.personajes;
+    const actoresTxt = rep.map(function(p) { return p.id + ' (' + p.nombre + ' · ' + (p.raza || 'perro') + ' · ' + (p.personalidad || '') + ')'; }).join('\n');
+    const escTxt = (biblioteca.escenarios || []).map(function(e) { return e.id + ' (' + e.nombre + ': zonas ' + (e.zonas || []).map(function(z) { return z.id + '=' + z.nombre; }).join(', ') + ')'; }).join('\n');
+    const propsTxt = (biblioteca.props || []).filter(function(x) { return x.categoria !== 'audio'; }).map(function(x) { return x.id; }).join(', ');
+    const sfxTxt = (biblioteca.props || []).filter(function(x) { return x.categoria === 'audio'; }).map(function(x) { return x.id; }).join(', ');
+
+    const sys = 'Eres guionista experto en comedia corta colombiana vertical (YouTube Shorts estilo South Park / BoJack Horseman). Responde ÚNICAMENTE con un array JSON válido sin markdown ni explicaciones.';
+    const usr =
+      'Convierte esta anécdota en un guion dinámico de ~' + duracionObjetivoSeg + ' segundos (7 a 12 líneas cortas, gancho fuerte en los primeros 2 segundos y remate cómico).\n' +
+      'Cada objeto del array JSON DEBE tener exactamente estas claves:\n' +
+      '{"actor":"per_001","escenario":"' + (g.escenario_id || 'esc_001') + '","zona":"' + (g.zona_id || 'zona_01') + '","posicion":"izq|centro|der","ojos":"neutro|feliz|enojado|triste|duda|indignado","camara":"centro|izq|der|zoom_actor|plano_general","modo":"rig","prop":"","sfx":"","duracion":3.5,"texto":"diálogo colombiano natural","prompt_plano":"breve descripción visual en inglés estilo BoJack 2D si se requiere plano especial"}\n\n' +
+      'ETIQUETAS DISPONIBLES:\nPersonajes:\n' + actoresTxt + '\nEscenarios:\n' + escTxt + '\nProps: ' + (propsTxt || 'ninguno') + '\nSFX: ' + (sfxTxt || 'ninguno') + '\n\nCHISME / ANÉCDOTA:\n' + g.anecdota;
+
+    const raw = await llamarLLM(sys, usr);
+    const limpio = String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim();
+    const inicio = limpio.indexOf('[');
+    const fin = limpio.lastIndexOf(']');
+    if (inicio < 0 || fin <= inicio) throw new Error('La IA no devolvió un array JSON válido.');
+    const arr = JSON.parse(limpio.slice(inicio, fin + 1));
+    if (!Array.isArray(arr) || arr.length === 0) throw new Error('El guion llegó vacío.');
+
+    g.escenas = arr.map(function(it, idx) {
+      const words = String(it.texto || '').trim().split(/\s+/).filter(Boolean).length;
+      const durEst = Math.max(1.8, Math.min(9, Number(it.duracion) || Number((words / 2.7 + 0.7).toFixed(1))));
+      return {
+        id: 'sc_' + Date.now() + '_' + idx,
+        actor: String(it.actor || (rep[0] ? rep[0].id : 'per_001')),
+        escenario: String(it.escenario || g.escenario_id || 'esc_001'),
+        zona: String(it.zona || g.zona_id || 'zona_01'),
+        posicion: String(it.posicion || (idx % 2 === 0 ? 'izq' : 'der')),
+        ojos: String(it.ojos || 'neutro'),
+        camara: String(it.camara || 'centro'),
+        modo: String(it.modo || 'rig'),
+        prop: String(it.prop || ''),
+        sfx: String(it.sfx || ''),
+        duracion: durEst,
+        texto: String(it.texto || ''),
+        prompt_plano: String(it.prompt_plano || ''),
+        audio_url: '',
+        plano_url: ''
+      };
+    });
+    clipSelIdx = 0;
+    guardarBiblioteca(true);
+    renderTodo();
+    toast('Guion generado (' + g.escenas.length + ' escenas). Puedes editarlo o pasar al Timeline.', 'exito');
+  } catch (err) {
+    toast('Error generando guion: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Ingresar y Generar Guion';
+  }
+};
+
+// =========================================================================
+// 4. TIMELINE HORIZONTAL ESTILO YOUCUT + INSPECTOR DE CLIP
+// =========================================================================
+window.setZoomTimeline = function(val) { zoomPxSeg = val; renderTimeline(); };
+
+window.agregarClipTimeline = function() {
+  const g = getEp(); if (!g) return;
+  if (!Array.isArray(g.escenas)) g.escenas = [];
+  const act = (g.reparto && g.reparto[0]) || (biblioteca.personajes[0] ? biblioteca.personajes[0].id : 'per_001');
+  g.escenas.push({
+    id: 'sc_' + Date.now(), actor: act, escenario: g.escenario_id || 'esc_001', zona: g.zona_id || 'zona_01',
+    posicion: g.escenas.length % 2 === 0 ? 'izq' : 'der', ojos: 'neutro', camara: 'centro',
+    modo: 'rig', prop: '', sfx: '', duracion: 3.0, texto: '', prompt_plano: '', audio_url: '', plano_url: ''
+  });
+  clipSelIdx = g.escenas.length - 1;
+  guardarBiblioteca(true);
+  renderTodo();
+};
+
+window.editEscena = function(idx, campo, val) {
+  const g = getEp(); if (!g || !g.escenas || !g.escenas[idx]) return;
+  g.escenas[idx][campo] = campo === 'duracion' ? Math.max(0.5, Number(val) || 2) : val;
+  guardarBiblioteca(false);
+  if (vistaActual === 'timeline') {
+    if (campo !== 'texto' && campo !== 'prompt_plano') renderTimeline();
+    window.renderPreviewCanvas();
+  }
+};
+
+window.borrarEscena = function(idx) {
+  const g = getEp(); if (!g || !g.escenas) return;
+  g.escenas.splice(idx, 1);
+  clipSelIdx = Math.max(0, Math.min(clipSelIdx, g.escenas.length - 1));
+  guardarBiblioteca(true);
+  renderTodo();
+};
+
+window.moverClip = function(idx, d) {
+  const g = getEp(); if (!g || !g.escenas) return;
+  const dest = idx + d;
+  if (dest < 0 || dest >= g.escenas.length) return;
+  const tmp = g.escenas[idx]; g.escenas[idx] = g.escenas[dest]; g.escenas[dest] = tmp;
+  clipSelIdx = dest;
+  guardarBiblioteca(true);
+  renderTimeline();
+  window.renderPreviewCanvas();
+};
+
+window.seleccionarClip = function(idx) {
+  clipSelIdx = idx;
+  if (!reproduciendo) {
+    playOffsetSeg = inicioSegDeClip(idx);
+    actualizarPlayheadUI(playOffsetSeg);
+  }
+  renderTimeline();
+  window.renderPreviewCanvas();
+};
+
+function duracionTotalEp() {
+  const g = getEp(); if (!g || !Array.isArray(g.escenas)) return 0;
+  return g.escenas.reduce(function(acc, sc) { return acc + (Number(sc.duracion) || 3); }, 0);
+}
+
+function inicioSegDeClip(idx) {
+  const g = getEp(); if (!g || !Array.isArray(g.escenas)) return 0;
+  let t = 0;
+  for (let i = 0; i < idx && i < g.escenas.length; i++) t += (Number(g.escenas[i].duracion) || 3);
+  return t;
+}
+
+function renderTimeline() {
+  const g = getEp();
+  const tv = document.getElementById('track-visual');
+  const ta = document.getElementById('track-voces');
+  const tf = document.getElementById('track-fx');
+  if (!g || !tv) return;
+  if (!Array.isArray(g.escenas)) g.escenas = [];
+  if (clipSelIdx >= g.escenas.length) clipSelIdx = Math.max(0, g.escenas.length - 1);
+
+  tv.innerHTML = ''; ta.innerHTML = ''; tf.innerHTML = '';
+  g.escenas.forEach(function(sc, idx) {
+    const dur = Math.max(0.8, Number(sc.duracion) || 3);
+    const wPx = Math.max(82, Math.round(dur * zoomPxSeg));
+    const per = biblioteca.personajes.find(function(p) { return p.id === sc.actor; });
+    const thumbUrl = sc.plano_url || (per && per.piezas && ((per.piezas.maestro_perfil && per.piezas.maestro_perfil.url) || (per.piezas.maestro_cuerpo && per.piezas.maestro_cuerpo.url))) || '';
+
+    const cVis = document.createElement('button');
+    cVis.type = 'button';
+    cVis.className = 'tl-clip' + (idx === clipSelIdx ? ' activo' : '');
+    cVis.style.width = wPx + 'px';
+    cVis.onclick = function() { window.seleccionarClip(idx); };
+    cVis.innerHTML = (thumbUrl ? '<img class="tl-clip-thumb" src="' + esc(thumbUrl) + '">' : '') +
+      '<div class="tl-clip-txt"><strong>#' + (idx + 1) + ' ' + esc(per ? per.nombre : sc.actor) + '</strong>' +
+      '<small>' + esc((sc.modo === 'plano' && sc.plano_url ? 'IA' : 'RIG') + ' · ' + (sc.ojos || 'neutro') + ' · ' + dur.toFixed(1) + 's') + '</small></div>';
+    tv.appendChild(cVis);
+
+    const cAud = document.createElement('button');
+    cAud.type = 'button';
+    cAud.className = 'tl-audio' + (sc.audio_url ? ' listo' : '') + (idx === clipSelIdx ? ' activo' : '');
+    cAud.style.width = wPx + 'px';
+    cAud.onclick = function() { window.seleccionarClip(idx); };
+    cAud.innerHTML = '<span>' + (sc.audio_url ? 'Voz OK' : 'Sin voz') + '</span><b>' + dur.toFixed(1) + 's</b>';
+    ta.appendChild(cAud);
+
+    const cFx = document.createElement('button');
+    cFx.type = 'button';
+    cFx.className = 'tl-fx';
+    cFx.style.width = wPx + 'px';
+    cFx.onclick = function() { window.seleccionarClip(idx); };
+    cFx.textContent = [sc.prop || '', sc.sfx || ''].filter(Boolean).join(' + ') || '—';
+    tf.appendChild(cFx);
+  });
+
+  renderInspectorClip();
+  actualizarPlayheadUI(playOffsetSeg);
+}
+
+function renderInspectorClip() {
+  const box = document.getElementById('clip-inspector');
+  const g = getEp();
+  if (!box || !g) return;
+  const sc = (g.escenas || [])[clipSelIdx];
+  if (!sc) {
+    box.innerHTML = '<div style="text-align:center; padding:30px; color:var(--muted);">No hay clips en este episodio. Genera un guion IA o pulsa "+ Clip".</div>';
+    return;
+  }
+  const perOpts = (biblioteca.personajes || []).map(function(p) { return '<option value="' + esc(p.id) + '"' + (sc.actor === p.id ? ' selected' : '') + '>' + esc(p.id + ' · ' + p.nombre) + '</option>'; }).join('');
+  const propOpts = '<option value="">Sin prop</option>' + (biblioteca.props || []).filter(function(x) { return x.categoria !== 'audio'; }).map(function(x) { return '<option value="' + esc(x.id) + '"' + (sc.prop === x.id ? ' selected' : '') + '>' + esc(x.nombre) + '</option>'; }).join('');
+  const sfxOpts = '<option value="">Sin SFX</option>' + (biblioteca.props || []).filter(function(x) { return x.categoria === 'audio'; }).map(function(x) { return '<option value="' + esc(x.id) + '"' + (sc.sfx === x.id ? ' selected' : '') + '>' + esc(x.nombre) + '</option>'; }).join('');
+
+  box.innerHTML =
+    '<div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:8px; flex-wrap:wrap;">' +
+      '<strong style="color:var(--naranja);">CLIP #' + (clipSelIdx + 1) + ' DE ' + g.escenas.length + '</strong>' +
+      '<div style="display:flex; gap:4px;">' +
+        '<button type="button" class="btn btn-xs" onclick="window.moverClip(' + clipSelIdx + ',-1)">←</button>' +
+        '<button type="button" class="btn btn-xs" onclick="window.moverClip(' + clipSelIdx + ',1)">→</button>' +
+        '<button type="button" class="btn btn-xs btn-danger" onclick="window.borrarEscena(' + clipSelIdx + ')">Borrar</button>' +
+      '</div>' +
+    '</div>' +
+    '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:6px; margin-bottom:7px;">' +
+      '<div class="field" style="margin:0;"><label>Actor</label><select class="sel" onchange="window.editEscena(' + clipSelIdx + ',\'actor\',this.value)">' + perOpts + '</select></div>' +
+      '<div class="field" style="margin:0;"><label>Ojos</label><select class="sel" onchange="window.editEscena(' + clipSelIdx + ',\'ojos\',this.value)">' + ['neutro','feliz','enojado','triste','duda','indignado'].map(function(o) { return '<option value="' + o + '"' + ((sc.ojos || 'neutro') === o ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field" style="margin:0;"><label>Cámara</label><select class="sel" onchange="window.editEscena(' + clipSelIdx + ',\'camara\',this.value)">' + [['centro','Centro'],['izq','Izquierda'],['der','Derecha'],['zoom_actor','Zoom Actor'],['plano_general','General']].map(function(c) { return '<option value="' + c[0] + '"' + ((sc.camara || 'centro') === c[0] ? ' selected' : '') + '>' + c[1] + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field" style="margin:0;"><label>Posición</label><select class="sel" onchange="window.editEscena(' + clipSelIdx + ',\'posicion\',this.value)">' + [['izq','Izquierda'],['centro','Centro'],['der','Derecha (Espejo)']].map(function(c) { return '<option value="' + c[0] + '"' + ((sc.posicion || 'izq') === c[0] ? ' selected' : '') + '>' + c[1] + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field" style="margin:0;"><label>Modo Visual</label><select class="sel" onchange="window.editEscena(' + clipSelIdx + ',\'modo\',this.value)"><option value="rig"' + ((sc.modo || 'rig') === 'rig' ? ' selected' : '') + '>Marioneta Piro-Rig ($0)</option><option value="plano"' + (sc.modo === 'plano' ? ' selected' : '') + '>Plano Ilustrado Gemini</option></select></div>' +
+      '<div class="field" style="margin:0;"><label>Duración (s)</label><input type="number" step="0.1" min="0.5" class="inp" value="' + (Number(sc.duracion) || 3) + '" oninput="window.editEscena(' + clipSelIdx + ',\'duracion\',this.value)"></div>' +
+      '<div class="field" style="margin:0;"><label>Prop</label><select class="sel" onchange="window.editEscena(' + clipSelIdx + ',\'prop\',this.value)">' + propOpts + '</select></div>' +
+      '<div class="field" style="margin:0;"><label>SFX</label><select class="sel" onchange="window.editEscena(' + clipSelIdx + ',\'sfx\',this.value)">' + sfxOpts + '</select></div>' +
+    '</div>' +
+    '<div class="field"><label>Diálogo (ElevenLabs + Subtítulos)</label><textarea class="txt" style="min-height:54px;" oninput="window.editEscena(' + clipSelIdx + ',\'texto\',this.value)">' + esc(sc.texto || '') + '</textarea></div>' +
+    '<div class="field"><label>Prompt Visual de Plano (Solo si usas Imagen Gemini)</label><input class="inp" value="' + esc(sc.prompt_plano || '') + '" placeholder="Describe acción puntual en inglés estilo BoJack 2D..." oninput="window.editEscena(' + clipSelIdx + ',\'prompt_plano\',this.value)"></div>' +
+    '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">' +
+      '<button type="button" class="btn btn-xs btn-green" id="btn-gen-voz-clip" onclick="window.generarVozClip(' + clipSelIdx + ')">Generar Voz ElevenLabs</button>' +
+      '<button type="button" class="btn btn-xs btn-purple" id="btn-gen-img-clip" onclick="window.generarPlanoClip(' + clipSelIdx + ')">Generar Imagen Gemini</button>' +
+      (sc.plano_url ? '<button type="button" class="btn btn-xs btn-danger" onclick="window.quitarPlanoClip(' + clipSelIdx + ')">Quitar Imagen</button>' : '') +
+    '</div>' +
+    (sc.audio_url ? '<audio controls src="' + esc(sc.audio_url) + '" style="width:100%; height:30px;"></audio>' : '<div style="font-size:11px; color:var(--muted);">Sin audio generado para este clip.</div>');
+}
+
+// =========================================================================
+// 5. GENERACIÓN DE VOCES (ELEVENLABS) Y PLANOS (GEMINI IMAGE) -> STORAGE
+// =========================================================================
+function medirDuracionAudio(blob) {
+  return new Promise(function(resolve) {
+    const u = URL.createObjectURL(blob);
+    const a = new Audio(u);
+    a.onloadedmetadata = function() { const d = a.duration; URL.revokeObjectURL(u); resolve(Number.isFinite(d) && d > 0.2 ? Number(d.toFixed(2)) : 3.0); };
+    a.onerror = function() { URL.revokeObjectURL(u); resolve(3.0); };
+  });
+}
+
+window.generarVozClip = async function(idx) {
+  const g = getEp(); const sc = g && g.escenas ? g.escenas[idx] : null;
+  if (!sc) return;
+  if (!vault.elKey) { toast('Configura tu API Key de ElevenLabs en el botón APIs.', 'error'); return; }
+  if (!sc.texto || !sc.texto.trim()) { toast('Este clip no tiene diálogo para sintetizar.', 'error'); return; }
+  const per = biblioteca.personajes.find(function(p) { return p.id === sc.actor; });
+  const voiceId = per && per.voice_id ? per.voice_id.trim() : '';
+  if (!voiceId) { toast('Asigna primero el voice_id de ' + (per ? per.nombre : sc.actor) + ' en Contenido -> Ficha.', 'error'); return; }
+
+  const btn = document.getElementById('btn-gen-voz-clip');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sintetizando...'; }
+  try {
+    const r = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + encodeURIComponent(voiceId), {
+      method: 'POST',
+      headers: { 'xi-api-key': vault.elKey, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
+      body: JSON.stringify({
+        text: sc.texto,
+        model_id: vault.elModel || 'eleven_multilingual_v2',
+        voice_settings: { stability: 0.45, similarity_boost: 0.78 }
+      })
+    });
+    if (!r.ok) throw new Error('ElevenLabs HTTP ' + r.status);
+    const blob = await r.blob();
+    const dur = await medirDuracionAudio(blob);
+    const fileObj = new File([blob], 'voz_' + (idx + 1) + '.mp3', { type: 'audio/mpeg' });
+    const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos('episodios_' + g.id, 'voces/' + Date.now() + '_clip_' + (idx + 1) + '.mp3', fileObj);
+    if (!up.success) throw new Error(up.error || 'Error subiendo MP3');
+    sc.audio_url = up.url;
+    sc.audio_storage = up.rutaStorage;
+    sc.duracion = Number((dur + 0.25).toFixed(2));
+    guardarBiblioteca(true);
+    renderTimeline();
+    toast('Voz generada (' + dur + 's) y guardada en Storage.', 'exito');
+  } catch (err) {
+    toast('Error voz clip #' + (idx + 1) + ': ' + err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Generar Voz ElevenLabs'; }
+  }
+};
+
+window.generarVocesLote = async function() {
+  const g = getEp(); if (!g || !g.escenas || g.escenas.length === 0) return;
+  const btn = document.getElementById('btn-lote-voces');
+  btn.disabled = true; btn.textContent = 'Generando lote...';
+  for (let i = 0; i < g.escenas.length; i++) {
+    if (!g.escenas[i].audio_url && g.escenas[i].texto && g.escenas[i].texto.trim()) {
+      await window.generarVozClip(i);
+    }
+  }
+  btn.disabled = false; btn.textContent = 'Voces ElevenLabs (Lote)';
+};
+
+function base64ABlob(b64, mime) {
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime || 'image/png' });
+}
+
+window.generarPlanoClip = async function(idx) {
+  const g = getEp(); const sc = g && g.escenas ? g.escenas[idx] : null;
+  if (!sc) return;
+  const key = vault.gemImgKey || vault.keys.gemini;
+  if (!key) { toast('Configura una API Key de Gemini en el botón APIs.', 'error'); return; }
+  const model = vault.gemImgModel || 'gemini-2.5-flash-image';
+  const per = biblioteca.personajes.find(function(p) { return p.id === sc.actor; });
+  const escObj = biblioteca.escenarios.find(function(e) { return e.id === (sc.escenario || g.escenario_id); });
+
+  const promptFinal = 'Vertical 9:16 2D cartoon animation frame, BoJack Horseman art style, clean black ink outlines, flat vibrant colors, no text or speech bubbles. ' +
+    'Character: ' + (per ? (per.raza + ', ' + per.contextura + ', ' + per.pelaje_rasgos + ', wearing ' + per.vestuario_base) : sc.actor) + '. ' +
+    'Expression: ' + (sc.ojos || 'neutro') + '. Setting: ' + (escObj ? (escObj.nombre + ', ' + escObj.iluminacion) : 'Colombian urban setting') + '. ' +
+    'Action: ' + (sc.prompt_plano || sc.texto || 'talking expressively') + '.';
+
+  const btn = document.getElementById('btn-gen-img-clip');
+  if (btn) { btn.disabled = true; btn.textContent = 'Dibujando...'; }
+  try {
+    let b64 = null, mime = 'image/png';
+    if (model.indexOf('imagen-') === 0) {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':predict?key=' + encodeURIComponent(key), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instances: [{ prompt: promptFinal }], parameters: { sampleCount: 1, aspectRatio: '9:16' } })
+      });
+      if (!r.ok) throw new Error('Imagen HTTP ' + r.status);
+      const j = await r.json();
+      if (j.predictions && j.predictions[0] && j.predictions[0].bytesBase64Encoded) {
+        b64 = j.predictions[0].bytesBase64Encoded;
+        mime = j.predictions[0].mimeType || 'image/png';
+      }
+    } else {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(key), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: promptFinal }] }],
+          generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
+        })
+      });
+      if (!r.ok) throw new Error('Gemini Image HTTP ' + r.status);
+      const j = await r.json();
+      const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
+      for (let i = 0; i < parts.length; i++) {
+        if (parts[i].inlineData && parts[i].inlineData.data) {
+          b64 = parts[i].inlineData.data;
+          mime = parts[i].inlineData.mimeType || 'image/png';
+          break;
+        }
+      }
+    }
+    if (!b64) throw new Error('El modelo no devolvió datos de imagen.');
+    const blob = base64ABlob(b64, mime);
+    const fileObj = new File([blob], 'plano_' + (idx + 1) + '.png', { type: mime });
+    const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos('episodios_' + g.id, 'planos/' + Date.now() + '_clip_' + (idx + 1) + '.png', fileObj);
+    if (!up.success) throw new Error(up.error || 'Error subiendo plano');
+    sc.plano_url = up.url;
+    sc.plano_storage = up.rutaStorage;
+    sc.modo = 'plano';
+    guardarBiblioteca(true);
+    renderTimeline();
+    window.renderPreviewCanvas();
+    toast('Plano IA generado y guardado en el clip #' + (idx + 1) + '.', 'exito');
+  } catch (err) {
+    toast('Error generando imagen: ' + err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Generar Imagen Gemini'; }
+  }
+};
+
+window.generarPlanosLote = async function() {
+  const g = getEp(); if (!g || !g.escenas) return;
+  const btn = document.getElementById('btn-lote-planos');
+  btn.disabled = true; btn.textContent = 'Dibujando lote...';
+  for (let i = 0; i < g.escenas.length; i++) {
+    if (g.escenas[i].modo === 'plano' && !g.escenas[i].plano_url) {
+      await window.generarPlanoClip(i);
+    }
+  }
+  btn.disabled = false; btn.textContent = 'Planos Gemini (Lote)';
+};
+
+window.quitarPlanoClip = function(idx) {
+  const g = getEp(); const sc = g && g.escenas ? g.escenas[idx] : null;
+  if (!sc) return;
+  sc.plano_url = ''; sc.modo = 'rig';
+  guardarBiblioteca(true); renderTimeline(); window.renderPreviewCanvas();
+};
+
+// =========================================================================
+// 6. MOTOR DE PREVISUALIZACIÓN 9:16 Y PLAYBACK EN LÍNEA DE TIEMPO
+// =========================================================================
+function cargarImg(url) {
+  return new Promise(function(resolve) {
+    if (!url) { resolve(null); return; }
+    if (imgCache[url]) { resolve(imgCache[url]); return; }
+    const im = new Image();
+    im.onload = function() { imgCache[url] = im; resolve(im); };
+    im.onerror = function() { resolve(null); };
+    im.src = url;
+  });
+}
+
+function dibujarTextoSubtitulo(ctx, texto) {
+  if (!texto || !texto.trim()) return;
+  const palabras = texto.trim().split(/\s+/);
+  const lineas = [];
+  let act = '';
+  palabras.forEach(function(w) {
+    if ((act + ' ' + w).trim().length > 26) { if (act) lineas.push(act); act = w; }
+    else act = (act + ' ' + w).trim();
+  });
+  if (act) lineas.push(act);
+  const visibles = lineas.slice(0, 3);
+  ctx.save();
+  ctx.font = '900 26px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = 'rgba(0,0,0,0.92)';
+  ctx.fillStyle = '#ffffff';
+  const yBase = 710 - (visibles.length - 1) * 30;
+  visibles.forEach(function(l, i) {
+    ctx.strokeText(l, 270, yBase + i * 32);
+    ctx.fillText(l, 270, yBase + i * 32);
+  });
+  ctx.restore();
+}
+
+window.renderPreviewCanvas = async function(bocaForzada) {
+  const cv = document.getElementById('canvas-preview');
+  const g = getEp();
+  if (!cv || !g) return;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, 540, 960);
+
+  const sc = (g.escenas || [])[clipSelIdx];
+  if (!sc) {
+    ctx.fillStyle = '#64748b'; ctx.font = '700 18px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('Sin escenas en el timeline', 270, 480);
+    return;
+  }
+
+  if (sc.modo === 'plano' && sc.plano_url) {
+    const imPlano = await cargarImg(sc.plano_url);
+    if (imPlano) {
+      const r = Math.max(540 / imPlano.width, 960 / imPlano.height);
+      const dw = imPlano.width * r, dh = imPlano.height * r;
+      ctx.drawImage(imPlano, (540 - dw) / 2, (960 - dh) / 2, dw, dh);
+    }
+  } else {
+    const escObj = biblioteca.escenarios.find(function(e) { return e.id === (sc.escenario || g.escenario_id); }) || biblioteca.escenarios[0];
+    const zObj = escObj ? ((escObj.zonas || []).find(function(z) { return z.id === (sc.zona || g.zona_id); }) || escObj.zonas[0]) : null;
+    const imFondo = zObj && zObj.fondo ? await cargarImg(zObj.fondo.url) : null;
+    const imFrente = zObj && zObj.frente ? await cargarImg(zObj.frente.url) : null;
+
+    const zoom = sc.camara === 'zoom_actor' ? 1.18 : 1.0;
+    const panX = sc.camara === 'izq' ? 140 : (sc.camara === 'der' ? -140 : 0);
+
+    if (imFondo) {
+      const dw = 960 * zoom, dh = 960 * zoom;
+      ctx.drawImage(imFondo, (540 - dw) / 2 + panX, (960 - dh) / 2, dw, dh);
+    }
+
+    const per = biblioteca.personajes.find(function(p) { return p.id === sc.actor; });
+    if (per && per.piezas) {
+      const pz = per.piezas;
+      const bocaKey = bocaForzada || 'boca_cerrada';
+      const ojosKey = 'ojos_' + (sc.ojos || 'neutro');
+      const capas = ['brazo_trasero_reposo', 'pierna_trasera', 'pierna_delantera', 'cuerpo_base', 'cabeza_base', ojosKey, bocaKey, 'brazo_delantero_reposo'];
+      const imgs = await Promise.all(capas.map(function(k) { return cargarImg(pz[k] ? pz[k].url : null); }));
+      const hayPiezas = imgs.some(Boolean);
+      const imMaestro = !hayPiezas && pz.maestro_cuerpo ? await cargarImg(pz.maestro_cuerpo.url) : null;
+
+      const xPos = sc.posicion === 'izq' ? 175 : (sc.posicion === 'der' ? 365 : 270);
+      const flip = sc.posicion === 'der';
+      const scPer = 0.44 * zoom;
+      ctx.save();
+      ctx.translate(xPos + panX * 0.45, 530);
+      if (flip) ctx.scale(-1, 1);
+      if (hayPiezas) {
+        imgs.forEach(function(im) { if (im) ctx.drawImage(im, -500 * scPer, -800 * scPer, 1000 * scPer, 1600 * scPer); });
+      } else if (imMaestro) {
+        ctx.drawImage(imMaestro, -500 * scPer, -800 * scPer, 1000 * scPer, 1600 * scPer);
+      }
+      ctx.restore();
+    }
+
+    if (imFrente) {
+      const dw = 960 * zoom, dh = 960 * zoom;
+      ctx.drawImage(imFrente, (540 - dw) / 2 + panX, (960 - dh) / 2, dw, dh);
+    }
+
+    if (sc.prop) {
+      const pr = (biblioteca.props || []).find(function(x) { return x.id === sc.prop; });
+      if (pr && pr.archivo && pr.archivo.url) {
+        const imPr = await cargarImg(pr.archivo.url);
+        if (imPr) ctx.drawImage(imPr, 320, 210, 150, 150);
+      }
+    }
+  }
+
+  dibujarTextoSubtitulo(ctx, sc.texto || '');
+
+  if (document.getElementById('chk-safe-zones').checked) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.16)';
+    ctx.fillRect(0, 768, 540, 192);
+    ctx.fillRect(455, 420, 85, 348);
+    ctx.strokeStyle = 'rgba(239, 68, 68, 0.55)'; ctx.setLineDash([8, 6]);
+    ctx.strokeRect(10, 80, 440, 680);
+    ctx.restore();
+  }
+};
+
+function fmtSeg(s) {
+  const n = Math.max(0, Math.floor(s));
+  return String(Math.floor(n / 60)).padStart(2, '0') + ':' + String(n % 60).padStart(2, '0');
+}
+
+function actualizarPlayheadUI(seg) {
+  const tot = duracionTotalEp();
+  const tc = document.getElementById('txt-timecode');
+  if (tc) tc.textContent = fmtSeg(seg) + ' / ' + fmtSeg(tot);
+  const ph = document.getElementById('tl-playhead');
+  if (ph) ph.style.left = (74 + Math.round(seg * zoomPxSeg)) + 'px';
+}
+
+window.detenerTimeline = function() {
+  reproduciendo = false;
+  if (playRaf) { cancelAnimationFrame(playRaf); playRaf = null; }
+  const aud = document.getElementById('audio-player-tl');
+  if (aud) { aud.pause(); aud.currentTime = 0; }
+  clipSonandoIdx = -1;
+  playOffsetSeg = 0;
+  const b = document.getElementById('btn-play-tl');
+  if (b) b.textContent = 'Play';
+  actualizarPlayheadUI(0);
+  window.renderPreviewCanvas('boca_cerrada');
+};
+
+window.togglePlayTimeline = function() {
+  const g = getEp();
+  if (!g || !g.escenas || g.escenas.length === 0) { toast('No hay clips para reproducir.', 'info'); return; }
+  if (reproduciendo) {
+    reproduciendo = false;
+    if (playRaf) cancelAnimationFrame(playRaf);
+    document.getElementById('audio-player-tl').pause();
+    document.getElementById('btn-play-tl').textContent = 'Play';
+    return;
+  }
+  const tot = duracionTotalEp();
+  if (playOffsetSeg >= tot - 0.1) playOffsetSeg = 0;
+  reproduciendo = true;
+  clipSonandoIdx = -1;
+  playInicioMs = performance.now() - playOffsetSeg * 1000;
+  document.getElementById('btn-play-tl').textContent = 'Pausa';
+
+  const tick = function(now) {
+    if (!reproduciendo) return;
+    const t = (now - playInicioMs) / 1000;
+    const total = duracionTotalEp();
+    if (t >= total) { window.detenerTimeline(); return; }
+    playOffsetSeg = t;
+    actualizarPlayheadUI(t);
+
+    let acum = 0, idxAct = 0;
+    for (let i = 0; i < g.escenas.length; i++) {
+      const d = Number(g.escenas[i].duracion) || 3;
+      if (t < acum + d || i === g.escenas.length - 1) { idxAct = i; break; }
+      acum += d;
+    }
+
+    if (idxAct !== clipSonandoIdx) {
+      clipSonandoIdx = idxAct;
+      clipSelIdx = idxAct;
+      renderTimeline();
+      const sc = g.escenas[idxAct];
+      const aud = document.getElementById('audio-player-tl');
+      if (sc.audio_url) {
+        aud.src = sc.audio_url;
+        aud.currentTime = Math.max(0, t - acum);
+        aud.play().catch(function() {});
+      } else {
+        aud.pause();
+      }
+    }
+
+    const scAct = g.escenas[idxAct];
+    const fase = Math.floor(t * 7) % 3;
+    const boca = (scAct && scAct.texto && scAct.texto.trim())
+      ? (fase === 0 ? 'boca_cerrada' : (fase === 1 ? 'boca_media' : 'boca_abierta'))
+      : 'boca_cerrada';
+    window.renderPreviewCanvas(boca);
+    playRaf = requestAnimationFrame(tick);
+  };
+  playRaf = requestAnimationFrame(tick);
+};
+
+window.exportarPaqueteEpisodio = function() {
+  const g = getEp(); if (!g) return;
+  const descargas = [];
+  (g.escenas || []).forEach(function(sc, idx) {
+    if (sc.audio_url) descargas.push({ ruta_local: 'episodios/' + g.id + '/voces/clip_' + (idx + 1) + '.mp3', url: sc.audio_url });
+    if (sc.plano_url) descargas.push({ ruta_local: 'episodios/' + g.id + '/medios/plano_' + (idx + 1) + '.png', url: sc.plano_url });
+  });
+  const payload = { episodio: g, descargas_episodio: descargas, biblioteca: biblioteca, exportado_en: new Date().toISOString() };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
+  a.download = g.id + '_produccion_termux.json';
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+  toast('Paquete ' + g.id + '_produccion_termux.json descargado (' + descargas.length + ' medios).', 'exito');
+};
+
+// =========================================================================
+// 7. PUENTE POSTMESSAGE CON PIRO-SHELL
+// =========================================================================
+window.addEventListener('message', function(e) {
+  if (!e.data || !e.data.tipo) return;
+  if (e.data.tipo === 'PIRO_SHELL_AUTH' || e.data.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA') {
+    cargarBiblioteca();
+  } else if (e.data.tipo === 'PIRO_EDITOR_ABRIR_EPISODIO') {
+    cargarBiblioteca().then(function() {
+      if (e.data.episodioId) epIdActivo = e.data.episodioId;
+      clipSelIdx = 0;
+      renderTodo();
+      window.setVistaEditor('timeline');
+    });
+  }
+});
+
+cargarVault();
+GeokatuDB.SecurityService.observarEstadoSesion(function(user) {
+  if (user) cargarBiblioteca();
+});
+</script>
+</body>
+</html>
