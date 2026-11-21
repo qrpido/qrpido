@@ -3569,14 +3569,149 @@ obtenerContactoComercio: async (idNegocio) => {
         // MOTOR CANÓNICO FISCAL: ESTÁNDAR NEUTRAL UBL 2.1 / DIAN MULTI-PROVEEDOR
         // =========================================================================
 obtenerDestinoPOS: async (idNegocio) => {
-            let pais = localStorage.getItem('geokatu_pais_' + idNegocio);
-            if (!pais) {
-                const res = await GeokatuDB.LocalService.getDetails(idNegocio);
-                pais = (res.data && res.data.pais) ? res.data.pais : "COL";
-                localStorage.setItem('geokatu_pais_' + idNegocio, pais);
-            }
-            return pais === "VEN" ? "/posven" : "/pos";
-        },
+ let pais = localStorage.getItem('geokatu_pais_' + idNegocio);
+ if (!pais) {
+ const res = await GeokatuDB.LocalService.getDetails(idNegocio);
+ pais = (res.data && res.data.pais) ? res.data.pais : "COL";
+ localStorage.setItem('geokatu_pais_' + idNegocio, pais);
+ }
+ return pais === "VEN" ? "/posven" : "/pos";
+ },
+
+ obtenerCajasComercio: async (idNegocio, forzarRed = false) => {
+ const tenantReal = idNegocio || localStorage.getItem('geokatu_active_uid');
+ const cajaDefault = [{ id: 'CAJA-01', nombre: 'Caja Principal', sede: 'SALA_VENTAS', activa: true }];
+ if (!tenantReal) return { success: true, data: cajaDefault };
+ const claveCache = 'geokatu_cajas_pos_' + tenantReal;
+ const normalizarLista = function(arr) {
+ if (!Array.isArray(arr) || arr.length === 0) return cajaDefault.slice();
+ const vistos = {};
+ const out = [];
+ arr.forEach(function(item, idx) {
+ if (!item) return;
+ const idRaw = String(item.id || ('CAJA-' + String(idx + 1).padStart(2, '0'))).toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+ if (!idRaw || vistos[idRaw]) return;
+ vistos[idRaw] = true;
+ out.push({
+ id: idRaw,
+ nombre: String(item.nombre || idRaw).trim(),
+ sede: String(item.sede || 'SALA_VENTAS').trim(),
+ activa: item.activa !== false
+ });
+ });
+ if (!vistos['CAJA-01']) out.unshift(cajaDefault[0]);
+ return out;
+ };
+ let cacheLocal = null;
+ try {
+ const raw = localStorage.getItem(claveCache);
+ if (raw) cacheLocal = normalizarLista(JSON.parse(raw));
+ } catch (eC) { cacheLocal = null; }
+ if (cacheLocal && (!navigator.onLine || !forzarRed)) {
+ return { success: true, data: cacheLocal, origen: 'cache' };
+ }
+ if (!navigator.onLine) {
+ return { success: true, data: cajaDefault.slice(), origen: 'default_offline' };
+ }
+ try {
+ if (forzarRed) delete _cacheLocales[tenantReal];
+ const info = await GeokatuDB.LocalService.getDetails(tenantReal);
+ const dNeg = (info && info.success && info.data) ? info.data : {};
+ const lista = normalizarLista(dNeg.cajas_pos);
+ localStorage.setItem(claveCache, JSON.stringify(lista));
+ return { success: true, data: lista, origen: 'nube' };
+ } catch (e) {
+ return { success: true, data: cacheLocal || cajaDefault.slice(), origen: 'fallback', error: e.message };
+ }
+ },
+
+ guardarCajasComercio: async (idNegocio, cajasArray) => {
+ if (!_verificarAcceso()) return { success: false, error: 'Sesion no autorizada.' };
+ const tenantReal = idNegocio || localStorage.getItem('geokatu_active_uid');
+ if (!tenantReal) return { success: false, error: 'Comercio no identificado.' };
+ const vistos = {};
+ const limpias = [];
+ (Array.isArray(cajasArray) ? cajasArray : []).forEach(function(item, idx) {
+ if (!item) return;
+ const idRaw = String(item.id || ('CAJA-' + String(idx + 1).padStart(2, '0'))).toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+ if (!idRaw || vistos[idRaw]) return;
+ vistos[idRaw] = true;
+ limpias.push({
+ id: idRaw,
+ nombre: String(item.nombre || idRaw).trim().slice(0, 40),
+ sede: String(item.sede || 'SALA_VENTAS').trim(),
+ activa: idRaw === 'CAJA-01' ? true : (item.activa !== false)
+ });
+ });
+ if (!vistos['CAJA-01']) {
+ limpias.unshift({ id: 'CAJA-01', nombre: 'Caja Principal', sede: 'SALA_VENTAS', activa: true });
+ }
+ const claveCache = 'geokatu_cajas_pos_' + tenantReal;
+ localStorage.setItem(claveCache, JSON.stringify(limpias));
+ delete _cacheLocales[tenantReal];
+ if (!navigator.onLine) {
+ return { success: true, data: limpias, offline: true };
+ }
+ try {
+ await setDoc(doc(db, _SCHEMA.ColeccionDirectorio, tenantReal), {
+ cajas_pos: limpias,
+ fecha_actualizacion: new Date().toISOString()
+ }, { merge: true });
+ return { success: true, data: limpias, offline: false };
+ } catch (e) {
+ return { success: false, error: e.message, data: limpias };
+ }
+ },
+
+ obtenerEstadoTodasCajas: async (idNegocio, listaCajas) => {
+ const tenantReal = idNegocio || localStorage.getItem('geokatu_active_uid');
+ if (!tenantReal) return { success: false, data: {} };
+ let cajas = Array.isArray(listaCajas) ? listaCajas : null;
+ if (!cajas) {
+ const resC = await GeokatuDB.PosService.obtenerCajasComercio(tenantReal, false);
+ cajas = (resC && resC.data) ? resC.data : [{ id: 'CAJA-01', nombre: 'Caja Principal', sede: 'SALA_VENTAS', activa: true }];
+ }
+ const estados = {};
+ cajas.forEach(function(c) {
+ estados[c.id] = { estado: 'CERRADA', cajero: '', id_sesion: null, fecha_apertura: null, ultimo_cierre: null };
+ try {
+ const rawLoc = localStorage.getItem('geokatu_caja_activa_' + tenantReal + '_' + c.id);
+ if (rawLoc) {
+ const dLoc = JSON.parse(rawLoc);
+ if (dLoc && dLoc.estado === 'ABIERTA') {
+ estados[c.id] = {
+ estado: 'ABIERTA',
+ cajero: dLoc.cajero || 'CAJERO',
+ id_sesion: dLoc.id_sesion || null,
+ fecha_apertura: dLoc.fecha_apertura || null,
+ ultimo_cierre: null
+ };
+ }
+ }
+ } catch (eL) {}
+ });
+ if (!navigator.onLine || !_verificarAcceso()) {
+ return { success: true, data: estados, offline: true };
+ }
+ try {
+ const snap = await getDocs(collection(db, _SCHEMA.ColeccionDirectorio + '/' + tenantReal + '/Sesiones_Caja'));
+ snap.forEach(function(docSnap) {
+ if (docSnap.id.indexOf('Turno_') !== 0) return;
+ const cajaId = docSnap.id.replace('Turno_', '');
+ const d = docSnap.data() || {};
+ estados[cajaId] = {
+ estado: d.estado === 'ABIERTA' ? 'ABIERTA' : 'CERRADA',
+ cajero: d.cajero || '',
+ id_sesion: d.id_sesion || null,
+ fecha_apertura: d.fecha_apertura || null,
+ ultimo_cierre: d.ultimo_cierre || null
+ };
+ });
+ return { success: true, data: estados, offline: false };
+ } catch (e) {
+ return { success: true, data: estados, offline: true, error: e.message };
+ }
+ },
 
 // =========================================================================
         // CONFIGURACIÓN POS, GOOGLE SHEETS (APPS SCRIPT) Y CORNETA DE VOZ
