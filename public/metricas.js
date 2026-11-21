@@ -185,8 +185,9 @@ function hidratarDesdeCacheLocal() {
     const claveCacheCat = `geokatu_catalogo_${AppState.idNegocio}`;
     AppState.catalogoLocal = JSON.parse(localStorage.getItem(claveCacheCat) || "[]");
 
-    const claveCaja = `geokatu_caja_activa_${AppState.idNegocio}_CAJA-01`;
-    const cajaData = JSON.parse(localStorage.getItem(claveCaja) || "null");
+     const cajaActiva = localStorage.getItem('geokatu_caja_num') || 'CAJA-01';
+ const claveCaja = 'geokatu_caja_activa_' + AppState.idNegocio + '_' + cajaActiva;
+ const cajaData = JSON.parse(localStorage.getItem(claveCaja) || "null");
 
     const turnoBadge = document.getElementById('badge-turno-estado');
     const sesionSpan = document.getElementById('id-sesion-activa');
