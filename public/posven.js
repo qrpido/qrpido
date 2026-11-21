@@ -349,6 +349,35 @@ document.getElementById('btn-guardar-tasas')?.addEventListener('click', () => {
 // =========================================================================
 // 4. SANITIZACIÓN Y MOTOR DE BALANZA / CÓDIGO DE BARRAS
 // =========================================================================
+function escaparHtmlPos(texto) {
+ if (texto === null || texto === undefined) return '';
+ return String(texto)
+ .replace(/&/g, '&amp;')
+ .replace(/</g, '&lt;')
+ .replace(/>/g, '&gt;')
+ .replace(/"/g, '&quot;')
+ .replace(/'/g, '&#39;');
+}
+
+function imprimirTirillaPosVen(onDespues) {
+ let limpiado = false;
+ const limpiarModo = function() {
+ if (limpiado) return;
+ limpiado = true;
+ document.body.classList.remove('modo-print-ticket');
+ window.removeEventListener('afterprint', limpiarModo);
+ if (typeof onDespues === 'function') onDespues();
+ };
+ document.body.classList.remove('modo-print-qr');
+ document.body.classList.add('modo-print-ticket');
+ window.addEventListener('afterprint', limpiarModo);
+ try {
+ window.print();
+ } finally {
+ setTimeout(limpiarModo, 1200);
+ }
+}
+
 function sanitizarCantidadSegura(valor, esPesable = false, maximoPermitido = 9999.999) {
     if (valor === null || valor === undefined) return null;
     const num = Number(valor);
@@ -563,51 +592,56 @@ function renderizarCarrito() {
     const badge = document.getElementById('cant-items-badge');
     if (badge) badge.innerText = `${carrito.length} ${carrito.length === 1 ? 'línea' : 'líneas'}`;
 
-    if (carrito.length === 0) {
-        contenedor.innerHTML = '<p style="text-align: center; color: #555; margin-top: 50px; font-size: 13px;">El carrito está vacío.<br>Escanea un producto para comenzar.</p>';
-        document.getElementById('txt-base-usd').innerText = '$0.00';
-        document.getElementById('txt-iva-usd').innerText = '$0.00';
-        document.getElementById('txt-igtf-usd').innerText = '$0.00';
-        document.getElementById('txt-exento-usd').innerText = '$0.00';
-        document.getElementById('txt-total-ves').innerText = 'Bs. 0,00';
-        document.getElementById('txt-total-cop').innerText = '$0 COP';
-        document.getElementById('txt-total').innerText = '$0.00';
-        actualizarVisorRemanente();
-        return;
-    }
+     if (carrito.length === 0) {
+ contenedor.innerHTML = '<p style="text-align: center; color: #555; margin-top: 50px; font-size: 13px;">El carrito está vacío.<br>Escanea un producto para comenzar.</p>';
+ document.getElementById('txt-base-usd').innerText = '$0.00';
+ document.getElementById('txt-iva-usd').innerText = '$0.00';
+ document.getElementById('txt-igtf-usd').innerText = '$0.00';
+ document.getElementById('txt-exento-usd').innerText = '$0.00';
+ document.getElementById('txt-total-ves').innerText = 'Bs. 0,00';
+ document.getElementById('txt-total-cop').innerText = '$0 COP';
+ document.getElementById('txt-total').innerText = '$0.00';
+ actualizarBotonExpandirTicket_();
+ actualizarVisorRemanente();
+ return;
+ }
 
-    carrito.forEach((item, idx) => {
-        const subtotalLinea = item.precio_fijado_balanza 
-            ? Number(item.precio) 
-            : Number((Number(item.precio) * item.cantidad).toFixed(2));
-        const subtotalVES = convertirUSDaVES(subtotalLinea);
+ carrito.forEach(function(item, idx) {
+ const subtotalLinea = item.precio_fijado_balanza
+ ? Number(item.precio)
+ : Number((Number(item.precio) * item.cantidad).toFixed(2));
+ const subtotalVES = convertirUSDaVES(subtotalLinea);
+ const notaHtml = item.nota ? ('<div class="cart-item-nota">Nota: ' + escaparHtmlPos(item.nota) + '</div>') : '';
+ const pasoStr = item.es_pesable ? '0.001' : '1';
+ const subtituloPrecio = item.precio_fijado_balanza
+ ? ('Etiqueta Balanza (' + item.cantidad + ' ' + escaparHtmlPos(item.unidad_medida) + ')')
+ : ('$' + Number(item.precio).toFixed(2) + ' / ' + escaparHtmlPos(item.unidad_medida) + ' <span style="color:#60a5fa;">(~Bs. ' + convertirUSDaVES(item.precio).toFixed(2) + ')</span>');
 
-        const card = document.createElement('div');
-        card.className = 'cart-card';
-        card.innerHTML = `
-            <div class="cart-card-info">
-                <div style="display: flex; align-items: center; justify-content: space-between;">
-                    <h4>${item.nombre}</h4>
-                    <button type="button" onclick="window.agregarNotaItem(${idx})" title="Añadir nota" style="background:none; border:none; color:#888; cursor:pointer; font-size:11px;">✏️ Nota</button>
-                </div>
-                <p>$${Number(item.precio).toFixed(2)} / ${item.unidad_medida} <span style="color:#60a5fa;">(~Bs. ${convertirUSDaVES(item.precio).toFixed(2)})</span></p>
-                ${item.nota ? `<div class="cart-item-nota">📝 ${item.nota}</div>` : ''}
-            </div>
-            <div class="cart-controls">
-                <button class="qty-btn btn-menos" data-idx="${idx}">-</button>
-                <input type="number" class="qty-input-direct" data-idx="idx"step="{item.es_pesable ? '0.001' : '1'}" min="item.espesable?'0.001':'1'"value="{item.cantidad}">
-                <button class="qty-btn btn-mas" data-idx="${idx}">+</button>
-            </div>
-            <div class="cart-card-subtotal" style="text-align: right;">
-                <div>$${subtotalLinea.toFixed(2)}</div>
-                <div style="font-size: 10px; color: #60a5fa; font-weight: normal;">Bs. ${subtotalVES.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</div>
-            </div>
-            <button class="btn-remove-item" data-idx="${idx}">
-                <svg class="icono-pos" style="font-size: 18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>
-            </button>
-        `;
-        contenedor.appendChild(card);
-    });
+ const card = document.createElement('div');
+ card.className = 'cart-card';
+ card.innerHTML =
+ '<div class="cart-card-info">' +
+ '<div style="display: flex; align-items: center; justify-content: space-between;">' +
+ '<h4>' + escaparHtmlPos(item.nombre) + '</h4>' +
+ '<button type="button" onclick="window.agregarNotaItem(' + idx + ')" title="Añadir nota" style="background:none; border:none; color:#888; cursor:pointer; font-size:11px;">Nota</button>' +
+ '</div>' +
+ '<p>' + subtituloPrecio + '</p>' +
+ notaHtml +
+ '</div>' +
+ '<div class="cart-controls">' +
+ '<button type="button" class="qty-btn btn-menos" data-idx="' + idx + '">-</button>' +
+ '<input type="number" class="qty-input-direct" data-idx="' + idx + '" step="' + pasoStr + '" min="' + pasoStr + '" value="' + item.cantidad + '">' +
+ '<button type="button" class="qty-btn btn-mas" data-idx="' + idx + '">+</button>' +
+ '</div>' +
+ '<div class="cart-card-subtotal" style="text-align: right;">' +
+ '<div>$' + subtotalLinea.toFixed(2) + '</div>' +
+ '<div style="font-size: 10px; color: #60a5fa; font-weight: normal;">Bs. ' + subtotalVES.toLocaleString('es-VE', { minimumFractionDigits: 2 }) + '</div>' +
+ '</div>' +
+ '<button type="button" class="btn-remove-item" data-idx="' + idx + '">' +
+ '<svg class="icono-pos" style="font-size: 18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>' +
+ '</button>';
+ contenedor.appendChild(card);
+ });
 
     contenedor.querySelectorAll('.btn-menos').forEach(b => b.onclick = () => modificarCantidad(Number(b.dataset.idx), -1));
     contenedor.querySelectorAll('.btn-mas').forEach(b => b.onclick = () => modificarCantidad(Number(b.dataset.idx), 1));
@@ -646,21 +680,25 @@ function renderizarGridCatalogo() {
         return;
     }
 
-    const planActualCat = (localStorage.getItem('geokatu_plan_activo_' + idNegocio) || 'FREEMIUM').toUpperCase();
-    const limiteCat = planActualCat === 'FREEMIUM' ? 150 : catalogoLocal.length;
-    catalogoLocal.slice(0, limiteCat).forEach(prod => {
-        const item = document.createElement('div');
-        item.className = 'product-row-item';
-        item.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <svg class="icono-pos" style="color: var(--color-marca); font-size: 18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m3 7 9-5 9 5v11l-9 4-9-4V7zm0 0 9 5 9-5M12 12v10"/></svg>
-                <span class="item-title">${prod.nombre}</span>
-            </div>
-            <div style="text-align: right;">
-                <span class="item-price">$Number(prod.precio).toFixed(2){prod.es_pesable ? '/kg' : ''}</span>
-                <span style="display: block; font-size: 10px; color: #60a5fa; font-family: monospace;">Bs. ${convertirUSDaVES(prod.precio).toFixed(2)}</span>
-            </div>
-        `;
+     let planActualCat = 'FREEMIUM';
+ try {
+ const cfgCat = JSON.parse(localStorage.getItem('geokatu_pos_config_' + idNegocio) || '{}');
+ planActualCat = String(cfgCat.plan_activo || localStorage.getItem('geokatu_plan_activo_' + idNegocio) || 'FREEMIUM').toUpperCase();
+ } catch (ePlan) {}
+ const limiteCat = planActualCat === 'FREEMIUM' ? 150 : catalogoLocal.length;
+ catalogoLocal.slice(0, limiteCat).forEach(function(prod) {
+ const item = document.createElement('div');
+ item.className = 'product-row-item';
+ const sufijoPeso = prod.es_pesable ? '/kg' : '';
+ item.innerHTML =
+ '<div style="display: flex; align-items: center; gap: 8px;">' +
+ '<svg class="icono-pos" style="color: var(--color-marca); font-size: 18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m3 7 9-5 9 5v11l-9 4-9-4V7zm0 0 9 5 9-5M12 12v10"/></svg>' +
+ '<span class="item-title">' + escaparHtmlPos(prod.nombre) + '</span>' +
+ '</div>' +
+ '<div style="text-align: right;">' +
+ '<span class="item-price">$' + Number(prod.precio || 0).toFixed(2) + sufijoPeso + '</span>' +
+ '<span style="display: block; font-size: 10px; color: #60a5fa; font-family: monospace;">Bs. ' + convertirUSDaVES(prod.precio).toFixed(2) + '</span>' +
+ '</div>';
 
         item.onclick = () => {
             const modalCat = document.getElementById('modal-catalogo-popup');
@@ -709,14 +747,20 @@ function actualizarVisorRemanente() {
         lblEstado.style.color = remanenteUSD === 0 && pagadoUSD > 0 ? "var(--accent-green)" : "#ffaa00";
     }
 
-    if (contenedorAbonos) {
-        contenedorAbonos.innerHTML = pagosAcumuladosTicket.map(p => 
-            `<span style="background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px;">
-                ${p.metodo}: ${p.moneda_original === 'USD' ? `$p.montooriginal.toFixed(2)`:(p.monedaoriginal==='VES'?`Bs.p.montooriginal.toLocaleString('es-VE')`:`{p.monto_original.toLocaleString('es-CO')} COP`)}
-                <span style="opacity: 0.7;">(eq. $${p.monto_usd_equivalente.toFixed(2)})</span>
-            </span>`
-        ).join('');
-    }
+     if (contenedorAbonos) {
+ contenedorAbonos.innerHTML = pagosAcumuladosTicket.map(function(p) {
+ const mOrig = Number(p.monto_original || 0);
+ const mTxt = p.moneda_original === 'USD'
+ ? ('$' + mOrig.toFixed(2))
+ : (p.moneda_original === 'VES'
+ ? ('Bs. ' + mOrig.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+ : ('$' + mOrig.toLocaleString('es-CO') + ' COP'));
+ return '<span style="background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px;">' +
+ escaparHtmlPos(p.metodo) + ': ' + mTxt +
+ ' <span style="opacity: 0.7;">(eq. $' + Number(p.monto_usd_equivalente || 0).toFixed(2) + ')</span>' +
+ '</span>';
+ }).join('');
+ }
 
     if (inputAbono && document.activeElement !== inputAbono) {
         if (remanenteUSD > 0) {
@@ -801,11 +845,13 @@ function renderizarBilletesInteligentes(remanenteUSD) {
 // =========================================================================
 // 7. PASARELA DE COBRO MULTIMONEDA (SPLIT PAYMENTS VENEZUELA)
 // =========================================================================
-document.querySelectorAll('.btn-pay').forEach(btn => {
-    btn.addEventListener('click', () => {
-        const metodo = btn.dataset.pago;
-        procesarIntentoPago(metodo);
-    });
+let montoModalVenTemporal = { ves: 0, usd: 0 };
+
+document.querySelectorAll('.btn-pay[data-pago]').forEach(function(btn) {
+ btn.addEventListener('click', function() {
+ const metodo = btn.dataset.pago;
+ if (metodo) procesarIntentoPago(metodo);
+ });
 });
 
 function procesarIntentoPago(metodo) {
@@ -824,46 +870,49 @@ function procesarIntentoPago(metodo) {
     const inputVal = parseFloat(document.getElementById('input-monto-abono').value);
     let valorDigitado = (!isNaN(inputVal) && inputVal > 0) ? inputVal : null;
 
-    // --- COBRO POR PAGO MÓVIL (VES) ---
-    if (metodo === 'PAGO_MOVIL') {
-        const montoVES = valorDigitado && monedaAbonoActiva === 'VES' 
-            ? valorDigitado 
-            : convertirUSDaVES(remanenteUSD);
-        const montoUSDEquiv = convertirVESaUSD(montoVES);
+     // --- COBRO POR PAGO MÓVIL (VES) ---
+ if (metodo === 'PAGO_MOVIL') {
+ const montoVES = valorDigitado && monedaAbonoActiva === 'VES'
+ ? valorDigitado
+ : convertirUSDaVES(remanenteUSD);
+ const montoUSDEquiv = Math.min(convertirVESaUSD(montoVES), remanenteUSD);
+ montoModalVenTemporal = { ves: montoVES, usd: montoUSDEquiv };
 
-        document.getElementById('pm-monto-ves').innerText = `Bs. ${montoVES.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`;
-        document.getElementById('pm-monto-usd-equiv').innerText = `($${montoUSDEquiv.toFixed(2)} USD)`;
-        document.getElementById('pm-referencia').value = '';
-        document.getElementById('modal-pagomovil').style.display = 'flex';
-        document.getElementById('pm-referencia').focus();
-        return;
-    }
+ document.getElementById('pm-monto-ves').innerText = 'Bs. ' + montoVES.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+ document.getElementById('pm-monto-usd-equiv').innerText = '($' + montoUSDEquiv.toFixed(2) + ' USD)';
+ document.getElementById('pm-referencia').value = '';
+ document.getElementById('modal-pagomovil').style.display = 'flex';
+ document.getElementById('pm-referencia').focus();
+ return;
+ }
 
-    // --- COBRO POR PUNTO DE VENTA DÉBITO (VES) ---
-    if (metodo === 'PUNTO_VENTA') {
-        const montoVES = valorDigitado && monedaAbonoActiva === 'VES' 
-            ? valorDigitado 
-            : convertirUSDaVES(remanenteUSD);
-        const montoUSDEquiv = convertirVESaUSD(montoVES);
+ // --- COBRO POR PUNTO DE VENTA DÉBITO (VES) ---
+ if (metodo === 'PUNTO_VENTA') {
+ const montoVES = valorDigitado && monedaAbonoActiva === 'VES'
+ ? valorDigitado
+ : convertirUSDaVES(remanenteUSD);
+ const montoUSDEquiv = Math.min(convertirVESaUSD(montoVES), remanenteUSD);
+ montoModalVenTemporal = { ves: montoVES, usd: montoUSDEquiv };
 
-        document.getElementById('pos-monto-ves').innerText = `Bs. ${montoVES.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`;
-        document.getElementById('pos-monto-usd-equiv').innerText = `($${montoUSDEquiv.toFixed(2)} USD)`;
-        document.getElementById('pos-voucher').value = '';
-        document.getElementById('modal-puntoventa').style.display = 'flex';
-        document.getElementById('pos-voucher').focus();
-        return;
-    }
+ document.getElementById('pos-monto-ves').innerText = 'Bs. ' + montoVES.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+ document.getElementById('pos-monto-usd-equiv').innerText = '($' + montoUSDEquiv.toFixed(2) + ' USD)';
+ document.getElementById('pos-voucher').value = '';
+ document.getElementById('modal-puntoventa').style.display = 'flex';
+ document.getElementById('pos-voucher').focus();
+ return;
+ }
 
-    // --- COBRO POR ZELLE (USD) ---
-    if (metodo === 'ZELLE') {
-        const montoUSD = valorDigitado && monedaAbonoActiva === 'USD' ? valorDigitado : remanenteUSD;
-        document.getElementById('zelle-monto-usd').innerText = `$${montoUSD.toFixed(2)}`;
-        document.getElementById('zelle-titular').value = '';
-        document.getElementById('zelle-referencia').value = '';
-        document.getElementById('modal-zelle').style.display = 'flex';
-        document.getElementById('zelle-titular').focus();
-        return;
-    }
+ // --- COBRO POR ZELLE (USD) ---
+ if (metodo === 'ZELLE') {
+ const montoUSD = valorDigitado && monedaAbonoActiva === 'USD' ? Math.min(valorDigitado, remanenteUSD) : remanenteUSD;
+ montoModalVenTemporal = { ves: convertirUSDaVES(montoUSD), usd: montoUSD };
+ document.getElementById('zelle-monto-usd').innerText = '$' + montoUSD.toFixed(2);
+ document.getElementById('zelle-titular').value = '';
+ document.getElementById('zelle-referencia').value = '';
+ document.getElementById('modal-zelle').style.display = 'flex';
+ document.getElementById('zelle-titular').focus();
+ return;
+ }
 
     // --- COBRO EN EFECTIVO DÓLARES (USD) ---
     if (metodo === 'EFECTIVO_USD') {
@@ -916,39 +965,41 @@ function procesarIntentoPago(metodo) {
 }
 
 // Confirmaciones modales de pago
-document.getElementById('btn-confirmar-pm')?.addEventListener('click', () => {
-    const banco = document.getElementById('pm-banco-origen').value;
-    const telf = document.getElementById('pm-telefono').value.trim();
-    const ref = document.getElementById('pm-referencia').value.trim();
-    if (!ref) return alert("Por favor digita al menos los últimos dígitos de la referencia.");
+document.getElementById('btn-confirmar-pm')?.addEventListener('click', function() {
+ const banco = document.getElementById('pm-banco-origen').value;
+ const telf = document.getElementById('pm-telefono').value.trim();
+ const ref = document.getElementById('pm-referencia').value.trim();
+ if (!ref) return alert("Por favor digita al menos los últimos dígitos de la referencia.");
 
-    const montoVES = Number(document.getElementById('pm-monto-ves').innerText.replace(/[^\d,]/g, '').replace(',', '.'));
-    const equivUSD = convertirVESaUSD(montoVES);
+ const montoVES = Number(montoModalVenTemporal.ves) || 0;
+ const equivUSD = Number(montoModalVenTemporal.usd) || convertirVESaUSD(montoVES);
+ const refTexto = banco + '-' + ref + (telf ? (' (' + telf + ')') : '');
 
-    document.getElementById('modal-pagomovil').style.display = 'none';
-    aplicarAbonoConfirmado('PAGO_MOVIL', 'VES', montoVES, equivUSD, `banco-{ref} (${telf})`);
+ document.getElementById('modal-pagomovil').style.display = 'none';
+ aplicarAbonoConfirmado('PAGO_MOVIL', 'VES', montoVES, equivUSD, refTexto);
 });
 
-document.getElementById('btn-confirmar-pos')?.addEventListener('click', () => {
-    const lote = document.getElementById('pos-lote').value.trim() || "001";
-    const voucher = document.getElementById('pos-voucher').value.trim();
-    if (!voucher) return alert("Digita el número de aprobación del voucher.");
+document.getElementById('btn-confirmar-pos')?.addEventListener('click', function() {
+ const lote = document.getElementById('pos-lote').value.trim() || "001";
+ const voucher = document.getElementById('pos-voucher').value.trim();
+ if (!voucher) return alert("Digita el número de aprobación del voucher.");
 
-    const montoVES = Number(document.getElementById('pos-monto-ves').innerText.replace(/[^\d,]/g, '').replace(',', '.'));
-    const equivUSD = convertirVESaUSD(montoVES);
+ const montoVES = Number(montoModalVenTemporal.ves) || 0;
+ const equivUSD = Number(montoModalVenTemporal.usd) || convertirVESaUSD(montoVES);
 
-    document.getElementById('modal-puntoventa').style.display = 'none';
-    aplicarAbonoConfirmado('PUNTO_VENTA', 'VES', montoVES, equivUSD, `L:lote-A:{voucher}`);
+ document.getElementById('modal-puntoventa').style.display = 'none';
+ aplicarAbonoConfirmado('PUNTO_VENTA', 'VES', montoVES, equivUSD, 'L:' + lote + '-A:' + voucher);
 });
 
-document.getElementById('btn-confirmar-zelle')?.addEventListener('click', () => {
-    const titular = document.getElementById('zelle-titular').value.trim();
-    const memo = document.getElementById('zelle-referencia').value.trim();
-    if (!titular) return alert("Ingresa el nombre del titular emisor.");
+document.getElementById('btn-confirmar-zelle')?.addEventListener('click', function() {
+ const titular = document.getElementById('zelle-titular').value.trim();
+ const memo = document.getElementById('zelle-referencia').value.trim();
+ if (!titular) return alert("Ingresa el nombre del titular emisor.");
 
-    const montoUSD = parseFloat(document.getElementById('zelle-monto-usd').innerText.replace(/[^\d.]/g, ''));
-    document.getElementById('modal-zelle').style.display = 'none';
-    aplicarAbonoConfirmado('ZELLE', 'USD', montoUSD, montoUSD, `${titular} - ${memo}`);
+ const montoUSD = Number(montoModalVenTemporal.usd) || 0;
+ const refZelle = titular + (memo ? (' - ' + memo) : '');
+ document.getElementById('modal-zelle').style.display = 'none';
+ aplicarAbonoConfirmado('ZELLE', 'USD', montoUSD, montoUSD, refZelle);
 });
 
 document.getElementById('btn-cancelar-pm')?.addEventListener('click', () => document.getElementById('modal-pagomovil').style.display = 'none');
@@ -1045,64 +1096,96 @@ async function ejecutarVentaFinalDefinitivaVenInterna() {
         return;
     }
 
-    const totales = calcularTotalesCarrito();
-    const productosAuditados = carrito.map(item => {
-        const sub = item.precio_fijado_balanza ? Number(item.precio) : Number((Number(item.precio) * item.cantidad).toFixed(2));
-        return {
-            id_prod: item.id_prod,
-            codigo_barras: item.codigo_barras || "",
-            nombre: item.nombre,
-            precio: Number(item.precio), // Mandatorio para la validación en core-db.js
-            precio_usd: Number(item.precio),
-            precio_fijado_balanza: Boolean(item.precio_fijado_balanza),
-            cantidad: item.cantidad,
-            subtotal: sub, // Mandatorio para la validación en core-db.js
-            subtotal_usd: sub,
-            impuesto: item.impuesto,
-            es_pesable: item.es_pesable,
-            unidad_medida: item.unidad_medida,
-            nota: item.nota || ""
-        };
-    });
+     const totales = calcularTotalesCarrito();
+ const claveUbisVenta = 'geokatu_stock_ubis_' + idNegocio;
+ let ubicacionesVenta = [];
+ try {
+ const rawU = JSON.parse(localStorage.getItem(claveUbisVenta) || '[]');
+ ubicacionesVenta = Array.isArray(rawU) ? rawU : [];
+ } catch (eU) { ubicacionesVenta = []; }
 
+ const productosAuditados = carrito.map(function(item) {
+ const sub = item.precio_fijado_balanza ? Number(item.precio) : Number((Number(item.precio) * item.cantidad).toFixed(2));
+ let idCompPrincipal = 'BIN_INICIAL';
+ let desgloseUbicaciones = [{ id_compartimiento: 'BIN_INICIAL', cantidad: item.cantidad }];
+ if (item.id_prod && item.id_prod.indexOf('GENERICO_') !== 0) {
+ try {
+ const candidatos = ubicacionesVenta
+ .filter(function(u) { return u.id_prod === item.id_prod && u.zona === 'PISO_VENTA' && Number(u.cantidad) > 0; })
+ .sort(function(a, b) { return Number(b.cantidad) - Number(a.cantidad); });
+ let restante = Number(item.cantidad);
+ desgloseUbicaciones = [];
+ for (let i = 0; i < candidatos.length && restante > 0; i++) {
+ const disp = Number(candidatos[i].cantidad);
+ const quita = Math.min(disp, restante);
+ candidatos[i].cantidad = Number((disp - quita).toFixed(3));
+ restante = Number((restante - quita).toFixed(3));
+ desgloseUbicaciones.push({ id_compartimiento: candidatos[i].id_compartimiento, cantidad: quita });
+ }
+ if (restante > 0) {
+ if (desgloseUbicaciones.length > 0) {
+ desgloseUbicaciones[0].cantidad = Number((desgloseUbicaciones[0].cantidad + restante).toFixed(3));
+ candidatos[0].cantidad = Number((candidatos[0].cantidad - restante).toFixed(3));
+ } else {
+ desgloseUbicaciones.push({ id_compartimiento: 'BIN_INICIAL', cantidad: restante });
+ }
+ }
+ idCompPrincipal = desgloseUbicaciones[0].id_compartimiento;
+ } catch (eCasc) {
+ desgloseUbicaciones = [{ id_compartimiento: 'BIN_INICIAL', cantidad: item.cantidad }];
+ }
+ }
+ return {
+ id_prod: item.id_prod,
+ codigo_barras: item.codigo_barras || "",
+ nombre: item.nombre,
+ precio: Number(item.precio),
+ precio_usd: Number(item.precio),
+ precio_fijado_balanza: Boolean(item.precio_fijado_balanza),
+ cantidad: item.cantidad,
+ subtotal: sub,
+ subtotal_usd: sub,
+ impuesto: item.impuesto,
+ es_pesable: item.es_pesable,
+ unidad_medida: item.unidad_medida,
+ nota: item.nota || "",
+ id_compartimiento: idCompPrincipal,
+ desglose_ubicaciones: desgloseUbicaciones
+ };
+ });
 
-    const switchRif = document.getElementById('switch-rif-cliente');
-    const datosCliente = {
-        rif: switchRif && switchRif.checked 
-            ? `document.getElementById('rif-tipo-doc').value-{document.getElementById('rif-numero').value.trim()}`
-            : "V-00000000",
-        nombre: switchRif && switchRif.checked 
-            ? (document.getElementById('rif-nombre').value.trim() || "Consumidor Final") 
-            : "Consumidor Final",
-        telefono: switchRif && switchRif.checked 
-            ? document.getElementById('rif-telefono').value.trim() 
-            : ""
-    };
+ const switchRif = document.getElementById('switch-rif-cliente');
+ const rifTipoVal = (document.getElementById('rif-tipo-doc')?.value || 'V').trim();
+ const rifNumVal = (document.getElementById('rif-numero')?.value || '').trim();
+ const datosCliente = {
+ rif: (switchRif && switchRif.checked && rifNumVal) ? (rifTipoVal + '-' + rifNumVal) : "V-00000000",
+ nombre: (switchRif && switchRif.checked) ? (document.getElementById('rif-nombre').value.trim() || "Consumidor Final") : "Consumidor Final",
+ telefono: (switchRif && switchRif.checked) ? document.getElementById('rif-telefono').value.trim() : ""
+ };
 
-   const ticketPayload = {
-        id_sesion: turnoCajaActivo.id_sesion,
-        total: totales.totalPagarUSD, // Exigido por regla Firestore
-        metodo_pago: pagosAcumuladosTicket.length === 1 ? pagosAcumuladosTicket[0].metodo : "MIXTO", // Exigido por regla Firestore
-        caja_numero: cajaNumeroActiva,
-        codigo_cajero: cajeroCodigoActivo,
-        cajero_email: auth.currentUser ? auth.currentUser.email : "CAJERO",
-        tasa_aplicada: obtenerTasaVESActiva(),
-        tipo_tasa: tasasVigentes.tipo_activo,
-        tasa_cop: tasasVigentes.cop,
-        productos: productosAuditados,
-        subtotal_usd: totales.subtotalUSD,
-        base_gravable_usd: totales.baseGravableUSD,
-        iva_16_usd: totales.iva16USD,
-        igtf_usd: totales.igtfCalculadoUSD,
-        exento_usd: totales.exentoUSD,
-        total_usd: totales.totalPagarUSD,
-        total_ves: convertirUSDaVES(totales.totalPagarUSD),
-        total_cop: convertirUSDaCOP(totales.totalPagarUSD),
-        metodos_pago_split: [...pagosAcumuladosTicket],
-        cliente: datosCliente,
-        pais_operacion: "VEN"
-    };
-;
+ const ticketPayload = {
+ id_sesion: turnoCajaActivo.id_sesion,
+ total: totales.totalPagarUSD,
+ metodo_pago: pagosAcumuladosTicket.length === 1 ? pagosAcumuladosTicket[0].metodo : "MIXTO",
+ caja_numero: cajaNumeroActiva,
+ codigo_cajero: cajeroCodigoActivo,
+ cajero_email: auth.currentUser ? auth.currentUser.email : "CAJERO",
+ tasa_aplicada: obtenerTasaVESActiva(),
+ tipo_tasa: tasasVigentes.tipo_activo,
+ tasa_cop: tasasVigentes.cop,
+ productos: productosAuditados,
+ subtotal_usd: totales.subtotalUSD,
+ base_gravable_usd: totales.baseGravableUSD,
+ iva_16_usd: totales.iva16USD,
+ igtf_usd: totales.igtfCalculadoUSD,
+ exento_usd: totales.exentoUSD,
+ total_usd: totales.totalPagarUSD,
+ total_ves: convertirUSDaVES(totales.totalPagarUSD),
+ total_cop: convertirUSDaCOP(totales.totalPagarUSD),
+ metodos_pago_split: [...pagosAcumuladosTicket],
+ cliente: datosCliente,
+ pais_operacion: "VEN"
+ };
 
     document.getElementById('txt-conexion').innerText = "REGISTRANDO...";
     const res = await GeokatuDB.PosService.procesarVentaLote(idNegocio, ticketPayload);
@@ -1140,36 +1223,48 @@ async function ejecutarVentaFinalDefinitivaVenInterna() {
         if (kpiUSD) kpiUSD.innerText = `$${acumuladoTurnoVen.total_usd_consolidado.toFixed(2)}`;
         if (kpiVES) kpiVES.innerText = `(Bs. ${convertirUSDaVES(acumuladoTurnoVen.total_usd_consolidado).toFixed(0)})`;
 
-                armarTirillaTermicaVen(ticketPayload, ultimoTicketIdVendido);
-        descontarStockCascadaWMS_(idNegocio, carrito);
-        registrarConsumoCuotaFactura_(idNegocio);
+                 try { localStorage.setItem(claveUbisVenta, JSON.stringify(ubicacionesVenta)); } catch (eUW) {}
+ armarTirillaTermicaVen(ticketPayload, ultimoTicketIdVendido);
+ registrarConsumoCuotaFactura_(idNegocio);
 
-        // Limpiar estado para el siguiente cliente
-        carrito = [];
-        actualizarBotonExpandirTicket_();
-        pagosAcumuladosTicket = [];
-        catalogoLocal = GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio);
-        renderizarCarrito();
-        actualizarVisorRemanente();
-        renderizarGridCatalogo();
-        actualizarIndicadorCola();
+ // Limpiar estado para el siguiente cliente
+ carrito = [];
+ actualizarBotonExpandirTicket_();
+ pagosAcumuladosTicket = [];
+ catalogoLocal = GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio);
+ renderizarCarrito();
+ actualizarVisorRemanente();
+ renderizarGridCatalogo();
+ actualizarIndicadorCola();
 
-        const txtVueltas = document.getElementById('txt-cambio-vueltas');
-        if (txtVueltas) txtVueltas.style.display = 'none';
+ const txtVueltas = document.getElementById('txt-cambio-vueltas');
+ if (txtVueltas) txtVueltas.style.display = 'none';
 
-        if (switchRif) {
-            switchRif.checked = false;
-            document.getElementById('formulario-rif').style.display = 'none';
-        }
+ if (switchRif) {
+ switchRif.checked = false;
+ const formRifReset = document.getElementById('formulario-rif');
+ if (formRifReset) formRifReset.style.display = 'none';
+ const txtRifReset = document.getElementById('txt-estado-rif');
+ if (txtRifReset) {
+ txtRifReset.innerText = 'Consumidor Final';
+ txtRifReset.style.color = 'var(--text-muted)';
+ }
+ }
 
-        // Impresión o Comprobante Digital
-        if (window.deseaFacturaEcologicaQR) {
-            window.deseaFacturaEcologicaQR = false;
-            await abrirModalFacturaDigitalQR(ultimoTicketIdVendido);
-        } else {
-            motorCajon.dispararAperturaDirecta(0, true).catch(() => {});
-            setTimeout(() => window.print(), 300);
-        }
+ // Impresión o Comprobante Digital
+ if (window.deseaFacturaEcologicaQR) {
+ window.deseaFacturaEcologicaQR = false;
+ const btnEcoReset = document.getElementById('btn-toggle-eco');
+ if (btnEcoReset) {
+ btnEcoReset.style.borderColor = 'var(--border-soft)';
+ btnEcoReset.style.background = 'rgba(255,255,255,0.03)';
+ btnEcoReset.style.color = '#fff';
+ }
+ await abrirModalFacturaDigitalQR(ultimoTicketIdVendido, datosCliente.telefono || '');
+ } else {
+ motorCajon.dispararAperturaDirecta(0, true).catch(function() {});
+ setTimeout(function() { imprimirTirillaPosVen(); }, 300);
+ }
     } else {
         alert("Error al registrar venta: " + res.error);
     }
@@ -1178,69 +1273,71 @@ async function ejecutarVentaFinalDefinitivaVenInterna() {
 }
 
 function armarTirillaTermicaVen(ticket, ticketId) {
-    const perfil = JSON.parse(localStorage.getItem(`geokatu_perfil_ven_${idNegocio}`) || "{}");
-    
-    document.getElementById('ticket-negocio-nombre').innerText = perfil.razon_social || "GEOKATU COMERCIO";
-    document.getElementById('ticket-negocio-rif').innerText = `RIF: ${perfil.rif || 'J-00000000-0'}`;
-    document.getElementById('ticket-negocio-dir').innerText = perfil.direccion || "San Cristóbal, Táchira";
+ const elContZ = document.getElementById('tirilla-cierre-z-container');
+ const elContX = document.getElementById('tirilla-informe-x-container');
+ const elContV = document.getElementById('tirilla-venta-container');
+ if (elContZ) elContZ.style.display = 'none';
+ if (elContX) elContX.style.display = 'none';
+ if (elContV) elContV.style.display = 'block';
 
-    const ahora = new Date();
-    document.getElementById('t-caja-cod').innerText = cajaNumeroActiva;
-    document.getElementById('t-fecha-corta').innerText = ahora.toLocaleDateString('es-VE');
-    document.getElementById('t-hora-corta').innerText = ahora.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
-    document.getElementById('t-cajero-cod').innerText = `OP #${cajeroCodigoActivo}`;
+ const perfil = JSON.parse(localStorage.getItem('geokatu_perfil_ven_' + idNegocio) || "{}");
+ document.getElementById('ticket-negocio-nombre').innerText = perfil.razon_social || "GEOKATU COMERCIO";
+ document.getElementById('ticket-negocio-rif').innerText = 'RIF: ' + (perfil.rif || 'J-00000000-0');
+ document.getElementById('ticket-negocio-dir').innerText = perfil.direccion || "San Cristóbal, Táchira";
 
-    document.getElementById('t-id').innerText = ticketId;
-    document.getElementById('t-cliente').innerText = ticket.cliente?.nombre || "Consumidor Final";
-    document.getElementById('t-rif').innerText = ticket.cliente?.rif || "V-00000000";
+ const ahora = new Date();
+ document.getElementById('t-caja-cod').innerText = cajaNumeroActiva;
+ document.getElementById('t-fecha-corta').innerText = ahora.toLocaleDateString('es-VE');
+ document.getElementById('t-hora-corta').innerText = ahora.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
+ document.getElementById('t-cajero-cod').innerText = 'OP #' + cajeroCodigoActivo;
 
-    const tbody = document.getElementById('t-items');
-    tbody.innerHTML = '';
-    ticket.productos.forEach(p => {
-        tbody.innerHTML += `
-            <tr>
-                <td>${p.es_pesable ? `${p.cantidad}p.unidadmedida`:`{p.cantidad}x`} ${p.nombre}</td>
-                <td style="text-align: right;">$${p.subtotal_usd.toFixed(2)}</td>
-            </tr>
-        `;
-    });
+ document.getElementById('t-id').innerText = ticketId;
+ document.getElementById('t-cliente').innerText = (ticket.cliente && ticket.cliente.nombre) ? ticket.cliente.nombre : "Consumidor Final";
+ document.getElementById('t-rif').innerText = (ticket.cliente && ticket.cliente.rif) ? ticket.cliente.rif : "V-00000000";
 
-    document.getElementById('t-base-print').innerText = `$${ticket.base_gravable_usd.toFixed(2)}`;
-    document.getElementById('t-iva-print').innerText = `$${ticket.iva_16_usd.toFixed(2)}`;
-    document.getElementById('t-igtf-print').innerText = `$${ticket.igtf_usd.toFixed(2)}`;
-    document.getElementById('t-exento-print').innerText = `$${ticket.exento_usd.toFixed(2)}`;
+ const tbody = document.getElementById('t-items');
+ tbody.innerHTML = '';
+ (ticket.productos || []).forEach(function(p) {
+ const sub = (p.subtotal_usd !== undefined && p.subtotal_usd !== null)
+ ? Number(p.subtotal_usd)
+ : (p.precio_fijado_balanza ? Number(p.precio || 0) : Number((Number(p.precio || 0) * Number(p.cantidad || 0)).toFixed(2)));
+ const cantTxt = p.es_pesable ? (p.cantidad + ' ' + (p.unidad_medida || 'kg')) : (p.cantidad + 'x');
+ const notaHtml = p.nota ? ('<br><span style="font-size: 8.5px; font-style: italic;">* ' + escaparHtmlPos(p.nota) + '</span>') : '';
+ tbody.innerHTML +=
+ '<tr>' +
+ '<td>' + escaparHtmlPos(cantTxt) + ' ' + escaparHtmlPos(p.nombre) + notaHtml + '</td>' +
+ '<td style="text-align: right; white-space: nowrap;">$' + sub.toFixed(2) + '</td>' +
+ '</tr>';
+ });
 
-    document.getElementById('t-total').innerText = `$${ticket.total_usd.toFixed(2)}`;
-    document.getElementById('t-total-ves-print').innerText = `Bs. ${ticket.total_ves.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`;
-    document.getElementById('t-tasa-print').innerText = `Bs. ${ticket.tasa_aplicada.toFixed(2)} / $ (${ticket.tipo_tasa})`;
+ document.getElementById('t-base-print').innerText = '$' + Number(ticket.base_gravable_usd || 0).toFixed(2);
+ document.getElementById('t-iva-print').innerText = '$' + Number(ticket.iva_16_usd || 0).toFixed(2);
+ document.getElementById('t-igtf-print').innerText = '$' + Number(ticket.igtf_usd || 0).toFixed(2);
+ document.getElementById('t-exento-print').innerText = '$' + Number(ticket.exento_usd || 0).toFixed(2);
 
-    const txtPagos = ticket.metodos_pago_split.map(p => 
-        `${p.metodo}: ${p.moneda_original === 'USD' ? `$p.montooriginal.toFixed(2)`:(p.monedaoriginal==='VES'?`Bs.p.montooriginal.toLocaleString('es-VE')`:`{p.monto_original.toLocaleString('es-CO')} COP`)}`
-    ).join(' | ');
-    document.getElementById('t-metodos-desglose').innerText = txtPagos;
+ document.getElementById('t-total').innerText = '$' + Number(ticket.total_usd || 0).toFixed(2);
+ document.getElementById('t-total-ves-print').innerText = 'Bs. ' + Number(ticket.total_ves || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+ document.getElementById('t-tasa-print').innerText = 'Bs. ' + Number(ticket.tasa_aplicada || 0).toFixed(2) + ' / $ (' + (ticket.tipo_tasa || 'BCV') + ')';
 
-    document.getElementById('t-barcode-text').innerText = ticketId;
-    generarCode128SVG(ticketId, 't-barcode-svg');
+ const txtPagos = (ticket.metodos_pago_split || []).map(function(p) {
+ const mOrig = Number(p.monto_original || 0);
+ const mFmt = p.moneda_original === 'USD'
+ ? ('$' + mOrig.toFixed(2))
+ : (p.moneda_original === 'VES'
+ ? ('Bs. ' + mOrig.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+ : ('$' + mOrig.toLocaleString('es-CO') + ' COP'));
+ return p.metodo + ': ' + mFmt + (p.referencia ? (' (' + p.referencia + ')') : '');
+ }).join(' | ');
+ document.getElementById('t-metodos-desglose').innerText = txtPagos || (ticket.metodo_pago || 'EFECTIVO_USD');
+
+ document.getElementById('t-barcode-text').innerText = ticketId;
+ generarCode128SVG(ticketId, 't-barcode-svg');
 }
 
 function generarCode128SVG(texto, svgId) {
-    const svg = document.getElementById(svgId);
-    if (!svg || !texto) return;
-    return generarCode128BCompletoSVG_(svg, texto);
-
-    const patrones = [
-        "212222","222122","222221","121223","121322","131222","122213","122312","132212","221213",
-        "221312","231212","112232","122132","122231","113222","123122","123221","223211","221132",
-        "221231","213212","223112","312131","311222","321122","321221","312212","322112","322211"
-    ];
-    let x = 0, rects = "";
-    for (let i = 0; i < texto.length; i++) {
-        const ancho = (texto.charCodeAt(i) % 3) + 1;
-        rects += `<rect x="x*2"y="0"width="{ancho * 2}" height="38" fill="#000"/>`;
-        x += ancho + 1;
-    }
-    svg.setAttribute("viewBox", `0 0 ${x * 2} 38`);
-    svg.innerHTML = rects;
+ const svg = document.getElementById(svgId);
+ if (!svg || !texto) return;
+ generarCode128BCompletoSVG_(svg, texto);
 }
 
 // Switch RIF reactivo
@@ -1267,17 +1364,21 @@ async function verificarEstadoTurnoCaja() {
     const res = await GeokatuDB.PosService.obtenerEstadoCajaActual(idNegocio, cajaNumeroActiva);
     const btnCaja = document.getElementById('txt-estado-caja-btn');
 
-    if (res.success && res.data && res.data.estado === 'ABIERTA') {
-        turnoCajaActivo = res.data;
-        const rawAcum = localStorage.getItem(`geokatu_acumulado_ven_${idNegocio}`);
-        if (rawAcum) {
-            try { acumuladoTurnoVen = { ...acumuladoTurnoVen, ...JSON.parse(rawAcum) }; } catch (e) {}
-        }
-        if (btnCaja) {
-            btnCaja.innerText = "Caja Abierta";
-            btnCaja.style.color = "var(--accent-green)";
-        }
-    } else {
+     if (res.success && res.data && res.data.estado === 'ABIERTA') {
+ turnoCajaActivo = res.data;
+ const rawAcum = localStorage.getItem('geokatu_acumulado_ven_' + idNegocio);
+ if (rawAcum) {
+ try { acumuladoTurnoVen = Object.assign({}, acumuladoTurnoVen, JSON.parse(rawAcum)); } catch (e) {}
+ }
+ const kpiUSD = document.getElementById('kpi-ventas-usd');
+ const kpiVES = document.getElementById('kpi-ventas-ves');
+ if (kpiUSD) kpiUSD.innerText = '$' + Number(acumuladoTurnoVen.total_usd_consolidado || 0).toFixed(2);
+ if (kpiVES) kpiVES.innerText = '(Bs. ' + convertirUSDaVES(acumuladoTurnoVen.total_usd_consolidado || 0).toFixed(0) + ')';
+ if (btnCaja) {
+ btnCaja.innerText = "Caja Abierta";
+ btnCaja.style.color = "var(--accent-green)";
+ }
+ } else {
         turnoCajaActivo = null;
         if (btnCaja) {
             btnCaja.innerText = "Abrir Caja";
@@ -1367,89 +1468,115 @@ document.getElementById('btn-iniciar-informe-x')?.addEventListener('click', () =
     document.getElementById('tirilla-cierre-z-container').style.display = 'none';
     document.getElementById('tirilla-informe-x-container').style.display = 'block';
 
-    setTimeout(() => {
-        window.print();
-        setTimeout(() => {
-            document.getElementById('tirilla-informe-x-container').style.display = 'none';
-            document.getElementById('tirilla-venta-container').style.display = 'block';
-        }, 1000);
-    }, 300);
+     setTimeout(function() {
+ imprimirTirillaPosVen(function() {
+ document.getElementById('tirilla-informe-x-container').style.display = 'none';
+ document.getElementById('tirilla-venta-container').style.display = 'block';
+ });
+ }, 300);
 });
 
 // Cierre Z Definitivo
-document.getElementById('btn-iniciar-cierre-z')?.addEventListener('click', () => {
-    document.getElementById('modal-movimiento-caja').style.display = 'none';
-    
-    document.getElementById('cz-base-usd').innerText = `$${turnoCajaActivo?.base_multimoneda?.usd || 0}`;
-    document.getElementById('cz-ventas-usd').innerText = `$${acumuladoTurnoVen.usd_efectivo.toFixed(2)}`;
-    document.getElementById('cz-ventas-ves').innerText = `Bs. ${acumuladoTurnoVen.ves_efectivo.toLocaleString('es-VE')}`;
-    document.getElementById('cz-ventas-cop').innerText = `$${acumuladoTurnoVen.cop_efectivo.toLocaleString('es-CO')} COP`;
-    document.getElementById('cz-ventas-pm').innerText = `Bs. ${acumuladoTurnoVen.ves_pago_movil.toLocaleString('es-VE')}`;
-    document.getElementById('cz-ventas-punto').innerText = `Bs. ${acumuladoTurnoVen.ves_punto_venta.toLocaleString('es-VE')}`;
-    document.getElementById('cz-ventas-zelle').innerText = `$${acumuladoTurnoVen.usd_zelle.toFixed(2)}`;
-    document.getElementById('cz-ventas-usdt').innerText = `${acumuladoTurnoVen.usd_usdt.toFixed(2)} USDT`;
-    document.getElementById('cz-total-consolidado-usd').innerText = `$${acumuladoTurnoVen.total_usd_consolidado.toFixed(2)} USD`;
-
-    document.getElementById('modal-cierre-z').style.display = 'flex';
+document.getElementById('btn-iniciar-cierre-z')?.addEventListener('click', function() {
+ document.getElementById('modal-movimiento-caja').style.display = 'none';
+ const baseUsdVal = Number((turnoCajaActivo && turnoCajaActivo.base_multimoneda && turnoCajaActivo.base_multimoneda.usd) || (turnoCajaActivo && turnoCajaActivo.base_inicial) || 0);
+ document.getElementById('cz-base-usd').innerText = '$' + baseUsdVal.toFixed(2);
+ document.getElementById('cz-ventas-usd').innerText = '$' + acumuladoTurnoVen.usd_efectivo.toFixed(2);
+ document.getElementById('cz-ventas-ves').innerText = 'Bs. ' + acumuladoTurnoVen.ves_efectivo.toLocaleString('es-VE', { minimumFractionDigits: 2 });
+ document.getElementById('cz-ventas-cop').innerText = '$' + acumuladoTurnoVen.cop_efectivo.toLocaleString('es-CO') + ' COP';
+ document.getElementById('cz-ventas-pm').innerText = 'Bs. ' + acumuladoTurnoVen.ves_pago_movil.toLocaleString('es-VE', { minimumFractionDigits: 2 });
+ document.getElementById('cz-ventas-punto').innerText = 'Bs. ' + acumuladoTurnoVen.ves_punto_venta.toLocaleString('es-VE', { minimumFractionDigits: 2 });
+ document.getElementById('cz-ventas-zelle').innerText = '$' + acumuladoTurnoVen.usd_zelle.toFixed(2);
+ document.getElementById('cz-ventas-usdt').innerText = acumuladoTurnoVen.usd_usdt.toFixed(2) + ' USDT';
+ document.getElementById('cz-total-consolidado-usd').innerText = '$' + acumuladoTurnoVen.total_usd_consolidado.toFixed(2) + ' USD';
+ const inpUsd = document.getElementById('cz-contado-usd');
+ const inpVes = document.getElementById('cz-contado-ves');
+ if (inpUsd) inpUsd.value = '';
+ if (inpVes) inpVes.value = '';
+ document.getElementById('modal-cierre-z').style.display = 'flex';
+ if (inpUsd) setTimeout(function() { inpUsd.focus(); }, 100);
 });
 
-document.getElementById('btn-cancelar-cierre-z')?.addEventListener('click', () => {
-    document.getElementById('modal-cierre-z').style.display = 'none';
+document.getElementById('btn-cancelar-cierre-z')?.addEventListener('click', function() {
+ document.getElementById('modal-cierre-z').style.display = 'none';
 });
 
-document.getElementById('btn-confirmar-cierre-z')?.addEventListener('click', async () => {
-    if (!confirm("¿Deseas sellar definitivamente la caja y emitir el Cierre Z?")) return;
+document.getElementById('btn-confirmar-cierre-z')?.addEventListener('click', async function() {
+ const contadoUSD = parseFloat(document.getElementById('cz-contado-usd').value);
+ const contadoVES = parseFloat(document.getElementById('cz-contado-ves').value) || 0;
+ if (isNaN(contadoUSD) || contadoUSD < 0) {
+ alert("Digita el efectivo USD físico contado en gaveta (puede ser 0).");
+ return;
+ }
+ if (!confirm("¿Deseas sellar definitivamente la caja y emitir el Cierre Z?")) return;
 
-    const res = await GeokatuDB.PosService.ejecutarCierreZ(idNegocio, acumuladoTurnoVen.usd_efectivo, {
-        efectivo: acumuladoTurnoVen.usd_efectivo,
-        tarjeta: acumuladoTurnoVen.ves_punto_venta,
-        nequi: acumuladoTurnoVen.ves_pago_movil,
-        // Inyección multicartera de Venezuela
-        pais: "VEN",
-        usd_efectivo: acumuladoTurnoVen.usd_efectivo,
-        ves_efectivo: acumuladoTurnoVen.ves_efectivo,
-        cop_efectivo: acumuladoTurnoVen.cop_efectivo,
-        ves_pago_movil: acumuladoTurnoVen.ves_pago_movil,
-        ves_punto_venta: acumuladoTurnoVen.ves_punto_venta,
-        usd_zelle: acumuladoTurnoVen.usd_zelle,
-        usd_usdt: acumuladoTurnoVen.usd_usdt,
-        igtf_recaudado_usd: acumuladoTurnoVen.igtf_recaudado_usd,
-        total_usd_consolidado: acumuladoTurnoVen.total_usd_consolidado
-    }, cajaNumeroActiva);
+ const res = await GeokatuDB.PosService.ejecutarCierreZ(idNegocio, contadoUSD, {
+ efectivo: acumuladoTurnoVen.usd_efectivo,
+ tarjeta: acumuladoTurnoVen.ves_punto_venta,
+ nequi: acumuladoTurnoVen.ves_pago_movil,
+ base_gravable: acumuladoTurnoVen.base_gravable_usd,
+ iva_19: acumuladoTurnoVen.iva_16_usd,
+ exento: acumuladoTurnoVen.exento_usd,
+ pais: "VEN",
+ contado_usd_fisico: contadoUSD,
+ contado_ves_fisico: contadoVES,
+ usd_efectivo: acumuladoTurnoVen.usd_efectivo,
+ ves_efectivo: acumuladoTurnoVen.ves_efectivo,
+ cop_efectivo: acumuladoTurnoVen.cop_efectivo,
+ ves_pago_movil: acumuladoTurnoVen.ves_pago_movil,
+ ves_punto_venta: acumuladoTurnoVen.ves_punto_venta,
+ usd_zelle: acumuladoTurnoVen.usd_zelle,
+ usd_usdt: acumuladoTurnoVen.usd_usdt,
+ igtf_recaudado_usd: acumuladoTurnoVen.igtf_recaudado_usd,
+ total_usd_consolidado: acumuladoTurnoVen.total_usd_consolidado
+ }, cajaNumeroActiva);
 
+ if (res.success) {
+ const baseUsdVal = Number((turnoCajaActivo && turnoCajaActivo.base_multimoneda && turnoCajaActivo.base_multimoneda.usd) || (turnoCajaActivo && turnoCajaActivo.base_inicial) || 0);
+ document.getElementById('tz-id').innerText = (turnoCajaActivo && turnoCajaActivo.id_sesion) ? turnoCajaActivo.id_sesion : "SES-Z";
+ document.getElementById('tz-cierre').innerText = new Date().toLocaleTimeString('es-VE');
+ document.getElementById('tz-cajero').innerText = (auth.currentUser && auth.currentUser.email) ? auth.currentUser.email : "CAJERO";
+ document.getElementById('tz-base-usd').innerText = '$' + baseUsdVal.toFixed(2);
+ document.getElementById('tz-efectivo-usd').innerText = '$' + acumuladoTurnoVen.usd_efectivo.toFixed(2);
+ document.getElementById('tz-efectivo-ves').innerText = 'Bs. ' + acumuladoTurnoVen.ves_efectivo.toLocaleString('es-VE', { minimumFractionDigits: 2 });
+ document.getElementById('tz-efectivo-cop').innerText = '$' + acumuladoTurnoVen.cop_efectivo.toLocaleString('es-CO') + ' COP';
+ document.getElementById('tz-pago-movil').innerText = 'Bs. ' + acumuladoTurnoVen.ves_pago_movil.toLocaleString('es-VE', { minimumFractionDigits: 2 });
+ document.getElementById('tz-punto-venta').innerText = 'Bs. ' + acumuladoTurnoVen.ves_punto_venta.toLocaleString('es-VE', { minimumFractionDigits: 2 });
+ document.getElementById('tz-zelle').innerText = '$' + acumuladoTurnoVen.usd_zelle.toFixed(2);
+ document.getElementById('tz-usdt').innerText = acumuladoTurnoVen.usd_usdt.toFixed(2) + ' USDT';
+ document.getElementById('tz-total-consolidado').innerText = '$' + acumuladoTurnoVen.total_usd_consolidado.toFixed(2) + ' USD';
 
-    if (res.success) {
-        document.getElementById('tz-id').innerText = turnoCajaActivo?.id_sesion || "SES-Z";
-        document.getElementById('tz-cierre').innerText = new Date().toLocaleTimeString();
-        document.getElementById('tz-cajero').innerText = auth.currentUser?.email || "CAJERO";
+ document.getElementById('modal-cierre-z').style.display = 'none';
+ document.getElementById('tirilla-venta-container').style.display = 'none';
+ document.getElementById('tirilla-informe-x-container').style.display = 'none';
+ document.getElementById('tirilla-cierre-z-container').style.display = 'block';
 
-        document.getElementById('tz-base-usd').innerText = `$${turnoCajaActivo?.base_multimoneda?.usd || 0}`;
-        document.getElementById('tz-efectivo-usd').innerText = `$${acumuladoTurnoVen.usd_efectivo.toFixed(2)}`;
-        document.getElementById('tz-efectivo-ves').innerText = `Bs. ${acumuladoTurnoVen.ves_efectivo.toLocaleString('es-VE')}`;
-        document.getElementById('tz-efectivo-cop').innerText = `$${acumuladoTurnoVen.cop_efectivo.toLocaleString('es-CO')} COP`;
-        document.getElementById('tz-pago-movil').innerText = `Bs. ${acumuladoTurnoVen.ves_pago_movil.toLocaleString('es-VE')}`;
-        document.getElementById('tz-punto-venta').innerText = `Bs. ${acumuladoTurnoVen.ves_punto_venta.toLocaleString('es-VE')}`;
-        document.getElementById('tz-zelle').innerText = `$${acumuladoTurnoVen.usd_zelle.toFixed(2)}`;
-        document.getElementById('tz-usdt').innerText = `${acumuladoTurnoVen.usd_usdt.toFixed(2)} USDT`;
-        document.getElementById('tz-total-consolidado').innerText = `$${acumuladoTurnoVen.total_usd_consolidado.toFixed(2)} USD`;
+ turnoCajaActivo = null;
+ acumuladoTurnoVen = {
+ usd_efectivo: 0, ves_efectivo: 0, cop_efectivo: 0,
+ ves_pago_movil: 0, ves_punto_venta: 0, usd_zelle: 0, usd_usdt: 0,
+ igtf_recaudado_usd: 0, base_gravable_usd: 0, iva_16_usd: 0, exento_usd: 0,
+ total_usd_consolidado: 0
+ };
+ localStorage.removeItem('geokatu_acumulado_ven_' + idNegocio);
+ const btnCaja = document.getElementById('txt-estado-caja-btn');
+ if (btnCaja) { btnCaja.innerText = 'Abrir Caja'; btnCaja.style.color = 'orange'; }
+ const kpiUSD = document.getElementById('kpi-ventas-usd');
+ const kpiVES = document.getElementById('kpi-ventas-ves');
+ if (kpiUSD) kpiUSD.innerText = '$0.00';
+ if (kpiVES) kpiVES.innerText = '(Bs. 0)';
 
-        document.getElementById('modal-cierre-z').style.display = 'none';
-        document.getElementById('tirilla-venta-container').style.display = 'none';
-        document.getElementById('tirilla-cierre-z-container').style.display = 'block';
+ setTimeout(function() {
+ imprimirTirillaPosVen(function() {
+ document.getElementById('tirilla-cierre-z-container').style.display = 'none';
+ document.getElementById('tirilla-venta-container').style.display = 'block';
+ });
+ }, 300);
 
-        turnoCajaActivo = null;
-        localStorage.removeItem(`geokatu_acumulado_ven_${idNegocio}`);
-
-        setTimeout(() => {
-            window.print();
-            setTimeout(() => {
-                document.getElementById('tirilla-cierre-z-container').style.display = 'none';
-                document.getElementById('tirilla-venta-container').style.display = 'block';
-            }, 1000);
-        }, 300);
-
-        window.mostrarAvisoPos("Cierre Z multicartera completado.");
-    }
+ window.mostrarAvisoPos("Cierre Z multicartera completado.");
+ } else {
+ alert("Error al cerrar caja: " + (res.error || 'Desconocido'));
+ }
 });
 
 // =========================================================================
@@ -1582,21 +1709,22 @@ document.getElementById('btn-ver-espera')?.addEventListener('click', () => {
     if (ticketsEnEspera.length === 0) {
         lista.innerHTML = '<p style="text-align: center; color: #777; padding: 20px;">No hay tickets retenidos.</p>';
     } else {
-        ticketsEnEspera.forEach((t, idx) => {
-            const row = document.createElement('div');
-            row.style.cssText = 'background: rgba(255,255,255,0.04); padding: 8px 12px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;';
-            row.innerHTML = `
-                <div>
-                    <strong>#t.id</strong><spanstyle="color:#888;font-size:11px;">({t.hora})</span>
-                    <p style="font-size: 11px; color: var(--accent-green); margin: 2px 0;">t.totalUSD({t.items.length} productos)</p>
-                </div>
-                <div style="display: flex; gap: 6px;">
-                    <button class="btn-rec" data-idx="${idx}" style="background: var(--color-marca); border:none; padding:4px 8px; border-radius:6px; font-weight:bold; cursor:pointer;">Recuperar</button>
-                    <button class="btn-del" data-idx="${idx}" style="background: rgba(255,68,68,0.2); border:none; color:var(--accent-red); padding:4px 8px; border-radius:6px; cursor:pointer;">✕</button>
-                </div>
-            `;
-            lista.appendChild(row);
-        });
+         ticketsEnEspera.forEach(function(t, idx) {
+ const row = document.createElement('div');
+ row.className = 'ticket-pausado-row';
+ const cantProds = Array.isArray(t.items) ? t.items.length : 0;
+ row.innerHTML =
+ '<div>' +
+ '<strong>Ticket #' + escaparHtmlPos(t.id) + '</strong> ' +
+ '<span style="color:#888;font-size:11px;">(' + escaparHtmlPos(t.hora) + ')</span>' +
+ '<p style="font-size: 11px; color: var(--accent-green); margin: 2px 0;">' + escaparHtmlPos(t.totalUSD) + ' (' + cantProds + ' productos)</p>' +
+ '</div>' +
+ '<div style="display: flex; gap: 6px;">' +
+ '<button type="button" class="btn-rec btn-recuperar" data-idx="' + idx + '">Recuperar</button>' +
+ '<button type="button" class="btn-del btn-descartar" data-idx="' + idx + '">✕</button>' +
+ '</div>';
+ lista.appendChild(row);
+ });
 
         lista.querySelectorAll('.btn-rec').forEach(b => {
             b.onclick = () => {
@@ -1671,63 +1799,75 @@ window.alternarFacturaEcologica = async function(btn) {
 };
 
 async function generarFirmaFactura24Horas(tktId, expTimestamp) {
-    try {
-        const raw = `tktId:{idNegocio}:${expTimestamp}:GEOKATU_PUBLIC_TKT_SALT`;
-        if (window.crypto && window.crypto.subtle) {
-            const encoder = new TextEncoder();
-            const data = encoder.encode(raw);
-            const buffer = await crypto.subtle.digest('SHA-256', data);
-            const hashArray = Array.from(new Uint8Array(buffer));
-            return hashArray.map(b => b.toString(16).padStart(2, '0')).slice(0, 16).join('');
-        }
-    } catch (_) {}
-    return "SIG_" + Date.now().toString(16).toUpperCase();
+ try {
+ const raw = tktId + ':' + idNegocio + ':' + expTimestamp + ':GEOKATU_PUBLIC_TKT_SALT';
+ if (window.crypto && window.crypto.subtle) {
+ const encoder = new TextEncoder();
+ const data = encoder.encode(raw);
+ const buffer = await crypto.subtle.digest('SHA-256', data);
+ const hashArray = Array.from(new Uint8Array(buffer));
+ return hashArray.map(function(b) { return b.toString(16).padStart(2, '0'); }).slice(0, 16).join('');
+ }
+ } catch (_) {}
+ return "SIG_" + Date.now().toString(16).toUpperCase();
 }
 
 async function abrirModalFacturaDigitalQR(ticketId, telefonoPrevio = "") {
-    const modalQR = document.getElementById('modal-factura-qr');
-    const contenedor = document.getElementById('contenedor-qr-factura');
-    const inputWp = document.getElementById('input-whatsapp-cliente');
-    if (!modalQR || !contenedor) return;
+ const modalQR = document.getElementById('modal-factura-qr');
+ const contenedor = document.getElementById('contenedor-qr-factura');
+ const inputWp = document.getElementById('input-whatsapp-cliente');
+ if (!modalQR || !contenedor) return;
 
-    window.ticketIdFacturaActiva = ticketId;
-    const exp = Date.now() + (24 * 60 * 60 * 1000);
-    const sig = await generarFirmaFactura24Horas(ticketId, exp);
+ window.ticketIdFacturaActiva = ticketId;
+ const exp = Date.now() + (24 * 60 * 60 * 1000);
+ const sig = await generarFirmaFactura24Horas(ticketId, exp);
 
-    window.urlFacturaActiva = `window.location.origin/facturaven?com={idNegocio}&tkt=ticketId&exp={exp}&sig=${sig}`;
+ window.urlFacturaActiva = window.location.origin + '/facturaven?com=' + encodeURIComponent(idNegocio) + '&tkt=' + encodeURIComponent(ticketId) + '&exp=' + exp + '&sig=' + sig;
 
-    contenedor.innerHTML = '';
-    contenedor.style.padding = '20px';
-    contenedor.style.backgroundColor = '#fff';
-    if (typeof window.QRCode === 'function') {
-        try {
-            new window.QRCode(contenedor, {
-                text: window.urlFacturaActiva, width: 240, height: 240,
-                colorDark: '#000000', colorLight: '#ffffff',
-                correctLevel: window.QRCode.CorrectLevel.M
-            });
-        } catch (errorQR) {
-            contenedor.textContent = 'No se pudo generar el QR. Usa el enlace de WhatsApp.';
-        }
-    } else {
-        contenedor.textContent = 'Generador QR no disponible. Recarga la aplicación.';
-    }
+ contenedor.innerHTML = '';
+ contenedor.style.padding = '20px';
+ contenedor.style.backgroundColor = '#fff';
+ if (typeof window.QRCode === 'function') {
+ try {
+ new window.QRCode(contenedor, {
+ text: window.urlFacturaActiva, width: 240, height: 240,
+ colorDark: '#000000', colorLight: '#ffffff',
+ correctLevel: window.QRCode.CorrectLevel.M
+ });
+ } catch (errorQR) {
+ contenedor.textContent = 'No se pudo generar el QR. Usa el enlace de WhatsApp.';
+ }
+ } else {
+ contenedor.textContent = 'Generador QR no disponible. Recarga la aplicación.';
+ }
 
-    if (inputWp) inputWp.value = telefonoPrevio || '';
-    modalQR.style.display = 'flex';
+ if (inputWp) inputWp.value = telefonoPrevio || '';
+ modalQR.style.display = 'flex';
 }
 
-window.enviarFacturaWhatsApp = function() {
-    const inputWp = document.getElementById('input-whatsapp-cliente');
-    const rawTel = inputWp ? inputWp.value.replace(/\D/g, '') : '';
-    if (!rawTel || rawTel.length < 7) {
-        alert("Digita un número de WhatsApp válido.");
-        return;
-    }
-    const numCompleto = rawTel.length === 10 ? `58${rawTel}` : rawTel;
-    const nombreLocal = (document.getElementById('ticket-negocio-nombre')?.innerText || "el comercio").trim();
-    const mensaje = `Hola. Adjuntamos tu comprobante de compra en ${nombreLocal}:\n\nComprobante: ${window.urlFacturaActiva}\nID Ticket: ${window.ticketIdFacturaActiva}\n\nValidez del enlace: 24 horas.`;
-    window.open(`https://wa.me/numCompleto?text={encodeURIComponent(mensaje)}`, '_blank');
+window.enviarFacturaWhatsApp = async function() {
+ const cfg = await GeokatuDB.PosService.obtenerConfiguracionTerminalPOS(idNegocio);
+ if (!cfg || !cfg.whatsapp_facturas_activo) {
+ alert('El envío de comprobantes por WhatsApp está desactivado. Actívalo en Configuración -> Automatizaciones.');
+ document.getElementById('modal-factura-qr').style.display = 'none';
+ await window.abrirModalConfiguracionPOS();
+ const btnTabFunc = document.querySelector('[data-cfg-tab="cfg-funciones"]');
+ if (btnTabFunc) window.cambiarPestanaConfig('cfg-funciones', btnTabFunc);
+ return;
+ }
+ const inputWp = document.getElementById('input-whatsapp-cliente');
+ const rawTel = inputWp ? inputWp.value.replace(/\D/g, '') : '';
+ if (!rawTel || rawTel.length < 7) {
+ alert("Digita un número de WhatsApp válido.");
+ return;
+ }
+ let numCompleto = rawTel;
+ if (rawTel.length === 11 && rawTel.indexOf('0') === 0) numCompleto = '58' + rawTel.substring(1);
+ else if (rawTel.length === 10) numCompleto = '58' + rawTel;
+ const elNom = document.getElementById('ticket-negocio-nombre');
+ const nombreLocal = (elNom ? elNom.innerText : "el comercio").trim();
+ const mensaje = 'Hola. Adjuntamos tu comprobante de compra en ' + nombreLocal + ':\n\nComprobante: ' + window.urlFacturaActiva + '\nID Ticket: ' + window.ticketIdFacturaActiva + '\n\nValidez del enlace: 24 horas.';
+ window.open('https://wa.me/' + numCompleto + '?text=' + encodeURIComponent(mensaje), '_blank');
 };
 
 window.abrirModalCopiaComprobante = function() {
@@ -1933,17 +2073,21 @@ window.addEventListener('offline', () => {
 });
 
 // Atajos globales
-window.addEventListener('keydown', (e) => {
-    if (e.key === 'F1') { e.preventDefault(); document.getElementById('btn-manual-ayuda')?.click(); }
-    if (e.key === 'F2') { e.preventDefault(); inputBuscador?.focus(); inputBuscador?.select(); }
-    if (e.key === 'F6') { e.preventDefault(); balanza?.aplicarTara(); }
-    if (e.key === 'F7') { e.preventDefault(); motorCajon?.dispararAperturaDirecta(0); }
-    if (e.key === 'F4') { e.preventDefault(); procesarIntentoPago('EFECTIVO_USD'); }
-    if (e.key === 'F8') { e.preventDefault(); procesarIntentoPago('PAGO_MOVIL'); }
-    if (e.key === 'F9') { e.preventDefault(); procesarIntentoPago('PUNTO_VENTA'); }
-    if (e.key === 'Escape') {
-        document.querySelectorAll('.modal-datafono-overlay').forEach(m => m.style.display = 'none');
-    }
+window.addEventListener('keydown', function(e) {
+ if (e.key === 'F1') { e.preventDefault(); document.getElementById('btn-manual-ayuda')?.click(); return; }
+ if (e.key === 'F2') { e.preventDefault(); inputBuscador?.focus(); inputBuscador?.select(); return; }
+ if (e.key === 'F6') { e.preventDefault(); balanza?.aplicarTara(); return; }
+ if (e.key === 'F7') { e.preventDefault(); motorCajon?.dispararAperturaDirecta(0); return; }
+ if (e.key === 'Escape') {
+ document.querySelectorAll('.modal-datafono-overlay').forEach(function(m) { m.style.display = 'none'; });
+ return;
+ }
+ const elAct = document.activeElement;
+ const escribiendo = elAct && ['INPUT', 'TEXTAREA', 'SELECT'].indexOf(elAct.tagName) !== -1;
+ if (escribiendo || carrito.length === 0) return;
+ if (e.key === 'F4') { e.preventDefault(); procesarIntentoPago('EFECTIVO_USD'); }
+ if (e.key === 'F8') { e.preventDefault(); procesarIntentoPago('PAGO_MOVIL'); }
+ if (e.key === 'F9') { e.preventDefault(); procesarIntentoPago('PUNTO_VENTA'); }
 });
 
 // Comanda notes
@@ -1998,27 +2142,32 @@ window.abrirModalDevolucionParcial = async function(ticketId) {
     const lista = document.getElementById('dev-lista-items');
     lista.innerHTML = '';
 
-    (venta.productos || []).forEach((p, idx) => {
-        lista.innerHTML += `
-            <div style="background: rgba(255,255,255,0.04); padding: 8px 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
-                <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; cursor: pointer;">
-                    <input type="checkbox" class="chk-dev-item" data-idx="idx"data-precio="{p.precio_usd || p.precio}" data-cant="${p.cantidad}" onchange="window.recalcularTotalDevolucion()">
-                    <span>p.cantidadxp.nombre({Number(p.precio_usd || p.precio).toFixed(2)})</span>
-                </label>
-            </div>
-        `;
-    });
+     (venta.productos || []).forEach(function(p, idx) {
+ const precioUnit = Number(p.precio_usd !== undefined ? p.precio_usd : (p.precio || 0));
+ const subItem = (p.subtotal_usd !== undefined && p.subtotal_usd !== null)
+ ? Number(p.subtotal_usd)
+ : (p.precio_fijado_balanza ? precioUnit : Number((precioUnit * Number(p.cantidad || 0)).toFixed(2)));
+ lista.innerHTML +=
+ '<div style="background: rgba(255,255,255,0.04); padding: 8px 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">' +
+ '<label style="display: flex; align-items: center; gap: 8px; font-size: 11px; cursor: pointer;">' +
+ '<input type="checkbox" class="chk-dev-item" data-idx="' + idx + '" data-precio="' + precioUnit + '" data-cant="' + Number(p.cantidad || 0) + '" data-subtotal="' + subItem + '" onchange="window.recalcularTotalDevolucion()">' +
+ '<span>' + p.cantidad + 'x ' + escaparHtmlPos(p.nombre) + ' ($' + subItem.toFixed(2) + ')</span>' +
+ '</label>' +
+ '</div>';
+ });
 
-    window.ticketEnDevolucion = { id: ticketId, productos: venta.productos };
-    document.getElementById('modal-devolucion-parcial').style.display = 'flex';
+ window.ticketEnDevolucion = { id: ticketId, productos: venta.productos };
+ document.getElementById('dev-total-reembolso').innerText = "$0.00";
+ document.getElementById('modal-devolucion-parcial').style.display = 'flex';
 };
 
 window.recalcularTotalDevolucion = function() {
-    let tot = 0;
-    document.querySelectorAll('.chk-dev-item:checked').forEach(c => {
-        tot += (Number(c.dataset.precio) * Number(c.dataset.cant));
-    });
-    document.getElementById('dev-total-reembolso').innerText = `$${tot.toFixed(2)}`;
+ let tot = 0;
+ document.querySelectorAll('.chk-dev-item:checked').forEach(function(c) {
+ const sub = Number(c.dataset.subtotal);
+ tot += !isNaN(sub) ? sub : (Number(c.dataset.precio) * Number(c.dataset.cant));
+ });
+ document.getElementById('dev-total-reembolso').innerText = '$' + tot.toFixed(2);
 };
 
 document.getElementById('btn-cancelar-dev')?.addEventListener('click', () => {
@@ -2116,131 +2265,138 @@ setTimeout(function() {
 }, 3200);
 
 let timerInactividadVen = null;
+let controlFacturacionActivoVen = null;
 
 function inicializarModulosHomologadosVen_() {
-    import('./geokatu-tour.js').catch(function() {});
-    import('./auth-gate.js').then(function(mod) {
-        if (mod && mod.AuthGate) window.AuthGate = mod.AuthGate;
-    }).catch(function() {});
-    import('./billing-guard.js').then(function(mod) {
-        if (mod && mod.BillingGuard) {
-            window.BillingGuard = mod.BillingGuard;
-            if (typeof mod.BillingGuard.pintarSemaforoPOS === 'function') {
-                mod.BillingGuard.pintarSemaforoPOS(idNegocio, 'pos-alerta-facturas');
-            }
-        }
-    }).catch(function() {});
+ import('./geokatu-tour.js').catch(function() {});
+ window.AuthGate = {
+ bloquearTerminalPorInactividad: function() {
+ if (window.parent && window.parent !== window && window.parent.TerminalApp && window.parent.TerminalApp.esTerminalUnificada) {
+ window.parent.TerminalApp.solicitarBloqueo();
+ return;
+ }
+ const pinEsperado = localStorage.getItem('geokatu_cajero_pin') || cajeroCodigoActivo || '0000';
+ const intento = prompt('Terminal bloqueada. Ingresa tu PIN de cajero (4 digitos) para continuar:', '');
+ if (intento === null || intento.trim() !== String(pinEsperado)) {
+ alert('PIN incorrecto. Debes ingresar el PIN del cajero activo.');
+ return window.AuthGate.bloquearTerminalPorInactividad();
+ }
+ }
+ };
 
-    if (!window.AuthGate) {
-        window.AuthGate = {
-            bloquearTerminalPorInactividad: function() {
-                const pinEsperado = localStorage.getItem('geokatu_cajero_pin') || cajeroCodigoActivo || '0000';
-                const intento = prompt('🔒 Terminal bloqueada. Ingresa tu PIN de cajero (4 dígitos) para continuar:', '');
-                if (intento === null || intento.trim() !== String(pinEsperado)) {
-                    alert('PIN incorrecto. Debes ingresar el PIN del cajero activo.');
-                    return window.AuthGate.bloquearTerminalPorInactividad();
-                }
-            }
-        };
-    }
+ import('./billing-guard.js').then(async function(mod) {
+ if (mod && mod.BillingGuard) {
+ window.BillingGuard = mod.BillingGuard;
+ try {
+ const resDet = await GeokatuDB.LocalService.getDetails(idNegocio);
+ controlFacturacionActivoVen = (resDet && resDet.success && resDet.data && resDet.data.facturacion_control)
+ ? resDet.data.facturacion_control
+ : { plan_activo: 'FREEMIUM', facturas_emitidas_mes: 0, facturas_cupo_gratis: 1300, facturas_prepago_saldo: 0 };
+ mod.BillingGuard.verificarEstadoCuota(controlFacturacionActivoVen, 'pos-alerta-facturas');
+ } catch (eBg) {
+ actualizarSemaforoFacturasVen_(idNegocio);
+ }
+ }
+ }).catch(function() {});
 
-    const reiniciarTimerInactividad = function() {
-        if (timerInactividadVen) clearTimeout(timerInactividadVen);
-        timerInactividadVen = setTimeout(function() {
-            if (window.AuthGate && typeof window.AuthGate.bloquearTerminalPorInactividad === 'function') {
-                window.AuthGate.bloquearTerminalPorInactividad();
-            }
-        }, 10 * 60 * 1000);
-    };
-    ['click', 'keydown', 'touchstart'].forEach(function(ev) {
-        document.addEventListener(ev, reiniciarTimerInactividad, { passive: true });
-    });
-    reiniciarTimerInactividad();
+ const reiniciarTimerInactividad = function() {
+ if (timerInactividadVen) clearTimeout(timerInactividadVen);
+ timerInactividadVen = setTimeout(function() {
+ if (window.AuthGate && typeof window.AuthGate.bloquearTerminalPorInactividad === 'function') {
+ window.AuthGate.bloquearTerminalPorInactividad();
+ }
+ }, 10 * 60 * 1000);
+ };
+ ['click', 'keydown', 'touchstart'].forEach(function(ev) {
+ document.addEventListener(ev, reiniciarTimerInactividad, { passive: true });
+ });
+ reiniciarTimerInactividad();
 
-    actualizarSemaforoFacturasVen_(idNegocio);
-    actualizarEstadoVisualBotonWhatsApp();
+ actualizarEstadoVisualBotonWhatsApp();
 
-    if (navigator.onLine && idNegocio && GeokatuDB.PosService && typeof GeokatuDB.PosService.sincronizarUbicacionesLocal === 'function') {
-        GeokatuDB.PosService.sincronizarUbicacionesLocal(idNegocio).catch(function() {});
-    }
+ if (navigator.onLine && idNegocio && GeokatuDB.InventarioService && typeof GeokatuDB.InventarioService.obtenerMapaStockTiendaCompleto === 'function') {
+ try {
+ const claveUbis = 'geokatu_stock_ubis_' + idNegocio;
+ const claveSyncUbis = 'geokatu_sync_ubis_time_' + idNegocio;
+ const rawPrev = JSON.parse(localStorage.getItem(claveUbis) || '[]');
+ const ubisPrevias = Array.isArray(rawPrev) ? rawPrev : [];
+ const ultimoSync = ubisPrevias.length > 0 ? (localStorage.getItem(claveSyncUbis) || null) : null;
+ GeokatuDB.InventarioService.obtenerMapaStockTiendaCompleto(idNegocio, ultimoSync).then(function(resU) {
+ if (resU && resU.success && Array.isArray(resU.data)) {
+ if (resU.esDelta && resU.data.length > 0) {
+ resU.data.forEach(function(d) {
+ const idx = ubisPrevias.findIndex(function(u) { return u.id_prod === d.id_prod && u.id_compartimiento === d.id_compartimiento; });
+ if (idx !== -1) ubisPrevias[idx] = d;
+ else ubisPrevias.push(d);
+ });
+ localStorage.setItem(claveUbis, JSON.stringify(ubisPrevias));
+ } else if (!resU.esDelta) {
+ localStorage.setItem(claveUbis, JSON.stringify(resU.data));
+ }
+ if (resU.timestampCorte) localStorage.setItem(claveSyncUbis, resU.timestampCorte);
+ }
+ }).catch(function() {});
+ } catch (eSyncU) {}
+ }
 }
 
 function actualizarSemaforoFacturasVen_(idTenant) {
-    const el = document.getElementById('pos-alerta-facturas');
-    if (!el || !idTenant) return;
-    const usadas = parseInt(localStorage.getItem('geokatu_facturas_emitidas_' + idTenant) || '0', 10);
-    const tope = parseInt(localStorage.getItem('geokatu_cupo_facturas_' + idTenant) || '1300', 10);
-    const restantes = Math.max(0, tope - usadas);
-    if (usadas >= tope) {
-        el.innerText = 'CUPO AGOTADO (' + usadas + '/' + tope + ')';
-        el.style.color = 'var(--accent-red)';
-    } else if (usadas >= 1250) {
-        el.innerText = 'QUEDAN ' + restantes + ' FACT.';
-        el.style.color = 'var(--accent-red)';
-    } else if (usadas >= 1000) {
-        el.innerText = 'QUEDAN ' + restantes + ' FACT.';
-        el.style.color = '#f59e0b';
-    } else {
-        el.innerText = '';
-    }
+ if (controlFacturacionActivoVen && window.BillingGuard && typeof window.BillingGuard.verificarEstadoCuota === 'function') {
+ window.BillingGuard.verificarEstadoCuota(controlFacturacionActivoVen, 'pos-alerta-facturas');
+ return;
+ }
+ const el = document.getElementById('pos-alerta-facturas');
+ if (!el || !idTenant) return;
+ const usadas = parseInt(localStorage.getItem('geokatu_facturas_emitidas_' + idTenant) || '0', 10);
+ const tope = parseInt(localStorage.getItem('geokatu_cupo_facturas_' + idTenant) || '1300', 10);
+ const restantes = Math.max(0, tope - usadas);
+ if (usadas >= tope) {
+ el.innerText = 'CUPO AGOTADO (' + usadas + '/' + tope + ')';
+ el.style.color = 'var(--accent-red)';
+ } else if (usadas >= 1250) {
+ el.innerText = 'QUEDAN ' + restantes + ' FACT.';
+ el.style.color = 'var(--accent-red)';
+ } else if (usadas >= 1000) {
+ el.innerText = 'QUEDAN ' + restantes + ' FACT.';
+ el.style.color = '#f59e0b';
+ } else {
+ el.innerText = '';
+ }
 }
 
 function verificarCupoFacturacionPOS_(idTenant, permitirSiTurnoAbierto) {
-    if (!idTenant) return true;
-    const usadas = parseInt(localStorage.getItem('geokatu_facturas_emitidas_' + idTenant) || '0', 10);
-    const tope = parseInt(localStorage.getItem('geokatu_cupo_facturas_' + idTenant) || '1300', 10);
-    if (usadas >= tope) {
-        if (permitirSiTurnoAbierto) {
-            return true;
-        }
-        if (window.BillingGuard && typeof window.BillingGuard.mostrarModalRecarga === 'function') {
-            window.BillingGuard.mostrarModalRecarga(idTenant);
-        } else {
-            alert('Has alcanzado el límite de ' + tope + ' facturas gratuitas. Recarga tu cupo para abrir un nuevo turno.');
-        }
-        return false;
-    }
-    return true;
+ if (!idTenant) return true;
+ if (controlFacturacionActivoVen && window.BillingGuard && typeof window.BillingGuard.verificarEstadoCuota === 'function') {
+ const est = window.BillingGuard.verificarEstadoCuota(controlFacturacionActivoVen, 'pos-alerta-facturas');
+ if (est && est.bloqueado) {
+ if (permitirSiTurnoAbierto) return true;
+ window.BillingGuard.abrirModalPlanesFacturas(false);
+ return false;
+ }
+ return true;
+ }
+ const usadas = parseInt(localStorage.getItem('geokatu_facturas_emitidas_' + idTenant) || '0', 10);
+ const tope = parseInt(localStorage.getItem('geokatu_cupo_facturas_' + idTenant) || '1300', 10);
+ if (usadas >= tope) {
+ if (permitirSiTurnoAbierto) return true;
+ if (window.BillingGuard && typeof window.BillingGuard.abrirModalPlanesFacturas === 'function') {
+ window.BillingGuard.abrirModalPlanesFacturas(false);
+ } else {
+ alert('Has alcanzado el límite de ' + tope + ' facturas gratuitas. Contacta soporte para recargar tu cupo.');
+ }
+ return false;
+ }
+ return true;
 }
 
 function registrarConsumoCuotaFactura_(idTenant) {
-    if (!idTenant) return;
-    const actual = parseInt(localStorage.getItem('geokatu_facturas_emitidas_' + idTenant) || '0', 10);
-    localStorage.setItem('geokatu_facturas_emitidas_' + idTenant, String(actual + 1));
-    actualizarSemaforoFacturasVen_(idTenant);
-}
-
-function descontarStockCascadaWMS_(idTenant, itemsVendidos) {
-    if (!idTenant || !Array.isArray(itemsVendidos) || itemsVendidos.length === 0) return;
-    try {
-        const claveUbis = 'geokatu_stock_ubis_' + idTenant;
-        const mapaUbis = JSON.parse(localStorage.getItem(claveUbis) || '{}');
-        let huboCambios = false;
-        itemsVendidos.forEach(function(item) {
-            const lista = mapaUbis[item.id_prod];
-            if (!Array.isArray(lista) || lista.length === 0) return;
-            let porDescontar = Number(item.cantidad) || 0;
-            lista.sort(function(a, b) {
-                const aPiso = String(a.zona || '').toUpperCase() === 'PISO_VENTA' ? 0 : 1;
-                const bPiso = String(b.zona || '').toUpperCase() === 'PISO_VENTA' ? 0 : 1;
-                return aPiso - bPiso;
-            });
-            for (let i = 0; i < lista.length && porDescontar > 0; i++) {
-                const disp = Number(lista[i].cantidad) || 0;
-                if (disp > 0) {
-                    const quita = Math.min(disp, porDescontar);
-                    lista[i].cantidad = Number((disp - quita).toFixed(3));
-                    porDescontar = Number((porDescontar - quita).toFixed(3));
-                    huboCambios = true;
-                }
-            }
-        });
-        if (huboCambios) {
-            localStorage.setItem(claveUbis, JSON.stringify(mapaUbis));
-        }
-    } catch (eWms) {
-        console.warn('[POSVen WMS]:', eWms.message);
-    }
+ if (!idTenant) return;
+ if (controlFacturacionActivoVen) {
+ controlFacturacionActivoVen.facturas_emitidas_mes = (Number(controlFacturacionActivoVen.facturas_emitidas_mes) || 0) + 1;
+ }
+ const actual = parseInt(localStorage.getItem('geokatu_facturas_emitidas_' + idTenant) || '0', 10);
+ localStorage.setItem('geokatu_facturas_emitidas_' + idTenant, String(actual + 1));
+ actualizarSemaforoFacturasVen_(idTenant);
 }
 
 function actualizarBotonExpandirTicket_() {
@@ -2306,71 +2462,85 @@ function generarCode128BCompletoSVG_(svg, texto) {
     svg.innerHTML = rects;
 }
 
-window.abrirModalConfiguracionPOS = function() {
-    const modal = document.getElementById('modal-configuracion-pos');
-    if (!modal) return;
-    const cfg = JSON.parse(localStorage.getItem('geokatu_pos_config_' + idNegocio) || '{}');
-    const inpUrl = document.getElementById('cfg-input-apps-script');
-    const swWa = document.getElementById('cfg-switch-whatsapp');
-    const boxWa = document.getElementById('cfg-box-numero-wa');
-    const inpWa = document.getElementById('cfg-input-wa-emisor');
-    const selPas = document.getElementById('cfg-select-pasarela');
-    const inpKey = document.getElementById('cfg-input-api-key');
+window.abrirModalConfiguracionPOS = async function() {
+ const modal = document.getElementById('modal-configuracion-pos');
+ if (!modal) return;
+ const cfg = await GeokatuDB.PosService.obtenerConfiguracionTerminalPOS(idNegocio);
+ const inpUrl = document.getElementById('cfg-input-apps-script');
+ const swWa = document.getElementById('cfg-switch-whatsapp');
+ const boxWa = document.getElementById('cfg-box-numero-wa');
+ const inpWa = document.getElementById('cfg-input-wa-emisor');
+ const selPas = document.getElementById('cfg-select-pasarela');
+ const inpKey = document.getElementById('cfg-input-api-key');
 
-    if (inpUrl) inpUrl.value = cfg.apps_script_url || '';
-    if (swWa) swWa.checked = Boolean(cfg.whatsapp_activo);
-    if (boxWa) boxWa.style.display = cfg.whatsapp_activo ? 'block' : 'none';
-    if (inpWa) inpWa.value = cfg.whatsapp_emisor || '';
-    if (selPas) selPas.value = cfg.pasarela || 'MANUAL';
-    if (inpKey) inpKey.value = cfg.pasarela_public_key || '';
-    modal.style.display = 'flex';
+ if (inpUrl) inpUrl.value = cfg.apps_script_url || '';
+ if (swWa) swWa.checked = Boolean(cfg.whatsapp_facturas_activo);
+ if (boxWa) boxWa.style.display = cfg.whatsapp_facturas_activo ? 'block' : 'none';
+ if (inpWa) inpWa.value = cfg.whatsapp_numero_emisor || '';
+ if (selPas) selPas.value = cfg.pasarela_activa || 'MANUAL';
+ if (inpKey) inpKey.value = cfg.pasarela_public_key || '';
+ modal.style.display = 'flex';
 };
 
 window.cambiarPestanaConfig = function(tabId, btnElem) {
-    document.querySelectorAll('#modal-configuracion-pos .cfg-tab-panel').forEach(function(p) {
-        p.style.display = 'none';
-    });
-    document.querySelectorAll('#modal-configuracion-pos .tab-config-btn').forEach(function(b) {
-        b.classList.remove('activa');
-    });
-    const panel = document.getElementById(tabId);
-    if (panel) panel.style.display = 'block';
-    if (btnElem) btnElem.classList.add('activa');
+ document.querySelectorAll('#modal-configuracion-pos .cfg-tab-panel').forEach(function(p) {
+ p.style.display = 'none';
+ });
+ document.querySelectorAll('#modal-configuracion-pos .tab-config-btn').forEach(function(b) {
+ b.classList.remove('activa');
+ });
+ const panel = document.getElementById(tabId);
+ if (panel) panel.style.display = 'block';
+ if (btnElem) btnElem.classList.add('activa');
 };
 
-window.guardarConfiguracionDesdeModal = function() {
-    const inpUrl = document.getElementById('cfg-input-apps-script');
-    const swWa = document.getElementById('cfg-switch-whatsapp');
-    const inpWa = document.getElementById('cfg-input-wa-emisor');
-    const selPas = document.getElementById('cfg-select-pasarela');
-    const inpKey = document.getElementById('cfg-input-api-key');
+window.guardarConfiguracionDesdeModal = async function() {
+ const inpUrl = document.getElementById('cfg-input-apps-script');
+ const swWa = document.getElementById('cfg-switch-whatsapp');
+ const inpWa = document.getElementById('cfg-input-wa-emisor');
+ const selPas = document.getElementById('cfg-select-pasarela');
+ const inpKey = document.getElementById('cfg-input-api-key');
 
-    let numWa = inpWa ? inpWa.value.replace(/\D/g, '') : '';
-    if (numWa.length === 10) numWa = '58' + numWa;
-    if (numWa.length === 11 && numWa.indexOf('0') === 0) numWa = '58' + numWa.substring(1);
+ const waActivo = Boolean(swWa && swWa.checked);
+ let numWa = inpWa ? inpWa.value.replace(/\D/g, '') : '';
+ if (numWa.length === 10) numWa = '58' + numWa;
+ if (numWa.length === 11 && numWa.indexOf('0') === 0) numWa = '58' + numWa.substring(1);
+ if (waActivo && numWa.length < 7) {
+ alert('Debes ingresar el número de WhatsApp de tu negocio para activar esta función.');
+ return;
+ }
 
-    const nuevaCfg = {
-        apps_script_url: inpUrl ? inpUrl.value.trim() : '',
-        whatsapp_activo: Boolean(swWa && swWa.checked),
-        whatsapp_emisor: numWa,
-        pasarela: selPas ? selPas.value : 'MANUAL',
-        pasarela_public_key: inpKey ? inpKey.value.trim() : ''
-    };
-    localStorage.setItem('geokatu_pos_config_' + idNegocio, JSON.stringify(nuevaCfg));
-    actualizarEstadoVisualBotonWhatsApp();
-    const modal = document.getElementById('modal-configuracion-pos');
-    if (modal) modal.style.display = 'none';
-    if (typeof window.mostrarAvisoPos === 'function') {
-        window.mostrarAvisoPos('Configuración del POS guardada correctamente.');
-    }
+ const payload = {
+ apps_script_url: inpUrl ? inpUrl.value.trim() : '',
+ whatsapp_facturas_activo: waActivo,
+ whatsapp_numero_emisor: numWa,
+ pasarela_activa: selPas ? selPas.value : 'MANUAL',
+ pasarela_public_key: inpKey ? inpKey.value.trim() : ''
+ };
+ await GeokatuDB.PosService.guardarConfiguracionTerminalPOS(idNegocio, payload);
+ await actualizarEstadoVisualBotonWhatsApp();
+ const modal = document.getElementById('modal-configuracion-pos');
+ if (modal) modal.style.display = 'none';
+ if (typeof window.mostrarAvisoPos === 'function') {
+ window.mostrarAvisoPos('Configuración del POS guardada correctamente.');
+ }
 };
 
-function actualizarEstadoVisualBotonWhatsApp() {
-    const cfg = JSON.parse(localStorage.getItem('geokatu_pos_config_' + idNegocio) || '{}');
-    const btnWa = document.getElementById('btn-enviar-wa-modal');
-    if (btnWa) {
-        btnWa.style.opacity = cfg.whatsapp_activo === false ? '0.6' : '1';
-    }
+async function actualizarEstadoVisualBotonWhatsApp() {
+ const btnWa = document.getElementById('btn-enviar-wa-modal');
+ if (!btnWa) return;
+ const cfg = await GeokatuDB.PosService.obtenerConfiguracionTerminalPOS(idNegocio);
+ if (cfg && cfg.whatsapp_facturas_activo) {
+ btnWa.style.background = '#25D366';
+ btnWa.style.color = '#000';
+ btnWa.style.border = 'none';
+ btnWa.innerText = 'Enviar';
+ } else {
+ btnWa.style.background = '#3a3a44';
+ btnWa.style.color = '#aaa';
+ btnWa.style.border = '1px solid #555';
+ btnWa.innerText = 'Activar WA';
+ }
 }
 
 
