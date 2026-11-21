@@ -740,10 +740,15 @@
         let limiteFilasActual = 10; // Paginación por bloques de 10 filas equivalentes
         let productoEnEdicionInSitu = null;
 
-        const urlParams = new URLSearchParams(window.location.search);
-        let idNegocio = urlParams.get('id') || 'acefama-pereira';
+         const urlParams = new URLSearchParams(window.location.search);
+ let idNegocio = urlParams.get('id') || 'acefama-pereira';
+ const esEmbedOficina = urlParams.get('embed') === 'oficina';
+ if (esEmbedOficina) {
+ const btnRadarVolver = document.querySelector('.btn-radar-volver');
+ if (btnRadarVolver) btnRadarVolver.style.display = 'none';
+ }
 
-                // 1. COMPROBAR SI EL VISITANTE ES EL DUEÑO O SUPERADMIN MULTI-SEDE
+ // 1. COMPROBAR SI EL VISITANTE ES EL DUEÑO O SUPERADMIN MULTI-SEDE
         window.usuarioEsDueno = false;
         window.modoEdicionActivo = false;
         window.sedesVinculadasNegocio = [];
@@ -1019,14 +1024,16 @@
                         window.usuarioEsDueno = autorizado;
             const btnEdit = document.getElementById('btn-modo-edicion');
             if (btnEdit) btnEdit.style.display = window.usuarioEsDueno ? 'flex' : 'none';
-            if (!window.usuarioEsDueno) {
-                window.modoEdicionActivo = false;
-                document.body.classList.remove('modo-edicion');
-                document.getElementById('modal-editar-perfil-negocio').classList.remove('activo');
-            } else if (urlParams.get('onboarding') === 'paso4' && typeof window.activarOnboardingPaso4Catalogo === 'function') {
-                window.activarOnboardingPaso4Catalogo();
-            }
-            if (window.CatalogoUI) window.CatalogoUI.actualizarIdentidad();
+             if (!window.usuarioEsDueno) {
+ window.modoEdicionActivo = false;
+ document.body.classList.remove('modo-edicion');
+ document.getElementById('modal-editar-perfil-negocio').classList.remove('activo');
+ } else if (urlParams.get('onboarding') === 'paso4' && typeof window.activarOnboardingPaso4Catalogo === 'function') {
+ window.activarOnboardingPaso4Catalogo();
+ } else if (esEmbedOficina && !window.modoEdicionActivo && typeof window.toggleModoEdicion === 'function') {
+ window.toggleModoEdicion();
+ }
+ if (window.CatalogoUI) window.CatalogoUI.actualizarIdentidad();
         })).catch(error => console.warn('Servicios del catálogo no disponibles:', error));
 
        // =========================================================================
