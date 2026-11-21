@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Gestión de Negocio | GEOKATU</title>
+  <link rel="stylesheet" href="admin-boveda.css">
+  <script type="text/javascript" src="https://checkout.wompi.co/widget.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 12px 14px 36px 14px;
+      background: #0a0a0c;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .gestion-wrap {
+      max-width: 540px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .gestion-subtabs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      background: rgba(15, 15, 20, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 5px;
+      position: sticky;
+      top: 6px;
+      z-index: 50;
+      backdrop-filter: blur(12px);
+    }
+    .btn-sub-g {
+      background: transparent;
+      border: none;
+      color: #9ca3af;
+      padding: 9px 4px;
+      border-radius: 8px;
+      font-size: 10.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .btn-sub-g.activo {
+      background: rgba(255, 107, 0, 0.16);
+      color: #ff6b00;
+      border: 1px solid rgba(255, 107, 0, 0.4);
+    }
+    .panel-g {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .panel-g.activo {
+      display: flex;
+    }
+    .fila-item-g {
+      background: rgba(0, 0, 0, 0.38);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge-g {
+      font-size: 9.5px;
+      font-weight: 900;
+      padding: 3px 7px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="gestion-wrap">
+    <nav class="gestion-subtabs" aria-label="Secciones de Gestión">
+      <button type="button" class="btn-sub-g activo" data-g="personal" onclick="window.cambiarSeccionGestion('personal')">Personal</button>
+      <button type="button" class="btn-sub-g" data-g="sedes" onclick="window.cambiarSeccionGestion('sedes')">Sedes</button>
+      <button type="button" class="btn-sub-g" data-g="planes" onclick="window.cambiarSeccionGestion('planes')">Planes</button>
+      <button type="button" class="btn-sub-g" data-g="soporte" onclick="window.cambiarSeccionGestion('soporte')">Soporte</button>
+    </nav>
+
+    <!-- 1. PERSONAL Y TAREAS -->
+    <section id="sec-g-personal" class="panel-g activo">
+      <div class="panel-operaciones-bloque">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <div>
+            <h4 style="margin:0; font-size:13px; text-transform:uppercase; color:#fff;">Operarios Registrados</h4>
+            <span style="font-size:11px; color:#888;">Cajeros, bodega y personal con PIN 4D</span>
+          </div>
+          <button type="button" onclick="var f=document.getElementById('form-nuevo-emp'); f.style.display=(f.style.display==='none'?'block':'none');" style="background:var(--naranja); color:#fff; border:none; padding:7px 12px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">+ Operario</button>
+        </div>
+
+        <div id="form-nuevo-emp" style="display:none; background:rgba(0,0,0,0.45); border:1px dashed rgba(255,107,0,0.4); border-radius:12px; padding:12px; margin-bottom:12px;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <input type="text" id="emp-nombre" class="input-form" placeholder="Nombre completo">
+            <input type="tel" id="emp-tel" class="input-form" placeholder="Teléfono" oninput="this.value=this.value.replace(/\D/g,'')">
+          </div>
+          <input type="email" id="emp-email" class="input-form" placeholder="correo@comercio.com">
+          <div style="display:grid; grid-template-columns:1fr 110px; gap:8px;">
+            <div style="position:relative;">
+              <input type="text" id="emp-pass" class="input-form" placeholder="Clave inicial" style="font-family:monospace;">
+              <button type="button" onclick="window.generarPassEmp()" style="position:absolute; right:8px; top:10px; background:none; border:none; color:#00ff64; font-size:10px; font-weight:800; cursor:pointer;">Sugerir</button>
+            </div>
+            <div style="position:relative;">
+              <input type="text" id="emp-pin" maxlength="4" class="input-form" placeholder="PIN 4D" style="font-family:monospace; text-align:center; font-weight:900; color:var(--naranja);" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+              <button type="button" onclick="window.generarPinEmp()" style="position:absolute; right:6px; top:10px; background:none; border:none; color:var(--naranja); font-size:10px; font-weight:800; cursor:pointer;">Auto</button>
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+            <select id="emp-rol" class="input-form" style="margin-bottom:0;">
+              <option value="cajero" selected>Cajero POS</option>
+              <option value="asesor">Asesor de Ventas</option>
+              <option value="operador_bodega">Operario de Bodega</option>
+              <option value="visual_merchandising">Visual Merchandising</option>
+              <option value="supervisor_pos">Supervisor</option>
+              <option value="administrador_delegado">Administrador Delegado</option>
+            </select>
+            <select id="emp-almacen" class="input-form" style="margin-bottom:0;">
+              <option value="SALA_VENTAS" selected>Sede Principal</option>
+              <option value="BODEGA_CENTRAL">Bodega Central</option>
+            </select>
+          </div>
+          <div style="background:rgba(0,0,0,0.35); border:1px solid var(--glass-border); border-radius:10px; padding:10px; margin-bottom:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <label class="section-title" style="margin:0; font-size:10px; color:var(--naranja);">Control de Turno Laboral</label>
+              <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:#ddd; cursor:pointer;">
+                <input type="checkbox" id="emp-horario-activo" checked onchange="document.getElementById('box-horas-emp').style.display=this.checked?'grid':'none';" style="accent-color:var(--naranja);">
+                Restringir horario
+              </label>
+            </div>
+            <div id="box-horas-emp" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+              <input type="time" id="emp-hora-ini" class="input-form" value="07:00" style="margin-bottom:0;">
+              <input type="time" id="emp-hora-fin" class="input-form" value="16:00" style="margin-bottom:0;">
+            </div>
+          </div>
+          <button type="button" id="btn-registrar-emp" class="btn-submit" style="margin:0;" onclick="window.registrarOperarioGestion()">Registrar Operario</button>
+        </div>
+
+        <div id="lista-operarios-g" style="display:flex; flex-direction:column; gap:6px;">
+          <p style="text-align:center; color:#777; font-size:11.5px;">Cargando personal...</p>
+        </div>
+      </div>
+
+      <div class="panel-operaciones-bloque">
+        <label class="section-title" style="margin-bottom:6px;">Asignar Tarea al Turno</label>
+        <input type="text" id="tarea-titulo-g" class="input-form" placeholder="Ej: Conciliar anaquel de bebidas">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <select id="tarea-dest-g" class="input-form">
+            <option value="TODOS">Todo el personal</option>
+          </select>
+          <select id="tarea-prio-g" class="input-form">
+            <option value="NORMAL">Normal</option>
+            <option value="URGENTE">Urgente</option>
+          </select>
+        </div>
+        <button type="button" class="btn-submit" style="margin:0 0 12px 0;" onclick="window.publicarTareaGestion()">Publicar Tarea</button>
+        <label class="section-title">Tareas Pendientes</label>
+        <div id="lista-tareas-g" style="display:flex; flex-direction:column; gap:6px;">
+          <p style="text-align:center; color:#777; font-size:11.5px;">Cargando tareas...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. SEDES Y SUCURSALES -->
+    <section id="sec-g-sedes" class="panel-g">
+      <div class="panel-operaciones-bloque">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <div>
+            <h4 style="margin:0; font-size:13px; text-transform:uppercase; color:#fff;">Sedes y Sucursales</h4>
+            <span style="font-size:11px; color:#888;">Red comercial vinculada a tu cuenta</span>
+          </div>
+          <button type="button" onclick="var f=document.getElementById('form-nueva-sede-g'); f.style.display=(f.style.display==='none'?'block':'none');" style="background:var(--naranja); color:#fff; border:none; padding:7px 12px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">+ Nueva Sede</button>
+        </div>
+
+        <div id="form-nueva-sede-g" style="display:none; background:rgba(0,0,0,0.45); border:1px dashed rgba(255,107,0,0.4); border-radius:12px; padding:12px; margin-bottom:12px;">
+          <label class="section-title" style="margin-bottom:4px;">Nombre de la Sucursal *</label>
+          <input type="text" id="sede-g-nombre" class="input-form" placeholder="Ej: Mi Tienda - Sede Centro">
+          <label class="section-title" style="margin-bottom:4px;">Dirección Física *</label>
+          <input type="text" id="sede-g-dir" class="input-form" placeholder="Ej: Cra 7 # 19-28, Pereira">
+          <button type="button" id="btn-crear-sede-g" class="btn-submit" style="margin:0;" onclick="window.fundarSucursalGestion()">Fundar Sucursal</button>
+        </div>
+
+        <div id="lista-sedes-g" style="display:flex; flex-direction:column; gap:8px;">
+          <p style="text-align:center; color:#777; font-size:11.5px;">Consultando sedes...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. PLANES Y CUOTA POS -->
+    <section id="sec-g-planes" class="panel-g">
+      <div class="panel-operaciones-bloque">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <div>
+            <h4 style="margin:0; font-size:13px; text-transform:uppercase; color:#fff;">Plan y Cuota de Facturas</h4>
+            <span style="font-size:11px; color:#888;">Paquetes prepago sin suscripciones forzosas</span>
+          </div>
+          <span id="badge-plan-g" class="badge-g" style="background:rgba(255,107,0,0.16); color:#ff6b00; border:1px solid rgba(255,107,0,0.4);">FREEMIUM</span>
+        </div>
+        <div id="billing-alert-gestion" style="margin-bottom:12px;"></div>
+        <div class="fila-item-g" style="margin-bottom:10px;">
+          <div>
+            <strong style="display:block; font-size:12px; color:#fff;">Facturas emitidas / Cupo total</strong>
+            <span id="txt-cuota-detalle-g" style="font-size:11px; color:#9ca3af; font-family:monospace;">0 / 1300</span>
+          </div>
+          <strong id="txt-saldo-prepago-g" style="font-size:13px; color:#00ff64; font-family:monospace;">Saldo: 0</strong>
+        </div>
+        <button type="button" class="btn-submit" style="margin:0;" onclick="window.BillingGuard.abrirModalPlanesFacturas(false)">Adquirir Paquete de Facturas / Plan</button>
+      </div>
+    </section>
+
+    <!-- 4. SOPORTE TÉCNICO Y ACADEMIA -->
+    <section id="sec-g-soporte" class="panel-g">
+      <div class="panel-operaciones-bloque">
+        <h4 style="margin:0 0 6px 0; font-size:13px; text-transform:uppercase; color:#fff;">Soporte Técnico GEOKATU</h4>
+        <p style="margin:0 0 12px 0; font-size:11.5px; color:#9ca3af; line-height:1.45;">
+          Reporta incidencias de caja POS, balanzas, impresoras térmicas, DIAN o pasarelas con el identificador de tu comercio listo.
+        </p>
+        <div class="fila-item-g" style="margin-bottom:12px;">
+          <span style="font-size:11px; color:#9ca3af;">ID de Comercio:</span>
+          <strong id="txt-id-soporte-g" style="font-size:11.5px; color:#ff6b00; font-family:monospace;">---</strong>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <button type="button" class="btn-submit" style="margin:0; background:#25D366; color:#000;" onclick="window.contactarSoporteWhatsApp()">Contactar Soporte por WhatsApp</button>
+          <a href="https://www.youtube.com/geokatu" target="_blank" rel="noopener noreferrer" class="btn-dashed-action" style="text-decoration:none;">Ver Tutoriales en YouTube</a>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script type="module">
+    import GeokatuDB from './core-db.js';
+    import { BillingGuard } from './billing-guard.js';
+    import { db } from './firebase-config.js';
+    import { collection, doc, getDocs, setDoc, updateDoc, query, where, orderBy, limit } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+    window.GeokatuDB = GeokatuDB;
+    window.BillingGuard = BillingGuard;
+
+    var params = new URLSearchParams(window.location.search);
+    var idNegocio = params.get('id') || localStorage.getItem('geokatu_active_uid') || '';
+    var datosNegocio = {};
+
+    function escHtml(v) {
+      return String(v === null || v === undefined ? '' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    window.cambiarSeccionGestion = function(sec) {
+      document.querySelectorAll('.btn-sub-g').forEach(function(b) {
+        b.classList.toggle('activo', b.getAttribute('data-g') === sec);
+      });
+      document.querySelectorAll('.panel-g').forEach(function(p) {
+        p.classList.toggle('activo', p.id === 'sec-g-' + sec);
+      });
+    };
+
+    window.generarPassEmp = function() {
+      var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+      var pass = '';
+      for (var i = 0; i < 9; i++) pass += chars.charAt(Math.floor(Math.random() * chars.length));
+      var el = document.getElementById('emp-pass');
+      if (el) el.value = pass;
+    };
+
+    window.generarPinEmp = function() {
+      var el = document.getElementById('emp-pin');
+      if (el) el.value = String(Math.floor(1000 + Math.random() * 9000));
+    };
+
+    async function cargarPersonalYTareas() {
+      var cont = document.getElementById('lista-operarios-g');
+      var selDest = document.getElementById('tarea-dest-g');
+      if (!idNegocio || !cont) return;
+      try {
+        var snap = await getDocs(collection(db, 'Directorio/' + idNegocio + '/Equipo'));
+        if (snap.empty) snap = await getDocs(collection(db, 'Directorio/' + idNegocio + '/Colaboradores'));
+        if (selDest) selDest.innerHTML = '<option value="TODOS">Todo el personal</option>';
+        if (snap.empty) {
+          cont.innerHTML = '<p style="text-align:center; color:#777; font-size:11.5px;">No hay operarios registrados.</p>';
+        } else {
+          var html = '';
+          snap.forEach(function(d) {
+            var e = d.data() || {};
+            if (selDest) selDest.innerHTML += '<option value="' + escHtml(d.id) + '">' + escHtml(e.nombre || e.email || d.id) + '</option>';
+            var hor = (e.horario_laboral && e.horario_laboral.activo)
+              ? (e.horario_laboral.hora_inicio_str + ' - ' + e.horario_laboral.hora_fin_str)
+              : 'Turno Libre';
+            html += '<div class="fila-item-g">' +
+              '<div style="min-width:0;">' +
+              '<strong style="color:#fff; font-size:12px;">' + escHtml(e.nombre || e.email || 'Operario') + '</strong> ' +
+              '<span class="badge-g" style="background:rgba(255,107,0,0.18); color:#ff6b00;">PIN ' + escHtml(e.codigo_cajero || e.pin || '----') + '</span>' +
+              '<div style="font-size:10.5px; color:#888; margin-top:2px;">' + escHtml(e.email || '') + ' · ' + escHtml(hor) + '</div>' +
+              '</div>' +
+              '<span class="badge-g" style="background:rgba(255,255,255,0.08); color:#e5e7eb;">' + escHtml(e.rol || 'cajero') + '</span>' +
+              '</div>';
+          });
+          cont.innerHTML = html;
+        }
+      } catch (err) {
+        cont.innerHTML = '<p style="text-align:center; color:#ff6b6b; font-size:11px;">Error cargando personal.</p>';
+      }
+      await cargarTareas();
+    }
+
+    async function cargarTareas() {
+      var cont = document.getElementById('lista-tareas-g');
+      if (!idNegocio || !cont) return;
+      try {
+        var snap = await getDocs(query(
+          collection(db, 'Directorio/' + idNegocio + '/Tareas_Internas'),
+          where('completada', '==', false),
+          orderBy('fecha_creacion', 'desc'),
+          limit(20)
+        ));
+        if (snap.empty) {
+          cont.innerHTML = '<p style="text-align:center; color:#777; font-size:11.5px;">Sin tareas pendientes.</p>';
+          return;
+        }
+        var html = '';
+        snap.forEach(function(d) {
+          var t = d.data() || {};
+          var col = t.prioridad === 'URGENTE' ? '#ff4444' : '#ff6b00';
+          html += '<div class="fila-item-g" style="border-left:3px solid ' + col + ';">' +
+            '<div><span style="font-size:9.5px; font-weight:900; color:' + col + ';">' + escHtml(t.prioridad || 'NORMAL') + '</span>' +
+            '<strong style="display:block; font-size:12px; color:#fff;">' + escHtml(t.titulo || '') + '</strong></div>' +
+            '<button type="button" onclick="window.completarTareaGestion(\'' + escHtml(d.id) + '\')" style="background:rgba(0,255,100,0.14); border:1px solid rgba(0,255,100,0.4); color:#00ff64; border-radius:7px; padding:5px 9px; font-size:10.5px; font-weight:800; cursor:pointer;">Listo</button>' +
+            '</div>';
+        });
+        cont.innerHTML = html;
+      } catch (e) {
+        cont.innerHTML = '<p style="text-align:center; color:#777; font-size:11px;">Sin tareas disponibles.</p>';
+      }
+    }
+
+    window.registrarOperarioGestion = async function() {
+      var nombre = document.getElementById('emp-nombre').value.trim();
+      var tel = document.getElementById('emp-tel').value.trim();
+      var email = document.getElementById('emp-email').value.trim().toLowerCase();
+      var pass = document.getElementById('emp-pass').value;
+      var codigo = document.getElementById('emp-pin').value.trim();
+      var rol = document.getElementById('emp-rol').value;
+      var almacen = document.getElementById('emp-almacen').value;
+      var btn = document.getElementById('btn-registrar-emp');
+      if (!email || pass.length < 6 || !/^\d{4}$/.test(codigo)) {
+        return alert('Completa correo, clave (min. 6 caracteres) y PIN numerico de 4 digitos.');
+      }
+      var horarioPayload = null;
+      if (document.getElementById('emp-horario-activo').checked) {
+        var hIni = document.getElementById('emp-hora-ini').value || '07:00';
+        var hFin = document.getElementById('emp-hora-fin').value || '16:00';
+        var pI = hIni.split(':'), pF = hFin.split(':');
+        horarioPayload = {
+          activo: true,
+          hora_inicio_str: hIni,
+          hora_fin_str: hFin,
+          hora_inicio_minutos: (parseInt(pI[0], 10) * 60) + parseInt(pI[1], 10),
+          hora_fin_minutos: (parseInt(pF[0], 10) * 60) + parseInt(pF[1], 10),
+          dias_permitidos: [1, 2, 3, 4, 5, 6],
+          tolerancia_minutos: 45
+        };
+      }
+      btn.disabled = true;
+      btn.innerText = 'Registrando...';
+      try {
+        var fnMod = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js');
+        var fnCrear = fnMod.httpsCallable(fnMod.getFunctions(db.app), 'crearOperarioComercio');
+        var res = await fnCrear({
+          idNegocio: idNegocio,
+          nombre: nombre || email.split('@')[0],
+          telefono: tel,
+          email: email,
+          passwordTemporal: pass,
+          codigoCajero: codigo,
+          rol: rol,
+          almacenHabitual: almacen,
+          horarioLaboral: horarioPayload
+        });
+        if (!res.data || !res.data.success) throw new Error((res.data && res.data.mensaje) || 'Fallo servidor');
+        localStorage.removeItem('geokatu_nomina_cache_' + idNegocio);
+        alert('Operario registrado correctamente.');
+      } catch (eSrv) {
+        var idOp = 'OP_' + codigo + '_' + Date.now().toString(36).toUpperCase();
+        var payloadOp = {
+          nombre: nombre || email.split('@')[0],
+          telefono: tel,
+          email: email,
+          codigo_cajero: codigo,
+          pin: codigo,
+          rol: rol,
+          almacen_habitual: almacen,
+          horario_laboral: horarioPayload,
+          fecha_creacion: new Date().toISOString()
+        };
+        await setDoc(doc(db, 'Directorio/' + idNegocio + '/Equipo', idOp), payloadOp, { merge: true });
+        await setDoc(doc(db, 'Directorio/' + idNegocio + '/Colaboradores', idOp), payloadOp, { merge: true });
+        localStorage.removeItem('geokatu_nomina_cache_' + idNegocio);
+        alert('Operario guardado en nomina local con PIN ' + codigo + '.');
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'Registrar Operario';
+        document.getElementById('form-nuevo-emp').style.display = 'none';
+        cargarPersonalYTareas();
+      }
+    };
+
+    window.publicarTareaGestion = async function() {
+      var titulo = document.getElementById('tarea-titulo-g').value.trim();
+      var dest = document.getElementById('tarea-dest-g').value;
+      var prio = document.getElementById('tarea-prio-g').value;
+      if (!titulo) return alert('Escribe la tarea.');
+      await setDoc(doc(collection(db, 'Directorio/' + idNegocio + '/Tareas_Internas')), {
+        titulo: titulo,
+        destinatario_uid: dest,
+        prioridad: prio,
+        completada: false,
+        fecha_creacion: new Date().toISOString()
+      });
+      document.getElementById('tarea-titulo-g').value = '';
+      cargarTareas();
+    };
+
+    window.completarTareaGestion = async function(idT) {
+      await updateDoc(doc(db, 'Directorio/' + idNegocio + '/Tareas_Internas', idT), {
+        completada: true,
+        fecha_completada: new Date().toISOString()
+      });
+      cargarTareas();
+    };
+
+    async function cargarSedes() {
+      var cont = document.getElementById('lista-sedes-g');
+      if (!cont || !idNegocio) return;
+      var sedes = [{ id: idNegocio, nombre: datosNegocio.nombre || 'Sede Actual', direccion: datosNegocio.direccion || 'Sede Principal' }];
+      var redId = datosNegocio.redId || '';
+      if (navigator.onLine && redId) {
+        try {
+          var snap = await getDocs(query(collection(db, 'Directorio'), where('redId', '==', redId)));
+          snap.forEach(function(d) {
+            if (d.id === idNegocio) return;
+            var v = d.data() || {};
+            sedes.push({ id: d.id, nombre: v.nombre || 'Sucursal', direccion: v.direccion || 'Sin dirección' });
+          });
+        } catch (eR) {}
+      }
+      cont.innerHTML = sedes.map(function(s, idx) {
+        var esActiva = s.id === idNegocio;
+        return '<div class="fila-item-g">' +
+          '<div style="min-width:0;">' +
+          '<strong style="color:#fff; font-size:12px; display:block;">Sede ' + (idx + 1) + ': ' + escHtml(s.nombre) + '</strong>' +
+          '<span style="font-size:10.5px; color:#888;">' + escHtml(s.direccion) + '</span>' +
+          '</div>' +
+          (esActiva
+            ? '<span class="badge-g" style="background:rgba(0,255,100,0.14); color:#00ff64;">Activa</span>'
+            : '<button type="button" onclick="window.activarSedeGestion(\'' + escHtml(s.id) + '\')" style="background:rgba(56,189,248,0.16); border:1px solid #38bdf8; color:#38bdf8; border-radius:7px; padding:5px 9px; font-size:10.5px; font-weight:800; cursor:pointer;">Entrar</button>') +
+          '</div>';
+      }).join('');
+    }
+
+    window.activarSedeGestion = function(nuevoId) {
+      localStorage.setItem('geokatu_active_uid', nuevoId);
+      if (window.parent && window.parent !== window) window.parent.location.reload();
+      else window.location.reload();
+    };
+
+    window.fundarSucursalGestion = async function() {
+      var nom = document.getElementById('sede-g-nombre').value.trim();
+      var dir = document.getElementById('sede-g-dir').value.trim();
+      var btn = document.getElementById('btn-crear-sede-g');
+      if (!nom || !dir) return alert('Ingresa nombre y dirección de la nueva sucursal.');
+      btn.disabled = true;
+      btn.innerText = 'Creando...';
+      try {
+        var redId = datosNegocio.redId || ('RED-' + idNegocio);
+        var nuevaRef = doc(collection(db, 'Directorio'));
+        var nuevaId = nuevaRef.id;
+        var idsRed = Array.isArray(datosNegocio.sedes_red_ids) ? datosNegocio.sedes_red_ids.slice() : [idNegocio];
+        if (idsRed.indexOf(nuevaId) === -1) idsRed.push(nuevaId);
+        await setDoc(nuevaRef, {
+          nombre: nom,
+          direccion: dir,
+          redId: redId,
+          parentId: idNegocio,
+          sedes_red_ids: idsRed,
+          nicho: datosNegocio.nicho || datosNegocio.categoria || 'General',
+          categoria: datosNegocio.categoria || 'General',
+          pais: datosNegocio.pais || 'COL',
+          color_principal: datosNegocio.color_principal || '#ff6b00',
+          owner_email: datosNegocio.owner_email || '',
+          uid_dueno: datosNegocio.uid_dueno || idNegocio,
+          estado_moderacion: 'aprobado',
+          progreso_boveda: 100,
+          fecha_creacion: new Date().toISOString()
+        });
+        await GeokatuDB.AdminService.actualizarNegocio(idNegocio, { redId: redId, sedes_red_ids: idsRed });
+        datosNegocio.redId = redId;
+        datosNegocio.sedes_red_ids = idsRed;
+        document.getElementById('sede-g-nombre').value = '';
+        document.getElementById('sede-g-dir').value = '';
+        document.getElementById('form-nueva-sede-g').style.display = 'none';
+        alert('Sucursal fundada correctamente.');
+        cargarSedes();
+      } catch (e) {
+        alert('Error creando sucursal: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'Fundar Sucursal';
+      }
+    };
+
+    window.contactarSoporteWhatsApp = function() {
+      var msg = 'Hola soporte GEOKATU. Necesito asistencia tecnica para mi comercio (' + (datosNegocio.nombre || 'Comercio') + ' | ID: ' + idNegocio + ').';
+      window.open('https://wa.me/573000000000?text=' + encodeURIComponent(msg), '_blank');
+    };
+
+    GeokatuDB.SecurityService.observarEstadoSesion(async function(user) {
+      if (!user) return;
+      if (!idNegocio) idNegocio = localStorage.getItem('geokatu_active_uid') || user.uid;
+      document.getElementById('txt-id-soporte-g').innerText = idNegocio;
+      var res = await GeokatuDB.LocalService.getDetails(idNegocio);
+      if (res && res.success && res.data) {
+        datosNegocio = res.data;
+        window.datosTienda = datosNegocio;
+        var ctrl = datosNegocio.facturacion_control || { facturas_emitidas_mes: 0, facturas_cupo_gratis: 1300, facturas_prepago_saldo: 0 };
+        var plan = datosNegocio.plan_suscripcion || (datosNegocio.premium ? 'PRO' : 'FREEMIUM');
+        document.getElementById('badge-plan-g').innerText = String(plan).toUpperCase();
+        document.getElementById('txt-cuota-detalle-g').innerText = (Number(ctrl.facturas_emitidas_mes) || 0) + ' / ' + ((Number(ctrl.facturas_cupo_gratis) || 1300) + (Number(ctrl.facturas_prepago_saldo) || 0));
+        document.getElementById('txt-saldo-prepago-g').innerText = 'Saldo: ' + (Number(ctrl.facturas_prepago_saldo) || 0);
+        BillingGuard.verificarEstadoCuota(ctrl, 'billing-alert-gestion');
+      }
+      cargarPersonalYTareas();
+      cargarSedes();
+    });
+  </script>
+</body>
+</html>
