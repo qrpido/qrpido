@@ -868,33 +868,27 @@ function renderizarGridCatalogo() {
     if (!grid) return;
     grid.innerHTML = '';
 
-    if (catalogoLocal.length === 0) {
-        grid.innerHTML = '<p style="text-align: center; color: #666; padding: 20px 0; font-size: 12px;">No hay productos en inventario.</p>';
-        return;
-    }
-
-    const cfgLocalRaw = localStorage.getItem('geokatu_pos_config_' + idNegocio);
-    const cfgLocal = cfgLocalRaw ? JSON.parse(cfgLocalRaw) : {};
-    const planActual = cfgLocal.plan_activo || (controlFacturacionActivo && controlFacturacionActivo.plan_activo) || 'FREEMIUM';
-    const limiteMostrar = (planActual === 'FREEMIUM') ? 150 : catalogoLocal.length;
-
-    catalogoLocal.slice(0, limiteMostrar).forEach(prod => {
-
-        const item = document.createElement('div');
-        item.className = 'product-row-item';
-        const svgIco = prod.es_pesable
-            ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-marca)" stroke-width="2"><path d="M12 3v18"/><path d="M3 7h18"/></svg>'
-            : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-marca)" stroke-width="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/></svg>';
-        item.innerHTML =
-            '<div style="display: flex; align-items: center; gap: 8px;">' +
-                svgIco +
-                '<span class="item-title">' + prod.nombre + '</span>' +
-            '</div>' +
-            '<span class="item-price">$' + Number(prod.precio).toLocaleString() + (prod.es_pesable ? '/kg' : '') + '</span>';
-
-        item.onclick = () => {
+    if (grid.dataset.delegadoListo !== '1') {
+        grid.dataset.delegadoListo = '1';
+        grid.addEventListener('click', function(e) {
+            const fila = e.target.closest('.product-row-item');
+            if (!fila) return;
+            e.stopPropagation();
             const modalCat = document.getElementById('modal-catalogo-popup');
             if (modalCat) modalCat.style.display = 'none';
+
+            if (fila.dataset.accion === 'abrir-config') {
+                if (typeof window.abrirModalConfiguracionPOS === 'function') {
+                    window.abrirModalConfiguracionPOS();
+                }
+                return;
+            }
+
+            const prodId = fila.dataset.prodId;
+            const prodIdx = Number(fila.dataset.prodIdx);
+            const prod = catalogoLocal.find(function(p) { return String(p.id_prod) === String(prodId); })
+                || (!isNaN(prodIdx) ? catalogoLocal[prodIdx] : null);
+            if (!prod) return;
 
             if (prod.es_pesable) {
                 if (pesoEnVivoActual > 0) {
@@ -905,22 +899,43 @@ function renderizarGridCatalogo() {
             } else {
                 agregarAlCarrito(prod, 1);
             }
-        };
+        });
+    }
 
+    if (catalogoLocal.length === 0) {
+        grid.innerHTML = '<p style="text-align: center; color: #666; padding: 20px 0; font-size: 12px;">No hay productos en inventario.</p>';
+        return;
+    }
+
+    const cfgLocalRaw = localStorage.getItem('geokatu_pos_config_' + idNegocio);
+    const cfgLocal = cfgLocalRaw ? JSON.parse(cfgLocalRaw) : {};
+    const planActual = cfgLocal.plan_activo || (controlFacturacionActivo && controlFacturacionActivo.plan_activo) || 'FREEMIUM';
+    const limiteMostrar = (planActual === 'FREEMIUM') ? 150 : catalogoLocal.length;
+
+    catalogoLocal.slice(0, limiteMostrar).forEach(function(prod, idx) {
+        const item = document.createElement('div');
+        item.className = 'product-row-item';
+        item.dataset.prodId = prod.id_prod || '';
+        item.dataset.prodIdx = String(idx);
+        const svgIco = prod.es_pesable
+            ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-marca)" stroke-width="2"><path d="M12 3v18"/><path d="M3 7h18"/></svg>'
+            : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-marca)" stroke-width="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/></svg>';
+        item.innerHTML =
+            '<div style="display: flex; align-items: center; gap: 8px;">' +
+                svgIco +
+                '<span class="item-title">' + escaparHtmlPos(prod.nombre) + '</span>' +
+            '</div>' +
+            '<span class="item-price">$' + Number(prod.precio || 0).toLocaleString('es-CO') + (prod.es_pesable ? '/kg' : '') + '</span>';
         grid.appendChild(item);
     });
 
-   // === AVISO GANCHO PLAN PRO (AL FINAL DEL FOREACH) ===
     if (planActual === 'FREEMIUM' && catalogoLocal.length >= 150) {
         const bannerPro = document.createElement('div');
         bannerPro.className = 'product-row-item';
+        bannerPro.dataset.accion = 'abrir-config';
         bannerPro.style.borderColor = 'var(--naranja)';
         bannerPro.style.background = 'rgba(255, 107, 0, 0.12)';
         bannerPro.innerHTML = '<span style="font-size:11px; color:#ffaa00; font-weight:bold;">Limite de 150 productos gratis alcanzado. Toca para activar Plan Pro ilimitado.</span>';
-        bannerPro.onclick = function() {
-            document.getElementById('modal-catalogo-popup').style.display = 'none';
-            window.abrirModalConfiguracionPOS();
-        };
         grid.appendChild(bannerPro);
     }
 }
@@ -2415,7 +2430,20 @@ function alternarModalAyuda() {
 }
 
 if (btnAyuda) btnAyuda.addEventListener('click', alternarModalAyuda);
-if (btnCerrarAyuda) btnCerrarAyuda.addEventListener('click', () => modalAyuda.style.display = 'none');
+if (btnCerrarAyuda) btnCerrarAyuda.addEventListener('click', function() { modalAyuda.style.display = 'none'; });
+
+window.repetirGuiaTerminalDesdePOS = function() {
+    if (modalAyuda) modalAyuda.style.display = 'none';
+    if (window.parent && window.parent !== window && typeof window.parent.iniciarOnboardingPaso5 === 'function') {
+        window.parent.iniciarOnboardingPaso5();
+    } else if (typeof window.iniciarOnboardingPaso5 === 'function') {
+        window.iniciarOnboardingPaso5();
+    } else if (window.GeokatuTour && typeof window.GeokatuTour.iniciar === 'function') {
+        window.GeokatuTour.iniciar('pos', true);
+    } else if (typeof window.mostrarAvisoPos === 'function') {
+        window.mostrarAvisoPos('La guía rápida de terminal está disponible desde el portal Terminal.');
+    }
+};
 
 // Control de pestañas dentro del manual
 document.querySelectorAll('.tab-ayuda').forEach(tabBtn => {
@@ -2472,10 +2500,15 @@ balanza = new MotorBalanza({
         console.info('[Balanza] Trama recibida para diagnóstico:', trama);
     }
 });
-// Abrir modal de catálogo
-document.getElementById('btn-abrir-catalogo-modal')?.addEventListener('click', () => {
+// Abrir y cerrar modal de catálogo
+document.getElementById('btn-abrir-catalogo-modal')?.addEventListener('click', function() {
     const modalCat = document.getElementById('modal-catalogo-popup');
     if (modalCat) modalCat.style.display = 'flex';
+});
+document.getElementById('btn-cerrar-catalogo-modal')?.addEventListener('click', function(e) {
+    e.stopPropagation();
+    const modalCat = document.getElementById('modal-catalogo-popup');
+    if (modalCat) modalCat.style.display = 'none';
 });
 
 // Listener de Tara en barra superior
