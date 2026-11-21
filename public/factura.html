@@ -66,16 +66,25 @@
             background: #000;
             display: none;
         }
-        .tabla-items {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12.5px;
-            margin: 14px 0;
-        }
-        .tabla-items td {
-            padding: 6px 0;
-            border-bottom: 1px dashed var(--border-soft);
-        }
+         .tabla-items {
+ width: 100%;
+ table-layout: fixed;
+ border-collapse: collapse;
+ font-size: 12.5px;
+ margin: 14px 0;
+ }
+ .tabla-items td {
+ padding: 6px 0;
+ border-bottom: 1px dashed var(--border-soft);
+ overflow-wrap: anywhere;
+ word-break: break-word;
+ vertical-align: top;
+ }
+ .tabla-items th:last-child,
+ .tabla-items td:last-child {
+ width: 34%;
+ white-space: nowrap;
+ }
         .btn-descargar {
             background: var(--color-marca);
             color: #ffffff;
@@ -114,23 +123,24 @@
             font-size: 13px;
         }
 
-        /* Estilos limpios para impresión / guardado en PDF nativo */
-        @media print {
-            body { background: white; color: black; padding: 0; }
-            .timer-badge, .btn-descargar, .btn-cta-mapa { display: none !important; }
-            .tarjeta-ticket { border: 1px solid #ccc; box-shadow: none; background: white; color: black; }
-            .tabla-items td { border-bottom: 1px solid #eee; }
-            #tkt-total { color: black !important; }
-        }
+         /* Estilos limpios para impresión / guardado en PDF nativo */
+ @media print {
+ body { background: white; color: black; padding: 0; }
+ .timer-badge, .btn-descargar, .btn-cta-mapa { display: none !important; }
+ .tarjeta-ticket { border: 1px solid #ccc; box-shadow: none; background: white; color: black; overflow-wrap: anywhere; word-break: break-word; }
+ .tabla-items td { border-bottom: 1px solid #eee; }
+ #tkt-id, #tkt-cliente, #tkt-metodo, #tkt-total, #com-nombre, #com-nit, #com-dir, #bloque-cufe { color: black !important; }
+ #bloque-cufe { background: #f5f5f5 !important; border: 1px solid #ddd; }
+ }
     </style>
 </head>
 <body>
     <div class="container-factura">
         <div style="text-align: center;">
-            <div id="badge-timer" class="timer-badge">
-                <span>⏱️</span>
-                <span>Enlace válido por: <strong id="txt-tiempo-restante">60:00</strong></span>
-            </div>
+             <div id="badge-timer" class="timer-badge">
+ <span>⏱️</span>
+ <span>Enlace válido por: <strong id="txt-tiempo-restante">24:00:00</strong></span>
+ </div>
         </div>
 
         <!-- TARJETA DEL TICKET DIGITAL -->
@@ -220,17 +230,17 @@
                 return;
             }
 
-            const ahora = Date.now();
-            if (ahora > exp) {
-                document.body.innerHTML = `
-                    <div style="text-align:center; padding: 40px 20px;">
-                        <span style="font-size: 48px;">⏱️</span>
-                        <h3 style="color:#ffaa00;">Este enlace de factura temporal ha expirado (Límite 60 min).</h3>
-                        <p style="color:#888; font-size:12px;">Por seguridad y privacidad, los comprobantes públicos temporales caducan al cumplirse una hora.</p>
-                        <a href="index.html" style="color:var(--color-marca); font-weight:bold; font-size:13px;">Ir al Mapa GEOKATU</a>
-                    </div>`;
-                return;
-            }
+             const ahora = Date.now();
+ if (ahora > exp) {
+ document.body.innerHTML =
+  '<div style="text-align:center; padding: 40px 20px;">' +
+  '<span style="font-size: 48px;">⏱️</span>' +
+  '<h3 style="color:#ffaa00;">Este enlace de factura temporal ha expirado (Límite 24 horas).</h3>' +
+  '<p style="color:#888; font-size:12px;">Por seguridad y privacidad, los comprobantes públicos temporales caducan al cumplirse 24 horas.</p>' +
+  '<a href="index.html" style="color:var(--color-marca); font-weight:bold; font-size:13px;">Ir al Mapa GEOKATU</a>' +
+  '</div>';
+ return;
+ }
 
             iniciarContador(exp);
 
@@ -286,45 +296,72 @@
             }
         }
 
-        function renderizarDatosTicket(venta) {
-            document.getElementById('tkt-id').innerText = ticketId.substring(0, 10);
-            document.getElementById('tkt-fecha').innerText = new Date(venta.timestamp_caja || Date.now()).toLocaleString('es-CO');
-            document.getElementById('tkt-cliente').innerText = venta.cliente?.nombre || "Consumidor Final";
-            document.getElementById('tkt-metodo').innerText = venta.metodo_pago || "EFECTIVO";
-            document.getElementById('tkt-total').innerText = `$${Number(venta.total).toLocaleString('es-CO')}`;
+         function escaparHtmlFactura(texto) {
+ if (texto === null || texto === undefined) return '';
+ return String(texto)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+ }
 
-            const tbody = document.getElementById('tkt-items-body');
-            tbody.innerHTML = '';
-            (venta.productos || []).forEach(p => {
-                const sub = Math.round(Number(p.precio) * Number(p.cantidad));
-                const cantTxt = p.es_pesable ? `${p.cantidad} ${p.unidad_medida}` : `${p.cantidad}x`;
-                tbody.innerHTML += `
-                    <tr>
-                        <td>${cantTxt} ${p.nombre}</td>
-                        <td style="text-align: right; font-family: monospace;">$${sub.toLocaleString('es-CO')}</td>
-                    </tr>
-                `;
-            });
+ function renderizarDatosTicket(venta) {
+ document.getElementById('tkt-id').innerText = ticketId.substring(0, 10);
+ document.getElementById('tkt-fecha').innerText = new Date(venta.timestamp_caja || Date.now()).toLocaleString('es-CO');
+ document.getElementById('tkt-cliente').innerText = (venta.cliente && venta.cliente.nombre) ? venta.cliente.nombre : "Consumidor Final";
+ let txtMetodo = venta.metodo_pago || "EFECTIVO";
+ if (Array.isArray(venta.metodos_pago_split) && venta.metodos_pago_split.length > 0) {
+  txtMetodo = venta.metodos_pago_split.map(function(mp) {
+   return mp.metodo + ': $' + Number(mp.monto || 0).toLocaleString('es-CO');
+  }).join(' | ');
+ }
+ document.getElementById('tkt-metodo').innerText = txtMetodo;
+ document.getElementById('tkt-total').innerText = '$' + Number(venta.total || 0).toLocaleString('es-CO');
 
-            if (venta.despacho_fiscal && venta.despacho_fiscal.cufe) {
-                document.getElementById('bloque-cufe').style.display = 'block';
-                document.getElementById('txt-cufe-val').innerText = venta.despacho_fiscal.cufe;
-            }
-        }
+ const tbody = document.getElementById('tkt-items-body');
+ tbody.innerHTML = '';
+ (venta.productos || []).forEach(function(p) {
+  const sub = (p.subtotal !== undefined && p.subtotal !== null)
+   ? Math.round(Number(p.subtotal))
+   : (p.precio_fijado_balanza ? Math.round(Number(p.precio)) : Math.round(Number(p.precio) * Number(p.cantidad)));
+  const cantTxt = p.es_pesable
+   ? (p.cantidad + ' ' + (p.unidad_medida || 'kg'))
+   : (p.cantidad + 'x');
+  const notaHtml = p.nota
+   ? ('<br><span style="font-size: 10px; color: #ffaa00; font-style: italic;">* ' + escaparHtmlFactura(p.nota) + '</span>')
+   : '';
+  tbody.innerHTML +=
+   '<tr>' +
+   '<td>' + escaparHtmlFactura(cantTxt) + ' ' + escaparHtmlFactura(p.nombre) + notaHtml + '</td>' +
+   '<td style="text-align: right; font-family: monospace;">$' + sub.toLocaleString('es-CO') + '</td>' +
+   '</tr>';
+ });
 
-        function iniciarContador(expiraMs) {
-            const txt = document.getElementById('txt-tiempo-restante');
-            const intervalo = setInterval(() => {
-                const restante = Math.max(0, expiraMs - Date.now());
-                const mins = Math.floor(restante / 60000);
-                const segs = Math.floor((restante % 60000) / 1000);
-                txt.innerText = `${String(mins).padStart(2, '0')}:${String(segs).padStart(2, '0')}`;
-                if (restante <= 0) {
-                    clearInterval(intervalo);
-                    window.location.reload();
-                }
-            }, 1000);
-        }
+ if (venta.despacho_fiscal && venta.despacho_fiscal.cufe) {
+  document.getElementById('bloque-cufe').style.display = 'block';
+  document.getElementById('txt-cufe-val').innerText = venta.despacho_fiscal.cufe;
+ }
+ }
+
+ function iniciarContador(expiraMs) {
+ const txt = document.getElementById('txt-tiempo-restante');
+ function actualizarReloj() {
+  const restante = Math.max(0, expiraMs - Date.now());
+  const hrs = Math.floor(restante / 3600000);
+  const mins = Math.floor((restante % 3600000) / 60000);
+  const segs = Math.floor((restante % 60000) / 1000);
+  txt.innerText = String(hrs).padStart(2, '0') + ':' + String(mins).padStart(2, '0') + ':' + String(segs).padStart(2, '0');
+  return restante;
+ }
+ actualizarReloj();
+ const intervalo = setInterval(function() {
+  if (actualizarReloj() <= 0) {
+   clearInterval(intervalo);
+   window.location.reload();
+  }
+ }, 1000);
+ }
 
         window.imprimirOGuardar = function() {
             window.print();
