@@ -37,6 +37,70 @@ let acumuladoTurno = {
 let unsubscribeSemaforoStock = null; // 🛡️ Cerrojo de memoria para ciclo de vida Kiosk
 let cajeroCodigoActivo = localStorage.getItem('geokatu_cajero_pin') || "0000";
 let cajaNumeroActiva = localStorage.getItem('geokatu_caja_num') || "CAJA-01";
+
+function obtenerClaveAcumuladoCaja(idNeg, cajaId) {
+ return 'geokatu_acumulado_' + idNeg + '_' + (cajaId || 'CAJA-01');
+}
+
+function cargarAcumuladoCajaLocal(idNeg, cajaId) {
+ const caja = cajaId || 'CAJA-01';
+ const raw = localStorage.getItem(obtenerClaveAcumuladoCaja(idNeg, caja))
+ || (caja === 'CAJA-01' ? localStorage.getItem('geokatu_acumulado_' + idNeg) : null);
+ if (!raw) {
+ return { efectivo: 0, tarjeta: 0, nequi: 0, base_gravable: 0, iva_19: 0, exento: 0 };
+ }
+ try {
+ const parsed = JSON.parse(raw);
+ return {
+ efectivo: Number(parsed.efectivo) || 0,
+ tarjeta: Number(parsed.tarjeta) || 0,
+ nequi: Number(parsed.nequi) || 0,
+ base_gravable: Number(parsed.base_gravable) || 0,
+ iva_19: Number(parsed.iva_19) || 0,
+ exento: Number(parsed.exento) || 0
+ };
+ } catch (e) {
+ return { efectivo: 0, tarjeta: 0, nequi: 0, base_gravable: 0, iva_19: 0, exento: 0 };
+ }
+}
+
+function guardarAcumuladoCajaLocal(idNeg, cajaId, acum) {
+ const caja = cajaId || 'CAJA-01';
+ const json = JSON.stringify(acum);
+ localStorage.setItem(obtenerClaveAcumuladoCaja(idNeg, caja), json);
+ if (caja === 'CAJA-01') {
+ localStorage.setItem('geokatu_acumulado_' + idNeg, json);
+ }
+}
+
+function limpiarAcumuladoCajaLocal(idNeg, cajaId) {
+ const caja = cajaId || 'CAJA-01';
+ localStorage.removeItem(obtenerClaveAcumuladoCaja(idNeg, caja));
+ if (caja === 'CAJA-01') {
+ localStorage.removeItem('geokatu_acumulado_' + idNeg);
+ }
+}
+
+function refrescarKpiVentasTurnoUI() {
+ const kpiObj = document.getElementById('kpi-ventas');
+ if (!kpiObj) return;
+ const totalTurno = (Number(acumuladoTurno.efectivo) || 0) + (Number(acumuladoTurno.tarjeta) || 0) + (Number(acumuladoTurno.nequi) || 0);
+ kpiObj.innerText = '$' + Math.max(0, Math.round(totalTurno)).toLocaleString('es-CO');
+}
+
+window.__gkPosCambiarCaja = async function(nuevaCajaId) {
+ const cajaDestino = String(nuevaCajaId || '').trim().toUpperCase();
+ if (!cajaDestino) return;
+ cajaNumeroActiva = cajaDestino;
+ localStorage.setItem('geokatu_caja_num', cajaNumeroActiva);
+ const elCajaCod = document.getElementById('t-caja-cod');
+ if (elCajaCod) elCajaCod.innerText = cajaNumeroActiva;
+ acumuladoTurno = { efectivo: 0, tarjeta: 0, nequi: 0, base_gravable: 0, iva_19: 0, exento: 0 };
+ await verificarEstadoTurnoCaja();
+ if (typeof window.mostrarAvisoPos === 'function') {
+ window.mostrarAvisoPos('Terminal asignada a ' + cajaNumeroActiva);
+ }
+};
  
 
 // ==========================================
@@ -1673,13 +1737,8 @@ async function ejecutarVentaFinalDefinitivaInterna() {
             acumuladoTurno.iva_19 += Math.round(iv);
             acumuladoTurno.exento += Math.round(ex);
         }
-        localStorage.setItem("geokatu_acumulado_" + idNegocio, JSON.stringify(acumuladoTurno));
-
-        const kpiObj = document.getElementById('kpi-ventas');
-        if (kpiObj) {
-            const kpiActual = Number(kpiObj.innerText.replace(/\D/g, ''));
-            kpiObj.innerText = "$" + (kpiActual + totalVentaCalculado).toLocaleString('es-CO');
-        }
+         guardarAcumuladoCajaLocal(idNegocio, cajaNumeroActiva, acumuladoTurno);
+ refrescarKpiVentasTurnoUI();
 
         if (controlFacturacionActivo) {
             controlFacturacionActivo.facturas_emitidas_mes = (Number(controlFacturacionActivo.facturas_emitidas_mes) || 0) + 1;
@@ -2609,13 +2668,14 @@ document.getElementById('btn-ejecutar-anulacion').addEventListener('click', asyn
                 if (campo) acumuladoTurno[campo] -= Number(pago.monto) || 0;
             }
             const fiscal = original.despacho_fiscal?.payload_canonico?.totales;
-            if (fiscal) {
-                acumuladoTurno.base_gravable -= Number(fiscal.base_gravable) || 0;
-                acumuladoTurno.iva_19 -= Number(fiscal.impuesto_iva) || 0;
-                acumuladoTurno.exento -= Number(fiscal.total_exento) || 0;
-            }
-            localStorage.setItem('geokatu_acumulado_' + idNegocio, JSON.stringify(acumuladoTurno));
-        }
+             if (fiscal) {
+ acumuladoTurno.base_gravable -= Number(fiscal.base_gravable) || 0;
+ acumuladoTurno.iva_19 -= Number(fiscal.impuesto_iva) || 0;
+ acumuladoTurno.exento -= Number(fiscal.total_exento) || 0;
+ }
+ guardarAcumuladoCajaLocal(idNegocio, cajaNumeroActiva, acumuladoTurno);
+ refrescarKpiVentasTurnoUI();
+ }
 
         // 1. Rehidratar catálogo local en RAM tras el reingreso de stock
         catalogoLocal = GeokatuDB.PosService.cargarCatalogoDesdeCache(idNegocio);
@@ -2645,45 +2705,30 @@ document.getElementById('btn-ejecutar-anulacion').addEventListener('click', asyn
 // 12. CONTROL DE CAJA, EGRESOS Y CIERRE Z (PUNTO 3)
 // =========================================================================
 async function verificarEstadoTurnoCaja() {
-    const res = await GeokatuDB.PosService.obtenerEstadoCajaActual(idNegocio, cajaNumeroActiva);
-    const btnCaja = document.getElementById('txt-estado-caja-btn');
+ cajaNumeroActiva = localStorage.getItem('geokatu_caja_num') || cajaNumeroActiva || "CAJA-01";
+ const res = await GeokatuDB.PosService.obtenerEstadoCajaActual(idNegocio, cajaNumeroActiva);
+ const btnCaja = document.getElementById('txt-estado-caja-btn');
+ const modalAp = document.getElementById('modal-apertura-caja');
 
-
-   if (res.success && res.data && res.data.estado === 'ABIERTA') {
-        turnoCajaActivo = res.data;
-        
-        // 🛡️ RECUPERACIÓN DEFENSIVA: Evita pérdida de acumuladores ante crash del sistema
-        const acumuladoGuardado = localStorage.getItem(`geokatu_acumulado_${idNegocio}`);
-        if (acumuladoGuardado) {
-            try {
-                const parsed = JSON.parse(acumuladoGuardado);
-                acumuladoTurno = {
-                    efectivo: Number(parsed.efectivo) || 0,
-                    tarjeta: Number(parsed.tarjeta) || 0,
-                    nequi: Number(parsed.nequi) || 0,
-                    base_gravable: Number(parsed.base_gravable) || 0,
-                    iva_19: Number(parsed.iva_19) || 0,
-                    exento: Number(parsed.exento) || 0
-                };
-            } catch (e) {
-                console.warn("[POS] Acumulado corrupto en storage, recalculando...");
-            }
-        }
-
-
-        if (btnCaja) {
-            btnCaja.innerText = "Caja Abierta";
-            btnCaja.style.color = "var(--accent-green)";
-        }
-    } else {
-        turnoCajaActivo = null;
-        if (btnCaja) {
-            btnCaja.innerText = "Abrir Caja";
-            btnCaja.style.color = "orange";
-        }
-        // Si no hay caja abierta, abrir el modal de apertura al inicio
-        abrirModalAperturaCaja();
-    }
+ if (res.success && res.data && res.data.estado === 'ABIERTA') {
+ turnoCajaActivo = res.data;
+ acumuladoTurno = cargarAcumuladoCajaLocal(idNegocio, cajaNumeroActiva);
+ refrescarKpiVentasTurnoUI();
+ if (modalAp) modalAp.style.display = 'none';
+ if (btnCaja) {
+ btnCaja.innerText = cajaNumeroActiva + ' Abierta';
+ btnCaja.style.color = "var(--accent-green)";
+ }
+ } else {
+ turnoCajaActivo = null;
+ acumuladoTurno = { efectivo: 0, tarjeta: 0, nequi: 0, base_gravable: 0, iva_19: 0, exento: 0 };
+ refrescarKpiVentasTurnoUI();
+ if (btnCaja) {
+ btnCaja.innerText = 'Abrir ' + cajaNumeroActiva;
+ btnCaja.style.color = "orange";
+ }
+ abrirModalAperturaCaja();
+ }
 }
 
 function abrirModalAperturaCaja() {
@@ -2715,19 +2760,20 @@ document.getElementById('btn-confirmar-apertura')?.addEventListener('click', asy
 
     const res = await GeokatuDB.PosService.abrirTurnoCaja(idNegocio, base, auth.currentUser?.email || "CAJERO", cajaNumeroActiva);
 
-    if (res.success) {
-        turnoCajaActivo = res.data;
-               acumuladoTurno = { efectivo: 0, tarjeta: 0, nequi: 0, base_gravable: 0, iva_19: 0, exento: 0 };
-        localStorage.setItem(`geokatu_acumulado_${idNegocio}`, JSON.stringify(acumuladoTurno));
+     if (res.success) {
+ turnoCajaActivo = res.data;
+ acumuladoTurno = { efectivo: 0, tarjeta: 0, nequi: 0, base_gravable: 0, iva_19: 0, exento: 0 };
+ guardarAcumuladoCajaLocal(idNegocio, cajaNumeroActiva, acumuladoTurno);
+ refrescarKpiVentasTurnoUI();
 
-        document.getElementById('modal-apertura-caja').style.display = 'none';
-        const btnCaja = document.getElementById('txt-estado-caja-btn');
-        if (btnCaja) {
-            btnCaja.innerText = "Caja Abierta";
-            btnCaja.style.color = "var(--accent-green)";
-        }
-        window.mostrarAvisoPos(`Caja abierta con base de $${base.toLocaleString()}. ¡Buenas ventas!`);
-    } else {
+ document.getElementById('modal-apertura-caja').style.display = 'none';
+ const btnCaja = document.getElementById('txt-estado-caja-btn');
+ if (btnCaja) {
+ btnCaja.innerText = cajaNumeroActiva + ' Abierta';
+ btnCaja.style.color = "var(--accent-green)";
+ }
+ window.mostrarAvisoPos(cajaNumeroActiva + ' abierta con base de $' + base.toLocaleString('es-CO') + '. Buenas ventas.');
+ } else {
         alert("Error al abrir caja: " + res.error);
     }
 });
@@ -2901,8 +2947,8 @@ document.getElementById('btn-confirmar-cierre-z').addEventListener('click', asyn
         const supervisor = prompt("Ingresa el correo o nombre del Supervisor/Gerente que audita:", "Gerencia");
         if (!supervisor) return;
 
-        document.getElementById('txt-conexion').innerText = "REGISTRANDO AUDITORÍA...";
-        const resX = await GeokatuDB.PosService.registrarAuditoriaInformeX(idNegocio, contado, acumuladoTurno, supervisor);
+         document.getElementById('txt-conexion').innerText = "REGISTRANDO AUDITORÍA...";
+ const resX = await GeokatuDB.PosService.registrarAuditoriaInformeX(idNegocio, contado, acumuladoTurno, supervisor, cajaNumeroActiva);
 
         if (resX.success) {
             armarTirillaInformeX(resX.informeX);
@@ -2936,16 +2982,17 @@ document.getElementById('btn-confirmar-cierre-z').addEventListener('click', asyn
         // Armar tirilla de Cierre Z
         armarTirillaCierreZ(res.cierre);
 
-        // Limpiar estado
-        turnoCajaActivo = null;
-               acumuladoTurno = { efectivo: 0, tarjeta: 0, nequi: 0, base_gravable: 0, iva_19: 0, exento: 0 };
-        localStorage.removeItem(`geokatu_acumulado_${idNegocio}`);
+         // Limpiar estado
+ turnoCajaActivo = null;
+ acumuladoTurno = { efectivo: 0, tarjeta: 0, nequi: 0, base_gravable: 0, iva_19: 0, exento: 0 };
+ limpiarAcumuladoCajaLocal(idNegocio, cajaNumeroActiva);
+ refrescarKpiVentasTurnoUI();
 
-        const btnCaja = document.getElementById('txt-estado-caja-btn');
-        if (btnCaja) {
-            btnCaja.innerText = "Abrir Caja";
-            btnCaja.style.color = "orange";
-        }
+ const btnCaja = document.getElementById('txt-estado-caja-btn');
+ if (btnCaja) {
+ btnCaja.innerText = 'Abrir ' + cajaNumeroActiva;
+ btnCaja.style.color = "orange";
+ }
 
         document.getElementById('modal-cierre-z').style.display = 'none';
 
