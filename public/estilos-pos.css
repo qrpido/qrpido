@@ -526,9 +526,14 @@ html, body {
 }
 .totals-breakdown div span { color: #a8b0bc; }
 .totals-breakdown div strong {
-    color: #f8fafc;
-    font-family: monospace;
-    font-variant-numeric: tabular-nums;
+ color: #f8fafc;
+ font-family: monospace;
+ font-variant-numeric: tabular-nums;
+}
+.totals-breakdown > div:nth-child(4) {
+ grid-column: 1 / -1;
+ border-top: 1px solid rgba(255, 255, 255, 0.08);
+ margin-top: 2px;
 }
 
 .grand-total-box {
@@ -780,14 +785,55 @@ html, body {
     padding: 15px;
 }
 .modal-datafono-card {
-    width: 100%;
-    max-width: 380px;
-    background: linear-gradient(135deg, rgba(35, 35, 40, 0.98) 0%, rgba(15, 15, 18, 1) 100%);
-    border: 1px solid rgba(255,107,0,0.3);
-    border-radius: 20px;
-    padding: 20px;
-    text-align: center;
-    box-shadow: 0 20px 50px rgba(0,0,0,0.9);
+ width: 100%;
+ max-width: 380px;
+ background: linear-gradient(135deg, rgba(35, 35, 40, 0.98) 0%, rgba(15, 15, 18, 1) 100%);
+ border: 1px solid rgba(255,107,0,0.3);
+ border-radius: 20px;
+ padding: 20px;
+ text-align: center;
+ box-shadow: 0 20px 50px rgba(0,0,0,0.9);
+}
+.ticket-pausado-row {
+ display: flex;
+ justify-content: space-between;
+ align-items: center;
+ gap: 10px;
+ background: rgba(255, 255, 255, 0.04);
+ border: 1px solid var(--border-soft);
+ border-radius: 10px;
+ padding: 10px 12px;
+}
+.btn-recuperar {
+ background: var(--naranja);
+ color: #000;
+ border: none;
+ border-radius: 7px;
+ padding: 6px 10px;
+ font-size: 11px;
+ font-weight: 800;
+ cursor: pointer;
+}
+.btn-descartar {
+ background: rgba(255, 68, 68, 0.14);
+ color: var(--accent-red);
+ border: 1px solid rgba(255, 68, 68, 0.35);
+ border-radius: 7px;
+ width: 28px;
+ height: 28px;
+ font-weight: 800;
+ cursor: pointer;
+}
+.pesaje-total-panel {
+ display: flex;
+ justify-content: space-between;
+ align-items: center;
+ background: rgba(0, 0, 0, 0.4);
+ border: 1px solid var(--border-soft);
+ border-radius: 8px;
+ padding: 8px 12px;
+ margin-bottom: 12px;
+ font-size: 13px;
 }
 
 /* =========================================
@@ -796,24 +842,57 @@ html, body {
 #ticket-impresion { display: none; }
 
 @media print {
+ html, body:not(.modo-print-qr) {
+ height: auto !important;
+ max-height: none !important;
+ overflow: visible !important;
+ background: white !important;
+ }
  body:not(.modo-print-qr) * { visibility: hidden; }
  body:not(.modo-print-qr) #ticket-impresion, body:not(.modo-print-qr) #ticket-impresion * { visibility: visible; }
  body:not(.modo-print-qr) #ticket-impresion {
-  display: block !important;
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 58mm;
-  background: white;
-  color: black;
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 11px;
-  padding: 5mm;
+ display: block !important;
+ position: absolute;
+ top: 0;
+ left: 0;
+ width: 58mm;
+ max-width: 58mm;
+ box-sizing: border-box;
+ overflow: hidden;
+ overflow-wrap: anywhere;
+ word-break: break-word;
+ background: white;
+ color: black;
+ font-family: 'Courier New', Courier, monospace;
+ font-size: 10.5px;
+ padding: 3mm;
+ }
+ body:not(.modo-print-qr) #ticket-impresion p,
+ body:not(.modo-print-qr) #ticket-impresion div {
+ overflow-wrap: anywhere;
+ word-break: break-word;
  }
  body:not(.modo-print-qr) .ticket-centro { text-align: center; }
- body:not(.modo-print-qr) .ticket-linea { border-bottom: 1px dashed black; margin: 6px 0; }
- body:not(.modo-print-qr) .ticket-tabla { width: 100%; border-collapse: collapse; font-size: 10px; }
- body:not(.modo-print-qr) .ticket-tabla td, body:not(.modo-print-qr) .ticket-tabla th { padding: 2px 0; }
+ body:not(.modo-print-qr) .ticket-linea { clear: both; border-bottom: 1px dashed black; margin: 6px 0; }
+ body:not(.modo-print-qr) .ticket-tabla {
+ width: 100%;
+ table-layout: fixed;
+ border-collapse: collapse;
+ font-size: 10px;
+ }
+ body:not(.modo-print-qr) .ticket-tabla td,
+ body:not(.modo-print-qr) .ticket-tabla th {
+ padding: 2px 0;
+ vertical-align: top;
+ overflow-wrap: anywhere;
+ word-break: break-word;
+ }
+ body:not(.modo-print-qr) .ticket-tabla td:last-child,
+ body:not(.modo-print-qr) .ticket-tabla th:last-child {
+ width: 36%;
+ text-align: right;
+ white-space: nowrap;
+ }
  body:not(.modo-print-qr) .ticket-total { font-size: 13px; font-weight: bold; text-align: right; margin-top: 6px; }
 }
 
@@ -875,7 +954,7 @@ body.pos-cargando .btn-secundario-pos,
 body.pos-cargando .btn-pay,
 body.pos-cargando .btn-opciones-cabecera,
 body.pos-cargando .search-container,
-body.pos-cargando #ticket-header button,
+body.pos-cargando .ticket-header button,
 body.pos-cargando #btn-pausar-ticket,
 body.pos-cargando #btn-ver-espera,
 body.pos-cargando #btn-toggle-eco,
