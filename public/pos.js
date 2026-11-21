@@ -743,37 +743,31 @@ if (btnExp) btnExp.classList.toggle('visible', carrito.length >= 3);
         }
 
 
-        const notaHtml = item.nota ? `<div class="cart-item-nota">📝 ${item.nota}</div>` : '';
-        const card = document.createElement('div');
-        card.className = 'cart-card';
-        card.innerHTML = `
-           <div class="cart-card-info">
-                <div style="display: flex; align-items: center; justify-content: space-between;">
-                    <h4>${item.nombre}</h4>
-                    <button type="button" onclick="window.agregarNotaItem(${index})" title="Añadir nota de comanda" style="background:none; border:none; color:#888; cursor:pointer; font-size:11px;">✏️ Nota</button>
-                </div>
-                <p>${item.precio_fijado_balanza ? `Etiqueta Balanza (${item.cantidad} item.unidadmedida)`:`${Number(item.precio).toLocaleString('es-CO')} / ${item.unidad_medida}`}</p>
-                ${notaHtml}
-            </div>
-
-            <div class="cart-controls">
-                <button class="qty-btn btn-menos" data-idx="${index}">-</button>
-                <input type="number" 
-                       class="qty-input-direct" 
-                       data-idx="${index}" 
-                       step="${item.es_pesable ? '0.001' : '1'}" 
-                       min="${item.es_pesable ? '0.001' : '1'}" 
-                       value="${item.cantidad}">
-                <button class="qty-btn btn-mas" data-idx="${index}">+</button>
-            </div>
-            <div class="cart-card-subtotal">
-                $${subtotal.toLocaleString('es-CO')}
-            </div>
-            <button class="btn-remove-item" data-idx="${index}" aria-label="Eliminar artículo del ticket" title="Eliminar artículo">
-                <svg class="icono-pos" style="font-size: 18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>
-            </button>
-        `;
-        contenedor.appendChild(card);
+         const notaHtml = item.nota ? ('<div class="cart-item-nota">Nota: ' + item.nota + '</div>') : '';
+ const subtituloPrecio = item.precio_fijado_balanza
+  ? ('Etiqueta Balanza (' + item.cantidad + ' ' + item.unidad_medida + ')')
+  : ('$' + Number(item.precio).toLocaleString('es-CO') + ' / ' + item.unidad_medida);
+ const card = document.createElement('div');
+ card.className = 'cart-card';
+ card.innerHTML =
+  '<div class="cart-card-info">' +
+  '<div style="display: flex; align-items: center; justify-content: space-between;">' +
+  '<h4>' + item.nombre + '</h4>' +
+  '<button type="button" onclick="window.agregarNotaItem(' + index + ')" title="Añadir nota de comanda" style="background:none; border:none; color:#888; cursor:pointer; font-size:11px;">Nota</button>' +
+  '</div>' +
+  '<p>' + subtituloPrecio + '</p>' +
+  notaHtml +
+  '</div>' +
+  '<div class="cart-controls">' +
+  '<button type="button" class="qty-btn btn-menos" data-idx="' + index + '">-</button>' +
+  '<input type="number" class="qty-input-direct" data-idx="' + index + '" step="' + (item.es_pesable ? '0.001' : '1') + '" min="' + (item.es_pesable ? '0.001' : '1') + '" value="' + item.cantidad + '">' +
+  '<button type="button" class="qty-btn btn-mas" data-idx="' + index + '">+</button>' +
+  '</div>' +
+  '<div class="cart-card-subtotal">$' + subtotal.toLocaleString('es-CO') + '</div>' +
+  '<button type="button" class="btn-remove-item" data-idx="' + index + '" aria-label="Eliminar artículo del ticket" title="Eliminar artículo">' +
+  '<svg class="icono-pos" style="font-size: 18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>' +
+  '</button>';
+ contenedor.appendChild(card);
 
     });
 
@@ -951,21 +945,22 @@ function abrirModalTicketsEspera() {
     if (ticketsEnEspera.length === 0) {
         lista.innerHTML = '<p style="text-align: center; color: #777; padding: 20px;">No hay tickets retenidos.</p>';
     } else {
-        ticketsEnEspera.forEach((t, idx) => {
-            const row = document.createElement('div');
-            row.className = 'ticket-pausado-row';
-            row.innerHTML = `
-                <div>
-                    <strong>Ticket #t.id</strong><spanstyle="color:var(--text-muted);font-size:11px;">({t.hora})</span>
-                    <p style="font-size: 12px; color: var(--accent-green); margin-top: 2px;">t.total({t.items.length} productos)</p>
-                </div>
-                <div style="display: flex; gap: 8px;">
-                    <button class="btn-recuperar" data-idx="${idx}">Recuperar</button>
-                    <button class="btn-descartar" data-idx="${idx}">✕</button>
-                </div>
-            `;
-            lista.appendChild(row);
-        });
+         ticketsEnEspera.forEach(function(t, idx) {
+ const row = document.createElement('div');
+ row.className = 'ticket-pausado-row';
+ const cantProds = Array.isArray(t.items) ? t.items.length : 0;
+ row.innerHTML =
+  '<div>' +
+  '<strong>Ticket #' + escaparHtmlPos(t.id) + '</strong> ' +
+  '<span style="color:var(--text-muted);font-size:11px;">(' + escaparHtmlPos(t.hora) + ')</span>' +
+  '<p style="font-size: 12px; color: var(--accent-green); margin-top: 2px;">' + escaparHtmlPos(t.total) + ' (' + cantProds + ' productos)</p>' +
+  '</div>' +
+  '<div style="display: flex; gap: 8px;">' +
+  '<button type="button" class="btn-recuperar" data-idx="' + idx + '">Recuperar</button>' +
+  '<button type="button" class="btn-descartar" data-idx="' + idx + '">✕</button>' +
+  '</div>';
+ lista.appendChild(row);
+ });
 
         lista.querySelectorAll('.btn-recuperar').forEach(btn => {
             btn.onclick = () => {
@@ -1062,27 +1057,26 @@ function renderizarBilletesInteligentes(remanente) {
         return;
     }
 
-    const denominaciones = [10000, 20000, 50000, 100000];
-    let html = `
-        <button type="button" class="btn-quick-cash exacto" data-monto="${remanente}">
-            <strong>Exacto</strong>
-            <span style="font-size: 9px; opacity: 0.8;">$0</span>
-        </button>
-    `;
+     const denominaciones = [10000, 20000, 50000, 100000];
+ let html =
+  '<button type="button" class="btn-quick-cash exacto" data-monto="' + remanente + '">' +
+  '<strong>Exacto</strong>' +
+  '<span style="font-size: 9px; opacity: 0.8;">$0</span>' +
+  '</button>';
 
-    denominaciones.forEach(billete => {
-        const esMenor = billete < remanente;
-        const cambio = billete - remanente;
-        const textoSub = esMenor ? 'Abono' : `+$${cambio.toLocaleString('es-CO')}`;
-        const estiloVisual = esMenor ? 'opacity: 0.45;' : 'border-color: rgba(0,255,100,0.3);';
+ denominaciones.forEach(function(billete) {
+ const esMenor = billete < remanente;
+ const cambio = billete - remanente;
+ const textoSub = esMenor ? 'Abono' : ('+$' + cambio.toLocaleString('es-CO'));
+ const estiloVisual = esMenor ? 'opacity: 0.45;' : 'border-color: rgba(0,255,100,0.3);';
+ const colorSub = esMenor ? '#aaa' : 'var(--accent-green)';
 
-        html += `
-            <button type="button" class="btn-quick-cash" data-monto="billete"style="{estiloVisual}">
-                <strong>$${(billete / 1000)}k</strong>
-                <span style="font-size: 9px; opacity: 0.85; color: esMenor?'#aaa':'var(--accent-green)';">{textoSub}</span>
-            </button>
-        `;
-    });
+ html +=
+  '<button type="button" class="btn-quick-cash" data-monto="' + billete + '" style="' + estiloVisual + '">' +
+  '<strong>$' + (billete / 1000) + 'k</strong>' +
+  '<span style="font-size: 9px; opacity: 0.85; color: ' + colorSub + ';">' + textoSub + '</span>' +
+  '</button>';
+ });
 
     contenedor.innerHTML = html;
 
@@ -1118,11 +1112,11 @@ if (inputMontoAbono) {
     });
 }
 
-document.querySelectorAll('.btn-pay').forEach(btn => {
-    btn.addEventListener('click', () => {
-        const metodo = btn.dataset.pago;
-        procesarAbonoPago(metodo);
-    });
+document.querySelectorAll('.btn-pay[data-pago]').forEach(function(btn) {
+ btn.addEventListener('click', function() {
+ const metodo = btn.dataset.pago;
+ if (metodo) procesarAbonoPago(metodo);
+ });
 });
 
 function procesarAbonoPago(metodo) {
@@ -1578,22 +1572,26 @@ async function ejecutarVentaFinalDefinitivaInterna() {
     const switchDian = document.getElementById('switch-dian');
     const requiereFacturaDian = switchDian ? switchDian.checked : false;
 
-    let datosCliente = {
-        nit: "222222222222",
-        nombre: "Consumidor Final",
-        email: ""
-    };
+     let datosCliente = {
+ tipo_documento: "13",
+ nit: "222222222222",
+ dv: "",
+ nombre: "Consumidor Final",
+ email: ""
+ };
 
-    if (requiereFacturaDian) {
-        const nit = (document.getElementById('dian-nit')?.value || '').trim();
-        const nombre = (document.getElementById('dian-nombre')?.value || '').trim();
-        const email = (document.getElementById('dian-email')?.value || '').trim();
-        if (!nit || !nombre || !email) {
-            alert("⚠️ Para factura electrónica DIAN debes ingresar NIT, Nombre y Correo.");
-            return;
-        }
-        datosCliente = { nit: nit, nombre: nombre, email: email };
-    }
+ if (requiereFacturaDian) {
+ const tipoDoc = (document.getElementById('dian-tipo-doc')?.value || '13').trim();
+ const nit = (document.getElementById('dian-nit')?.value || '').trim();
+ const dv = (document.getElementById('dian-dv')?.value || '').trim();
+ const nombre = (document.getElementById('dian-nombre')?.value || '').trim();
+ const email = (document.getElementById('dian-email')?.value || '').trim();
+ if (!nit || !nombre || !email) {
+ alert("Para factura electrónica DIAN debes ingresar NIT/CC, Nombre y Correo.");
+ return;
+ }
+ datosCliente = { tipo_documento: tipoDoc, nit: nit, dv: dv, nombre: nombre, email: email };
+ }
 
     const ticketPayload = {
         id_sesion: turnoCajaActivo.id_sesion,
@@ -1699,18 +1697,29 @@ async function ejecutarVentaFinalDefinitivaInterna() {
         const txtVueltas = document.getElementById('txt-cambio-vueltas');
         if (txtVueltas) txtVueltas.style.display = 'none';
 
-        if (switchDian) {
-            switchDian.checked = false;
-            const modalDian = document.getElementById('modal-formulario-dian');
-            if (modalDian) modalDian.style.display = 'none';
-        }
+         if (switchDian) {
+ switchDian.checked = false;
+ const modalDian = document.getElementById('modal-formulario-dian');
+ if (modalDian) modalDian.style.display = 'none';
+ const elTxtDian = document.getElementById('txt-estado-dian');
+ if (elTxtDian) {
+ elTxtDian.innerText = 'Consumidor Final';
+ elTxtDian.style.color = 'var(--text-muted)';
+ }
+ }
 
-         if (window.deseaFacturaEcologicaQR) {
-  window.deseaFacturaEcologicaQR = false;
-  await abrirModalFacturaDigitalQR(ultimoTicketIdVendido);
+ if (window.deseaFacturaEcologicaQR) {
+ window.deseaFacturaEcologicaQR = false;
+ const btnEcoReset = document.getElementById('btn-toggle-eco');
+ if (btnEcoReset) {
+ btnEcoReset.style.borderColor = 'var(--border-soft)';
+ btnEcoReset.style.background = 'rgba(255,255,255,0.03)';
+ btnEcoReset.style.color = '#fff';
+ }
+ await abrirModalFacturaDigitalQR(ultimoTicketIdVendido);
  } else {
-  motorCajon.dispararAperturaDirecta(0, true).catch(() => {});
-  setTimeout(() => imprimirTirillaPos(), 300);
+ motorCajon.dispararAperturaDirecta(0, true).catch(function() {});
+ setTimeout(function() { imprimirTirillaPos(); }, 300);
  }
 
     } else {
@@ -1749,58 +1758,71 @@ function generarCode128SVG(texto, svgId) {
     let codigos = [START_B];
     let sumaCheck = START_B;
 
-    for (let i = 0; i < texto.length; i++) {
-        const charCode = texto.charCodeAt(i) - 32;
-        codigos.push(charCode);
-        sumaCheck += charCode * (i + 1);
-    }
+     const textoLimpio = String(texto).replace(/[^\x20-\x7E]/g, '');
+ if (!textoLimpio) return;
 
-    codigos.push(sumaCheck % 103);
-    codigos.push(STOP);
+ for (let i = 0; i < textoLimpio.length; i++) {
+ const charCode = textoLimpio.charCodeAt(i) - 32;
+ if (charCode < 0 || charCode >= 95) continue;
+ codigos.push(charCode);
+ sumaCheck += charCode * (codigos.length - 1);
+ }
 
-    let patronCompleto = "";
-    codigos.forEach(c => { patronCompleto += patrones[c]; });
+ codigos.push(sumaCheck % 103);
+ codigos.push(STOP);
 
-    let x = 0;
-    let rects = "";
-    for (let i = 0; i < patronCompleto.length; i++) {
-        const ancho = parseInt(patronCompleto[i], 10);
-        if (i % 2 === 0) {
-            rects += `<rect x="x*1.5"y="0"width="{ancho * 1.5}" height="40" fill="#000"/>`;
-        }
-        x += ancho;
-    }
+ let patronCompleto = "";
+ codigos.forEach(function(c) {
+ if (patrones[c]) patronCompleto += patrones[c];
+ });
 
-    svg.setAttribute("viewBox", `0 0 ${x * 1.5} 40`);
-    svg.innerHTML = rects;
+ let x = 0;
+ let rects = "";
+ for (let i = 0; i < patronCompleto.length; i++) {
+ const ancho = parseInt(patronCompleto[i], 10);
+ if (i % 2 === 0) {
+ rects += '<rect x="' + (x * 1.5) + '" y="0" width="' + (ancho * 1.5) + '" height="40" fill="#000"/>';
+ }
+ x += ancho;
+ }
+
+ svg.setAttribute("viewBox", "0 0 " + (x * 1.5) + " 40");
+ svg.innerHTML = rects;
 }
 
 function armarTirillaTermica(ticket, ticketId, datosFiscales = null) {
-    // 1. Cargar perfil fiscal del comercio
-    const perfilFiscal = JSON.parse(localStorage.getItem(`geokatu_perfil_${idNegocio}`) || "{}");
-    const elNombreNegocio = document.getElementById('ticket-negocio-nombre');
-    const elNitNegocio = document.getElementById('ticket-negocio-nit');
-    const elDirNegocio = document.getElementById('ticket-negocio-dir');
-    const elRegimenNegocio = document.getElementById('ticket-regimen-text');
+ const elContZ = document.getElementById('tirilla-cierre-z-container');
+ const elContX = document.getElementById('tirilla-informe-x-container');
+ const elContV = document.getElementById('tirilla-venta-container');
+ if (elContZ) elContZ.style.display = 'none';
+ if (elContX) elContX.style.display = 'none';
+ if (elContV) elContV.style.display = 'block';
 
-    if (elNombreNegocio) elNombreNegocio.innerText = perfilFiscal.razon_social || "GEOKATU COMERCIO";
-    if (elNitNegocio) elNitNegocio.innerText = perfilFiscal.nit ? `NIT: perfilFiscal.nit-{perfilFiscal.dv || '0'}` : "NIT: 222222222222";
-    if (elDirNegocio) elDirNegocio.innerText = perfilFiscal.direccion || "Pereira, Risaralda";
-    if (elRegimenNegocio) elRegimenNegocio.innerText = perfilFiscal.regimen_tributario === "NO_RESPONSABLE_IVA" ? "NO RESPONSABLE DE IVA" : "RESPONSABLE DE IVA";
+ // 1. Cargar perfil fiscal del comercio
+ const perfilFiscal = JSON.parse(localStorage.getItem('geokatu_perfil_' + idNegocio) || "{}");
+ const elNombreNegocio = document.getElementById('ticket-negocio-nombre');
+ const elNitNegocio = document.getElementById('ticket-negocio-nit');
+ const elDirNegocio = document.getElementById('ticket-negocio-dir');
+ const elRegimenNegocio = document.getElementById('ticket-regimen-text');
 
-    // 2. Cabecera de auditoría retail (Tienda / Caja / Cajero / Fecha / Hora)
-    const ahora = new Date();
-    const elSede = document.getElementById('t-sede-cod');
-    const elCaja = document.getElementById('t-caja-cod');
-    const elFechaCorta = document.getElementById('t-fecha-corta');
-    const elHoraCorta = document.getElementById('t-hora-corta');
-    const elCajeroCod = document.getElementById('t-cajero-cod');
+ if (elNombreNegocio) elNombreNegocio.innerText = perfilFiscal.razon_social || "GEOKATU COMERCIO";
+ if (elNitNegocio) elNitNegocio.innerText = perfilFiscal.nit ? ('NIT: ' + perfilFiscal.nit + '-' + (perfilFiscal.dv || '0')) : "NIT: 222222222222";
+ if (elDirNegocio) elDirNegocio.innerText = perfilFiscal.direccion || "Pereira, Risaralda";
+ if (elRegimenNegocio) elRegimenNegocio.innerText = perfilFiscal.regimen_tributario === "NO_RESPONSABLE_IVA" ? "NO RESPONSABLE DE IVA" : "RESPONSABLE DE IVA";
 
-    if (elSede) elSede.innerText = perfilFiscal.codigo_tienda || "T-01";
-    if (elCaja) elCaja.innerText = cajaNumeroActiva;
-    if (elFechaCorta) elFechaCorta.innerText = ahora.toLocaleDateString('es-CO');
-    if (elHoraCorta) elHoraCorta.innerText = ahora.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-    if (elCajeroCod) elCajeroCod.innerText = `OP #cajeroCodigoActivo({ticket.cajero_email || 'CAJERO'})`;
+ // 2. Cabecera de auditoría retail (Tienda / Caja / Cajero / Fecha / Hora)
+ const ahora = new Date();
+ const elSede = document.getElementById('t-sede-cod');
+ const elCaja = document.getElementById('t-caja-cod');
+ const elFechaCorta = document.getElementById('t-fecha-corta');
+ const elHoraCorta = document.getElementById('t-hora-corta');
+ const elCajeroCod = document.getElementById('t-cajero-cod');
+
+ if (elSede) elSede.innerText = perfilFiscal.codigo_tienda || "T-01";
+ if (elCaja) elCaja.innerText = cajaNumeroActiva;
+ if (elFechaCorta) elFechaCorta.innerText = ahora.toLocaleDateString('es-CO');
+ if (elHoraCorta) elHoraCorta.innerText = ahora.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+ if (elCajeroCod) elCajeroCod.innerText = 'OP #' + cajeroCodigoActivo + ' (' + (ticket.cajero_email || 'CAJERO') + ')';
 
     // 3. Datos del ticket y cliente
     const elId = document.getElementById('t-id');
@@ -1869,21 +1891,26 @@ function armarTirillaTermica(ticket, ticketId, datosFiscales = null) {
         }
     }
 
-   // 6. Renglones de productos (con notas de preparación visibles)
-    if (tbody) {
-        tbody.innerHTML = '';
-        (ticket.productos || []).forEach(p => {
-            const sub = Math.round(Number(p.precio) * Number(p.cantidad));
-            const cantTexto = p.es_pesable ? `${p.cantidad} p.unidadmedida`:`{p.cantidad}x`;
-            const notaImpresa = p.nota ? `<br><span style="font-size: 8.5px; font-style: italic;">* ${p.nota}</span>` : '';
-            tbody.innerHTML += `
-                <tr>
-                    <td>${cantTexto} p.nombre{notaImpresa}</td>
-                    <td style="text-align: right;">$${sub.toLocaleString('es-CO')}</td>
-                </tr>
-            `;
-        });
-    }
+    // 6. Renglones de productos (con notas de preparación visibles)
+ if (tbody) {
+ tbody.innerHTML = '';
+ (ticket.productos || []).forEach(function(p) {
+ const sub = (p.subtotal !== undefined && p.subtotal !== null)
+  ? Math.round(Number(p.subtotal))
+  : (p.precio_fijado_balanza ? Math.round(Number(p.precio)) : Math.round(Number(p.precio) * Number(p.cantidad)));
+ const cantTexto = p.es_pesable
+  ? (p.cantidad + ' ' + (p.unidad_medida || 'kg'))
+  : (p.cantidad + 'x');
+ const notaImpresa = p.nota
+  ? ('<br><span style="font-size: 8.5px; font-style: italic;">* ' + escaparHtmlPos(p.nota) + '</span>')
+  : '';
+ tbody.innerHTML +=
+  '<tr>' +
+  '<td>' + escaparHtmlPos(cantTexto) + ' ' + escaparHtmlPos(p.nombre) + notaImpresa + '</td>' +
+  '<td style="text-align: right; white-space: nowrap;">$' + sub.toLocaleString('es-CO') + '</td>' +
+  '</tr>';
+ });
+ }
 
 
     // 7. Código de barras Code-128 para devolución rápida por escáner
@@ -2771,17 +2798,15 @@ function abrirModalArqueoGenerico(titulo, textoBotonConfirmar) {
 
     const esperadoEfectivo = base + acumuladoTurno.efectivo + entradas - salidas;
 
-    modal.querySelector('h3').innerText = titulo;
-    document.getElementById('btn-confirmar-cierre-z').innerText = textoBotonConfirmar;
+     modal.querySelector('h3').innerText = titulo;
+ document.getElementById('btn-confirmar-cierre-z').innerText = textoBotonConfirmar;
 
-    document.getElementById('cz-base-inicial').innerText = `$${base.toLocaleString()}`;
-    document.getElementById('cz-ventas-efectivo').innerText = `$${acumuladoTurno.efectivo.toLocaleString()}`;
-    document.getElementById('cz-ventas-tarjeta').innerText = `$${acumuladoTurno.tarjeta.toLocaleString()}`;
-    document.getElementById('cz-ventas-nequi').innerText = `$${acumuladoTurno.nequi.toLocaleString()}`;
-    document.getElementById('cz-movimientos-netos').innerText = `+
-entradas.toLocaleString()/-
-{salidas.toLocaleString()}`;
-    document.getElementById('cz-efectivo-esperado').innerText = `$${esperadoEfectivo.toLocaleString()}`;
+ document.getElementById('cz-base-inicial').innerText = '$' + base.toLocaleString('es-CO');
+ document.getElementById('cz-ventas-efectivo').innerText = '$' + acumuladoTurno.efectivo.toLocaleString('es-CO');
+ document.getElementById('cz-ventas-tarjeta').innerText = '$' + acumuladoTurno.tarjeta.toLocaleString('es-CO');
+ document.getElementById('cz-ventas-nequi').innerText = '$' + acumuladoTurno.nequi.toLocaleString('es-CO');
+ document.getElementById('cz-movimientos-netos').innerText = '+$' + entradas.toLocaleString('es-CO') + ' / -$' + salidas.toLocaleString('es-CO');
+ document.getElementById('cz-efectivo-esperado').innerText = '$' + esperadoEfectivo.toLocaleString('es-CO');
 
     const inputContado = document.getElementById('cz-input-contado');
     inputContado.value = '';
@@ -2802,16 +2827,14 @@ function abrirModalCierreZ() {
         if (m.tipo === 'SALIDA') salidas += m.monto;
     });
 
-    const esperadoEfectivo = base + acumuladoTurno.efectivo + entradas - salidas;
+     const esperadoEfectivo = base + acumuladoTurno.efectivo + entradas - salidas;
 
-    document.getElementById('cz-base-inicial').innerText = `$${base.toLocaleString()}`;
-    document.getElementById('cz-ventas-efectivo').innerText = `$${acumuladoTurno.efectivo.toLocaleString()}`;
-    document.getElementById('cz-ventas-tarjeta').innerText = `$${acumuladoTurno.tarjeta.toLocaleString()}`;
-    document.getElementById('cz-ventas-nequi').innerText = `$${acumuladoTurno.nequi.toLocaleString()}`;
-    document.getElementById('cz-movimientos-netos').innerText = `+
-entradas.toLocaleString()/-
-{salidas.toLocaleString()}`;
-    document.getElementById('cz-efectivo-esperado').innerText = `$${esperadoEfectivo.toLocaleString()}`;
+ document.getElementById('cz-base-inicial').innerText = '$' + base.toLocaleString('es-CO');
+ document.getElementById('cz-ventas-efectivo').innerText = '$' + acumuladoTurno.efectivo.toLocaleString('es-CO');
+ document.getElementById('cz-ventas-tarjeta').innerText = '$' + acumuladoTurno.tarjeta.toLocaleString('es-CO');
+ document.getElementById('cz-ventas-nequi').innerText = '$' + acumuladoTurno.nequi.toLocaleString('es-CO');
+ document.getElementById('cz-movimientos-netos').innerText = '+$' + entradas.toLocaleString('es-CO') + ' / -$' + salidas.toLocaleString('es-CO');
+ document.getElementById('cz-efectivo-esperado').innerText = '$' + esperadoEfectivo.toLocaleString('es-CO');
 
     const inputContado = document.getElementById('cz-input-contado');
     inputContado.value = '';
@@ -3086,28 +3109,31 @@ window.abrirModalDevolucionParcial = async function(ticketId) {
     const lista = document.getElementById('dev-lista-items');
     lista.innerHTML = '';
 
-    (venta.productos || []).forEach((p, idx) => {
-        lista.innerHTML += `
-            <div style="background: rgba(255,255,255,0.04); padding: 8px 12px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">
-                <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; cursor: pointer;">
-                    <input type="checkbox" class="chk-dev-item" data-idx="idx"data-precio="{p.precio}" data-cant="${p.cantidad}" onchange="window.recalcularTotalDevolucion()">
-                    <span>${p.cantidad}x p.nombre(${Number(p.precio).toLocaleString('es-CO')})</span>
-                </label>
-            </div>
-        `;
-    });
+     (venta.productos || []).forEach(function(p, idx) {
+ const subItem = (p.subtotal !== undefined && p.subtotal !== null)
+  ? Math.round(Number(p.subtotal))
+  : (p.precio_fijado_balanza ? Math.round(Number(p.precio)) : Math.round(Number(p.precio) * Number(p.cantidad)));
+ lista.innerHTML +=
+  '<div style="background: rgba(255,255,255,0.04); padding: 8px 12px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">' +
+  '<label style="display: flex; align-items: center; gap: 8px; font-size: 11px; cursor: pointer;">' +
+  '<input type="checkbox" class="chk-dev-item" data-idx="' + idx + '" data-precio="' + Number(p.precio) + '" data-cant="' + Number(p.cantidad) + '" data-subtotal="' + subItem + '" onchange="window.recalcularTotalDevolucion()">' +
+  '<span>' + p.cantidad + 'x ' + escaparHtmlPos(p.nombre) + ' ($' + subItem.toLocaleString('es-CO') + ')</span>' +
+  '</label>' +
+  '</div>';
+ });
 
-    window.ticketEnDevolucion = { id: ticketId, productos: venta.productos };
-    document.getElementById('dev-total-reembolso').innerText = "$0";
-    document.getElementById('modal-devolucion-parcial').style.display = 'flex';
+ window.ticketEnDevolucion = { id: ticketId, productos: venta.productos };
+ document.getElementById('dev-total-reembolso').innerText = "$0";
+ document.getElementById('modal-devolucion-parcial').style.display = 'flex';
 };
 
 window.recalcularTotalDevolucion = function() {
-    let total = 0;
-    document.querySelectorAll('.chk-dev-item:checked').forEach(chk => {
-        total += (Number(chk.dataset.precio) * Number(chk.dataset.cant));
-    });
-    document.getElementById('dev-total-reembolso').innerText = `$${total.toLocaleString('es-CO')}`;
+ let total = 0;
+ document.querySelectorAll('.chk-dev-item:checked').forEach(function(chk) {
+ const sub = Number(chk.dataset.subtotal);
+ total += !isNaN(sub) ? sub : (Number(chk.dataset.precio) * Number(chk.dataset.cant));
+ });
+ document.getElementById('dev-total-reembolso').innerText = '$' + Math.round(total).toLocaleString('es-CO');
 };
 
 document.getElementById('btn-cancelar-dev')?.addEventListener('click', () => {
@@ -3248,32 +3274,30 @@ window.alternarFacturaEcologica = async function(btn) {
 
 
 async function generarFirmaFactura24Horas(tktId, expTimestamp) {
-    try {
-        const raw = `tktId:{idNegocio}:${expTimestamp}:GEOKATU_PUBLIC_TKT_SALT`;
-        if (window.crypto && window.crypto.subtle) {
-            const encoder = new TextEncoder();
-            const data = encoder.encode(raw);
-            const buffer = await crypto.subtle.digest('SHA-256', data);
-            const hashArray = Array.from(new Uint8Array(buffer));
-            return hashArray.map(b => b.toString(16).padStart(2, '0')).slice(0, 16).join('');
-        }
-    } catch (_) {}
-    // Fallback determinista seguro para contextos HTTP locales en Termux/Acode
-    return "SIG_" + Date.now().toString(16).toUpperCase();
+ try {
+ const raw = tktId + ':' + idNegocio + ':' + expTimestamp + ':GEOKATU_PUBLIC_TKT_SALT';
+ if (window.crypto && window.crypto.subtle) {
+ const encoder = new TextEncoder();
+ const data = encoder.encode(raw);
+ const buffer = await crypto.subtle.digest('SHA-256', data);
+ const hashArray = Array.from(new Uint8Array(buffer));
+ return hashArray.map(function(b) { return b.toString(16).padStart(2, '0'); }).slice(0, 16).join('');
+ }
+ } catch (_) {}
+ // Fallback determinista seguro para contextos HTTP locales en Termux/Acode
+ return "SIG_" + Date.now().toString(16).toUpperCase();
 }
 
-
-
 async function abrirModalFacturaDigitalQR(ticketId, telefonoPrevio = "") {
-    const modalQR = document.getElementById('modal-factura-qr');
-    const contenedor = document.getElementById('contenedor-qr-factura');
-    if (!modalQR || !contenedor) return;
+ const modalQR = document.getElementById('modal-factura-qr');
+ const contenedor = document.getElementById('contenedor-qr-factura');
+ if (!modalQR || !contenedor) return;
 
-    window.ticketIdFacturaActiva = ticketId;
-    const exp = Date.now() + (24 * 60 * 60 * 1000); // 24 horas
-    const sig = await generarFirmaFactura24Horas(ticketId, exp);
+ window.ticketIdFacturaActiva = ticketId;
+ const exp = Date.now() + (24 * 60 * 60 * 1000); // 24 horas
+ const sig = await generarFirmaFactura24Horas(ticketId, exp);
 
-    window.urlFacturaActiva = `window.location.origin/factura?com={idNegocio}&tkt=ticketId&exp={exp}&sig=${sig}`;
+ window.urlFacturaActiva = window.location.origin + '/factura?com=' + encodeURIComponent(idNegocio) + '&tkt=' + encodeURIComponent(ticketId) + '&exp=' + exp + '&sig=' + sig;
 
     contenedor.innerHTML = '';
     contenedor.style.padding = '20px';
