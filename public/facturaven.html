@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Comprobante de Pago Digital | GEOKATU Venezuela</title>
+    <style>
+        :root {
+            --bg-oscuro: #0a0a0c;
+            --tarjeta-bg: #141418;
+            --color-marca: #ff6b00;
+            --color-secundario: #ff6b00;
+            --color-terciario: #ffffff;
+            --accent-green: #00ff64;
+            --accent-blue: #60a5fa;
+            --accent-orange: #f59e0b;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --border-soft: rgba(255, 255, 255, 0.08);
+        }
+        body {
+            margin: 0;
+            padding: 16px;
+            background: var(--bg-oscuro);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        .container-factura {
+            width: 100%;
+            max-width: 420px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .tarjeta-ticket {
+            background: var(--tarjeta-bg);
+            border: 1px solid var(--color-marca);
+            border-radius: 20px;
+            padding: 24px 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 15px rgba(255,107,0,0.2);
+            position: relative;
+        }
+        .timer-badge {
+            background: rgba(255, 170, 0, 0.12);
+            color: #ffaa00;
+            border: 1px solid rgba(255, 170, 0, 0.3);
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: 11px;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+        .logo-comercio {
+            width: 65px;
+            height: 65px;
+            border-radius: 50%;
+            border: 2px solid var(--color-marca);
+            object-fit: cover;
+            margin-bottom: 8px;
+            background: #000;
+            display: none;
+        }
+         .tabla-items {
+ width: 100%;
+ table-layout: fixed;
+ border-collapse: collapse;
+ font-size: 12px;
+ margin: 14px 0;
+ }
+ .tabla-items td {
+ padding: 6px 0;
+ border-bottom: 1px dashed var(--border-soft);
+ overflow-wrap: anywhere;
+ word-break: break-word;
+ vertical-align: top;
+ }
+ .tabla-items th:last-child,
+ .tabla-items td:last-child {
+ width: 32%;
+ white-space: nowrap;
+ }
+        .desglose-totales {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin: 10px 0;
+        }
+        .desglose-totales td {
+            padding: 3px 0;
+        }
+        .caja-total-multimoneda {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-soft);
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .btn-descargar {
+            background: var(--color-marca);
+            color: #ffffff;
+            border: none;
+            border-radius: 12px;
+            padding: 14px;
+            font-size: 13px;
+            font-weight: 900;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            transition: transform 0.2s ease;
+        }
+        .btn-descargar:active { transform: scale(0.97); }
+        .btn-cta-mapa {
+            background: linear-gradient(135deg, rgba(255,107,0,0.15) 0%, rgba(20,20,25,0.8) 100%);
+            border: 1px solid var(--border-soft);
+            color: #fff;
+            border-radius: 14px;
+            padding: 14px;
+            text-align: center;
+            text-decoration: none;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            align-items: center;
+        }
+        .btn-cta-mapa strong {
+            color: var(--color-marca);
+            font-size: 13px;
+        }
+
+         @media print {
+ body { background: white; color: black; padding: 0; }
+ .timer-badge, .btn-descargar, .btn-cta-mapa { display: none !important; }
+ .tarjeta-ticket { border: 1px solid #ccc; box-shadow: none; background: white; color: black; overflow-wrap: anywhere; word-break: break-word; }
+ .tabla-items td, .desglose-totales td { border-bottom: 1px solid #eee; color: black !important; }
+ .caja-total-multimoneda { border: 1px solid #ccc; background: white !important; }
+ #com-nombre, #com-rif, #com-dir, #tkt-id, #tkt-cliente, #tkt-rif-cliente, #tkt-items-body strong, #tkt-total-usd, #tkt-total-ves, #tkt-total-cop, #tkt-tasa-cambio, #tkt-lista-pagos, #tkt-lista-pagos strong { color: black !important; }
+ }
+    </style>
+</head>
+<body>
+    <div class="container-factura">
+        <div style="text-align: center;">
+             <div id="badge-timer" class="timer-badge">
+ <span>⏱️</span>
+ <span>Enlace válido por: <strong id="txt-tiempo-restante">24:00:00</strong></span>
+ </div>
+        </div>
+
+        <!-- TARJETA DEL TICKET DIGITAL VENEZUELA -->
+        <div id="tarjeta-captura" class="tarjeta-ticket">
+            <div style="text-align: center; border-bottom: 1px solid var(--border-soft); padding-bottom: 14px; margin-bottom: 12px;">
+                <img id="com-logo" class="logo-comercio" alt="Logo">
+                <h2 id="com-nombre" style="margin: 4px 0; font-size: 18px; text-transform: uppercase;">COMERCIO</h2>
+                <p id="com-rif" style="margin: 2px 0; font-size: 11px; color: var(--text-muted); font-family: monospace;">RIF: J-00000000-0</p>
+                <p id="com-dir" style="margin: 2px 0; font-size: 10.5px; color: #888;">---</p>
+                <span style="font-size: 9.5px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-top: 4px;">
+                    NOTA DE ENTREGA / COMPROBANTE DIGITAL
+                </span>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); font-family: monospace;">
+                <span>TICKET: <strong id="tkt-id" style="color: #fff;">---</strong></span>
+                <span id="tkt-fecha">00/00/00 00:00</span>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); font-family: monospace; margin-top: 4px;">
+                <span>CLIENTE: <strong id="tkt-cliente" style="color: #fff;">Consumidor Final</strong></span>
+                <span id="tkt-rif-cliente" style="color: #fff;">V-00000000</span>
+            </div>
+
+            <!-- TABLA DE RENGLONES VENDIDOS -->
+            <table class="tabla-items">
+                <thead>
+                    <tr style="color: var(--text-muted); font-size: 10px; text-align: left;">
+                        <th>ARTÍCULO</th>
+                        <th style="text-align: right;">TOTAL ($)</th>
+                    </tr>
+                </thead>
+                <tbody id="tkt-items-body"></tbody>
+            </table>
+
+            <!-- DESGLOSE FISCAL VENEZOLANO -->
+            <table class="desglose-totales">
+                <tbody>
+                    <tr><td>Subtotal Base:</td><td style="text-align: right; font-family: monospace;" id="tkt-base-usd">$0.00</td></tr>
+                    <tr><td>IVA (16%):</td><td style="text-align: right; font-family: monospace;" id="tkt-iva-usd">$0.00</td></tr>
+                    <tr id="fila-igtf" style="display: none; color: var(--accent-orange);">
+                        <td>IGTF (3% Divisas):</td>
+                        <td style="text-align: right; font-family: monospace;" id="tkt-igtf-usd">$0.00</td>
+                    </tr>
+                    <tr><td>Exento:</td><td style="text-align: right; font-family: monospace;" id="tkt-exento-usd">$0.00</td></tr>
+                </tbody>
+            </table>
+
+            <!-- CAJA DE TOTALES DUALES USD / VES -->
+            <div class="caja-total-multimoneda">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 12px; font-weight: bold; text-transform: uppercase;">Total Pagado:</span>
+                    <strong id="tkt-total-usd" style="font-size: 22px; font-family: monospace; color: var(--accent-green);">$0.00</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 4px;">
+                    <span style="font-size: 11px; color: var(--accent-blue);">Equivalente en Bolívares:</span>
+                    <strong id="tkt-total-ves" style="font-size: 14px; font-family: monospace; color: var(--accent-blue);">Bs. 0,00</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 9.5px; color: #888; font-family: monospace;">
+                    <span>Tasa Aplicada:</span>
+                    <span id="tkt-tasa-cambio">Bs. 0.00 / $</span>
+                </div>
+                <div id="fila-cop-frontera" style="display: none; justify-content: space-between; font-size: 10px; color: var(--accent-orange); font-family: monospace;">
+                    <span>Ref. Frontera (COP):</span>
+                    <strong id="tkt-total-cop">$0 COP</strong>
+                </div>
+            </div>
+
+            <!-- DETALLE DE PAGOS REGISTRADOS -->
+            <div style="margin-top: 12px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 10px; border: 1px solid var(--border-soft);">
+                <span style="font-size: 10px; color: #888; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 4px;">
+                    Medios de Pago Aplicados:
+                </span>
+                <div id="tkt-lista-pagos" style="font-size: 11px; font-family: monospace; display: flex; flex-direction: column; gap: 3px;">
+                    EFECTIVO USD: $0.00
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 14px; font-size: 9px; color: #777;">
+                <p style="margin: 0;">🌱 Comprobante ecológico sin uso de papel.</p>
+                <p style="margin: 2px 0;">Tecnología GEOKATU Venezuela</p>
+            </div>
+        </div>
+
+        <button id="btn-guardar-img" class="btn-descargar" onclick="window.imprimirOGuardar()">
+            <span>📥</span> Guardar o Imprimir Comprobante
+        </button>
+
+        <!-- CANAL DE NAVEGACIÓN AL RADAR DE COMERCIOS -->
+        <a href="index.html" class="btn-cta-mapa">
+            <strong>📍 Explora Comercios Cercanos en GEOKATU</strong>
+            <span style="font-size: 11px; color: var(--text-muted);">Descubre tiendas, ofertas y productos en el radar</span>
+        </a>
+    </div>
+
+    <script type="module">
+        import { db } from './firebase-config.js';
+        import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+        const params = new URLSearchParams(window.location.search);
+        const idNegocio = params.get('com');
+        const ticketId = params.get('tkt');
+        const exp = parseInt(params.get('exp'), 10);
+        const sig = params.get('sig');
+
+         // Verificación estricta de firma criptográfica SHA-256
+ async function validarFirma(tkt, comercio, expira, firma) {
+ if (!firma) return false;
+ try {
+ const encoder = new TextEncoder();
+ const data = encoder.encode(tkt + ':' + comercio + ':' + expira + ':GEOKATU_PUBLIC_TKT_SALT');
+ const buffer = await crypto.subtle.digest('SHA-256', data);
+ const hashArray = Array.from(new Uint8Array(buffer));
+ const calculada = hashArray.map(function(b) { return b.toString(16).padStart(2, '0'); }).slice(0, 16).join('');
+ return calculada === firma;
+ } catch (e) {
+ return false;
+ }
+ }
+
+ async function inicializarVisorVen() {
+ if (!idNegocio || !ticketId || !exp || !sig) {
+ document.body.innerHTML = '<h3 style="color:#ff4444; text-align:center; margin-top:40px;">Enlace de comprobante incompleto o inválido.</h3>';
+ return;
+ }
+
+ const firmaValida = await validarFirma(ticketId, idNegocio, exp, sig);
+ if (!firmaValida) {
+ document.body.innerHTML = '<h3 style="color:#ff4444; text-align:center; margin-top:40px;">Firma de seguridad inválida o alterada.</h3>';
+ return;
+ }
+
+ const ahora = Date.now();
+ if (ahora > exp) {
+ document.body.innerHTML =
+ '<div style="text-align:center; padding: 40px 20px;">' +
+ '<span style="font-size: 48px;">⏱️</span>' +
+ '<h3 style="color:#ffaa00;">Este enlace de comprobante ha expirado (Límite 24 horas).</h3>' +
+ '<p style="color:#888; font-size:12px;">Por seguridad y privacidad comercial, los enlaces de consulta temporal caducan al cumplirse 24 horas.</p>' +
+ '<a href="index.html" style="color:var(--color-marca); font-weight:bold; font-size:13px;">Ir al Mapa GEOKATU</a>' +
+ '</div>';
+ return;
+ }
+
+            iniciarContador(exp);
+
+            try {
+                const [snapNegocio, snapVenta] = await Promise.all([
+                    getDoc(doc(db, "Directorio", idNegocio)),
+                    getDoc(doc(db, `Directorio/${idNegocio}/Ventas_POS`, ticketId))
+                ]);
+
+                if (!snapVenta.exists()) {
+                    document.body.innerHTML = `<h3 style="color:#ff4444; text-align:center; margin-top:40px;">Comprobante no encontrado en el sistema.</h3>`;
+                    return;
+                }
+
+                if (snapNegocio.exists()) {
+                    aplicarBrandingNegocio(snapNegocio.data());
+                }
+
+                renderizarDatosTicketVen(snapVenta.data());
+            } catch (e) {
+                document.body.innerHTML = `<h3 style="color:#ff4444; text-align:center; margin-top:40px;">Error al cargar datos del comprobante: ${e.message}</h3>`;
+            }
+        }
+
+        function aplicarBrandingNegocio(n) {
+            const c1 = n.color_principal || '#ff6b00';
+            const c2 = n.color_acento || c1;
+            const c3 = n.color_terciario || '#00ff64';
+
+            const root = document.documentElement;
+            root.style.setProperty('--color-marca', c1);
+            root.style.setProperty('--color-secundario', c2);
+            root.style.setProperty('--color-terciario', c3);
+
+            document.getElementById('com-nombre').innerText = n.nombre || 'Comercio';
+            if (n.logo) {
+                const imgLogo = document.getElementById('com-logo');
+                imgLogo.src = n.logo;
+                imgLogo.style.display = 'inline-block';
+            }
+
+            // Datos fiscales venezolanos
+            const f = n.perfil_fiscal_ven || n.perfil_fiscal;
+            if (f && f.rif) {
+                document.getElementById('com-rif').innerText = `RIF: ${f.rif}`;
+                document.getElementById('com-dir').innerText = f.direccion || n.direccion || 'San Cristóbal, Táchira';
+            } else {
+                document.getElementById('com-rif').innerText = n.rif ? `RIF: ${n.rif}` : 'RIF: J-00000000-0';
+                document.getElementById('com-dir').innerText = n.direccion || 'Venezuela';
+            }
+        }
+
+         function escaparHtmlVen(texto) {
+ if (texto === null || texto === undefined) return '';
+ return String(texto)
+ .replace(/&/g, '&amp;')
+ .replace(/</g, '&lt;')
+ .replace(/>/g, '&gt;')
+ .replace(/"/g, '&quot;')
+ .replace(/'/g, '&#39;');
+ }
+
+ function renderizarDatosTicketVen(venta) {
+ document.getElementById('tkt-id').innerText = ticketId;
+ document.getElementById('tkt-fecha').innerText = new Date(venta.timestamp_caja || Date.now()).toLocaleString('es-VE');
+
+ // Datos del cliente
+ document.getElementById('tkt-cliente').innerText = (venta.cliente && venta.cliente.nombre) ? venta.cliente.nombre : "Consumidor Final";
+ document.getElementById('tkt-rif-cliente').innerText = (venta.cliente && venta.cliente.rif) ? venta.cliente.rif : "V-00000000";
+
+ // Renglones de productos
+ const tbody = document.getElementById('tkt-items-body');
+ tbody.innerHTML = '';
+ (venta.productos || []).forEach(function(p) {
+ const precio = Number(p.precio_usd !== undefined ? p.precio_usd : (p.precio || 0));
+ const subUSD = (p.subtotal_usd !== undefined && p.subtotal_usd !== null)
+ ? Number(p.subtotal_usd)
+ : (p.precio_fijado_balanza ? precio : Number((precio * Number(p.cantidad || 0)).toFixed(2)));
+ const cantTxt = p.es_pesable ? (p.cantidad + ' ' + (p.unidad_medida || 'kg')) : (p.cantidad + 'x');
+ const detPrecio = p.precio_fijado_balanza ? (cantTxt + ' (Etiqueta Balanza)') : (cantTxt + ' a $' + precio.toFixed(2));
+ const notaHtml = p.nota ? ('<span style="display:block; font-size:9.5px; color:#ffaa00; font-style:italic;">* ' + escaparHtmlVen(p.nota) + '</span>') : '';
+ tbody.innerHTML +=
+ '<tr>' +
+ '<td>' +
+ '<strong style="color:white;">' + escaparHtmlVen(p.nombre) + '</strong>' +
+ '<span style="display:block; font-size:10px; color:#888;">' + escaparHtmlVen(detPrecio) + '</span>' +
+ notaHtml +
+ '</td>' +
+ '<td style="text-align: right; font-family: monospace; font-weight:bold;">$' + subUSD.toFixed(2) + '</td>' +
+ '</tr>';
+ });
+
+ // Desglose numérico
+ const baseUSD = venta.base_gravable_usd !== undefined
+ ? Number(venta.base_gravable_usd)
+ : (venta.subtotal_usd !== undefined ? Number(venta.subtotal_usd) : Number(venta.total || 0));
+ const ivaUSD = Number(venta.iva_16_usd || 0);
+ const igtfUSD = Number(venta.igtf_usd || 0);
+ const exentoUSD = Number(venta.exento_usd || 0);
+ const totalUSD = venta.total_usd !== undefined ? Number(venta.total_usd) : Number(venta.total || 0);
+
+ document.getElementById('tkt-base-usd').innerText = '$' + baseUSD.toFixed(2);
+ document.getElementById('tkt-iva-usd').innerText = '$' + ivaUSD.toFixed(2);
+ document.getElementById('tkt-exento-usd').innerText = '$' + exentoUSD.toFixed(2);
+
+ if (igtfUSD > 0) {
+ document.getElementById('fila-igtf').style.display = 'table-row';
+ document.getElementById('tkt-igtf-usd').innerText = '$' + igtfUSD.toFixed(2);
+ }
+
+ // Totales duales
+ document.getElementById('tkt-total-usd').innerText = '$' + totalUSD.toFixed(2);
+
+ const totalVES = venta.total_ves !== undefined
+ ? Number(venta.total_ves)
+ : (totalUSD * Number(venta.tasa_aplicada || 1));
+ document.getElementById('tkt-total-ves').innerText = 'Bs. ' + totalVES.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+ const tasaStr = venta.tasa_aplicada ? ('Bs. ' + Number(venta.tasa_aplicada).toFixed(2) + ' / $ (' + (venta.tipo_tasa || 'BCV') + ')') : 'No especificada';
+ document.getElementById('tkt-tasa-cambio').innerText = tasaStr;
+
+ if (venta.total_cop && Number(venta.total_cop) > 0) {
+ const filaCOP = document.getElementById('fila-cop-frontera');
+ filaCOP.style.display = 'flex';
+ document.getElementById('tkt-total-cop').innerText = '$' + Number(venta.total_cop).toLocaleString('es-CO') + ' COP';
+ }
+
+ // Medios de pago split
+ const divPagos = document.getElementById('tkt-lista-pagos');
+ if (Array.isArray(venta.metodos_pago_split) && venta.metodos_pago_split.length > 0) {
+ divPagos.innerHTML = venta.metodos_pago_split.map(function(p) {
+ const mNum = Number(p.monto_original || 0);
+ const monto = p.moneda_original === 'USD'
+ ? ('$' + mNum.toFixed(2))
+ : (p.moneda_original === 'VES'
+ ? ('Bs. ' + mNum.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+ : ('$' + mNum.toLocaleString('es-CO') + ' COP'));
+ const ref = p.referencia ? (' (Ref: ' + escaparHtmlVen(p.referencia) + ')') : '';
+ return '<div>• ' + escaparHtmlVen(p.metodo) + ': <strong>' + escaparHtmlVen(monto) + '</strong>' + ref + '</div>';
+ }).join('');
+ } else {
+ divPagos.innerText = (venta.metodo_pago || 'EFECTIVO') + ': $' + totalUSD.toFixed(2);
+ }
+ }
+
+ function iniciarContador(expiraMs) {
+ const txt = document.getElementById('txt-tiempo-restante');
+ function actualizarReloj() {
+ const restante = Math.max(0, expiraMs - Date.now());
+ const hrs = Math.floor(restante / 3600000);
+ const mins = Math.floor((restante % 3600000) / 60000);
+ const segs = Math.floor((restante % 60000) / 1000);
+ txt.innerText = String(hrs).padStart(2, '0') + ':' + String(mins).padStart(2, '0') + ':' + String(segs).padStart(2, '0');
+ return restante;
+ }
+ actualizarReloj();
+ const intervalo = setInterval(function() {
+ if (actualizarReloj() <= 0) {
+ clearInterval(intervalo);
+ window.location.reload();
+ }
+ }, 1000);
+ }
+
+        window.imprimirOGuardar = function() {
+            window.print();
+        };
+
+        inicializarVisorVen();
+    </script>
+</body>
+</html>
+
