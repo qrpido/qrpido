@@ -147,34 +147,37 @@ async function resolverTenantActivo() {
 
 // 5. MANEJO DE RANGOS TEMPORALES REACTIVOS
 function calcularRangoTemporal(rangoClave) {
-    const ahora = new Date();
-    let inicio = new Date();
-    let fin = new Date();
+ const ahora = new Date();
+ let inicio = new Date();
+ let fin = new Date();
 
-    if (rangoClave === "HOY") {
-        inicio.setHours(0, 0, 0, 0);
-        fin.setHours(23, 59, 59, 999);
-    } else if (rangoClave === "AYER") {
-        inicio.setDate(inicio.getDate() - 1);
-        inicio.setHours(0, 0, 0, 0);
-        fin.setDate(fin.getDate() - 1);
-        fin.setHours(23, 59, 59, 999);
-    } else if (rangoClave === "7DIAS") {
-        inicio.setDate(inicio.getDate() - 7);
-        inicio.setHours(0, 0, 0, 0);
-        fin.setHours(23, 59, 59, 999);
-    } else if (rangoClave === "MES") {
-        inicio = new Date(ahora.getFullYear(), ahora.getMonth(), 1, 0, 0, 0, 0);
-        fin = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0, 23, 59, 59, 999);
-    }
+ if (rangoClave === "CUSTOM" && AppState.fechaInicioISO && AppState.fechaFinISO) {
+ inicio = new Date(AppState.fechaInicioISO);
+ fin = new Date(AppState.fechaFinISO);
+ } else if (rangoClave === "HOY") {
+ inicio.setHours(0, 0, 0, 0);
+ fin.setHours(23, 59, 59, 999);
+ } else if (rangoClave === "AYER") {
+ inicio.setDate(inicio.getDate() - 1);
+ inicio.setHours(0, 0, 0, 0);
+ fin.setDate(fin.getDate() - 1);
+ fin.setHours(23, 59, 59, 999);
+ } else if (rangoClave === "7DIAS") {
+ inicio.setDate(inicio.getDate() - 7);
+ inicio.setHours(0, 0, 0, 0);
+ fin.setHours(23, 59, 59, 999);
+ } else if (rangoClave === "MES") {
+ inicio = new Date(ahora.getFullYear(), ahora.getMonth(), 1, 0, 0, 0, 0);
+ fin = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0, 23, 59, 59, 999);
+ }
 
-    AppState.fechaInicioISO = inicio.toISOString();
-    AppState.fechaFinISO = fin.toISOString();
+ AppState.fechaInicioISO = inicio.toISOString();
+ AppState.fechaFinISO = fin.toISOString();
 
-    const lbl = document.getElementById('rango-fecha-etiqueta');
-    if (lbl) {
-        lbl.textContent = `${inicio.toLocaleDateString()} - ${fin.toLocaleDateString()}`;
-    }
+ const lbl = document.getElementById('rango-fecha-etiqueta');
+ if (lbl) {
+ lbl.textContent = inicio.toLocaleDateString() + ' - ' + fin.toLocaleDateString();
+ }
 }
 
 // 6. HIDRATACION LOCAL-FIRST (0 MS)
@@ -244,15 +247,24 @@ function recalcularInventarioValuadoRAM() {
             tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #777; padding: 12px;">Inventario equilibrado. Cero quiebres.</td></tr>`;
         } else {
             criticos.sort((a, b) => a.stock - b.stock);
-            const top5 = criticos.slice(0, 5);
-            tbody.innerHTML = top5.map(c => `
-                <tr>
-                    <td style="color: var(--naranja);">${c.codigo}</td>
-                    <td style="max-width: 140px; overflow: hidden; text-overflow: ellipsis;">${c.nombre}</td>
-                    <td style="color: c.stock<=0?'var(--rojo-urgente)':'var(--amber)';font-weight:800;">{c.stock}</td>
-                    <td>${MonedaFormatter.formatear(c.cpp)}</td>
-                </tr>
-            `).join('');
+             const top5 = criticos.slice(0, 5);
+ const escTxt = function(v) {
+ return String(v === null || v === undefined ? '' : v)
+ .replace(/&/g, '&amp;')
+ .replace(/</g, '&lt;')
+ .replace(/>/g, '&gt;')
+ .replace(/"/g, '&quot;')
+ .replace(/'/g, '&#39;');
+ };
+ tbody.innerHTML = top5.map(function(c) {
+ const colorStock = c.stock <= 0 ? 'var(--rojo-urgente)' : 'var(--amber)';
+ return '<tr>' +
+ '<td style="color: var(--naranja);">' + escTxt(c.codigo) + '</td>' +
+ '<td style="max-width: 140px; overflow: hidden; text-overflow: ellipsis;">' + escTxt(c.nombre) + '</td>' +
+ '<td style="color: ' + colorStock + '; font-weight: 800;">' + escTxt(c.stock) + '</td>' +
+ '<td>' + escTxt(MonedaFormatter.formatear(c.cpp)) + '</td>' +
+ '</tr>';
+ }).join('');
 
         }
     }
@@ -502,13 +514,16 @@ async function actualizarOdometroYTelemetria() {
             const storagePctEl = document.getElementById('storage-porcentaje-uso');
             const storageBar = document.getElementById('storage-fill-bar');
 
-            if (storagePctEl) storagePctEl.textContent = `pctUso%({(usado / (1024 * 1024)).toFixed(1)} MB)`;
+             const pctNum = Number(pctUso) || 0;
+ if (storagePctEl) {
+ storagePctEl.textContent = pctUso + '% (' + (usado / (1024 * 1024)).toFixed(1) + ' MB)';
+ }
 
-            if (storageBar) {
-                storageBar.style.width = `${Math.min(100, pctUso)}%`;
-                if (pctUso > 80) storageBar.classList.add('peligro');
-                else storageBar.classList.remove('peligro');
-            }
+ if (storageBar) {
+ storageBar.style.width = Math.min(100, pctNum) + '%';
+ if (pctNum > 80) storageBar.classList.add('peligro');
+ else storageBar.classList.remove('peligro');
+ }
         } catch (eStorage) {
             console.warn("[Storage API] Error calculando cuota:", eStorage);
         }
@@ -745,9 +760,17 @@ function vincularEventosUI() {
                 UI.showToast("Selecciona ambas fechas para aplicar el filtro.");
                 return;
             }
-            AppState.fechaInicioISO = new Date(d).toISOString();
-            AppState.fechaFinISO = new Date(h).toISOString();
-            AppState.rangoActivo = "CUSTOM";
+             const pD = d.split('-');
+ const pH = h.split('-');
+ const fInicio = new Date(Number(pD[0]), Number(pD[1]) - 1, Number(pD[2]), 0, 0, 0, 0);
+ const fFin = new Date(Number(pH[0]), Number(pH[1]) - 1, Number(pH[2]), 23, 59, 59, 999);
+ if (fInicio > fFin) {
+ UI.showToast("La fecha inicial no puede ser mayor a la final.");
+ return;
+ }
+ AppState.fechaInicioISO = fInicio.toISOString();
+ AppState.fechaFinISO = fFin.toISOString();
+ AppState.rangoActivo = "CUSTOM";
 
             document.querySelectorAll('.btn-range-chip').forEach(b => b.classList.remove('activo'));
             const customBtn = document.querySelector('.btn-range-chip[data-rango="CUSTOM"]');
