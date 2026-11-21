@@ -381,12 +381,34 @@
             if (txtWeb) txtWeb.innerText = obtenerUrlWebhook(pasarelaElegida);
         };
 
-        window.copiarWebhookUrl = function() {
-            var txt = document.getElementById('txt-webhook-url').innerText;
-            navigator.clipboard.writeText(txt).then(function() {
-                alert('URL de Webhook copiada al portapapeles. Pégala en tu panel de ' + pasarelaElegida + '.');
-            });
-        };
+         window.copiarWebhookUrl = function() {
+ var elTxt = document.getElementById('txt-webhook-url');
+ var txt = elTxt ? elTxt.innerText.trim() : '';
+ if (!txt) return;
+ var avisarOk = function() {
+ alert('URL de Webhook copiada al portapapeles. Pégala en tu panel de ' + pasarelaElegida + '.');
+ };
+ var copiarFallback = function() {
+ try {
+ var ta = document.createElement('textarea');
+ ta.value = txt;
+ ta.setAttribute('readonly', '');
+ ta.style.position = 'fixed';
+ ta.style.opacity = '0';
+ document.body.appendChild(ta);
+ ta.select();
+ var ok = document.execCommand('copy');
+ document.body.removeChild(ta);
+ if (ok) { avisarOk(); return; }
+ } catch (eFb) {}
+ prompt('Copia manualmente tu URL de Webhook:', txt);
+ };
+ if (navigator.clipboard && navigator.clipboard.writeText) {
+ navigator.clipboard.writeText(txt).then(avisarOk).catch(copiarFallback);
+ } else {
+ copiarFallback();
+ }
+ };
 
         window.alternarVistaSecreto = function(idInput) {
             var el = document.getElementById(idInput);
@@ -519,11 +541,20 @@
                 if (cfg.bold_terminal_id) {
                     document.getElementById('input-terminal-id').value = cfg.bold_terminal_id;
                 }
-                if (cfg.evidencia_pasarela_url) {
-                    evidenciaSubidaUrl = cfg.evidencia_pasarela_url;
-                    var img = document.getElementById('img-preview-evidencia');
-                    if (img) { img.src = evidenciaSubidaUrl; img.style.display = 'block'; }
-                }
+                 if (cfg.evidencia_pasarela_url) {
+ evidenciaSubidaUrl = String(cfg.evidencia_pasarela_url);
+ var img = document.getElementById('img-preview-evidencia');
+ var lblEv = document.getElementById('lbl-evidencia-estado');
+ var esUrlPublica = (evidenciaSubidaUrl.indexOf('http://') === 0 || evidenciaSubidaUrl.indexOf('https://') === 0 || evidenciaSubidaUrl.indexOf('blob:') === 0);
+ if (esUrlPublica && img) {
+ img.src = evidenciaSubidaUrl;
+ img.style.display = 'block';
+ if (lblEv) lblEv.innerText = 'Evidencia cargada (toca para reemplazar)';
+ } else {
+ if (img) { img.removeAttribute('src'); img.style.display = 'none'; }
+ if (lblEv) lblEv.innerText = 'Evidencia privada resguardada en boveda (' + evidenciaSubidaUrl.split('/').pop() + ')';
+ }
+ }
                 if (cfg.pasarela_verificada === true) {
                     var badge = document.getElementById('badge-verificacion-top');
                     if (badge) {
