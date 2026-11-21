@@ -539,6 +539,15 @@ async function cargarBiblioteca() {
     biblioteca = crearSemillaPorProyecto();
     guardarBiblioteca(true);
   }
+    try {
+    const rawUiC = localStorage.getItem('piro_cont_ui_' + proyectoActivo.id);
+    if (rawUiC) {
+      const u = JSON.parse(rawUiC);
+      if (u.catActiva) catActiva = u.catActiva;
+      if (u.subTabPersonaje) subTabPersonaje = u.subTabPersonaje;
+      if (u.selId) selId = Object.assign(selId, u.selId);
+    }
+  } catch (e) {}
   if (!biblioteca.personajes.some(function(x) { return x.id === selId.personajes; })) selId.personajes = biblioteca.personajes[0] ? biblioteca.personajes[0].id : null;
   if (!biblioteca.escenarios.some(function(x) { return x.id === selId.escenarios; })) selId.escenarios = biblioteca.escenarios[0] ? biblioteca.escenarios[0].id : null;
   if (!biblioteca.guiones.some(function(x) { return x.id === selId.guiones; })) selId.guiones = biblioteca.guiones[0] ? biblioteca.guiones[0].id : null;
@@ -1663,6 +1672,24 @@ window.addEventListener('message', async function(e) {
 });
 
 // Arranque: si corre embebido espera señal o arranca con sesión heredada
+function guardarEstadoUICont() {
+  try {
+    localStorage.setItem('piro_cont_ui_' + proyectoActivo.id, JSON.stringify({
+      catActiva: catActiva, selId: selId, subTabPersonaje: subTabPersonaje
+    }));
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'hidden') {
+    guardarEstadoUICont();
+    if (biblioteca && Array.isArray(biblioteca.personajes) && biblioteca.personajes.length > 0) guardarBiblioteca(true);
+  }
+});
+window.addEventListener('pagehide', function() {
+  guardarEstadoUICont();
+  if (biblioteca && Array.isArray(biblioteca.personajes) && biblioteca.personajes.length > 0) guardarBiblioteca(true);
+});
+
 GeokatuDB.SecurityService.observarEstadoSesion(function(user) {
   if (user) cargarBiblioteca();
 });
