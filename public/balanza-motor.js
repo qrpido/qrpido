@@ -280,52 +280,11 @@ async desconectar() {
         return this.taraSoftware;
     }
 
-    limpiarTara() {
-        this.taraSoftware = 0.000;
-        const pesoNeto = this.ultimoPesoBruto;
-        this.ultimoPeso = pesoNeto;
-        this.onPesoVivo(pesoNeto, "TARA_RESET");
-    }
-
-    async desconectar() {
-        if (this.lectorSerial) {
-            try {
-                // Forzar la cancelación del reader para desenclavar el stream subyacente
-                await this.lectorSerial.cancel();
-            } catch (e) {
-                console.warn("[Balanza] Reader ya cancelado o inexistente:", e.message);
-            } finally {
-                try {
-                    this.lectorSerial.releaseLock();
-                } catch (e) {}
-                this.lectorSerial = null;
-            }
-        }
-
-        if (this.puertoSerial) {
-            try {
-                await this.puertoSerial.close();
-            } catch (e) {
-                console.warn("[Balanza] Puerto ya cerrado:", e.message);
-            } finally {
-                this.puertoSerial = null;
-            }
-        }
-
-        if (this.dispositivoBLE && this.dispositivoBLE.gatt.connected) {
-            try {
-                this.dispositivoBLE.gatt.disconnect();
-            } catch (e) {}
-            this.dispositivoBLE = null;
-            this.caracteristicaBLE = null;
-        }
-
-        this.tipoConexion = null;
-        this.ultimoPeso = 0.000;
-        this.ultimoPesoBruto = 0.000;
-        this.onEstadoConexion({ conectado: false, tipo: null });
-    }
-
-
+     limpiarTara() {
+ this.taraSoftware = 0.000;
+ const pesoNeto = this.ultimoPesoBruto;
+ this.ultimoPeso = pesoNeto;
+ this.onPesoVivo(pesoNeto, "TARA_RESET");
+ }
 }
 
