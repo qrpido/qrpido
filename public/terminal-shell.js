@@ -7,6 +7,9 @@
  * - Enrutador 0ms + historial Android Atras (ScannerHub -> Visor 2.5D -> Vista anterior)
  */
 
+import GeokatuDB from './core-db.js';
+import { db } from './firebase-config.js';
+import { collection, doc, getDocs, query, where, orderBy, limit, updateDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { AuthGate } from './auth-gate.js';
 import { ScannerHub } from './scanner-hub.js';
 
@@ -52,6 +55,327 @@ let timerAutocierreDock = null;
 let timerActividadThrottle = 0;
 let observadorPos = null;
 let resumenVentaActual = { unidades: 0, totalTexto: '$0', activo: false };
+let permisosActivosTerminal = null;
+let cajasComercioCache = [];
+let estadosCajasCache = {};
+let datosNegocioTerminal = {};
+
+function escaparHtmlShell(texto) {
+ if (texto === null || texto === undefined) return '';
+ return String(texto)
+ .replace(/&/g, '&amp;')
+ .replace(/</g, '&lt;')
+ .replace(/>/g, '&gt;')
+ .replace(/"/g, '&quot;')
+ .replace(/'/g, '&#39;');
+}
+
+function resolverPermisosRolTerminal(ctx) {
+ const rol = String((ctx && ctx.rol) || 'cajero').toLowerCase().trim();
+ const esDueno = Boolean(ctx && (ctx.esDueno === true || rol === 'dueño' || rol === 'owner'));
+ const esAdmin = esDueno || rol === 'administrador_delegado' || rol === 'admin' || rol === 'administrador' || rol === 'superadmin';
+ if (esAdmin) {
+ return {
+ etiqueta: esDueno ? 'Titular' : 'Admin Delegado',
+ pos: true, stock: true, mapa: true, escaner: true,
+ croquis: true, adminCajas: true, configFiscal: true,
+ oficina: true, perfilEmpleado: !esDueno
+ };
+ }
+ if (rol === 'supervisor' || rol === 'supervisor_pos') {
+ return {
+ etiqueta: 'Supervisor',
+ pos: true, stock: true, mapa: true, escaner: true,
+ croquis: true, adminCajas: true, configFiscal: false,
+ oficina: false, perfilEmpleado: true
+ };
+ }
+ if (rol === 'operador_bodega' || rol === 'almacen') {
+ return {
+ etiqueta: 'Operario Bodega',
+ pos: false, stock: true, mapa: true, escaner: true,
+ croquis: false, adminCajas: false, configFiscal: false,
+ oficina: false, perfilEmpleado: true
+ };
+ }
+ if (rol === 'visual_merchandising') {
+ return {
+ etiqueta: 'Visual Merchandising',
+ pos: false, stock: true, mapa: true, escaner: true,
+ croquis: true, adminCajas: false, configFiscal: false,
+ oficina: false, perfilEmpleado: true
+ };
+ }
+ return {
+ etiqueta: rol === 'asesor' ? 'Asesor Ventas' : 'Cajero POS',
+ pos: true, stock: false, mapa: true, escaner: true,
+ croquis: false, adminCajas: false, configFiscal: false,
+ oficina: false, perfilEmpleado: true
+ };
+}
+
+function obtenerVistaPermitidaFallback_(vistaDeseada) {
+ const p = permisosActivosTerminal;
+ if (!p) return vistaDeseada;
+ if (vistaDeseada === 'inicio') return 'inicio';
+ if (vistaDeseada === 'pos' && p.pos) return 'pos';
+ if (vistaDeseada === 'stock' && p.stock) return 'stock';
+ if (vistaDeseada === 'mapa' && p.mapa) return 'mapa';
+ if (p.pos) return 'pos';
+ if (p.stock) return 'stock';
+ if (p.mapa) return 'mapa';
+ return 'inicio';
+}
+
+function aplicarPermisosDockYCards(p) {
+ if (!p) return;
+ const mapaBotones = [
+ { vista: 'pos', ok: p.pos, cardId: 'btn-inicio-pos' },
+ { vista: 'stock', ok: p.stock, cardId: 'btn-inicio-stock' },
+ { vista: 'mapa', ok: p.mapa, cardId: 'btn-inicio-mapa' }
+ ];
+ mapaBotones.forEach(function(item) {
+ const btnDock = dockEl ? dockEl.querySelector('.dock-item[data-vista="' + item.vista + '"]') : null;
+ if (btnDock) btnDock.style.display = item.ok ? 'flex' : 'none';
+ const cardEl = document.getElementById(item.cardId);
+ if (cardEl) cardEl.style.display = item.ok ? 'flex' : 'none';
+ });
+ const btnEsc = document.getElementById('btn-inicio-escaner');
+ if (btnEsc) btnEsc.style.display = p.escaner ? 'flex' : 'none';
+ const btnCroquis = document.getElementById('btn-inicio-croquis');
+ if (btnCroquis) btnCroquis.style.display = p.croquis ? 'flex' : 'none';
+ const btnOfi = document.getElementById('btn-inicio-oficina');
+ if (btnOfi) btnOfi.style.display = p.oficina ? 'flex' : 'none';
+ const btnPerf = document.getElementById('btn-inicio-perfil-emp');
+ if (btnPerf) btnPerf.style.display = p.perfilEmpleado ? 'flex' : 'none';
+ const bloqueCajas = document.getElementById('bloque-puesto-multicaja');
+ if (bloqueCajas) bloqueCajas.style.display = (p.pos || p.adminCajas) ? 'flex' : 'none';
+ const btnAdminCajas = document.getElementById('btn-toggle-admin-cajas');
+ if (btnAdminCajas) btnAdminCajas.style.display = p.adminCajas ? 'inline-block' : 'none';
+ const bloqueFiscal = document.getElementById('bloque-config-pos-gerencial');
+ if (bloqueFiscal) bloqueFiscal.style.display = p.configFiscal ? 'flex' : 'none';
+ const chipsWrap = document.getElementById('inicio-permisos-chips');
+ if (chipsWrap) {
+ const definicion = [
+ { lbl: 'POS / Cobro', ok: p.pos },
+ { lbl: 'Stock WMS', ok: p.stock },
+ { lbl: 'Mapa Tienda', ok: p.mapa },
+ { lbl: 'Croquis QR', ok: p.croquis },
+ { lbl: 'Gestionar Cajas', ok: p.adminCajas },
+ { lbl: 'Fiscal / DIAN', ok: p.configFiscal },
+ { lbl: 'Oficina', ok: p.oficina }
+ ];
+ chipsWrap.innerHTML = definicion.map(function(d) {
+ return '<span class="permiso-chip ' + (d.ok ? 'permitido' : 'restringido') + '">' + d.lbl + '</span>';
+ }).join('');
+ }
+}
+
+function actualizarEstadoRedYColaInicio() {
+ const idNeg = (contextoSesionActivo && contextoSesionActivo.idNegocio) || localStorage.getItem('geokatu_active_uid') || '';
+ let pendVentas = 0;
+ let pendMovs = 0;
+ let pendCierres = 0;
+ try {
+ if (idNeg) {
+ pendVentas = JSON.parse(localStorage.getItem('geokatu_sync_cola_' + idNeg) || '[]').length;
+ pendMovs = JSON.parse(localStorage.getItem('geokatu_movimientos_cola_' + idNeg) || '[]').length;
+ pendCierres = JSON.parse(localStorage.getItem('geokatu_cierres_cola_' + idNeg) || '[]').length;
+ }
+ } catch (eQ) {}
+ const totalPend = pendVentas + pendMovs + pendCierres;
+ const redTxt = document.getElementById('inicio-red-txt');
+ const redPill = document.getElementById('inicio-red-pill');
+ const estTxt = document.getElementById('inicio-estado-txt');
+ const estDot = document.getElementById('inicio-estado-dot');
+ const online = navigator.onLine;
+ if (redTxt) {
+ redTxt.textContent = online ? (totalPend > 0 ? ('Online · ' + totalPend + ' pend.') : 'Online') : ('Offline · ' + totalPend + ' pend.');
+ }
+ if (redPill) {
+ redPill.className = 'inicio-pill ' + ((!online || totalPend > 0) ? 'alerta' : 'ok');
+ }
+ if (estTxt) estTxt.textContent = online ? 'Sesión activa' : 'Modo offline';
+ if (estDot) estDot.style.background = online ? 'var(--gk-verde)' : '#fbbf24';
+}
+
+function pintarResumenCajasInicio() {
+ const idNeg = (contextoSesionActivo && contextoSesionActivo.idNegocio) || localStorage.getItem('geokatu_active_uid') || '';
+ const sel = document.getElementById('select-caja-terminal');
+ const badgeTurno = document.getElementById('inicio-turno-badge');
+ const resumenEl = document.getElementById('inicio-cajas-resumen');
+ const listaAdmin = document.getElementById('lista-cajas-admin');
+ const cajaGuardada = localStorage.getItem('geokatu_caja_num') || 'CAJA-01';
+ const activas = cajasComercioCache.filter(function(c) { return c.activa !== false; });
+ const existeSel = activas.some(function(c) { return c.id === cajaGuardada; });
+ const cajaActiva = existeSel ? cajaGuardada : (activas[0] ? activas[0].id : 'CAJA-01');
+ localStorage.setItem('geokatu_caja_num', cajaActiva);
+ if (sel) {
+ sel.innerHTML = activas.map(function(c) {
+ const est = estadosCajasCache[c.id] || { estado: 'CERRADA' };
+ const tagEst = est.estado === 'ABIERTA' ? ' [ABIERTA]' : ' [CERRADA]';
+ const selectedAttr = c.id === cajaActiva ? ' selected' : '';
+ return '<option value="' + escaparHtmlShell(c.id) + '"' + selectedAttr + '>' + escaparHtmlShell(c.id + ' · ' + c.nombre + tagEst) + '</option>';
+ }).join('');
+ }
+ const estAct = estadosCajasCache[cajaActiva] || { estado: 'CERRADA' };
+ if (badgeTurno) {
+ badgeTurno.textContent = estAct.estado === 'ABIERTA' ? (cajaActiva + ' ABIERTA') : (cajaActiva + ' CERRADA');
+ badgeTurno.className = 'inicio-pill ' + (estAct.estado === 'ABIERTA' ? 'ok' : 'alerta');
+ }
+ let cantAbiertas = 0;
+ cajasComercioCache.forEach(function(c) {
+ if (estadosCajasCache[c.id] && estadosCajasCache[c.id].estado === 'ABIERTA') cantAbiertas++;
+ });
+ if (resumenEl) {
+ resumenEl.textContent = activas.length + (activas.length === 1 ? ' caja' : ' cajas') + ' · ' + cantAbiertas + ' abierta(s)';
+ }
+ if (listaAdmin) {
+ listaAdmin.innerHTML = cajasComercioCache.map(function(c) {
+ const est = estadosCajasCache[c.id] || { estado: 'CERRADA', cajero: '' };
+ const abierta = est.estado === 'ABIERTA';
+ const esBase = c.id === 'CAJA-01';
+ const sub = abierta ? ('ABIERTA · ' + (est.cajero || 'Cajero')) : (c.activa === false ? 'INACTIVA' : 'CERRADA');
+ const btnAcc = esBase
+ ? '<span class="inicio-pill">Base</span>'
+ : '<button type="button" class="inicio-btn-mini btn-toggle-caja-activa" data-caja-id="' + escaparHtmlShell(c.id) + '">' + (c.activa === false ? 'Activar' : 'Desactivar') + '</button>';
+ return '<div class="caja-admin-fila">' +
+ '<div style="min-width:0;">' +
+ '<strong style="display:block; color:#fff; font-family:monospace;">' + escaparHtmlShell(c.id) + ' · ' + escaparHtmlShell(c.nombre) + '</strong>' +
+ '<span style="font-size:10px; color:' + (abierta ? 'var(--gk-verde)' : 'var(--gk-muted)') + ';">' + escaparHtmlShell(sub) + '</span>' +
+ '</div>' +
+ btnAcc +
+ '</div>';
+ }).join('');
+ listaAdmin.querySelectorAll('.btn-toggle-caja-activa').forEach(function(btn) {
+ btn.addEventListener('click', async function() {
+ const cid = btn.getAttribute('data-caja-id');
+ if (!cid || !idNeg) return;
+ if (estadosCajasCache[cid] && estadosCajasCache[cid].estado === 'ABIERTA') {
+ alert('No puedes desactivar ' + cid + ' mientras tenga un turno abierto.');
+ return;
+ }
+ cajasComercioCache = cajasComercioCache.map(function(x) {
+ return x.id === cid ? Object.assign({}, x, { activa: x.activa === false }) : x;
+ });
+ await GeokatuDB.PosService.guardarCajasComercio(idNeg, cajasComercioCache);
+ pintarResumenCajasInicio();
+ });
+ });
+ }
+}
+
+async function cargarCajasYEstadosInicio(idNegocio, forzarRed) {
+ if (!idNegocio) return;
+ const resCajas = await GeokatuDB.PosService.obtenerCajasComercio(idNegocio, Boolean(forzarRed));
+ cajasComercioCache = (resCajas && resCajas.data) ? resCajas.data : [{ id: 'CAJA-01', nombre: 'Caja Principal', sede: 'SALA_VENTAS', activa: true }];
+ const resEst = await GeokatuDB.PosService.obtenerEstadoTodasCajas(idNegocio, cajasComercioCache);
+ estadosCajasCache = (resEst && resEst.data) ? resEst.data : {};
+ pintarResumenCajasInicio();
+}
+
+async function cargarTareasTurnoInicio(ctx) {
+ const cont = document.getElementById('inicio-tareas-lista');
+ const badge = document.getElementById('inicio-tareas-conteo');
+ if (!cont || !ctx || !ctx.idNegocio) return;
+ if (!navigator.onLine) {
+ cont.innerHTML = '<p style="margin:4px 0; font-size:11px; color:var(--gk-muted); text-align:center;">Sin red para consultar tareas del turno.</p>';
+ if (badge) badge.textContent = '0';
+ return;
+ }
+ try {
+ const qT = query(
+ collection(db, 'Directorio/' + ctx.idNegocio + '/Tareas_Internas'),
+ where('completada', '==', false),
+ orderBy('fecha_creacion', 'desc'),
+ limit(20)
+ );
+ const snap = await getDocs(qT);
+ const lista = [];
+ snap.forEach(function(d) {
+ const t = d.data() || {};
+ const dest = String(t.destinatario_uid || 'TODOS');
+ if (dest === 'TODOS' || dest === ctx.operadorUid || ctx.esDueno === true) {
+ lista.push(Object.assign({ id: d.id }, t));
+ }
+ });
+ if (badge) badge.textContent = String(lista.length);
+ if (lista.length === 0) {
+ cont.innerHTML = '<p style="margin:4px 0; font-size:11.5px; color:var(--gk-muted); text-align:center;">Sin tareas pendientes para este turno.</p>';
+ return;
+ }
+ cont.innerHTML = lista.map(function(t) {
+ const col = t.prioridad === 'URGENTE' ? '#ff4444' : 'var(--gk-naranja)';
+ return '<div class="tarea-turno-fila" style="border-left-color:' + col + ';">' +
+ '<div style="min-width:0;">' +
+ '<span style="font-size:9.5px; font-weight:900; color:' + col + '; text-transform:uppercase;">' + escaparHtmlShell(t.prioridad || 'NORMAL') + '</span>' +
+ '<strong style="display:block; font-size:12px; color:#fff;">' + escaparHtmlShell(t.titulo || '') + '</strong>' +
+ '</div>' +
+ '<button type="button" class="inicio-btn-mini btn-completar-tarea-term" data-tarea-id="' + escaparHtmlShell(t.id) + '">Listo</button>' +
+ '</div>';
+ }).join('');
+ cont.querySelectorAll('.btn-completar-tarea-term').forEach(function(b) {
+ b.addEventListener('click', async function() {
+ const idT = b.getAttribute('data-tarea-id');
+ if (!idT) return;
+ b.disabled = true;
+ try {
+ await updateDoc(doc(db, 'Directorio/' + ctx.idNegocio + '/Tareas_Internas', idT), {
+ completada: true,
+ fecha_completada: new Date().toISOString(),
+ completada_por: ctx.nombre || ('OP #' + (ctx.codigoCajero || '0000'))
+ });
+ cargarTareasTurnoInicio(ctx);
+ } catch (eT) {
+ b.disabled = false;
+ }
+ });
+ });
+ } catch (e) {
+ cont.innerHTML = '<p style="margin:4px 0; font-size:11px; color:var(--gk-muted); text-align:center;">No se pudieron cargar las tareas.</p>';
+ }
+}
+
+function calcularDVTerminal(nit) {
+ const vpri = [3, 7, 13, 17, 19, 23, 29, 37, 41, 43, 47, 53, 59, 67, 71];
+ const z = String(nit || '').replace(/\D/g, '');
+ let x = 0;
+ for (let i = 0; i < z.length; i++) {
+ x += (parseInt(z.charAt(i), 10) * vpri[z.length - 1 - i]);
+ }
+ const y = x % 11;
+ return (y > 1) ? String(11 - y) : String(y);
+}
+
+function hidratarBloqueFiscalTerminal(dNeg) {
+ datosNegocioTerminal = dNeg || {};
+ const idNeg = (contextoSesionActivo && contextoSesionActivo.idNegocio) || localStorage.getItem('geokatu_active_uid') || '';
+ const paisActual = datosNegocioTerminal.pais || localStorage.getItem('geokatu_pais_' + idNeg) || 'COL';
+ const f = datosNegocioTerminal.perfil_fiscal || {};
+ const setV = function(id, v) { const el = document.getElementById(id); if (el) el.value = v || ''; };
+ setV('term-fisc-razon', f.razon_social || datosNegocioTerminal.nombre || '');
+ setV('term-fisc-tienda', f.codigo_tienda || 'T-01');
+ setV('term-fisc-nit', f.nit || datosNegocioTerminal.nit || datosNegocioTerminal.rif || '');
+ setV('term-fisc-dv', f.dv || '');
+ setV('term-fisc-regimen', f.regimen_tributario || 'RESPONSABLE_IVA');
+ setV('term-fisc-dir', f.direccion || datosNegocioTerminal.direccion || '');
+ setV('term-fisc-siigo-user', f.siigo_user || '');
+ setV('term-fisc-siigo-key', f.siigo_key || '');
+ setV('term-fisc-siigo-doc', f.codigo_tipo_comprobante || '');
+ setV('term-fisc-siigo-iva', f.id_impuesto_iva_siigo || '');
+ setV('term-fisc-pais', paisActual);
+ const resEl = document.getElementById('resumen-fiscal-terminal');
+ if (resEl) {
+ const tagPais = paisActual === 'VEN' ? 'VE · Venezuela (USD/VES)' : 'CO · Colombia (COP/DIAN)';
+ if (!f.nit && !datosNegocioTerminal.rif) {
+ resEl.innerHTML = '<strong style="color:#fbbf24;">Sin NIT/RIF configurado</strong> · ' + escaparHtmlShell(tagPais);
+ } else {
+ const docTxt = (f.nit || datosNegocioTerminal.rif) + (f.dv ? ('-' + f.dv) : '');
+ resEl.innerHTML = '<strong style="color:#fff;">' + escaparHtmlShell(f.razon_social || datosNegocioTerminal.nombre || 'Comercio') + '</strong><br>' +
+ 'Doc: ' + escaparHtmlShell(docTxt) + ' · Sede: ' + escaparHtmlShell(f.codigo_tienda || 'T-01') + ' · ' + escaparHtmlShell(tagPais);
+ }
+ }
+}
 
 function obtenerSedeActiva(idNegocio) {
   return localStorage.getItem('geokatu_sede_activa_' + idNegocio)
@@ -454,28 +778,37 @@ function configurarGestosDockPos() {
 }
 
 function actualizarPanelInicio(ctx) {
-  if (!ctx) return;
-  const nomEl = document.getElementById('inicio-nombre-negocio');
-  const rolEl = document.getElementById('inicio-operador-rol');
-  const estEl = document.getElementById('inicio-estado-txt');
-  const btnCroquis = document.getElementById('btn-inicio-croquis');
-  const btnOficina = document.getElementById('btn-inicio-oficina');
+ if (!ctx) return;
+ permisosActivosTerminal = resolverPermisosRolTerminal(ctx);
+ const nomEl = document.getElementById('inicio-nombre-negocio');
+ const rolEl = document.getElementById('inicio-operador-rol');
+ const pinEl = document.getElementById('inicio-badge-pin');
+ const badgeRolEl = document.getElementById('inicio-badge-rol');
+ const horarioEl = document.getElementById('inicio-badge-horario');
+ const sedeEl = document.getElementById('inicio-sede-txt');
 
-  if (nomEl) nomEl.textContent = ctx.nombreNegocio || ctx.comercio || 'Comercio activo';
-  const nombreOp = ctx.nombreOperador || ctx.nombre || ctx.email || 'Operador';
-  const rolTxt = ctx.esDueno ? 'Titular' : (ctx.rol || 'Operario');
-  if (rolEl) rolEl.textContent = nombreOp + ' · ' + rolTxt;
-  if (estEl) estEl.textContent = 'Sesión activa';
+ const nombreComercio = (datosNegocioTerminal && datosNegocioTerminal.nombre) || ctx.nombreComercio || ctx.nombreNegocio || ctx.comercio || 'Comercio activo';
+ if (nomEl) nomEl.textContent = nombreComercio;
+ const nombreOp = ctx.nombreOperador || ctx.nombre || ctx.email || 'Operador';
+ if (rolEl) rolEl.textContent = nombreOp + ' · ' + permisosActivosTerminal.etiqueta;
+ if (pinEl) pinEl.textContent = 'OP #' + (ctx.codigoCajero || localStorage.getItem('geokatu_cajero_pin') || '0000');
+ if (badgeRolEl) badgeRolEl.textContent = permisosActivosTerminal.etiqueta.toUpperCase();
+ if (horarioEl) {
+ const h = ctx.horarioLaboral;
+ if (h && h.activo) {
+ const ini = h.hora_inicio_str || (Math.floor((Number(h.hora_inicio_minutos) || 420) / 60) + ':00');
+ const fin = h.hora_fin_str || (Math.floor((Number(h.hora_fin_minutos) || 960) / 60) + ':00');
+ horarioEl.textContent = 'Horario: ' + ini + ' - ' + fin;
+ } else {
+ horarioEl.textContent = 'Turno Abierto';
+ }
+ }
+ if (sedeEl) sedeEl.textContent = obtenerSedeActiva(ctx.idNegocio);
 
-  const puedeEditar = Boolean(
-    ctx.esDueno === true ||
-    ctx.rol === 'dueño' ||
-    ctx.rol === 'owner' ||
-    ctx.rol === 'admin' ||
-    ctx.rol === 'administrador'
-  );
-  if (btnCroquis) btnCroquis.style.display = puedeEditar ? 'flex' : 'none';
-  if (btnOficina) btnOficina.style.display = puedeEditar ? 'flex' : 'none';
+ aplicarPermisosDockYCards(permisosActivosTerminal);
+ actualizarEstadoRedYColaInicio();
+ cargarCajasYEstadosInicio(ctx.idNegocio, false);
+ cargarTareasTurnoInicio(ctx);
 }
 
 function cerrarVisor25dSiAbierto() {
@@ -538,10 +871,15 @@ window.TerminalApp = {
     }
   },
 
-  alternarModoEditorMapa(forzarEditor) {
-    const frameMapa = FRAMES.mapa;
-    if (!frameMapa) return;
-    modoEditorMapaActivo = typeof forzarEditor === 'boolean' ? forzarEditor : !modoEditorMapaActivo;
+   alternarModoEditorMapa(forzarEditor) {
+ const frameMapa = FRAMES.mapa;
+ if (!frameMapa) return;
+ const proximo = typeof forzarEditor === 'boolean' ? forzarEditor : !modoEditorMapaActivo;
+ if (proximo && permisosActivosTerminal && !permisosActivosTerminal.croquis) {
+ alert('Tu rol actual no tiene permiso para editar el croquis de tienda.');
+ return;
+ }
+ modoEditorMapaActivo = proximo;
     const txtBtn = document.getElementById('txt-switch-editor-mapa');
     const btnSwitch = document.getElementById('btn-switch-editor-mapa');
     if (modoEditorMapaActivo) {
@@ -558,10 +896,11 @@ window.TerminalApp = {
     }
   },
 
-  irAVista(destino, params, opciones) {
-    const vista = ['inicio', 'pos', 'stock', 'mapa'].indexOf(destino) !== -1 ? destino : 'pos';
-    const opts = opciones || {};
-    const prevVista = this.vistaActiva;
+   irAVista(destino, params, opciones) {
+ const vistaSolicitada = ['inicio', 'pos', 'stock', 'mapa'].indexOf(destino) !== -1 ? destino : 'pos';
+ const vista = obtenerVistaPermitidaFallback_(vistaSolicitada);
+ const opts = opciones || {};
+ const prevVista = this.vistaActiva;
 
     if (ScannerHub && ScannerHub.estaAbierto()) {
       ScannerHub.cerrar({ silencioso: true, restaurarFoco: false });
@@ -594,9 +933,12 @@ window.TerminalApp = {
 
     pintarBarraVolverVenta();
 
-    if (vista !== 'inicio') {
-      asegurarFrameCargado(vista);
-    }
+     if (vista === 'inicio' && contextoSesionActivo) {
+ actualizarEstadoRedYColaInicio();
+ cargarCajasYEstadosInicio(contextoSesionActivo.idNegocio, false);
+ } else if (vista !== 'inicio') {
+ asegurarFrameCargado(vista);
+ }
 
     if (vista === 'mapa' && params && params.buscar) {
       ejecutarCuandoBridgeExista('mapa', '__gkMapaEnfocar', (win) => {
@@ -687,17 +1029,187 @@ document.querySelectorAll('[data-ir]').forEach((btn) => {
 document.getElementById('btn-inicio-escaner').addEventListener('click', (e) => {
   window.TerminalApp.abrirEscaner('CONSULTAR', e.currentTarget);
 });
-document.getElementById('btn-inicio-croquis').addEventListener('click', () => {
-  window.location.href = 'mapatienda';
+document.getElementById('btn-inicio-croquis').addEventListener('click', function() {
+ if (permisosActivosTerminal && !permisosActivosTerminal.croquis) return;
+ window.location.href = 'mapatienda';
 });
-document.getElementById('btn-inicio-oficina').addEventListener('click', () => {
-  window.location.href = 'oficina';
+document.getElementById('btn-inicio-oficina').addEventListener('click', function() {
+ if (permisosActivosTerminal && !permisosActivosTerminal.oficina) return;
+ window.location.href = 'oficina';
 });
-document.getElementById('btn-inicio-bloquear').addEventListener('click', () => {
-  window.TerminalApp.solicitarBloqueo();
+const btnPerfilEmp = document.getElementById('btn-inicio-perfil-emp');
+if (btnPerfilEmp) {
+ btnPerfilEmp.addEventListener('click', function() {
+ window.location.href = 'oficinaempleado.html';
+ });
+}
+const btnSyncInicio = document.getElementById('btn-inicio-sync');
+if (btnSyncInicio) {
+ btnSyncInicio.addEventListener('click', async function() {
+ const idNeg = (contextoSesionActivo && contextoSesionActivo.idNegocio) || localStorage.getItem('geokatu_active_uid') || '';
+ if (!idNeg) return;
+ btnSyncInicio.disabled = true;
+ btnSyncInicio.textContent = 'Sincronizando...';
+ try {
+ await GeokatuDB.sincronizarPendientesOperativos(idNeg);
+ await cargarCajasYEstadosInicio(idNeg, true);
+ actualizarEstadoRedYColaInicio();
+ } finally {
+ btnSyncInicio.disabled = false;
+ btnSyncInicio.textContent = 'Sincronizar';
+ }
+ });
+}
+const selectCajaTerminal = document.getElementById('select-caja-terminal');
+if (selectCajaTerminal) {
+ selectCajaTerminal.addEventListener('change', function() {
+ const idNeg = (contextoSesionActivo && contextoSesionActivo.idNegocio) || localStorage.getItem('geokatu_active_uid') || '';
+ const cajaAnterior = localStorage.getItem('geokatu_caja_num') || 'CAJA-01';
+ const nuevaCaja = selectCajaTerminal.value;
+ if (!nuevaCaja || nuevaCaja === cajaAnterior) return;
+ let turnoLocalAbierto = false;
+ try {
+ const rawT = localStorage.getItem('geokatu_caja_activa_' + idNeg + '_' + cajaAnterior);
+ if (rawT && JSON.parse(rawT).estado === 'ABIERTA') turnoLocalAbierto = true;
+ } catch (eT) {}
+ if (turnoLocalAbierto) {
+ alert('La caja ' + cajaAnterior + ' tiene un turno abierto en este dispositivo. Haz Cierre Z antes de cambiar de caja.');
+ selectCajaTerminal.value = cajaAnterior;
+ return;
+ }
+ localStorage.setItem('geokatu_caja_num', nuevaCaja);
+ pintarResumenCajasInicio();
+ if (framesCargados.pos) {
+ ejecutarCuandoBridgeExista('pos', '__gkPosCambiarCaja', function(win) {
+ win.__gkPosCambiarCaja(nuevaCaja);
+ });
+ }
+ });
+}
+const btnToggleAdminCajas = document.getElementById('btn-toggle-admin-cajas');
+if (btnToggleAdminCajas) {
+ btnToggleAdminCajas.addEventListener('click', function() {
+ const panel = document.getElementById('panel-admin-cajas');
+ if (!panel) return;
+ panel.style.display = panel.style.display === 'flex' ? 'none' : 'flex';
+ });
+}
+const btnCrearCajaPos = document.getElementById('btn-crear-caja-pos');
+if (btnCrearCajaPos) {
+ btnCrearCajaPos.addEventListener('click', async function() {
+ if (!permisosActivosTerminal || !permisosActivosTerminal.adminCajas) return;
+ const idNeg = (contextoSesionActivo && contextoSesionActivo.idNegocio) || localStorage.getItem('geokatu_active_uid') || '';
+ const inpNom = document.getElementById('input-nueva-caja-nombre');
+ let maxNum = 1;
+ cajasComercioCache.forEach(function(c) {
+ const m = String(c.id || '').match(/(\d+)$/);
+ if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+ });
+ const nuevoId = 'CAJA-' + String(maxNum + 1).padStart(2, '0');
+ const nombre = (inpNom && inpNom.value.trim()) ? inpNom.value.trim() : ('Caja ' + (maxNum + 1));
+ cajasComercioCache.push({ id: nuevoId, nombre: nombre, sede: obtenerSedeActiva(idNeg), activa: true });
+ btnCrearCajaPos.disabled = true;
+ try {
+ const resG = await GeokatuDB.PosService.guardarCajasComercio(idNeg, cajasComercioCache);
+ if (resG && resG.success) {
+ if (inpNom) inpNom.value = '';
+ await cargarCajasYEstadosInicio(idNeg, false);
+ } else {
+ alert('No se pudo crear la caja: ' + ((resG && resG.error) || 'Error desconocido'));
+ }
+ } finally {
+ btnCrearCajaPos.disabled = false;
+ }
+ });
+}
+const btnToggleFiscal = document.getElementById('btn-toggle-fiscal-terminal');
+if (btnToggleFiscal) {
+ btnToggleFiscal.addEventListener('click', function() {
+ const f = document.getElementById('form-fiscal-terminal');
+ if (!f) return;
+ f.style.display = f.style.display === 'flex' ? 'none' : 'flex';
+ });
+}
+const inpNitTerm = document.getElementById('term-fisc-nit');
+if (inpNitTerm) {
+ inpNitTerm.addEventListener('input', function() {
+ const paisSel = (document.getElementById('term-fisc-pais')?.value || 'COL');
+ const val = inpNitTerm.value.replace(/\D/g, '');
+ const dvEl = document.getElementById('term-fisc-dv');
+ if (paisSel === 'COL' && val.length >= 6 && dvEl) {
+ dvEl.value = calcularDVTerminal(val);
+ }
+ });
+}
+const btnGuardarFiscal = document.getElementById('btn-guardar-fiscal-terminal');
+if (btnGuardarFiscal) {
+ btnGuardarFiscal.addEventListener('click', async function() {
+ if (!permisosActivosTerminal || !permisosActivosTerminal.configFiscal) return;
+ const idNeg = (contextoSesionActivo && contextoSesionActivo.idNegocio) || localStorage.getItem('geokatu_active_uid') || '';
+ if (!idNeg) return;
+ const paisAnterior = datosNegocioTerminal.pais || localStorage.getItem('geokatu_pais_' + idNeg) || 'COL';
+ const paisElegido = (document.getElementById('term-fisc-pais')?.value || 'COL');
+ const perfilFiscal = {
+ razon_social: (document.getElementById('term-fisc-razon')?.value || '').trim() || datosNegocioTerminal.nombre || 'GEOKATU COMERCIO',
+ codigo_tienda: ((document.getElementById('term-fisc-tienda')?.value || 'T-01').trim() || 'T-01').toUpperCase(),
+ nit: (document.getElementById('term-fisc-nit')?.value || '').trim(),
+ dv: (document.getElementById('term-fisc-dv')?.value || '').trim(),
+ regimen_tributario: document.getElementById('term-fisc-regimen')?.value || 'RESPONSABLE_IVA',
+ direccion: (document.getElementById('term-fisc-dir')?.value || '').trim(),
+ siigo_user: (document.getElementById('term-fisc-siigo-user')?.value || '').trim(),
+ siigo_key: (document.getElementById('term-fisc-siigo-key')?.value || '').trim(),
+ codigo_tipo_comprobante: Number(document.getElementById('term-fisc-siigo-doc')?.value) || 1150,
+ id_impuesto_iva_siigo: Number(document.getElementById('term-fisc-siigo-iva')?.value) || 1284
+ };
+ btnGuardarFiscal.disabled = true;
+ btnGuardarFiscal.textContent = 'Guardando...';
+ try {
+ const payloadF = { pais: paisElegido, perfil_fiscal: perfilFiscal };
+ const resUpd = await GeokatuDB.AdminService.actualizarNegocio(idNeg, payloadF);
+ if (!resUpd || !resUpd.success) throw new Error((resUpd && resUpd.error) || 'Error guardando perfil fiscal');
+ Object.assign(datosNegocioTerminal, payloadF);
+ localStorage.setItem('geokatu_pais_' + idNeg, paisElegido);
+ localStorage.setItem('geokatu_perfil_' + idNeg, JSON.stringify(perfilFiscal));
+ hidratarBloqueFiscalTerminal(datosNegocioTerminal);
+ const formF = document.getElementById('form-fiscal-terminal');
+ if (formF) formF.style.display = 'none';
+ if (paisElegido !== paisAnterior) {
+ RUTAS_FRAMES.pos = paisElegido === 'VEN' ? 'posven?embed=terminal' : 'pos?embed=terminal';
+ if (FRAMES.pos && framesCargados.pos) {
+ framesCargados.pos = false;
+ FRAMES.pos.dataset.iniciado = '1';
+ FRAMES.pos.src = RUTAS_FRAMES.pos;
+ }
+ }
+ alert('Perfil fiscal y régimen POS actualizados.');
+ } catch (eF) {
+ alert('Error al guardar: ' + eF.message);
+ } finally {
+ btnGuardarFiscal.disabled = false;
+ btnGuardarFiscal.textContent = 'Guardar Perfil Fiscal y País POS';
+ }
+ });
+}
+const btnPasarelas = document.getElementById('btn-inicio-pasarelas');
+if (btnPasarelas) {
+ btnPasarelas.addEventListener('click', function() {
+ const idNeg = (contextoSesionActivo && contextoSesionActivo.idNegocio) || localStorage.getItem('geokatu_active_uid') || '';
+ window.location.href = '/pasarelas' + (idNeg ? ('?id=' + encodeURIComponent(idNeg)) : '');
+ });
+}
+const btnGerencial = document.getElementById('btn-inicio-gerencial');
+if (btnGerencial) {
+ btnGerencial.addEventListener('click', function() {
+ window.open('admin-gerencial', '_blank');
+ });
+}
+window.addEventListener('online', actualizarEstadoRedYColaInicio);
+window.addEventListener('offline', actualizarEstadoRedYColaInicio);
+document.getElementById('btn-inicio-bloquear').addEventListener('click', function() {
+ window.TerminalApp.solicitarBloqueo();
 });
-document.getElementById('btn-inicio-salir').addEventListener('click', () => {
-  window.TerminalApp.solicitarCerrarSesion();
+document.getElementById('btn-inicio-salir').addEventListener('click', function() {
+ window.TerminalApp.solicitarCerrarSesion();
 });
 
 // Gestion unificada de Boton Atras de Android (ScannerHub -> 2.5D en Mapa -> Vista anterior)
@@ -736,26 +1248,43 @@ AuthGate.inicializar({
   tituloModulo: 'GeoKATU Terminal',
   subtituloModulo: 'Verifica tu identidad para iniciar operaciones',
   precargarNomina: true,
-  onSesionLista: (contexto) => {
-    contextoSesionActivo = contexto;
-    shellEl.classList.add('listo');
-    actualizarPanelInicio(contexto);
+   onSesionLista: async (contexto) => {
+ contextoSesionActivo = contexto;
+ permisosActivosTerminal = resolverPermisosRolTerminal(contexto);
+ let paisComercio = localStorage.getItem('geokatu_pais_' + contexto.idNegocio) || '';
+ try {
+ const resDet = await GeokatuDB.LocalService.getDetails(contexto.idNegocio);
+ if (resDet && resDet.success && resDet.data) {
+ datosNegocioTerminal = resDet.data;
+ if (resDet.data.pais) {
+ paisComercio = resDet.data.pais;
+ localStorage.setItem('geokatu_pais_' + contexto.idNegocio, paisComercio);
+ }
+ }
+ } catch (eDet) {}
+ RUTAS_FRAMES.pos = (paisComercio === 'VEN') ? 'posven?embed=terminal' : 'pos?embed=terminal';
+ hidratarBloqueFiscalTerminal(datosNegocioTerminal);
+ shellEl.classList.add('listo');
+ actualizarPanelInicio(contexto);
 
-    modulosHijosRegistrados.forEach((h) => {
-      if (typeof h.onSesion === 'function') {
-        try { h.onSesion(contexto); } catch (err) {}
-      }
-    });
+ modulosHijosRegistrados.forEach(function(h) {
+ if (typeof h.onSesion === 'function') {
+ try { h.onSesion(contexto); } catch (err) {}
+ }
+ });
 
-    const params = new URLSearchParams(window.location.search);
-    const vistaInicial = params.get('vista') || 'pos';
-    try {
-      window.history.replaceState({ gkVista: vistaInicial }, '');
-    } catch (eR) {}
+ const params = new URLSearchParams(window.location.search);
+ const vistaParam = params.get('vista') || 'pos';
+ const vistaInicial = obtenerVistaPermitidaFallback_(vistaParam);
+ try {
+ window.history.replaceState({ gkVista: vistaInicial }, '');
+ } catch (eR) {}
 
-    asegurarFrameCargado('pos');
-    window.TerminalApp.irAVista(vistaInicial, {}, { desdePopstate: true });
-  },
+ if (permisosActivosTerminal.pos) {
+ asegurarFrameCargado('pos');
+ }
+ window.TerminalApp.irAVista(vistaInicial, {}, { desdePopstate: true });
+ },
   onCerrarSesion: () => {
     contextoSesionActivo = null;
     resumenVentaActual = { unidades: 0, totalTexto: '$0', activo: false };
