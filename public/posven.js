@@ -770,10 +770,15 @@ function renderizarCarrito() {
     actualizarVisorRemanente();
 }
 
-// Abrir modal de catálogo en lista vertical
-document.getElementById('btn-abrir-catalogo-modal')?.addEventListener('click', () => {
+// Abrir y cerrar modal de catálogo en lista vertical
+document.getElementById('btn-abrir-catalogo-modal')?.addEventListener('click', function() {
     const modalCat = document.getElementById('modal-catalogo-popup');
     if (modalCat) modalCat.style.display = 'flex';
+});
+document.getElementById('btn-cerrar-catalogo-modal')?.addEventListener('click', function(e) {
+    e.stopPropagation();
+    const modalCat = document.getElementById('modal-catalogo-popup');
+    if (modalCat) modalCat.style.display = 'none';
 });
 
 function renderizarGridCatalogo() {
@@ -781,34 +786,20 @@ function renderizarGridCatalogo() {
     if (!grid) return;
     grid.innerHTML = '';
 
-        if (catalogoLocal.length === 0) {
-        grid.innerHTML = '<p style="text-align: center; color: #666; padding: 20px 0; font-size: 12px;">No hay productos registrados en el inventario.</p>';
-        return;
-    }
-
-     let planActualCat = 'FREEMIUM';
- try {
- const cfgCat = JSON.parse(localStorage.getItem('geokatu_pos_config_' + idNegocio) || '{}');
- planActualCat = String(cfgCat.plan_activo || localStorage.getItem('geokatu_plan_activo_' + idNegocio) || 'FREEMIUM').toUpperCase();
- } catch (ePlan) {}
- const limiteCat = planActualCat === 'FREEMIUM' ? 150 : catalogoLocal.length;
- catalogoLocal.slice(0, limiteCat).forEach(function(prod) {
- const item = document.createElement('div');
- item.className = 'product-row-item';
- const sufijoPeso = prod.es_pesable ? '/kg' : '';
- item.innerHTML =
- '<div style="display: flex; align-items: center; gap: 8px;">' +
- '<svg class="icono-pos" style="color: var(--color-marca); font-size: 18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m3 7 9-5 9 5v11l-9 4-9-4V7zm0 0 9 5 9-5M12 12v10"/></svg>' +
- '<span class="item-title">' + escaparHtmlPos(prod.nombre) + '</span>' +
- '</div>' +
- '<div style="text-align: right;">' +
- '<span class="item-price">$' + Number(prod.precio || 0).toFixed(2) + sufijoPeso + '</span>' +
- '<span style="display: block; font-size: 10px; color: #60a5fa; font-family: monospace;">Bs. ' + convertirUSDaVES(prod.precio).toFixed(2) + '</span>' +
- '</div>';
-
-        item.onclick = () => {
+    if (grid.dataset.delegadoListo !== '1') {
+        grid.dataset.delegadoListo = '1';
+        grid.addEventListener('click', function(e) {
+            const fila = e.target.closest('.product-row-item');
+            if (!fila) return;
+            e.stopPropagation();
             const modalCat = document.getElementById('modal-catalogo-popup');
             if (modalCat) modalCat.style.display = 'none';
+
+            const prodId = fila.dataset.prodId;
+            const prodIdx = Number(fila.dataset.prodIdx);
+            const prod = catalogoLocal.find(function(p) { return String(p.id_prod) === String(prodId); })
+                || (!isNaN(prodIdx) ? catalogoLocal[prodIdx] : null);
+            if (!prod) return;
 
             if (prod.es_pesable) {
                 if (pesoEnVivoActual > 0) {
@@ -819,8 +810,35 @@ function renderizarGridCatalogo() {
             } else {
                 agregarAlCarrito(prod, 1);
             }
-        };
+        });
+    }
 
+    if (catalogoLocal.length === 0) {
+        grid.innerHTML = '<p style="text-align: center; color: #666; padding: 20px 0; font-size: 12px;">No hay productos registrados en el inventario.</p>';
+        return;
+    }
+
+    let planActualCat = 'FREEMIUM';
+    try {
+        const cfgCat = JSON.parse(localStorage.getItem('geokatu_pos_config_' + idNegocio) || '{}');
+        planActualCat = String(cfgCat.plan_activo || localStorage.getItem('geokatu_plan_activo_' + idNegocio) || 'FREEMIUM').toUpperCase();
+    } catch (ePlan) {}
+    const limiteCat = planActualCat === 'FREEMIUM' ? 150 : catalogoLocal.length;
+    catalogoLocal.slice(0, limiteCat).forEach(function(prod, idx) {
+        const item = document.createElement('div');
+        item.className = 'product-row-item';
+        item.dataset.prodId = prod.id_prod || '';
+        item.dataset.prodIdx = String(idx);
+        const sufijoPeso = prod.es_pesable ? '/kg' : '';
+        item.innerHTML =
+            '<div style="display: flex; align-items: center; gap: 8px;">' +
+            '<svg class="icono-pos" style="color: var(--color-marca); font-size: 18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m3 7 9-5 9 5v11l-9 4-9-4V7zm0 0 9 5 9-5M12 12v10"/></svg>' +
+            '<span class="item-title">' + escaparHtmlPos(prod.nombre) + '</span>' +
+            '</div>' +
+            '<div style="text-align: right;">' +
+            '<span class="item-price">$' + Number(prod.precio || 0).toFixed(2) + sufijoPeso + '</span>' +
+            '<span style="display: block; font-size: 10px; color: #60a5fa; font-family: monospace;">Bs. ' + convertirUSDaVES(prod.precio).toFixed(2) + '</span>' +
+            '</div>';
         grid.appendChild(item);
     });
 }
@@ -1846,13 +1864,26 @@ document.getElementById('btn-abrir-cajon')?.addEventListener('click', () => {
     motorCajon.dispararAperturaDirecta(0);
 });
 
-// Manual [F1]
-document.getElementById('btn-manual-ayuda')?.addEventListener('click', () => {
+// Manual [F1] y Academia Unificada
+document.getElementById('btn-manual-ayuda')?.addEventListener('click', function() {
     document.getElementById('modal-ayuda-pos').style.display = 'flex';
 });
-document.getElementById('btn-cerrar-ayuda')?.addEventListener('click', () => {
+document.getElementById('btn-cerrar-ayuda')?.addEventListener('click', function() {
     document.getElementById('modal-ayuda-pos').style.display = 'none';
 });
+window.repetirGuiaTerminalDesdePOS = function() {
+    const modalA = document.getElementById('modal-ayuda-pos');
+    if (modalA) modalA.style.display = 'none';
+    if (window.parent && window.parent !== window && typeof window.parent.iniciarOnboardingPaso5 === 'function') {
+        window.parent.iniciarOnboardingPaso5();
+    } else if (typeof window.iniciarOnboardingPaso5 === 'function') {
+        window.iniciarOnboardingPaso5();
+    } else if (window.GeokatuTour && typeof window.GeokatuTour.iniciar === 'function') {
+        window.GeokatuTour.iniciar('pos', true);
+    } else if (typeof window.mostrarAvisoPos === 'function') {
+        window.mostrarAvisoPos('La guía rápida de terminal está disponible desde el portal Terminal.');
+    }
+};
 document.querySelectorAll('.tab-ayuda').forEach(tab => {
     tab.addEventListener('click', () => {
         document.querySelectorAll('.tab-ayuda').forEach(t => t.classList.remove('activa'));
