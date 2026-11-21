@@ -1058,11 +1058,12 @@ AuthGate.inicializar({
         if (fasePin) fasePin.style.display = 'none';
         if (faseMapa) faseMapa.style.display = 'none';
 
-        if (progreso >= 100) {
-            if (dashboardScreen) dashboardScreen.style.display = 'flex';
-            if (window.GeokatuTour && typeof window.GeokatuTour.iniciar === 'function') {
-                setTimeout(function() { window.GeokatuTour.iniciar('oficina'); }, 800);
-            }
+         if (progreso >= 100) {
+ if (dashboardScreen) dashboardScreen.style.display = 'flex';
+ window.cambiarTab('metricas');
+ if (window.GeokatuTour && typeof window.GeokatuTour.iniciar === 'function') {
+ setTimeout(function() { window.GeokatuTour.iniciar('oficina'); }, 800);
+ }
         } else if (progreso >= 60 && faseMapa) {
             window.iniciarSandboxGeoespacial(false);
             setTimeout(function() { if (window.lanzarGuiaOnboardingFase) window.lanzarGuiaOnboardingFase(3); }, 600);
@@ -1102,9 +1103,14 @@ AuthGate.inicializar({
         if (fasePin) fasePin.style.display = 'none';
         if (faseMapa) faseMapa.style.display = 'none';
 
-        window.datosTienda = {};
-        window.idNegocioLogueado = null;
-    }
+         window.oficinaFramesCargados = { metricas: false, catalogo: false, gestion: false };
+ ['frame-oficina-metricas', 'frame-oficina-catalogo', 'frame-oficina-gestion'].forEach(function(fid) {
+ var fEl = document.getElementById(fid);
+ if (fEl) fEl.src = 'about:blank';
+ });
+ window.datosTienda = {};
+ window.idNegocioLogueado = null;
+ }
 });
 
 window.cerrarSesionOficina = async function() {
@@ -1122,43 +1128,54 @@ window.cerrarSesionOficina = async function() {
 
 // ============================================================================
 
+window.oficinaFramesCargados = { metricas: false, catalogo: false, gestion: false };
+
 window.cambiarTab = function(tabId) {
-    if (navigator.vibrate) navigator.vibrate(30);
+ if (navigator.vibrate) navigator.vibrate(25);
+ var alias = { kpis: 'metricas', inventario: 'catalogo', equipo: 'gestion', operaciones: 'gestion', cuenta: 'ajustes' };
+ var vista = alias[tabId] || tabId || 'metricas';
 
-    document.querySelectorAll('.tab-content').forEach(function(el) {
-        el.classList.remove('activo');
-        el.style.display = 'none';
-    });
-    document.querySelectorAll('.tab-btn').forEach(function(btn) {
-        btn.classList.remove('activo');
-    });
+ document.querySelectorAll('.tab-content').forEach(function(el) {
+ el.classList.remove('activo');
+ el.style.display = 'none';
+ });
+ document.querySelectorAll('.oficina-dock-btn').forEach(function(btn) {
+ btn.classList.toggle('activo', btn.getAttribute('data-oficina-tab') === vista);
+ });
 
-            var content = document.getElementById('content-' + tabId);
-    if (content) {
-        content.style.display = (tabId === 'ajustes' || tabId === 'operaciones' || tabId === 'equipo' || tabId === 'trabajo') ? 'flex' : 'block';
-        content.classList.add('activo');
-    }
+ var content = document.getElementById('content-' + vista);
+ if (content) {
+ content.style.display = 'flex';
+ content.classList.add('activo');
+ }
 
-    var targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(function(b) {
-        var clickAttr = b.getAttribute('onclick') || '';
-        return clickAttr.indexOf("'" + tabId + "'") !== -1;
-    });
-    if (targetBtn) targetBtn.classList.add('activo');
+ var idNeg = window.idNegocioLogueado || localStorage.getItem('geokatu_active_uid') || '';
+ var qId = idNeg ? ('&id=' + encodeURIComponent(idNeg)) : '';
 
-    if (tabId === 'ajustes') {
-        window.hidratarFormularioCuentaDashboard();
-        window.montarBrandingEnSubTabCuenta();
-        if (!window.subTabCuentaActiva) window.subTabCuentaActiva = 'identidad';
-        window.cambiarSubTabCuenta(window.subTabCuentaActiva);
-    } else if (tabId === 'inventario') {
-        window.cargarMisProductos(true);
-    } else if (tabId === 'operaciones') {
-        window.cargarAlertasSeguridad();
-        window.renderizarResumenFiscal();
-    } else if (tabId === 'equipo') {
-        window.cargarEquipoOficina();
-        window.cargarTareasOficina();
-    }
+ if (vista === 'metricas') {
+ var fMet = document.getElementById('frame-oficina-metricas');
+ if (fMet && !window.oficinaFramesCargados.metricas) {
+ window.oficinaFramesCargados.metricas = true;
+ fMet.src = 'metricas.html?embed=oficina' + qId;
+ }
+ } else if (vista === 'ajustes') {
+ window.hidratarFormularioCuentaDashboard();
+ window.montarBrandingEnSubTabCuenta();
+ if (!window.subTabCuentaActiva) window.subTabCuentaActiva = 'identidad';
+ window.cambiarSubTabCuenta(window.subTabCuentaActiva);
+ } else if (vista === 'catalogo') {
+ var fCat = document.getElementById('frame-oficina-catalogo');
+ if (fCat && !window.oficinaFramesCargados.catalogo) {
+ window.oficinaFramesCargados.catalogo = true;
+ fCat.src = 'negocio.html?embed=oficina' + qId;
+ }
+ } else if (vista === 'gestion') {
+ var fGes = document.getElementById('frame-oficina-gestion');
+ if (fGes && !window.oficinaFramesCargados.gestion) {
+ window.oficinaFramesCargados.gestion = true;
+ fGes.src = 'gestion-negocio.html?embed=oficina' + qId;
+ }
+ }
 };
 
 
@@ -1274,8 +1291,6 @@ CatalogoMatrizService.inicializarMatriz().catch(e => console.warn("[Matriz] Sync
 }
 
 
-
-await cargarKpisDashboard();
 
 } catch (err) {
 
@@ -3969,7 +3984,7 @@ window.abrirGemeloDigital = function() {
         '<div class="popup-info">' +
             renderImage(l, true) +
             cuerpoDatos +
-            (window.modoEdicionActivo ? '' : '<button type="button" class="btn-submit" style="margin-top: 8px !important; padding: 6px !important; font-size: 10px; background: var(--naranja);" onclick="window.cambiarTab(\'inventario\')">Ver Catálogo</button>') +
+            (window.modoEdicionActivo ? '' : '<button type="button" class="btn-submit" style="margin-top: 8px !important; padding: 6px !important; font-size: 10px; background: var(--naranja);" onclick="window.cambiarTab(\'catalogo\')">Ver Catálogo</button>') +
         '</div>';
 
     if (window.popupOnboarding) {
