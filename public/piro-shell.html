@@ -477,6 +477,15 @@ const pendientes = { tickets: [], contenido: [], estudio: [], editor: [] };
 let vistaActiva = 'resumen';
 let contextoEstudio = null;
 let usuarioActual = null;
+const CLAVE_SESION_SHELL = 'piro_shell_sesion_v1';
+function guardarSesionShell() {
+  try {
+    localStorage.setItem(CLAVE_SESION_SHELL, JSON.stringify({
+      vistaActiva: vistaActiva,
+      contextoEstudio: contextoEstudio
+    }));
+  } catch (e) {}
+}
 const CLAVE_INDICE_PROY = 'piro_indice_proyectos_v1';
 const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
 const DOC_INDICE_PROY = '__indice_proyectos__';
@@ -620,7 +629,8 @@ window.PiroShell = {
       b.classList.toggle('activo', b.getAttribute('data-vista') === v);
     });
     if (v !== 'resumen') asegurarFrame(v);
-    document.getElementById('barra-contexto-estudio').classList.toggle('visible', Boolean(contextoEstudio && v === 'estudio'));
+        document.getElementById('barra-contexto-estudio').classList.toggle('visible', Boolean(contextoEstudio && v === 'estudio'));
+    guardarSesionShell();
     if (!sinHistorial) {
       try { window.history.pushState({ piroVista: v }, ''); } catch (e) {}
     }
@@ -703,11 +713,12 @@ window.addEventListener('message', function(e) {
   if (d.tipo === 'PIRO_TOAST') {
     mostrarToastShell(d.mensaje, d.nivel, d.duracion);
   } else if (d.tipo === 'PIRO_IR_A_ESTUDIO') {
-    contextoEstudio = {
+        contextoEstudio = {
       origen: d.origen || 'contenido',
       etiqueta: d.etiqueta || 'Editando activo',
       slotMeta: d.slotMeta || null
     };
+    guardarSesionShell();
     document.getElementById('txt-contexto-estudio').textContent = 'Editando: ' + contextoEstudio.etiqueta;
     window.PiroShell.irA('estudio');
     enviarAFrame('estudio', {
@@ -800,11 +811,23 @@ GeokatuDB.SecurityService.observarEstadoSesion(async function(user) {
         pVer.style.display = 'none';
         gate.style.display = 'none';
         shell.classList.add('listo');
-                await cargarProyectosStudio();
-        // Precargar Contenido y Tickets en segundo plano para cambio 0ms
+                        await cargarProyectosStudio();
         asegurarFrame('contenido');
         setTimeout(function() { asegurarFrame('tickets'); }, 500);
-        try { window.history.replaceState({ piroVista: 'resumen' }, ''); } catch (e) {}
+        let vistaRestaurada = 'resumen';
+        try {
+          const rawS = localStorage.getItem(CLAVE_SESION_SHELL);
+          if (rawS) {
+            const ses = JSON.parse(rawS);
+            if (ses && ses.contextoEstudio) {
+              contextoEstudio = ses.contextoEstudio;
+              document.getElementById('txt-contexto-estudio').textContent = 'Editando: ' + (contextoEstudio.etiqueta || 'Activo');
+            }
+            if (ses && ses.vistaActiva && VISTAS[ses.vistaActiva]) vistaRestaurada = ses.vistaActiva;
+          }
+        } catch (e) {}
+        window.PiroShell.irA(vistaRestaurada, true);
+        try { window.history.replaceState({ piroVista: vistaRestaurada }, ''); } catch (e) {}
       } else {
         pVer.style.display = 'none';
         pDen.style.display = 'block';
