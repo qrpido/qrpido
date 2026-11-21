@@ -198,10 +198,146 @@
       font-weight: 700;
       cursor: pointer;
     }
-    .btn-inicio-peligro {
-      border-color: rgba(255, 68, 68, 0.35);
-      color: #fca5a5;
-    }
+     .btn-inicio-peligro {
+ border-color: rgba(255, 68, 68, 0.35);
+ color: #fca5a5;
+ }
+ .inicio-bloque {
+ background: rgba(18, 18, 24, 0.92);
+ border: 1px solid var(--gk-borde);
+ border-radius: 14px;
+ padding: 13px;
+ display: flex;
+ flex-direction: column;
+ gap: 10px;
+ }
+ .inicio-bloque-head {
+ display: flex;
+ justify-content: space-between;
+ align-items: center;
+ gap: 8px;
+ }
+ .inicio-bloque-titulo {
+ margin: 0;
+ font-size: 11px;
+ font-weight: 900;
+ text-transform: uppercase;
+ letter-spacing: 0.6px;
+ color: var(--gk-naranja);
+ }
+ .inicio-badges-fila {
+ display: flex;
+ flex-wrap: wrap;
+ gap: 6px;
+ align-items: center;
+ }
+ .inicio-pill {
+ font-size: 10.5px;
+ font-weight: 800;
+ padding: 3px 8px;
+ border-radius: 8px;
+ background: rgba(255, 255, 255, 0.06);
+ border: 1px solid var(--gk-borde);
+ color: #e5e7eb;
+ font-family: monospace;
+ }
+ .inicio-pill.pin {
+ background: rgba(255, 107, 0, 0.16);
+ border-color: rgba(255, 107, 0, 0.45);
+ color: var(--gk-naranja);
+ }
+ .inicio-pill.ok {
+ background: rgba(0, 255, 100, 0.12);
+ border-color: rgba(0, 255, 100, 0.35);
+ color: var(--gk-verde);
+ }
+ .inicio-pill.alerta {
+ background: rgba(245, 158, 11, 0.16);
+ border-color: rgba(245, 158, 11, 0.45);
+ color: #fbbf24;
+ }
+ .inicio-permisos-wrap {
+ display: flex;
+ flex-wrap: wrap;
+ gap: 5px;
+ }
+ .permiso-chip {
+ font-size: 10px;
+ font-weight: 700;
+ padding: 3px 7px;
+ border-radius: 6px;
+ border: 1px solid var(--gk-borde);
+ }
+ .permiso-chip.permitido {
+ background: rgba(0, 255, 100, 0.09);
+ border-color: rgba(0, 255, 100, 0.3);
+ color: #86efac;
+ }
+ .permiso-chip.restringido {
+ background: rgba(255, 255, 255, 0.03);
+ border-color: rgba(255, 255, 255, 0.08);
+ color: #6b7280;
+ text-decoration: line-through;
+ }
+ .inicio-input {
+ width: 100%;
+ min-height: 38px;
+ background: rgba(0, 0, 0, 0.45);
+ border: 1px solid var(--gk-borde);
+ border-radius: 9px;
+ padding: 7px 10px;
+ color: #ffffff;
+ font-size: 12px;
+ outline: none;
+ }
+ .inicio-input:focus {
+ border-color: var(--gk-naranja);
+ }
+ .inicio-btn-mini {
+ background: rgba(255, 107, 0, 0.16);
+ border: 1px solid rgba(255, 107, 0, 0.45);
+ color: var(--gk-naranja);
+ border-radius: 8px;
+ padding: 6px 10px;
+ font-size: 10.5px;
+ font-weight: 800;
+ cursor: pointer;
+ white-space: nowrap;
+ }
+ .inicio-btn-primario {
+ width: 100%;
+ min-height: 40px;
+ border: none;
+ border-radius: 10px;
+ background: linear-gradient(135deg, #ff8c00, var(--gk-naranja));
+ color: #000000;
+ font-size: 11.5px;
+ font-weight: 900;
+ text-transform: uppercase;
+ cursor: pointer;
+ }
+ .caja-admin-fila {
+ display: flex;
+ justify-content: space-between;
+ align-items: center;
+ gap: 8px;
+ background: rgba(0, 0, 0, 0.35);
+ border: 1px solid var(--gk-borde);
+ border-radius: 10px;
+ padding: 8px 10px;
+ font-size: 11.5px;
+ }
+ .tarea-turno-fila {
+ display: flex;
+ justify-content: space-between;
+ align-items: center;
+ gap: 8px;
+ background: rgba(0, 0, 0, 0.35);
+ border: 1px solid var(--gk-borde);
+ border-left: 3px solid var(--gk-naranja);
+ border-radius: 10px;
+ padding: 8px 10px;
+ }
 
     /* BARRA VOLVER A LA VENTA (SOLO FUERA DE POS CON TICKET ACTIVO) */
     #barra-volver-venta {
@@ -369,57 +505,155 @@
 <body>
   <div id="terminal-shell">
     <main id="terminal-stage">
-      <!-- VISTA 1: INICIO -->
-      <section id="vista-inicio" class="vista-contenedor" aria-label="Inicio de terminal">
-        <header class="inicio-header">
-          <div class="inicio-marca">Geo<span>KATU</span></div>
-          <div class="inicio-estado-pill">
-            <span class="inicio-dot"></span>
-            <span id="inicio-estado-txt">Terminal lista</span>
-          </div>
-        </header>
+       <!-- VISTA 1: MI PUESTO / CONTROL OPERATIVO -->
+ <section id="vista-inicio" class="vista-contenedor" aria-label="Mi puesto de terminal">
+ <header class="inicio-header">
+ <div class="inicio-marca">Geo<span>KATU</span></div>
+ <div class="inicio-estado-pill">
+ <span class="inicio-dot" id="inicio-estado-dot"></span>
+ <span id="inicio-estado-txt">Terminal lista</span>
+ </div>
+ </header>
 
-        <div class="inicio-cuerpo">
-          <div class="inicio-saludo">
-            <div>
-              <h1 id="inicio-nombre-negocio">Comercio activo</h1>
-              <p id="inicio-operador-rol">Operador autenticado</p>
-            </div>
-          </div>
+ <div class="inicio-cuerpo">
+ <!-- 1. FICHA DEL OPERADOR ACTIVO Y MATRIZ DE PERMISOS -->
+ <div class="inicio-bloque">
+ <div class="inicio-bloque-head">
+ <div style="min-width:0;">
+ <h1 id="inicio-nombre-negocio" style="margin:0 0 3px 0; font-size:16px; font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Comercio activo</h1>
+ <p id="inicio-operador-rol" style="margin:0; font-size:11.5px; color:var(--gk-muted);">Operador autenticado</p>
+ </div>
+ <span id="inicio-badge-pin" class="inicio-pill pin">OP #0000</span>
+ </div>
+ <div class="inicio-badges-fila">
+ <span id="inicio-badge-rol" class="inicio-pill ok">ROL</span>
+ <span id="inicio-badge-horario" class="inicio-pill">Turno Abierto</span>
+ <span id="inicio-red-pill" class="inicio-pill ok"><span id="inicio-red-txt">Online</span></span>
+ <button type="button" id="btn-inicio-sync" class="inicio-btn-mini" style="margin-left:auto;">Sincronizar</button>
+ </div>
+ <div>
+ <span style="display:block; font-size:10px; color:var(--gk-muted); margin-bottom:5px; text-transform:uppercase; font-weight:700;">Permisos del Rol Activo</span>
+ <div id="inicio-permisos-chips" class="inicio-permisos-wrap"></div>
+ </div>
+ </div>
 
-          <div class="inicio-grid">
-            <button type="button" class="inicio-card destacada" data-ir="pos">
-              <strong>POS (Caja)</strong>
-              <span>Facturar, pesar, pausar tickets y cobrar sin salir de caja.</span>
-            </button>
-            <button type="button" class="inicio-card" data-ir="mapa">
-              <strong>Mapa de tienda</strong>
-              <span>Radar 2D en tiempo real y elevación 2.5D a petición.</span>
-            </button>
-            <button type="button" class="inicio-card" data-ir="stock">
-              <strong>Stock (WMS)</strong>
-              <span>Ubicar mercancía, registrar ingresos, traslados y conteo.</span>
-            </button>
-            <button type="button" class="inicio-card" id="btn-inicio-escaner">
-              <strong>Escáner rápido</strong>
-              <span>Vender, consultar precio o ubicar con una sola cámara.</span>
-            </button>
-            <button type="button" class="inicio-card" id="btn-inicio-croquis" style="display:none;">
-              <strong>Editar croquis</strong>
-              <span>Abrir editor de plano e impresión de etiquetas QR.</span>
-            </button>
-            <button type="button" class="inicio-card" id="btn-inicio-oficina" style="display:none;">
-              <strong>Oficina</strong>
-              <span>Administración de catálogo, nómina y reportes.</span>
-            </button>
-          </div>
+ <!-- 2. PUESTO DE TRABAJO: MULTI-CAJA Y SEDE -->
+ <div class="inicio-bloque" id="bloque-puesto-multicaja">
+ <div class="inicio-bloque-head">
+ <h2 class="inicio-bloque-titulo">Puesto de Trabajo (Multi-Caja)</h2>
+ <span id="inicio-turno-badge" class="inicio-pill">CERRADA</span>
+ </div>
+ <div style="display:grid; grid-template-columns: 1fr auto; gap:8px; align-items:center;">
+ <select id="select-caja-terminal" class="inicio-input" aria-label="Caja asignada a este dispositivo">
+ <option value="CAJA-01">CAJA-01 · Caja Principal</option>
+ </select>
+ <button type="button" id="btn-toggle-admin-cajas" class="inicio-btn-mini" style="display:none;">Cajas</button>
+ </div>
+ <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:var(--gk-muted);">
+ <span>Sede activa: <strong id="inicio-sede-txt" style="color:#fff;">SALA_VENTAS</strong></span>
+ <span id="inicio-cajas-resumen" style="font-family:monospace;">1 caja</span>
+ </div>
+ <div id="panel-admin-cajas" style="display:none; border-top:1px dashed var(--gk-borde); padding-top:10px; flex-direction:column; gap:8px;">
+ <div id="lista-cajas-admin" style="display:flex; flex-direction:column; gap:6px;"></div>
+ <div style="display:grid; grid-template-columns: 1fr auto; gap:6px;">
+ <input type="text" id="input-nueva-caja-nombre" class="inicio-input" placeholder="Nombre nueva caja (ej: Caja Express)" maxlength="40">
+ <button type="button" id="btn-crear-caja-pos" class="inicio-btn-mini">+ Crear Caja</button>
+ </div>
+ </div>
+ </div>
 
-          <div class="inicio-acciones-sesion">
-            <button type="button" id="btn-inicio-bloquear" class="btn-inicio-sec">Bloquear / Relevo</button>
-            <button type="button" id="btn-inicio-salir" class="btn-inicio-sec btn-inicio-peligro">Cerrar sesión</button>
-          </div>
-        </div>
-      </section>
+ <!-- 3. TAREAS DEL TURNO -->
+ <div class="inicio-bloque" id="bloque-tareas-turno">
+ <div class="inicio-bloque-head">
+ <h2 class="inicio-bloque-titulo">Tareas del Turno</h2>
+ <span id="inicio-tareas-conteo" class="inicio-pill">0</span>
+ </div>
+ <div id="inicio-tareas-lista" style="display:flex; flex-direction:column; gap:6px;">
+ <p style="margin:4px 0; font-size:11.5px; color:var(--gk-muted); text-align:center;">Sin tareas pendientes para este turno.</p>
+ </div>
+ </div>
+
+ <!-- 4. ACCESOS OPERATIVOS FILTRADOS POR ROL -->
+ <div class="inicio-grid">
+ <button type="button" class="inicio-card destacada" id="btn-inicio-pos" data-ir="pos">
+ <strong>POS (Caja)</strong>
+ <span>Facturar, pesar, pausar tickets y cobrar sin salir de caja.</span>
+ </button>
+ <button type="button" class="inicio-card" id="btn-inicio-mapa" data-ir="mapa">
+ <strong>Mapa de tienda</strong>
+ <span>Radar 2D en tiempo real y elevación 2.5D a petición.</span>
+ </button>
+ <button type="button" class="inicio-card" id="btn-inicio-stock" data-ir="stock">
+ <strong>Stock (WMS)</strong>
+ <span>Ubicar mercancía, registrar ingresos, traslados y conteo.</span>
+ </button>
+ <button type="button" class="inicio-card" id="btn-inicio-escaner">
+ <strong>Escáner rápido</strong>
+ <span>Vender, consultar precio o ubicar con una sola cámara.</span>
+ </button>
+ <button type="button" class="inicio-card" id="btn-inicio-croquis" style="display:none;">
+ <strong>Editar croquis</strong>
+ <span>Abrir editor de plano e impresión de etiquetas QR.</span>
+ </button>
+ <button type="button" class="inicio-card" id="btn-inicio-oficina" style="display:none;">
+ <strong>Oficina</strong>
+ <span>Métricas, cuenta pública, empleados, sedes y planes.</span>
+ </button>
+ <button type="button" class="inicio-card" id="btn-inicio-perfil-emp" style="display:none;">
+ <strong>Mi Perfil Laboral</strong>
+ <span>Ver mis comercios asignados, avatar y conexiones 24h.</span>
+ </button>
+ </div>
+
+ <!-- 5. CONFIGURACION POS / FISCAL / PASARELAS (SOLO GERENCIAL) -->
+ <div class="inicio-bloque" id="bloque-config-pos-gerencial" style="display:none;">
+ <div class="inicio-bloque-head">
+ <h2 class="inicio-bloque-titulo">Configuración POS y Fiscal</h2>
+ <button type="button" id="btn-toggle-fiscal-terminal" class="inicio-btn-mini">Editar Fiscal</button>
+ </div>
+ <div id="resumen-fiscal-terminal" style="font-size:11px; color:var(--gk-muted); background:rgba(0,0,0,0.3); padding:8px 10px; border-radius:9px; border:1px solid var(--gk-borde);">
+ Cargando perfil fiscal...
+ </div>
+ <div id="form-fiscal-terminal" style="display:none; flex-direction:column; gap:7px; border-top:1px dashed var(--gk-borde); padding-top:10px;">
+ <div style="display:grid; grid-template-columns:1fr 90px; gap:6px;">
+ <input type="text" id="term-fisc-razon" class="inicio-input" placeholder="Razón Social">
+ <input type="text" id="term-fisc-tienda" class="inicio-input" placeholder="T-01" style="text-transform:uppercase; font-family:monospace; text-align:center;">
+ </div>
+ <div style="display:grid; grid-template-columns:1fr 48px 1fr; gap:6px;">
+ <input type="text" id="term-fisc-nit" class="inicio-input" placeholder="NIT / RIF">
+ <input type="text" id="term-fisc-dv" maxlength="1" class="inicio-input" placeholder="DV" style="text-align:center; font-family:monospace;">
+ <select id="term-fisc-regimen" class="inicio-input">
+ <option value="RESPONSABLE_IVA">Resp. IVA</option>
+ <option value="NO_RESPONSABLE_IVA">No Resp.</option>
+ </select>
+ </div>
+ <input type="text" id="term-fisc-dir" class="inicio-input" placeholder="Dirección en tirilla">
+ <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+ <input type="email" id="term-fisc-siigo-user" class="inicio-input" placeholder="Usuario Siigo (opc.)">
+ <input type="password" id="term-fisc-siigo-key" class="inicio-input" placeholder="API Key Siigo (opc.)">
+ </div>
+ <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+ <input type="number" id="term-fisc-siigo-doc" class="inicio-input" placeholder="ID Doc Siigo">
+ <input type="number" id="term-fisc-siigo-iva" class="inicio-input" placeholder="ID IVA Siigo">
+ </div>
+ <select id="term-fisc-pais" class="inicio-input">
+ <option value="COL">CO - Colombia (COP / DIAN)</option>
+ <option value="VEN">VE - Venezuela (USD / Multidivisa)</option>
+ </select>
+ <button type="button" id="btn-guardar-fiscal-terminal" class="inicio-btn-primario">Guardar Perfil Fiscal y País POS</button>
+ </div>
+ <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+ <button type="button" id="btn-inicio-pasarelas" class="btn-inicio-sec" style="min-height:38px; font-size:11px;">Pasarelas Bold / Wompi</button>
+ <button type="button" id="btn-inicio-gerencial" class="btn-inicio-sec" style="min-height:38px; font-size:11px;">Control de Cajas</button>
+ </div>
+ </div>
+
+ <div class="inicio-acciones-sesion">
+ <button type="button" id="btn-inicio-bloquear" class="btn-inicio-sec">Bloquear / Relevo</button>
+ <button type="button" id="btn-inicio-salir" class="btn-inicio-sec btn-inicio-peligro">Cerrar sesión</button>
+ </div>
+ </div>
+ </section>
 
       <!-- VISTA 2: POS (MONTAJE PERSISTENTE EN RAM) -->
       <section id="vista-pos" class="vista-contenedor" aria-label="Punto de venta">
@@ -670,12 +904,12 @@
         window.history.replaceState(null, "", url.pathname + url.search);
       }
     } catch (eU) {}
-    if (window.TerminalApp && typeof window.TerminalApp.cambiarVista === "function") {
-      window.TerminalApp.cambiarVista("pos");
-    } else {
-      var bPos = buscarBotonVista("pos");
-      if (bPos) bPos.click();
-    }
+     if (window.TerminalApp && typeof window.TerminalApp.irAVista === "function") {
+ window.TerminalApp.irAVista("pos");
+ } else {
+ var bPos = buscarBotonVista("pos");
+ if (bPos) bPos.click();
+ }
   }
 
   function renderPaso() {
@@ -703,21 +937,21 @@
       card.style.top = Math.max(90, Math.round((window.innerHeight - 210) / 2)) + "px";
     }
 
-    var accionesHtml = p.esFinal
-      ? "<div style="display:flex; gap:8px;">" +
-          "<a href="" + YOUTUBE_URL + "" target="_blank" rel="noopener noreferrer" id="gk-p5-ir-yt" style="flex:1; height:38px; border-radius:10px; border:1px solid rgba(255,107,0,0.55); background:rgba(255,107,0,0.14); color:#ff8c33; font-size:11px; font-weight:900; text-decoration:none; display:flex; align-items:center; justify-content:center;">Ir a YouTube</a>" +
-          "<button type="button" id="gk-p5-sig" style="flex:1.2; height:38px; border-radius:10px; border:none; background:linear-gradient(135deg,#ff8c00,#ff6b00); color:#fff; font-size:11.5px; font-weight:900; text-transform:uppercase; cursor:pointer;">Empezar en POS</button>" +
-        "</div>"
-      : "<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">" +
-          "<button type="button" id="gk-p5-omitir" style="background:transparent; border:none; color:#9ca3af; font-size:11.5px; font-weight:700; cursor:pointer; padding:6px;">Omitir</button>" +
-          "<button type="button" id="gk-p5-sig" style="height:36px; padding:0 18px; border-radius:10px; border:none; background:linear-gradient(135deg,#ff8c00,#ff6b00); color:#fff; font-size:11.5px; font-weight:900; text-transform:uppercase; cursor:pointer;">Siguiente</button>" +
-        "</div>";
+     var accionesHtml = p.esFinal
+ ? '<div style="display:flex; gap:8px;">' +
+ '<a href="' + YOUTUBE_URL + '" target="_blank" rel="noopener noreferrer" id="gk-p5-ir-yt" style="flex:1; height:38px; border-radius:10px; border:1px solid rgba(255,107,0,0.55); background:rgba(255,107,0,0.14); color:#ff8c33; font-size:11px; font-weight:900; text-decoration:none; display:flex; align-items:center; justify-content:center;">Ir a YouTube</a>' +
+ '<button type="button" id="gk-p5-sig" style="flex:1.2; height:38px; border-radius:10px; border:none; background:linear-gradient(135deg,#ff8c00,#ff6b00); color:#fff; font-size:11.5px; font-weight:900; text-transform:uppercase; cursor:pointer;">Empezar en POS</button>' +
+ '</div>'
+ : '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">' +
+ '<button type="button" id="gk-p5-omitir" style="background:transparent; border:none; color:#9ca3af; font-size:11.5px; font-weight:700; cursor:pointer; padding:6px;">Omitir</button>' +
+ '<button type="button" id="gk-p5-sig" style="height:36px; padding:0 18px; border-radius:10px; border:none; background:linear-gradient(135deg,#ff8c00,#ff6b00); color:#fff; font-size:11.5px; font-weight:900; text-transform:uppercase; cursor:pointer;">Siguiente</button>' +
+ '</div>';
 
-    card.innerHTML =
-      "<span style="display:block; font-size:9.5px; font-weight:900; color:#ff6b00; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:4px;">Paso 5 · Guía " + (idxPaso + 1) + " de " + pasos.length + "</span>" +
-      "<h4 style="margin:0 0 6px 0; font-size:14px; font-weight:900; color:#fff;">" + p.titulo + "</h4>" +
-      "<p style="margin:0 0 14px 0; font-size:12px; color:#cbd5e1; line-height:1.4;">" + p.cuerpo + "</p>" +
-      accionesHtml;
+ card.innerHTML =
+ '<span style="display:block; font-size:9.5px; font-weight:900; color:#ff6b00; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:4px;">Paso 5 · Guía ' + (idxPaso + 1) + ' de ' + pasos.length + '</span>' +
+ '<h4 style="margin:0 0 6px 0; font-size:14px; font-weight:900; color:#fff;">' + p.titulo + '</h4>' +
+ '<p style="margin:0 0 14px 0; font-size:12px; color:#cbd5e1; line-height:1.4;">' + p.cuerpo + '</p>' +
+ accionesHtml;
 
     var btnSig = document.getElementById("gk-p5-sig");
     var btnOmi = document.getElementById("gk-p5-omitir");
