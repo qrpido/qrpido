@@ -3,6 +3,8 @@
  * Control preventivo de cuota fiscal y pasarela prepago Wompi
  * Arquitectura Glassmorphism sobria sin diálogos nativos ni emojis
  */
+import GeokatuDB from './core-db.js';
+
 export const BillingGuard = {
     PUB_KEY_WOMPI: 'pub_test_Q5YDA9nmBDCcb4mqzB8S9B69YreS78uG',
 
@@ -49,11 +51,40 @@ export const BillingGuard = {
             return { bloqueado: false, saldo: saldoPrepago };
         }
 
-        // Caso 2: Bloqueo Total por agotamiento de cuota
-        if (emitidas >= gratis && saldoPrepago <= 0) {
-            this.abrirModalPlanesFacturas(true);
-            return { bloqueado: true, saldo: 0 };
-        }
+         // Caso 2: Bloqueo Total por agotamiento de cuota (con gracia de turno abierto hoy)
+ if (emitidas >= gratis && saldoPrepago <= 0) {
+ let enGraciaTurnoHoy = false;
+ try {
+ const uidAct = localStorage.getItem('geokatu_active_uid') || '';
+ const cajaAct = localStorage.getItem('geokatu_caja_num') || 'CAJA-01';
+ const rawTurno = uidAct ? localStorage.getItem('geokatu_caja_activa_' + uidAct + '_' + cajaAct) : null;
+ if (rawTurno) {
+ const tAct = JSON.parse(rawTurno);
+ const fAp = (tAct && tAct.fecha_apertura) ? new Date(tAct.fecha_apertura) : null;
+ const hoy = new Date();
+ enGraciaTurnoHoy = Boolean(
+ tAct && tAct.estado === 'ABIERTA' && fAp &&
+ fAp.getFullYear() === hoy.getFullYear() &&
+ fAp.getMonth() === hoy.getMonth() &&
+ fAp.getDate() === hoy.getDate()
+ );
+ }
+ } catch (eTurno) {}
+
+ if (contenedor) {
+ const txtCupo = enGraciaTurnoHoy ? 'Cupo agotado (Gracia hoy)' : 'Cupo agotado';
+ contenedor.innerHTML =
+ '<button type="button" onclick="window.BillingGuard.abrirModalPlanesFacturas(false)" ' +
+ 'style="background: rgba(255,68,68,0.18); border: 1px solid #ff4444; color: #fca5a5; ' +
+ 'padding: 3px 8px; border-radius: 8px; font-size: 10px; font-weight: 800; cursor: pointer;">' +
+ txtCupo + ' · Recargar</button>';
+ contenedor.style.display = 'block';
+ }
+ if (!enGraciaTurnoHoy) {
+ this.abrirModalPlanesFacturas(true);
+ }
+ return { bloqueado: true, saldo: 0, enGraciaTurnoHoy: enGraciaTurnoHoy };
+ }
 
         // Caso 3: Zona Crítica (Restan menos de 50 facturas)
         if (emitidas >= 1250) {
@@ -113,54 +144,63 @@ export const BillingGuard = {
         if (modal) modal.style.display = 'none';
     },
 
-   comprarPaquete: function(cantFacturas, valorCop, idNegocio) {
-        const tenant = idNegocio || window.idNegocioLogueado || localStorage.getItem('geokatu_active_uid');
-        if (!tenant) return this._notificar("Error de sesion: Terminal no autenticada.", true);
+    comprarPaquete: function(cantFacturas, valorCop, idNegocio) {
+ const tenant = idNegocio || window.idNegocioLogueado || localStorage.getItem('geokatu_active_uid');
+ if (!tenant) return this._notificar("Error de sesion: Terminal no autenticada.", true);
 
-        const paisComercio = localStorage.getItem(`geokatu_pais_${tenant}`) || window.datosTienda?.pais || "COL";
-        if (paisComercio === 'VEN') {
-            return this._notificar("Para recargas de cupo en Venezuela, contacta directamente a soporte administrativo.", false);
-        }
+ const paisComercio = localStorage.getItem('geokatu_pais_' + tenant) || (window.datosTienda && window.datosTienda.pais) || "COL";
+ if (paisComercio === 'VEN') {
+ return this._notificar("Para recargas de cupo en Venezuela, contacta directamente a soporte administrativo.", false);
+ }
 
-        if (typeof WidgetCheckout === 'undefined') {
-            return this._notificar("Pasarela no disponible fuera de linea.", true);
-        }
+ if (typeof WidgetCheckout === 'undefined') {
+ return this._notificar("Pasarela no disponible fuera de linea.", true);
+ }
 
+ const checkout = new WidgetCheckout({
+ currency: 'COP',
+ amountInCents: valorCop * 100,
+ reference: 'FACT_PAQ_' + tenant + '_' + cantFacturas + '_' + Date.now(),
+ publicKey: BillingGuard.PUB_KEY_WOMPI
+ });
 
-        const checkout = new WidgetCheckout({
-            currency: 'COP',
-            amountInCents: valorCop * 100,
-            reference: `FACT_PAQ_${tenant}_${cantFacturas}_${Date.now()}`,
-            publicKey: BillingGuard.PUB_KEY_WOMPI
-        });
-
-        checkout.open(async (resultado) => {
-            const tx = resultado.transaction;
-            if (tx && tx.status === 'APPROVED') {
-                try {
-                    if (window.GeokatuDB && window.GeokatuDB.AdminService) {
-                        const ctrlActual = window.datosTienda?.facturacion_control || {};
-                        const saldoPrevio = Number(ctrlActual.facturas_prepago_saldo || 0);
-                        
-                        await window.GeokatuDB.AdminService.actualizarNegocio(tenant, {
-                            facturacion_control: {
-                                ...ctrlActual,
-                                facturas_prepago_saldo: saldoPrevio + cantFacturas,
-                                ultimo_pago_ref: tx.id || `TX_${Date.now()}`,
-                                fecha_ultimo_pago: new Date().toISOString()
-                            }
-                        });
-                    }
-                    BillingGuard._notificar(`Acreditacion exitosa: ${cantFacturas.toLocaleString()} facturas activadas.`);
-                    BillingGuard.cerrarModal();
-                    setTimeout(() => window.location.reload(), 1200);
-                } catch (errSync) {
-                    console.error("[BillingGuard] Error en asiento de cuota:", errSync);
-                    BillingGuard._notificar("Pago recibido. Contacta soporte para la conciliacion manual.", true);
-                }
-            }
-        });
-    },
+ checkout.open(async function(resultado) {
+ const tx = resultado && resultado.transaction;
+ if (tx && tx.status === 'APPROVED') {
+ try {
+ const dbApi = GeokatuDB || window.GeokatuDB;
+ if (!dbApi || !dbApi.AdminService) {
+ throw new Error("Servicio de base de datos no disponible.");
+ }
+ let ctrlActual = (window.datosTienda && window.datosTienda.facturacion_control) ? window.datosTienda.facturacion_control : {};
+ if (dbApi.LocalService && dbApi.LocalService.getDetails) {
+ const resDet = await dbApi.LocalService.getDetails(tenant);
+ if (resDet && resDet.success && resDet.data && resDet.data.facturacion_control) {
+ ctrlActual = resDet.data.facturacion_control;
+ }
+ }
+ const saldoPrevio = Number(ctrlActual.facturas_prepago_saldo || 0);
+ const nuevoControl = Object.assign({}, ctrlActual, {
+ facturas_prepago_saldo: saldoPrevio + cantFacturas,
+ ultimo_pago_ref: tx.id || ('TX_' + Date.now()),
+ fecha_ultimo_pago: new Date().toISOString()
+ });
+ const resAct = await dbApi.AdminService.actualizarNegocio(tenant, {
+ facturacion_control: nuevoControl
+ });
+ if (!resAct || !resAct.success) {
+ throw new Error((resAct && resAct.error) || "No se pudo guardar el saldo en Firestore.");
+ }
+ BillingGuard._notificar('Acreditacion exitosa: ' + cantFacturas.toLocaleString('es-CO') + ' facturas activadas.');
+ BillingGuard.cerrarModal();
+ setTimeout(function() { window.location.reload(); }, 1200);
+ } catch (errSync) {
+ console.error("[BillingGuard] Error en asiento de cuota:", errSync);
+ BillingGuard._notificar("Pago recibido. Contacta soporte para la conciliacion manual.", true);
+ }
+ }
+ });
+ },
 
     _inyectarDOMModal: function() {
         const div = document.createElement('div');
