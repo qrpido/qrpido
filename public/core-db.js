@@ -3763,11 +3763,11 @@ obtenerDestinoPOS: async (idNegocio) => {
             let totalImpuestoCentavos = 0;
             let totalExentoCentavos = 0;
 
-            const itemsCanonicos = (ticketData.productos || []).map(prod => {
-                const subtotal = prod.subtotal !== undefined 
-                    ? Math.round(prod.subtotal) 
-                    : Math.round(Number(prod.precio) * Number(prod.cantidad));
-                const esIva19 = String(prod.impuesto) === "19";
+             const itemsCanonicos = (ticketData.productos || []).map(function(prod) {
+ const subtotal = prod.subtotal !== undefined
+ ? Math.round(Number(prod.subtotal))
+ : (prod.precio_fijado_balanza ? Math.round(Number(prod.precio)) : Math.round(Number(prod.precio) * Number(prod.cantidad)));
+ const esIva19 = String(prod.impuesto) === "19";
 
                 let baseLinea = subtotal;
                 let ivaLinea = 0;
@@ -3831,12 +3831,17 @@ obtenerDestinoPOS: async (idNegocio) => {
                 codigo_contingencia: esContingenciaOffline ? "04" : null,
                 motivo_contingencia: esContingenciaOffline ? "Falla de conectividad o fluido electrico en terminal POS" : null,
                 timestamp_emision_contingencia: esContingenciaOffline ? new Date().toISOString() : null,
-                cliente: {
-                    numero_documento: nitLimpio,
-                    tipo_documento: nitLimpio === "222222222222" ? "13" : (nitLimpio.length === 10 ? "31" : "13"),
-                    razon_social: ticketData.cliente?.nombre || "Consumidor Final",
-                    email: ticketData.cliente?.email || ""
-                },
+                 cliente: {
+ numero_documento: nitLimpio,
+ tipo_documento: (ticketData.cliente && ticketData.cliente.tipo_documento)
+ ? String(ticketData.cliente.tipo_documento).trim()
+ : (nitLimpio === "222222222222" ? "13" : (nitLimpio.length === 10 ? "31" : "13")),
+ dv: (ticketData.cliente && ticketData.cliente.dv)
+ ? String(ticketData.cliente.dv).replace(/\D/g, '').slice(0, 1)
+ : "",
+ razon_social: (ticketData.cliente && ticketData.cliente.nombre) ? ticketData.cliente.nombre : "Consumidor Final",
+ email: (ticketData.cliente && ticketData.cliente.email) ? ticketData.cliente.email : ""
+ },
                 totales: {
                     total_pagar: totalPagar,
                     base_gravable: baseFinal,
@@ -4287,13 +4292,13 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                     }
                 });
 
-           // Si la venta dejó saldos bajo cero, levantar incidentes en Alertas_Seguridad
-                if (quiebresDetectados.length > 0) {
-                    quiebresDetectados.forEach(q => {
-                        const alertaRef = doc(collection(db, "Alertas_Seguridad"));
-                        batch.set(alertaRef, {
-                            id_negocio: idNegocio,
-                            tipo: "DESCUADRE_STOCK_NEGATIVO",
+            // Si la venta dejó saldos bajo cero, levantar incidentes en Alertas_Seguridad
+ if (quiebresDetectados.length > 0) {
+ quiebresDetectados.forEach(function(q) {
+ const alertaRef = doc(collection(db, "Alertas_Seguridad"));
+ batch.set(alertaRef, {
+ id_negocio: tenantReal,
+ tipo: "DESCUADRE_STOCK_NEGATIVO",
                             estado: "requiere_auditoria_urgente",
                             id_producto: q.id_prod,
                             nombre_producto: q.nombre,
@@ -4359,13 +4364,13 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                         }
                     }, { merge: true });
 
-                    // Descuento de stock si aplica
-                    (ticket.productos || []).forEach(item => {
-                        if (item.id_prod && !item.id_prod.startsWith("GENERICO")) {
-                            const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/${_SCHEMA.SubColeccionProductos}`, item.id_prod);
-                            batch.update(prodRef, {
-                                stock_actual: increment(-item.cantidad), fecha_actualizacion: new Date().toISOString()
-                            });
+                     // Descuento de stock si aplica
+ (ticket.productos || []).forEach(function(item) {
+ if (item.id_prod && !item.id_prod.startsWith("GENERICO")) {
+ const prodRef = doc(db, _SCHEMA.ColeccionDirectorio + '/' + tenantReal + '/' + _SCHEMA.SubColeccionProductos, item.id_prod);
+ batch.set(prodRef, {
+ stock_actual: increment(-item.cantidad), fecha_actualizacion: new Date().toISOString()
+ }, { merge: true });
                             const desglose = item.desglose_ubicaciones?.length ? item.desglose_ubicaciones : (item.id_compartimiento ? [{ id_compartimiento: item.id_compartimiento, cantidad: item.cantidad }] : []);
                             for (const ubicacion of desglose) {
                                 const ref = doc(db, `${_SCHEMA.ColeccionDirectorio}/${tenantReal}/${_SCHEMA.SubColeccionProductos}/${item.id_prod}/${_SCHEMA.SubColeccionUbicacionesStock}`, ubicacion.id_compartimiento);
@@ -4631,20 +4636,22 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                 const batch = writeBatch(db);
                 const esVen = itemsDevueltos.some(i => i.precio_usd !== undefined || String(i.impuesto) === "16");
 
-                itemsDevueltos.forEach(item => {
-                    const precioItem = Number(item.precio !== undefined ? item.precio : (item.precio_usd || 0));
-                    const montoLinea = esVen 
-                        ? Number((precioItem * Number(item.cantidad_devuelta)).toFixed(2))
-                        : Math.round(precioItem * Number(item.cantidad_devuelta));
-                    totalReembolso += montoLinea;
+                 itemsDevueltos.forEach(function(item) {
+ const precioItem = Number(item.precio !== undefined ? item.precio : (item.precio_usd || 0));
+ const cantDev = Number(item.cantidad_devuelta) || 0;
+ const importeBruto = item.precio_fijado_balanza ? precioItem : (precioItem * cantDev);
+ const montoLinea = esVen
+ ? Number(importeBruto.toFixed(2))
+ : Math.round(importeBruto);
+ totalReembolso += montoLinea;
 
-
-                      // 1. Reingreso de stock en Firestore (Ignorando ítems libres)
-                    if (item.id_prod && !item.id_prod.startsWith("GENERICO")) {
-                        const prodRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + idNegocio + "/" + _SCHEMA.SubColeccionProductos, item.id_prod);
-                        batch.update(prodRef, {
-                            stock_actual: increment(item.cantidad_devuelta)
-                        });
+ // 1. Reingreso de stock en Firestore (Ignorando ítems libres)
+ if (item.id_prod && !item.id_prod.startsWith("GENERICO")) {
+ const prodRef = doc(db, _SCHEMA.ColeccionDirectorio + "/" + idNegocio + "/" + _SCHEMA.SubColeccionProductos, item.id_prod);
+ batch.set(prodRef, {
+ stock_actual: increment(cantDev),
+ fecha_actualizacion: new Date().toISOString()
+ }, { merge: true });
 
                         // Determinar el compartimiento de destino para el reingreso físico
                         const idCompRetorno = (Array.isArray(item.desglose_ubicaciones) && item.desglose_ubicaciones.length > 0)
@@ -4739,15 +4746,15 @@ esperarResolucionFiscal: (idNegocio, ticketFirestoreId, timeoutMs = 4000) => {
                     if (!snapshot.exists()) throw new Error('Sincroniza primero el ticket pendiente antes de anularlo.');
                     const data = snapshot.data();
                     if (data.anulado) throw new Error('Este ticket ya fue anulado previamente.');
-                    tx.update(ticketRef, {
-                        anulado: true, motivo_anulacion: motivoAnulacion,
-                        timestamp_anulacion: new Date().toISOString(),
-                        usuario_anulacion: auth.currentUser.email || 'CAJERO'
-                    });
-                    for (const item of data.productos || []) {
-                        if (!item.id_prod || item.id_prod.startsWith('GENERICO')) continue;
-                        const prodRef = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}`, item.id_prod);
-                        tx.update(prodRef, { stock_actual: increment(Number(item.cantidad)), fecha_actualizacion: new Date().toISOString() });
+                     tx.update(ticketRef, {
+ anulado: true, motivo_anulacion: motivoAnulacion,
+ timestamp_anulacion: new Date().toISOString(),
+ usuario_anulacion: (auth.currentUser && auth.currentUser.email) ? auth.currentUser.email : 'CAJERO'
+ });
+ for (const item of data.productos || []) {
+ if (!item.id_prod || item.id_prod.startsWith('GENERICO')) continue;
+ const prodRef = doc(db, _SCHEMA.ColeccionDirectorio + '/' + idNegocio + '/' + _SCHEMA.SubColeccionProductos, item.id_prod);
+ tx.set(prodRef, { stock_actual: increment(Number(item.cantidad)), fecha_actualizacion: new Date().toISOString() }, { merge: true });
                         const ubicaciones = item.desglose_ubicaciones?.length ? item.desglose_ubicaciones : (item.id_compartimiento ? [{ id_compartimiento: item.id_compartimiento, cantidad: item.cantidad }] : []);
                         for (const ubicacion of ubicaciones) {
                             const ref = doc(db, `${_SCHEMA.ColeccionDirectorio}/${idNegocio}/${_SCHEMA.SubColeccionProductos}/${item.id_prod}/${_SCHEMA.SubColeccionUbicacionesStock}`, ubicacion.id_compartimiento);
