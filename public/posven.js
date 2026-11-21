@@ -1,4 +1,5 @@
 import GeokatuDB from './core-db.js';
+import { AuthGate } from './auth-gate.js';
 import { MotorBalanza } from './balanza-motor.js';
 import { MotorCajonMonedero } from './cajon-motor.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
@@ -22,6 +23,76 @@ let unsubscribeSemaforoStock = null;
 let cajeroCodigoActivo = localStorage.getItem('geokatu_cajero_pin') || "0000";
 let cajaNumeroActiva = localStorage.getItem('geokatu_caja_num') || "CAJA-01";
 let motorCajon = new MotorCajonMonedero();
+
+function crearAcumuladoVenVacio() {
+ return {
+ usd_efectivo: 0, ves_efectivo: 0, cop_efectivo: 0,
+ ves_pago_movil: 0, ves_punto_venta: 0, usd_zelle: 0, usd_usdt: 0,
+ igtf_recaudado_usd: 0, base_gravable_usd: 0, iva_16_usd: 0, exento_usd: 0,
+ total_usd_consolidado: 0
+ };
+}
+
+function obtenerClaveAcumuladoCajaVen(idNeg, cajaId) {
+ return 'geokatu_acumulado_ven_' + idNeg + '_' + (cajaId || 'CAJA-01');
+}
+
+function cargarAcumuladoCajaVenLocal(idNeg, cajaId) {
+ const caja = cajaId || 'CAJA-01';
+ const base = crearAcumuladoVenVacio();
+ const raw = localStorage.getItem(obtenerClaveAcumuladoCajaVen(idNeg, caja))
+ || (caja === 'CAJA-01' ? localStorage.getItem('geokatu_acumulado_ven_' + idNeg) : null);
+ if (!raw) return base;
+ try {
+ return Object.assign(base, JSON.parse(raw));
+ } catch (e) {
+ return base;
+ }
+}
+
+function guardarAcumuladoCajaVenLocal(idNeg, cajaId, acum) {
+ const caja = cajaId || 'CAJA-01';
+ const json = JSON.stringify(acum);
+ localStorage.setItem(obtenerClaveAcumuladoCajaVen(idNeg, caja), json);
+ if (caja === 'CAJA-01') {
+ localStorage.setItem('geokatu_acumulado_ven_' + idNeg, json);
+ }
+}
+
+function limpiarAcumuladoCajaVenLocal(idNeg, cajaId) {
+ const caja = cajaId || 'CAJA-01';
+ localStorage.removeItem(obtenerClaveAcumuladoCajaVen(idNeg, caja));
+ if (caja === 'CAJA-01') {
+ localStorage.removeItem('geokatu_acumulado_ven_' + idNeg);
+ }
+}
+
+function refrescarKpiVentasTurnoVenUI() {
+ const kpiUSD = document.getElementById('kpi-ventas-usd');
+ const kpiVES = document.getElementById('kpi-ventas-ves');
+ const totalUsd = Number(acumuladoTurnoVen.total_usd_consolidado) || 0;
+ if (kpiUSD) kpiUSD.innerText = '$' + totalUsd.toFixed(2);
+ if (kpiVES) kpiVES.innerText = '(Bs. ' + convertirUSDaVES(totalUsd).toFixed(0) + ')';
+}
+
+window.__gkPosProcesarCodigo = function(codigo) {
+ if (!codigo) return;
+ procesarEntradaCodigo(String(codigo));
+};
+
+window.__gkPosCambiarCaja = async function(nuevaCajaId) {
+ const cajaDestino = String(nuevaCajaId || '').trim().toUpperCase();
+ if (!cajaDestino) return;
+ cajaNumeroActiva = cajaDestino;
+ localStorage.setItem('geokatu_caja_num', cajaNumeroActiva);
+ const elCajaCod = document.getElementById('t-caja-cod');
+ if (elCajaCod) elCajaCod.innerText = cajaNumeroActiva;
+ acumuladoTurnoVen = crearAcumuladoVenVacio();
+ await verificarEstadoTurnoCaja();
+ if (typeof window.mostrarAvisoPos === 'function') {
+ window.mostrarAvisoPos('Terminal asignada a ' + cajaNumeroActiva);
+ }
+};
 
 // 💱 MOTOR DE TASAS DE CAMBIO FLOTANTES
 let tasasVigentes = {
@@ -54,68 +125,103 @@ let monedaAbonoActiva = 'USD'; // 'USD' | 'VES' | 'COP'
 // =========================================================================
 // 2. INICIALIZACIÓN DE SESIÓN Y VIGILANCIA CRIPTOGRÁFICA
 // =========================================================================
-GeokatuDB.SecurityService.observarEstadoSesion(async (user) => {
-    if (user && user.uid) {
-        const idTenant = localStorage.getItem('geokatu_active_uid') || user.uid;
-        idNegocio = idTenant;
+async function hidratarPerfilFiscalVenLocal(idTenant) {
+ try {
+ const resDet = await GeokatuDB.LocalService.getDetails(idTenant);
+ if (resDet && resDet.success && resDet.data) {
+ const dNeg = resDet.data;
+ const perfilParaTicket = dNeg.perfil_fiscal_ven || {
+ razon_social: dNeg.nombre || "GEOKATU COMERCIO",
+ rif: dNeg.rif || (dNeg.perfil_fiscal && dNeg.perfil_fiscal.nit) || "J-00000000-0",
+ direccion: dNeg.direccion || "San Cristóbal, Táchira",
+ codigo_tienda: dNeg.codigo_tienda || "T-01"
+ };
+ localStorage.setItem('geokatu_perfil_ven_' + idTenant, JSON.stringify(perfilParaTicket));
+ }
+ } catch (ePerfil) {
+ console.warn("[POSVen] Perfil fiscal cargado en contingencia:", ePerfil.message);
+ }
+}
 
-        await GeokatuDB.SecurityService.sellarSesionTerminalLocal(idTenant);
-        cargarTasasDesdeStorage();
+const esEmbebidoEnTerminalVen = Boolean(
+ window.parent && window.parent !== window &&
+ window.parent.TerminalApp && window.parent.TerminalApp.esTerminalUnificada
+);
 
-        try {
-            const { success: sNeg, data: dNeg } = await GeokatuDB.LocalService.getDetails(idTenant);
-            if (sNeg && dNeg) {
-                const perfilParaTicket = dNeg.perfil_fiscal_ven || {
-                    razon_social: dNeg.nombre || "GEOKATU COMERCIO",
-                    rif: dNeg.rif || "J-00000000-0",
-                    direccion: dNeg.direccion || "San Cristóbal, Táchira",
-                    codigo_tienda: dNeg.codigo_tienda || "T-01"
-                };
-                localStorage.setItem(`geokatu_perfil_ven_${idTenant}`, JSON.stringify(perfilParaTicket));
-            }
-        } catch (ePerfil) {
-            console.warn("[POSVen] Perfil fiscal cargado en contingencia:", ePerfil.message);
-        }
-// Auditoría de perfil de operario y seguridad de claves provisionales
-        const { getFirestore, doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
-        const db = getFirestore();
-        try {
-            let docOperario = await getDoc(doc(db, `Directorio/${idNegocio}/Equipo`, user.uid));
-            if (!docOperario.exists()) {
-                docOperario = await getDoc(doc(db, `Directorio/${idNegocio}/Colaboradores`, user.uid));
-            }
-
-            if (docOperario.exists()) {
-                const dataOp = docOperario.data();
-                cajeroCodigoActivo = dataOp.codigo_cajero || "0000";
-                localStorage.setItem('geokatu_cajero_pin', cajeroCodigoActivo);
-
-                if (dataOp.requiere_cambio_password) {
-                    if (dataOp.expiracion_clave_temporal && new Date() > new Date(dataOp.expiracion_clave_temporal)) {
-                        alert("⚠️ La contraseña provisional ha expirado (48 horas superadas). Solicita un restablecimiento.");
-                        GeokatuDB.SecurityService.destruirSesionTerminalLocal();
-                        window.location.href = 'oficina';
-                        return;
-                    }
-                    const modalPass = document.getElementById('modal-cambio-password-obligatorio');
-                    if (modalPass) modalPass.style.display = 'flex';
-                    return;
-                }
-            }
-        } catch (errPerfil) {
-            console.warn("[POSVen] Verificación de operario diferida:", errPerfil.message);
-        }
-
-        await inicializarCajaVen();
-    } else {
-        if (typeof unsubscribeSemaforoStock === 'function') {
-            unsubscribeSemaforoStock();
-            unsubscribeSemaforoStock = null;
-        }
-        GeokatuDB.SecurityService.destruirSesionTerminalLocal();
-        window.location.href = 'oficina';
-    }
-});
+if (esEmbebidoEnTerminalVen) {
+ AuthGate.inicializar({
+ tituloModulo: 'POS Venezuela',
+ subtituloModulo: 'Caja Multimoneda',
+ minutosInactividad: 10,
+ onSesionLista: async function(contexto) {
+ idNegocio = contexto.idNegocio;
+ localStorage.setItem('geokatu_active_uid', contexto.idNegocio);
+ if (contexto.codigoCajero && /^\d{4}$/.test(String(contexto.codigoCajero).trim())) {
+ cajeroCodigoActivo = String(contexto.codigoCajero).trim();
+ localStorage.setItem('geokatu_cajero_pin', cajeroCodigoActivo);
+ }
+ await GeokatuDB.SecurityService.sellarSesionTerminalLocal(contexto.idNegocio);
+ cargarTasasDesdeStorage();
+ await hidratarPerfilFiscalVenLocal(contexto.idNegocio);
+ await inicializarCajaVen();
+ },
+ onCerrarSesion: function() {
+ if (typeof unsubscribeSemaforoStock === 'function') {
+ unsubscribeSemaforoStock();
+ unsubscribeSemaforoStock = null;
+ }
+ if (typeof window.cerrarCamaraPOS === 'function') window.cerrarCamaraPOS();
+ carrito = [];
+ pagosAcumuladosTicket = [];
+ renderizarCarrito();
+ turnoCajaActivo = null;
+ }
+ });
+} else {
+ GeokatuDB.SecurityService.observarEstadoSesion(async function(user) {
+ if (user && user.uid) {
+ const idTenant = localStorage.getItem('geokatu_active_uid') || user.uid;
+ idNegocio = idTenant;
+ await GeokatuDB.SecurityService.sellarSesionTerminalLocal(idTenant);
+ cargarTasasDesdeStorage();
+ await hidratarPerfilFiscalVenLocal(idTenant);
+ const fsMod = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+ const dbInst = fsMod.getFirestore();
+ try {
+ let docOperario = await fsMod.getDoc(fsMod.doc(dbInst, 'Directorio/' + idNegocio + '/Equipo', user.uid));
+ if (!docOperario.exists()) {
+ docOperario = await fsMod.getDoc(fsMod.doc(dbInst, 'Directorio/' + idNegocio + '/Colaboradores', user.uid));
+ }
+ if (docOperario.exists()) {
+ const dataOp = docOperario.data();
+ cajeroCodigoActivo = dataOp.codigo_cajero || "0000";
+ localStorage.setItem('geokatu_cajero_pin', cajeroCodigoActivo);
+ if (dataOp.requiere_cambio_password) {
+ if (dataOp.expiracion_clave_temporal && new Date() > new Date(dataOp.expiracion_clave_temporal)) {
+ alert("La contraseña provisional ha expirado (48 horas superadas). Solicita un restablecimiento.");
+ GeokatuDB.SecurityService.destruirSesionTerminalLocal();
+ window.location.href = 'oficina';
+ return;
+ }
+ const modalPass = document.getElementById('modal-cambio-password-obligatorio');
+ if (modalPass) modalPass.style.display = 'flex';
+ return;
+ }
+ }
+ } catch (errPerfil) {
+ console.warn("[POSVen] Verificación de operario diferida:", errPerfil.message);
+ }
+ await inicializarCajaVen();
+ } else {
+ if (typeof unsubscribeSemaforoStock === 'function') {
+ unsubscribeSemaforoStock();
+ unsubscribeSemaforoStock = null;
+ }
+ GeokatuDB.SecurityService.destruirSesionTerminalLocal();
+ window.location.href = 'oficina';
+ }
+ });
+}
 
 async function inicializarCajaVen() {
     document.body.classList.remove('pos-cargando');
@@ -1215,13 +1321,8 @@ async function ejecutarVentaFinalDefinitivaVenInterna() {
         acumuladoTurnoVen.exento_usd += totales.exentoUSD;
         acumuladoTurnoVen.total_usd_consolidado += totales.totalPagarUSD;
 
-        localStorage.setItem(`geokatu_acumulado_ven_${idNegocio}`, JSON.stringify(acumuladoTurnoVen));
-
-        // Actualizar KPIs de la barra inferior
-        const kpiUSD = document.getElementById('kpi-ventas-usd');
-        const kpiVES = document.getElementById('kpi-ventas-ves');
-        if (kpiUSD) kpiUSD.innerText = `$${acumuladoTurnoVen.total_usd_consolidado.toFixed(2)}`;
-        if (kpiVES) kpiVES.innerText = `(Bs. ${convertirUSDaVES(acumuladoTurnoVen.total_usd_consolidado).toFixed(0)})`;
+         guardarAcumuladoCajaVenLocal(idNegocio, cajaNumeroActiva, acumuladoTurnoVen);
+ refrescarKpiVentasTurnoVenUI();
 
                  try { localStorage.setItem(claveUbisVenta, JSON.stringify(ubicacionesVenta)); } catch (eUW) {}
  armarTirillaTermicaVen(ticketPayload, ultimoTicketIdVendido);
@@ -1361,31 +1462,30 @@ switchRif?.addEventListener('change', () => {
 // 10. ARQUEO MULTICARTERA, INFORME X Y CIERRE Z
 // =========================================================================
 async function verificarEstadoTurnoCaja() {
-    const res = await GeokatuDB.PosService.obtenerEstadoCajaActual(idNegocio, cajaNumeroActiva);
-    const btnCaja = document.getElementById('txt-estado-caja-btn');
+ cajaNumeroActiva = localStorage.getItem('geokatu_caja_num') || cajaNumeroActiva || "CAJA-01";
+ const res = await GeokatuDB.PosService.obtenerEstadoCajaActual(idNegocio, cajaNumeroActiva);
+ const btnCaja = document.getElementById('txt-estado-caja-btn');
+ const modalAp = document.getElementById('modal-apertura-caja');
 
-     if (res.success && res.data && res.data.estado === 'ABIERTA') {
+ if (res.success && res.data && res.data.estado === 'ABIERTA') {
  turnoCajaActivo = res.data;
- const rawAcum = localStorage.getItem('geokatu_acumulado_ven_' + idNegocio);
- if (rawAcum) {
- try { acumuladoTurnoVen = Object.assign({}, acumuladoTurnoVen, JSON.parse(rawAcum)); } catch (e) {}
- }
- const kpiUSD = document.getElementById('kpi-ventas-usd');
- const kpiVES = document.getElementById('kpi-ventas-ves');
- if (kpiUSD) kpiUSD.innerText = '$' + Number(acumuladoTurnoVen.total_usd_consolidado || 0).toFixed(2);
- if (kpiVES) kpiVES.innerText = '(Bs. ' + convertirUSDaVES(acumuladoTurnoVen.total_usd_consolidado || 0).toFixed(0) + ')';
+ acumuladoTurnoVen = cargarAcumuladoCajaVenLocal(idNegocio, cajaNumeroActiva);
+ refrescarKpiVentasTurnoVenUI();
+ if (modalAp) modalAp.style.display = 'none';
  if (btnCaja) {
- btnCaja.innerText = "Caja Abierta";
+ btnCaja.innerText = cajaNumeroActiva + ' Abierta';
  btnCaja.style.color = "var(--accent-green)";
  }
  } else {
-        turnoCajaActivo = null;
-        if (btnCaja) {
-            btnCaja.innerText = "Abrir Caja";
-            btnCaja.style.color = "orange";
-        }
-        abrirModalAperturaCaja();
-    }
+ turnoCajaActivo = null;
+ acumuladoTurnoVen = crearAcumuladoVenVacio();
+ refrescarKpiVentasTurnoVenUI();
+ if (btnCaja) {
+ btnCaja.innerText = 'Abrir ' + cajaNumeroActiva;
+ btnCaja.style.color = "orange";
+ }
+ abrirModalAperturaCaja();
+ }
 }
 
 function abrirModalAperturaCaja() {
@@ -1404,21 +1504,17 @@ document.getElementById('btn-confirmar-apertura')?.addEventListener('click', asy
             ...res.data,
             base_multimoneda: { usd: baseUSD, ves: baseVES, cop: baseCOP }
         };
-        acumuladoTurnoVen = {
-            usd_efectivo: 0, ves_efectivo: 0, cop_efectivo: 0,
-            ves_pago_movil: 0, ves_punto_venta: 0, usd_zelle: 0, usd_usdt: 0,
-            igtf_recaudado_usd: 0, base_gravable_usd: 0, iva_16_usd: 0, exento_usd: 0,
-            total_usd_consolidado: 0
-        };
-        localStorage.setItem(`geokatu_acumulado_ven_${idNegocio}`, JSON.stringify(acumuladoTurnoVen));
-        document.getElementById('modal-apertura-caja').style.display = 'none';
+         acumuladoTurnoVen = crearAcumuladoVenVacio();
+ guardarAcumuladoCajaVenLocal(idNegocio, cajaNumeroActiva, acumuladoTurnoVen);
+ refrescarKpiVentasTurnoVenUI();
+ document.getElementById('modal-apertura-caja').style.display = 'none';
 
-        const btnCaja = document.getElementById('txt-estado-caja-btn');
-        if (btnCaja) {
-            btnCaja.innerText = "Caja Abierta";
-            btnCaja.style.color = "var(--accent-green)";
-        }
-        window.mostrarAvisoPos("Turno multicartera aperturado con éxito.");
+ const btnCaja = document.getElementById('txt-estado-caja-btn');
+ if (btnCaja) {
+ btnCaja.innerText = cajaNumeroActiva + ' Abierta';
+ btnCaja.style.color = "var(--accent-green)";
+ }
+ window.mostrarAvisoPos(cajaNumeroActiva + ' aperturada con éxito.');
     }
 });
 
@@ -1551,20 +1647,12 @@ document.getElementById('btn-confirmar-cierre-z')?.addEventListener('click', asy
  document.getElementById('tirilla-informe-x-container').style.display = 'none';
  document.getElementById('tirilla-cierre-z-container').style.display = 'block';
 
- turnoCajaActivo = null;
- acumuladoTurnoVen = {
- usd_efectivo: 0, ves_efectivo: 0, cop_efectivo: 0,
- ves_pago_movil: 0, ves_punto_venta: 0, usd_zelle: 0, usd_usdt: 0,
- igtf_recaudado_usd: 0, base_gravable_usd: 0, iva_16_usd: 0, exento_usd: 0,
- total_usd_consolidado: 0
- };
- localStorage.removeItem('geokatu_acumulado_ven_' + idNegocio);
+  turnoCajaActivo = null;
+ acumuladoTurnoVen = crearAcumuladoVenVacio();
+ limpiarAcumuladoCajaVenLocal(idNegocio, cajaNumeroActiva);
+ refrescarKpiVentasTurnoVenUI();
  const btnCaja = document.getElementById('txt-estado-caja-btn');
- if (btnCaja) { btnCaja.innerText = 'Abrir Caja'; btnCaja.style.color = 'orange'; }
- const kpiUSD = document.getElementById('kpi-ventas-usd');
- const kpiVES = document.getElementById('kpi-ventas-ves');
- if (kpiUSD) kpiUSD.innerText = '$0.00';
- if (kpiVES) kpiVES.innerText = '(Bs. 0)';
+ if (btnCaja) { btnCaja.innerText = 'Abrir ' + cajaNumeroActiva; btnCaja.style.color = 'orange'; }
 
  setTimeout(function() {
  imprimirTirillaPosVen(function() {
