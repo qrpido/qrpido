@@ -618,10 +618,22 @@ async function cargarBiblioteca() {
       estado: 'Borrador', anecdota: '', escenas: []
     });
   }
+    try {
+    const rawUi = localStorage.getItem('piro_editor_ui_' + (typeof proyectoActivo !== 'undefined' ? proyectoActivo.id : 'pirobonianos'));
+    if (rawUi) {
+      const u = JSON.parse(rawUi);
+      if (!epIdActivo && u.epIdActivo && biblioteca.guiones.some(function(g) { return g.id === u.epIdActivo; })) epIdActivo = u.epIdActivo;
+      if (typeof u.clipSelIdx === 'number') clipSelIdx = u.clipSelIdx;
+      if (typeof u.zoomPxSeg === 'number') zoomPxSeg = u.zoomPxSeg;
+      if (typeof u.duracionObjetivoSeg === 'number') duracionObjetivoSeg = u.duracionObjetivoSeg;
+      if (u.vistaActual === 'timeline' || u.vistaActual === 'guion') vistaActual = u.vistaActual;
+    }
+  } catch (e) {}
   if (!epIdActivo || !biblioteca.guiones.some(function(g) { return g.id === epIdActivo; })) {
     epIdActivo = biblioteca.guiones[0].id;
   }
   renderTodo();
+  window.setVistaEditor(vistaActual);
 }
 
 function guardarBiblioteca(inmediato) {
@@ -646,6 +658,14 @@ function getEp() {
   return biblioteca.guiones.find(function(g) { return g.id === epIdActivo; }) || biblioteca.guiones[0] || null;
 }
 
+function guardarEstadoUIEditor() {
+  try {
+    localStorage.setItem('piro_editor_ui_' + (typeof proyectoActivo !== 'undefined' ? proyectoActivo.id : 'pirobonianos'), JSON.stringify({
+      epIdActivo: epIdActivo, clipSelIdx: clipSelIdx, vistaActual: vistaActual, zoomPxSeg: zoomPxSeg, duracionObjetivoSeg: duracionObjetivoSeg
+    }));
+  } catch (e) {}
+}
+
 window.setVistaEditor = function(v) {
   vistaActual = v;
   document.getElementById('tab-guion').classList.toggle('activo', v === 'guion');
@@ -653,6 +673,7 @@ window.setVistaEditor = function(v) {
   document.getElementById('pane-guion').classList.toggle('activa', v === 'guion');
   document.getElementById('pane-timeline').classList.toggle('activa', v === 'timeline');
   if (v === 'timeline') { renderTimeline(); window.renderPreviewCanvas(); }
+  guardarEstadoUIEditor();
 };
 
 window.seleccionarEpisodio = function(id) {
@@ -1015,6 +1036,7 @@ window.seleccionarClip = function(idx) {
   }
   renderTimeline();
   window.renderPreviewCanvas();
+  guardarEstadoUIEditor();
 };
 
 function duracionTotalEp() {
@@ -1542,6 +1564,17 @@ window.addEventListener('message', function(e) {
       window.setVistaEditor('timeline');
     });
   }
+});
+
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'hidden') {
+    guardarEstadoUIEditor();
+    if (biblioteca && Array.isArray(biblioteca.guiones) && biblioteca.guiones.length > 0) guardarBiblioteca(true);
+  }
+});
+window.addEventListener('pagehide', function() {
+  guardarEstadoUIEditor();
+  if (biblioteca && Array.isArray(biblioteca.guiones) && biblioteca.guiones.length > 0) guardarBiblioteca(true);
 });
 
 cargarVault();
