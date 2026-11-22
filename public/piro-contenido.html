@@ -656,49 +656,54 @@ function guardarBiblioteca(inmediato) {
 // =========================================================================
 // MOTOR DE PROMPTS UNIFICADO + CAPACIDADES
 // =========================================================================
-function generarPromptPersonaje(p, tipo) {
+function generarPromptPersonaje(p, tipo, specObj) {
   const baseStyle = proyectoActivo.estilo_visual || 'A 2D cartoon animation character, BoJack Horseman style, clean black ink outlines, flat vibrant colors.';
   const prefId = proyectoActivo.plantilla === 'scifi_hibrido' ? ('Character profile: ' + (p.raza || 'human sci-fi character')) : ('Anthropomorphic ' + (p.raza || 'dog') + ' character');
   const identidad = prefId + '. Physique: ' + (p.contextura || 'adult stylized') + '. Features: ' + (p.pelaje_rasgos || 'distinctive look') + '.';
   const ropa = 'Wearing: ' + (p.vestuario_base || 'casual clothes') + '.';
+  const lock = 'PIXEL-LOCK IN-PLACE EDIT: Preserve the EXACT 1000x1600 canvas framing, silhouette, scale, head position, and three-quarter angle facing RIGHT of the attached reference image. DO NOT zoom, crop, shift, rescale, or change the pose. Background MUST stay completely flat solid chroma green (#00FF00) with zero shadows or gradients. ';
 
   if (tipo === 'cuerpo_completo' || tipo === 'maestro_cuerpo') {
-    return baseStyle + ' Full-body ' + identidad + ' Showing completely from head to toe, both arms, hands, legs, and feet clearly visible, facing three-quarters to the RIGHT. ' + ropa + ' Pose: ' + (p.pose_iconica || 'standing neutral') + '. Isolated on a completely flat solid chroma green background (#00FF00) with zero shadows, perfect for a PNG cut-out. Facial expression: neutral.';
+    return baseStyle + ' Full-body clean anatomical mannequin base of ' + identidad + ' Showing completely from head to toe, facing three-quarters to the RIGHT. Pose: ' + (p.pose_iconica || 'standing neutral') + '. Leave face blank without eyes, eyebrows, or mouth (keep ears, hair, nose and base fur/skin markings) and NO clothing so this mannequin serves as a clean 2D puppet mold for interchangeable outfits and accessories. Isolated on completely flat solid chroma green (#00FF00) with zero shadows.';
   }
   if (tipo === 'maestro_perfil') {
-    return 'Using the attached full-body character as strict reference, generate a clean medium close-up bust portrait (from chest/shoulders up) facing three-quarters to the RIGHT, on a completely flat solid chroma green background (#00FF00) with zero shadows. ' + baseStyle + ' ' + identidad + ' ' + ropa + ' Neutral calm facial expression, centered with generous green margin.';
+    return lock + 'Dress this exact mannequin in its official base outfit (' + (p.vestuario_base || 'casual outfit') + ') and draw a neutral calm facial expression (eyes, eyebrows and closed mouth) matching its exact style (' + baseStyle + '). Keep every limb and proportion aligned 1:1 with the reference image.';
   }
   if (tipo === 'cabeza_base') {
-    return 'Edit the attached character bust portrait: keep the exact same head, ears, hair, fur markings, jawline, and three-quarter angle facing RIGHT, isolated on a completely flat solid chroma green background (#00FF00) with zero shadows. REMOVE the eyes, eyebrows, and mouth completely, replacing those areas seamlessly with smooth clean fur matching the face (keep the nose tip intact). Remove neck and shoulders so ONLY the clean floating head remains.';
+    return lock + 'Keep ONLY the character head, ears, hair, fur markings, nose and jawline in its exact pixel position. REMOVE the eyes, eyebrows, mouth, neck, body, arms and legs completely, replacing the face area cleanly with matching fur and filling everything outside the head with solid chroma green (#00FF00).';
   }
   if (tipo === 'cuerpo_base') {
-    return 'Edit the attached full-body character: keep the exact same body, outfit (' + (p.vestuario_base || 'base outfit') + '), and three-quarter angle facing RIGHT on a completely flat solid chroma green background (#00FF00) with zero shadows. REMOVE the head and arms completely, cleanly closing the collar and shoulder openings with flat color and black outline for modular 2D puppet rigging.';
+    return lock + 'Draw ONLY the torso and legs dressed in the base outfit (' + (p.vestuario_base || 'base outfit') + ') fitted precisely onto this exact body silhouette. REMOVE the head and BOTH arms completely, cleanly closing the collar and shoulder openings with black ink outlines, and fill everything else with solid chroma green (#00FF00).';
   }
   if (tipo.indexOf('ojos') === 0) {
-    const emo = tipo === 'ojos' ? '6 expressions in a 2x3 grid (NEUTRAL, HAPPY, ANGRY, SAD, DOUBTFUL, INDIGNANT)' : ('ONLY the expression: ' + tipo.replace('ojos_', '').toUpperCase());
-    return 'Using the attached character bust as strict reference, draw ONLY the eyes and eyebrows (' + emo + ') without head, ears, nose, mouth, or text, on a completely flat solid chroma green background (#00FF00) with zero shadows. Keep exact art direction (' + baseStyle + ') and three-quarter angle facing RIGHT.';
+    const emo = tipo === 'ojos' ? 'NEUTRAL' : tipo.replace('ojos_', '').toUpperCase();
+    return lock + 'Keep ONLY the eyes and eyebrows drawn in the exact face coordinates with expression: ' + emo + ' (' + baseStyle + '). REMOVE the entire head, fur, ears, nose, mouth, neck and body completely, leaving ONLY the floating eyes and eyebrows in their exact position over solid chroma green (#00FF00).';
   }
   if (tipo.indexOf('boca') === 0) {
-    const moc = tipo === 'bocas' ? '5 mouth variations in a neat grid (CLOSED, HALF-OPEN, WIDE OPEN, SMILE, ANNOYED)' : ('ONLY the mouth variation: ' + tipo.replace('boca_', '').toUpperCase());
-    return 'Using the attached character bust as strict reference, draw ONLY the mouth/lower muzzle (' + moc + ') without eyes, ears, neck, or text, on a completely flat solid chroma green background (#00FF00) with zero shadows. Keep exact art direction (' + baseStyle + ') and three-quarter angle facing RIGHT.';
+    const moc = tipo === 'bocas' ? 'CLOSED' : tipo.replace('boca_', '').toUpperCase();
+    return lock + 'Keep ONLY the mouth/lips drawn in the exact muzzle coordinates with shape: ' + moc + ' (' + baseStyle + '). REMOVE the entire head, eyes, nose, ears, beard, neck and body completely, leaving ONLY the floating mouth in their exact position over solid chroma green (#00FF00).';
   }
   if (tipo.indexOf('brazo') === 0 || tipo.indexOf('pierna') === 0) {
-    return 'Using the attached full-body character as strict reference, draw ONLY the isolated limb (' + tipo.replace(/_/g, ' ') + ') with a cleanly rounded shoulder/hip joint cap, matching exact markings and outfit sleeve/pant. Art direction: ' + baseStyle + ' Isolated on solid chroma green (#00FF00) with zero shadows for modular 2D puppet rigging.';
+    const parte = tipo.replace(/_/g, ' ');
+    return lock + 'Keep ONLY the isolated limb (' + parte + ') in its exact pixel coordinates, matching the character markings and sleeve/pant (' + (p.vestuario_base || 'base outfit') + '), with a cleanly rounded shoulder/hip joint cap. REMOVE the rest of the body and head completely over solid chroma green (#00FF00).';
   }
-  return 'Using the attached character (' + (p.nombre || p.id) + ') as strict visual reference, generate the custom variant "' + tipo + '". Art direction: ' + baseStyle + ' Facing three-quarters to the RIGHT, isolated on solid chroma green (#00FF00) with zero shadows.';
+  const descVar = (specObj && (specObj.titulo || specObj.nota)) ? (String(specObj.titulo || '') + (specObj.nota ? (' — ' + specObj.nota) : '')) : tipo;
+  const presetVar = (specObj && specObj.preset) ? specObj.preset : 'per_cuerpo';
+  const modoAislado = presetVar === 'per_cabeza' ? 'Draw ONLY this custom head/facial accessory (such as beard, hair, hat, glasses or scars) fitted precisely onto the head coordinates, and REMOVE the rest of the body over solid chroma green (#00FF00).' : (presetVar === 'per_cuerpo' ? 'Draw ONLY this custom outfit/torso+legs fitted precisely onto the body silhouette, removing head and arms over solid chroma green (#00FF00).' : 'Draw ONLY this custom piece fitted precisely in its exact anatomical coordinates, removing all other body parts over solid chroma green (#00FF00).');
+  return lock + 'Create the custom puppet layer: "' + descVar + '". ' + modoAislado + ' Match exact art direction: ' + baseStyle;
 }
 
 function obtenerRefParaPrompt(p, tipo) {
   const pz = (p && p.piezas) ? p.piezas : {};
   if (tipo === 'cuerpo_completo' || tipo === 'maestro_cuerpo') {
-    return { label: 'Adjunta tu foto base o referencia inicial', url: (pz.maestro_cuerpo && pz.maestro_cuerpo.url) || null, archivo: (p.id || 'per') + '_maestro.png' };
+    return { label: 'Molde Base: sube tu maniquí limpio o tu foto en "Foto Local"', url: (pz.maestro_cuerpo && pz.maestro_cuerpo.url) || null, archivo: (p.id || 'per') + '_maestro.png' };
   }
-  if (tipo === 'cabeza_base' || tipo.indexOf('ojos') === 0 || tipo.indexOf('boca') === 0) {
+  if (tipo.indexOf('ojos') === 0 || tipo.indexOf('boca') === 0) {
     const reg = (pz.maestro_perfil && pz.maestro_perfil.url) ? pz.maestro_perfil : (pz.maestro_cuerpo || null);
-    return { label: 'Adjunta el Busto Maestro (o Cuerpo Maestro)', url: reg && reg.url ? reg.url : null, archivo: (p.id || 'per') + '_busto_ref.png' };
+    return { label: 'Calco Facial 1:1 (Look Oficial con rostro)', url: reg && reg.url ? reg.url : null, archivo: (p.id || 'per') + '_look_oficial.png' };
   }
   const regC = pz.maestro_cuerpo || pz.maestro_perfil || null;
-  return { label: 'Adjunta el Cuerpo Entero Maestro', url: regC && regC.url ? regC.url : null, archivo: (p.id || 'per') + '_cuerpo_ref.png' };
+  return { label: 'Calco Maniquí 1:1 (Molde Anatómico Base)', url: regC && regC.url ? regC.url : null, archivo: (p.id || 'per') + '_maniqui_base.png' };
 }
 
 function calcularProgresoPersonaje(p) {
@@ -1831,7 +1836,7 @@ window.abrirGeneradorIASlot = function(tipo, idOKey, esVariante, campoExtra) {
       : SLOTS_BASICOS_PERSONAJE.find(function(s) { return s.key === idOKey; });
     if (!spec) return;
     titulo = p.nombre + ' · ' + (spec.titulo || idOKey);
-    prompt = generarPromptPersonaje(p, idOKey);
+        prompt = generarPromptPersonaje(p, idOKey, spec);
     const refObj = obtenerRefParaPrompt(p, idOKey);
     refUrl = refObj.url || null;
     refLabel = refObj.label || 'Referencia del personaje';
@@ -1918,7 +1923,31 @@ window.cerrarModalGenIA = function() {
   document.getElementById('modal-gen-ia-pieza').classList.remove('open');
 };
 
-async function urlABase64Seguro(url) {
+function aplanarSobreVerdeBase64(dataUrl, targetW, targetH) {
+  return new Promise(function(resolve, reject) {
+    const im = new Image();
+    im.onload = function() {
+      const w = targetW || im.width || 1000;
+      const h = targetH || im.height || 1600;
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = '#00FF00';
+      ctx.fillRect(0, 0, w, h);
+      const sc = Math.min(w / im.width, h / im.height);
+      const dw = im.width * sc, dh = im.height * sc;
+      ctx.drawImage(im, (w - dw) / 2, (h - dh) / 2, dw, dh);
+      const out = cv.toDataURL('image/png');
+      const m = out.match(/^data:([^;]+);base64,(.+)$/);
+      if (!m) { reject(new Error('Error aplanando sobre verde')); return; }
+      resolve({ mime: 'image/png', data: m[2] });
+    };
+    im.onerror = function() { reject(new Error('No se pudo leer la imagen de referencia')); };
+    im.src = dataUrl;
+  });
+}
+
+async function urlABase64Seguro(url, aplanarVerde, wObj, hObj) {
   const resp = await fetch(url);
   if (!resp.ok) throw new Error('HTTP ' + resp.status);
   const blob = await resp.blob();
@@ -1928,6 +1957,7 @@ async function urlABase64Seguro(url) {
     r.onerror = function() { reject(new Error('Lectura fallida')); };
     r.readAsDataURL(blob);
   });
+  if (aplanarVerde) return await aplanarSobreVerdeBase64(dataUrl, wObj, hObj);
   const m = String(dataUrl).match(/^data:([^;]+);base64,(.+)$/);
   if (!m) throw new Error('Formato base64 inválido');
   return { mime: m[1], data: m[2] };
@@ -1969,8 +1999,9 @@ window.ejecutarGeneracionIAPieza = async function() {
       }
     }
 
+        const esEdicionCalco = Boolean(giaCtx.tipo === 'personaje' && giaCtx.slotMeta && giaCtx.slotMeta.slotKey !== 'maestro_cuerpo');
     if (giaCtx.refLocalDataUrl) {
-      const locP = dataUrlAParteBase64(giaCtx.refLocalDataUrl, giaCtx.refLocalMime);
+      const locP = esEdicionCalco ? await aplanarSobreVerdeBase64(giaCtx.refLocalDataUrl, 1000, 1600) : dataUrlAParteBase64(giaCtx.refLocalDataUrl, giaCtx.refLocalMime);
       if (locP) {
         parts.push({ inlineData: { mimeType: locP.mime, data: locP.data } });
         if (giaCtx.slotMeta && giaCtx.slotMeta.slotKey === 'maestro_cuerpo') {
@@ -1979,7 +2010,7 @@ window.ejecutarGeneracionIAPieza = async function() {
       }
     } else if (giaCtx.refUrl) {
       try {
-        const refP = await urlABase64Seguro(giaCtx.refUrl);
+        const refP = await urlABase64Seguro(giaCtx.refUrl, esEdicionCalco, 1000, 1600);
         parts.push({ inlineData: { mimeType: refP.mime, data: refP.data } });
       } catch (eCors) {
         throw new Error('Firebase Storage bloqueó leer la imagen de referencia por CORS. Pulsa "Foto Local" para adjuntar la imagen desde tu teléfono (o habilita CORS en tu bucket) y vuelve a generar para no perder consistencia.');
@@ -2046,8 +2077,9 @@ window.llevarGenIAEstudio = function() {
     window.parent.postMessage({
       tipo: 'PIRO_IR_A_ESTUDIO', origen: 'contenido', etiqueta: meta.etiqueta,
       presetId: meta.presetId, entidadId: meta.entidadId, zonaId: meta.zonaId || 'zona_01',
-      archivoNombre: meta.archivoNombre, dataUrl: dataUrl,
-      calcoUrl: meta.calcoUrl || null, pivotesIniciales: meta.pivotesIniciales || null, slotMeta: meta
+            archivoNombre: meta.archivoNombre, dataUrl: dataUrl,
+      calcoUrl: meta.calcoUrl || null, pivotesIniciales: meta.pivotesIniciales || null,
+      modoCalco1a1: Boolean(meta.tipo === 'personaje' && meta.slotKey !== 'maestro_cuerpo'), slotMeta: meta
     }, '*');
   } else {
     toast('Abre este módulo desde piro-shell.html para editar en Estudio PNG.', 'info');
