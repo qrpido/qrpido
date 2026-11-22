@@ -1937,11 +1937,11 @@ async function abrirModalFacturaDigitalQR(ticketId, telefonoPrevio = "") {
  const inputWp = document.getElementById('input-whatsapp-cliente');
  if (!modalQR || !contenedor) return;
 
- window.ticketIdFacturaActiva = ticketId;
+  window.ticketIdFacturaActiva = ticketId;
  const exp = Date.now() + (24 * 60 * 60 * 1000);
  const sig = await generarFirmaFactura24Horas(ticketId, exp);
 
- window.urlFacturaActiva = window.location.origin + '/facturaven?com=' + encodeURIComponent(idNegocio) + '&tkt=' + encodeURIComponent(ticketId) + '&exp=' + exp + '&sig=' + sig;
+ window.urlFacturaActiva = window.location.origin + '/factura?com=' + encodeURIComponent(idNegocio) + '&tkt=' + encodeURIComponent(ticketId) + '&exp=' + exp + '&sig=' + sig;
 
  contenedor.innerHTML = '';
  contenedor.style.padding = '20px';
