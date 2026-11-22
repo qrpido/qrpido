@@ -327,7 +327,7 @@
     <div id="gia-key-box" class="hidden" style="margin-bottom:8px; padding:8px; border-radius:9px; border:1px solid rgba(245,158,11,0.45); background:rgba(245,158,11,0.08);">
       <div style="font-size:10.5px; font-weight:800; color:#fcd34d; margin-bottom:4px;">Conecta tu API Key de Gemini (se comparte con Editor)</div>
       <div style="display:flex; gap:6px;">
-        <input id="gia-api-key-inp" type="password" class="inp" placeholder="AIza...">
+                <input id="gia-api-key-inp" type="password" autocomplete="off" spellcheck="false" class="inp" placeholder="AIza...">
         <button type="button" class="btn btn-xs btn-primary" onclick="window.guardarKeyGeminiRapida()">Guardar</button>
       </div>
     </div>
@@ -346,7 +346,7 @@
     <div class="field" style="margin-bottom:8px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
         <label style="margin:0;">Instrucción (Prompt exacto para Gemini)</label>
-        <span id="gia-modelo-badge" style="font-size:10px; font-family:monospace; color:var(--azul);">gemini-2.5-flash-image</span>
+                <div style="display:flex; align-items:center; gap:6px;"><span id="gia-modelo-badge" style="font-size:10px; font-family:monospace; color:var(--azul);">gemini-2.5-flash-image</span><button type="button" class="btn btn-xs" onclick="window.abrirBovedaApisDesdeContenido()">APIs</button></div>
       </div>
       <textarea id="gia-prompt" class="inp" rows="4" style="font-size:11px; line-height:1.38;"></textarea>
     </div>
@@ -1906,6 +1906,14 @@ window.abrirGeneradorIASlot = function(tipo, idOKey, esVariante, campoExtra) {
   document.getElementById('modal-gen-ia-pieza').classList.add('open');
 };
 
+window.abrirBovedaApisDesdeContenido = function() {
+  if (window.self !== window.top) {
+    window.parent.postMessage({ tipo: 'PIRO_ABRIR_BOVEDA_APIS', tab: 'imagen' }, '*');
+  } else {
+    document.getElementById('gia-key-box').classList.remove('hidden');
+  }
+};
+
 window.cerrarModalGenIA = function() {
   document.getElementById('modal-gen-ia-pieza').classList.remove('open');
 };
@@ -1981,9 +1989,9 @@ window.ejecutarGeneracionIAPieza = async function() {
     parts.push({ text: prefijoRefs + promptUsr });
 
     let b64 = null, mime = 'image/png';
-    if (cfg.model.indexOf('imagen-') === 0) {
-      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(cfg.model) + ':predict?key=' + encodeURIComponent(cfg.key), {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        if (cfg.model.indexOf('imagen-') === 0) {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(cfg.model) + ':predict', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.key },
         body: JSON.stringify({ instances: [{ prompt: prefijoRefs + promptUsr }], parameters: { sampleCount: 1, aspectRatio: giaCtx.tipo === 'personaje' ? '3:4' : '1:1' } })
       });
       if (!r.ok) throw new Error('Imagen HTTP ' + r.status);
@@ -1993,8 +2001,8 @@ window.ejecutarGeneracionIAPieza = async function() {
         mime = j.predictions[0].mimeType || 'image/png';
       }
     } else {
-      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(cfg.model) + ':generateContent?key=' + encodeURIComponent(cfg.key), {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(cfg.model) + ':generateContent', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.key },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: parts }],
           generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
@@ -2076,6 +2084,12 @@ window.addEventListener('message', async function(e) {
       proyectoActivo.docBibId = normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id);
     }
     cargarBiblioteca();
+    } else if (e.data.tipo === 'PIRO_VAULT_ACTUALIZADO') {
+    const cfgN = leerConfigGeminiVault();
+    const bM = document.getElementById('gia-modelo-badge');
+    if (bM) bM.textContent = cfgN.model;
+    const bK = document.getElementById('gia-key-box');
+    if (bK) bK.classList.toggle('hidden', Boolean(cfgN.key));
   } else if (e.data.tipo === 'PIRO_SHELL_ABRIR_CREAR') {
     if (e.data.entidad === 'personaje') window.cambiarCategoria('personajes');
     else if (e.data.entidad === 'escenario') window.cambiarCategoria('escenarios');
