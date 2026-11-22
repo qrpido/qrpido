@@ -467,6 +467,7 @@
         <button type="button" class="btn btn-green btn-xs" onclick="window.cerrarHerramienta()">Listo</button>
       </div>
       <div class="sub-row">
+                <button type="button" class="btn btn-xs btn-green" onclick="window.encajar1a1ConCalco()">1:1 Calco</button>
         <button type="button" class="btn btn-xs btn-primary" onclick="window.ajustarPersonajeAAltura()">Encajar a Altura</button>
         <button type="button" class="btn btn-xs btn-blue" onclick="window.apoyarPiesEnSuelo()">Pies a Y=1480</button>
         <button type="button" class="btn btn-xs" onclick="window.centrarStage()">Centrar X/Y</button>
@@ -584,6 +585,7 @@ let pointersStage = new Map();
 let gestureState = null;
 let snapActivo = { x: false, suelo: false, altura: false, rot: false };
 let calcoUrlActual = null;
+let modoCalco1a1 = false;
 let recibidoConfigExterno = false;
 let debounceDraftTimer = null;
 
@@ -1326,9 +1328,11 @@ function prepararStageDesdeSprite(conservarSt) {
     cvStage.width = presetActual.w;
     cvStage.height = presetActual.h;
     requestAnimationFrame(ajustarCanvasActivos);
-    if (conservarSt) {
+        if (conservarSt) {
       sincronizarSlidersStage();
       renderizarStage();
+    } else if (presetActual.esPersonaje && (modoCalco1a1 || (presetActual.id !== 'per_ref' && Boolean(calcoUrlActual || imgCalco)))) {
+      window.encajar1a1ConCalco();
     } else if (presetActual.esPersonaje) {
       window.ajustarPersonajeAAltura();
     } else if (presetActual.id === 'esc_fondo' || presetActual.id === 'ep_inserto' || presetActual.id === 'ep_inserto_169') {
@@ -1358,6 +1362,18 @@ window.setAlturaCm = function(cm) {
   sincronizarSlidersStage();
   renderizarStage();
   guardarMetaSyncLocal();
+};
+
+window.encajar1a1ConCalco = function() {
+  if (!spriteImg) return;
+  const rx = presetActual.w / spriteImg.width;
+  const ry = presetActual.h / spriteImg.height;
+  st.scale = Math.min(rx, ry);
+  st.rot = 0;
+  st.x = presetActual.w / 2;
+  st.y = presetActual.h / 2;
+  sincronizarSlidersStage();
+  renderizarStage();
 };
 
 window.ajustarPersonajeAAltura = function() {
@@ -1792,7 +1808,8 @@ window.addEventListener('message', async function(e) {
     window.normalizarYActualizarRuta();
 
     imgCalco = null;
-    calcoUrlActual = e.data.calcoUrl || null;
+        calcoUrlActual = e.data.calcoUrl || null;
+    modoCalco1a1 = Boolean(e.data.modoCalco1a1);
     if (e.data.calcoUrl) {
       const cImg = new Image();
       cImg.crossOrigin = 'anonymous';
