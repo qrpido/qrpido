@@ -86,11 +86,12 @@
   }
   #piro-shell.listo { display: block; }
 
-  #piro-stage {
+    #piro-stage {
     position: absolute; inset: 0;
     bottom: calc(var(--dock-h) + env(safe-area-inset-bottom));
     background: var(--bg);
   }
+  #piro-stage.con-barra-ctx { top: 34px; }
   .vista-portal {
     position: absolute; inset: 0; width: 100%; height: 100%;
     visibility: hidden; pointer-events: none; opacity: 0; z-index: 1;
@@ -205,14 +206,13 @@
   .sheet-opt strong { font-size: 13px; color: #fff; display: flex; align-items: center; gap: 6px; }
   .sheet-opt small { font-size: 11px; color: var(--muted); }
 
-  /* BARRA DE RETORNO AL SLOT CUANDO SE ABRE ESTUDIO DESDE CONTENIDO */
+    /* CINTA SUPERIOR FIJA DE CONTEXTO (NO TAPA BOTONES DE ESTUDIO PNG) */
   #barra-contexto-estudio {
-    position: fixed; top: 8px; left: 50%; transform: translateX(-50%);
-    z-index: 6000; display: none; align-items: center; gap: 10px;
-    padding: 7px 12px; border-radius: 99px;
-    background: rgba(15, 23, 42, 0.96); border: 1.5px solid var(--azul);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.75);
-    font-size: 11.5px; font-weight: 700; max-width: 94vw;
+    position: fixed; top: 0; left: 0; right: 0; height: 34px;
+    z-index: 6000; display: none; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 0 10px;
+    background: rgba(12, 19, 34, 0.99); border-bottom: 1px solid rgba(56, 189, 248, 0.55);
+    font-size: 11px; font-weight: 800;
   }
   #barra-contexto-estudio.visible { display: flex; }
 
@@ -796,7 +796,9 @@ window.PiroShell = {
       b.classList.toggle('activo', b.getAttribute('data-vista') === v);
     });
     if (v !== 'resumen') asegurarFrame(v);
-        document.getElementById('barra-contexto-estudio').classList.toggle('visible', Boolean(contextoEstudio && v === 'estudio'));
+            const showCtx = Boolean(contextoEstudio && v === 'estudio');
+    document.getElementById('barra-contexto-estudio').classList.toggle('visible', showCtx);
+    document.getElementById('piro-stage').classList.toggle('con-barra-ctx', showCtx);
     guardarSesionShell();
     if (!sinHistorial) {
       try { window.history.pushState({ piroVista: v }, ''); } catch (e) {}
@@ -902,8 +904,9 @@ window.addEventListener('message', function(e) {
       zonaId: d.zonaId || 'zona_01',
       archivoNombre: d.archivoNombre || 'pieza',
             dataUrl: d.dataUrl || null,
-      calcoUrl: d.calcoUrl || null,
-      pivotesIniciales: d.pivotesIniciales || null
+            calcoUrl: d.calcoUrl || null,
+      pivotesIniciales: d.pivotesIniciales || null,
+      modoCalco1a1: Boolean(d.modoCalco1a1)
     });
   } else if (d.tipo === 'PIRO_EXPORTAR_PNG') {
     if (contextoEstudio && contextoEstudio.origen === 'contenido') {
