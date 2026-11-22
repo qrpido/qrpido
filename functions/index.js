@@ -2414,7 +2414,7 @@ exports.consultarEstadoOrdenPasarelaPOS = onCall({ memory: "256MB", maxInstances
         };
     }
 
-    return {
+        return {
         success: true,
         aprobado: false,
         estado: estadoRemoto,
@@ -2422,6 +2422,163 @@ exports.consultarEstadoOrdenPasarelaPOS = onCall({ memory: "256MB", maxInstances
             ? "El banco reporta la transaccion como rechazada o expirada."
             : "Aun figura pendiente de confirmacion en el banco. Intenta en unos segundos."
     };
+});
+
+// ============================================================================
+// 25. VISOR PUBLICO DE COMPROBANTES DIGITALES (QR 24H UNIFICADO COL / VEN)
+// ============================================================================
+exports.obtenerComprobantePublico = functions.https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") return res.status(204).send("");
+    if (req.method !== "GET") return res.status(405).json({ success: false, code: "METODO_NO_PERMITIDO" });
+
+    const com = String(req.query.com || "").trim();
+    const tkt = String(req.query.tkt || "").trim();
+    const expRaw = String(req.query.exp || "").trim();
+    const sig = String(req.query.sig || "").trim().toLowerCase();
+    const expNum = parseInt(expRaw, 10);
+
+    if (!com || !tkt || !Number.isFinite(expNum) || !sig) {
+        return res.status(400).json({ success: false, code: "INCOMPLETO", mensaje: "Enlace de comprobante incompleto o corrupto." });
+    }
+
+    const rawFirma = tkt + ":" + com + ":" + expRaw + ":GEOKATU_PUBLIC_TKT_SALT";
+    const calculada = crypto.createHash("sha256").update(rawFirma).digest("hex").slice(0, 32);
+    const bufCalc = Buffer.from(calculada, "utf8");
+    const bufRec = Buffer.from(sig, "utf8");
+    if (bufCalc.length !== bufRec.length || !crypto.timingSafeEqual(bufCalc, bufRec)) {
+        return res.status(403).json({ success: false, code: "FIRMA_INVALIDA", mensaje: "Firma de seguridad invalida." });
+    }
+
+    if (Date.now() > expNum) {
+        return res.status(410).json({ success: false, code: "EXPIRADO", mensaje: "Este enlace temporal ha expirado (limite 24 horas)." });
+    }
+
+    try {
+        const db = admin.firestore();
+        const negRef = db.collection("Directorio").doc(com);
+        const ventasCol = negRef.collection("Ventas_POS");
+        const [snapNeg, snapVentaDirecta] = await Promise.all([
+            negRef.get(),
+            ventasCol.doc(tkt).get()
+        ]);
+
+        let ventaData = snapVentaDirecta.exists ? snapVentaDirecta.data() : null;
+        let ventaIdFinal = snapVentaDirecta.exists ? snapVentaDirecta.id : tkt;
+        if (!ventaData) {
+            const qAlt = await ventasCol.where("ticketIdLocal", "==", tkt).limit(1).get();
+            if (!qAlt.empty) {
+                ventaData = qAlt.docs[0].data();
+                ventaIdFinal = qAlt.docs[0].id;
+            }
+        }
+
+        if (!ventaData) {
+            return res.status(404).json({
+                success: false,
+                code: "NO_ENCONTRADO",
+                mensaje: "Comprobante aun no sincronizado en la nube o no encontrado."
+            });
+        }
+
+        const n = snapNeg.exists ? (snapNeg.data() || {}) : {};
+        const pf = n.perfil_fiscal || {};
+        const pfv = n.perfil_fiscal_ven || {};
+        const paisDetectado = String(ventaData.pais_operacion || n.pais || "COL").toUpperCase();
+
+        const comercioSeguro = {
+            nombre: n.nombre || pf.razon_social || pfv.razon_social || "Comercio GEOKATU",
+            logo: n.logo || "",
+            direccion: n.direccion || "",
+            pais: paisDetectado,
+            color_principal: n.color_principal || "#ff6b00",
+            color_acento: n.color_acento || n.color_principal || "#ff6b00",
+            color_terciario: n.color_terciario || "#00ff64",
+            perfil_fiscal: {
+                razon_social: pf.razon_social || n.nombre || "",
+                nit: pf.nit || n.nit || "",
+                dv: pf.dv || "",
+                regimen_tributario: pf.regimen_tributario || "",
+                direccion: pf.direccion || n.direccion || "",
+                codigo_tienda: pf.codigo_tienda || ""
+            },
+            perfil_fiscal_ven: {
+                razon_social: pfv.razon_social || n.nombre || "",
+                rif: pfv.rif || n.rif || "",
+                direccion: pfv.direccion || n.direccion || "",
+                codigo_tienda: pfv.codigo_tienda || ""
+            }
+        };
+
+        const productosSeguros = Array.isArray(ventaData.productos) ? ventaData.productos.map(function(p) {
+            return {
+                nombre: p.nombre || "Articulo",
+                cantidad: Number(p.cantidad) || 0,
+                precio: Number(p.precio) || 0,
+                precio_usd: p.precio_usd !== undefined ? Number(p.precio_usd) : undefined,
+                subtotal: p.subtotal !== undefined ? Number(p.subtotal) : undefined,
+                subtotal_usd: p.subtotal_usd !== undefined ? Number(p.subtotal_usd) : undefined,
+                es_pesable: Boolean(p.es_pesable),
+                unidad_medida: p.unidad_medida || "",
+                precio_fijado_balanza: Boolean(p.precio_fijado_balanza),
+                nota: p.nota || ""
+            };
+        }) : [];
+
+        const pagosSeguros = Array.isArray(ventaData.metodos_pago_split) ? ventaData.metodos_pago_split.map(function(mp) {
+            return {
+                metodo: mp.metodo || "EFECTIVO",
+                monto: mp.monto !== undefined ? Number(mp.monto) : undefined,
+                moneda_original: mp.moneda_original || "",
+                monto_original: mp.monto_original !== undefined ? Number(mp.monto_original) : undefined,
+                monto_usd_equivalente: mp.monto_usd_equivalente !== undefined ? Number(mp.monto_usd_equivalente) : undefined
+            };
+        }) : [];
+
+        const df = ventaData.despacho_fiscal || {};
+        const totalesFiscal = (df.payload_canonico && df.payload_canonico.totales) ? df.payload_canonico.totales : null;
+
+        const ventaSegura = {
+            ticketId: ventaData.ticketIdLocal || ventaIdFinal,
+            timestamp_caja: ventaData.timestamp_caja || null,
+            pais_operacion: paisDetectado,
+            total: Number(ventaData.total) || 0,
+            total_usd: ventaData.total_usd !== undefined ? Number(ventaData.total_usd) : undefined,
+            total_ves: ventaData.total_ves !== undefined ? Number(ventaData.total_ves) : undefined,
+            total_cop: ventaData.total_cop !== undefined ? Number(ventaData.total_cop) : undefined,
+            tasa_aplicada: ventaData.tasa_aplicada !== undefined ? Number(ventaData.tasa_aplicada) : undefined,
+            tipo_tasa: ventaData.tipo_tasa || "",
+            subtotal_usd: ventaData.subtotal_usd !== undefined ? Number(ventaData.subtotal_usd) : undefined,
+            base_gravable_usd: ventaData.base_gravable_usd !== undefined ? Number(ventaData.base_gravable_usd) : undefined,
+            iva_16_usd: ventaData.iva_16_usd !== undefined ? Number(ventaData.iva_16_usd) : undefined,
+            igtf_usd: ventaData.igtf_usd !== undefined ? Number(ventaData.igtf_usd) : undefined,
+            exento_usd: ventaData.exento_usd !== undefined ? Number(ventaData.exento_usd) : undefined,
+            desglose_tributario: ventaData.desglose_tributario || null,
+            metodo_pago: ventaData.metodo_pago || "EFECTIVO",
+            metodos_pago_split: pagosSeguros,
+            productos: productosSeguros,
+            cliente: {
+                nombre: (ventaData.cliente && ventaData.cliente.nombre) ? ventaData.cliente.nombre : "Consumidor Final",
+                nit: (ventaData.cliente && ventaData.cliente.nit) ? ventaData.cliente.nit : "",
+                rif: (ventaData.cliente && ventaData.cliente.rif) ? ventaData.cliente.rif : ""
+            },
+            despacho_fiscal: {
+                estado: df.estado || "",
+                cufe: df.cufe || null,
+                consecutivo: df.consecutivo || null,
+                totales: totalesFiscal
+            },
+            anulado: Boolean(ventaData.anulado)
+        };
+
+        res.set("Cache-Control", "private, max-age=60");
+        return res.status(200).json({ success: true, comercio: comercioSeguro, venta: ventaSegura });
+    } catch (errComp) {
+        console.error("[COMPROBANTE PUBLICO ERROR]", errComp);
+        return res.status(500).json({ success: false, code: "ERROR_INTERNO", mensaje: "Error consultando el comprobante." });
+    }
 });
 
 
