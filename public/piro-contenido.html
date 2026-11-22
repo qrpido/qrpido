@@ -566,13 +566,15 @@ function guardarBiblioteca(inmediato) {
   setSyncBadge('Guardando...', 'warn');
   clearTimeout(debounceGuardar);
   const run = async function() {
-    if (!GeokatuDB.PirobonianosService) { setSyncBadge('Local', 'warn'); return; }
+    if (!GeokatuDB.PirobonianosService) { setSyncBadge('Local', 'warn'); return { success: false, offline: true }; }
     const res = await GeokatuDB.PirobonianosService.guardarProyectoEDT(getDocBibId(), biblioteca);
     if (res.success && !res.offline) setSyncBadge('Nube OK', 'ok');
     else setSyncBadge('Local', 'warn');
+    return res;
   };
-  if (inmediato) run();
-  else debounceGuardar = setTimeout(run, 650);
+  if (inmediato) return run();
+  debounceGuardar = setTimeout(run, 650);
+  return Promise.resolve({ success: true, debounced: true });
 }
 
 // =========================================================================
@@ -596,18 +598,31 @@ function generarPromptPersonaje(p, tipo) {
   if (tipo === 'cuerpo_base') {
     return 'Edit the attached full-body character: keep the exact same body, outfit (' + (p.vestuario_base || 'base outfit') + '), and three-quarter angle facing RIGHT on a completely flat solid chroma green background (#00FF00) with zero shadows. REMOVE the head and arms completely, cleanly closing the collar and shoulder openings with flat color and black outline for modular 2D puppet rigging.';
   }
-  if (tipo.indexOf('ojos') === 0) {
+    if (tipo.indexOf('ojos') === 0) {
     const emo = tipo === 'ojos' ? '6 expressions in a 2x3 grid (NEUTRAL, HAPPY, ANGRY, SAD, DOUBTFUL, INDIGNANT)' : ('ONLY the expression: ' + tipo.replace('ojos_', '').toUpperCase());
-    return 'Using the attached character bust as strict reference, draw ONLY the eyes and eyebrows (' + emo + ') without head, ears, nose, mouth, or text, on a completely flat solid chroma green background (#00FF00) with zero shadows. Match exact BoJack Horseman 2D line style and three-quarter angle facing RIGHT.';
+    return 'Using the attached character bust as strict reference, draw ONLY the eyes and eyebrows (' + emo + ') without head, ears, nose, mouth, or text, on a completely flat solid chroma green background (#00FF00) with zero shadows. Keep exact art direction (' + baseStyle + ') and three-quarter angle facing RIGHT.';
   }
   if (tipo.indexOf('boca') === 0) {
     const moc = tipo === 'bocas' ? '5 mouth variations in a neat grid (CLOSED, HALF-OPEN, WIDE OPEN, SMILE, ANNOYED)' : ('ONLY the mouth variation: ' + tipo.replace('boca_', '').toUpperCase());
-    return 'Using the attached character bust as strict reference, draw ONLY the mouth/lower muzzle (' + moc + ') without eyes, ears, neck, or text, on a completely flat solid chroma green background (#00FF00) with zero shadows. Match exact 2D cartoon line style and three-quarter angle facing RIGHT.';
+    return 'Using the attached character bust as strict reference, draw ONLY the mouth/lower muzzle (' + moc + ') without eyes, ears, neck, or text, on a completely flat solid chroma green background (#00FF00) with zero shadows. Keep exact art direction (' + baseStyle + ') and three-quarter angle facing RIGHT.';
   }
   if (tipo.indexOf('brazo') === 0 || tipo.indexOf('pierna') === 0) {
-    return 'Using the attached full-body character as strict reference, draw ONLY the isolated limb (' + tipo.replace(/_/g, ' ') + ') with a cleanly rounded shoulder/hip joint cap, matching exact fur spots, outfit sleeve/pant, and BoJack Horseman 2D line style, isolated on solid chroma green (#00FF00) with zero shadows for South Park style cut-out animation.';
+    return 'Using the attached full-body character as strict reference, draw ONLY the isolated limb (' + tipo.replace(/_/g, ' ') + ') with a cleanly rounded shoulder/hip joint cap, matching exact markings and outfit sleeve/pant. Art direction: ' + baseStyle + ' Isolated on solid chroma green (#00FF00) with zero shadows for modular 2D puppet rigging.';
   }
-  return 'Using the attached character (' + (p.nombre || p.id) + ') as strict visual reference, generate the custom variant "' + tipo + '" in BoJack Horseman 2D cartoon style, clean lines, facing three-quarters to the RIGHT, isolated on solid chroma green (#00FF00) with zero shadows.';
+  return 'Using the attached character (' + (p.nombre || p.id) + ') as strict visual reference, generate the custom variant "' + tipo + '". Art direction: ' + baseStyle + ' Facing three-quarters to the RIGHT, isolated on solid chroma green (#00FF00) with zero shadows.';
+}
+
+function obtenerRefParaPrompt(p, tipo) {
+  const pz = (p && p.piezas) ? p.piezas : {};
+  if (tipo === 'cuerpo_completo' || tipo === 'maestro_cuerpo') {
+    return { label: 'Adjunta tu foto base o referencia inicial en Gemini/ChatGPT', url: (pz.maestro_cuerpo && pz.maestro_cuerpo.url) || null, archivo: (p.id || 'per') + '_maestro.png' };
+  }
+  if (tipo === 'cabeza_base' || tipo.indexOf('ojos') === 0 || tipo.indexOf('boca') === 0) {
+    const reg = (pz.maestro_perfil && pz.maestro_perfil.url) ? pz.maestro_perfil : (pz.maestro_cuerpo || null);
+    return { label: 'Adjunta el Busto Maestro (o Cuerpo Maestro) al pegar este prompt', url: reg && reg.url ? reg.url : null, archivo: (p.id || 'per') + '_busto_ref.png' };
+  }
+  const regC = pz.maestro_cuerpo || pz.maestro_perfil || null;
+  return { label: 'Adjunta el Cuerpo Entero Maestro al pegar este prompt', url: regC && regC.url ? regC.url : null, archivo: (p.id || 'per') + '_cuerpo_ref.png' };
 }
 
 function calcularProgresoPersonaje(p) {
@@ -619,7 +634,15 @@ function calcularProgresoPersonaje(p) {
   const total = SLOTS_BASICOS_PERSONAJE.length;
   const pct = Math.round((listos / total) * 100);
   const extras = (p.variantes || []).filter(function(v) { return v.url; }).length;
-  return { listos: listos, total: total, pct: pct, extras: extras, totalExtras: (p.variantes || []).length };
+  const tiene = function(k) { return Boolean(piezas[k] && piezas[k].url); };
+  const tieneOjos = ['ojos_neutro','ojos_feliz','ojos_enojado','ojos_triste','ojos_duda','ojos_indignado'].some(tiene);
+  const tieneHabla = tiene('boca_cerrada') && tiene('boca_media') && tiene('boca_abierta');
+  let capacidad = 'Paso 1: sube Cuerpo o Busto Maestro';
+  if (tiene('cabeza_base') && tieneOjos && tieneHabla && tiene('cuerpo_base') && tiene('brazo_delantero_prop')) capacidad = 'Listo para escena completa + props';
+  else if (tiene('cabeza_base') && tieneOjos && tieneHabla) capacidad = 'Listo para primer plano hablando (lip-sync OK)';
+  else if (tiene('cabeza_base') && tieneOjos && (tiene('boca_cerrada') || tiene('boca_sonrisa'))) capacidad = 'Listo para reacción en primer plano (faltan 3 bocas de habla)';
+  else if (tiene('maestro_cuerpo') || tiene('maestro_perfil')) capacidad = 'Referencia aprobada · sigue con Cabeza, Ojos y Bocas';
+  return { listos: listos, total: total, pct: pct, extras: extras, totalExtras: (p.variantes || []).length, capacidad: capacidad };
 }
 
 // =========================================================================
@@ -729,11 +752,12 @@ function renderizarVistaPersonajes() {
   let html =
     '<div class="char-header-bar">' +
       '<div>' +
-        '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">' +
+                '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">' +
           '<span style="font-family:monospace; font-size:11px; font-weight:900; padding:2px 7px; border-radius:6px; background:var(--naranja); color:#fff;">' + esc(p.id) + '</span>' +
           '<strong style="font-size:15px;">' + esc(p.nombre) + '</strong>' +
           '<span style="font-size:12px; color:var(--muted);">(' + esc(p.raza) + ')</span>' +
         '</div>' +
+        '<div style="font-size:11px; color:#7dd3fc; font-weight:700; margin-top:4px;">' + esc(pr.capacidad || '') + '</div>' +
       '</div>' +
       '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">' +
         (pr.pct === 100
@@ -790,10 +814,11 @@ function renderizarVistaPersonajes() {
         '</div>' +
 
         '<div class="card-box">' +
-          '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">' +
-            '<span style="font-size:12px; font-weight:800; color:var(--azul); text-transform:uppercase;">Generador de Prompts BoJack Style</span>' +
-            '<button type="button" class="btn btn-xs btn-primary" onclick="window.copiarPromptCaja()">Copiar Prompt</button>' +
-          '</div>' +
+                  '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:6px;">' +
+          '<span style="font-size:12px; font-weight:800; color:var(--azul); text-transform:uppercase;">Generador de Prompts · ' + esc(proyectoActivo.nombre || 'Estilo') + '</span>' +
+          '<button type="button" class="btn btn-xs btn-primary" onclick="window.copiarPromptCaja()">Copiar Prompt</button>' +
+        '</div>' +
+        '<div id="box-ref-prompt" style="display:flex; align-items:center; gap:9px; padding:7px 9px; margin-bottom:8px; border-radius:9px; border:1px solid var(--border); background:rgba(5,8,14,0.72);">' + renderHtmlRefPrompt(p, tipoPromptVista) + '</div>' +
           '<div class="field">' +
             '<label>¿Qué pieza vas a generar en Gemini?</label>' +
             '<select class="sel" onchange="window.cambiarTipoPromptVista(this.value)">' +
@@ -930,11 +955,20 @@ window.editarCampoPersonaje = function(campo, valor) {
   guardarBiblioteca(false);
 };
 
+function renderHtmlRefPrompt(p, tipo) {
+  const ref = obtenerRefParaPrompt(p, tipo);
+  const thumb = ref.url ? '<img src="' + esc(ref.url) + '" style="width:40px; height:40px; object-fit:contain; border-radius:6px; background:#0b0f18; border:1px solid var(--border); flex-shrink:0;">' : '<div style="width:40px; height:40px; border-radius:6px; border:1px dashed var(--border); display:flex; align-items:center; justify-content:center; font-size:9px; color:var(--muted); flex-shrink:0;">REF</div>';
+  const btnDl = ref.url ? '<a href="' + esc(ref.url) + '" download="' + esc(ref.archivo) + '" target="_blank" rel="noopener" class="btn btn-xs btn-blue" style="text-decoration:none;">Abrir Ref</a>' : '';
+  return thumb + '<div style="flex:1; min-width:0;"><div style="font-size:10.5px; font-weight:800; color:#e2e8f0;">Referencia a adjuntar</div><div style="font-size:10.5px; color:var(--muted);">' + esc(ref.label) + '</div></div>' + btnDl;
+}
+
 window.cambiarTipoPromptVista = function(val) {
   tipoPromptVista = val;
   const p = obtenerPersonajeActual();
   const caja = document.getElementById('caja-prompt-live');
   if (p && caja) caja.value = generarPromptPersonaje(p, tipoPromptVista);
+  const boxR = document.getElementById('box-ref-prompt');
+  if (p && boxR) boxR.innerHTML = renderHtmlRefPrompt(p, tipoPromptVista);
 };
 
 window.copiarPromptCaja = function() {
@@ -1127,17 +1161,26 @@ function aplicarRegistroEnSlot(meta, registro, pivotesRecibidos) {
   }
 }
 
-async function subirYAsignarArchivoASlot(fileObj, meta, pivotesRecibidos) {
-  if (!GeokatuDB.PirobonianosService) { toast('Falta PirobonianosService en core-db.js.', 'error'); return; }
+async function subirYAsignarArchivoASlot(fileObj, meta, pivotesRecibidos, desdeEstudio) {
+  if (!GeokatuDB.PirobonianosService) { toast('Falta PirobonianosService en core-db.js.', 'error'); return false; }
   setSyncBadge('Subiendo...', 'warn');
   const ruta = meta.tipo + '/' + meta.entidadId + '/' + (meta.zonaId ? (meta.zonaId + '/') : '') + Date.now() + '_' + String(fileObj.name || 'activo.png').replace(/[^a-zA-Z0-9._-]+/g, '_');
-    const res = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(getStorageDir(), ruta, fileObj);
-  if (!res.success) { toast('Error subiendo archivo: ' + res.error, 'error'); setSyncBadge('Error', 'warn'); return; }
+  const res = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(getStorageDir(), ruta, fileObj);
+  if (!res.success) {
+    toast('Error subiendo archivo. Tu borrador sigue guardado en Estudio PNG para reintentar.', 'error');
+    setSyncBadge('Error', 'warn');
+    return false;
+  }
   const registro = { url: res.url, rutaStorage: res.rutaStorage, nombre: fileObj.name, tipo: res.tipo, fecha: res.fecha };
   aplicarRegistroEnSlot(meta, registro, pivotesRecibidos);
-  guardarBiblioteca(true); renderizarTodo();
-  if (window.self !== window.top && meta.tipo !== 'voz') window.parent.postMessage({ tipo: 'PIRO_SLOT_COMPLETADO', slotMeta: meta }, '*');
-  toast('Activo guardado en la nube.', 'exito');
+  const gRes = await guardarBiblioteca(true);
+  renderizarTodo();
+  if (window.self !== window.top && meta.tipo !== 'voz') {
+    window.parent.postMessage({ tipo: 'PIRO_SLOT_COMPLETADO', slotMeta: meta }, '*');
+    if (desdeEstudio) window.parent.postMessage({ tipo: 'PIRO_PNG_GUARDADO_OK' }, '*');
+  }
+  toast(gRes && gRes.offline ? 'Activo subido y guardado localmente.' : 'Activo guardado y confirmado en la nube.', 'exito');
+  return true;
 }
 
 window.quitarImagenSlot = async function(slotKey) {
@@ -1180,7 +1223,7 @@ window.crearTicketDesdeSlot = function(slotKey, esVariante) {
     mision: 'Personaje: ' + p.nombre,
         titulo: 'Crear ' + (spec.titulo || slotKey) + ' (' + p.nombre + ')',
     detalle: 'Pieza de marioneta para ' + p.nombre + ' (' + p.id + ').\nPreset Estudio PNG: ' + (spec.preset || 'per_cuerpo') + ' (1000x1600).\n\nPrompt sugerido para Gemini:\nPlaintext\n' + generarPromptPersonaje(p, slotKey),
-    slotMeta: { tipo: 'personaje', entidadId: p.id, slotKey: slotKey, esVariante: Boolean(esVariante) }
+        slotMeta: { tipo: 'personaje', entidadId: p.id, slotKey: slotKey, esVariante: Boolean(esVariante), preset: spec.preset || 'per_cuerpo', archivo: spec.archivo || slotKey, calcoUrl: obtenerCalcoInteligente(p, slotKey), pivotesIniciales: parsearPivotesPersonaje(p) }
   };
   enviarTicketAShell(ticket);
 };
@@ -1289,13 +1332,14 @@ window.ticketSlotEscenario = function(zonaId, campo) {
   const e = biblioteca.escenarios.find(function(x) { return x.id === selId.escenarios; });
   if (!e) return;
   const z = (e.zonas || []).find(function(x) { return x.id === zonaId; });
-  const prompt = '2D cartoon background illustration, BoJack Horseman art style, clean ink lines, empty ' + (e.nombre || '') + ' (' + (z ? z.nombre : zonaId) + '), NO characters, square 1:1 composition, lighting: ' + (e.iluminacion || 'flat daylight') + (campo === 'frente' ? '. Draw ONLY the foreground counter/furniture isolated on solid chroma green #00FF00.' : '.');
+    const estiloEsc = proyectoActivo.estilo_visual || '2D cartoon background illustration, BoJack Horseman art style, clean ink lines';
+  const prompt = 'Background illustration matching art direction (' + estiloEsc + '), empty ' + (e.nombre || '') + ' (' + (z ? z.nombre : zonaId) + '), NO characters, square 1:1 composition, lighting: ' + (e.iluminacion || 'flat daylight') + (campo === 'frente' ? '. Draw ONLY the foreground counter/furniture isolated on solid chroma green #00FF00.' : '.');
   enviarTicketAShell({
     codigo: e.id.toUpperCase() + '-' + zonaId.toUpperCase(),
     mision: 'Escenario: ' + e.nombre,
-        titulo: 'Crear ' + campo + '.png de ' + (z ? z.nombre : zonaId),
+    titulo: 'Crear ' + campo + '.png de ' + (z ? z.nombre : zonaId),
     detalle: 'Escenario 1920x1920.\n\nPrompt Gemini:\nPlaintext\n' + prompt,
-    slotMeta: { tipo: 'escenario', entidadId: e.id, zonaId: zonaId, campoZona: campo }
+    slotMeta: { tipo: 'escenario', entidadId: e.id, zonaId: zonaId, campoZona: campo, preset: campo === 'fondo' ? 'esc_fondo' : 'esc_frente', archivo: campo }
   });
 };
 
@@ -1360,7 +1404,7 @@ window.ticketSlotProp = function(propId) {
     mision: 'Capa 2 · Props & Audio',
     titulo: 'Preparar ' + pr.nombre + ' (' + pr.id + ')',
         detalle: 'Elemento de utilería (' + pr.categoria + '). Subir en Contenido -> Props & Audio.',
-    slotMeta: { tipo: 'prop', entidadId: pr.id }
+        slotMeta: { tipo: 'prop', entidadId: pr.id, preset: pr.categoria === 'fx' ? 'prop_fx' : 'prop_item', archivo: pr.id }
   });
 };
 
@@ -1661,12 +1705,12 @@ window.addEventListener('message', async function(e) {
     else if (e.data.entidad === 'escenario') window.cambiarCategoria('escenarios');
     else if (e.data.entidad === 'guion') window.cambiarCategoria('guiones');
     window.abrirModalCrear(e.data.entidad);
-  } else if (e.data.tipo === 'PIRO_PNG_RECIBIDO' && e.data.blob && e.data.slotMeta) {
+    } else if (e.data.tipo === 'PIRO_PNG_RECIBIDO' && e.data.blob && e.data.slotMeta) {
     const fileObj = new File([e.data.blob], e.data.nombreArchivo || 'pieza.png', { type: 'image/png' });
-    await subirYAsignarArchivoASlot(fileObj, e.data.slotMeta, e.data.pivotes || null);
+    await subirYAsignarArchivoASlot(fileObj, e.data.slotMeta, e.data.pivotes || null, true);
   } else if (e.data.tipo === 'PIRO_SHELL_VINCULAR_ASSET_TICKET' && e.data.slotMeta && e.data.registro) {
-    aplicarRegistroEnSlot(e.data.slotMeta, e.data.registro, null);
-    guardarBiblioteca(true); renderizarTodo();
+    aplicarRegistroEnSlot(e.data.slotMeta, e.data.registro, e.data.pivotes || null);
+    await guardarBiblioteca(true); renderizarTodo();
     toast('Pieza vinculada automáticamente desde Tickets.', 'exito');
   }
 });
