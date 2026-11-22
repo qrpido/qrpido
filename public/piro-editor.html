@@ -364,8 +364,14 @@ import { componerEscenaPiro, normalizarActoresEscena, extraerEnvolventeAudio, ob
 
 const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
 const CLAVE_VAULT = 'piro_api_vault_v1';
+function normalizarDocBibId(id, proyId) {
+  const s = String(id || '').trim();
+  if (!s || s === '__biblioteca_maestra__') return 'bib_pirobonianos';
+  const limpio = s.replace(/^_+/, '').replace(/_+$/, '');
+  return limpio || ('bib_' + (proyId || 'pirobonianos'));
+}
 let proyectoActivo = {
-  id: 'pirobonianos', nombre: 'Pirobonianos', docBibId: '__biblioteca_maestra__',
+  id: 'pirobonianos', nombre: 'Pirobonianos', docBibId: 'bib_pirobonianos',
   storageDir: 'biblioteca_contenido', plantilla: 'piro_rig', bilingue: false,
   estilo_visual: 'Vertical 9:16 2D cartoon animation frame, BoJack Horseman art style, clean black ink outlines, flat vibrant colors, no text or speech bubbles.'
 };
@@ -373,7 +379,8 @@ try {
   const rawP = localStorage.getItem(CLAVE_PROY_ACTIVO);
   if (rawP) { const parsed = JSON.parse(rawP); if (parsed && parsed.docBibId) proyectoActivo = Object.assign(proyectoActivo, parsed); }
 } catch (e) {}
-function getDocBibId() { return proyectoActivo.docBibId || '__biblioteca_maestra__'; }
+proyectoActivo.docBibId = normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id);
+function getDocBibId() { return normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id); }
 function getLocalBibKey() { return proyectoActivo.id === 'pirobonianos' ? 'piro_biblioteca_maestra_v1' : ('piro_bib_' + proyectoActivo.id + '_v1'); }
 function getEpStorageBucket(epId) { return proyectoActivo.id === 'pirobonianos' ? ('episodios_' + epId) : ('ep_' + proyectoActivo.id + '_' + epId); }
 function romanoAEntero(s) {
@@ -405,6 +412,7 @@ let clipSelIdx = 0;
 let vistaActual = 'guion';
 let zoomPxSeg = 44;
 let debounceSync = null;
+let hayCambiosPendientesEd = false;
 let vault = {
   llmProv: 'deepseek',
   keys: { deepseek: '', gemini: '', openai: '', openrouter: '' },
@@ -605,7 +613,7 @@ async function cargarBiblioteca() {
         biblioteca = res.data;
         try { localStorage.setItem(kLoc, JSON.stringify(biblioteca)); } catch (e) {}
       }
-      setSync('Nube OK', 'ok');
+            setSync(res.origen === 'nube' ? 'Nube OK' : 'Local', res.origen === 'nube' ? 'ok' : 'warn');
     } else {
       setSync('Local', 'warn');
     }
@@ -641,18 +649,25 @@ async function cargarBiblioteca() {
 }
 
 function guardarBiblioteca(inmediato) {
+  hayCambiosPendientesEd = true;
   biblioteca.tipo_doc = 'biblioteca';
   biblioteca.meta_proyecto = proyectoActivo;
   biblioteca.fecha_actualizacion = new Date().toISOString();
-  try { localStorage.setItem(getLocalBibKey(), JSON.stringify(biblioteca)); } catch (e) {}
+  const limpioJson = JSON.parse(JSON.stringify(biblioteca));
+  try { localStorage.setItem(getLocalBibKey(), JSON.stringify(limpioJson)); } catch (e) {}
   setSync('Guardando...', 'warn');
   clearTimeout(debounceSync);
   const run = async function() {
     if (!GeokatuDB.PirobonianosService) { setSync('Local', 'warn'); return; }
-    const res = await GeokatuDB.PirobonianosService.guardarProyectoEDT(getDocBibId(), biblioteca);
-    if (res.success && !res.offline) setSync('Nube OK', 'ok');
-    else setSync('Local', 'warn');
-    if (window.self !== window.top) window.parent.postMessage({ tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA' }, '*');
+    const res = await GeokatuDB.PirobonianosService.guardarProyectoEDT(getDocBibId(), limpioJson);
+    if (res.success && !res.offline) {
+      hayCambiosPendientesEd = false;
+      setSync('Nube OK', 'ok');
+    } else {
+      setSync('Local', 'warn');
+      if (res && res.error) toast('Aviso nube: ' + res.error, 'error');
+    }
+    if (window.self !== window.top) window.parent.postMessage({ tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA', origen: 'editor' }, '*');
   };
   if (inmediato) run();
   else debounceSync = setTimeout(run, 600);
@@ -1595,12 +1610,12 @@ window.addEventListener('message', function(e) {
 document.addEventListener('visibilitychange', function() {
   if (document.visibilityState === 'hidden') {
     guardarEstadoUIEditor();
-    if (biblioteca && Array.isArray(biblioteca.guiones) && biblioteca.guiones.length > 0) guardarBiblioteca(true);
+    if (hayCambiosPendientesEd && biblioteca && Array.isArray(biblioteca.guiones) && biblioteca.guiones.length > 0) guardarBiblioteca(true);
   }
 });
 window.addEventListener('pagehide', function() {
   guardarEstadoUIEditor();
-  if (biblioteca && Array.isArray(biblioteca.guiones) && biblioteca.guiones.length > 0) guardarBiblioteca(true);
+  if (hayCambiosPendientesEd && biblioteca && Array.isArray(biblioteca.guiones) && biblioteca.guiones.length > 0) guardarBiblioteca(true);
 });
 
 cargarVault();
