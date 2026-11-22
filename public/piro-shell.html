@@ -488,12 +488,18 @@ function guardarSesionShell() {
 }
 const CLAVE_INDICE_PROY = 'piro_indice_proyectos_v1';
 const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
-const DOC_INDICE_PROY = '__indice_proyectos__';
+const DOC_INDICE_PROY = 'indice_proyectos_studio';
+function normalizarDocBibId(id, proyId) {
+  const s = String(id || '').trim();
+  if (!s || s === '__biblioteca_maestra__') return 'bib_pirobonianos';
+  const limpio = s.replace(/^_+/, '').replace(/_+$/, '');
+  return limpio || ('bib_' + (proyId || 'pirobonianos'));
+}
 const PROYECTOS_BASE = [
   {
     id: 'pirobonianos',
     nombre: 'Pirobonianos',
-    docBibId: '__biblioteca_maestra__',
+    docBibId: 'bib_pirobonianos',
     storageDir: 'biblioteca_contenido',
     plantilla: 'piro_rig',
     bilingue: false,
@@ -503,7 +509,7 @@ const PROYECTOS_BASE = [
   {
     id: 'cruzando_la_frontera',
     nombre: 'Cruzando la Frontera',
-    docBibId: '__bib_cruzando_la_frontera__',
+    docBibId: 'bib_cruzando_la_frontera',
     storageDir: 'bib_cruzando_la_frontera',
     plantilla: 'scifi_hibrido',
     bilingue: true,
@@ -555,6 +561,10 @@ async function cargarProyectosStudio() {
       }
     } catch (e) {}
   }
+    listaProyectosStudio.forEach(function(p) {
+    if (p) p.docBibId = normalizarDocBibId(p.docBibId, p.id);
+  });
+  if (proyectoActivo) proyectoActivo.docBibId = normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id);
   PROYECTOS_BASE.forEach(function(base) {
     if (!listaProyectosStudio.some(function(x) { return x.id === base.id; })) listaProyectosStudio.push(base);
   });
@@ -692,7 +702,7 @@ window.PiroShell = {
     const nuevo = {
       id: idUnico,
       nombre: nom,
-      docBibId: '__bib_' + idUnico + '__',
+            docBibId: 'bib_' + idUnico,
       storageDir: 'bib_' + idUnico,
       plantilla: pl,
       bilingue: bil,
@@ -778,9 +788,9 @@ window.addEventListener('message', function(e) {
       tipo: 'PIRO_EDITOR_ABRIR_EPISODIO',
       episodioId: d.episodioId || null
     });
-  } else if (d.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA') {
-    if (cargados.contenido) enviarAFrame('contenido', { tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA' });
-    if (cargados.editor) enviarAFrame('editor', { tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA' });
+    } else if (d.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA') {
+    if (cargados.contenido && d.origen !== 'contenido') enviarAFrame('contenido', { tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA' });
+    if (cargados.editor && d.origen !== 'editor') enviarAFrame('editor', { tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA' });
   }
 });
 
