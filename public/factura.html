@@ -123,43 +123,100 @@
             font-size: 13px;
         }
 
-         /* Estilos limpios para impresión / guardado en PDF nativo */
- @media print {
- body { background: white; color: black; padding: 0; }
- .timer-badge, .btn-descargar, .btn-cta-mapa { display: none !important; }
- .tarjeta-ticket { border: 1px solid #ccc; box-shadow: none; background: white; color: black; overflow-wrap: anywhere; word-break: break-word; }
- .tabla-items td { border-bottom: 1px solid #eee; }
- #tkt-id, #tkt-cliente, #tkt-metodo, #tkt-total, #com-nombre, #com-nit, #com-dir, #bloque-cufe { color: black !important; }
- #bloque-cufe { background: #f5f5f5 !important; border: 1px solid #ddd; }
- }
+                 .desglose-tributario {
+            display: none;
+            flex-direction: column;
+            gap: 4px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed var(--border-soft);
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: monospace;
+        }
+        .desglose-fila {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .bloque-equivalente-ven {
+            display: none;
+            margin-top: 6px;
+            padding: 8px 10px;
+            border-radius: 10px;
+            background: rgba(96, 165, 250, 0.08);
+            border: 1px solid rgba(96, 165, 250, 0.25);
+            font-family: monospace;
+            font-size: 11px;
+            color: #93c5fd;
+        }
+        .badge-anulado {
+            display: none;
+            margin-bottom: 12px;
+            padding: 8px 10px;
+            border-radius: 10px;
+            background: rgba(255, 68, 68, 0.14);
+            border: 1px solid rgba(255, 68, 68, 0.45);
+            color: #fca5a5;
+            font-size: 11px;
+            font-weight: 900;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+        .estado-pantalla {
+            width: 100%;
+            max-width: 390px;
+            margin: 40px auto 0 auto;
+            background: var(--tarjeta-bg);
+            border: 1px solid var(--border-soft);
+            border-radius: 20px;
+            padding: 26px 20px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Estilos limpios para impresión / guardado en PDF nativo */
+        @media print {
+            body { background: white; color: black; padding: 0; }
+            .timer-badge, .btn-descargar, .btn-cta-mapa { display: none !important; }
+            .tarjeta-ticket { border: 1px solid #ccc; box-shadow: none; background: white; color: black; overflow-wrap: anywhere; word-break: break-word; }
+            .tabla-items td { border-bottom: 1px solid #eee; }
+            #tkt-id, #tkt-cliente, #tkt-metodo, #tkt-total, #com-nombre, #com-nit, #com-dir, #bloque-cufe, #bloque-desglose-tributario, #bloque-equivalente-ven { color: black !important; }
+            #bloque-cufe, #bloque-equivalente-ven { background: #f5f5f5 !important; border: 1px solid #ddd; }
+        }
     </style>
 </head>
 <body>
-    <div class="container-factura">
+        <div class="container-factura" id="contenedor-principal-factura">
         <div style="text-align: center;">
-             <div id="badge-timer" class="timer-badge">
- <span>⏱️</span>
- <span>Enlace válido por: <strong id="txt-tiempo-restante">24:00:00</strong></span>
- </div>
+            <div id="badge-timer" class="timer-badge">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+                <span>Enlace válido por: <strong id="txt-tiempo-restante">24:00:00</strong></span>
+            </div>
         </div>
 
-        <!-- TARJETA DEL TICKET DIGITAL -->
+        <!-- TARJETA DEL TICKET DIGITAL (UNIFICADA COL / VEN) -->
         <div id="tarjeta-captura" class="tarjeta-ticket">
+            <div id="badge-anulado" class="badge-anulado">Comprobante anulado</div>
             <div style="text-align: center; border-bottom: 1px solid var(--border-soft); padding-bottom: 14px; margin-bottom: 12px;">
                 <img id="com-logo" class="logo-comercio" alt="Logo">
                 <h2 id="com-nombre" style="margin: 4px 0; font-size: 18px; text-transform: uppercase;">COMERCIO</h2>
-                <p id="com-nit" style="margin: 2px 0; font-size: 11px; color: var(--text-muted);">NIT: ---</p>
+                <p id="com-nit" style="margin: 2px 0; font-size: 11px; color: var(--text-muted);">NIT / RIF: ---</p>
                 <p id="com-dir" style="margin: 2px 0; font-size: 10.5px; color: #888;">---</p>
             </div>
 
-            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); font-family: monospace;">
+            <div style="display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--text-muted); font-family: monospace;">
                 <span>TICKET: <strong id="tkt-id" style="color: #fff;">---</strong></span>
-                <span id="tkt-fecha">00/00/00 00:00</span>
+                <span id="tkt-fecha">Cargando...</span>
             </div>
 
-            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); font-family: monospace; margin-top: 4px;">
+            <div style="display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--text-muted); font-family: monospace; margin-top: 4px;">
                 <span>CLIENTE: <strong id="tkt-cliente" style="color: #fff;">Consumidor Final</strong></span>
-                <span>PAGO: <strong id="tkt-metodo" style="color: var(--accent-green);">EFECTIVO</strong></span>
+                <span>PAGO: <strong id="tkt-metodo" style="color: var(--accent-green);">---</strong></span>
             </div>
 
             <table class="tabla-items">
@@ -169,105 +226,136 @@
                         <th style="text-align: right;">TOTAL</th>
                     </tr>
                 </thead>
-                <tbody id="tkt-items-body"></tbody>
+                <tbody id="tkt-items-body">
+                    <tr><td colspan="2" style="text-align: center; color: #777; padding: 14px 0;">Consultando comprobante seguro...</td></tr>
+                </tbody>
             </table>
 
+            <div id="bloque-desglose-tributario" class="desglose-tributario"></div>
+
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-soft);">
-                <span style="font-size: 13px; font-weight: bold;">TOTAL PAGADO:</span>
+                <span id="lbl-total-pagado" style="font-size: 13px; font-weight: bold;">TOTAL PAGADO:</span>
                 <strong id="tkt-total" style="font-size: 21px; font-family: monospace; color: var(--color-terciario);">$0</strong>
             </div>
 
-            <div id="bloque-cufe" style="display: none; margin-top: 12px; font-size: 8px; font-family: monospace; word-break: break-all; color: #777; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 8px;">
+            <div id="bloque-equivalente-ven" class="bloque-equivalente-ven">
+                <div class="desglose-fila"><span>Equivalente en Bolívares:</span><strong id="tkt-total-ves">Bs. 0,00</strong></div>
+                <div class="desglose-fila" style="margin-top: 3px; opacity: 0.85;"><span>Tasa aplicada:</span><span id="tkt-tasa-ven">---</span></div>
+            </div>
+
+            <div id="bloque-cufe" style="display: none; margin-top: 12px; font-size: 8.5px; font-family: monospace; word-break: break-all; color: #9ca3af; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 8px;">
+                <div id="fila-consecutivo-dian" style="display: none; margin-bottom: 4px;"><strong>CONSECUTIVO:</strong> <span id="txt-consecutivo-val">---</span></div>
                 <strong>CUFE DIAN:</strong> <span id="txt-cufe-val">---</span>
             </div>
 
-            <div style="text-align: center; margin-top: 14px; font-size: 9px; color: #777;">
-                <p style="margin: 0;">🌱 Documento digital ecológico sin uso de papel.</p>
-                <p style="margin: 2px 0;">Tecnología Geokatu B2B</p>
+            <div style="text-align: center; margin-top: 14px; font-size: 9.5px; color: #888;">
+                <p style="margin: 0; display: inline-flex; align-items: center; gap: 5px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>
+                    <span>Documento digital ecológico sin uso de papel.</span>
+                </p>
+                <p style="margin: 3px 0 0 0;">Tecnología GeoKATU B2B</p>
             </div>
         </div>
 
         <button id="btn-guardar-img" class="btn-descargar" onclick="window.imprimirOGuardar()">
-            <span>📥</span> Guardar o Imprimir Comprobante
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Guardar o Imprimir Comprobante</span>
         </button>
 
         <!-- CANAL DE ADQUISICIÓN HACIA EL MAPA GEOKATU -->
         <a href="index.html" class="btn-cta-mapa">
-            <strong>📍 Explora Comercios Cercanos en GEOKATU</strong>
+            <strong style="display: inline-flex; align-items: center; gap: 6px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                <span>Explora Comercios Cercanos en GEOKATU</span>
+            </strong>
             <span style="font-size: 11px; color: var(--text-muted);">Descubre tiendas, restaurantes y promociones en el radar</span>
         </a>
     </div>
 
-    <script type="module">
+        <script type="module">
         import { db } from './firebase-config.js';
-        import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
         const params = new URLSearchParams(window.location.search);
-        const idNegocio = params.get('com');
-        const ticketId = params.get('tkt');
-        const exp = parseInt(params.get('exp'), 10);
-        const sig = params.get('sig');
+        const idNegocio = (params.get('com') || '').trim();
+        const ticketId = (params.get('tkt') || '').trim();
+        const expRaw = (params.get('exp') || '').trim();
+        const exp = parseInt(expRaw, 10);
+        const sig = (params.get('sig') || '').trim().toLowerCase();
 
-        // 1. Verificación de firma y caducidad de 60 minutos
-        async function validarFirma(tkt, comercio, expira, firma) {
-            const encoder = new TextEncoder();
-            const data = encoder.encode(`${tkt}:${comercio}:${expira}:GEOKATU_PUBLIC_TKT_SALT`);
-            const buffer = await crypto.subtle.digest('SHA-256', data);
-            const hashArray = Array.from(new Uint8Array(buffer));
-            const calculada = hashArray.map(b => b.toString(16).padStart(2, '0')).slice(0, 16).join('');
-            return calculada === firma;
+        function escaparHtmlFactura(texto) {
+            if (texto === null || texto === undefined) return '';
+            return String(texto)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function mostrarEstadoPantalla(titulo, detalle, color, permitirReintento) {
+            const btnHtml = permitirReintento
+                ? '<button type="button" onclick="window.location.reload()" style="margin-top:8px; padding:10px 18px; border-radius:10px; border:none; background:var(--color-marca); color:#fff; font-weight:800; font-size:12px; cursor:pointer;">Reintentar</button>'
+                : '';
+            document.body.innerHTML =
+                '<div class="estado-pantalla">' +
+                '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="' + color + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
+                '<h3 style="margin:0; color:' + color + '; font-size:16px;">' + escaparHtmlFactura(titulo) + '</h3>' +
+                '<p style="margin:0; color:#9ca3af; font-size:12px; line-height:1.45;">' + escaparHtmlFactura(detalle) + '</p>' +
+                btnHtml +
+                '<a href="index.html" style="margin-top:6px; color:var(--color-marca); font-weight:700; font-size:12px; text-decoration:none;">Ir al Mapa GEOKATU</a>' +
+                '</div>';
         }
 
         async function inicializarVisor() {
-            if (!idNegocio || !ticketId || !exp || !sig) {
-                document.body.innerHTML = `<h3 style="color:#ff4444; text-align:center; margin-top:40px;">Enlace de comprobante incompleto o corrupto.</h3>`;
+            if (!idNegocio || !ticketId || !Number.isFinite(exp) || !sig) {
+                mostrarEstadoPantalla('Enlace incompleto o corrupto', 'Solicita al comercio que genere nuevamente tu comprobante digital.', '#ff4444', false);
                 return;
             }
 
-            const firmaValida = await validarFirma(ticketId, idNegocio, exp, sig);
-            if (!firmaValida) {
-                document.body.innerHTML = `<h3 style="color:#ff4444; text-align:center; margin-top:40px;">Firma de seguridad inválida.</h3>`;
+            if (Date.now() > exp) {
+                mostrarEstadoPantalla('Enlace temporal expirado', 'Por seguridad y privacidad, los comprobantes digitales públicos caducan al cumplirse 24 horas.', '#ffaa00', false);
                 return;
             }
-
-             const ahora = Date.now();
- if (ahora > exp) {
- document.body.innerHTML =
-  '<div style="text-align:center; padding: 40px 20px;">' +
-  '<span style="font-size: 48px;">⏱️</span>' +
-  '<h3 style="color:#ffaa00;">Este enlace de factura temporal ha expirado (Límite 24 horas).</h3>' +
-  '<p style="color:#888; font-size:12px;">Por seguridad y privacidad, los comprobantes públicos temporales caducan al cumplirse 24 horas.</p>' +
-  '<a href="index.html" style="color:var(--color-marca); font-weight:bold; font-size:13px;">Ir al Mapa GEOKATU</a>' +
-  '</div>';
- return;
- }
 
             iniciarContador(exp);
 
-            // Cargar datos en paralelo: El Comercio (Branding + Fiscal) y La Venta
-            try {
-                const [snapNegocio, snapVenta] = await Promise.all([
-                    getDoc(doc(db, "Directorio", idNegocio)),
-                    getDoc(doc(db, `Directorio/${idNegocio}/Ventas_POS`, ticketId))
-                ]);
+            const projectId = (db && db.app && db.app.options && db.app.options.projectId) ? db.app.options.projectId : 'geo-katu';
+            const endpoint = 'https://us-central1-' + encodeURIComponent(projectId) + '.cloudfunctions.net/obtenerComprobantePublico' +
+                '?com=' + encodeURIComponent(idNegocio) +
+                '&tkt=' + encodeURIComponent(ticketId) +
+                '&exp=' + encodeURIComponent(expRaw) +
+                '&sig=' + encodeURIComponent(sig);
 
-                if (!snapVenta.exists()) {
-                    document.body.innerHTML = `<h3 style="color:#ff4444; text-align:center; margin-top:40px;">Comprobante no encontrado en el sistema.</h3>`;
+            try {
+                const resp = await fetch(endpoint, { method: 'GET', cache: 'no-store' });
+                const data = await resp.json().catch(function() { return null; });
+
+                if (!resp.ok || !data || !data.success) {
+                    const codigo = data && data.code ? data.code : '';
+                    if (resp.status === 404 || codigo === 'NO_ENCONTRADO') {
+                        mostrarEstadoPantalla('Comprobante en sincronización', 'Si la caja operaba sin internet, el ticket aparecerá en cuanto el comercio recupere conexión.', '#ffaa00', true);
+                        return;
+                    }
+                    if (resp.status === 410 || codigo === 'EXPIRADO') {
+                        mostrarEstadoPantalla('Enlace temporal expirado', 'Este comprobante superó el límite de vigencia de 24 horas.', '#ffaa00', false);
+                        return;
+                    }
+                    if (resp.status === 403 || codigo === 'FIRMA_INVALIDA') {
+                        mostrarEstadoPantalla('Firma de seguridad inválida', 'El enlace fue alterado o no corresponde a un ticket emitido por el comercio.', '#ff4444', false);
+                        return;
+                    }
+                    mostrarEstadoPantalla('No se pudo abrir el comprobante', (data && data.mensaje) || 'Error temporal del servidor.', '#ff4444', true);
                     return;
                 }
 
-                if (snapNegocio.exists()) {
-                    aplicarBrandingNegocio(snapNegocio.data());
-                }
-
-                renderizarDatosTicket(snapVenta.data());
+                aplicarBrandingNegocio(data.comercio || {}, data.venta || {});
+                renderizarDatosTicket(data.venta || {});
             } catch (e) {
-                document.body.innerHTML = `<h3 style="color:#ff4444; text-align:center; margin-top:40px;">Error de red cargando el comprobante.</h3>`;
+                mostrarEstadoPantalla('Error de conexión', 'No pudimos conectar con el servidor de comprobantes. Verifica tu conexión e intenta de nuevo.', '#ffaa00', true);
             }
         }
 
-        function aplicarBrandingNegocio(n) {
-            // Aplicar la paleta del negocio de forma limpia
+        function aplicarBrandingNegocio(n, venta) {
             const c1 = n.color_principal || '#ff6b00';
             const c2 = n.color_acento || c1;
             const c3 = n.color_terciario || '#00ff64';
@@ -277,91 +365,160 @@
             root.style.setProperty('--color-secundario', c2);
             root.style.setProperty('--color-terciario', c3);
 
-            // Nombre y Logo
-            document.getElementById('com-nombre').innerText = n.nombre || 'Comercio';
+            const esVen = String((venta && venta.pais_operacion) || n.pais || 'COL').toUpperCase() === 'VEN';
+            const pf = n.perfil_fiscal || {};
+            const pfv = n.perfil_fiscal_ven || {};
+
+            document.getElementById('com-nombre').innerText = (esVen ? (pfv.razon_social || n.nombre) : (pf.razon_social || n.nombre)) || 'Comercio';
             if (n.logo) {
                 const imgLogo = document.getElementById('com-logo');
                 imgLogo.src = n.logo;
                 imgLogo.style.display = 'inline-block';
             }
 
-            // Datos Fiscales (de la Bóveda)
-            const f = n.perfil_fiscal;
-            if (f && f.nit) {
-                document.getElementById('com-nit').innerText = `NIT: ${f.nit}-${f.dv || '0'} (${f.regimen_tributario || ''})`;
-                document.getElementById('com-dir').innerText = f.direccion || n.direccion || 'Pereira, Risaralda';
+            if (esVen) {
+                const rif = pfv.rif || pf.nit || '';
+                document.getElementById('com-nit').innerText = rif ? ('RIF: ' + rif) : 'Nota de Entrega Digital';
+                document.getElementById('com-dir').innerText = pfv.direccion || n.direccion || 'Venezuela';
+            } else if (pf.nit) {
+                const reg = pf.regimen_tributario ? (' (' + pf.regimen_tributario.replace(/_/g, ' ') + ')') : '';
+                document.getElementById('com-nit').innerText = 'NIT: ' + pf.nit + (pf.dv ? ('-' + pf.dv) : '') + reg;
+                document.getElementById('com-dir').innerText = pf.direccion || n.direccion || 'Colombia';
             } else {
-                document.getElementById('com-nit').innerText = `Régimen Simplificado`;
-                document.getElementById('com-dir').innerText = n.direccion || 'Pereira, Risaralda';
+                document.getElementById('com-nit').innerText = 'Documento Equivalente POS';
+                document.getElementById('com-dir').innerText = n.direccion || 'Colombia';
             }
         }
 
-         function escaparHtmlFactura(texto) {
- if (texto === null || texto === undefined) return '';
- return String(texto)
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;');
- }
+        function renderizarDatosTicket(venta) {
+            const esVen = String(venta.pais_operacion || 'COL').toUpperCase() === 'VEN';
+            const badgeAnulado = document.getElementById('badge-anulado');
+            if (badgeAnulado) badgeAnulado.style.display = venta.anulado ? 'block' : 'none';
 
- function renderizarDatosTicket(venta) {
- document.getElementById('tkt-id').innerText = ticketId.substring(0, 10);
- document.getElementById('tkt-fecha').innerText = new Date(venta.timestamp_caja || Date.now()).toLocaleString('es-CO');
- document.getElementById('tkt-cliente').innerText = (venta.cliente && venta.cliente.nombre) ? venta.cliente.nombre : "Consumidor Final";
- let txtMetodo = venta.metodo_pago || "EFECTIVO";
- if (Array.isArray(venta.metodos_pago_split) && venta.metodos_pago_split.length > 0) {
-  txtMetodo = venta.metodos_pago_split.map(function(mp) {
-   return mp.metodo + ': $' + Number(mp.monto || 0).toLocaleString('es-CO');
-  }).join(' | ');
- }
- document.getElementById('tkt-metodo').innerText = txtMetodo;
- document.getElementById('tkt-total').innerText = '$' + Number(venta.total || 0).toLocaleString('es-CO');
+            const tktMostrar = String(venta.ticketId || ticketId);
+            document.getElementById('tkt-id').innerText = tktMostrar.substring(0, 12);
+            document.getElementById('tkt-fecha').innerText = new Date(venta.timestamp_caja || Date.now()).toLocaleString(esVen ? 'es-VE' : 'es-CO');
+            document.getElementById('tkt-cliente').innerText = (venta.cliente && venta.cliente.nombre) ? venta.cliente.nombre : 'Consumidor Final';
 
- const tbody = document.getElementById('tkt-items-body');
- tbody.innerHTML = '';
- (venta.productos || []).forEach(function(p) {
-  const sub = (p.subtotal !== undefined && p.subtotal !== null)
-   ? Math.round(Number(p.subtotal))
-   : (p.precio_fijado_balanza ? Math.round(Number(p.precio)) : Math.round(Number(p.precio) * Number(p.cantidad)));
-  const cantTxt = p.es_pesable
-   ? (p.cantidad + ' ' + (p.unidad_medida || 'kg'))
-   : (p.cantidad + 'x');
-  const notaHtml = p.nota
-   ? ('<br><span style="font-size: 10px; color: #ffaa00; font-style: italic;">* ' + escaparHtmlFactura(p.nota) + '</span>')
-   : '';
-  tbody.innerHTML +=
-   '<tr>' +
-   '<td>' + escaparHtmlFactura(cantTxt) + ' ' + escaparHtmlFactura(p.nombre) + notaHtml + '</td>' +
-   '<td style="text-align: right; font-family: monospace;">$' + sub.toLocaleString('es-CO') + '</td>' +
-   '</tr>';
- });
+            let txtMetodo = venta.metodo_pago || (esVen ? 'EFECTIVO_USD' : 'EFECTIVO');
+            if (Array.isArray(venta.metodos_pago_split) && venta.metodos_pago_split.length > 0) {
+                txtMetodo = venta.metodos_pago_split.map(function(mp) {
+                    if (esVen && mp.moneda_original) {
+                        const mOrig = Number(mp.monto_original || 0);
+                        const fmtOrig = mp.moneda_original === 'USD'
+                            ? ('$' + mOrig.toFixed(2))
+                            : (mp.moneda_original === 'VES' ? ('Bs. ' + mOrig.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })) : ('$' + Math.round(mOrig).toLocaleString('es-CO') + ' COP'));
+                        return mp.metodo + ': ' + fmtOrig;
+                    }
+                    return mp.metodo + ': $' + Math.round(Number(mp.monto || 0)).toLocaleString('es-CO');
+                }).join(' | ');
+            }
+            document.getElementById('tkt-metodo').innerText = txtMetodo;
 
- if (venta.despacho_fiscal && venta.despacho_fiscal.cufe) {
-  document.getElementById('bloque-cufe').style.display = 'block';
-  document.getElementById('txt-cufe-val').innerText = venta.despacho_fiscal.cufe;
- }
- }
+            const tbody = document.getElementById('tkt-items-body');
+            tbody.innerHTML = '';
+            (venta.productos || []).forEach(function(p) {
+                const cantTxt = p.es_pesable
+                    ? (p.cantidad + ' ' + (p.unidad_medida || 'kg'))
+                    : (p.cantidad + 'x');
+                const notaHtml = p.nota
+                    ? ('<br><span style="font-size: 10px; color: #ffaa00; font-style: italic;">* ' + escaparHtmlFactura(p.nota) + '</span>')
+                    : '';
+                let subTexto = '';
+                if (esVen) {
+                    const subUsd = (p.subtotal_usd !== undefined && p.subtotal_usd !== null)
+                        ? Number(p.subtotal_usd)
+                        : (p.precio_fijado_balanza ? Number(p.precio_usd || p.precio || 0) : Number(((Number(p.precio_usd || p.precio || 0)) * Number(p.cantidad || 0)).toFixed(2)));
+                    subTexto = '$' + subUsd.toFixed(2);
+                } else {
+                    const subCop = (p.subtotal !== undefined && p.subtotal !== null)
+                        ? Math.round(Number(p.subtotal))
+                        : (p.precio_fijado_balanza ? Math.round(Number(p.precio || 0)) : Math.round(Number(p.precio || 0) * Number(p.cantidad || 0)));
+                    subTexto = '$' + subCop.toLocaleString('es-CO');
+                }
+                tbody.innerHTML +=
+                    '<tr>' +
+                    '<td>' + escaparHtmlFactura(cantTxt) + ' ' + escaparHtmlFactura(p.nombre) + notaHtml + '</td>' +
+                    '<td style="text-align: right; font-family: monospace;">' + subTexto + '</td>' +
+                    '</tr>';
+            });
 
- function iniciarContador(expiraMs) {
- const txt = document.getElementById('txt-tiempo-restante');
- function actualizarReloj() {
-  const restante = Math.max(0, expiraMs - Date.now());
-  const hrs = Math.floor(restante / 3600000);
-  const mins = Math.floor((restante % 3600000) / 60000);
-  const segs = Math.floor((restante % 60000) / 1000);
-  txt.innerText = String(hrs).padStart(2, '0') + ':' + String(mins).padStart(2, '0') + ':' + String(segs).padStart(2, '0');
-  return restante;
- }
- actualizarReloj();
- const intervalo = setInterval(function() {
-  if (actualizarReloj() <= 0) {
-   clearInterval(intervalo);
-   window.location.reload();
-  }
- }, 1000);
- }
+            const boxDesglose = document.getElementById('bloque-desglose-tributario');
+            const boxVen = document.getElementById('bloque-equivalente-ven');
+            const lblTotal = document.getElementById('lbl-total-pagado');
+
+            if (esVen) {
+                const totUsd = Number(venta.total_usd !== undefined ? venta.total_usd : (venta.total || 0));
+                if (lblTotal) lblTotal.innerText = 'TOTAL PAGADO (USD):';
+                document.getElementById('tkt-total').innerText = '$' + totUsd.toFixed(2);
+
+                if (boxDesglose) {
+                    const filas = [];
+                    if (venta.base_gravable_usd) filas.push('<div class="desglose-fila"><span>Base Gravable:</span><span>$' + Number(venta.base_gravable_usd).toFixed(2) + '</span></div>');
+                    if (venta.iva_16_usd) filas.push('<div class="desglose-fila"><span>IVA 16%:</span><span>$' + Number(venta.iva_16_usd).toFixed(2) + '</span></div>');
+                    if (venta.igtf_usd) filas.push('<div class="desglose-fila" style="color:#f59e0b;"><span>IGTF 3%:</span><span>$' + Number(venta.igtf_usd).toFixed(2) + '</span></div>');
+                    if (venta.exento_usd) filas.push('<div class="desglose-fila"><span>Exento:</span><span>$' + Number(venta.exento_usd).toFixed(2) + '</span></div>');
+                    if (filas.length > 0) {
+                        boxDesglose.innerHTML = filas.join('');
+                        boxDesglose.style.display = 'flex';
+                    }
+                }
+
+                if (boxVen && venta.total_ves !== undefined) {
+                    document.getElementById('tkt-total-ves').innerText = 'Bs. ' + Number(venta.total_ves || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    const tasaTxt = venta.tasa_aplicada ? ('Bs. ' + Number(venta.tasa_aplicada).toFixed(2) + ' / $ (' + (venta.tipo_tasa || 'BCV') + ')') : '---';
+                    document.getElementById('tkt-tasa-ven').innerText = tasaTxt;
+                    boxVen.style.display = 'block';
+                }
+            } else {
+                if (lblTotal) lblTotal.innerText = 'TOTAL PAGADO:';
+                document.getElementById('tkt-total').innerText = '$' + Math.round(Number(venta.total || 0)).toLocaleString('es-CO');
+                if (boxVen) boxVen.style.display = 'none';
+
+                const totFisc = (venta.despacho_fiscal && venta.despacho_fiscal.totales) ? venta.despacho_fiscal.totales : venta.desglose_tributario;
+                if (boxDesglose && totFisc) {
+                    const baseC = Math.round(Number(totFisc.base_gravable || 0));
+                    const ivaC = Math.round(Number(totFisc.impuesto_iva || totFisc.iva_19 || 0));
+                    const exC = Math.round(Number(totFisc.total_exento || totFisc.exento || 0));
+                    if (baseC > 0 || ivaC > 0 || exC > 0) {
+                        boxDesglose.innerHTML =
+                            '<div class="desglose-fila"><span>Base Gravable:</span><span>$' + baseC.toLocaleString('es-CO') + '</span></div>' +
+                            '<div class="desglose-fila"><span>IVA 19%:</span><span>$' + ivaC.toLocaleString('es-CO') + '</span></div>' +
+                            '<div class="desglose-fila"><span>Exento / Excluido:</span><span>$' + exC.toLocaleString('es-CO') + '</span></div>';
+                        boxDesglose.style.display = 'flex';
+                    }
+                }
+            }
+
+            if (venta.despacho_fiscal && venta.despacho_fiscal.cufe) {
+                document.getElementById('bloque-cufe').style.display = 'block';
+                document.getElementById('txt-cufe-val').innerText = venta.despacho_fiscal.cufe;
+                if (venta.despacho_fiscal.consecutivo) {
+                    document.getElementById('fila-consecutivo-dian').style.display = 'block';
+                    document.getElementById('txt-consecutivo-val').innerText = venta.despacho_fiscal.consecutivo;
+                }
+            }
+        }
+
+        function iniciarContador(expiraMs) {
+            const txt = document.getElementById('txt-tiempo-restante');
+            if (!txt) return;
+            function actualizarReloj() {
+                const restante = Math.max(0, expiraMs - Date.now());
+                const hrs = Math.floor(restante / 3600000);
+                const mins = Math.floor((restante % 3600000) / 60000);
+                const segs = Math.floor((restante % 60000) / 1000);
+                txt.innerText = String(hrs).padStart(2, '0') + ':' + String(mins).padStart(2, '0') + ':' + String(segs).padStart(2, '0');
+                return restante;
+            }
+            actualizarReloj();
+            const intervalo = setInterval(function() {
+                if (actualizarReloj() <= 0) {
+                    clearInterval(intervalo);
+                    window.location.reload();
+                }
+            }, 1000);
+        }
 
         window.imprimirOGuardar = function() {
             window.print();
