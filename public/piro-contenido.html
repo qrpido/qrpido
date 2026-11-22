@@ -315,8 +315,14 @@ import GeokatuDB from './core-db.js';
 import { dibujarMarionetaPiro, cargarImagenPiro } from './piro-compositor.js';
 
 const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
+function normalizarDocBibId(id, proyId) {
+  const s = String(id || '').trim();
+  if (!s || s === '__biblioteca_maestra__') return 'bib_pirobonianos';
+  const limpio = s.replace(/^_+/, '').replace(/_+$/, '');
+  return limpio || ('bib_' + (proyId || 'pirobonianos'));
+}
 let proyectoActivo = {
-  id: 'pirobonianos', nombre: 'Pirobonianos', docBibId: '__biblioteca_maestra__',
+  id: 'pirobonianos', nombre: 'Pirobonianos', docBibId: 'bib_pirobonianos',
   storageDir: 'biblioteca_contenido', plantilla: 'piro_rig', bilingue: false,
   tipo_personaje: 'Anthropomorphic dog',
   estilo_visual: 'A 2D cartoon animation character, BoJack Horseman style, clean black ink outlines, flat vibrant colors.'
@@ -325,7 +331,8 @@ try {
   const rawP = localStorage.getItem(CLAVE_PROY_ACTIVO);
   if (rawP) { const parsed = JSON.parse(rawP); if (parsed && parsed.docBibId) proyectoActivo = Object.assign(proyectoActivo, parsed); }
 } catch (e) {}
-function getDocBibId() { return proyectoActivo.docBibId || '__biblioteca_maestra__'; }
+proyectoActivo.docBibId = normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id);
+function getDocBibId() { return normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id); }
 function getLocalBibKey() { return proyectoActivo.id === 'pirobonianos' ? 'piro_biblioteca_maestra_v1' : ('piro_bib_' + proyectoActivo.id + '_v1'); }
 function getStorageDir() { return proyectoActivo.storageDir || 'biblioteca_contenido'; }
 function actualizarBadgeProy() { const b = document.getElementById('badge-proy-cont'); if (b) b.textContent = proyectoActivo.nombre || 'Pirobonianos'; }
@@ -420,6 +427,7 @@ const sandwichImgCache = {};
 let slotUploadPendiente = null;
 let tipoModalCrear = null;
 let debounceGuardar = null;
+let hayCambiosPendientes = false;
 
 function esc(s) {
   return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -521,12 +529,12 @@ async function cargarBiblioteca() {
 
   if (GeokatuDB.PirobonianosService && navigator.onLine) {
     const res = await GeokatuDB.PirobonianosService.obtenerProyectoEDT(getDocBibId());
-    if (res.success && res.data && Array.isArray(res.data.personajes)) {
+        if (res.success && res.data && Array.isArray(res.data.personajes)) {
       if (!biblioteca.fecha_actualizacion || String(res.data.fecha_actualizacion || '') >= String(biblioteca.fecha_actualizacion)) {
         biblioteca = res.data;
         try { localStorage.setItem(kLoc, JSON.stringify(biblioteca)); } catch (e) {}
       }
-      setSyncBadge('Nube OK', 'ok');
+      setSyncBadge(res.origen === 'nube' ? 'Nube OK' : 'Local', res.origen === 'nube' ? 'ok' : 'warn');
     } else if (res.success) {
       setSyncBadge('Nube lista', 'ok');
     } else {
@@ -560,17 +568,25 @@ async function cargarBiblioteca() {
 }
 
 function guardarBiblioteca(inmediato) {
+  hayCambiosPendientes = true;
   biblioteca.tipo_doc = 'biblioteca';
   biblioteca.meta_proyecto = proyectoActivo;
   biblioteca.fecha_actualizacion = new Date().toISOString();
-  try { localStorage.setItem(getLocalBibKey(), JSON.stringify(biblioteca)); } catch (e) {}
+  const limpioJson = JSON.parse(JSON.stringify(biblioteca));
+  try { localStorage.setItem(getLocalBibKey(), JSON.stringify(limpioJson)); } catch (e) {}
   setSyncBadge('Guardando...', 'warn');
   clearTimeout(debounceGuardar);
   const run = async function() {
     if (!GeokatuDB.PirobonianosService) { setSyncBadge('Local', 'warn'); return { success: false, offline: true }; }
-    const res = await GeokatuDB.PirobonianosService.guardarProyectoEDT(getDocBibId(), biblioteca);
-    if (res.success && !res.offline) setSyncBadge('Nube OK', 'ok');
-    else setSyncBadge('Local', 'warn');
+    const res = await GeokatuDB.PirobonianosService.guardarProyectoEDT(getDocBibId(), limpioJson);
+    if (res.success && !res.offline) {
+      hayCambiosPendientes = false;
+      setSyncBadge('Nube OK', 'ok');
+    } else {
+      setSyncBadge('Local', 'warn');
+      if (res && res.error) toast('Aviso nube: ' + res.error, 'error');
+    }
+    if (window.self !== window.top) window.parent.postMessage({ tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA', origen: 'contenido' }, '*');
     return res;
   };
   if (inmediato) return run();
@@ -1725,12 +1741,12 @@ function guardarEstadoUICont() {
 document.addEventListener('visibilitychange', function() {
   if (document.visibilityState === 'hidden') {
     guardarEstadoUICont();
-    if (biblioteca && Array.isArray(biblioteca.personajes) && biblioteca.personajes.length > 0) guardarBiblioteca(true);
+    if (hayCambiosPendientes && biblioteca && Array.isArray(biblioteca.personajes) && biblioteca.personajes.length > 0) guardarBiblioteca(true);
   }
 });
 window.addEventListener('pagehide', function() {
   guardarEstadoUICont();
-  if (biblioteca && Array.isArray(biblioteca.personajes) && biblioteca.personajes.length > 0) guardarBiblioteca(true);
+  if (hayCambiosPendientes && biblioteca && Array.isArray(biblioteca.personajes) && biblioteca.personajes.length > 0) guardarBiblioteca(true);
 });
 
 GeokatuDB.SecurityService.observarEstadoSesion(function(user) {
