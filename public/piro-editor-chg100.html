@@ -1,0 +1,1729 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>GEOKATU Studio · Editor Zero-Scroll</title>
+<style>
+  :root {
+    --bg: #07090e;
+    --panel: #101521;
+    --panel-2: #171f30;
+    --border: rgba(255, 255, 255, 0.11);
+    --border-hi: rgba(255, 255, 255, 0.24);
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --naranja: #ff6b00;
+    --miel: #ffb300;
+    --verde: #22c55e;
+    --azul: #38bdf8;
+    --rojo: #ef4444;
+    --morado: #a855f7;
+    --radius: 13px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; height: 100dvh;
+    overflow: hidden; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px; line-height: 1.38;
+  }
+  button, input, textarea, select { font-family: inherit; color: var(--text); }
+  .svg-ico { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+  .hidden { display: none !important; }
+
+  .app { display: flex; flex-direction: column; width: 100%; height: 100%; height: 100dvh; overflow: hidden; background: var(--bg); }
+
+  /* BARRA SUPERIOR COMPACTA 44PX + BOTÓN NARANJA ▶ IZQUIERDO */
+  .top-slim {
+    height: 44px; flex-shrink: 0; padding: 0 8px;
+    background: rgba(11, 15, 23, 0.98); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  }
+  .top-left { display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1; }
+  .btn-drawer-orange {
+    width: 34px; height: 32px; flex-shrink: 0; border-radius: 9px;
+    border: 1px solid #ff8533;
+    background: linear-gradient(135deg, var(--naranja), #ea580c);
+    color: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 10px rgba(255, 107, 0, 0.35);
+  }
+  .btn-drawer-orange:active { transform: scale(0.94); }
+  .ctx-title { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+  .ctx-title strong { font-size: 12.5px; font-weight: 900; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ctx-title small { font-size: 10px; color: var(--azul); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    padding: 6px 10px; border-radius: 9px; border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.06); font-size: 11.5px; font-weight: 800;
+    cursor: pointer; white-space: nowrap;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-primary { background: linear-gradient(135deg, var(--naranja), #ea580c); border-color: var(--naranja); color: #fff; }
+  .btn-blue { background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.45); color: var(--azul); }
+  .btn-green { background: rgba(34, 197, 94, 0.18); border-color: rgba(34, 197, 94, 0.5); color: #86efac; }
+  .btn-purple { background: rgba(168, 85, 247, 0.18); border-color: rgba(168, 85, 247, 0.48); color: #d8b4fe; }
+  .btn-danger { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.45); color: #fca5a5; }
+  .btn-xs { padding: 4px 8px; font-size: 10.5px; border-radius: 7px; }
+  .inp, .txt, .sel {
+    width: 100%; padding: 6px 8px; border-radius: 8px;
+    border: 1px solid var(--border); background: rgba(5, 8, 14, 0.85);
+    font-size: 12px; outline: none;
+  }
+  .inp:focus, .txt:focus, .sel:focus { border-color: var(--naranja); }
+  .pill {
+    font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 99px;
+    border: 1px solid var(--border); background: rgba(255, 255, 255, 0.05); color: var(--muted); white-space: nowrap;
+  }
+  .pill.ok { color: #86efac; border-color: rgba(34, 197, 94, 0.45); background: rgba(34, 197, 94, 0.14); }
+  .pill.warn { color: #fcd34d; border-color: rgba(245, 158, 11, 0.45); background: rgba(245, 158, 11, 0.14); }
+  .field { margin-bottom: 7px; }
+  .field label { display: block; font-size: 10px; font-weight: 800; color: var(--muted); margin-bottom: 3px; text-transform: uppercase; }
+
+  /* VISTAS INTERNAS ZERO-SCROLL */
+  .view-pane { flex: 1; min-height: 0; overflow: hidden; display: none; flex-direction: column; }
+  .view-pane.activa { display: flex; }
+
+  /* GUION IA ZERO-SCROLL */
+  .compact-pane {
+    flex: 1; min-height: 0; padding: 10px; display: flex; flex-direction: column; gap: 7px;
+    overflow: hidden; max-width: 780px; width: 100%; margin: 0 auto;
+  }
+  .carousel-stage {
+    flex: 1; min-height: 0; display: flex; align-items: stretch; gap: 10px;
+    overflow-x: auto; overflow-y: hidden; padding: 10px; scroll-snap-type: x mandatory;
+  }
+  .slide-card {
+    flex: 0 0 min(88vw, 340px); height: 100%; scroll-snap-align: center;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    padding: 10px; display: flex; flex-direction: column; gap: 7px; overflow: hidden;
+  }
+
+  /* TIMELINE STAGE + PISTAS + DOCK SNAPSEED */
+  .tl-stage-wrap {
+    flex: 1; min-height: 0; position: relative; overflow: hidden;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(circle at 50% 45%, #121826, #05070b);
+    padding: 30px 8px 4px 8px;
+  }
+  .stage-float-top {
+    position: absolute; top: 5px; left: 8px; right: 8px; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between; gap: 6px; pointer-events: none;
+  }
+  .float-grp { display: flex; gap: 4px; pointer-events: auto; }
+  .mini-pill {
+    padding: 3px 8px; border-radius: 7px; border: 1px solid var(--border);
+    background: rgba(10, 14, 22, 0.88); color: var(--text); font-size: 10px; font-weight: 800; cursor: pointer;
+  }
+  .mini-pill.on { border-color: var(--azul); color: var(--azul); background: rgba(56, 189, 248, 0.16); }
+  #canvas-preview {
+    display: block; border-radius: 9px; border: 1px solid rgba(255, 255, 255, 0.16);
+    background: #0d1117; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
+  }
+  .transport-bar {
+    height: 36px; flex-shrink: 0; padding: 0 8px;
+    background: rgba(12, 16, 25, 0.96); border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  }
+  .timecode { font-family: monospace; font-size: 11px; font-weight: 900; color: var(--azul); }
+
+  /* PISTAS HORIZONTALES COMPACTAS (108PX FIJO) */
+  .timeline-tracks {
+    flex-shrink: 0; height: 106px; background: rgba(9, 12, 19, 0.98);
+    border-top: 1px solid var(--border); overflow-x: auto; overflow-y: hidden;
+    position: relative; padding: 5px 8px; display: flex; flex-direction: column; gap: 4px;
+  }
+  .tl-playhead {
+    position: absolute; top: 0; bottom: 0; width: 2px; background: var(--naranja);
+    box-shadow: 0 0 8px var(--naranja); pointer-events: none; z-index: 20; left: 60px;
+  }
+  .tl-row { display: flex; align-items: stretch; gap: 5px; height: 29px; position: relative; }
+  .tl-label {
+    position: sticky; left: 0; z-index: 15; width: 46px; flex-shrink: 0;
+    background: rgba(14, 18, 28, 0.96); border: 1px solid var(--border); border-radius: 6px;
+    font-size: 9px; font-weight: 800; color: var(--muted); text-transform: uppercase;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .tl-clips { display: flex; align-items: stretch; gap: 4px; }
+  .tl-clip {
+    flex-shrink: 0; border-radius: 6px; border: 1px solid var(--border);
+    background: rgba(30, 41, 59, 0.78); padding: 2px 6px; cursor: pointer;
+    display: flex; align-items: center; gap: 5px; overflow: hidden; text-align: left;
+  }
+  .tl-clip.activo { border-color: var(--naranja); box-shadow: 0 0 0 1px var(--naranja) inset; background: rgba(255, 107, 0, 0.2); }
+  .tl-clip-thumb { width: 20px; height: 22px; border-radius: 4px; object-fit: cover; flex-shrink: 0; background: #05070b; }
+  .tl-clip-txt { min-width: 0; flex: 1; }
+  .tl-clip-txt strong { display: block; font-size: 9.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
+  .tl-clip-txt small { display: block; font-size: 8.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tl-audio {
+    flex-shrink: 0; border-radius: 6px; border: 1px dashed rgba(245, 158, 11, 0.45);
+    background: rgba(245, 158, 11, 0.08); padding: 2px 6px; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between; gap: 4px; font-size: 9.5px; color: #fcd34d;
+  }
+  .tl-audio.listo { border-style: solid; border-color: rgba(34, 197, 94, 0.55); background: rgba(34, 197, 94, 0.14); color: #86efac; }
+  .tl-audio.activo { outline: 1.5px solid var(--naranja); }
+  .tl-fx {
+    flex-shrink: 0; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.28);
+    background: rgba(56, 189, 248, 0.08); padding: 2px 6px; cursor: pointer;
+    display: flex; align-items: center; font-size: 9px; color: #7dd3fc; overflow: hidden; white-space: nowrap;
+  }
+
+  /* DOCK INFERIOR ESTILO SNAPSEED (114PX FIJO) */
+  .snapseed-dock {
+    height: 114px; flex-shrink: 0; background: rgba(12, 16, 25, 0.99);
+    border-top: 1px solid var(--border-hi);
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 6px 8px; overflow: hidden;
+  }
+  .tool-strip {
+    display: flex; align-items: center; gap: 6px;
+    overflow-x: auto; overflow-y: hidden; scrollbar-width: none; height: 100%; padding: 2px;
+  }
+  .tool-strip::-webkit-scrollbar { display: none; }
+  .tool-btn {
+    flex: 0 0 auto; min-width: 66px; height: 74px; padding: 6px;
+    border-radius: 12px; border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.04);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+    cursor: pointer; color: #cbd5e1; font-size: 10.5px; font-weight: 800;
+  }
+  .tool-btn.activo { border-color: var(--naranja); background: rgba(255, 107, 0, 0.18); color: #fff; }
+  .tool-btn.accent { border-color: rgba(56, 189, 248, 0.45); color: #7dd3fc; }
+  .subpanel { display: flex; flex-direction: column; justify-content: space-between; height: 100%; gap: 5px; }
+  .sub-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .sub-title { font-size: 10.5px; font-weight: 900; color: var(--miel); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sub-row { display: flex; align-items: center; gap: 5px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+  .sub-row::-webkit-scrollbar { display: none; }
+  .sel-mini { padding: 4px 6px; border-radius: 7px; border: 1px solid var(--border); background: rgba(5, 8, 14, 0.9); font-size: 11px; width: auto; min-width: 78px; }
+
+  /* DRAWER LATERAL IZQUIERDO (BOTÓN ▶ NARANJA) */
+  .drawer-ov {
+    position: fixed; inset: 0; z-index: 70000; background: rgba(4, 6, 11, 0.72);
+    backdrop-filter: blur(5px); opacity: 0; pointer-events: none; transition: opacity .18s;
+  }
+  .drawer-ov.open { opacity: 1; pointer-events: auto; }
+  .drawer-panel {
+    position: absolute; top: 0; left: 0; bottom: 0; width: min(84vw, 310px);
+    background: linear-gradient(165deg, #151c2c, #0a0e16);
+    border-right: 1px solid var(--border-hi);
+    transform: translateX(-104%); transition: transform .2s ease;
+    display: flex; flex-direction: column; padding: 12px; gap: 10px; overflow: hidden;
+  }
+  .drawer-ov.open .drawer-panel { transform: translateX(0); }
+  .drawer-head { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  .drawer-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+  .drawer-sec-lbl { font-size: 10px; font-weight: 900; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+  .drawer-item {
+    width: 100%; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.04); text-align: left; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12px; font-weight: 700;
+  }
+  .drawer-item.activo { border-color: var(--naranja); background: rgba(255, 107, 0, 0.18); color: #fff; }
+
+  /* MODALES */
+  .modal-ov {
+    position: fixed; inset: 0; z-index: 80000; background: rgba(4, 6, 10, 0.84);
+    backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; padding: 12px;
+  }
+  .modal-ov.open { display: flex; }
+  .modal-card {
+    width: 100%; max-width: 520px; max-height: 88dvh; overflow-y: auto;
+    background: linear-gradient(155deg, #161c2a, #0b0e16);
+    border: 1px solid var(--border-hi); border-radius: 16px; padding: 14px;
+  }
+  .modal-head { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px solid var(--border); }
+  .modal-head h3 { margin: 0; font-size: 13.5px; font-weight: 800; }
+  .card-sub { background: var(--panel); border: 1px solid var(--border); border-radius: 11px; padding: 10px; margin-bottom: 8px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  @media (max-width: 560px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  #toasts-ed { position: fixed; top: 50px; left: 50%; transform: translateX(-50%); z-index: 95000; display: flex; flex-direction: column; gap: 5px; pointer-events: none; max-width: 92vw; }
+  .toast-ed { padding: 8px 13px; border-radius: 99px; font-size: 11.5px; font-weight: 800; background: rgba(12, 16, 25, 0.96); border: 1px solid var(--border); text-align: center; }
+  .toast-ed.exito { border-color: rgba(34, 197, 94, 0.6); color: #86efac; }
+  .toast-ed.error { border-color: rgba(239, 68, 68, 0.6); color: #fca5a5; }
+  .toast-ed.info { border-color: rgba(56, 189, 248, 0.6); color: #7dd3fc; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- BARRA SUPERIOR COMPACTA CON BOTÓN ▶ NARANJA -->
+  <header class="top-slim">
+    <div class="top-left">
+      <button type="button" class="btn-drawer-orange" title="Menú Editor" onclick="window.toggleDrawerEd(true)">
+        <svg class="svg-ico" style="fill:currentColor; stroke:none;" viewBox="0 0 24 24"><polygon points="7 4 20 12 7 20 7 4"/></svg>
+      </button>
+      <div class="ctx-title">
+        <strong id="hdr-ed-tit">Editor</strong>
+        <small id="hdr-ed-sub">Cargando...</small>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:5px;">
+      <button type="button" class="btn btn-xs btn-blue" id="btn-switch-vista" onclick="window.toggleVistaRapida()">Timeline</button>
+      <span id="badge-sync-ed" class="pill">...</span>
+    </div>
+  </header>
+
+  <!-- PESTAÑA 1: GUION IA ZERO-SCROLL -->
+  <section id="pane-guion" class="view-pane activa"></section>
+
+  <!-- PESTAÑA 2: TIMELINE ZERO-SCROLL ESTILO SNAPSEED + YOUCUT -->
+  <section id="pane-timeline" class="view-pane">
+    <div class="tl-stage-wrap" id="tl-stage-wrap">
+      <div class="stage-float-top">
+        <div class="float-grp">
+          <button type="button" class="mini-pill on" id="btn-safe-mini" onclick="window.toggleSafeZones()">Safe: ON</button>
+          <span class="mini-pill" id="badge-clip-num" style="pointer-events:none; color:#fdba74;">Clip 0/0</span>
+        </div>
+        <button type="button" class="mini-pill on" id="btn-asp-mini" onclick="window.toggleAspectoRapido()">9:16</button>
+      </div>
+      <canvas id="canvas-preview" width="540" height="960"></canvas>
+    </div>
+
+    <div class="transport-bar">
+      <div style="display:flex; gap:5px; align-items:center;">
+        <button type="button" class="btn btn-xs btn-primary" id="btn-play-tl" onclick="window.togglePlayTimeline()">Play</button>
+        <button type="button" class="btn btn-xs" onclick="window.detenerTimeline()">Stop</button>
+        <button type="button" class="btn btn-xs" onclick="window.seleccionarClip(Math.max(0, clipSelIdx - 1))">←</button>
+        <button type="button" class="btn btn-xs" onclick="window.seleccionarClip(clipSelIdx + 1)">→</button>
+      </div>
+      <span class="timecode" id="txt-timecode">00:00 / 00:00</span>
+    </div>
+
+    <div class="timeline-tracks" id="tl-scroll">
+      <div class="tl-playhead" id="tl-playhead"></div>
+      <div class="tl-row"><div class="tl-label">Vis</div><div class="tl-clips" id="track-visual"></div></div>
+      <div class="tl-row"><div class="tl-label">Voz</div><div class="tl-clips" id="track-voces"></div></div>
+      <div class="tl-row"><div class="tl-label">FX</div><div class="tl-clips" id="track-fx"></div></div>
+    </div>
+
+    <footer class="snapseed-dock" id="tl-dock"></footer>
+  </section>
+</div>
+
+<!-- DRAWER LATERAL IZQUIERDO (SE ABRE CON BOTÓN ▶ NARANJA) -->
+<div class="drawer-ov" id="drawer-ed" onclick="if(event.target.id==='drawer-ed') window.toggleDrawerEd(false)">
+  <aside class="drawer-panel">
+    <div class="drawer-head">
+      <span id="badge-proy-ed" class="pill ok">Pirobonianos</span>
+      <button type="button" class="btn btn-xs" onclick="window.toggleDrawerEd(false)">Cerrar</button>
+    </div>
+    <div class="drawer-scroll" id="drawer-ed-body"></div>
+    <div style="border-top:1px solid var(--border); padding-top:8px; display:flex; gap:6px;">
+      <button type="button" class="btn btn-xs btn-purple" style="flex:1;" onclick="window.toggleDrawerEd(false); window.abrirModalApis();"><span id="txt-btn-apis">APIs</span></button>
+      <button type="button" class="btn btn-xs btn-blue" style="flex:1;" onclick="window.toggleDrawerEd(false); window.exportarPaqueteEpisodio();">Exportar Termux</button>
+    </div>
+  </aside>
+</div>
+
+<!-- MODAL: BÓVEDA LOCAL DE APIs -->
+<div class="modal-ov" id="modal-apis" onclick="if(event.target.id==='modal-apis') window.cerrarModalApis()">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>Bóveda de APIs (Solo este dispositivo)</h3>
+      <button type="button" class="btn btn-xs" onclick="window.cerrarModalApis()">Cerrar</button>
+    </div>
+    <p style="margin:0 0 10px 0; font-size:11px; color:var(--muted);">Tus claves viven únicamente en <code>localStorage</code> de este navegador.</p>
+    <div class="card-sub">
+      <div style="font-size:11px; font-weight:800; color:var(--naranja); margin-bottom:7px;">1. API DE GUIONES (LLM)</div>
+      <div class="grid-2">
+        <div class="field"><label>Proveedor</label><select id="api-llm-prov" class="sel" onchange="window.alCambiarProveedorLLM()"><option value="deepseek">DeepSeek</option><option value="gemini">Google Gemini</option><option value="openai">OpenAI (ChatGPT)</option><option value="openrouter">OpenRouter</option></select></div>
+        <div class="field"><label>API Key</label><input id="api-llm-key" type="password" class="inp" placeholder="Pega tu API Key" oninput="window.guardarVaultLive()"></div>
+      </div>
+      <div style="display:flex; gap:6px; align-items:flex-end;">
+        <div style="flex:1;"><label style="display:block; font-size:10px; font-weight:800; color:var(--muted); margin-bottom:3px;">MODELO</label><select id="api-llm-model" class="sel" onchange="window.guardarVaultLive()"></select></div>
+        <button type="button" class="btn btn-xs btn-blue" id="btn-detect-llm" onclick="window.detectarModelosLLM()">Detectar</button>
+      </div>
+    </div>
+    <div class="card-sub">
+      <div style="font-size:11px; font-weight:800; color:var(--verde); margin-bottom:7px;">2. ELEVENLABS (VOCES)</div>
+      <div style="display:flex; gap:6px; align-items:flex-end; margin-bottom:7px;">
+        <div style="flex:1;"><label style="display:block; font-size:10px; font-weight:800; color:var(--muted); margin-bottom:3px;">API KEY</label><input id="api-el-key" type="password" class="inp" placeholder="sk_..." oninput="window.guardarVaultLive()"></div>
+        <button type="button" class="btn btn-xs btn-green" id="btn-detect-el" onclick="window.detectarVocesEleven()">Detectar</button>
+      </div>
+      <div class="grid-2">
+        <div class="field" style="margin:0;"><label>Modelo</label><select id="api-el-model" class="sel" onchange="window.guardarVaultLive()"><option value="eleven_multilingual_v2">eleven_multilingual_v2</option><option value="eleven_flash_v2_5">eleven_flash_v2_5</option><option value="eleven_turbo_v2_5">eleven_turbo_v2_5</option></select></div>
+        <div class="field" style="margin:0;"><label>Voces (clic copia ID)</label><select id="api-el-voices" class="sel" onchange="window.copiarVoiceIdDetectado(this.value)"><option value="">Pulsa Detectar...</option></select></div>
+      </div>
+    </div>
+    <div class="card-sub" style="margin-bottom:0;">
+      <div style="font-size:11px; font-weight:800; color:var(--azul); margin-bottom:7px;">3. GEMINI IMAGEN (PLANOS)</div>
+      <div class="grid-2">
+        <div class="field" style="margin:0;"><label>API Key (vacío = clave Gemini)</label><input id="api-gem-img-key" type="password" class="inp" placeholder="AIza..." oninput="window.guardarVaultLive()"></div>
+        <div class="field" style="margin:0;"><label>Modelo</label><select id="api-gem-img-model" class="sel" onchange="window.guardarVaultLive()"><option value="gemini-2.5-flash-image">gemini-2.5-flash-image</option><option value="gemini-2.0-flash-exp-image-generation">gemini-2.0-flash-exp-image-generation</option><option value="imagen-3.0-generate-002">imagen-3.0-generate-002</option></select></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: REGLAS DE GUION (ANTI-IA + EJEMPLO + OJO DE DIRECTOR) -->
+<div class="modal-ov" id="modal-reglas-guion" onclick="if(event.target.id==='modal-reglas-guion') window.cerrarModalReglasGuion()">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>Reglas de Guion y Estilo (Anti-IA)</h3>
+      <button type="button" class="btn btn-xs" onclick="window.cerrarModalReglasGuion()">Cerrar</button>
+    </div>
+    <div class="field"><label>Normas de escritura del proyecto</label><textarea id="rg-normas" class="inp" rows="3" placeholder="Ej: Frases cortas, humor paisa natural, gancho en los primeros 2 segundos..."></textarea></div>
+    <div class="field"><label>Frases prohibidas (clichés IA separados por coma)</label><textarea id="rg-prohibidas" class="inp" rows="2" placeholder="en un mundo donde, sin lugar a dudas, cabe destacar, prepárate para..."></textarea></div>
+    <div class="field"><label>1 Ejemplo de diálogo que SÍ te gusta</label><textarea id="rg-ejemplo" class="inp" rows="3" placeholder="Ej: Fernando: ¿Otra vez pidiendo fiado? Mire que el letrero dice hoy no fío..."></textarea></div>
+    <label style="display:flex; align-items:center; gap:7px; font-size:12px; color:#7dd3fc; font-weight:700; cursor:pointer; margin-bottom:10px;"><input type="checkbox" id="rg-director" style="accent-color:var(--azul);"> Activar 2ª pasada de revisión (Ojo de Director antes de entregar)</label>
+    <div style="display:flex; justify-content:space-between; gap:8px;">
+      <button type="button" class="btn btn-xs" onclick="window.restaurarReglasPorDefecto()">Restaurar Base</button>
+      <button type="button" class="btn btn-primary" onclick="window.guardarReglasGuion()">Guardar Reglas</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: CONFIRMACIÓN PREVIA ANTES DE GASTAR EN LOTES -->
+<div class="modal-ov" id="modal-confirm-lote" onclick="if(event.target.id==='modal-confirm-lote') window.cerrarModalLote()">
+  <div class="modal-card" style="max-width:410px;">
+    <div class="modal-head">
+      <h3 id="lote-conf-tit">Verificar antes de generar</h3>
+      <button type="button" class="btn btn-xs" onclick="window.cerrarModalLote()">Cancelar</button>
+    </div>
+    <div id="lote-conf-body" style="font-size:12px; color:#cbd5e1; line-height:1.45; margin-bottom:12px;"></div>
+    <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+      <button type="button" class="btn btn-blue" id="btn-lote-prueba-1" onclick="window.confirmarEjecutarLote(true)">Probar solo 1er clip</button>
+      <button type="button" class="btn btn-primary" id="btn-lote-ejecutar-todo" onclick="window.confirmarEjecutarLote(false)">Ejecutar Lote</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="input-md-caps" accept=".md,.txt" multiple class="hidden" onchange="window.cargarCapitulosMD(this.files); this.value='';">
+<audio id="audio-player-tl" crossorigin="anonymous" style="display:none;"></audio>
+<div id="toasts-ed"></div>
+
+<script type="module">
+import GeokatuDB from './core-db.js';
+import { componerEscenaPiro, normalizarActoresEscena, extraerEnvolventeAudio, obtenerBocaDesdeEnvolvente } from './piro-compositor.js';
+
+const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
+const CLAVE_VAULT = 'piro_api_vault_v1';
+function normalizarDocBibId(id, proyId) {
+  const s = String(id || '').trim();
+  if (!s || s === '__biblioteca_maestra__') return 'bib_pirobonianos';
+  const limpio = s.replace(/^_+/, '').replace(/_+$/, '');
+  return limpio || ('bib_' + (proyId || 'pirobonianos'));
+}
+let proyectoActivo = {
+  id: 'pirobonianos', nombre: 'Pirobonianos', docBibId: 'bib_pirobonianos',
+  storageDir: 'biblioteca_contenido', plantilla: 'piro_rig', bilingue: false,
+  estilo_visual: 'Vertical 9:16 2D cartoon animation frame, BoJack Horseman art style, clean black ink outlines, flat vibrant colors, no text or speech bubbles.'
+};
+try {
+  const rawP = localStorage.getItem(CLAVE_PROY_ACTIVO);
+  if (rawP) { const parsed = JSON.parse(rawP); if (parsed && parsed.docBibId) proyectoActivo = Object.assign(proyectoActivo, parsed); }
+} catch (e) {}
+proyectoActivo.docBibId = normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id);
+function getDocBibId() { return normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id); }
+function getLocalBibKey() { return proyectoActivo.id === 'pirobonianos' ? 'piro_biblioteca_maestra_v1' : ('piro_bib_' + proyectoActivo.id + '_v1'); }
+function getEpStorageBucket(epId) { return proyectoActivo.id === 'pirobonianos' ? ('episodios_' + epId) : ('ep_' + proyectoActivo.id + '_' + epId); }
+
+function romanoAEntero(s) {
+  const m = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
+  const str = String(s || '').toUpperCase().replace(/[^IVXLCDM]/g, '');
+  if (!str) return 999;
+  let total = 0;
+  for (let i = 0; i < str.length; i++) {
+    const curr = m[str[i]] || 0, nxt = m[str[i + 1]] || 0;
+    total += curr < nxt ? -curr : curr;
+  }
+  return total || 999;
+}
+function calcularPlanVeo(tension) {
+  const t = Number(tension) || 8;
+  return t > 8 ? { cat: 'ALTA_TENSION (>8/10)', clips: 5, indices: [1, 3, 4, 6, 7], costo: 1.45 } : { cat: 'TENSION_ESTANDAR (<=8/10)', clips: 3, indices: [1, 4, 7], costo: 0.90 };
+}
+
+const MODELOS_DEF = {
+  deepseek: ['deepseek-chat', 'deepseek-reasoner'],
+  gemini: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
+  openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'],
+  openrouter: ['deepseek/deepseek-chat', 'google/gemini-2.5-flash', 'openai/gpt-4o-mini']
+};
+
+let biblioteca = { tipo_doc: 'biblioteca', personajes: [], escenarios: [], props: [], guiones: [] };
+let epIdActivo = null;
+let clipSelIdx = 0;
+let actorSelIdx = 0;
+let vistaActual = 'guion'; // guion | timeline
+let subGuionTab = 'semilla'; // semilla | escenas | config
+let tlToolActiva = null; // null | actores | dialogo | camara | ia | veo | clips
+let safeZonesOn = true;
+let zoomPxSeg = 44;
+let debounceSync = null;
+let hayCambiosPendientesEd = false;
+let vault = {
+  llmProv: 'deepseek',
+  keys: { deepseek: '', gemini: '', openai: '', openrouter: '' },
+  models: { deepseek: 'deepseek-chat', gemini: 'gemini-2.5-flash', openai: 'gpt-4o-mini', openrouter: 'deepseek/deepseek-chat' },
+  modelosCache: {}, elKey: '', elModel: 'eleven_multilingual_v2', gemImgKey: '', gemImgModel: 'gemini-2.5-flash-image'
+};
+
+let reproduciendo = false;
+let playRaf = null;
+let playInicioMs = 0;
+let playOffsetSeg = 0;
+let clipSonandoIdx = -1;
+let clipAudioOrigenIdx = -1;
+let audioOrigenInicioSeg = 0;
+let envolventeActiva = null;
+let duracionObjetivoSeg = 40;
+
+function esc(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function toast(msg, tipo) {
+  if (window.self !== window.top) {
+    window.parent.postMessage({ tipo: 'PIRO_TOAST', mensaje: msg, nivel: tipo || 'info' }, '*');
+    return;
+  }
+  const c = document.getElementById('toasts-ed');
+  const el = document.createElement('div');
+  el.className = 'toast-ed ' + (tipo || 'info');
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(function() { el.remove(); }, 2800);
+}
+
+function setSync(txt, cls) {
+  const b = document.getElementById('badge-sync-ed');
+  if (b) { b.textContent = txt; b.className = 'pill ' + (cls || ''); }
+}
+
+function getEp() {
+  return biblioteca.guiones.find(function(g) { return g.id === epIdActivo; }) || biblioteca.guiones[0] || null;
+}
+
+function getAspectoEp(g) {
+  return (g && g.aspecto === '16:9') ? '16:9' : '9:16';
+}
+
+// =========================================================================
+// 1. BÓVEDA DE APIs
+// =========================================================================
+function cargarVault() {
+  try {
+    const raw = localStorage.getItem(CLAVE_VAULT);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      vault = Object.assign(vault, parsed);
+      vault.keys = Object.assign({ deepseek: '', gemini: '', openai: '', openrouter: '' }, parsed.keys || {});
+      vault.models = Object.assign({ deepseek: 'deepseek-chat', gemini: 'gemini-2.5-flash', openai: 'gpt-4o-mini', openrouter: 'deepseek/deepseek-chat' }, parsed.models || {});
+    }
+  } catch (e) {}
+  actualizarBadgeApis();
+}
+
+function guardarVault() {
+  try { localStorage.setItem(CLAVE_VAULT, JSON.stringify(vault)); } catch (e) {}
+  actualizarBadgeApis();
+}
+
+function actualizarBadgeApis() {
+  const tieneLlm = Boolean(vault.keys[vault.llmProv]);
+  const tieneEl = Boolean(vault.elKey);
+  const el = document.getElementById('txt-btn-apis');
+  if (el) el.textContent = 'APIs (' + (tieneLlm ? vault.llmProv.toUpperCase() : 'Sin LLM') + (tieneEl ? '+Voz' : '') + ')';
+}
+
+function rellenarSelectModelosLLM(lista, sel) {
+  const s = document.getElementById('api-llm-model'); if (!s) return;
+  const arr = (lista && lista.length > 0) ? lista : (MODELOS_DEF[vault.llmProv] || ['deepseek-chat']);
+  s.innerHTML = arr.map(function(m) { return '<option value="' + esc(m) + '"' + (m === sel ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('');
+  if (arr.indexOf(sel) === -1) vault.models[vault.llmProv] = arr[0];
+}
+
+window.abrirModalApis = function() {
+  document.getElementById('api-llm-prov').value = vault.llmProv;
+  document.getElementById('api-llm-key').value = vault.keys[vault.llmProv] || '';
+  rellenarSelectModelosLLM(vault.modelosCache[vault.llmProv], vault.models[vault.llmProv]);
+  document.getElementById('api-el-key').value = vault.elKey || '';
+  document.getElementById('api-el-model').value = vault.elModel || 'eleven_multilingual_v2';
+  document.getElementById('api-gem-img-key').value = vault.gemImgKey || '';
+  document.getElementById('api-gem-img-model').value = vault.gemImgModel || 'gemini-2.5-flash-image';
+  document.getElementById('modal-apis').classList.add('open');
+};
+
+window.cerrarModalApis = function() { document.getElementById('modal-apis').classList.remove('open'); };
+
+window.alCambiarProveedorLLM = function() {
+  vault.llmProv = document.getElementById('api-llm-prov').value;
+  document.getElementById('api-llm-key').value = vault.keys[vault.llmProv] || '';
+  rellenarSelectModelosLLM(vault.modelosCache[vault.llmProv], vault.models[vault.llmProv]);
+  guardarVault();
+};
+
+window.guardarVaultLive = function() {
+  vault.llmProv = document.getElementById('api-llm-prov').value;
+  vault.keys[vault.llmProv] = document.getElementById('api-llm-key').value.trim();
+  vault.models[vault.llmProv] = document.getElementById('api-llm-model').value;
+  vault.elKey = document.getElementById('api-el-key').value.trim();
+  vault.elModel = document.getElementById('api-el-model').value;
+  vault.gemImgKey = document.getElementById('api-gem-img-key').value.trim();
+  vault.gemImgModel = document.getElementById('api-gem-img-model').value;
+  guardarVault();
+};
+
+window.detectarModelosLLM = async function() {
+  window.guardarVaultLive();
+  const prov = vault.llmProv, key = vault.keys[prov];
+  if (!key) { toast('Ingresa primero la API Key de ' + prov + '.', 'error'); return; }
+  const btn = document.getElementById('btn-detect-llm');
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    let modelos = [];
+    if (prov === 'gemini') {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?key=' + encodeURIComponent(key));
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      modelos = (j.models || []).filter(function(m) { return Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.indexOf('generateContent') >= 0; }).map(function(m) { return String(m.name || '').replace(/^models\//, ''); });
+    } else {
+      const url = prov === 'deepseek' ? 'https://api.deepseek.com/v1/models' : (prov === 'openai' ? 'https://api.openai.com/v1/models' : 'https://openrouter.ai/api/v1/models');
+      const r = await fetch(url, { headers: { Authorization: 'Bearer ' + key } });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      modelos = (j.data || []).map(function(m) { return m.id; }).filter(Boolean);
+      if (prov === 'openai') modelos = modelos.filter(function(id) { return /^(gpt-|o1|o3|o4)/.test(id); });
+      if (prov === 'openrouter') modelos = modelos.slice(0, 80);
+    }
+    if (modelos.length === 0) throw new Error('Sin modelos');
+    vault.modelosCache[prov] = modelos;
+    vault.models[prov] = modelos[0];
+    rellenarSelectModelosLLM(modelos, modelos[0]);
+    guardarVault();
+    toast(modelos.length + ' modelos detectados.', 'exito');
+  } catch (err) {
+    toast('Error: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Detectar';
+  }
+};
+
+window.detectarVocesEleven = async function() {
+  window.guardarVaultLive();
+  if (!vault.elKey) { toast('Ingresa tu API Key de ElevenLabs.', 'error'); return; }
+  const btn = document.getElementById('btn-detect-el');
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const r = await fetch('https://api.elevenlabs.io/v1/voices', { headers: { 'xi-api-key': vault.elKey } });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    const voces = j.voices || [];
+    const sel = document.getElementById('api-el-voices');
+    sel.innerHTML = '<option value="">Selecciona para copiar (' + voces.length + ')</option>' + voces.map(function(v) { return '<option value="' + esc(v.voice_id) + '">' + esc(v.name) + '</option>'; }).join('');
+    toast(voces.length + ' voces cargadas.', 'exito');
+  } catch (err) {
+    toast('Error ElevenLabs: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Detectar';
+  }
+};
+
+window.copiarVoiceIdDetectado = function(id) {
+  if (!id) return;
+  navigator.clipboard.writeText(id).then(function() { toast('voice_id copiado.', 'exito'); });
+};
+
+// =========================================================================
+// 2. DRAWER LATERAL IZQUIERDO (BOTÓN ▶ NARANJA) + SINCRONIZACIÓN
+// =========================================================================
+window.toggleDrawerEd = function(abrir) {
+  const d = document.getElementById('drawer-ed');
+  if (!d) return;
+  if (abrir) renderDrawerEd();
+  d.classList.toggle('open', Boolean(abrir));
+};
+
+function renderDrawerEd() {
+  const body = document.getElementById('drawer-ed-body');
+  const g = getEp();
+  const asp = getAspectoEp(g);
+  if (!body) return;
+  body.innerHTML =
+    '<div>' +
+      '<div class="drawer-sec-lbl">Modo de Trabajo</div>' +
+      '<div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">' +
+        '<button type="button" class="drawer-item' + (vistaActual === 'guion' ? ' activo' : '') + '" onclick="window.toggleDrawerEd(false); window.setVistaEditor(\'guion\');">Guion IA</button>' +
+        '<button type="button" class="drawer-item' + (vistaActual === 'timeline' ? ' activo' : '') + '" onclick="window.toggleDrawerEd(false); window.setVistaEditor(\'timeline\');">Timeline</button>' +
+      '</div>' +
+    '</div>' +
+    '<div>' +
+      '<div class="drawer-sec-lbl">Formato de Video</div>' +
+      '<div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">' +
+        '<button type="button" class="drawer-item' + (asp === '9:16' ? ' activo' : '') + '" onclick="window.cambiarAspectoEpisodio(\'9:16\'); window.toggleDrawerEd(false);">9:16 Vertical</button>' +
+        '<button type="button" class="drawer-item' + (asp === '16:9' ? ' activo' : '') + '" onclick="window.cambiarAspectoEpisodio(\'16:9\'); window.toggleDrawerEd(false);">16:9 Horizontal</button>' +
+      '</div>' +
+    '</div>' +
+    '<div style="display:flex; flex-direction:column; gap:5px;">' +
+      '<div class="drawer-sec-lbl">Episodios (' + (biblioteca.guiones || []).length + ')</div>' +
+      (biblioteca.guiones || []).map(function(ep) {
+        return '<button type="button" class="drawer-item' + (ep.id === epIdActivo ? ' activo' : '') + '" onclick="window.seleccionarEpisodio(\'' + esc(ep.id) + '\'); window.toggleDrawerEd(false);">' +
+          '<span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + esc(ep.id + ' · ' + ep.titulo) + '</span>' +
+          '<span style="font-size:10px; color:var(--azul);">' + getAspectoEp(ep) + '</span></button>';
+      }).join('') +
+      '<button type="button" class="btn btn-xs btn-primary" style="width:100%; margin-top:4px;" onclick="window.crearEpisodioRapido(); window.toggleDrawerEd(false);">+ Nuevo Episodio</button>' +
+    '</div>';
+}
+
+function guardarEstadoUIEditor() {
+  try {
+    localStorage.setItem('piro_editor_ui_' + proyectoActivo.id, JSON.stringify({
+      epIdActivo: epIdActivo, clipSelIdx: clipSelIdx, vistaActual: vistaActual, zoomPxSeg: zoomPxSeg, duracionObjetivoSeg: duracionObjetivoSeg
+    }));
+  } catch (e) {}
+}
+
+async function cargarBiblioteca() {
+  const bp = document.getElementById('badge-proy-ed'); if (bp) bp.textContent = proyectoActivo.nombre || 'Pirobonianos';
+  setSync('...', 'warn');
+  biblioteca = { tipo_doc: 'biblioteca', personajes: [], escenarios: [], props: [], guiones: [] };
+  const kLoc = getLocalBibKey();
+  try { const raw = localStorage.getItem(kLoc); if (raw) biblioteca = JSON.parse(raw); } catch (e) {}
+
+  if (GeokatuDB.PirobonianosService && navigator.onLine) {
+    const res = await GeokatuDB.PirobonianosService.obtenerProyectoEDT(getDocBibId());
+    if (res.success && res.data && Array.isArray(res.data.personajes)) {
+      if (!biblioteca.fecha_actualizacion || String(res.data.fecha_actualizacion || '') >= String(biblioteca.fecha_actualizacion)) {
+        biblioteca = res.data;
+        try { localStorage.setItem(kLoc, JSON.stringify(biblioteca)); } catch (e) {}
+      }
+      setSync(res.origen === 'nube' ? 'Nube OK' : 'Local', res.origen === 'nube' ? 'ok' : 'warn');
+    } else {
+      setSync('Local', 'warn');
+    }
+  } else {
+    setSync('Offline', 'warn');
+  }
+
+  if (!Array.isArray(biblioteca.guiones)) biblioteca.guiones = [];
+  if (biblioteca.guiones.length === 0) {
+    biblioteca.guiones.push({
+      id: 'ep001', titulo: 'Episodio 001',
+      escenario_id: biblioteca.escenarios[0] ? biblioteca.escenarios[0].id : '',
+      zona_id: 'zona_01', reparto: biblioteca.personajes[0] ? [biblioteca.personajes[0].id] : [],
+      estado: 'Borrador', anecdota: '', escenas: []
+    });
+  }
+  try {
+    const rawUi = localStorage.getItem('piro_editor_ui_' + proyectoActivo.id);
+    if (rawUi) {
+      const u = JSON.parse(rawUi);
+      if (!epIdActivo && u.epIdActivo && biblioteca.guiones.some(function(g) { return g.id === u.epIdActivo; })) epIdActivo = u.epIdActivo;
+      if (typeof u.clipSelIdx === 'number') clipSelIdx = u.clipSelIdx;
+      if (typeof u.zoomPxSeg === 'number') zoomPxSeg = u.zoomPxSeg;
+      if (typeof u.duracionObjetivoSeg === 'number') duracionObjetivoSeg = u.duracionObjetivoSeg;
+      if (u.vistaActual === 'timeline' || u.vistaActual === 'guion') vistaActual = u.vistaActual;
+    }
+  } catch (e) {}
+  if (!epIdActivo || !biblioteca.guiones.some(function(g) { return g.id === epIdActivo; })) epIdActivo = biblioteca.guiones[0].id;
+  renderTodo();
+  window.setVistaEditor(vistaActual);
+}
+
+function guardarBiblioteca(inmediato) {
+  hayCambiosPendientesEd = true;
+  biblioteca.tipo_doc = 'biblioteca';
+  biblioteca.meta_proyecto = proyectoActivo;
+  biblioteca.fecha_actualizacion = new Date().toISOString();
+  const limpioJson = JSON.parse(JSON.stringify(biblioteca));
+  try { localStorage.setItem(getLocalBibKey(), JSON.stringify(limpioJson)); } catch (e) {}
+  setSync('Guardando...', 'warn');
+  clearTimeout(debounceSync);
+  const run = async function() {
+    if (!GeokatuDB.PirobonianosService) { setSync('Local', 'warn'); return; }
+    const res = await GeokatuDB.PirobonianosService.guardarProyectoEDT(getDocBibId(), limpioJson);
+    if (res.success && !res.offline) {
+      hayCambiosPendientesEd = false;
+      setSync('Nube OK', 'ok');
+    } else {
+      setSync('Local', 'warn');
+      if (res && res.error) toast('Aviso nube: ' + res.error, 'error');
+    }
+    if (window.self !== window.top) window.parent.postMessage({ tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA', origen: 'editor' }, '*');
+  };
+  if (inmediato) run();
+  else debounceSync = setTimeout(run, 600);
+}
+
+window.toggleVistaRapida = function() {
+  window.setVistaEditor(vistaActual === 'guion' ? 'timeline' : 'guion');
+};
+
+window.setVistaEditor = function(v) {
+  vistaActual = v;
+  document.getElementById('pane-guion').classList.toggle('activa', v === 'guion');
+  document.getElementById('pane-timeline').classList.toggle('activa', v === 'timeline');
+  document.getElementById('btn-switch-vista').textContent = v === 'guion' ? 'Timeline' : 'Guion IA';
+  actualizarHeaderEditor();
+  if (v === 'timeline') {
+    renderTimeline();
+    requestAnimationFrame(function() { ajustarCanvasPreview(); window.renderPreviewCanvas(); });
+  } else {
+    renderVistaGuionIA();
+  }
+  guardarEstadoUIEditor();
+};
+
+window.seleccionarEpisodio = function(id) {
+  window.detenerTimeline();
+  epIdActivo = id; clipSelIdx = 0; actorSelIdx = 0; tlToolActiva = null;
+  renderTodo();
+};
+
+window.crearEpisodioRapido = function() {
+  const num = String(biblioteca.guiones.length + 1).padStart(3, '0');
+  const nuevo = {
+    id: 'ep' + num, titulo: 'Episodio ' + num,
+    escenario_id: biblioteca.escenarios[0] ? biblioteca.escenarios[0].id : '',
+    zona_id: 'zona_01', reparto: biblioteca.personajes.slice(0, 2).map(function(p) { return p.id; }),
+    estado: 'Borrador', anecdota: '', escenas: []
+  };
+  biblioteca.guiones.push(nuevo);
+  epIdActivo = nuevo.id; clipSelIdx = 0; actorSelIdx = 0;
+  guardarBiblioteca(true); renderTodo();
+  toast('Episodio ' + nuevo.id + ' creado.', 'exito');
+};
+
+window.cambiarAspectoEpisodio = function(asp) {
+  const g = getEp(); if (!g) return;
+  g.aspecto = (asp === '16:9') ? '16:9' : '9:16';
+  guardarBiblioteca(true);
+  actualizarHeaderEditor();
+  if (vistaActual === 'timeline') { ajustarCanvasPreview(); window.renderPreviewCanvas(); }
+  toast('Formato: ' + g.aspecto, 'info');
+};
+
+window.toggleAspectoRapido = function() {
+  const g = getEp(); if (!g) return;
+  window.cambiarAspectoEpisodio(getAspectoEp(g) === '16:9' ? '9:16' : '16:9');
+};
+
+window.toggleSafeZones = function() {
+  safeZonesOn = !safeZonesOn;
+  const b = document.getElementById('btn-safe-mini');
+  if (b) { b.textContent = 'Safe: ' + (safeZonesOn ? 'ON' : 'OFF'); b.classList.toggle('on', safeZonesOn); }
+  window.renderPreviewCanvas();
+};
+
+function actualizarHeaderEditor() {
+  const g = getEp();
+  const tit = document.getElementById('hdr-ed-tit');
+  const sub = document.getElementById('hdr-ed-sub');
+  const bAsp = document.getElementById('btn-asp-mini');
+  if (!g) return;
+  const asp = getAspectoEp(g);
+  if (tit) tit.textContent = g.id + ' · ' + g.titulo;
+  if (sub) sub.textContent = (vistaActual === 'guion' ? 'Guion IA' : 'Timeline') + ' · ' + asp + ' · ' + (g.escenas || []).length + ' clips';
+  if (bAsp) bAsp.textContent = asp;
+}
+
+function renderTodo() {
+  actualizarHeaderEditor();
+  if (vistaActual === 'guion') renderVistaGuionIA();
+  else { renderTimeline(); requestAnimationFrame(function() { ajustarCanvasPreview(); window.renderPreviewCanvas(); }); }
+}
+
+// =========================================================================
+// 3. VISTA 1: GUION IA ZERO-SCROLL (CON DOCK INFERIOR)
+// =========================================================================
+window.setSubGuionTab = function(t) { subGuionTab = t; renderVistaGuionIA(); };
+
+function renderVistaGuionIA() {
+  const pane = document.getElementById('pane-guion');
+  const g = getEp();
+  if (!pane || !g) return;
+  if (!Array.isArray(g.escenas)) g.escenas = [];
+  const repSet = new Set(g.reparto || []);
+  const optsEsc = (biblioteca.escenarios || []).map(function(e) { return '<option value="' + esc(e.id) + '"' + (g.escenario_id === e.id ? ' selected' : '') + '>' + esc(e.id + ' · ' + e.nombre) + '</option>'; }).join('');
+  const escObj = (biblioteca.escenarios || []).find(function(e) { return e.id === g.escenario_id; }) || biblioteca.escenarios[0];
+  const optsZona = escObj ? (escObj.zonas || []).map(function(z) { return '<option value="' + esc(z.id) + '"' + ((g.zona_id || 'zona_01') === z.id ? ' selected' : '') + '>' + esc(z.id + ' · ' + z.nombre) + '</option>'; }).join('') : '<option value="zona_01">zona_01</option>';
+  const chipsActores = (biblioteca.personajes || []).map(function(p) {
+    const on = repSet.has(p.id);
+    return '<button type="button" class="btn btn-xs ' + (on ? 'btn-green' : '') + '" onclick="window.toggleRepartoEp(\'' + esc(p.id) + '\')">' + esc(p.nombre) + (p.voice_id ? '' : ' *') + '</button>';
+  }).join('');
+
+  let centro = '';
+  if (subGuionTab === 'semilla') {
+    centro =
+      '<div class="compact-pane">' +
+        '<div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; flex-shrink:0;">' +
+          '<select class="sel" onchange="window.editEp(\'escenario_id\', this.value)">' + optsEsc + '</select>' +
+          '<select class="sel" onchange="window.editEp(\'zona_id\', this.value)">' + optsZona + '</select>' +
+        '</div>' +
+        '<div style="display:flex; gap:5px; overflow-x:auto; flex-shrink:0; padding-bottom:2px;">' + chipsActores + '</div>' +
+        '<div style="display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">' +
+          '<span style="font-size:10.5px; font-weight:800; color:var(--muted); text-transform:uppercase;">' + (proyectoActivo.bilingue ? 'Texto del Capítulo' : 'Chisme / Anécdota') + '</span>' +
+          '<button type="button" class="btn btn-xs btn-blue" onclick="document.getElementById(\'input-md-caps\').click()">Cargar .md</button>' +
+        '</div>' +
+        '<textarea id="txt-chisme-input" class="inp" style="flex:1; min-height:110px; resize:none;" placeholder="Pega aquí tu chisme o fragmento del capítulo y pulsa Generar Guion..." oninput="window.editEp(\'anecdota\', this.value)">' + esc(g.anecdota || '') + '</textarea>' +
+      '</div>';
+  } else if (subGuionTab === 'escenas') {
+    const cards = g.escenas.length === 0
+      ? '<div class="slide-card" style="justify-content:center; align-items:center; text-align:center;"><small style="color:var(--muted); margin-bottom:10px;">Sin escenas generadas aún.</small><button type="button" class="btn btn-primary" onclick="window.agregarClipTimeline()">+ Escena Manual</button></div>'
+      : g.escenas.map(function(sc, idx) {
+        const actorOpts = (biblioteca.personajes || []).map(function(p) { return '<option value="' + esc(p.id) + '"' + (sc.actor === p.id ? ' selected' : '') + '>' + esc(p.nombre) + '</option>'; }).join('');
+        return '<div class="slide-card">' +
+          '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+            '<strong style="color:var(--naranja);">ESCENA #' + (idx + 1) + '</strong>' +
+            '<div style="display:flex; gap:4px;"><button type="button" class="btn btn-xs btn-blue" onclick="window.irAClipTimeline(' + idx + ')">Timeline</button><button type="button" class="btn btn-xs btn-danger" onclick="window.borrarEscena(' + idx + ')">X</button></div>' +
+          '</div>' +
+          '<div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">' +
+            '<select class="sel" onchange="window.editEscena(' + idx + ',\'actor\',this.value)">' + actorOpts + '</select>' +
+            '<select class="sel" onchange="window.editEscena(' + idx + ',\'ojos\',this.value)">' + ['neutro','feliz','enojado','triste','duda','indignado'].map(function(o) { return '<option value="' + o + '"' + ((sc.ojos || 'neutro') === o ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select>' +
+          '</div>' +
+          '<textarea class="inp" style="flex:1; resize:none;" oninput="window.editEscena(' + idx + ',\'texto\',this.value)" placeholder="Diálogo...">' + esc(sc.texto || '') + '</textarea>' +
+        '</div>';
+      }).join('');
+    centro = '<div class="carousel-stage">' + cards + '</div>';
+  } else {
+    centro =
+      '<div class="compact-pane">' +
+        '<div class="field"><label>Título del Episodio</label><input class="inp" value="' + esc(g.titulo) + '" oninput="window.editEp(\'titulo\', this.value)"></div>' +
+        '<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">' +
+          '<div class="field"><label>Duración Objetivo</label><select class="sel" onchange="window.setDuracionObjetivo(Number(this.value))"><option value="30"' + (duracionObjetivoSeg === 30 ? ' selected' : '') + '>30 seg</option><option value="40"' + (duracionObjetivoSeg === 40 ? ' selected' : '') + '>40 seg</option><option value="55"' + (duracionObjetivoSeg === 55 ? ' selected' : '') + '>55 seg</option></select></div>' +
+          '<div class="field"><label>Tensión (Veo)</label><select class="sel" onchange="window.editEp(\'tension\', Number(this.value))">' + [6,7,8,9,10].map(function(n) { const pv = calcularPlanVeo(n); return '<option value="' + n + '"' + ((Number(g.tension) || 8) === n ? ' selected' : '') + '>' + n + '/10 (' + pv.clips + ' Veo · $' + pv.costo.toFixed(2) + ')</option>'; }).join('') + '</select></div>' +
+        '</div>' +
+        '<label style="display:flex; align-items:center; gap:7px; font-size:12px; color:#e2e8f0; cursor:pointer; padding:6px 0;"><input type="checkbox"' + ((typeof g.bilingue === 'boolean' ? g.bilingue : proyectoActivo.bilingue) ? ' checked' : '') + ' style="accent-color:var(--naranja);" onchange="window.editEp(\'bilingue\', this.checked)"> Modo Bilingüe ES/EN + Plan Híbrido Veo</label>' +
+                '<div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-top:4px;">' +
+          '<div class="pill ok">LLM: ' + esc(vault.llmProv.toUpperCase() + ' / ' + (vault.models[vault.llmProv] || '')) + '</div>' +
+          '<button type="button" class="btn btn-blue" onclick="window.abrirModalReglasGuion()">Reglas Anti-IA y Ejemplo' + (obtenerReglasGuion().ojo_director ? ' (Dir. ON)' : '') + '</button>' +
+        '</div>' +
+      '</div>';
+  }
+
+  pane.innerHTML =
+    centro +
+    '<footer class="snapseed-dock" style="height:82px;">' +
+      '<div class="tool-strip">' +
+        '<button type="button" class="tool-btn' + (subGuionTab === 'semilla' ? ' activo' : '') + '" style="height:60px;" onclick="window.setSubGuionTab(\'semilla\')"><span>Semilla</span></button>' +
+        '<button type="button" class="tool-btn' + (subGuionTab === 'escenas' ? ' activo' : '') + '" style="height:60px;" onclick="window.setSubGuionTab(\'escenas\')"><span>Escenas (' + g.escenas.length + ')</span></button>' +
+        '<button type="button" class="tool-btn' + (subGuionTab === 'config' ? ' activo' : '') + '" style="height:60px;" onclick="window.setSubGuionTab(\'config\')"><span>Ajustes</span></button>' +
+        '<button type="button" class="btn btn-primary" id="btn-gen-guion-ia" style="height:60px; flex:1; min-width:120px;" onclick="window.generarGuionConAPI()">Generar Guion</button>' +
+      '</div>' +
+    '</footer>';
+}
+
+window.setDuracionObjetivo = function(v) { duracionObjetivoSeg = v || 40; };
+
+window.cargarCapitulosMD = async function(files) {
+  const g = getEp(); if (!g || !files || files.length === 0) return;
+  const arr = Array.from(files).sort(function(a, b) {
+    const ra = romanoAEntero(a.name.replace(/\.[^.]+$/, ''));
+    const rb = romanoAEntero(b.name.replace(/\.[^.]+$/, ''));
+    return ra !== rb ? (ra - rb) : a.name.localeCompare(b.name);
+  });
+  const textos = await Promise.all(arr.map(function(f) {
+    return new Promise(function(res) { const r = new FileReader(); r.onload = function(ev) { res({ nom: f.name, txt: String(ev.target.result || '') }); }; r.readAsText(f); });
+  }));
+  g.anecdota = textos.map(function(t) { return '=== ' + t.nom + ' ===\n' + t.txt.trim(); }).join('\n\n');
+  if (!g.titulo || /^Episodio\s/i.test(g.titulo)) g.titulo = textos.map(function(t) { return t.nom.replace(/\.[^.]+$/, ''); }).join(' + ');
+  guardarBiblioteca(true); renderTodo();
+  toast(textos.length + ' archivo(s) .md cargados.', 'exito');
+};
+
+window.editEp = function(campo, val) {
+  const g = getEp(); if (!g) return;
+  g[campo] = val;
+  if (campo === 'titulo') actualizarHeaderEditor();
+  if (campo === 'escenario_id' || campo === 'bilingue' || campo === 'tension') renderVistaGuionIA();
+  guardarBiblioteca(false);
+};
+
+window.toggleRepartoEp = function(perId) {
+  const g = getEp(); if (!g) return;
+  if (!Array.isArray(g.reparto)) g.reparto = [];
+  const i = g.reparto.indexOf(perId);
+  if (i >= 0) g.reparto.splice(i, 1); else g.reparto.push(perId);
+  guardarBiblioteca(true); renderVistaGuionIA();
+};
+
+window.irAClipTimeline = function(idx) {
+  clipSelIdx = idx; actorSelIdx = 0;
+  window.setVistaEditor('timeline');
+};
+
+async function llamarLLM(sysPrompt, userPrompt) {
+  const prov = vault.llmProv, key = vault.keys[prov];
+  const model = vault.models[prov] || (MODELOS_DEF[prov] ? MODELOS_DEF[prov][0] : 'deepseek-chat');
+  if (!key) throw new Error('Configura tu API Key en el menú ▶ -> APIs.');
+  if (prov === 'gemini') {
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(key);
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ systemInstruction: { parts: [{ text: sysPrompt }] }, contents: [{ role: 'user', parts: [{ text: userPrompt }] }], generationConfig: { temperature: 0.8 } }) });
+    if (!r.ok) throw new Error('Gemini HTTP ' + r.status);
+    const j = await r.json();
+    return (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) ? j.candidates[0].content.parts.map(function(p) { return p.text || ''; }).join('') : '';
+  }
+  const url = prov === 'deepseek' ? 'https://api.deepseek.com/v1/chat/completions' : (prov === 'openai' ? 'https://api.openai.com/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions');
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify({ model: model, temperature: 0.8, messages: [{ role: 'system', content: sysPrompt }, { role: 'user', content: userPrompt }] }) });
+  if (!r.ok) throw new Error(prov.toUpperCase() + ' HTTP ' + r.status);
+  const j = await r.json();
+  return (j.choices && j.choices[0] && j.choices[0].message) ? (j.choices[0].message.content || '') : '';
+}
+
+function reglasPorDefectoProyecto() {
+  if (proyectoActivo.bilingue || proyectoActivo.plantilla === 'scifi_hibrido') {
+    return {
+      normas: 'Narrativa hard sci-fi tensa y cinematográfica. Frases directas de máximo 18 palabras. Cierra cada escena con tensión o giro técnico real.',
+      prohibidas: 'en un mundo donde, sin lugar a dudas, cabe destacar, prepárate para, descubre el secreto, cambiará para siempre, al final del día',
+      ejemplo: 'NARRADOR: El sensor marcó cero coma tres segundos antes del colapso. DANIEL_CHEN: No fue un fallo de energía. Alguien abrió el canal desde adentro.',
+      ojo_director: true
+    };
+  }
+  return {
+    normas: 'Diálogos cortos y naturales con ritmo callejero colombiano (máx. 14 palabras por línea). Arranca en seco sin saludos aburridos y remata con ironía seca.',
+    prohibidas: 'en un mundo donde, sin lugar a dudas, cabe destacar, prepárate para, no vas a creer, déjame contarte, hola amigos, al final del día',
+    ejemplo: 'per_001 (duda): Una preguntica... ¿usted mandó una foto seria y apareció con estas pintas? | per_002 (indignado): Por lo menos yo sí me puse camisa.',
+    ojo_director: true
+  };
+}
+
+function obtenerReglasGuion() {
+  const def = reglasPorDefectoProyecto();
+  if (!biblioteca.guion_reglas || typeof biblioteca.guion_reglas !== 'object') return def;
+  return Object.assign({}, def, biblioteca.guion_reglas);
+}
+
+window.abrirModalReglasGuion = function() {
+  const rg = obtenerReglasGuion();
+  document.getElementById('rg-normas').value = rg.normas || '';
+  document.getElementById('rg-prohibidas').value = rg.prohibidas || '';
+  document.getElementById('rg-ejemplo').value = rg.ejemplo || '';
+  document.getElementById('rg-director').checked = Boolean(rg.ojo_director);
+  document.getElementById('modal-reglas-guion').classList.add('open');
+};
+
+window.cerrarModalReglasGuion = function() { document.getElementById('modal-reglas-guion').classList.remove('open'); };
+
+window.restaurarReglasPorDefecto = function() {
+  const def = reglasPorDefectoProyecto();
+  document.getElementById('rg-normas').value = def.normas;
+  document.getElementById('rg-prohibidas').value = def.prohibidas;
+  document.getElementById('rg-ejemplo').value = def.ejemplo;
+  document.getElementById('rg-director').checked = def.ojo_director;
+};
+
+window.guardarReglasGuion = function() {
+  biblioteca.guion_reglas = {
+    normas: document.getElementById('rg-normas').value.trim(),
+    prohibidas: document.getElementById('rg-prohibidas').value.trim(),
+    ejemplo: document.getElementById('rg-ejemplo').value.trim(),
+    ojo_director: document.getElementById('rg-director').checked
+  };
+  window.cerrarModalReglasGuion();
+  guardarBiblioteca(true);
+  renderVistaGuionIA();
+  toast('Reglas de guion guardadas.', 'exito');
+};
+
+function extraerArrayJsonLLM(raw) {
+  const limpio = String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim();
+  const inicio = limpio.indexOf('['), fin = limpio.lastIndexOf(']');
+  if (inicio < 0 || fin <= inicio) return null;
+  try { const a = JSON.parse(limpio.slice(inicio, fin + 1)); return Array.isArray(a) && a.length > 0 ? a : null; } catch (e) { return null; }
+}
+
+window.generarGuionConAPI = async function() {
+  const g = getEp(); if (!g) return;
+  if (!g.anecdota || !g.anecdota.trim()) { toast('Escribe primero el texto base.', 'error'); return; }
+  const btn = document.getElementById('btn-gen-guion-ia');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generando...'; }
+  try {
+    const rep = (g.reparto && g.reparto.length > 0) ? biblioteca.personajes.filter(function(p) { return g.reparto.indexOf(p.id) >= 0; }) : biblioteca.personajes;
+    const actoresTxt = rep.map(function(p) { return p.id + ' (' + p.nombre + ' · ' + (p.raza || 'perro') + ' · ' + (p.personalidad || '') + ')'; }).join('\n');
+    const escTxt = (biblioteca.escenarios || []).map(function(e) { return e.id + ' (' + e.nombre + ': zonas ' + (e.zonas || []).map(function(z) { return z.id + '=' + z.nombre; }).join(', ') + ')'; }).join('\n');
+    const propsTxt = (biblioteca.props || []).filter(function(x) { return x.categoria !== 'audio'; }).map(function(x) { return x.id; }).join(', ');
+    const sfxTxt = (biblioteca.props || []).filter(function(x) { return x.categoria === 'audio'; }).map(function(x) { return x.id; }).join(', ');
+    const esBilingue = typeof g.bilingue === 'boolean' ? g.bilingue : Boolean(proyectoActivo.bilingue);
+    const asp = getAspectoEp(g);
+    const fmtTxt = asp === '16:9' ? 'horizontal panorámico 16:9 (YouTube serie animada)' : 'vertical 9:16 (YouTube Shorts / Reels / TikTok)';
+    const planVeo = calcularPlanVeo(g.tension || 8);
+    const rg = obtenerReglasGuion();
+    const bloqueReglas = '\n\nREGLAS OBLIGATORIAS DE ESTILO:\n' + (rg.normas || '') + (rg.prohibidas ? ('\nFRASES PROHIBIDAS (NUNCA USAR): ' + rg.prohibidas) : '') + (rg.ejemplo ? ('\nEJEMPLO DE TONO Y RITMO QUE SÍ FUNCIONA:\n' + rg.ejemplo) : '');
+    const sys = esBilingue
+      ? 'Eres showrunner técnico de animación 2D hard sci-fi y motion-comic híbrido (Veo + cómic estático). Responde ÚNICAMENTE con un array JSON válido sin markdown.'
+      : 'Eres guionista experto en comedia corta colombiana (estilo South Park / BoJack Horseman). Responde ÚNICAMENTE con un array JSON válido sin markdown.';
+    const usr = (esBilingue
+      ? ('Adapta este texto fuente de "' + proyectoActivo.nombre + '" en un episodio ' + fmtTxt + ' de 8 escenas (Tensión ' + (g.tension || 8) + '/10, ' + planVeo.cat + ').\nREGLA VEO: índices [' + planVeo.indices.join(', ') + '] (base 1) llevan "render_mode":"VEO_ANIMATED","modo":"plano". Las demás "STATIC_COMIC".\nClaves exactas: {"actor":"NARRADOR","escenario":"' + (g.escenario_id || 'esc_001') + '","zona":"' + (g.zona_id || 'zona_01') + '","posicion":"centro","ojos":"neutro|enojado|duda|indignado","camara":"centro|zoom_actor|plano_general","modo":"plano","render_mode":"STATIC_COMIC|VEO_ANIMATED","prop":"","sfx":"","duracion":5.5,"texto":"diálogo ES","texto_en":"English dialogue","prompt_plano":"base static ' + asp + ' frame prompt in English","veo_bridge_prompt":"5-6s Veo animation or slow_zoom_in"}\n\nETIQUETAS:\nPersonajes:\n' + actoresTxt + '\nEscenarios:\n' + escTxt + '\nProps: ' + (propsTxt || 'ninguno') + '\nSFX: ' + (sfxTxt || 'ninguno') + '\n\nTEXTO FUENTE:\n' + g.anecdota.slice(0, 12000))
+      : ('Convierte esta anécdota en un guion dinámico ' + fmtTxt + ' de ~' + duracionObjetivoSeg + 's (7 a 12 líneas cortas, gancho fuerte y remate).\nClaves exactas: {"actor":"per_001","escenario":"' + (g.escenario_id || 'esc_001') + '","zona":"' + (g.zona_id || 'zona_01') + '","posicion":"izq|centro|der","ojos":"neutro|feliz|enojado|triste|duda|indignado","camara":"centro|izq|der|zoom_actor|plano_general","modo":"rig","prop":"","sfx":"","duracion":3.5,"texto":"diálogo colombiano","prompt_plano":"breve descripción ' + asp + ' en inglés"}\n\nETIQUETAS:\nPersonajes:\n' + actoresTxt + '\nEscenarios:\n' + escTxt + '\nProps: ' + (propsTxt || 'ninguno') + '\nSFX: ' + (sfxTxt || 'ninguno') + '\n\nANÉCDOTA:\n' + g.anecdota)) + bloqueReglas;
+
+    const raw = await llamarLLM(sys, usr);
+    let arr = extraerArrayJsonLLM(raw);
+    if (!arr) throw new Error('JSON inválido devuelto por IA.');
+    if (rg.ojo_director) {
+      if (btn) btn.textContent = 'Revisando (Dir.)...';
+      try {
+        const usrDir = 'Actúa como director exigente viendo el borrador completo antes de grabar voces. Detecta y corrige: frases que suenen a IA o estén en la lista prohibida (' + (rg.prohibidas || 'clichés') + '), chistes flojos, líneas demasiado largas o expresiones de ojos repetitivas. Mantén EXACTAMENTE las mismas claves JSON e IDs válidos y devuelve ÚNICAMENTE el array JSON corregido.\n\nBORRADOR:\n' + JSON.stringify(arr);
+        const rawDir = await llamarLLM(sys, usrDir);
+        const arrDir = extraerArrayJsonLLM(rawDir);
+        if (arrDir) arr = arrDir;
+      } catch (eDir) {}
+    }
+    if (!Array.isArray(arr) || arr.length === 0) throw new Error('Guion vacío.');
+    g.escenas = arr.map(function(it, idx) {
+      const words = String(it.texto || '').trim().split(/\s+/).filter(Boolean).length;
+      const durEst = Math.max(1.8, Math.min(9, Number(it.duracion) || Number((words / 2.7 + 0.7).toFixed(1))));
+      return {
+        id: 'sc_' + Date.now() + '_' + idx, actor: String(it.actor || (rep[0] ? rep[0].id : 'per_001')),
+        escenario: String(it.escenario || g.escenario_id || 'esc_001'), zona: String(it.zona || g.zona_id || 'zona_01'),
+        posicion: String(it.posicion || (idx % 2 === 0 ? 'izq' : 'der')), ojos: String(it.ojos || 'neutro'),
+        camara: String(it.camara || 'centro'), modo: String(it.modo || 'rig'), prop: String(it.prop || ''), sfx: String(it.sfx || ''),
+        duracion: durEst, texto: String(it.texto || ''), texto_en: String(it.texto_en || ''),
+        render_mode: String(it.render_mode || 'STATIC_COMIC'), veo_bridge_prompt: String(it.veo_bridge_prompt || 'slow_zoom_in'),
+        prompt_plano: String(it.prompt_plano || ''), audio_url: '', plano_url: ''
+      };
+    });
+    clipSelIdx = 0; subGuionTab = 'escenas';
+    guardarBiblioteca(true); renderTodo();
+    toast('Guion generado (' + g.escenas.length + ' escenas).', 'exito');
+  } catch (err) {
+    toast('Error: ' + err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Generar Guion'; }
+  }
+};
+
+// =========================================================================
+// 4. VISTA 2: TIMELINE + DOCK SNAPSEED CONMUTABLE
+// =========================================================================
+function ajustarCanvasPreview() {
+  const cv = document.getElementById('canvas-preview');
+  const wrap = document.getElementById('tl-stage-wrap');
+  const g = getEp();
+  if (!cv || !wrap || !g) return;
+  const esH = getAspectoEp(g) === '16:9';
+  const cw = esH ? 960 : 540, ch = esH ? 540 : 960;
+  if (cv.width !== cw || cv.height !== ch) { cv.width = cw; cv.height = ch; }
+  const maxW = Math.max(80, wrap.clientWidth - 16);
+  const maxH = Math.max(80, wrap.clientHeight - 36);
+  const r = Math.min(maxW / cw, maxH / ch);
+  cv.style.width = Math.max(40, Math.floor(cw * r)) + 'px';
+  cv.style.height = Math.max(40, Math.floor(ch * r)) + 'px';
+}
+window.addEventListener('resize', function() { if (vistaActual === 'timeline') ajustarCanvasPreview(); });
+
+window.setZoomTimeline = function(val) { zoomPxSeg = val; renderTimeline(); };
+
+window.agregarClipTimeline = function() {
+  const g = getEp(); if (!g) return;
+  if (!Array.isArray(g.escenas)) g.escenas = [];
+  const act = (g.reparto && g.reparto[0]) || (biblioteca.personajes[0] ? biblioteca.personajes[0].id : 'per_001');
+  g.escenas.push({
+    id: 'sc_' + Date.now(), actor: act, escenario: g.escenario_id || 'esc_001', zona: g.zona_id || 'zona_01',
+    posicion: g.escenas.length % 2 === 0 ? 'izq' : 'der', ojos: 'neutro', camara: 'centro',
+    modo: 'rig', prop: '', sfx: '', duracion: 3.0, texto: '', prompt_plano: '', audio_url: '', plano_url: ''
+  });
+  clipSelIdx = g.escenas.length - 1; actorSelIdx = 0;
+  guardarBiblioteca(true); renderTodo();
+};
+
+window.editEscena = function(idx, campo, val) {
+  const g = getEp(); if (!g || !g.escenas || !g.escenas[idx]) return;
+  g.escenas[idx][campo] = campo === 'duracion' ? Math.max(0.5, Number(val) || 2) : val;
+  guardarBiblioteca(false);
+  if (vistaActual === 'timeline') {
+    if (campo !== 'texto' && campo !== 'texto_en' && campo !== 'prompt_plano' && campo !== 'veo_bridge_prompt') renderTimeline();
+    window.renderPreviewCanvas();
+  }
+};
+
+window.borrarEscena = function(idx) {
+  const g = getEp(); if (!g || !g.escenas) return;
+  g.escenas.splice(idx, 1);
+  clipSelIdx = Math.max(0, Math.min(clipSelIdx, g.escenas.length - 1));
+  actorSelIdx = 0;
+  guardarBiblioteca(true); renderTodo();
+};
+
+window.moverClip = function(idx, d) {
+  const g = getEp(); if (!g || !g.escenas) return;
+  const dest = idx + d;
+  if (dest < 0 || dest >= g.escenas.length) return;
+  const tmp = g.escenas[idx]; g.escenas[idx] = g.escenas[dest]; g.escenas[dest] = tmp;
+  clipSelIdx = dest;
+  guardarBiblioteca(true); renderTimeline(); window.renderPreviewCanvas();
+};
+
+window.seleccionarClip = function(idx) {
+  const g = getEp();
+  const maxI = g && g.escenas ? Math.max(0, g.escenas.length - 1) : 0;
+  clipSelIdx = Math.max(0, Math.min(idx, maxI));
+  actorSelIdx = 0;
+  if (!reproduciendo) {
+    playOffsetSeg = inicioSegDeClip(clipSelIdx);
+    actualizarPlayheadUI(playOffsetSeg);
+  }
+  renderTimeline();
+  window.renderPreviewCanvas();
+  guardarEstadoUIEditor();
+};
+
+window.abrirToolTL = function(t) { tlToolActiva = t; renderDockTimeline(); };
+window.cerrarToolTL = function() { tlToolActiva = null; renderDockTimeline(); };
+window.selActorIdxDock = function(i) { actorSelIdx = i; renderDockTimeline(); };
+
+function duracionTotalEp() {
+  const g = getEp(); if (!g || !Array.isArray(g.escenas)) return 0;
+  return g.escenas.reduce(function(acc, sc) { return acc + (Number(sc.duracion) || 3); }, 0);
+}
+
+function inicioSegDeClip(idx) {
+  const g = getEp(); if (!g || !Array.isArray(g.escenas)) return 0;
+  let t = 0;
+  for (let i = 0; i < idx && i < g.escenas.length; i++) t += (Number(g.escenas[i].duracion) || 3);
+  return t;
+}
+
+function renderTimeline() {
+  const g = getEp();
+  const tv = document.getElementById('track-visual');
+  const ta = document.getElementById('track-voces');
+  const tf = document.getElementById('track-fx');
+  if (!g || !tv) return;
+  if (!Array.isArray(g.escenas)) g.escenas = [];
+  if (clipSelIdx >= g.escenas.length) clipSelIdx = Math.max(0, g.escenas.length - 1);
+
+  const bClip = document.getElementById('badge-clip-num');
+  if (bClip) bClip.textContent = g.escenas.length > 0 ? ('Clip ' + (clipSelIdx + 1) + '/' + g.escenas.length) : 'Sin clips';
+
+  tv.innerHTML = ''; ta.innerHTML = ''; tf.innerHTML = '';
+  g.escenas.forEach(function(sc, idx) {
+    const dur = Math.max(0.8, Number(sc.duracion) || 3);
+    const wPx = Math.max(76, Math.round(dur * zoomPxSeg));
+    const per = biblioteca.personajes.find(function(p) { return p.id === sc.actor; });
+    const thumbUrl = sc.plano_url || (per && per.piezas && ((per.piezas.maestro_perfil && per.piezas.maestro_perfil.url) || (per.piezas.maestro_cuerpo && per.piezas.maestro_cuerpo.url))) || '';
+
+    const cVis = document.createElement('button');
+    cVis.type = 'button';
+    cVis.className = 'tl-clip' + (idx === clipSelIdx ? ' activo' : '');
+    cVis.style.width = wPx + 'px';
+    cVis.onclick = function() { window.seleccionarClip(idx); };
+    cVis.innerHTML = (thumbUrl ? '<img class="tl-clip-thumb" src="' + esc(thumbUrl) + '">' : '') +
+      '<div class="tl-clip-txt"><strong>#' + (idx + 1) + ' ' + esc(per ? per.nombre : sc.actor) + '</strong><small>' + esc((sc.modo === 'plano' && sc.plano_url ? 'IA' : 'RIG') + ' · ' + dur.toFixed(1) + 's') + '</small></div>';
+    tv.appendChild(cVis);
+
+    const cAud = document.createElement('button');
+    cAud.type = 'button';
+    cAud.className = 'tl-audio' + (sc.audio_url ? ' listo' : '') + (idx === clipSelIdx ? ' activo' : '');
+    cAud.style.width = wPx + 'px';
+    cAud.onclick = function() { window.seleccionarClip(idx); };
+    cAud.innerHTML = '<span>' + (sc.audio_url ? 'Voz OK' : (sc.continuar_audio ? 'L-cut' : 'Sin voz')) + '</span><b>' + dur.toFixed(1) + 's</b>';
+    ta.appendChild(cAud);
+
+    const cFx = document.createElement('button');
+    cFx.type = 'button';
+    cFx.className = 'tl-fx';
+    cFx.style.width = wPx + 'px';
+    cFx.onclick = function() { window.seleccionarClip(idx); };
+    cFx.textContent = [sc.prop || '', sc.sfx || ''].filter(Boolean).join(' + ') || '-';
+    tf.appendChild(cFx);
+  });
+
+  renderDockTimeline();
+  actualizarPlayheadUI(playOffsetSeg);
+}
+
+function renderDockTimeline() {
+  const dock = document.getElementById('tl-dock');
+  const g = getEp();
+  if (!dock || !g) return;
+  const sc = (g.escenas || [])[clipSelIdx];
+
+  if (!sc) {
+    dock.innerHTML = '<div class="tool-strip" style="justify-content:center;"><button type="button" class="btn btn-primary" onclick="window.agregarClipTimeline()">+ Crear Primer Clip</button><button type="button" class="btn btn-blue" onclick="window.setVistaEditor(\'guion\')">Ir a Guion IA</button></div>';
+    return;
+  }
+
+  if (!tlToolActiva) {
+    const esBil = Boolean(proyectoActivo.bilingue || sc.texto_en || sc.render_mode === 'VEO_ANIMATED');
+    dock.innerHTML =
+      '<div class="tool-strip">' +
+        '<button type="button" class="tool-btn accent" onclick="window.abrirToolTL(\'actores\')"><svg class="svg-ico" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Actores</span></button>' +
+        '<button type="button" class="tool-btn" onclick="window.abrirToolTL(\'dialogo\')"><svg class="svg-ico" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Diálogo</span></button>' +
+        '<button type="button" class="tool-btn" onclick="window.abrirToolTL(\'camara\')"><svg class="svg-ico" viewBox="0 0 24 24"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg><span>Cám/FX</span></button>' +
+        '<button type="button" class="tool-btn" onclick="window.abrirToolTL(\'ia\')"><svg class="svg-ico" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg><span>Voz/Img</span></button>' +
+        (esBil ? '<button type="button" class="tool-btn" onclick="window.abrirToolTL(\'veo\')"><svg class="svg-ico" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span>Veo/EN</span></button>' : '') +
+        '<button type="button" class="tool-btn" onclick="window.abrirToolTL(\'clips\')"><svg class="svg-ico" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/></svg><span>Clips/Lote</span></button>' +
+      '</div>';
+    return;
+  }
+
+  if (tlToolActiva === 'actores') {
+    const actoresClip = normalizarActoresEscena(sc);
+    if (actorSelIdx >= actoresClip.length) actorSelIdx = 0;
+    const a = actoresClip[actorSelIdx];
+    const pOpts = (biblioteca.personajes || []).map(function(p) { return '<option value="' + esc(p.id) + '"' + (a.id === p.id ? ' selected' : '') + '>' + esc(p.nombre) + '</option>'; }).join('');
+    const propsMano = (biblioteca.props || []).filter(function(x) { return x.categoria === 'prop'; });
+    const prOpts = '<option value="">Sin prop</option>' + propsMano.map(function(x) { return '<option value="' + esc(x.id) + '"' + (a.prop === x.id ? ' selected' : '') + '>' + esc(x.nombre) + '</option>'; }).join('');
+    const tabsAct = actoresClip.map(function(ac, i) {
+      const pe = biblioteca.personajes.find(function(x) { return x.id === ac.id; });
+      return '<button type="button" class="btn btn-xs ' + (i === actorSelIdx ? 'btn-primary' : '') + '" onclick="window.selActorIdxDock(' + i + ')">' + (i + 1) + '.' + esc(pe ? pe.nombre.split(' ')[0] : ac.id) + '</button>';
+    }).join('');
+    dock.innerHTML =
+      '<div class="subpanel">' +
+        '<div class="sub-top">' +
+          '<div style="display:flex; gap:4px; overflow-x:auto;">' + tabsAct + '<button type="button" class="btn btn-xs btn-blue" onclick="window.agregarActorClip(' + clipSelIdx + ')">+ Actor</button>' + (actoresClip.length > 1 ? '<button type="button" class="btn btn-xs btn-danger" onclick="window.quitarActorClip(' + clipSelIdx + ',' + actorSelIdx + ')">Quitar</button>' : '') + '</div>' +
+          '<button type="button" class="btn btn-green btn-xs" onclick="window.cerrarToolTL()">Listo</button>' +
+        '</div>' +
+        '<div class="sub-row">' +
+          '<select class="sel-mini" onchange="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'id\',this.value)">' + pOpts + '</select>' +
+          '<select class="sel-mini" onchange="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'posicion\',this.value)">' + [['izq','Izq'],['centro','Centro'],['der','Der (Esp)']].map(function(c) { return '<option value="' + c[0] + '"' + (a.posicion === c[0] ? ' selected' : '') + '>' + c[1] + '</option>'; }).join('') + '</select>' +
+          '<select class="sel-mini" onchange="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'ojos\',this.value)">' + ['neutro','feliz','enojado','triste','duda','indignado'].map(function(o) { return '<option value="' + o + '"' + (a.ojos === o ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select>' +
+          '<select class="sel-mini" onchange="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'brazo\',this.value)"><option value="brazo_delantero_reposo"' + (a.brazo === 'brazo_delantero_reposo' ? ' selected' : '') + '>Brazo Rep</option><option value="brazo_delantero_prop"' + (a.brazo === 'brazo_delantero_prop' ? ' selected' : '') + '>Brazo Prop</option><option value="ninguno"' + (a.brazo === 'ninguno' ? ' selected' : '') + '>Sin Brazo</option></select>' +
+          '<select class="sel-mini" onchange="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'prop\',this.value)">' + prOpts + '</select>' +
+          '<input type="number" min="-25" max="25" class="sel-mini" style="width:54px; min-width:54px;" value="' + (a.rotCab || 0) + '" title="Giro cabeza" oninput="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'rotCab\',Number(this.value))">' +
+        '</div>' +
+      '</div>';
+  } else if (tlToolActiva === 'dialogo') {
+    const actoresClip = normalizarActoresEscena(sc);
+    const habActual = sc.hablante !== undefined ? sc.hablante : (sc.actor || (actoresClip[0] ? actoresClip[0].id : ''));
+    const habOpts = '<option value="ninguno"' + (habActual === 'ninguno' ? ' selected' : '') + '>Mudo</option>' + (biblioteca.personajes || []).map(function(p) { return '<option value="' + esc(p.id) + '"' + (habActual === p.id ? ' selected' : '') + '>' + esc(p.nombre) + '</option>'; }).join('');
+    dock.innerHTML =
+      '<div class="subpanel">' +
+        '<div class="sub-top">' +
+          '<div style="display:flex; gap:5px; align-items:center; overflow-x:auto;">' +
+            '<select class="sel-mini" onchange="window.editEscena(' + clipSelIdx + ',\'hablante\',this.value)">' + habOpts + '</select>' +
+            '<label style="font-size:10.5px; color:#7dd3fc; display:inline-flex; align-items:center; gap:4px; white-space:nowrap;"><input type="checkbox"' + (sc.continuar_audio ? ' checked' : '') + ' style="accent-color:var(--azul);" onchange="window.editEscena(' + clipSelIdx + ',\'continuar_audio\',this.checked)"> L-cut</label>' +
+          '</div>' +
+          '<button type="button" class="btn btn-green btn-xs" onclick="window.cerrarToolTL()">Listo</button>' +
+        '</div>' +
+        '<div class="sub-row">' +
+          '<input class="inp" style="flex:1;" value="' + esc(sc.texto || '') + '" placeholder="Diálogo ES (ElevenLabs + Subtítulos)..." oninput="window.editEscena(' + clipSelIdx + ',\'texto\',this.value)">' +
+        '</div>' +
+      '</div>';
+  } else if (tlToolActiva === 'camara') {
+    const fxOpts = '<option value="">Sin FX</option>' + (biblioteca.props || []).filter(function(x) { return x.categoria === 'fx'; }).map(function(x) { return '<option value="' + esc(x.id) + '"' + (sc.prop === x.id ? ' selected' : '') + '>' + esc(x.nombre) + '</option>'; }).join('');
+    const sfxOpts = '<option value="">Sin SFX</option>' + (biblioteca.props || []).filter(function(x) { return x.categoria === 'audio'; }).map(function(x) { return '<option value="' + esc(x.id) + '"' + (sc.sfx === x.id ? ' selected' : '') + '>' + esc(x.nombre) + '</option>'; }).join('');
+    dock.innerHTML =
+      '<div class="subpanel">' +
+        '<div class="sub-top"><span class="sub-title">Cámara, Modo, Duración y FX</span><button type="button" class="btn btn-green btn-xs" onclick="window.cerrarToolTL()">Listo</button></div>' +
+        '<div class="sub-row">' +
+          '<select class="sel-mini" onchange="window.editEscena(' + clipSelIdx + ',\'camara\',this.value)">' + [['centro','Cám Centro'],['izq','Cám Izq'],['der','Cám Der'],['zoom_actor','Zoom'],['plano_general','General']].map(function(c) { return '<option value="' + c[0] + '"' + ((sc.camara || 'centro') === c[0] ? ' selected' : '') + '>' + c[1] + '</option>'; }).join('') + '</select>' +
+          '<select class="sel-mini" onchange="window.editEscena(' + clipSelIdx + ',\'modo\',this.value)"><option value="rig"' + ((sc.modo || 'rig') === 'rig' ? ' selected' : '') + '>Piro-Rig</option><option value="plano"' + (sc.modo === 'plano' ? ' selected' : '') + '>Plano IA</option></select>' +
+          '<input type="number" step="0.1" min="0.5" class="sel-mini" style="width:62px; min-width:62px;" value="' + (Number(sc.duracion) || 3) + '" title="Duración (s)" oninput="window.editEscena(' + clipSelIdx + ',\'duracion\',this.value)">' +
+          '<select class="sel-mini" onchange="window.editEscena(' + clipSelIdx + ',\'prop\',this.value)">' + fxOpts + '</select>' +
+          '<select class="sel-mini" onchange="window.editEscena(' + clipSelIdx + ',\'sfx\',this.value)">' + sfxOpts + '</select>' +
+        '</div>' +
+      '</div>';
+  } else if (tlToolActiva === 'ia') {
+    dock.innerHTML =
+      '<div class="subpanel">' +
+        '<div class="sub-top">' +
+          '<div style="display:flex; gap:5px; overflow-x:auto;">' +
+            '<button type="button" class="btn btn-xs btn-green" id="btn-gen-voz-clip" onclick="window.generarVozClip(' + clipSelIdx + ')">Voz ElevenLabs</button>' +
+            '<button type="button" class="btn btn-xs btn-purple" id="btn-gen-img-clip" onclick="window.generarPlanoClip(' + clipSelIdx + ')">Imagen Gemini</button>' +
+            (sc.plano_url ? '<button type="button" class="btn btn-xs btn-danger" onclick="window.quitarPlanoClip(' + clipSelIdx + ')">Quitar Img</button>' : '') +
+          '</div>' +
+          '<button type="button" class="btn btn-green btn-xs" onclick="window.cerrarToolTL()">Listo</button>' +
+        '</div>' +
+        '<div class="sub-row">' +
+          '<input class="inp" style="flex:1;" value="' + esc(sc.prompt_plano || '') + '" placeholder="Prompt visual en inglés para Imagen Gemini..." oninput="window.editEscena(' + clipSelIdx + ',\'prompt_plano\',this.value)">' +
+        '</div>' +
+      '</div>';
+  } else if (tlToolActiva === 'veo') {
+    dock.innerHTML =
+      '<div class="subpanel">' +
+        '<div class="sub-top">' +
+          '<select class="sel-mini" onchange="window.editEscena(' + clipSelIdx + ',\'render_mode\',this.value)"><option value="STATIC_COMIC"' + ((sc.render_mode || 'STATIC_COMIC') === 'STATIC_COMIC' ? ' selected' : '') + '>STATIC_COMIC</option><option value="VEO_ANIMATED"' + (sc.render_mode === 'VEO_ANIMATED' ? ' selected' : '') + '>VEO_ANIMATED</option></select>' +
+          '<button type="button" class="btn btn-green btn-xs" onclick="window.cerrarToolTL()">Listo</button>' +
+        '</div>' +
+        '<div class="sub-row">' +
+          '<input class="inp" style="flex:1; min-width:140px;" value="' + esc(sc.texto_en || '') + '" placeholder="Diálogo EN..." oninput="window.editEscena(' + clipSelIdx + ',\'texto_en\',this.value)">' +
+          '<input class="inp" style="flex:1; min-width:140px;" value="' + esc(sc.veo_bridge_prompt || '') + '" placeholder="Puente Veo (5-6s)..." oninput="window.editEscena(' + clipSelIdx + ',\'veo_bridge_prompt\',this.value)">' +
+        '</div>' +
+      '</div>';
+  } else if (tlToolActiva === 'clips') {
+    dock.innerHTML =
+      '<div class="subpanel">' +
+        '<div class="sub-top">' +
+          '<span class="sub-title">Gestión de Clips y Lotes</span>' +
+          '<div style="display:flex; gap:5px; align-items:center;">' +
+            '<span style="font-size:10px; color:var(--muted);">Zoom</span><input type="range" min="24" max="80" value="' + zoomPxSeg + '" style="width:64px; accent-color:var(--azul);" oninput="window.setZoomTimeline(Number(this.value))">' +
+            '<button type="button" class="btn btn-green btn-xs" onclick="window.cerrarToolTL()">Listo</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="sub-row">' +
+          '<button type="button" class="btn btn-xs btn-primary" onclick="window.agregarClipTimeline()">+ Clip</button>' +
+          '<button type="button" class="btn btn-xs btn-green" id="btn-lote-voces" onclick="window.generarVocesLote()">Voces Lote</button>' +
+          '<button type="button" class="btn btn-xs btn-purple" id="btn-lote-planos" onclick="window.generarPlanosLote()">Planos Lote</button>' +
+          '<button type="button" class="btn btn-xs" onclick="window.moverClip(' + clipSelIdx + ',-1)">Mover ←</button>' +
+          '<button type="button" class="btn btn-xs" onclick="window.moverClip(' + clipSelIdx + ',1)">Mover →</button>' +
+          '<button type="button" class="btn btn-xs btn-danger" onclick="window.borrarEscena(' + clipSelIdx + ')">Borrar</button>' +
+        '</div>' +
+      '</div>';
+  }
+}
+
+// =========================================================================
+// 5. GENERACIÓN DE VOCES Y PLANOS IA
+// =========================================================================
+function medirDuracionAudio(blob) {
+  return new Promise(function(resolve) {
+    const u = URL.createObjectURL(blob);
+    const a = new Audio(u);
+    a.onloadedmetadata = function() { const d = a.duration; URL.revokeObjectURL(u); resolve(Number.isFinite(d) && d > 0.2 ? Number(d.toFixed(2)) : 3.0); };
+    a.onerror = function() { URL.revokeObjectURL(u); resolve(3.0); };
+  });
+}
+
+window.generarVozClip = async function(idx) {
+  const g = getEp(); const sc = g && g.escenas ? g.escenas[idx] : null;
+  if (!sc) return;
+  if (!vault.elKey) { toast('Configura tu API Key de ElevenLabs en ▶ -> APIs.', 'error'); return; }
+  if (!sc.texto || !sc.texto.trim()) { toast('Este clip no tiene diálogo.', 'error'); return; }
+  const idVoz = (sc.hablante && sc.hablante !== 'ninguno') ? sc.hablante : sc.actor;
+  const per = biblioteca.personajes.find(function(p) { return p.id === idVoz; });
+  const voiceId = per && per.voice_id ? per.voice_id.trim() : '';
+  if (!voiceId) { toast('Asigna voice_id de ' + (per ? per.nombre : sc.actor) + ' en Contenido.', 'error'); return; }
+  const btn = document.getElementById('btn-gen-voz-clip');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sintetizando...'; }
+  try {
+    const r = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + encodeURIComponent(voiceId), {
+      method: 'POST', headers: { 'xi-api-key': vault.elKey, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
+      body: JSON.stringify({ text: sc.texto, model_id: vault.elModel || 'eleven_multilingual_v2', voice_settings: { stability: 0.45, similarity_boost: 0.78 } })
+    });
+    if (!r.ok) throw new Error('ElevenLabs HTTP ' + r.status);
+    const blob = await r.blob();
+    const dur = await medirDuracionAudio(blob);
+    const fileObj = new File([blob], 'voz_' + (idx + 1) + '.mp3', { type: 'audio/mpeg' });
+    const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(getEpStorageBucket(g.id), 'voces/' + Date.now() + '_clip_' + (idx + 1) + '.mp3', fileObj);
+    if (!up.success) throw new Error(up.error || 'Error subiendo MP3');
+    sc.audio_url = up.url; sc.audio_storage = up.rutaStorage; sc.duracion = Number((dur + 0.25).toFixed(2));
+    guardarBiblioteca(true); renderTimeline();
+    toast('Voz guardada (' + dur + 's).', 'exito');
+  } catch (err) {
+    toast('Error voz #' + (idx + 1) + ': ' + err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Voz ElevenLabs'; }
+  }
+};
+
+let lotePendienteTipo = null;
+let lotePendienteIndices = [];
+
+window.cerrarModalLote = function() {
+  document.getElementById('modal-confirm-lote').classList.remove('open');
+  lotePendienteTipo = null;
+  lotePendienteIndices = [];
+};
+
+function abrirConfirmacionLote(tipo) {
+  const g = getEp(); if (!g || !g.escenas) return;
+  const asp = getAspectoEp(g);
+  const indices = [];
+  const sinVozPer = [];
+  let yaListos = 0;
+  g.escenas.forEach(function(sc, i) {
+    if (tipo === 'voces') {
+      if (sc.audio_url) { yaListos++; return; }
+      if (sc.texto && sc.texto.trim()) {
+        indices.push(i);
+        const idVoz = (sc.hablante && sc.hablante !== 'ninguno') ? sc.hablante : sc.actor;
+        const per = (biblioteca.personajes || []).find(function(p) { return p.id === idVoz; });
+        if (!per || !per.voice_id || !per.voice_id.trim()) {
+          const nom = per ? per.nombre : idVoz;
+          if (sinVozPer.indexOf(nom) < 0) sinVozPer.push(nom);
+        }
+      }
+    } else {
+      if (sc.plano_url) { yaListos++; return; }
+      if (sc.modo === 'plano') indices.push(i);
+    }
+  });
+  if (indices.length === 0) {
+    toast(tipo === 'voces' ? 'No hay clips pendientes de voz.' : 'No hay clips en modo Plano IA pendientes de imagen.', 'info');
+    return;
+  }
+  lotePendienteTipo = tipo;
+  lotePendienteIndices = indices;
+  document.getElementById('lote-conf-tit').textContent = tipo === 'voces' ? 'Confirmar Lote de Voces (ElevenLabs)' : 'Confirmar Lote de Planos (Gemini Imagen)';
+  const alertas = [];
+  if (tipo === 'voces' && !vault.elKey) alertas.push('Falta API Key de ElevenLabs en APIs.');
+  if (tipo === 'voces' && sinVozPer.length > 0) alertas.push('Personajes sin voice_id: ' + sinVozPer.join(', ') + '.');
+  if (tipo === 'planos' && !(vault.gemImgKey || vault.keys.gemini)) alertas.push('Falta API Key de Gemini en APIs.');
+  document.getElementById('lote-conf-body').innerHTML =
+    '<div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px;">' +
+      '<div class="card-sub" style="margin:0; padding:7px;"><small style="color:var(--muted); display:block;">Formato</small><strong>' + esc(asp) + '</strong></div>' +
+      '<div class="card-sub" style="margin:0; padding:7px;"><small style="color:var(--muted); display:block;">Por generar</small><strong style="color:var(--naranja);">' + indices.length + ' clips</strong></div>' +
+    '</div>' +
+    '<div style="font-size:11px; color:var(--muted); margin-bottom:6px;">Ya listos (se saltan sin cobrar): <b>' + yaListos + '</b> · Modelo: <b>' + esc(tipo === 'voces' ? (vault.elModel || 'eleven_multilingual_v2') : (vault.gemImgModel || 'gemini-2.5-flash-image')) + '</b></div>' +
+    (alertas.length > 0 ? '<div style="padding:7px 9px; border-radius:8px; border:1px solid rgba(239,68,68,0.5); background:rgba(239,68,68,0.12); color:#fca5a5; font-size:11px; font-weight:700;">' + esc(alertas.join(' ')) + '</div>' : '<div style="font-size:11px; color:#86efac;">Consejo: prueba primero el clip #' + (indices[0] + 1) + ' para validar calidad antes de lanzar el lote.</div>');
+  document.getElementById('btn-lote-prueba-1').textContent = 'Probar solo clip #' + (indices[0] + 1);
+  document.getElementById('btn-lote-ejecutar-todo').textContent = 'Generar todos (' + indices.length + ')';
+  document.getElementById('modal-confirm-lote').classList.add('open');
+}
+
+window.confirmarEjecutarLote = async function(soloPrimero) {
+  const tipo = lotePendienteTipo;
+  const lista = soloPrimero ? lotePendienteIndices.slice(0, 1) : lotePendienteIndices.slice();
+  window.cerrarModalLote();
+  if (!tipo || lista.length === 0) return;
+  const btnId = tipo === 'voces' ? 'btn-lote-voces' : 'btn-lote-planos';
+  const btn = document.getElementById(btnId);
+  if (btn) { btn.disabled = true; btn.textContent = 'Procesando...'; }
+  for (let k = 0; k < lista.length; k++) {
+    if (tipo === 'voces') await window.generarVozClip(lista[k]);
+    else await window.generarPlanoClip(lista[k]);
+  }
+  if (btn) { btn.disabled = false; btn.textContent = tipo === 'voces' ? 'Voces Lote' : 'Planos Lote'; }
+};
+
+window.generarVocesLote = function() { abrirConfirmacionLote('voces'); };
+
+function base64ABlob(b64, mime) {
+  const bin = atob(b64), arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime || 'image/png' });
+}
+
+window.generarPlanoClip = async function(idx) {
+  const g = getEp(); const sc = g && g.escenas ? g.escenas[idx] : null;
+  if (!sc) return;
+  const key = vault.gemImgKey || vault.keys.gemini;
+  if (!key) { toast('Configura API Key Gemini en ▶ -> APIs.', 'error'); return; }
+  const model = vault.gemImgModel || 'gemini-2.5-flash-image';
+  const per = biblioteca.personajes.find(function(p) { return p.id === sc.actor; });
+  const escObj = biblioteca.escenarios.find(function(e) { return e.id === (sc.escenario || g.escenario_id); });
+  const asp = getAspectoEp(g);
+  const estiloRaw = proyectoActivo.estilo_visual || '2D cartoon animation frame, BoJack Horseman art style, clean black ink outlines, flat vibrant colors, no text.';
+  const baseEstilo = asp === '16:9' ? ('Horizontal 16:9 widescreen cinematic frame. ' + estiloRaw.replace(/vertical\s*9:16/ig, 'horizontal 16:9 widescreen').replace(/9:16/g, '16:9')) : ('Vertical 9:16 portrait frame. ' + estiloRaw);
+  const promptFinal = baseEstilo + ' Character: ' + (per ? (per.raza + ', ' + per.contextura + ', ' + per.pelaje_rasgos + ', wearing ' + per.vestuario_base) : sc.actor) + '. Expression: ' + (sc.ojos || 'neutro') + '. Setting: ' + (escObj ? (escObj.nombre + ', ' + escObj.iluminacion) : 'Colombian urban setting') + '. Action: ' + (sc.prompt_plano || sc.texto || 'talking expressively') + '.';
+  const btn = document.getElementById('btn-gen-img-clip');
+  if (btn) { btn.disabled = true; btn.textContent = 'Dibujando...'; }
+  try {
+    let b64 = null, mime = 'image/png';
+    if (model.indexOf('imagen-') === 0) {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':predict?key=' + encodeURIComponent(key), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instances: [{ prompt: promptFinal }], parameters: { sampleCount: 1, aspectRatio: asp } }) });
+      if (!r.ok) throw new Error('Imagen HTTP ' + r.status);
+      const j = await r.json();
+      if (j.predictions && j.predictions[0] && j.predictions[0].bytesBase64Encoded) { b64 = j.predictions[0].bytesBase64Encoded; mime = j.predictions[0].mimeType || 'image/png'; }
+    } else {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(key), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: promptFinal }] }], generationConfig: { responseModalities: ['IMAGE', 'TEXT'] } }) });
+      if (!r.ok) throw new Error('Gemini Image HTTP ' + r.status);
+      const j = await r.json();
+      const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
+      for (let i = 0; i < parts.length; i++) { if (parts[i].inlineData && parts[i].inlineData.data) { b64 = parts[i].inlineData.data; mime = parts[i].inlineData.mimeType || 'image/png'; break; } }
+    }
+    if (!b64) throw new Error('Sin datos de imagen.');
+    const blob = base64ABlob(b64, mime);
+    const fileObj = new File([blob], 'plano_' + (idx + 1) + '.png', { type: mime });
+    const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(getEpStorageBucket(g.id), 'planos/' + Date.now() + '_clip_' + (idx + 1) + '.png', fileObj);
+    if (!up.success) throw new Error(up.error || 'Error subiendo plano');
+    sc.plano_url = up.url; sc.plano_storage = up.rutaStorage; sc.modo = 'plano';
+    guardarBiblioteca(true); renderTimeline(); window.renderPreviewCanvas();
+    toast('Plano guardado en clip #' + (idx + 1) + '.', 'exito');
+  } catch (err) {
+    toast('Error imagen: ' + err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Imagen Gemini'; }
+  }
+};
+
+window.generarPlanosLote = function() { abrirConfirmacionLote('planos'); };
+
+window.quitarPlanoClip = function(idx) {
+  const g = getEp(); const sc = g && g.escenas ? g.escenas[idx] : null;
+  if (!sc) return;
+  sc.plano_url = ''; sc.modo = 'rig';
+  guardarBiblioteca(true); renderTimeline(); window.renderPreviewCanvas();
+};
+
+// =========================================================================
+// 6. MULTI-ACTOR + PREVIEW + PLAYBACK CON ENVOLVENTE REAL Y L-CUTS
+// =========================================================================
+window.agregarActorClip = function(idx) {
+  const g = getEp(); const sc = g && g.escenas ? g.escenas[idx] : null;
+  if (!sc) return;
+  sc.actores = normalizarActoresEscena(sc);
+  const usados = sc.actores.map(function(a) { return a.id; });
+  const sigPer = (biblioteca.personajes || []).find(function(p) { return usados.indexOf(p.id) < 0; }) || (biblioteca.personajes || [])[0];
+  const posLibre = sc.actores.some(function(a) { return a.posicion === 'der'; }) ? (sc.actores.some(function(a) { return a.posicion === 'izq'; }) ? 'centro' : 'izq') : 'der';
+  sc.actores.push({ id: sigPer ? sigPer.id : 'per_001', posicion: posLibre, ojos: 'duda', boca: 'boca_cerrada', brazo: 'brazo_delantero_reposo', rotCab: 0, rotBrazo: 0, prop: '', escala: 1 });
+  actorSelIdx = sc.actores.length - 1;
+  guardarBiblioteca(true); renderTimeline(); window.renderPreviewCanvas();
+};
+
+window.editActorClip = function(idx, aIdx, campo, val) {
+  const g = getEp(); const sc = g && g.escenas ? g.escenas[idx] : null;
+  if (!sc) return;
+  sc.actores = normalizarActoresEscena(sc);
+  if (!sc.actores[aIdx]) return;
+  sc.actores[aIdx][campo] = val;
+  if (campo === 'prop' && val) sc.actores[aIdx].brazo = 'brazo_delantero_prop';
+  if (aIdx === 0) {
+    if (campo === 'id') sc.actor = val;
+    if (campo === 'posicion') sc.posicion = val;
+    if (campo === 'ojos') sc.ojos = val;
+  }
+  guardarBiblioteca(false); renderTimeline(); window.renderPreviewCanvas();
+};
+
+window.quitarActorClip = function(idx, aIdx) {
+  const g = getEp(); const sc = g && g.escenas ? g.escenas[idx] : null;
+  if (!sc) return;
+  sc.actores = normalizarActoresEscena(sc);
+  if (sc.actores.length <= 1) return;
+  sc.actores.splice(aIdx, 1);
+  sc.actor = sc.actores[0].id;
+  actorSelIdx = 0;
+  guardarBiblioteca(true); renderTimeline(); window.renderPreviewCanvas();
+};
+
+window.renderPreviewCanvas = async function(bocaForzada, hablanteOverride, subtituloOverride) {
+  const cv = document.getElementById('canvas-preview');
+  const g = getEp();
+  if (!cv || !g) return;
+  const esH = getAspectoEp(g) === '16:9';
+  const W = esH ? 960 : 540, H = esH ? 540 : 960;
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; ajustarCanvasPreview(); }
+  const ctx = cv.getContext('2d');
+  const sc = (g.escenas || [])[clipSelIdx];
+  await componerEscenaPiro(ctx, {
+    escena: sc, episodio: g, biblioteca: biblioteca, ancho: W, alto: H, esHorizontal: esH,
+    bocaHablante: bocaForzada || 'boca_cerrada', hablanteActivoId: hablanteOverride,
+    subtituloOverride: subtituloOverride, safeZones: safeZonesOn
+  });
+};
+
+function fmtSeg(s) { const n = Math.max(0, Math.floor(s)); return String(Math.floor(n / 60)).padStart(2, '0') + ':' + String(n % 60).padStart(2, '0'); }
+function actualizarPlayheadUI(seg) {
+  const tc = document.getElementById('txt-timecode');
+  if (tc) tc.textContent = fmtSeg(seg) + ' / ' + fmtSeg(duracionTotalEp());
+  const ph = document.getElementById('tl-playhead');
+  if (ph) ph.style.left = (59 + Math.round(seg * zoomPxSeg)) + 'px';
+}
+
+window.detenerTimeline = function() {
+  reproduciendo = false;
+  if (playRaf) { cancelAnimationFrame(playRaf); playRaf = null; }
+  const aud = document.getElementById('audio-player-tl');
+  if (aud) { aud.pause(); aud.currentTime = 0; }
+  clipSonandoIdx = -1; clipAudioOrigenIdx = -1; audioOrigenInicioSeg = 0; envolventeActiva = null; playOffsetSeg = 0;
+  const b = document.getElementById('btn-play-tl'); if (b) b.textContent = 'Play';
+  actualizarPlayheadUI(0);
+  window.renderPreviewCanvas('boca_cerrada');
+};
+
+window.togglePlayTimeline = function() {
+  const g = getEp();
+  if (!g || !g.escenas || g.escenas.length === 0) { toast('No hay clips para reproducir.', 'info'); return; }
+  if (reproduciendo) {
+    reproduciendo = false; if (playRaf) cancelAnimationFrame(playRaf);
+    document.getElementById('audio-player-tl').pause();
+    document.getElementById('btn-play-tl').textContent = 'Play';
+    return;
+  }
+  const tot = duracionTotalEp();
+  if (playOffsetSeg >= tot - 0.1) playOffsetSeg = 0;
+  reproduciendo = true; clipSonandoIdx = -1; clipAudioOrigenIdx = -1; audioOrigenInicioSeg = 0; envolventeActiva = null;
+  playInicioMs = performance.now() - playOffsetSeg * 1000;
+  document.getElementById('btn-play-tl').textContent = 'Pausa';
+
+  const tick = function(now) {
+    if (!reproduciendo) return;
+    const t = (now - playInicioMs) / 1000, total = duracionTotalEp();
+    if (t >= total) { window.detenerTimeline(); return; }
+    playOffsetSeg = t; actualizarPlayheadUI(t);
+    let acum = 0, idxAct = 0;
+    for (let i = 0; i < g.escenas.length; i++) {
+      const d = Number(g.escenas[i].duracion) || 3;
+      if (t < acum + d || i === g.escenas.length - 1) { idxAct = i; break; }
+      acum += d;
+    }
+    if (idxAct !== clipSonandoIdx) {
+      clipSonandoIdx = idxAct; clipSelIdx = idxAct; renderTimeline();
+      const sc = g.escenas[idxAct], aud = document.getElementById('audio-player-tl');
+      if (!(sc.continuar_audio && clipAudioOrigenIdx >= 0 && !sc.audio_url)) {
+        if (sc.audio_url) {
+          clipAudioOrigenIdx = idxAct; audioOrigenInicioSeg = acum; envolventeActiva = null;
+          extraerEnvolventeAudio(sc.audio_url, 24).then(function(env) { if (clipAudioOrigenIdx === idxAct) envolventeActiva = env; });
+          aud.src = sc.audio_url; aud.currentTime = Math.max(0, t - acum); aud.play().catch(function() {});
+        } else {
+          clipAudioOrigenIdx = -1; envolventeActiva = null; aud.pause();
+        }
+      }
+    }
+    const scAct = g.escenas[idxAct];
+    const scAud = (scAct && scAct.continuar_audio && clipAudioOrigenIdx >= 0) ? g.escenas[clipAudioOrigenIdx] : scAct;
+    const habId = scAud ? (scAud.hablante !== undefined ? scAud.hablante : scAud.actor) : 'ninguno';
+    const tLocalAud = (scAct && scAct.continuar_audio && clipAudioOrigenIdx >= 0) ? (t - audioOrigenInicioSeg) : (t - acum);
+    const boca = (habId && habId !== 'ninguno') ? obtenerBocaDesdeEnvolvente(envolventeActiva, tLocalAud, scAud ? scAud.texto : '') : 'boca_cerrada';
+    const subTxt = (scAct && scAct.texto && scAct.texto.trim()) ? scAct.texto : (scAud ? (scAud.texto || '') : '');
+    window.renderPreviewCanvas(boca, habId, subTxt);
+    playRaf = requestAnimationFrame(tick);
+  };
+  playRaf = requestAnimationFrame(tick);
+};
+
+window.exportarPaqueteEpisodio = function() {
+  const g = getEp(); if (!g) return;
+  const descargas = [];
+  (g.escenas || []).forEach(function(sc, idx) {
+    if (sc.audio_url) descargas.push({ ruta_local: 'episodios/' + g.id + '/voces/clip_' + (idx + 1) + '.mp3', url: sc.audio_url });
+    if (sc.plano_url) descargas.push({ ruta_local: 'episodios/' + g.id + '/medios/plano_' + (idx + 1) + '.png', url: sc.plano_url });
+  });
+  const instruccionesVeo = (g.escenas || []).map(function(sc, i) {
+    if (sc.render_mode !== 'VEO_ANIMATED') return null;
+    return '[ESCENA ' + String(i + 1).padStart(2, '0') + ' · ANIMAR CON VEO]\nFrame 0: plano_' + (i + 1) + '.png\nDuración: ' + (sc.duracion || 6) + 's\nPrompt: ' + (proyectoActivo.estilo_visual || '') + ' ' + (sc.veo_bridge_prompt || '');
+  }).filter(Boolean);
+  const asp = getAspectoEp(g);
+  const epNorm = Object.assign({}, g, {
+    escenas: (g.escenas || []).map(function(sc) {
+      return Object.assign({}, sc, { actores: normalizarActoresEscena(sc), hablante: sc.hablante !== undefined ? sc.hablante : sc.actor, continuar_audio: Boolean(sc.continuar_audio) });
+    })
+  });
+  const payload = { proyecto: proyectoActivo, formato_video: { aspecto: asp, ancho: asp === '16:9' ? 1920 : 1080, alto: asp === '16:9' ? 1080 : 1920 }, plan_veo: calcularPlanVeo(g.tension || 8), instrucciones_puente_veo: instruccionesVeo, episodio: epNorm, descargas_episodio: descargas, biblioteca: biblioteca, exportado_en: new Date().toISOString() };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
+  a.download = proyectoActivo.id + '_' + g.id + '_produccion_termux.json';
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+  toast('Paquete ' + g.id + '_produccion_termux.json descargado.', 'exito');
+};
+
+// =========================================================================
+// 7. PUENTE POSTMESSAGE + PERSISTENCIA
+// =========================================================================
+window.addEventListener('message', function(e) {
+  if (!e.data || !e.data.tipo) return;
+  if (e.data.tipo === 'PIRO_SHELL_CAMBIAR_PROYECTO' && e.data.proyecto) {
+    window.detenerTimeline();
+    proyectoActivo = Object.assign(proyectoActivo, e.data.proyecto);
+    proyectoActivo.docBibId = normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id);
+    epIdActivo = null; clipSelIdx = 0; actorSelIdx = 0;
+    cargarBiblioteca();
+  } else if (e.data.tipo === 'PIRO_SHELL_AUTH' || e.data.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA') {
+    if (e.data.proyecto) {
+      proyectoActivo = Object.assign(proyectoActivo, e.data.proyecto);
+      proyectoActivo.docBibId = normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id);
+    }
+    cargarBiblioteca();
+  } else if (e.data.tipo === 'PIRO_EDITOR_ABRIR_EPISODIO') {
+    cargarBiblioteca().then(function() {
+      if (e.data.episodioId) epIdActivo = e.data.episodioId;
+      clipSelIdx = 0; actorSelIdx = 0;
+      renderTodo(); window.setVistaEditor('timeline');
+    });
+  }
+});
+
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'hidden') {
+    guardarEstadoUIEditor();
+    if (hayCambiosPendientesEd && biblioteca && Array.isArray(biblioteca.guiones) && biblioteca.guiones.length > 0) guardarBiblioteca(true);
+  }
+});
+window.addEventListener('pagehide', function() {
+  guardarEstadoUIEditor();
+  if (hayCambiosPendientesEd && biblioteca && Array.isArray(biblioteca.guiones) && biblioteca.guiones.length > 0) guardarBiblioteca(true);
+});
+
+cargarVault();
+GeokatuDB.SecurityService.observarEstadoSesion(function(user) {
+  if (user) cargarBiblioteca();
+});
+</script>
+</body>
+</html>
