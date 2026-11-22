@@ -1595,8 +1595,8 @@ async function guardarYExportarPNG() {
   const blob = await generarBlobPNGFinal();
   if (!blob) { toast('Error generando PNG.', 'error'); return; }
 
-  if (ES_MODO_EMBEBIDO) {
-    await limpiarBorradorEnDisco();
+    if (ES_MODO_EMBEBIDO) {
+    guardarBorradorEnDisco(true);
     window.parent.postMessage({
       tipo: 'PIRO_EXPORTAR_PNG',
       blob: blob,
@@ -1605,7 +1605,7 @@ async function guardarYExportarPNG() {
       pivotes: pivotes,
       alturaCm: alturaCm
     }, '*');
-    toast('PNG enviado (' + presetActual.w + '×' + presetActual.h + ').', 'exito');
+    toast('PNG enviado. Esperando confirmación en la nube...', 'info');
     return;
   }
 
@@ -1776,8 +1776,12 @@ function iniciarCanvasListeners() {
 // =========================================================================
 // 8. PUENTE POSTMESSAGE DESDE PIRO-SHELL (TICKETS / CONTENIDO)
 // =========================================================================
-window.addEventListener('message', function(e) {
+window.addEventListener('message', async function(e) {
   if (!e.data || !e.data.tipo) return;
+  if (e.data.tipo === 'PIRO_PNG_GUARDADO_OK') {
+    await limpiarBorradorEnDisco();
+    return;
+  }
   if (e.data.tipo === 'PIRO_ESTUDIO_CONFIG') {
     if (e.data.dataUrl) recibidoConfigExterno = true;
     const pedirFormato = e.data.presetId === 'elegir';
