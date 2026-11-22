@@ -98,7 +98,9 @@
   .btn-primary { background: linear-gradient(135deg, var(--naranja), #ea580c); border-color: var(--naranja); color: #fff; }
   .btn-green { background: rgba(34, 197, 94, 0.18); border-color: rgba(34, 197, 94, 0.5); color: #86efac; }
   .btn-blue { background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.45); color: var(--azul); }
+  .btn-purple { background: rgba(168, 85, 247, 0.2); border-color: rgba(168, 85, 247, 0.52); color: #e9d5ff; }
   .btn-danger { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.45); color: #fca5a5; }
+  .slot-actions-sub { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; grid-column: 1 / -1; }
   .btn-xs { padding: 4px 8px; font-size: 10.5px; border-radius: 7px; }
   .inp, .txt, .sel {
     width: 100%; padding: 7px 9px; border-radius: 8px;
@@ -313,6 +315,55 @@
 </div>
 
 <input type="file" id="input-file-slot" class="hidden" onchange="window.manejarArchivoSlotSeleccionado(this.files[0]); this.value='';">
+<input type="file" id="input-ref-local-ia" accept="image/*" class="hidden" onchange="window.cargarRefLocalIA(this.files[0]); this.value='';">
+
+<!-- MODAL GENERAR PIEZA CON GEMINI IA -->
+<div class="modal-ov" id="modal-gen-ia-pieza" onclick="if(event.target.id==='modal-gen-ia-pieza') window.cerrarModalGenIA()">
+  <div class="modal-card" style="max-width:460px;">
+    <div class="modal-head">
+      <h3 id="gia-titulo">Generar Pieza con Gemini</h3>
+      <button type="button" class="btn btn-xs" onclick="window.cerrarModalGenIA()">Cerrar</button>
+    </div>
+    <div id="gia-key-box" class="hidden" style="margin-bottom:8px; padding:8px; border-radius:9px; border:1px solid rgba(245,158,11,0.45); background:rgba(245,158,11,0.08);">
+      <div style="font-size:10.5px; font-weight:800; color:#fcd34d; margin-bottom:4px;">Conecta tu API Key de Gemini (se comparte con Editor)</div>
+      <div style="display:flex; gap:6px;">
+        <input id="gia-api-key-inp" type="password" class="inp" placeholder="AIza...">
+        <button type="button" class="btn btn-xs btn-primary" onclick="window.guardarKeyGeminiRapida()">Guardar</button>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:9px; padding:8px; border-radius:10px; border:1px solid var(--border); background:rgba(5,8,14,0.75); margin-bottom:8px;">
+      <div id="gia-ref-thumb" style="width:46px; height:46px; border-radius:7px; border:1px dashed var(--border); overflow:hidden; display:flex; align-items:center; justify-content:center; flex-shrink:0; background:#0b0f18; font-size:9px; color:var(--muted);">REF</div>
+      <div style="flex:1; min-width:0;">
+        <div style="font-size:11px; font-weight:800; color:#fff;" id="gia-ref-lbl">Imagen de referencia</div>
+        <div style="font-size:10px; color:var(--muted);" id="gia-ref-sub">Se adjuntará automáticamente a Gemini</div>
+      </div>
+      <button type="button" class="btn btn-xs btn-blue" onclick="document.getElementById('input-ref-local-ia').click()">Foto Local</button>
+    </div>
+    <label id="gia-estilo-ref-wrap" class="hidden" style="display:flex; align-items:center; gap:6px; font-size:11px; color:#7dd3fc; font-weight:700; margin-bottom:8px; cursor:pointer;">
+      <input type="checkbox" id="gia-usar-estilo-ejemplo" checked style="accent-color:var(--naranja);">
+      <span id="gia-estilo-ref-txt">Adjuntar a Fernando como ejemplo exacto de estilo visual</span>
+    </label>
+    <div class="field" style="margin-bottom:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+        <label style="margin:0;">Instrucción (Prompt exacto para Gemini)</label>
+        <span id="gia-modelo-badge" style="font-size:10px; font-family:monospace; color:var(--azul);">gemini-2.5-flash-image</span>
+      </div>
+      <textarea id="gia-prompt" class="inp" rows="4" style="font-size:11px; line-height:1.38;"></textarea>
+    </div>
+    <div id="gia-preview-box" class="hidden" style="margin-bottom:10px; border-radius:10px; border:1px solid rgba(34,197,94,0.45); background:rgba(5,8,14,0.85); padding:8px; text-align:center;">
+      <img id="gia-preview-img" src="" style="max-width:100%; max-height:210px; object-fit:contain; border-radius:7px; display:block; margin:0 auto 8px auto;">
+      <div style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap;">
+        <button type="button" class="btn btn-green" onclick="window.llevarGenIAEstudio()">Abrir en Estudio PNG</button>
+        <button type="button" class="btn btn-xs btn-blue" onclick="window.guardarGenIADirecto()">Guardar Directo</button>
+        <button type="button" class="btn btn-xs btn-purple" onclick="window.ejecutarGeneracionIAPieza()">Reintentar</button>
+      </div>
+    </div>
+    <div id="gia-error-box" class="hidden" style="margin-bottom:8px; padding:7px 9px; border-radius:8px; border:1px solid rgba(239,68,68,0.5); background:rgba(239,68,68,0.12); color:#fca5a5; font-size:11px; font-weight:700;"></div>
+    <div style="display:flex; justify-content:flex-end; gap:6px;" id="gia-footer-btns">
+      <button type="button" class="btn btn-purple" id="btn-run-gia" style="width:100%;" onclick="window.ejecutarGeneracionIAPieza()">Generar Imagen con Gemini</button>
+    </div>
+  </div>
+</div>
 
 <!-- MODAL CREAR NUEVA ENTIDAD -->
 <div class="modal-ov" id="modal-crear-entidad" onclick="if(event.target.id==='modal-crear-entidad') window.cerrarModalC('modal-crear-entidad')">
@@ -1035,14 +1086,17 @@ function construirSlideSlot(personaje, spec, datoGuardado) {
       '<div style="font-size:10.5px; color:var(--muted);">' + esc(spec.desc) + '</div>' +
     '</div>' +
     '<div class="slot-actions">' +
+      '<button type="button" class="btn btn-xs btn-purple" onclick="window.abrirGeneradorIASlot(\'personaje\',\'' + esc(spec.key) + '\',' + (spec.esVariante ? 'true' : 'false') + ')">Generar IA</button>' +
       '<button type="button" class="btn btn-xs btn-primary" onclick="window.iniciarSubidaSlotPersonaje(\'' + esc(spec.key) + '\',' + (spec.esVariante ? 'true' : 'false') + ')">' + (tieneImg ? 'Reemplazar' : 'Subir / Estudio') + '</button>' +
-      '<button type="button" class="btn btn-xs btn-blue" onclick="window.crearTicketDesdeSlot(\'' + esc(spec.key) + '\',' + (spec.esVariante ? 'true' : 'false') + ')">+ Ticket</button>' +
-      '<button type="button" class="btn btn-xs" onclick="window.copiarPromptSlot(\'' + esc(spec.key) + '\')">Prompt</button>' +
-      (spec.esVariante
-        ? '<button type="button" class="btn btn-xs btn-danger" onclick="window.eliminarVariante(' + spec.varIdx + ')">Borrar</button>'
-        : (tieneImg
-          ? '<button type="button" class="btn btn-xs btn-danger" onclick="window.quitarImagenSlot(\'' + esc(spec.key) + '\')">Quitar</button>'
-          : '<button type="button" class="btn btn-xs" onclick="window.abrirEstudioVacioParaSlot(\'' + esc(spec.key) + '\',false)">Estudio</button>')) +
+      '<div class="slot-actions-sub">' +
+        '<button type="button" class="btn btn-xs" onclick="window.copiarPromptSlot(\'' + esc(spec.key) + '\')">Prompt</button>' +
+        '<button type="button" class="btn btn-xs btn-blue" onclick="window.crearTicketDesdeSlot(\'' + esc(spec.key) + '\',' + (spec.esVariante ? 'true' : 'false') + ')">+ Ticket</button>' +
+        (spec.esVariante
+          ? '<button type="button" class="btn btn-xs btn-danger" onclick="window.eliminarVariante(' + spec.varIdx + ')">Borrar</button>'
+          : (tieneImg
+            ? '<button type="button" class="btn btn-xs btn-danger" onclick="window.quitarImagenSlot(\'' + esc(spec.key) + '\')">Quitar</button>'
+            : '<button type="button" class="btn btn-xs" onclick="window.abrirEstudioVacioParaSlot(\'' + esc(spec.key) + '\',false)">Estudio</button>')) +
+      '</div>' +
     '</div>' +
   '</div>';
 }
@@ -1328,8 +1382,9 @@ function renderizarVistaEscenarios() {
           '<div class="slide-preview checker-bg"><span class="slot-tag-dim">1920×1920</span>' + preview + '</div>' +
           '<div style="flex-shrink:0;"><div style="font-size:13px; font-weight:900;">' + esc(tit) + '</div><div style="font-size:10.5px; color:var(--muted);">' + esc(e.id + '/' + z.id + '/' + campo + '.png') + '</div></div>' +
           '<div class="slot-actions">' +
+            '<button type="button" class="btn btn-xs btn-purple" onclick="window.abrirGeneradorIASlot(\'escenario\',\'' + esc(z.id) + '\',false,\'' + campo + '\')">Generar IA</button>' +
             '<button type="button" class="btn btn-xs btn-primary" onclick="window.subirSlotEscenario(\'' + esc(z.id) + '\',\'' + campo + '\')">Subir / Estudio</button>' +
-            '<button type="button" class="btn btn-xs btn-blue" onclick="window.ticketSlotEscenario(\'' + esc(z.id) + '\',\'' + campo + '\')">+ Ticket</button>' +
+            '<button type="button" class="btn btn-xs btn-blue" style="grid-column:1 / -1;" onclick="window.ticketSlotEscenario(\'' + esc(z.id) + '\',\'' + campo + '\')">+ Ticket</button>' +
           '</div>' +
         '</div>';
     });
@@ -1398,8 +1453,9 @@ function renderizarVistaProps() {
       '<div class="slide-preview checker-bg"><span class="slot-tag-dim">' + (esAudio ? 'AUDIO' : '512×512') + '</span>' + preview + '</div>' +
       '<div style="flex-shrink:0;"><div style="font-size:13px; font-weight:900;">' + esc(pr.nombre) + '</div><div style="font-size:10.5px; color:var(--muted); font-family:monospace;">' + esc(pr.id) + '</div></div>' +
       '<div class="slot-actions">' +
+        (esAudio ? '' : '<button type="button" class="btn btn-xs btn-purple" onclick="window.abrirGeneradorIASlot(\'prop\',\'' + esc(pr.id) + '\',false)">Generar IA</button>') +
         '<button type="button" class="btn btn-xs btn-primary" onclick="window.subirSlotProp(\'' + esc(pr.id) + '\')">' + (esAudio ? 'Subir Archivo' : 'Subir / Estudio') + '</button>' +
-        '<button type="button" class="btn btn-xs btn-blue" onclick="window.ticketSlotProp(\'' + esc(pr.id) + '\')">+ Ticket</button>' +
+        '<button type="button" class="btn btn-xs btn-blue"' + (esAudio ? '' : ' style="grid-column:1 / -1;"') + ' onclick="window.ticketSlotProp(\'' + esc(pr.id) + '\')">+ Ticket</button>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -1684,6 +1740,324 @@ window.exportarManifiestoTermux = function() {
   const man = { proyecto: proyectoActivo.id, generado_en: new Date().toISOString(), total_archivos: descargas.length, descargas: descargas, catalogo: { personajes: perOut, escenarios: escOut, props: propsOut, guiones: biblioteca.guiones || [] } };
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(man, null, 2)], { type: 'application/json' })); a.download = 'catalogo_sync.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
   toast('Manifiesto catalogo_sync.json exportado (' + descargas.length + ' activos).', 'exito');
+};
+
+// =========================================================================
+// MOTOR DE GENERACIÓN DIRECTA DE PIEZAS CON GEMINI IMAGEN (CHG-101)
+// =========================================================================
+const CLAVE_VAULT_IA = 'piro_api_vault_v1';
+let giaCtx = null; // { tipo, slotMeta, prompt, refUrl, refLabel, refLocalDataUrl, refLocalMime, estiloEjemploUrl, estiloEjemploNombre, resultadoDataUrl, resultadoMime }
+
+function leerConfigGeminiVault() {
+  let v = { keys: {}, gemImgKey: '', gemImgModel: 'gemini-2.5-flash-image' };
+  try {
+    const raw = localStorage.getItem(CLAVE_VAULT_IA);
+    if (raw) v = Object.assign(v, JSON.parse(raw));
+  } catch (e) {}
+  const key = (v.gemImgKey || (v.keys && v.keys.gemini) || '').trim();
+  const model = (v.gemImgModel || 'gemini-2.5-flash-image').trim();
+  return { raw: v, key: key, model: model };
+}
+
+window.guardarKeyGeminiRapida = function() {
+  const k = (document.getElementById('gia-api-key-inp').value || '').trim();
+  if (!k) { toast('Pega tu API Key de Gemini.', 'error'); return; }
+  const cfg = leerConfigGeminiVault();
+  cfg.raw.gemImgKey = k;
+  if (!cfg.raw.keys) cfg.raw.keys = {};
+  if (!cfg.raw.keys.gemini) cfg.raw.keys.gemini = k;
+  try { localStorage.setItem(CLAVE_VAULT_IA, JSON.stringify(cfg.raw)); } catch (e) {}
+  document.getElementById('gia-key-box').classList.add('hidden');
+  toast('API Key de Gemini guardada.', 'exito');
+};
+
+function mostrarErrorGIA(msg) {
+  const b = document.getElementById('gia-error-box');
+  if (!b) return;
+  if (!msg) { b.classList.add('hidden'); b.textContent = ''; }
+  else { b.classList.remove('hidden'); b.textContent = msg; }
+}
+
+function actualizarRefUIEnModalGIA() {
+  if (!giaCtx) return;
+  const thumb = document.getElementById('gia-ref-thumb');
+  const lbl = document.getElementById('gia-ref-lbl');
+  const sub = document.getElementById('gia-ref-sub');
+  const urlVer = giaCtx.refLocalDataUrl || giaCtx.refUrl || null;
+  if (urlVer) {
+    thumb.innerHTML = '<img src="' + esc(urlVer) + '" style="width:100%; height:100%; object-fit:contain;">';
+    lbl.textContent = giaCtx.refLocalDataUrl ? 'Foto local adjunta (lista)' : (giaCtx.refLabel || 'Referencia automática');
+    sub.textContent = giaCtx.refLocalDataUrl ? 'Se enviará directo desde tu dispositivo' : 'Se descargará de tu biblioteca para mantener consistencia';
+  } else {
+    thumb.innerHTML = 'SIN REF';
+    lbl.textContent = giaCtx.refLabel || 'Sin imagen de referencia';
+    sub.textContent = 'Opcional: pulsa "Foto Local" si quieres basarte en una foto o selfie';
+  }
+}
+
+window.cargarRefLocalIA = function(file) {
+  if (!file || !giaCtx) return;
+  const r = new FileReader();
+  r.onload = function(ev) {
+    giaCtx.refLocalDataUrl = ev.target.result;
+    giaCtx.refLocalMime = file.type || 'image/png';
+    mostrarErrorGIA('');
+    actualizarRefUIEnModalGIA();
+    toast('Referencia local cargada.', 'exito');
+  };
+  r.readAsDataURL(file);
+};
+
+window.abrirGeneradorIASlot = function(tipo, idOKey, esVariante, campoExtra) {
+  const cfg = leerConfigGeminiVault();
+  document.getElementById('gia-modelo-badge').textContent = cfg.model;
+  document.getElementById('gia-key-box').classList.toggle('hidden', Boolean(cfg.key));
+  document.getElementById('gia-preview-box').classList.add('hidden');
+  mostrarErrorGIA('');
+
+  let titulo = 'Generar con Gemini';
+  let prompt = '';
+  let refUrl = null;
+  let refLabel = 'Referencia visual';
+  let estiloEjemploUrl = null;
+  let estiloEjemploNombre = '';
+  let slotMeta = null;
+
+  if (tipo === 'personaje') {
+    const p = obtenerPersonajeActual();
+    if (!p) return;
+    const spec = esVariante
+      ? (p.variantes || []).find(function(v) { return v.id === idOKey; })
+      : SLOTS_BASICOS_PERSONAJE.find(function(s) { return s.key === idOKey; });
+    if (!spec) return;
+    titulo = p.nombre + ' · ' + (spec.titulo || idOKey);
+    prompt = generarPromptPersonaje(p, idOKey);
+    const refObj = obtenerRefParaPrompt(p, idOKey);
+    refUrl = refObj.url || null;
+    refLabel = refObj.label || 'Referencia del personaje';
+
+    // Si es el cuerpo maestro de un personaje nuevo, ofrecer a Fernando (o 1er personaje con maestro) como ejemplo exacto de estilo
+    if (idOKey === 'maestro_cuerpo') {
+      const ejemplo = (biblioteca.personajes || []).find(function(otro) {
+        return otro.id !== p.id && otro.piezas && otro.piezas.maestro_cuerpo && otro.piezas.maestro_cuerpo.url;
+      });
+      if (ejemplo) {
+        estiloEjemploUrl = ejemplo.piezas.maestro_cuerpo.url;
+        estiloEjemploNombre = ejemplo.nombre;
+      }
+      if (!refUrl) refLabel = 'Opcional: sube tu selfie/foto en "Foto Local"';
+    }
+
+    slotMeta = {
+      tipo: 'personaje', entidadId: p.id, slotKey: idOKey, esVariante: Boolean(esVariante),
+      presetId: spec.preset || 'per_cuerpo', archivoNombre: spec.archivo || idOKey,
+      etiqueta: p.nombre + ' · ' + (spec.titulo || idOKey),
+      calcoUrl: obtenerCalcoInteligente(p, idOKey), pivotesIniciales: parsearPivotesPersonaje(p)
+    };
+  } else if (tipo === 'escenario') {
+    const e = biblioteca.escenarios.find(function(x) { return x.id === selId.escenarios; });
+    if (!e) return;
+    const z = (e.zonas || []).find(function(x) { return x.id === idOKey; });
+    const campo = campoExtra || 'fondo';
+    const estiloEsc = proyectoActivo.estilo_visual || '2D cartoon background illustration, BoJack Horseman art style, clean black ink outlines, flat vibrant colors';
+    titulo = e.nombre + ' · ' + (z ? z.nombre : idOKey) + ' (' + campo + ')';
+    prompt = 'Square 1:1 background illustration matching exact art direction (' + estiloEsc + '), empty ' + (e.nombre || '') + ' (' + (z ? z.nombre : idOKey) + '), NO characters, NO text, lighting: ' + (e.iluminacion || 'flat daylight') + (campo === 'frente' ? '. Draw ONLY the foreground counter, table or furniture piece isolated on a flat solid chroma green background (#00FF00) with zero shadows.' : '. Clean full room background with horizontal breathing space for camera panning.');
+    if (campo === 'frente' && z && z.fondo && z.fondo.url) {
+      refUrl = z.fondo.url;
+      refLabel = 'Fondo de la misma zona (referencia de estilo y perspectiva)';
+    } else {
+      refLabel = 'Opcional: adjunta foto de referencia del lugar';
+    }
+    slotMeta = {
+      tipo: 'escenario', entidadId: e.id, zonaId: idOKey, campoZona: campo,
+      presetId: campo === 'fondo' ? 'esc_fondo' : 'esc_frente', archivoNombre: campo,
+      etiqueta: e.nombre + ' · ' + idOKey + ' · ' + campo
+    };
+  } else if (tipo === 'prop') {
+    const pr = (biblioteca.props || []).find(function(x) { return x.id === idOKey; });
+    if (!pr) return;
+    const estiloPr = proyectoActivo.estilo_visual || '2D cartoon animation style, BoJack Horseman clean black ink outlines, flat vibrant colors';
+    titulo = (pr.categoria === 'fx' ? 'Ícono FX · ' : 'Prop · ') + pr.nombre;
+    prompt = 'Single isolated ' + (pr.categoria === 'fx' ? 'comic comedy reaction icon' : 'handheld everyday object prop') + ': "' + pr.nombre + '". Art direction: ' + estiloPr + '. Centered in a 1:1 square with generous margin, NO hands, NO character, NO text, isolated on a completely flat solid chroma green background (#00FF00) with zero shadows for PNG cut-out.';
+    refLabel = 'Opcional: foto de referencia del objeto';
+    slotMeta = {
+      tipo: 'prop', entidadId: pr.id, presetId: pr.categoria === 'fx' ? 'prop_fx' : 'prop_item',
+      archivoNombre: pr.id, etiqueta: 'Prop · ' + pr.nombre
+    };
+  }
+
+  giaCtx = {
+    tipo: tipo, slotMeta: slotMeta, prompt: prompt, refUrl: refUrl, refLabel: refLabel,
+    refLocalDataUrl: null, refLocalMime: null, estiloEjemploUrl: estiloEjemploUrl,
+    estiloEjemploNombre: estiloEjemploNombre, resultadoDataUrl: null, resultadoMime: 'image/png'
+  };
+
+  document.getElementById('gia-titulo').textContent = titulo;
+  document.getElementById('gia-prompt').value = prompt;
+  const wrapEst = document.getElementById('gia-estilo-ref-wrap');
+  if (estiloEjemploUrl) {
+    wrapEst.classList.remove('hidden');
+    document.getElementById('gia-estilo-ref-txt').textContent = 'Adjuntar a ' + estiloEjemploNombre + ' como ejemplo exacto de estilo visual';
+    document.getElementById('gia-usar-estilo-ejemplo').checked = true;
+  } else {
+    wrapEst.classList.add('hidden');
+  }
+  actualizarRefUIEnModalGIA();
+  document.getElementById('modal-gen-ia-pieza').classList.add('open');
+};
+
+window.cerrarModalGenIA = function() {
+  document.getElementById('modal-gen-ia-pieza').classList.remove('open');
+};
+
+async function urlABase64Seguro(url) {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  const blob = await resp.blob();
+  const dataUrl = await new Promise(function(resolve, reject) {
+    const r = new FileReader();
+    r.onload = function(ev) { resolve(ev.target.result); };
+    r.onerror = function() { reject(new Error('Lectura fallida')); };
+    r.readAsDataURL(blob);
+  });
+  const m = String(dataUrl).match(/^data:([^;]+);base64,(.+)$/);
+  if (!m) throw new Error('Formato base64 inválido');
+  return { mime: m[1], data: m[2] };
+}
+
+function dataUrlAParteBase64(dataUrl, mimeDef) {
+  const m = String(dataUrl || '').match(/^data:([^;]+);base64,(.+)$/);
+  if (!m) return null;
+  return { mime: m[1] || mimeDef || 'image/png', data: m[2] };
+}
+
+window.ejecutarGeneracionIAPieza = async function() {
+  if (!giaCtx) return;
+  const cfg = leerConfigGeminiVault();
+  if (!cfg.key) {
+    document.getElementById('gia-key-box').classList.remove('hidden');
+    mostrarErrorGIA('Pega primero tu API Key de Gemini arriba y pulsa Guardar.');
+    return;
+  }
+  const promptUsr = (document.getElementById('gia-prompt').value || '').trim();
+  if (!promptUsr) { mostrarErrorGIA('El prompt no puede estar vacío.'); return; }
+
+  const btn = document.getElementById('btn-run-gia');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generando con Gemini...'; }
+  mostrarErrorGIA('');
+
+  try {
+    const parts = [];
+    let prefijoRefs = '';
+    const usarEjemplo = Boolean(giaCtx.estiloEjemploUrl && document.getElementById('gia-usar-estilo-ejemplo') && document.getElementById('gia-usar-estilo-ejemplo').checked);
+
+    if (usarEjemplo) {
+      try {
+        const estPart = await urlABase64Seguro(giaCtx.estiloEjemploUrl);
+        parts.push({ inlineData: { mimeType: estPart.mime, data: estPart.data } });
+        prefijoRefs += 'STRICT STYLE REFERENCE: Match the exact 2D cartoon line thickness, flat shading, proportions, and character design aesthetic of the attached example character (' + giaCtx.estiloEjemploNombre + '). ';
+      } catch (eCorsEst) {
+        // Si falla CORS del ejemplo de estilo, continuamos con estilo textual pero avisamos si también falla la ref principal
+      }
+    }
+
+    if (giaCtx.refLocalDataUrl) {
+      const locP = dataUrlAParteBase64(giaCtx.refLocalDataUrl, giaCtx.refLocalMime);
+      if (locP) {
+        parts.push({ inlineData: { mimeType: locP.mime, data: locP.data } });
+        if (giaCtx.slotMeta && giaCtx.slotMeta.slotKey === 'maestro_cuerpo') {
+          prefijoRefs += 'IDENTITY REFERENCE: Transform the person/subject in this attached photo into the character described below, keeping their recognizable facial features, hair, beard and build. ';
+        }
+      }
+    } else if (giaCtx.refUrl) {
+      try {
+        const refP = await urlABase64Seguro(giaCtx.refUrl);
+        parts.push({ inlineData: { mimeType: refP.mime, data: refP.data } });
+      } catch (eCors) {
+        throw new Error('Firebase Storage bloqueó leer la imagen de referencia por CORS. Pulsa "Foto Local" para adjuntar la imagen desde tu teléfono (o habilita CORS en tu bucket) y vuelve a generar para no perder consistencia.');
+      }
+    }
+
+    parts.push({ text: prefijoRefs + promptUsr });
+
+    let b64 = null, mime = 'image/png';
+    if (cfg.model.indexOf('imagen-') === 0) {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(cfg.model) + ':predict?key=' + encodeURIComponent(cfg.key), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instances: [{ prompt: prefijoRefs + promptUsr }], parameters: { sampleCount: 1, aspectRatio: giaCtx.tipo === 'personaje' ? '3:4' : '1:1' } })
+      });
+      if (!r.ok) throw new Error('Imagen HTTP ' + r.status);
+      const j = await r.json();
+      if (j.predictions && j.predictions[0] && j.predictions[0].bytesBase64Encoded) {
+        b64 = j.predictions[0].bytesBase64Encoded;
+        mime = j.predictions[0].mimeType || 'image/png';
+      }
+    } else {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(cfg.model) + ':generateContent?key=' + encodeURIComponent(cfg.key), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: parts }],
+          generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
+        })
+      });
+      if (!r.ok) {
+        let det = 'HTTP ' + r.status;
+        try { const ej = await r.json(); if (ej && ej.error && ej.error.message) det += ' · ' + ej.error.message; } catch (e2) {}
+        throw new Error('Gemini ' + det);
+      }
+      const j = await r.json();
+      const candParts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
+      for (let i = 0; i < candParts.length; i++) {
+        if (candParts[i].inlineData && candParts[i].inlineData.data) {
+          b64 = candParts[i].inlineData.data;
+          mime = candParts[i].inlineData.mimeType || 'image/png';
+          break;
+        }
+      }
+    }
+
+    if (!b64) throw new Error('Gemini no devolvió imagen (prueba ajustar una palabra del prompt o reintentar).');
+    giaCtx.resultadoMime = mime;
+    giaCtx.resultadoDataUrl = 'data:' + mime + ';base64,' + b64;
+    document.getElementById('gia-preview-img').src = giaCtx.resultadoDataUrl;
+    document.getElementById('gia-preview-box').classList.remove('hidden');
+    toast('Imagen generada. Revísala y ábrela en Estudio PNG.', 'exito');
+  } catch (err) {
+    mostrarErrorGIA(err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Generar Imagen con Gemini'; }
+  }
+};
+
+window.llevarGenIAEstudio = function() {
+  if (!giaCtx || !giaCtx.resultadoDataUrl || !giaCtx.slotMeta) return;
+  const meta = giaCtx.slotMeta;
+  const dataUrl = giaCtx.resultadoDataUrl;
+  window.cerrarModalGenIA();
+  if (window.self !== window.top) {
+    window.parent.postMessage({
+      tipo: 'PIRO_IR_A_ESTUDIO', origen: 'contenido', etiqueta: meta.etiqueta,
+      presetId: meta.presetId, entidadId: meta.entidadId, zonaId: meta.zonaId || 'zona_01',
+      archivoNombre: meta.archivoNombre, dataUrl: dataUrl,
+      calcoUrl: meta.calcoUrl || null, pivotesIniciales: meta.pivotesIniciales || null, slotMeta: meta
+    }, '*');
+  } else {
+    toast('Abre este módulo desde piro-shell.html para editar en Estudio PNG.', 'info');
+  }
+};
+
+window.guardarGenIADirecto = async function() {
+  if (!giaCtx || !giaCtx.resultadoDataUrl || !giaCtx.slotMeta) return;
+  const p = dataUrlAParteBase64(giaCtx.resultadoDataUrl, giaCtx.resultadoMime);
+  if (!p) return;
+  const bin = atob(p.data), arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  const blob = new Blob([arr], { type: p.mime });
+  const nom = (giaCtx.slotMeta.archivoNombre || 'pieza_ia') + '.png';
+  const fileObj = new File([blob], nom, { type: p.mime });
+  const meta = giaCtx.slotMeta;
+  window.cerrarModalGenIA();
+  await subirYAsignarArchivoASlot(fileObj, meta, null, false);
 };
 
 // =========================================================================

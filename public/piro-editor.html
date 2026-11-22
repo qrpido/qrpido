@@ -358,6 +358,39 @@
   </div>
 </div>
 
+<!-- MODAL: REGLAS DE GUION (ANTI-IA + EJEMPLO + OJO DE DIRECTOR) -->
+<div class="modal-ov" id="modal-reglas-guion" onclick="if(event.target.id==='modal-reglas-guion') window.cerrarModalReglasGuion()">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>Reglas de Guion y Estilo (Anti-IA)</h3>
+      <button type="button" class="btn btn-xs" onclick="window.cerrarModalReglasGuion()">Cerrar</button>
+    </div>
+    <div class="field"><label>Normas de escritura del proyecto</label><textarea id="rg-normas" class="inp" rows="3" placeholder="Ej: Frases cortas, humor paisa natural, gancho en los primeros 2 segundos..."></textarea></div>
+    <div class="field"><label>Frases prohibidas (clichés IA separados por coma)</label><textarea id="rg-prohibidas" class="inp" rows="2" placeholder="en un mundo donde, sin lugar a dudas, cabe destacar, prepárate para..."></textarea></div>
+    <div class="field"><label>1 Ejemplo de diálogo que SÍ te gusta</label><textarea id="rg-ejemplo" class="inp" rows="3" placeholder="Ej: Fernando: ¿Otra vez pidiendo fiado? Mire que el letrero dice hoy no fío..."></textarea></div>
+    <label style="display:flex; align-items:center; gap:7px; font-size:12px; color:#7dd3fc; font-weight:700; cursor:pointer; margin-bottom:10px;"><input type="checkbox" id="rg-director" style="accent-color:var(--azul);"> Activar 2ª pasada de revisión (Ojo de Director antes de entregar)</label>
+    <div style="display:flex; justify-content:space-between; gap:8px;">
+      <button type="button" class="btn btn-xs" onclick="window.restaurarReglasPorDefecto()">Restaurar Base</button>
+      <button type="button" class="btn btn-primary" onclick="window.guardarReglasGuion()">Guardar Reglas</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: CONFIRMACIÓN PREVIA ANTES DE GASTAR EN LOTES -->
+<div class="modal-ov" id="modal-confirm-lote" onclick="if(event.target.id==='modal-confirm-lote') window.cerrarModalLote()">
+  <div class="modal-card" style="max-width:410px;">
+    <div class="modal-head">
+      <h3 id="lote-conf-tit">Verificar antes de generar</h3>
+      <button type="button" class="btn btn-xs" onclick="window.cerrarModalLote()">Cancelar</button>
+    </div>
+    <div id="lote-conf-body" style="font-size:12px; color:#cbd5e1; line-height:1.45; margin-bottom:12px;"></div>
+    <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+      <button type="button" class="btn btn-blue" id="btn-lote-prueba-1" onclick="window.confirmarEjecutarLote(true)">Probar solo 1er clip</button>
+      <button type="button" class="btn btn-primary" id="btn-lote-ejecutar-todo" onclick="window.confirmarEjecutarLote(false)">Ejecutar Lote</button>
+    </div>
+  </div>
+</div>
+
 <input type="file" id="input-md-caps" accept=".md,.txt" multiple class="hidden" onchange="window.cargarCapitulosMD(this.files); this.value='';">
 <audio id="audio-player-tl" crossorigin="anonymous" style="display:none;"></audio>
 <div id="toasts-ed"></div>
@@ -855,7 +888,10 @@ function renderVistaGuionIA() {
           '<div class="field"><label>Tensión (Veo)</label><select class="sel" onchange="window.editEp(\'tension\', Number(this.value))">' + [6,7,8,9,10].map(function(n) { const pv = calcularPlanVeo(n); return '<option value="' + n + '"' + ((Number(g.tension) || 8) === n ? ' selected' : '') + '>' + n + '/10 (' + pv.clips + ' Veo · $' + pv.costo.toFixed(2) + ')</option>'; }).join('') + '</select></div>' +
         '</div>' +
         '<label style="display:flex; align-items:center; gap:7px; font-size:12px; color:#e2e8f0; cursor:pointer; padding:6px 0;"><input type="checkbox"' + ((typeof g.bilingue === 'boolean' ? g.bilingue : proyectoActivo.bilingue) ? ' checked' : '') + ' style="accent-color:var(--naranja);" onchange="window.editEp(\'bilingue\', this.checked)"> Modo Bilingüe ES/EN + Plan Híbrido Veo</label>' +
-        '<div class="pill ok" style="align-self:flex-start;">LLM Activo: ' + esc(vault.llmProv.toUpperCase() + ' / ' + (vault.models[vault.llmProv] || '')) + '</div>' +
+                '<div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-top:4px;">' +
+          '<div class="pill ok">LLM: ' + esc(vault.llmProv.toUpperCase() + ' / ' + (vault.models[vault.llmProv] || '')) + '</div>' +
+          '<button type="button" class="btn btn-blue" onclick="window.abrirModalReglasGuion()">Reglas Anti-IA y Ejemplo' + (obtenerReglasGuion().ojo_director ? ' (Dir. ON)' : '') + '</button>' +
+        '</div>' +
       '</div>';
   }
 
@@ -928,6 +964,68 @@ async function llamarLLM(sysPrompt, userPrompt) {
   return (j.choices && j.choices[0] && j.choices[0].message) ? (j.choices[0].message.content || '') : '';
 }
 
+function reglasPorDefectoProyecto() {
+  if (proyectoActivo.bilingue || proyectoActivo.plantilla === 'scifi_hibrido') {
+    return {
+      normas: 'Narrativa hard sci-fi tensa y cinematográfica. Frases directas de máximo 18 palabras. Cierra cada escena con tensión o giro técnico real.',
+      prohibidas: 'en un mundo donde, sin lugar a dudas, cabe destacar, prepárate para, descubre el secreto, cambiará para siempre, al final del día',
+      ejemplo: 'NARRADOR: El sensor marcó cero coma tres segundos antes del colapso. DANIEL_CHEN: No fue un fallo de energía. Alguien abrió el canal desde adentro.',
+      ojo_director: true
+    };
+  }
+  return {
+    normas: 'Diálogos cortos y naturales con ritmo callejero colombiano (máx. 14 palabras por línea). Arranca en seco sin saludos aburridos y remata con ironía seca.',
+    prohibidas: 'en un mundo donde, sin lugar a dudas, cabe destacar, prepárate para, no vas a creer, déjame contarte, hola amigos, al final del día',
+    ejemplo: 'per_001 (duda): Una preguntica... ¿usted mandó una foto seria y apareció con estas pintas? | per_002 (indignado): Por lo menos yo sí me puse camisa.',
+    ojo_director: true
+  };
+}
+
+function obtenerReglasGuion() {
+  const def = reglasPorDefectoProyecto();
+  if (!biblioteca.guion_reglas || typeof biblioteca.guion_reglas !== 'object') return def;
+  return Object.assign({}, def, biblioteca.guion_reglas);
+}
+
+window.abrirModalReglasGuion = function() {
+  const rg = obtenerReglasGuion();
+  document.getElementById('rg-normas').value = rg.normas || '';
+  document.getElementById('rg-prohibidas').value = rg.prohibidas || '';
+  document.getElementById('rg-ejemplo').value = rg.ejemplo || '';
+  document.getElementById('rg-director').checked = Boolean(rg.ojo_director);
+  document.getElementById('modal-reglas-guion').classList.add('open');
+};
+
+window.cerrarModalReglasGuion = function() { document.getElementById('modal-reglas-guion').classList.remove('open'); };
+
+window.restaurarReglasPorDefecto = function() {
+  const def = reglasPorDefectoProyecto();
+  document.getElementById('rg-normas').value = def.normas;
+  document.getElementById('rg-prohibidas').value = def.prohibidas;
+  document.getElementById('rg-ejemplo').value = def.ejemplo;
+  document.getElementById('rg-director').checked = def.ojo_director;
+};
+
+window.guardarReglasGuion = function() {
+  biblioteca.guion_reglas = {
+    normas: document.getElementById('rg-normas').value.trim(),
+    prohibidas: document.getElementById('rg-prohibidas').value.trim(),
+    ejemplo: document.getElementById('rg-ejemplo').value.trim(),
+    ojo_director: document.getElementById('rg-director').checked
+  };
+  window.cerrarModalReglasGuion();
+  guardarBiblioteca(true);
+  renderVistaGuionIA();
+  toast('Reglas de guion guardadas.', 'exito');
+};
+
+function extraerArrayJsonLLM(raw) {
+  const limpio = String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim();
+  const inicio = limpio.indexOf('['), fin = limpio.lastIndexOf(']');
+  if (inicio < 0 || fin <= inicio) return null;
+  try { const a = JSON.parse(limpio.slice(inicio, fin + 1)); return Array.isArray(a) && a.length > 0 ? a : null; } catch (e) { return null; }
+}
+
 window.generarGuionConAPI = async function() {
   const g = getEp(); if (!g) return;
   if (!g.anecdota || !g.anecdota.trim()) { toast('Escribe primero el texto base.', 'error'); return; }
@@ -943,18 +1041,27 @@ window.generarGuionConAPI = async function() {
     const asp = getAspectoEp(g);
     const fmtTxt = asp === '16:9' ? 'horizontal panorámico 16:9 (YouTube serie animada)' : 'vertical 9:16 (YouTube Shorts / Reels / TikTok)';
     const planVeo = calcularPlanVeo(g.tension || 8);
+    const rg = obtenerReglasGuion();
+    const bloqueReglas = '\n\nREGLAS OBLIGATORIAS DE ESTILO:\n' + (rg.normas || '') + (rg.prohibidas ? ('\nFRASES PROHIBIDAS (NUNCA USAR): ' + rg.prohibidas) : '') + (rg.ejemplo ? ('\nEJEMPLO DE TONO Y RITMO QUE SÍ FUNCIONA:\n' + rg.ejemplo) : '');
     const sys = esBilingue
       ? 'Eres showrunner técnico de animación 2D hard sci-fi y motion-comic híbrido (Veo + cómic estático). Responde ÚNICAMENTE con un array JSON válido sin markdown.'
       : 'Eres guionista experto en comedia corta colombiana (estilo South Park / BoJack Horseman). Responde ÚNICAMENTE con un array JSON válido sin markdown.';
-    const usr = esBilingue
+    const usr = (esBilingue
       ? ('Adapta este texto fuente de "' + proyectoActivo.nombre + '" en un episodio ' + fmtTxt + ' de 8 escenas (Tensión ' + (g.tension || 8) + '/10, ' + planVeo.cat + ').\nREGLA VEO: índices [' + planVeo.indices.join(', ') + '] (base 1) llevan "render_mode":"VEO_ANIMATED","modo":"plano". Las demás "STATIC_COMIC".\nClaves exactas: {"actor":"NARRADOR","escenario":"' + (g.escenario_id || 'esc_001') + '","zona":"' + (g.zona_id || 'zona_01') + '","posicion":"centro","ojos":"neutro|enojado|duda|indignado","camara":"centro|zoom_actor|plano_general","modo":"plano","render_mode":"STATIC_COMIC|VEO_ANIMATED","prop":"","sfx":"","duracion":5.5,"texto":"diálogo ES","texto_en":"English dialogue","prompt_plano":"base static ' + asp + ' frame prompt in English","veo_bridge_prompt":"5-6s Veo animation or slow_zoom_in"}\n\nETIQUETAS:\nPersonajes:\n' + actoresTxt + '\nEscenarios:\n' + escTxt + '\nProps: ' + (propsTxt || 'ninguno') + '\nSFX: ' + (sfxTxt || 'ninguno') + '\n\nTEXTO FUENTE:\n' + g.anecdota.slice(0, 12000))
-      : ('Convierte esta anécdota en un guion dinámico ' + fmtTxt + ' de ~' + duracionObjetivoSeg + 's (7 a 12 líneas cortas, gancho fuerte y remate).\nClaves exactas: {"actor":"per_001","escenario":"' + (g.escenario_id || 'esc_001') + '","zona":"' + (g.zona_id || 'zona_01') + '","posicion":"izq|centro|der","ojos":"neutro|feliz|enojado|triste|duda|indignado","camara":"centro|izq|der|zoom_actor|plano_general","modo":"rig","prop":"","sfx":"","duracion":3.5,"texto":"diálogo colombiano","prompt_plano":"breve descripción ' + asp + ' en inglés"}\n\nETIQUETAS:\nPersonajes:\n' + actoresTxt + '\nEscenarios:\n' + escTxt + '\nProps: ' + (propsTxt || 'ninguno') + '\nSFX: ' + (sfxTxt || 'ninguno') + '\n\nANÉCDOTA:\n' + g.anecdota);
+      : ('Convierte esta anécdota en un guion dinámico ' + fmtTxt + ' de ~' + duracionObjetivoSeg + 's (7 a 12 líneas cortas, gancho fuerte y remate).\nClaves exactas: {"actor":"per_001","escenario":"' + (g.escenario_id || 'esc_001') + '","zona":"' + (g.zona_id || 'zona_01') + '","posicion":"izq|centro|der","ojos":"neutro|feliz|enojado|triste|duda|indignado","camara":"centro|izq|der|zoom_actor|plano_general","modo":"rig","prop":"","sfx":"","duracion":3.5,"texto":"diálogo colombiano","prompt_plano":"breve descripción ' + asp + ' en inglés"}\n\nETIQUETAS:\nPersonajes:\n' + actoresTxt + '\nEscenarios:\n' + escTxt + '\nProps: ' + (propsTxt || 'ninguno') + '\nSFX: ' + (sfxTxt || 'ninguno') + '\n\nANÉCDOTA:\n' + g.anecdota)) + bloqueReglas;
 
     const raw = await llamarLLM(sys, usr);
-    const limpio = String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim();
-    const inicio = limpio.indexOf('['), fin = limpio.lastIndexOf(']');
-    if (inicio < 0 || fin <= inicio) throw new Error('JSON inválido devuelto por IA.');
-    const arr = JSON.parse(limpio.slice(inicio, fin + 1));
+    let arr = extraerArrayJsonLLM(raw);
+    if (!arr) throw new Error('JSON inválido devuelto por IA.');
+    if (rg.ojo_director) {
+      if (btn) btn.textContent = 'Revisando (Dir.)...';
+      try {
+        const usrDir = 'Actúa como director exigente viendo el borrador completo antes de grabar voces. Detecta y corrige: frases que suenen a IA o estén en la lista prohibida (' + (rg.prohibidas || 'clichés') + '), chistes flojos, líneas demasiado largas o expresiones de ojos repetitivas. Mantén EXACTAMENTE las mismas claves JSON e IDs válidos y devuelve ÚNICAMENTE el array JSON corregido.\n\nBORRADOR:\n' + JSON.stringify(arr);
+        const rawDir = await llamarLLM(sys, usrDir);
+        const arrDir = extraerArrayJsonLLM(rawDir);
+        if (arrDir) arr = arrDir;
+      } catch (eDir) {}
+    }
     if (!Array.isArray(arr) || arr.length === 0) throw new Error('Guion vacío.');
     g.escenas = arr.map(function(it, idx) {
       const words = String(it.texto || '').trim().split(/\s+/).filter(Boolean).length;
@@ -1294,15 +1401,77 @@ window.generarVozClip = async function(idx) {
   }
 };
 
-window.generarVocesLote = async function() {
-  const g = getEp(); if (!g || !g.escenas) return;
-  const btn = document.getElementById('btn-lote-voces');
-  if (btn) { btn.disabled = true; btn.textContent = 'Generando...'; }
-  for (let i = 0; i < g.escenas.length; i++) {
-    if (!g.escenas[i].audio_url && g.escenas[i].texto && g.escenas[i].texto.trim()) await window.generarVozClip(i);
-  }
-  if (btn) { btn.disabled = false; btn.textContent = 'Voces Lote'; }
+let lotePendienteTipo = null;
+let lotePendienteIndices = [];
+
+window.cerrarModalLote = function() {
+  document.getElementById('modal-confirm-lote').classList.remove('open');
+  lotePendienteTipo = null;
+  lotePendienteIndices = [];
 };
+
+function abrirConfirmacionLote(tipo) {
+  const g = getEp(); if (!g || !g.escenas) return;
+  const asp = getAspectoEp(g);
+  const indices = [];
+  const sinVozPer = [];
+  let yaListos = 0;
+  g.escenas.forEach(function(sc, i) {
+    if (tipo === 'voces') {
+      if (sc.audio_url) { yaListos++; return; }
+      if (sc.texto && sc.texto.trim()) {
+        indices.push(i);
+        const idVoz = (sc.hablante && sc.hablante !== 'ninguno') ? sc.hablante : sc.actor;
+        const per = (biblioteca.personajes || []).find(function(p) { return p.id === idVoz; });
+        if (!per || !per.voice_id || !per.voice_id.trim()) {
+          const nom = per ? per.nombre : idVoz;
+          if (sinVozPer.indexOf(nom) < 0) sinVozPer.push(nom);
+        }
+      }
+    } else {
+      if (sc.plano_url) { yaListos++; return; }
+      if (sc.modo === 'plano') indices.push(i);
+    }
+  });
+  if (indices.length === 0) {
+    toast(tipo === 'voces' ? 'No hay clips pendientes de voz.' : 'No hay clips en modo Plano IA pendientes de imagen.', 'info');
+    return;
+  }
+  lotePendienteTipo = tipo;
+  lotePendienteIndices = indices;
+  document.getElementById('lote-conf-tit').textContent = tipo === 'voces' ? 'Confirmar Lote de Voces (ElevenLabs)' : 'Confirmar Lote de Planos (Gemini Imagen)';
+  const alertas = [];
+  if (tipo === 'voces' && !vault.elKey) alertas.push('Falta API Key de ElevenLabs en APIs.');
+  if (tipo === 'voces' && sinVozPer.length > 0) alertas.push('Personajes sin voice_id: ' + sinVozPer.join(', ') + '.');
+  if (tipo === 'planos' && !(vault.gemImgKey || vault.keys.gemini)) alertas.push('Falta API Key de Gemini en APIs.');
+  document.getElementById('lote-conf-body').innerHTML =
+    '<div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px;">' +
+      '<div class="card-sub" style="margin:0; padding:7px;"><small style="color:var(--muted); display:block;">Formato</small><strong>' + esc(asp) + '</strong></div>' +
+      '<div class="card-sub" style="margin:0; padding:7px;"><small style="color:var(--muted); display:block;">Por generar</small><strong style="color:var(--naranja);">' + indices.length + ' clips</strong></div>' +
+    '</div>' +
+    '<div style="font-size:11px; color:var(--muted); margin-bottom:6px;">Ya listos (se saltan sin cobrar): <b>' + yaListos + '</b> · Modelo: <b>' + esc(tipo === 'voces' ? (vault.elModel || 'eleven_multilingual_v2') : (vault.gemImgModel || 'gemini-2.5-flash-image')) + '</b></div>' +
+    (alertas.length > 0 ? '<div style="padding:7px 9px; border-radius:8px; border:1px solid rgba(239,68,68,0.5); background:rgba(239,68,68,0.12); color:#fca5a5; font-size:11px; font-weight:700;">' + esc(alertas.join(' ')) + '</div>' : '<div style="font-size:11px; color:#86efac;">Consejo: prueba primero el clip #' + (indices[0] + 1) + ' para validar calidad antes de lanzar el lote.</div>');
+  document.getElementById('btn-lote-prueba-1').textContent = 'Probar solo clip #' + (indices[0] + 1);
+  document.getElementById('btn-lote-ejecutar-todo').textContent = 'Generar todos (' + indices.length + ')';
+  document.getElementById('modal-confirm-lote').classList.add('open');
+}
+
+window.confirmarEjecutarLote = async function(soloPrimero) {
+  const tipo = lotePendienteTipo;
+  const lista = soloPrimero ? lotePendienteIndices.slice(0, 1) : lotePendienteIndices.slice();
+  window.cerrarModalLote();
+  if (!tipo || lista.length === 0) return;
+  const btnId = tipo === 'voces' ? 'btn-lote-voces' : 'btn-lote-planos';
+  const btn = document.getElementById(btnId);
+  if (btn) { btn.disabled = true; btn.textContent = 'Procesando...'; }
+  for (let k = 0; k < lista.length; k++) {
+    if (tipo === 'voces') await window.generarVozClip(lista[k]);
+    else await window.generarPlanoClip(lista[k]);
+  }
+  if (btn) { btn.disabled = false; btn.textContent = tipo === 'voces' ? 'Voces Lote' : 'Planos Lote'; }
+};
+
+window.generarVocesLote = function() { abrirConfirmacionLote('voces'); };
 
 function base64ABlob(b64, mime) {
   const bin = atob(b64), arr = new Uint8Array(bin.length);
@@ -1353,15 +1522,7 @@ window.generarPlanoClip = async function(idx) {
   }
 };
 
-window.generarPlanosLote = async function() {
-  const g = getEp(); if (!g || !g.escenas) return;
-  const btn = document.getElementById('btn-lote-planos');
-  if (btn) { btn.disabled = true; btn.textContent = 'Dibujando...'; }
-  for (let i = 0; i < g.escenas.length; i++) {
-    if (g.escenas[i].modo === 'plano' && !g.escenas[i].plano_url) await window.generarPlanoClip(i);
-  }
-  if (btn) { btn.disabled = false; btn.textContent = 'Planos Lote'; }
-};
+window.generarPlanosLote = function() { abrirConfirmacionLote('planos'); };
 
 window.quitarPlanoClip = function(idx) {
   const g = getEp(); const sc = g && g.escenas ? g.escenas[idx] : null;
