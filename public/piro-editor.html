@@ -360,6 +360,7 @@
 
 <script type="module">
 import GeokatuDB from './core-db.js';
+import { componerEscenaPiro, normalizarActoresEscena, extraerEnvolventeAudio, obtenerBocaDesdeEnvolvente } from './piro-compositor.js';
 
 const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
 const CLAVE_VAULT = 'piro_api_vault_v1';
@@ -421,6 +422,9 @@ let playRaf = null;
 let playInicioMs = 0;
 let playOffsetSeg = 0;
 let clipSonandoIdx = -1;
+let clipAudioOrigenIdx = -1;
+let audioOrigenInicioSeg = 0;
+let envolventeActiva = null;
 let duracionObjetivoSeg = 40;
 
 function esc(s) {
@@ -1107,9 +1111,26 @@ function renderInspectorClip() {
     box.innerHTML = '<div style="text-align:center; padding:30px; color:var(--muted);">No hay clips en este episodio. Genera un guion IA o pulsa "+ Clip".</div>';
     return;
   }
-  const perOpts = (biblioteca.personajes || []).map(function(p) { return '<option value="' + esc(p.id) + '"' + (sc.actor === p.id ? ' selected' : '') + '>' + esc(p.id + ' · ' + p.nombre) + '</option>'; }).join('');
-  const propOpts = '<option value="">Sin prop</option>' + (biblioteca.props || []).filter(function(x) { return x.categoria !== 'audio'; }).map(function(x) { return '<option value="' + esc(x.id) + '"' + (sc.prop === x.id ? ' selected' : '') + '>' + esc(x.nombre) + '</option>'; }).join('');
+    const actoresClip = normalizarActoresEscena(sc);
+  const habActual = sc.hablante !== undefined ? sc.hablante : (sc.actor || (actoresClip[0] ? actoresClip[0].id : ''));
+  const habOpts = '<option value="ninguno"' + (habActual === 'ninguno' ? ' selected' : '') + '>Ninguno (reacción muda)</option>' + (biblioteca.personajes || []).map(function(p) { return '<option value="' + esc(p.id) + '"' + (habActual === p.id ? ' selected' : '') + '>' + esc(p.id + ' · ' + p.nombre) + '</option>'; }).join('');
+  const fxOpts = '<option value="">Sin ícono FX</option>' + (biblioteca.props || []).filter(function(x) { return x.categoria === 'fx'; }).map(function(x) { return '<option value="' + esc(x.id) + '"' + (sc.prop === x.id ? ' selected' : '') + '>' + esc(x.nombre) + '</option>'; }).join('');
   const sfxOpts = '<option value="">Sin SFX</option>' + (biblioteca.props || []).filter(function(x) { return x.categoria === 'audio'; }).map(function(x) { return '<option value="' + esc(x.id) + '"' + (sc.sfx === x.id ? ' selected' : '') + '>' + esc(x.nombre) + '</option>'; }).join('');
+  const propsMano = (biblioteca.props || []).filter(function(x) { return x.categoria === 'prop'; });
+
+  const actoresHtml = actoresClip.map(function(a, aIdx) {
+    const pOpts = (biblioteca.personajes || []).map(function(p) { return '<option value="' + esc(p.id) + '"' + (a.id === p.id ? ' selected' : '') + '>' + esc(p.nombre) + '</option>'; }).join('');
+    const prOpts = '<option value="">Sin prop</option>' + propsMano.map(function(x) { return '<option value="' + esc(x.id) + '"' + (a.prop === x.id ? ' selected' : '') + '>' + esc(x.nombre) + '</option>'; }).join('');
+    return '<div style="display:grid; grid-template-columns:1.1fr 84px 86px 92px 92px 58px auto; gap:4px; align-items:center; margin-bottom:4px;">' +
+      '<select class="sel" style="padding:4px 5px; font-size:11px;" onchange="window.editActorClip(' + clipSelIdx + ',' + aIdx + ',\'id\',this.value)">' + pOpts + '</select>' +
+      '<select class="sel" style="padding:4px 5px; font-size:11px;" onchange="window.editActorClip(' + clipSelIdx + ',' + aIdx + ',\'posicion\',this.value)">' + [['izq','Izq'],['centro','Centro'],['der','Der (Esp)']].map(function(c) { return '<option value="' + c[0] + '"' + (a.posicion === c[0] ? ' selected' : '') + '>' + c[1] + '</option>'; }).join('') + '</select>' +
+      '<select class="sel" style="padding:4px 5px; font-size:11px;" onchange="window.editActorClip(' + clipSelIdx + ',' + aIdx + ',\'ojos\',this.value)">' + ['neutro','feliz','enojado','triste','duda','indignado'].map(function(o) { return '<option value="' + o + '"' + (a.ojos === o ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select>' +
+      '<select class="sel" style="padding:4px 5px; font-size:11px;" onchange="window.editActorClip(' + clipSelIdx + ',' + aIdx + ',\'brazo\',this.value)"><option value="brazo_delantero_reposo"' + (a.brazo === 'brazo_delantero_reposo' ? ' selected' : '') + '>Brazo Rep.</option><option value="brazo_delantero_prop"' + (a.brazo === 'brazo_delantero_prop' ? ' selected' : '') + '>Brazo Prop</option><option value="ninguno"' + (a.brazo === 'ninguno' ? ' selected' : '') + '>Sin Brazo</option></select>' +
+      '<select class="sel" style="padding:4px 5px; font-size:11px;" onchange="window.editActorClip(' + clipSelIdx + ',' + aIdx + ',\'prop\',this.value)">' + prOpts + '</select>' +
+      '<input type="number" min="-25" max="25" class="inp" style="padding:4px 5px; font-size:11px;" title="Giro cabeza (°)" value="' + (a.rotCab || 0) + '" oninput="window.editActorClip(' + clipSelIdx + ',' + aIdx + ',\'rotCab\',Number(this.value))">' +
+      (actoresClip.length > 1 ? '<button type="button" class="btn btn-xs btn-danger" onclick="window.quitarActorClip(' + clipSelIdx + ',' + aIdx + ')">X</button>' : '<span style="width:22px;"></span>') +
+    '</div>';
+  }).join('');
 
   box.innerHTML =
     '<div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:8px; flex-wrap:wrap;">' +
@@ -1120,16 +1141,22 @@ function renderInspectorClip() {
         '<button type="button" class="btn btn-xs btn-danger" onclick="window.borrarEscena(' + clipSelIdx + ')">Borrar</button>' +
       '</div>' +
     '</div>' +
-    '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:6px; margin-bottom:7px;">' +
-      '<div class="field" style="margin:0;"><label>Actor</label><select class="sel" onchange="window.editEscena(' + clipSelIdx + ',\'actor\',this.value)">' + perOpts + '</select></div>' +
-      '<div class="field" style="margin:0;"><label>Ojos</label><select class="sel" onchange="window.editEscena(' + clipSelIdx + ',\'ojos\',this.value)">' + ['neutro','feliz','enojado','triste','duda','indignado'].map(function(o) { return '<option value="' + o + '"' + ((sc.ojos || 'neutro') === o ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select></div>' +
+    '<div style="border:1px solid var(--border); border-radius:9px; padding:7px; margin-bottom:7px; background:rgba(5,8,14,0.55);">' +
+      '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">' +
+        '<span style="font-size:10.5px; font-weight:800; color:var(--azul); text-transform:uppercase;">Actores en Plano (' + actoresClip.length + ')</span>' +
+        '<button type="button" class="btn btn-xs btn-blue" onclick="window.agregarActorClip(' + clipSelIdx + ')">+ Actor en plano</button>' +
+      '</div>' +
+      actoresHtml +
+    '</div>' +
+    '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(115px, 1fr)); gap:6px; margin-bottom:7px;">' +
+      '<div class="field" style="margin:0;"><label>Quién Habla (Lip-Sync)</label><select class="sel" onchange="window.editEscena(' + clipSelIdx + ',\'hablante\',this.value)">' + habOpts + '</select></div>' +
       '<div class="field" style="margin:0;"><label>Cámara</label><select class="sel" onchange="window.editEscena(' + clipSelIdx + ',\'camara\',this.value)">' + [['centro','Centro'],['izq','Izquierda'],['der','Derecha'],['zoom_actor','Zoom Actor'],['plano_general','General']].map(function(c) { return '<option value="' + c[0] + '"' + ((sc.camara || 'centro') === c[0] ? ' selected' : '') + '>' + c[1] + '</option>'; }).join('') + '</select></div>' +
-      '<div class="field" style="margin:0;"><label>Posición</label><select class="sel" onchange="window.editEscena(' + clipSelIdx + ',\'posicion\',this.value)">' + [['izq','Izquierda'],['centro','Centro'],['der','Derecha (Espejo)']].map(function(c) { return '<option value="' + c[0] + '"' + ((sc.posicion || 'izq') === c[0] ? ' selected' : '') + '>' + c[1] + '</option>'; }).join('') + '</select></div>' +
       '<div class="field" style="margin:0;"><label>Modo Visual</label><select class="sel" onchange="window.editEscena(' + clipSelIdx + ',\'modo\',this.value)"><option value="rig"' + ((sc.modo || 'rig') === 'rig' ? ' selected' : '') + '>Marioneta Piro-Rig ($0)</option><option value="plano"' + (sc.modo === 'plano' ? ' selected' : '') + '>Plano Ilustrado Gemini</option></select></div>' +
       '<div class="field" style="margin:0;"><label>Duración (s)</label><input type="number" step="0.1" min="0.5" class="inp" value="' + (Number(sc.duracion) || 3) + '" oninput="window.editEscena(' + clipSelIdx + ',\'duracion\',this.value)"></div>' +
-      '<div class="field" style="margin:0;"><label>Prop</label><select class="sel" onchange="window.editEscena(' + clipSelIdx + ',\'prop\',this.value)">' + propOpts + '</select></div>' +
+      '<div class="field" style="margin:0;"><label>Ícono FX</label><select class="sel" onchange="window.editEscena(' + clipSelIdx + ',\'prop\',this.value)">' + fxOpts + '</select></div>' +
       '<div class="field" style="margin:0;"><label>SFX</label><select class="sel" onchange="window.editEscena(' + clipSelIdx + ',\'sfx\',this.value)">' + sfxOpts + '</select></div>' +
     '</div>' +
+    '<label style="display:inline-flex; align-items:center; gap:6px; font-size:11px; color:#7dd3fc; font-weight:700; margin-bottom:7px; cursor:pointer;"><input type="checkbox"' + (sc.continuar_audio ? ' checked' : '') + ' style="accent-color:var(--azul);" onchange="window.editEscena(' + clipSelIdx + ',\'continuar_audio\',this.checked)"> Seguir voz del clip anterior sin cortar audio (corte de reacción / L-cut)</label>' +
         '<div class="field"><label>Diálogo ES (ElevenLabs + Subtítulos)</label><textarea class="txt" style="min-height:52px;" oninput="window.editEscena(' + clipSelIdx + ',\'texto\',this.value)">' + esc(sc.texto || '') + '</textarea></div>' +
     ((proyectoActivo.bilingue || sc.texto_en) ? '<div class="field"><label>Diálogo EN (Inglés bilingüe)</label><textarea class="txt" style="min-height:46px;" oninput="window.editEscena(' + clipSelIdx + ',\'texto_en\',this.value)">' + esc(sc.texto_en || '') + '</textarea></div>' : '') +
     '<div class="field"><label>Prompt Visual de Plano (Imagen Gemini)</label><input class="inp" value="' + esc(sc.prompt_plano || '') + '" placeholder="Describe el frame en inglés..." oninput="window.editEscena(' + clipSelIdx + ',\'prompt_plano\',this.value)"></div>' +
@@ -1158,8 +1185,9 @@ window.generarVozClip = async function(idx) {
   const g = getEp(); const sc = g && g.escenas ? g.escenas[idx] : null;
   if (!sc) return;
   if (!vault.elKey) { toast('Configura tu API Key de ElevenLabs en el botón APIs.', 'error'); return; }
-  if (!sc.texto || !sc.texto.trim()) { toast('Este clip no tiene diálogo para sintetizar.', 'error'); return; }
-  const per = biblioteca.personajes.find(function(p) { return p.id === sc.actor; });
+    if (!sc.texto || !sc.texto.trim()) { toast('Este clip no tiene diálogo para sintetizar.', 'error'); return; }
+  const idVoz = (sc.hablante && sc.hablante !== 'ninguno') ? sc.hablante : sc.actor;
+  const per = biblioteca.personajes.find(function(p) { return p.id === idVoz; });
   const voiceId = per && per.voice_id ? per.voice_id.trim() : '';
   if (!voiceId) { toast('Asigna primero el voice_id de ' + (per ? per.nombre : sc.actor) + ' en Contenido -> Ficha.', 'error'); return; }
 
@@ -1344,7 +1372,49 @@ function dibujarTextoSubtitulo(ctx, texto, W, H, esH) {
   ctx.restore();
 }
 
-window.renderPreviewCanvas = async function(bocaForzada) {
+window.agregarActorClip = function(idx) {
+  const g = getEp(); const sc = g && g.escenas ? g.escenas[idx] : null;
+  if (!sc) return;
+  sc.actores = normalizarActoresEscena(sc);
+  const usados = sc.actores.map(function(a) { return a.id; });
+  const sigPer = (biblioteca.personajes || []).find(function(p) { return usados.indexOf(p.id) < 0; }) || (biblioteca.personajes || [])[0];
+  const posLibre = sc.actores.some(function(a) { return a.posicion === 'der'; }) ? (sc.actores.some(function(a) { return a.posicion === 'izq'; }) ? 'centro' : 'izq') : 'der';
+  sc.actores.push({ id: sigPer ? sigPer.id : 'per_001', posicion: posLibre, ojos: 'duda', boca: 'boca_cerrada', brazo: 'brazo_delantero_reposo', rotCab: 0, rotBrazo: 0, prop: '', escala: 1 });
+  guardarBiblioteca(true);
+  renderTimeline();
+  window.renderPreviewCanvas();
+};
+
+window.editActorClip = function(idx, aIdx, campo, val) {
+  const g = getEp(); const sc = g && g.escenas ? g.escenas[idx] : null;
+  if (!sc) return;
+  sc.actores = normalizarActoresEscena(sc);
+  if (!sc.actores[aIdx]) return;
+  sc.actores[aIdx][campo] = val;
+  if (campo === 'prop' && val) sc.actores[aIdx].brazo = 'brazo_delantero_prop';
+  if (aIdx === 0) {
+    if (campo === 'id') sc.actor = val;
+    if (campo === 'posicion') sc.posicion = val;
+    if (campo === 'ojos') sc.ojos = val;
+  }
+  guardarBiblioteca(false);
+  renderTimeline();
+  window.renderPreviewCanvas();
+};
+
+window.quitarActorClip = function(idx, aIdx) {
+  const g = getEp(); const sc = g && g.escenas ? g.escenas[idx] : null;
+  if (!sc) return;
+  sc.actores = normalizarActoresEscena(sc);
+  if (sc.actores.length <= 1) return;
+  sc.actores.splice(aIdx, 1);
+  sc.actor = sc.actores[0].id;
+  guardarBiblioteca(true);
+  renderTimeline();
+  window.renderPreviewCanvas();
+};
+
+window.renderPreviewCanvas = async function(bocaForzada, hablanteOverride, subtituloOverride) {
   const cv = document.getElementById('canvas-preview');
   const g = getEp();
   if (!cv || !g) return;
@@ -1356,87 +1426,19 @@ window.renderPreviewCanvas = async function(bocaForzada) {
     cv.style.aspectRatio = esH ? '16 / 9' : '9 / 16';
   }
   const ctx = cv.getContext('2d');
-  ctx.fillStyle = '#0d1117';
-  ctx.fillRect(0, 0, W, H);
-
   const sc = (g.escenas || [])[clipSelIdx];
-  if (!sc) {
-    ctx.fillStyle = '#64748b'; ctx.font = '700 18px system-ui'; ctx.textAlign = 'center';
-    ctx.fillText('Sin escenas en el timeline', W / 2, H / 2);
-    return;
-  }
-
-  if (sc.modo === 'plano' && sc.plano_url) {
-    const imPlano = await cargarImg(sc.plano_url);
-    if (imPlano) {
-      const r = Math.max(W / imPlano.width, H / imPlano.height);
-      const dw = imPlano.width * r, dh = imPlano.height * r;
-      ctx.drawImage(imPlano, (W - dw) / 2, (H - dh) / 2, dw, dh);
-    }
-  } else {
-    const escObj = biblioteca.escenarios.find(function(e) { return e.id === (sc.escenario || g.escenario_id); }) || biblioteca.escenarios[0];
-    const zObj = escObj ? ((escObj.zonas || []).find(function(z) { return z.id === (sc.zona || g.zona_id); }) || escObj.zonas[0]) : null;
-    const imFondo = zObj && zObj.fondo ? await cargarImg(zObj.fondo.url) : null;
-    const imFrente = zObj && zObj.frente ? await cargarImg(zObj.frente.url) : null;
-
-    const zoom = sc.camara === 'zoom_actor' ? 1.18 : 1.0;
-    const panX = esH ? (sc.camara === 'izq' ? 60 : (sc.camara === 'der' ? -60 : 0)) : (sc.camara === 'izq' ? 140 : (sc.camara === 'der' ? -140 : 0));
-    const bgSize = 960 * zoom;
-
-    if (imFondo) ctx.drawImage(imFondo, (W - bgSize) / 2 + panX, (H - bgSize) / 2, bgSize, bgSize);
-
-    const per = biblioteca.personajes.find(function(p) { return p.id === sc.actor; });
-    if (per && per.piezas) {
-      const pz = per.piezas;
-      const bocaKey = bocaForzada || 'boca_cerrada';
-      const ojosKey = 'ojos_' + (sc.ojos || 'neutro');
-      const capas = ['brazo_trasero_reposo', 'pierna_trasera', 'pierna_delantera', 'cuerpo_base', 'cabeza_base', ojosKey, bocaKey, 'brazo_delantero_reposo'];
-      const imgs = await Promise.all(capas.map(function(k) { return cargarImg(pz[k] ? pz[k].url : null); }));
-      const hayPiezas = imgs.some(Boolean);
-      const imMaestro = !hayPiezas && pz.maestro_cuerpo ? await cargarImg(pz.maestro_cuerpo.url) : null;
-
-      const xPos = esH ? (sc.posicion === 'izq' ? 270 : (sc.posicion === 'der' ? 690 : 480)) : (sc.posicion === 'izq' ? 175 : (sc.posicion === 'der' ? 365 : 270));
-      const yPos = esH ? 310 : 530;
-      const flip = sc.posicion === 'der';
-      const scPer = (esH ? 0.31 : 0.44) * zoom;
-      ctx.save();
-      ctx.translate(xPos + panX * 0.45, yPos);
-      if (flip) ctx.scale(-1, 1);
-      if (hayPiezas) {
-        imgs.forEach(function(im) { if (im) ctx.drawImage(im, -500 * scPer, -800 * scPer, 1000 * scPer, 1600 * scPer); });
-      } else if (imMaestro) {
-        ctx.drawImage(imMaestro, -500 * scPer, -800 * scPer, 1000 * scPer, 1600 * scPer);
-      }
-      ctx.restore();
-    }
-
-    if (imFrente) ctx.drawImage(imFrente, (W - bgSize) / 2 + panX, (H - bgSize) / 2, bgSize, bgSize);
-
-    if (sc.prop) {
-      const pr = (biblioteca.props || []).find(function(x) { return x.id === sc.prop; });
-      if (pr && pr.archivo && pr.archivo.url) {
-        const imPr = await cargarImg(pr.archivo.url);
-        if (imPr) ctx.drawImage(imPr, esH ? 710 : 320, esH ? 90 : 210, 140, 140);
-      }
-    }
-  }
-
-  dibujarTextoSubtitulo(ctx, sc.texto || '', W, H, esH);
-
-  if (document.getElementById('chk-safe-zones').checked) {
-    ctx.save();
-    if (esH) {
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)'; ctx.setLineDash([10, 8]);
-      ctx.strokeRect(48, 28, W - 96, H - 56);
-    } else {
-      ctx.fillStyle = 'rgba(239, 68, 68, 0.16)';
-      ctx.fillRect(0, 768, 540, 192);
-      ctx.fillRect(455, 420, 85, 348);
-      ctx.strokeStyle = 'rgba(239, 68, 68, 0.55)'; ctx.setLineDash([8, 6]);
-      ctx.strokeRect(10, 80, 440, 680);
-    }
-    ctx.restore();
-  }
+  await componerEscenaPiro(ctx, {
+    escena: sc,
+    episodio: g,
+    biblioteca: biblioteca,
+    ancho: W,
+    alto: H,
+    esHorizontal: esH,
+    bocaHablante: bocaForzada || 'boca_cerrada',
+    hablanteActivoId: hablanteOverride,
+    subtituloOverride: subtituloOverride,
+    safeZones: Boolean(document.getElementById('chk-safe-zones') && document.getElementById('chk-safe-zones').checked)
+  });
 };
 
 function fmtSeg(s) {
@@ -1456,8 +1458,11 @@ window.detenerTimeline = function() {
   reproduciendo = false;
   if (playRaf) { cancelAnimationFrame(playRaf); playRaf = null; }
   const aud = document.getElementById('audio-player-tl');
-  if (aud) { aud.pause(); aud.currentTime = 0; }
+    if (aud) { aud.pause(); aud.currentTime = 0; }
   clipSonandoIdx = -1;
+  clipAudioOrigenIdx = -1;
+  audioOrigenInicioSeg = 0;
+  envolventeActiva = null;
   playOffsetSeg = 0;
   const b = document.getElementById('btn-play-tl');
   if (b) b.textContent = 'Play';
@@ -1477,8 +1482,11 @@ window.togglePlayTimeline = function() {
   }
   const tot = duracionTotalEp();
   if (playOffsetSeg >= tot - 0.1) playOffsetSeg = 0;
-  reproduciendo = true;
+    reproduciendo = true;
   clipSonandoIdx = -1;
+  clipAudioOrigenIdx = -1;
+  audioOrigenInicioSeg = 0;
+  envolventeActiva = null;
   playInicioMs = performance.now() - playOffsetSeg * 1000;
   document.getElementById('btn-play-tl').textContent = 'Pausa';
 
@@ -1503,21 +1511,30 @@ window.togglePlayTimeline = function() {
       renderTimeline();
       const sc = g.escenas[idxAct];
       const aud = document.getElementById('audio-player-tl');
-      if (sc.audio_url) {
-        aud.src = sc.audio_url;
-        aud.currentTime = Math.max(0, t - acum);
-        aud.play().catch(function() {});
-      } else {
-        aud.pause();
+      if (!(sc.continuar_audio && clipAudioOrigenIdx >= 0 && !sc.audio_url)) {
+        if (sc.audio_url) {
+          clipAudioOrigenIdx = idxAct;
+          audioOrigenInicioSeg = acum;
+          envolventeActiva = null;
+          extraerEnvolventeAudio(sc.audio_url, 24).then(function(env) { if (clipAudioOrigenIdx === idxAct) envolventeActiva = env; });
+          aud.src = sc.audio_url;
+          aud.currentTime = Math.max(0, t - acum);
+          aud.play().catch(function() {});
+        } else {
+          clipAudioOrigenIdx = -1;
+          envolventeActiva = null;
+          aud.pause();
+        }
       }
     }
 
     const scAct = g.escenas[idxAct];
-    const fase = Math.floor(t * 7) % 3;
-    const boca = (scAct && scAct.texto && scAct.texto.trim())
-      ? (fase === 0 ? 'boca_cerrada' : (fase === 1 ? 'boca_media' : 'boca_abierta'))
-      : 'boca_cerrada';
-    window.renderPreviewCanvas(boca);
+    const scAud = (scAct && scAct.continuar_audio && clipAudioOrigenIdx >= 0) ? g.escenas[clipAudioOrigenIdx] : scAct;
+    const habId = scAud ? (scAud.hablante !== undefined ? scAud.hablante : scAud.actor) : 'ninguno';
+    const tLocalAud = (scAct && scAct.continuar_audio && clipAudioOrigenIdx >= 0) ? (t - audioOrigenInicioSeg) : (t - acum);
+    const boca = (habId && habId !== 'ninguno') ? obtenerBocaDesdeEnvolvente(envolventeActiva, tLocalAud, scAud ? scAud.texto : '') : 'boca_cerrada';
+    const subTxt = (scAct && scAct.texto && scAct.texto.trim()) ? scAct.texto : (scAud ? (scAud.texto || '') : '');
+    window.renderPreviewCanvas(boca, habId, subTxt);
     playRaf = requestAnimationFrame(tick);
   };
   playRaf = requestAnimationFrame(tick);
@@ -1535,7 +1552,16 @@ window.exportarPaqueteEpisodio = function() {
     return '[ESCENA ' + String(i + 1).padStart(2, '0') + ' · ANIMAR CON VEO]\nFrame 0: plano_' + (i + 1) + '.png\nDuración: ' + (sc.duracion || 6) + 's\nPrompt: ' + (proyectoActivo.estilo_visual || '') + ' ' + (sc.veo_bridge_prompt || '');
   }).filter(Boolean);
     const asp = getAspectoEp(g);
-  const payload = { proyecto: proyectoActivo, formato_video: { aspecto: asp, ancho: asp === '16:9' ? 1920 : 1080, alto: asp === '16:9' ? 1080 : 1920 }, plan_veo: calcularPlanVeo(g.tension || 8), instrucciones_puente_veo: instruccionesVeo, episodio: g, descargas_episodio: descargas, biblioteca: biblioteca, exportado_en: new Date().toISOString() };
+    const epNorm = Object.assign({}, g, {
+    escenas: (g.escenas || []).map(function(sc) {
+      return Object.assign({}, sc, {
+        actores: normalizarActoresEscena(sc),
+        hablante: sc.hablante !== undefined ? sc.hablante : sc.actor,
+        continuar_audio: Boolean(sc.continuar_audio)
+      });
+    })
+  });
+  const payload = { proyecto: proyectoActivo, formato_video: { aspecto: asp, ancho: asp === '16:9' ? 1920 : 1080, alto: asp === '16:9' ? 1080 : 1920 }, plan_veo: calcularPlanVeo(g.tension || 8), instrucciones_puente_veo: instruccionesVeo, episodio: epNorm, descargas_episodio: descargas, biblioteca: biblioteca, exportado_en: new Date().toISOString() };
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
   a.download = proyectoActivo.id + '_' + g.id + '_produccion_termux.json';
