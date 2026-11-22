@@ -9,7 +9,7 @@
 
 import GeokatuDB from './core-db.js';
 import { db } from './firebase-config.js';
-import { collection, doc, getDocs, query, where, orderBy, limit, updateDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { collection, doc, getDocs, query, where, limit, setDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { AuthGate } from './auth-gate.js';
 import { ScannerHub } from './scanner-hub.js';
 
@@ -77,39 +77,39 @@ function resolverPermisosRolTerminal(ctx) {
  if (esAdmin) {
  return {
  etiqueta: esDueno ? 'Titular' : 'Admin Delegado',
- pos: true, stock: true, mapa: true, escaner: true,
- croquis: true, adminCajas: true, configFiscal: true,
- oficina: true, perfilEmpleado: !esDueno
+ pos: true, stock: true, mapa: true, escaner: true, cardEscaner: true,
+ croquis: true, adminCajas: true, configFiscal: true, asignarTareas: true,
+ oficina: true, perfilEmpleado: false
  };
  }
  if (rol === 'supervisor' || rol === 'supervisor_pos') {
  return {
  etiqueta: 'Supervisor',
- pos: true, stock: true, mapa: true, escaner: true,
- croquis: true, adminCajas: true, configFiscal: false,
+ pos: true, stock: true, mapa: true, escaner: true, cardEscaner: true,
+ croquis: true, adminCajas: true, configFiscal: false, asignarTareas: true,
  oficina: false, perfilEmpleado: true
  };
  }
  if (rol === 'operador_bodega' || rol === 'almacen') {
  return {
  etiqueta: 'Operario Bodega',
- pos: false, stock: true, mapa: true, escaner: true,
- croquis: false, adminCajas: false, configFiscal: false,
+ pos: false, stock: true, mapa: true, escaner: true, cardEscaner: true,
+ croquis: false, adminCajas: false, configFiscal: false, asignarTareas: false,
  oficina: false, perfilEmpleado: true
  };
  }
  if (rol === 'visual_merchandising') {
  return {
  etiqueta: 'Visual Merchandising',
- pos: false, stock: true, mapa: true, escaner: true,
- croquis: true, adminCajas: false, configFiscal: false,
+ pos: false, stock: true, mapa: true, escaner: true, cardEscaner: false,
+ croquis: true, adminCajas: false, configFiscal: false, asignarTareas: false,
  oficina: false, perfilEmpleado: true
  };
  }
  return {
  etiqueta: rol === 'asesor' ? 'Asesor Ventas' : 'Cajero POS',
- pos: true, stock: false, mapa: true, escaner: true,
- croquis: false, adminCajas: false, configFiscal: false,
+ pos: true, stock: false, mapa: true, escaner: true, cardEscaner: true,
+ croquis: false, adminCajas: false, configFiscal: false, asignarTareas: false,
  oficina: false, perfilEmpleado: true
  };
 }
@@ -140,20 +140,35 @@ function aplicarPermisosDockYCards(p) {
  const cardEl = document.getElementById(item.cardId);
  if (cardEl) cardEl.style.display = item.ok ? 'flex' : 'none';
  });
- const btnEsc = document.getElementById('btn-inicio-escaner');
- if (btnEsc) btnEsc.style.display = p.escaner ? 'flex' : 'none';
+  const btnEsc = document.getElementById('btn-inicio-escaner');
+ if (btnEsc) btnEsc.style.display = p.cardEscaner ? 'flex' : 'none';
  const btnCroquis = document.getElementById('btn-inicio-croquis');
  if (btnCroquis) btnCroquis.style.display = p.croquis ? 'flex' : 'none';
  const btnOfi = document.getElementById('btn-inicio-oficina');
  if (btnOfi) btnOfi.style.display = p.oficina ? 'flex' : 'none';
+ const ddOfi = document.getElementById('dd-btn-oficina');
+ if (ddOfi) ddOfi.style.display = p.oficina ? 'flex' : 'none';
  const btnPerf = document.getElementById('btn-inicio-perfil-emp');
  if (btnPerf) btnPerf.style.display = p.perfilEmpleado ? 'flex' : 'none';
+ const formAsignarT = document.getElementById('form-asignar-tarea-shell');
+ if (formAsignarT) formAsignarT.style.display = p.asignarTareas ? 'flex' : 'none';
  const bloqueCajas = document.getElementById('bloque-puesto-multicaja');
  if (bloqueCajas) bloqueCajas.style.display = (p.pos || p.adminCajas) ? 'flex' : 'none';
  const btnAdminCajas = document.getElementById('btn-toggle-admin-cajas');
  if (btnAdminCajas) btnAdminCajas.style.display = p.adminCajas ? 'inline-block' : 'none';
  const bloqueFiscal = document.getElementById('bloque-config-pos-gerencial');
- if (bloqueFiscal) bloqueFiscal.style.display = p.configFiscal ? 'flex' : 'none';
+ if (bloqueFiscal) {
+ const mostrarFranja = Boolean(p.configFiscal || p.adminCajas);
+ bloqueFiscal.style.display = mostrarFranja ? 'flex' : 'none';
+ const bPas = document.getElementById('btn-inicio-pasarelas');
+ const bFisc = document.getElementById('btn-toggle-fiscal-terminal');
+ const bGer = document.getElementById('btn-inicio-gerencial');
+ const filaBtns = bloqueFiscal.querySelector('.inicio-fiscal-btns');
+ if (bPas) bPas.style.display = p.configFiscal ? 'inline-flex' : 'none';
+ if (bFisc) bFisc.style.display = p.configFiscal ? 'inline-flex' : 'none';
+ if (bGer) bGer.style.display = (p.configFiscal || p.adminCajas) ? 'inline-flex' : 'none';
+ if (filaBtns) filaBtns.style.gridTemplateColumns = p.configFiscal ? 'repeat(3, 1fr)' : '1fr';
+ }
  const chipsWrap = document.getElementById('inicio-permisos-chips');
  if (chipsWrap) {
  const definicion = [
@@ -277,32 +292,42 @@ async function cargarCajasYEstadosInicio(idNegocio, forzarRed) {
 async function cargarTareasTurnoInicio(ctx) {
  const cont = document.getElementById('inicio-tareas-lista');
  const badge = document.getElementById('inicio-tareas-conteo');
+ const resumenTxt = document.getElementById('inicio-tareas-resumen-txt');
  if (!cont || !ctx || !ctx.idNegocio) return;
  if (!navigator.onLine) {
  cont.innerHTML = '<p style="margin:4px 0; font-size:11px; color:var(--gk-muted); text-align:center;">Sin red para consultar tareas del turno.</p>';
  if (badge) badge.textContent = '0';
+ if (resumenTxt) resumenTxt.textContent = 'Sin conexión';
  return;
  }
  try {
  const qT = query(
  collection(db, 'Directorio/' + ctx.idNegocio + '/Tareas_Internas'),
  where('completada', '==', false),
- orderBy('fecha_creacion', 'desc'),
- limit(20)
+ limit(30)
  );
  const snap = await getDocs(qT);
  const lista = [];
+ const puedeVerTodas = Boolean(ctx.esDueno === true || (permisosActivosTerminal && permisosActivosTerminal.asignarTareas));
  snap.forEach(function(d) {
  const t = d.data() || {};
  const dest = String(t.destinatario_uid || 'TODOS');
- if (dest === 'TODOS' || dest === ctx.operadorUid || ctx.esDueno === true) {
+ if (dest === 'TODOS' || dest === ctx.operadorUid || puedeVerTodas) {
  lista.push(Object.assign({ id: d.id }, t));
  }
  });
+ lista.sort(function(a, b) {
+ return String(b.fecha_creacion || '').localeCompare(String(a.fecha_creacion || ''));
+ });
  if (badge) badge.textContent = String(lista.length);
  if (lista.length === 0) {
+ if (resumenTxt) resumenTxt.textContent = 'Sin tareas pendientes';
  cont.innerHTML = '<p style="margin:4px 0; font-size:11.5px; color:var(--gk-muted); text-align:center;">Sin tareas pendientes para este turno.</p>';
  return;
+ }
+ if (resumenTxt) {
+ const primera = String(lista[0].titulo || 'Tarea pendiente');
+ resumenTxt.textContent = lista.length > 1 ? (primera + ' (+' + (lista.length - 1) + ')') : primera;
  }
  cont.innerHTML = lista.map(function(t) {
  const col = t.prioridad === 'URGENTE' ? '#ff4444' : 'var(--gk-naranja)';
@@ -332,6 +357,8 @@ async function cargarTareasTurnoInicio(ctx) {
  });
  });
  } catch (e) {
+ if (badge) badge.textContent = '0';
+ if (resumenTxt) resumenTxt.textContent = 'Sin tareas pendientes';
  cont.innerHTML = '<p style="margin:4px 0; font-size:11px; color:var(--gk-muted); text-align:center;">No se pudieron cargar las tareas.</p>';
  }
 }
@@ -364,15 +391,16 @@ function hidratarBloqueFiscalTerminal(dNeg) {
  setV('term-fisc-siigo-doc', f.codigo_tipo_comprobante || '');
  setV('term-fisc-siigo-iva', f.id_impuesto_iva_siigo || '');
  setV('term-fisc-pais', paisActual);
- const resEl = document.getElementById('resumen-fiscal-terminal');
+  const resEl = document.getElementById('resumen-fiscal-terminal');
  if (resEl) {
- const tagPais = paisActual === 'VEN' ? 'VE · Venezuela (USD/VES)' : 'CO · Colombia (COP/DIAN)';
+ const tagPais = paisActual === 'VEN' ? 'VE (USD/VES)' : 'CO (DIAN)';
  if (!f.nit && !datosNegocioTerminal.rif) {
- resEl.innerHTML = '<strong style="color:#fbbf24;">Sin NIT/RIF configurado</strong> · ' + escaparHtmlShell(tagPais);
+ resEl.style.color = '#fbbf24';
+ resEl.textContent = 'Sin NIT/RIF (' + tagPais + ')';
  } else {
  const docTxt = (f.nit || datosNegocioTerminal.rif) + (f.dv ? ('-' + f.dv) : '');
- resEl.innerHTML = '<strong style="color:#fff;">' + escaparHtmlShell(f.razon_social || datosNegocioTerminal.nombre || 'Comercio') + '</strong><br>' +
- 'Doc: ' + escaparHtmlShell(docTxt) + ' · Sede: ' + escaparHtmlShell(f.codigo_tienda || 'T-01') + ' · ' + escaparHtmlShell(tagPais);
+ resEl.style.color = '#86efac';
+ resEl.textContent = docTxt + ' · ' + (f.codigo_tienda || 'T-01') + ' · ' + tagPais;
  }
  }
 }
@@ -805,10 +833,11 @@ function actualizarPanelInicio(ctx) {
  }
  if (sedeEl) sedeEl.textContent = obtenerSedeActiva(ctx.idNegocio);
 
- aplicarPermisosDockYCards(permisosActivosTerminal);
+  aplicarPermisosDockYCards(permisosActivosTerminal);
  actualizarEstadoRedYColaInicio();
  cargarCajasYEstadosInicio(ctx.idNegocio, false);
  cargarTareasTurnoInicio(ctx);
+ hidratarAvatarInicioShell_(ctx);
 }
 
 function cerrarVisor25dSiAbierto() {
@@ -1027,7 +1056,8 @@ document.querySelectorAll('[data-ir]').forEach((btn) => {
 });
 
 document.getElementById('btn-inicio-escaner').addEventListener('click', (e) => {
-  window.TerminalApp.abrirEscaner('CONSULTAR', e.currentTarget);
+  const modoEsc = (permisosActivosTerminal && !permisosActivosTerminal.pos && permisosActivosTerminal.stock) ? 'UBICAR' : 'CONSULTAR';
+  window.TerminalApp.abrirEscaner(modoEsc, e.currentTarget);
 });
 document.getElementById('btn-inicio-croquis').addEventListener('click', function() {
  if (permisosActivosTerminal && !permisosActivosTerminal.croquis) return;
@@ -1037,12 +1067,94 @@ document.getElementById('btn-inicio-oficina').addEventListener('click', function
  if (permisosActivosTerminal && !permisosActivosTerminal.oficina) return;
  window.location.href = 'oficina';
 });
-const btnPerfilEmp = document.getElementById('btn-inicio-perfil-emp');
-if (btnPerfilEmp) {
- btnPerfilEmp.addEventListener('click', function() {
- window.location.href = 'oficinaempleado.html';
- });
+let uidPerfilShellActivo = null;
+
+function aplicarAvatarShellDOM_(urlFoto) {
+ const imgTop = document.getElementById('inicio-avatar-img');
+ const svgTop = document.getElementById('inicio-avatar-svg');
+ const imgMod = document.getElementById('emp-shell-avatar');
+ const svgMod = document.getElementById('emp-shell-avatar-svg');
+ if (urlFoto) {
+ if (imgTop) { imgTop.src = urlFoto; imgTop.style.display = 'block'; }
+ if (svgTop) svgTop.style.display = 'none';
+ if (imgMod) { imgMod.src = urlFoto; imgMod.style.display = 'block'; }
+ if (svgMod) svgMod.style.display = 'none';
+ }
 }
+
+async function hidratarAvatarInicioShell_(ctx) {
+ try {
+ const authMod = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js');
+ const u = authMod.getAuth().currentUser;
+ uidPerfilShellActivo = (ctx && ctx.operadorUid) || (u && u.uid) || localStorage.getItem('geokatu_auth_uid') || null;
+ if (!uidPerfilShellActivo) return;
+ const emailAct = (ctx && ctx.email) || (u && u.email) || '';
+ const res = await GeokatuDB.SecurityService.obtenerPerfilLaboralEmpleado(uidPerfilShellActivo, emailAct);
+ if (res && res.success && res.empleado && res.empleado.foto) {
+ aplicarAvatarShellDOM_(res.empleado.foto);
+ }
+ } catch (eAv) {}
+}
+
+async function abrirModalPerfilEmpleadoShell_() {
+ const modal = document.getElementById('modal-perfil-empleado');
+ if (!modal) return;
+ const dd = document.getElementById('dropdown-terminal-menu');
+ if (dd) dd.classList.remove('activo');
+ modal.classList.add('activo');
+
+ const ctx = contextoSesionActivo || {};
+ const pinEl = document.getElementById('emp-shell-pin');
+ const rolEl = document.getElementById('emp-shell-rol');
+ const mailEl = document.getElementById('emp-shell-email');
+ const nomInp = document.getElementById('emp-shell-nombre');
+ const telInp = document.getElementById('emp-shell-tel');
+ const histCont = document.getElementById('emp-shell-historial-24h');
+ const histCount = document.getElementById('emp-shell-hist-count');
+
+ if (pinEl) pinEl.textContent = 'PIN: ' + (ctx.codigoCajero || localStorage.getItem('geokatu_cajero_pin') || '0000');
+ if (rolEl) rolEl.textContent = (permisosActivosTerminal && permisosActivosTerminal.etiqueta) || 'Operario';
+ if (mailEl) mailEl.textContent = ctx.email || '';
+ if (nomInp && !nomInp.value) nomInp.value = ctx.nombreOperador || ctx.nombre || '';
+ if (histCont) histCont.innerHTML = '<p style="margin:8px 0; font-size:11px; color:var(--gk-muted); text-align:center;">Consultando conexiones...</p>';
+
+ try {
+ const authMod = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js');
+ const u = authMod.getAuth().currentUser;
+ uidPerfilShellActivo = (ctx && ctx.operadorUid) || (u && u.uid) || localStorage.getItem('geokatu_auth_uid') || null;
+ const emailAct = (ctx && ctx.email) || (u && u.email) || '';
+ if (mailEl && emailAct) mailEl.textContent = emailAct;
+ if (!uidPerfilShellActivo) return;
+ const res = await GeokatuDB.SecurityService.obtenerPerfilLaboralEmpleado(uidPerfilShellActivo, emailAct);
+ if (res && res.success) {
+ const emp = res.empleado || {};
+ if (nomInp) nomInp.value = emp.nombre || ctx.nombreOperador || ctx.nombre || '';
+ if (telInp) telInp.value = emp.telefono || '';
+ if (emp.foto) aplicarAvatarShellDOM_(emp.foto);
+ const listaC = Array.isArray(res.conexionesUltimoDia) ? res.conexionesUltimoDia : [];
+ if (histCount) histCount.textContent = String(listaC.length);
+ if (histCont) {
+ if (listaC.length === 0) {
+ histCont.innerHTML = '<p style="margin:8px 0; font-size:11px; color:var(--gk-muted); text-align:center;">Sin registros en las últimas 24 horas.</p>';
+ } else {
+ histCont.innerHTML = listaC.map(function(c) {
+ const hora = c.fecha ? new Date(c.fecha).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+ return '<div class="caja-admin-fila"><div><strong style="color:#fff; display:block;">' + escaparHtmlShell(c.modulo || 'Terminal') + '</strong><span style="font-size:10px; color:var(--gk-muted);">' + escaparHtmlShell((c.comercio || '') + ' · ' + (c.sede || '')) + '</span></div><span style="color:var(--gk-verde); font-family:monospace; font-weight:800;">' + hora + '</span></div>';
+ }).join('');
+ }
+ }
+ }
+ } catch (ePerf) {
+ if (histCont) histCont.innerHTML = '<p style="margin:8px 0; font-size:11px; color:var(--gk-muted); text-align:center;">No se pudo consultar el historial.</p>';
+ }
+}
+
+const btnPerfilEmp = document.getElementById('btn-inicio-perfil-emp');
+if (btnPerfilEmp) btnPerfilEmp.addEventListener('click', abrirModalPerfilEmpleadoShell_);
+const btnAvatarPerfil = document.getElementById('btn-avatar-abrir-perfil');
+if (btnAvatarPerfil) btnAvatarPerfil.addEventListener('click', abrirModalPerfilEmpleadoShell_);
+const ddBtnPerfil = document.getElementById('dd-btn-mi-perfil');
+if (ddBtnPerfil) ddBtnPerfil.addEventListener('click', abrirModalPerfilEmpleadoShell_);
 const btnSyncInicio = document.getElementById('btn-inicio-sync');
 if (btnSyncInicio) {
  btnSyncInicio.addEventListener('click', async function() {
@@ -1089,9 +1201,10 @@ if (selectCajaTerminal) {
 const btnToggleAdminCajas = document.getElementById('btn-toggle-admin-cajas');
 if (btnToggleAdminCajas) {
  btnToggleAdminCajas.addEventListener('click', function() {
- const panel = document.getElementById('panel-admin-cajas');
- if (!panel) return;
- panel.style.display = panel.style.display === 'flex' ? 'none' : 'flex';
+ const modalCajas = document.getElementById('modal-admin-cajas');
+ if (modalCajas) modalCajas.classList.add('activo');
+ const idNeg = (contextoSesionActivo && contextoSesionActivo.idNegocio) || localStorage.getItem('geokatu_active_uid') || '';
+ if (idNeg) cargarCajasYEstadosInicio(idNeg, false);
  });
 }
 const btnCrearCajaPos = document.getElementById('btn-crear-caja-pos');
@@ -1125,9 +1238,8 @@ if (btnCrearCajaPos) {
 const btnToggleFiscal = document.getElementById('btn-toggle-fiscal-terminal');
 if (btnToggleFiscal) {
  btnToggleFiscal.addEventListener('click', function() {
- const f = document.getElementById('form-fiscal-terminal');
- if (!f) return;
- f.style.display = f.style.display === 'flex' ? 'none' : 'flex';
+ const modalF = document.getElementById('modal-fiscal-terminal');
+ if (modalF) modalF.classList.add('activo');
  });
 }
 const inpNitTerm = document.getElementById('term-fisc-nit');
@@ -1171,8 +1283,8 @@ if (btnGuardarFiscal) {
  localStorage.setItem('geokatu_pais_' + idNeg, paisElegido);
  localStorage.setItem('geokatu_perfil_' + idNeg, JSON.stringify(perfilFiscal));
  hidratarBloqueFiscalTerminal(datosNegocioTerminal);
- const formF = document.getElementById('form-fiscal-terminal');
- if (formF) formF.style.display = 'none';
+  const modalF = document.getElementById('modal-fiscal-terminal');
+ if (modalF) modalF.classList.remove('activo');
  if (paisElegido !== paisAnterior) {
  RUTAS_FRAMES.pos = paisElegido === 'VEN' ? 'posven?embed=terminal' : 'pos?embed=terminal';
  if (FRAMES.pos && framesCargados.pos) {
@@ -1205,10 +1317,137 @@ if (btnGerencial) {
 }
 window.addEventListener('online', actualizarEstadoRedYColaInicio);
 window.addEventListener('offline', actualizarEstadoRedYColaInicio);
+const btnTermMenu = document.getElementById('btn-terminal-menu');
+const ddTermMenu = document.getElementById('dropdown-terminal-menu');
+if (btnTermMenu && ddTermMenu) {
+ btnTermMenu.addEventListener('click', function(e) {
+ e.stopPropagation();
+ ddTermMenu.classList.toggle('activo');
+ });
+ document.addEventListener('click', function(e) {
+ if (!e.target.closest('#dropdown-terminal-menu') && !e.target.closest('#btn-terminal-menu')) {
+ ddTermMenu.classList.remove('activo');
+ }
+ });
+}
+const ddBtnOfi = document.getElementById('dd-btn-oficina');
+if (ddBtnOfi) {
+ ddBtnOfi.addEventListener('click', function() {
+ if (ddTermMenu) ddTermMenu.classList.remove('activo');
+ if (permisosActivosTerminal && permisosActivosTerminal.oficina) window.location.href = 'oficina';
+ });
+}
+const btnAbrirTareas = document.getElementById('btn-abrir-modal-tareas');
+if (btnAbrirTareas) {
+ btnAbrirTareas.addEventListener('click', function() {
+ const mT = document.getElementById('modal-tareas-turno');
+ if (mT) mT.classList.add('activo');
+ if (contextoSesionActivo) cargarTareasTurnoInicio(contextoSesionActivo);
+ });
+}
+const btnCrearTareaShell = document.getElementById('btn-shell-crear-tarea');
+if (btnCrearTareaShell) {
+ btnCrearTareaShell.addEventListener('click', async function() {
+ if (!contextoSesionActivo || !contextoSesionActivo.idNegocio) return;
+ if (!permisosActivosTerminal || !permisosActivosTerminal.asignarTareas) return;
+ const inpTit = document.getElementById('shell-tarea-titulo');
+ const selPri = document.getElementById('shell-tarea-prioridad');
+ const titulo = inpTit ? inpTit.value.trim() : '';
+ if (!titulo) return;
+ btnCrearTareaShell.disabled = true;
+ try {
+ await setDoc(doc(collection(db, 'Directorio/' + contextoSesionActivo.idNegocio + '/Tareas_Internas')), {
+ titulo: titulo,
+ destinatario_uid: 'TODOS',
+ prioridad: (selPri && selPri.value) || 'NORMAL',
+ completada: false,
+ creada_por: contextoSesionActivo.nombre || ('OP #' + (contextoSesionActivo.codigoCajero || '0000')),
+ fecha_creacion: new Date().toISOString()
+ });
+ if (inpTit) inpTit.value = '';
+ await cargarTareasTurnoInicio(contextoSesionActivo);
+ } catch (eNT) {
+ alert('No se pudo publicar la tarea: ' + eNT.message);
+ } finally {
+ btnCrearTareaShell.disabled = false;
+ }
+ });
+}
+document.querySelectorAll('.emp-tab-btn').forEach(function(tabBtn) {
+ tabBtn.addEventListener('click', function() {
+ const target = tabBtn.getAttribute('data-emp-tab');
+ document.querySelectorAll('.emp-tab-btn').forEach(function(b) { b.classList.toggle('activo', b === tabBtn); });
+ document.querySelectorAll('.emp-tab-panel').forEach(function(p) { p.classList.toggle('activo', p.id === 'emp-panel-' + target); });
+ });
+});
+const btnGuardarEmpShell = document.getElementById('btn-emp-shell-guardar');
+if (btnGuardarEmpShell) {
+ btnGuardarEmpShell.addEventListener('click', async function() {
+ if (!uidPerfilShellActivo) return alert('Sesión de usuario no disponible.');
+ const nombre = (document.getElementById('emp-shell-nombre')?.value || '').trim();
+ const tel = (document.getElementById('emp-shell-tel')?.value || '').trim();
+ btnGuardarEmpShell.disabled = true;
+ try {
+ const payloadEmp = { telefono: tel };
+ if (nombre) payloadEmp.nombre = nombre;
+ const r = await GeokatuDB.SecurityService.actualizarDatosPersonalesEmpleado(uidPerfilShellActivo, payloadEmp);
+ alert(r && r.success ? 'Datos personales actualizados.' : ('Error: ' + ((r && r.error) || 'No se pudo guardar')));
+ } finally {
+ btnGuardarEmpShell.disabled = false;
+ }
+ });
+}
+const fileFotoEmpShell = document.getElementById('emp-shell-file-foto');
+if (fileFotoEmpShell) {
+ fileFotoEmpShell.addEventListener('change', async function(e) {
+ const f = e.target.files && e.target.files[0];
+ if (!f || !uidPerfilShellActivo) return;
+ try {
+ const blob = await GeokatuDB.AdminService.comprimirAWebP(f, 400, 0.8, true, false);
+ const url = await GeokatuDB.AdminService.subirArchivo('operadores/' + uidPerfilShellActivo + '/avatar_' + Date.now() + '.webp', blob, 'image/webp');
+ const urlStr = typeof url === 'string' ? url : ((url && (url.url || url.data)) || '');
+ if (urlStr) {
+ aplicarAvatarShellDOM_(urlStr);
+ await GeokatuDB.SecurityService.actualizarDatosPersonalesEmpleado(uidPerfilShellActivo, { foto: urlStr });
+ }
+ } catch (errF) {
+ alert('No se pudo subir la foto: ' + errF.message);
+ }
+ });
+}
+const btnPassEmpShell = document.getElementById('btn-emp-shell-pass');
+if (btnPassEmpShell) {
+ btnPassEmpShell.addEventListener('click', async function() {
+ const p1 = document.getElementById('emp-shell-pass1')?.value || '';
+ const p2 = document.getElementById('emp-shell-pass2')?.value || '';
+ if (p1.length < 6) return alert('La contraseña debe tener mínimo 6 caracteres.');
+ if (p1 !== p2) return alert('Las contraseñas no coinciden.');
+ btnPassEmpShell.disabled = true;
+ try {
+ const authMod = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js');
+ const userAct = authMod.getAuth().currentUser;
+ if (!userAct) throw new Error('Inicia sesión con tu correo y clave para cambiar la contraseña.');
+ await authMod.updatePassword(userAct, p1);
+ document.getElementById('emp-shell-pass1').value = '';
+ document.getElementById('emp-shell-pass2').value = '';
+ alert('Contraseña actualizada correctamente.');
+ } catch (errP) {
+ if (errP && errP.code === 'auth/requires-recent-login') {
+ alert('Por seguridad, cierra sesión e ingresa de nuevo con tu correo antes de cambiar la contraseña.');
+ } else {
+ alert('No se pudo cambiar la contraseña: ' + errP.message);
+ }
+ } finally {
+ btnPassEmpShell.disabled = false;
+ }
+ });
+}
 document.getElementById('btn-inicio-bloquear').addEventListener('click', function() {
+ if (ddTermMenu) ddTermMenu.classList.remove('activo');
  window.TerminalApp.solicitarBloqueo();
 });
 document.getElementById('btn-inicio-salir').addEventListener('click', function() {
+ if (ddTermMenu) ddTermMenu.classList.remove('activo');
  window.TerminalApp.solicitarCerrarSesion();
 });
 
