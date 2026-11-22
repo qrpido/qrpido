@@ -312,6 +312,7 @@
 
 <script type="module">
 import GeokatuDB from './core-db.js';
+import { dibujarMarionetaPiro, cargarImagenPiro } from './piro-compositor.js';
 
 const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
 let proyectoActivo = {
@@ -414,7 +415,7 @@ let selId = { personajes: null, escenarios: null, guiones: null };
 let subTabPersonaje = 'ficha'; // ficha | base | ojos | bocas | extremidades | variantes | sandwich
 let tipoPromptVista = 'cuerpo_completo';
 let filtroPropsCat = 'todos';
-let sandwichCfg = { ojos: 'ojos_neutro', boca: 'boca_cerrada', brazoDel: 'brazo_delantero_reposo', rotCab: 0, rotBrazo: 0, bg: 'checker', piernas: true };
+let sandwichCfg = { ojos: 'ojos_neutro', boca: 'boca_cerrada', brazoDel: 'brazo_delantero_reposo', rotCab: 0, rotBrazo: 0, bg: 'checker', piernas: true, prop: '' };
 const sandwichImgCache = {};
 let slotUploadPendiente = null;
 let tipoModalCrear = null;
@@ -892,10 +893,13 @@ function renderizarVistaPersonajes() {
           '<div class="field"><label>Boca (Lip-Sync)</label><select class="sel" onchange="window.actualizarSandwich(\'boca\', this.value)">' +
             ['boca_cerrada','boca_media','boca_abierta','boca_sonrisa','boca_molesta'].map(function(k) { return '<option value="' + k + '"' + (sandwichCfg.boca === k ? ' selected' : '') + '>' + k.replace('boca_', '') + (p.piezas[k] && p.piezas[k].url ? ' (OK)' : ' (vacío)') + '</option>'; }).join('') +
           '</select></div>' +
-          '<div class="field"><label>Brazo Delantero</label><select class="sel" onchange="window.actualizarSandwich(\'brazoDel\', this.value)">' +
+                    '<div class="field"><label>Brazo Delantero</label><select class="sel" onchange="window.actualizarSandwich(\'brazoDel\', this.value)">' +
             '<option value="brazo_delantero_reposo"' + (sandwichCfg.brazoDel === 'brazo_delantero_reposo' ? ' selected' : '') + '>Reposo</option>' +
             '<option value="brazo_delantero_prop"' + (sandwichCfg.brazoDel === 'brazo_delantero_prop' ? ' selected' : '') + '>Sosteniendo Prop</option>' +
             '<option value="ninguno"' + (sandwichCfg.brazoDel === 'ninguno' ? ' selected' : '') + '>Oculto</option>' +
+          '</select></div>' +
+          '<div class="field"><label>Prop en Mano (anclado a pivote)</label><select class="sel" onchange="window.actualizarSandwich(\'prop\', this.value)"><option value="">Sin prop</option>' +
+            (biblioteca.props || []).filter(function(x) { return x.categoria === 'prop'; }).map(function(x) { return '<option value="' + esc(x.id) + '"' + (sandwichCfg.prop === x.id ? ' selected' : '') + '>' + esc(x.nombre) + '</option>'; }).join('') +
           '</select></div>' +
           '<div class="field"><label>Giro Cabeza sobre Cuello (<b id="sw-rot-cab-val">' + sandwichCfg.rotCab + '°</b>)</label><input type="range" min="-25" max="25" value="' + sandwichCfg.rotCab + '" style="width:100%; accent-color:var(--naranja);" oninput="window.actualizarSandwich(\'rotCab\', Number(this.value))"></div>' +
           '<div class="field"><label>Giro Brazo sobre Hombro (<b id="sw-rot-brz-val">' + sandwichCfg.rotBrazo + '°</b>)</label><input type="range" min="-45" max="45" value="' + sandwichCfg.rotBrazo + '" style="width:100%; accent-color:var(--azul);" oninput="window.actualizarSandwich(\'rotBrazo\', Number(this.value))"></div>' +
@@ -1093,38 +1097,33 @@ window.actualizarSandwich = function(campo, val) {
 };
 
 window.resetearSandwich = function() {
-  sandwichCfg = { ojos: 'ojos_neutro', boca: 'boca_cerrada', brazoDel: 'brazo_delantero_reposo', rotCab: 0, rotBrazo: 0, bg: sandwichCfg.bg, piernas: true };
+  sandwichCfg = { ojos: 'ojos_neutro', boca: 'boca_cerrada', brazoDel: 'brazo_delantero_reposo', rotCab: 0, rotBrazo: 0, bg: sandwichCfg.bg, piernas: true, prop: '' };
   renderizarVistaPersonajes();
 };
 
 window.dibujarProbadorSandwich = async function() {
   const canvas = document.getElementById('canvas-sandwich'), p = obtenerPersonajeActual();
   if (!canvas || !p) return;
-  const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, 1000, 1600);
-  const piezas = p.piezas || {}, piv = parsearPivotesPersonaje(p) || {};
-  const getPt = function(k, fx, fy) {
-    const v = piv[k];
-    if (Array.isArray(v) && v.length >= 2) return { x: Number(v[0]) || fx, y: Number(v[1]) || fy };
-    if (v && typeof v.x === 'number' && typeof v.y === 'number') return { x: v.x, y: v.y };
-    return { x: fx, y: fy };
-  };
-  const claves = ['brazo_trasero_reposo', 'pierna_trasera', 'pierna_delantera', 'cuerpo_base', 'maestro_cuerpo', 'cabeza_base', sandwichCfg.ojos, sandwichCfg.boca, sandwichCfg.brazoDel];
-  const imgs = {};
-  await Promise.all(claves.map(async function(k) { if (k && k !== 'ninguno' && !imgs[k]) imgs[k] = await cargarImgSandwich(piezas[k] ? piezas[k].url : null); }));
-  let n = 0;
-  const drawP = function(im) { if (im) { ctx.drawImage(im, 0, 0, 1000, 1600); n++; } };
-  const drawR = function(im, pt, deg) { if (!im) return; ctx.save(); ctx.translate(pt.x, pt.y); ctx.rotate((deg * Math.PI) / 180); ctx.drawImage(im, -pt.x, -pt.y, 1000, 1600); ctx.restore(); n++; };
-  drawP(imgs.brazo_trasero_reposo);
-  if (sandwichCfg.piernas) { drawP(imgs.pierna_trasera); drawP(imgs.pierna_delantera); }
-  if (imgs.cuerpo_base) drawP(imgs.cuerpo_base); else if (imgs.maestro_cuerpo) { ctx.save(); ctx.globalAlpha = 0.45; drawP(imgs.maestro_cuerpo); ctx.restore(); }
-  const ptC = getPt('cuello', 500, 480);
-  drawR(imgs.cabeza_base, ptC, sandwichCfg.rotCab); drawR(imgs[sandwichCfg.ojos], ptC, sandwichCfg.rotCab); drawR(imgs[sandwichCfg.boca], ptC, sandwichCfg.rotCab);
-  if (sandwichCfg.brazoDel !== 'ninguno') drawR(imgs[sandwichCfg.brazoDel], getPt('hombro_delantero', 440, 560), sandwichCfg.rotBrazo);
-  ctx.save(); ctx.strokeStyle = 'rgba(34,197,94,0.75)'; ctx.lineWidth = 3; ctx.setLineDash([14, 10]); ctx.beginPath(); ctx.moveTo(0, 1480); ctx.lineTo(1000, 1480); ctx.stroke(); ctx.setLineDash([]);
-  ['cuello', 'hombro_trasero', 'hombro_delantero', 'mano_delantera'].forEach(function(k) { if (!piv[k]) return; const pt = getPt(k, 500, 500); ctx.fillStyle = '#f43f5e'; ctx.beginPath(); ctx.arc(pt.x, pt.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke(); });
-  ctx.restore();
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 1000, 1600);
+  let propImg = null;
+  if (sandwichCfg.prop) {
+    const prObj = (biblioteca.props || []).find(function(x) { return x.id === sandwichCfg.prop; });
+    if (prObj && prObj.archivo && prObj.archivo.url) propImg = await cargarImagenPiro(prObj.archivo.url);
+  }
+  const n = await dibujarMarionetaPiro(ctx, p, {
+    modoLienzoCompleto: true,
+    ojos: sandwichCfg.ojos,
+    boca: sandwichCfg.boca,
+    brazoDel: sandwichCfg.brazoDel,
+    rotCab: sandwichCfg.rotCab,
+    rotBrazo: sandwichCfg.rotBrazo,
+    piernas: sandwichCfg.piernas,
+    propImg: propImg,
+    mostrarGuias: true
+  });
   const est = document.getElementById('sandwich-estado-txt');
-  if (est) est.textContent = n > 0 ? ('Capas activas visibles: ' + n + ' · Línea verde = suelo Y=1480.') : 'Sube piezas en Base, Ojos y Bocas para probar el apilado en vivo.';
+  if (est) est.textContent = n > 0 ? ('Capas activas visibles: ' + n + ' · Motor compartido Piro-Compositor OK.') : 'Sube piezas en Base, Ojos y Bocas para probar el apilado en vivo.';
 };
 
 window.subirMuestraVozPersonaje = function() {
