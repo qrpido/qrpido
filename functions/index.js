@@ -2425,6 +2425,251 @@ exports.consultarEstadoOrdenPasarelaPOS = onCall({ memory: "256MB", maxInstances
 });
 
 // ============================================================================
+// 26. BOVEDA IA CIFRADA MULTI-PROVEEDOR (AES-256-GCM) Y PROXY DUAL BYOK/CREDITOS
+// ============================================================================
+const TARIFAS_IA_DEF = { imagen: 6, hoja_lote: 12, texto: 2, audio: 4, probar: 0, listar_modelos: 0, listar_voces: 0 };
+const PRESETS_IA = {
+  gemini: { protocolo: 'google_gemini', nombre: 'Google Gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', modelo: 'gemini-2.5-flash', modeloImagen: 'gemini-2.5-flash-image' },
+  openai: { protocolo: 'openai_compat', nombre: 'OpenAI (GPT)', baseUrl: 'https://api.openai.com/v1', modelo: 'gpt-4o-mini', modeloImagen: 'gpt-image-1' },
+  deepseek: { protocolo: 'openai_compat', nombre: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1', modelo: 'deepseek-chat', modeloImagen: '' },
+  openrouter: { protocolo: 'openai_compat', nombre: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', modelo: 'openai/gpt-4o-mini', modeloImagen: '' },
+  groq: { protocolo: 'openai_compat', nombre: 'Groq', baseUrl: 'https://api.groq.com/openai/v1', modelo: 'llama-3.3-70b-versatile', modeloImagen: '' },
+  xai: { protocolo: 'openai_compat', nombre: 'xAI (Grok)', baseUrl: 'https://api.x.ai/v1', modelo: 'grok-2-latest', modeloImagen: '' },
+  elevenlabs: { protocolo: 'audio_tts', nombre: 'ElevenLabs', baseUrl: 'https://api.elevenlabs.io/v1', modelo: 'eleven_multilingual_v2', modeloImagen: '' }
+};
+function limpiarProvIA(raw) {
+  const s = String(raw || '').toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
+  if (s.length < 2 || s.length > 40) throw new HttpsError('invalid-argument', 'ID de proveedor IA invalido.');
+  return s;
+}
+function validarUrlIA(urlStr) {
+  const u = String(urlStr || '').trim().replace(/\/+$/, '');
+  if (!u) return '';
+  let p; try { p = new URL(u); } catch (e) { throw new HttpsError('invalid-argument', 'URL base invalida.'); }
+  const h = p.hostname.toLowerCase();
+  if (p.protocol !== 'https:' || !h || h === 'localhost' || h.endsWith('.local') || h.endsWith('.internal') || /^\d+\.\d+\.\d+\.\d+$/.test(h) || h.indexOf(':') !== -1) {
+    throw new HttpsError('invalid-argument', 'Endpoint HTTPS no permitido por seguridad.');
+  }
+  return u;
+}
+function llaveIA(sec, aad) { return crypto.createHmac('sha256', String(sec)).update('PIRO_IA_VAULT_V1:' + String(aad)).digest(); }
+function cifrarIA(txt, sec, aad) {
+  const iv = crypto.randomBytes(12), c = crypto.createCipheriv('aes-256-gcm', llaveIA(sec, aad), iv);
+  c.setAAD(Buffer.from(String(aad), 'utf8'));
+  const enc = Buffer.concat([c.update(String(txt), 'utf8'), c.final()]);
+  return { ciphertext: enc.toString('base64'), iv: iv.toString('base64'), tag: c.getAuthTag().toString('base64'), v: 1 };
+}
+function descifrarIA(box, sec, aad) {
+  if (!box || !box.ciphertext || !box.iv || !box.tag) throw new Error('Secreto cifrado incompleto.');
+  const d = crypto.createDecipheriv('aes-256-gcm', llaveIA(sec, aad), Buffer.from(box.iv, 'base64'));
+  d.setAAD(Buffer.from(String(aad), 'utf8')); d.setAuthTag(Buffer.from(box.tag, 'base64'));
+  return Buffer.concat([d.update(Buffer.from(box.ciphertext, 'base64')), d.final()]).toString('utf8');
+}
+async function esSuperAdminIA(db, uid) {
+  if (!uid) return false;
+  const s = await db.collection('Usuarios_Admin').doc(uid).get();
+  return Boolean(s.exists && s.data() && s.data().rol === 'superadmin');
+}
+function resumirProvIA(mapa) {
+  const out = {}; if (!mapa || typeof mapa !== 'object') return out;
+  Object.keys(mapa).forEach(function(k) {
+    const it = mapa[k]; if (!it || !it.activa) return;
+    out[k] = { activa: true, ultimos4: String(it.ultimos4 || '****'), protocolo: String(it.protocolo || 'openai_compat'), nombre: String(it.nombre || k), baseUrl: String(it.baseUrl || ''), modelo: String(it.modelo || ''), modeloImagen: String(it.modeloImagen || ''), voiceId: String(it.voiceId || ''), updatedAt: String(it.updatedAt || '') };
+  });
+  return out;
+}
+
+exports.guardarApiKeyCliente = onCall({ memory: '256MB', maxInstances: 20, secrets: [semillaMaestra] }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Inicia sesion para vincular tus claves IA.');
+  const uid = request.auth.uid, d = request.data || {}, pid = limpiarProvIA(d.proveedorId), acc = String(d.accion || 'guardar').toLowerCase();
+  const esMaes = String(d.ambito || 'cliente').toLowerCase() === 'maestro', db = admin.firestore();
+  if (esMaes && !(await esSuperAdminIA(db, uid))) throw new HttpsError('permission-denied', 'Solo Superadmin puede editar claves maestras.');
+  const docRef = esMaes ? db.collection('Sistema_IA_Maestro').doc('Proveedores') : db.collection('Boveda_APIs_Clientes').doc(uid);
+  const aad = esMaes ? 'MAESTRO_PLATAFORMA' : uid;
+  if (acc === 'revocar') {
+    const up = {}; up['proveedores.' + pid] = admin.firestore.FieldValue.delete();
+    await docRef.set({ actualizado_en: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    await docRef.update(up);
+    return { success: true, revocada: true, proveedorId: pid, ambito: esMaes ? 'maestro' : 'cliente' };
+  }
+  const pre = PRESETS_IA[pid] || {};
+  const pRaw = String(d.protocolo || pre.protocolo || 'openai_compat').trim();
+  const prot = ['google_gemini', 'openai_compat', 'audio_tts'].indexOf(pRaw) !== -1 ? pRaw : 'openai_compat';
+  const baseUrl = validarUrlIA(d.baseUrl || pre.baseUrl || '');
+  if (prot === 'openai_compat' && !baseUrl) throw new HttpsError('invalid-argument', 'Falta URL Base HTTPS del proveedor.');
+  const nombre = String(d.nombre || pre.nombre || pid).trim().slice(0, 60);
+  const modelo = String(d.modelo !== undefined ? d.modelo : (pre.modelo || '')).trim().slice(0, 120);
+  const modeloImagen = String(d.modeloImagen !== undefined ? d.modeloImagen : (pre.modeloImagen || '')).trim().slice(0, 120);
+  const voiceId = String(d.voiceId !== undefined ? d.voiceId : '').trim().slice(0, 120);
+  const apiKey = String(d.apiKey || '').trim();
+  const prevSnap = await docRef.get();
+  const prev = (prevSnap.exists && prevSnap.data().proveedores) ? prevSnap.data().proveedores[pid] : null;
+  let secreto = prev ? prev.secreto : null, ult4 = prev ? prev.ultimos4 : '';
+  if (apiKey) {
+    if (apiKey.length < 10 || apiKey.length > 512) throw new HttpsError('invalid-argument', 'Longitud de clave API invalida.');
+    secreto = cifrarIA(apiKey, semillaMaestra.value(), aad); ult4 = apiKey.slice(-4);
+  } else if (!secreto) throw new HttpsError('invalid-argument', 'Pega una clave API valida para vincular.');
+  const pay = { actualizado_en: admin.firestore.FieldValue.serverTimestamp(), proveedores: {} };
+  pay.proveedores[pid] = { activa: true, protocolo: prot, nombre: nombre, baseUrl: baseUrl, modelo: modelo, modeloImagen: modeloImagen, voiceId: voiceId, ultimos4: ult4, secreto: secreto, updatedAt: new Date().toISOString() };
+  await docRef.set(pay, { merge: true });
+  return { success: true, proveedorId: pid, ambito: esMaes ? 'maestro' : 'cliente', activa: true, ultimos4: ult4, protocolo: prot, nombre: nombre, baseUrl: baseUrl, modelo: modelo, modeloImagen: modeloImagen, voiceId: voiceId };
+});
+
+exports.estadoBovedaCliente = onCall({ memory: '256MB', maxInstances: 20 }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Inicia sesion para consultar tu boveda IA.');
+  const uid = request.auth.uid, db = admin.firestore();
+  const [bovS, billS, maeS, tarS, esAdm] = await Promise.all([
+    db.collection('Boveda_APIs_Clientes').doc(uid).get(), db.collection('Billeteras_IA').doc(uid).get(),
+    db.collection('Sistema_IA_Maestro').doc('Proveedores').get(), db.collection('Sistema').doc('Tarifas_IA').get(), esSuperAdminIA(db, uid)
+  ]);
+  const provCli = resumirProvIA(bovS.exists ? bovS.data().proveedores : null);
+  const provMae = resumirProvIA(maeS.exists ? maeS.data().proveedores : null);
+  const bd = billS.exists ? (billS.data() || {}) : {};
+  return {
+    success: true, proveedores: provCli,
+    billetera: { saldo_creditos: Number(bd.saldo_creditos) || 0, total_comprados: Number(bd.total_comprados) || 0, total_consumidos: Number(bd.total_consumidos) || 0 },
+    reventaDisponible: Object.keys(provMae),
+    tarifas: Object.assign({}, TARIFAS_IA_DEF, tarS.exists ? (tarS.data() || {}) : {}),
+    esSuperadmin: esAdm, proveedoresMaestro: esAdm ? provMae : null
+  };
+});
+
+exports.recargarCreditosAdmin = onCall({ memory: '256MB', maxInstances: 10 }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sesion requerida.');
+  const db = admin.firestore();
+  if (!(await esSuperAdminIA(db, request.auth.uid))) throw new HttpsError('permission-denied', 'Solo Superadmin.');
+  const d = request.data || {}; let uidDest = String(d.uidDestino || '').trim();
+  if (!uidDest && d.emailDestino) uidDest = (await admin.auth().getUserByEmail(String(d.emailDestino).trim().toLowerCase())).uid;
+  const cred = Math.round(Number(d.creditos) || 0);
+  if (!uidDest || !Number.isFinite(cred) || cred === 0) throw new HttpsError('invalid-argument', 'Usuario o creditos invalidos.');
+  const billRef = db.collection('Billeteras_IA').doc(uidDest), movRef = db.collection('Movimientos_IA').doc();
+  const nuevo = await db.runTransaction(async (tx) => {
+    const s = await tx.get(billRef), sig = Math.max(0, (s.exists ? (Number(s.data().saldo_creditos) || 0) : 0) + cred);
+    const up = { saldo_creditos: sig, actualizado_en: admin.firestore.FieldValue.serverTimestamp() };
+    if (cred > 0) up.total_comprados = admin.firestore.FieldValue.increment(cred);
+    tx.set(billRef, up, { merge: true });
+    tx.set(movRef, { uid: uidDest, tipo: cred > 0 ? 'recarga_admin' : 'ajuste_admin', creditos: cred, saldo_despues: sig, estado: 'completado', motivo: String(d.motivo || 'Recarga creditos IA').slice(0, 180), referencia_pago: String(d.referenciaPago || ('ADM_' + Date.now())).slice(0, 80), admin_uid: request.auth.uid, timestamp: admin.firestore.FieldValue.serverTimestamp() });
+    return sig;
+  });
+  return { success: true, uidDestino: uidDest, creditos: cred, saldo_creditos: nuevo };
+});
+
+async function llamarProveedorIA(prot, key, baseUrl, mod, acc, p) {
+  p = p || {};
+  if (prot === 'google_gemini') {
+    const base = baseUrl || 'https://generativelanguage.googleapis.com/v1beta';
+    if (acc === 'probar' || acc === 'listar_modelos') {
+      const r = await fetch(base + '/models', { headers: { 'x-goog-api-key': key } });
+      if (!r.ok) throw new Error('Gemini HTTP ' + r.status);
+      const items = ((await r.json()).models || []).map(function(m) { return String(m.name || '').replace(/^models\//, ''); }).filter(Boolean);
+      return { ok: true, items: items, mensaje: 'Gemini OK (' + items.length + ' modelos).' };
+    }
+    const m = String(mod || (acc === 'imagen' ? 'gemini-2.5-flash-image' : 'gemini-2.5-flash')).trim();
+    if (acc === 'imagen' && m.indexOf('imagen-') === 0) {
+      const r = await fetch(base + '/models/' + encodeURIComponent(m) + ':predict', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify({ instances: [{ prompt: String(p.prompt || '') }], parameters: { sampleCount: 1, aspectRatio: String(p.aspectRatio || '1:1') } }) });
+      if (!r.ok) throw new Error('Imagen HTTP ' + r.status + ': ' + (await r.text()).slice(0, 200));
+      const pr = ((await r.json()).predictions || [])[0];
+      if (!pr || !pr.bytesBase64Encoded) throw new Error('Imagen sin datos.');
+      return { b64: pr.bytesBase64Encoded, mime: pr.mimeType || 'image/png' };
+    }
+    const body = { contents: Array.isArray(p.contents) ? p.contents : [{ role: 'user', parts: Array.isArray(p.parts) ? p.parts : [{ text: String(p.prompt || '') }] }] };
+    if (p.systemInstruction) body.systemInstruction = p.systemInstruction;
+    if (acc === 'imagen') body.generationConfig = Object.assign({ responseModalities: ['IMAGE', 'TEXT'] }, p.generationConfig || {});
+    else if (p.generationConfig) body.generationConfig = p.generationConfig;
+    const r = await fetch(base + '/models/' + encodeURIComponent(m) + ':generateContent', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error('Gemini HTTP ' + r.status + ': ' + (await r.text()).slice(0, 220));
+    const j = await r.json(), pts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
+    if (acc === 'imagen') {
+      for (let i = 0; i < pts.length; i++) if (pts[i].inlineData && pts[i].inlineData.data) return { b64: pts[i].inlineData.data, mime: pts[i].inlineData.mimeType || 'image/png' };
+      throw new Error('Gemini no devolvio imagen.');
+    }
+    return { texto: pts.map(function(x) { return x.text || ''; }).join(''), usage: j.usageMetadata || null };
+  }
+  if (prot === 'openai_compat') {
+    const base = validarUrlIA(baseUrl || 'https://api.openai.com/v1'), hdr = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key };
+    if (acc === 'probar' || acc === 'listar_modelos') {
+      const r = await fetch(base + '/models', { headers: { 'Authorization': 'Bearer ' + key } });
+      if (!r.ok) throw new Error('Proveedor HTTP ' + r.status);
+      const items = ((await r.json()).data || []).map(function(m) { return String(m.id || ''); }).filter(Boolean);
+      return { ok: true, items: items.slice(0, 80), mensaje: 'Conectado (' + items.length + ' modelos).' };
+    }
+    if (acc === 'imagen') {
+      const mi = String(mod || 'gpt-image-1').trim(), bi = { model: mi, prompt: String(p.prompt || ''), n: 1, size: String(p.size || '1024x1024') };
+      if (mi.indexOf('dall-e') === 0) bi.response_format = 'b64_json';
+      const r = await fetch(base + '/images/generations', { method: 'POST', headers: hdr, body: JSON.stringify(bi) });
+      if (!r.ok) throw new Error('Imagen HTTP ' + r.status + ': ' + (await r.text()).slice(0, 220));
+      const d0 = ((await r.json()).data || [])[0];
+      if (d0 && d0.b64_json) return { b64: d0.b64_json, mime: 'image/png' };
+      if (d0 && d0.url) { const rf = await fetch(d0.url); return { b64: Buffer.from(await rf.arrayBuffer()).toString('base64'), mime: rf.headers.get('content-type') || 'image/png' }; }
+      throw new Error('Sin imagen en respuesta.');
+    }
+    const bc = { model: String(mod || 'gpt-4o-mini').trim(), messages: Array.isArray(p.messages) ? p.messages : [{ role: 'user', content: String(p.prompt || '') }] };
+    if (typeof p.temperature === 'number') bc.temperature = p.temperature;
+    if (typeof p.max_tokens === 'number') bc.max_tokens = p.max_tokens;
+    if (p.response_format) bc.response_format = p.response_format;
+    const r = await fetch(base + '/chat/completions', { method: 'POST', headers: hdr, body: JSON.stringify(bc) });
+    if (!r.ok) throw new Error('Chat HTTP ' + r.status + ': ' + (await r.text()).slice(0, 220));
+    const j = await r.json();
+    return { texto: (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '', usage: j.usage || null };
+  }
+  if (prot === 'audio_tts') {
+    const base = validarUrlIA(baseUrl || 'https://api.elevenlabs.io/v1');
+    if (acc === 'probar' || acc === 'listar_voces') {
+      const r = await fetch(base + '/voices', { headers: { 'xi-api-key': key } });
+      if (!r.ok) throw new Error('TTS HTTP ' + r.status);
+      const items = ((await r.json()).voices || []).map(function(v) { return { id: v.voice_id, nombre: v.name }; });
+      return { ok: true, items: items, mensaje: 'TTS OK (' + items.length + ' voces).' };
+    }
+    const vid = String(p.voiceId || '').trim(); if (!vid) throw new Error('Falta voiceId.');
+    const r = await fetch(base + '/text-to-speech/' + encodeURIComponent(vid), { method: 'POST', headers: { 'Content-Type': 'application/json', 'xi-api-key': key, 'Accept': 'audio/mpeg' }, body: JSON.stringify({ text: String(p.text || p.prompt || ''), model_id: String(mod || 'eleven_multilingual_v2'), voice_settings: p.voice_settings || { stability: 0.45, similarity_boost: 0.78 } }) });
+    if (!r.ok) throw new Error('TTS HTTP ' + r.status + ': ' + (await r.text()).slice(0, 200));
+    return { b64: Buffer.from(await r.arrayBuffer()).toString('base64'), mime: 'audio/mpeg' };
+  }
+  throw new Error('Protocolo no soportado: ' + prot);
+}
+
+exports.proxyIACliente = onCall({ memory: '512MB', timeoutSeconds: 180, maxInstances: 20, secrets: [semillaMaestra] }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Inicia sesion para usar el motor IA.');
+  const uid = request.auth.uid, d = request.data || {}, pid = limpiarProvIA(d.proveedorId || 'gemini');
+  const acc = String(d.accion || 'imagen').toLowerCase().trim(), tipoC = String(d.tipoCobro || acc).toLowerCase().trim(), modo = String(d.modoPago || 'auto').toLowerCase().trim();
+  const db = admin.firestore();
+  const [bovS, maeS, tarS] = await Promise.all([db.collection('Boveda_APIs_Clientes').doc(uid).get(), db.collection('Sistema_IA_Maestro').doc('Proveedores').get(), db.collection('Sistema').doc('Tarifas_IA').get()]);
+  const pCli = (bovS.exists && bovS.data().proveedores) ? bovS.data().proveedores[pid] : null;
+  const pMae = (maeS.exists && maeS.data().proveedores) ? maeS.data().proveedores[pid] : null;
+  const usarCred = modo === 'creditos' ? true : (modo === 'byok' ? false : !(pCli && pCli.activa && pCli.secreto));
+  const cfg = usarCred ? pMae : pCli;
+  if (!cfg || !cfg.activa || !cfg.secreto) throw new HttpsError('failed-precondition', usarCred ? ('Proveedor ' + pid + ' no habilitado en Creditos Piro.') : ('Vincula tu clave API de ' + pid + ' en la Boveda primero.'));
+  const tarifas = Object.assign({}, TARIFAS_IA_DEF, tarS.exists ? (tarS.data() || {}) : {});
+  const costo = (usarCred && acc !== 'probar' && acc !== 'listar_modelos' && acc !== 'listar_voces') ? Math.max(0, Math.round(Number(tarifas[tipoC] !== undefined ? tarifas[tipoC] : tarifas[acc]) || 0)) : 0;
+  const billRef = db.collection('Billeteras_IA').doc(uid); let movRef = null, saldoRest = null;
+  if (costo > 0) {
+    movRef = db.collection('Movimientos_IA').doc();
+    saldoRest = await db.runTransaction(async (tx) => {
+      const bs = await tx.get(billRef), disp = bs.exists ? (Number(bs.data().saldo_creditos) || 0) : 0;
+      if (disp < costo) throw new HttpsError('resource-exhausted', 'Saldo insuficiente (' + disp + '). Necesitas ' + costo + ' creditos o vincular tu API Key.');
+      const rest = disp - costo;
+      tx.set(billRef, { saldo_creditos: rest, total_consumidos: admin.firestore.FieldValue.increment(costo), actualizado_en: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      tx.set(movRef, { uid: uid, tipo: 'consumo_' + tipoC, proveedor: pid, creditos: -costo, saldo_despues: rest, estado: 'reservado', timestamp: admin.firestore.FieldValue.serverTimestamp() });
+      return rest;
+    });
+  }
+  try {
+    const keyViva = descifrarIA(cfg.secreto, semillaMaestra.value(), usarCred ? 'MAESTRO_PLATAFORMA' : uid);
+    const modU = String(d.modelo || (acc === 'imagen' ? (cfg.modeloImagen || cfg.modelo) : cfg.modelo) || '').trim();
+    const payU = Object.assign({}, d.payload || {});
+    if (cfg.protocolo === 'audio_tts' && !payU.voiceId && cfg.voiceId) payU.voiceId = cfg.voiceId;
+    const res = await llamarProveedorIA(cfg.protocolo, keyViva, String(d.baseUrl || cfg.baseUrl || '').trim(), modU, acc, payU);
+    if (movRef) await movRef.update({ estado: 'completado', modelo: modU, finalizado_en: admin.firestore.FieldValue.serverTimestamp() });
+    return Object.assign({ success: true, proveedorId: pid, modoUsado: usarCred ? 'creditos' : 'byok', creditosCobrados: costo, saldoRestante: saldoRest }, res);
+  } catch (errIA) {
+    if (costo > 0 && movRef) {
+      try { await db.runTransaction(async (tx) => { tx.set(billRef, { saldo_creditos: admin.firestore.FieldValue.increment(costo), total_consumidos: admin.firestore.FieldValue.increment(-costo), actualizado_en: admin.firestore.FieldValue.serverTimestamp() }, { merge: true }); tx.update(movRef, { estado: 'reembolsado', error: String(errIA.message || 'fallo').slice(0, 220), reembolsado_en: admin.firestore.FieldValue.serverTimestamp() }); }); } catch (eR) {}
+    }
+    throw new HttpsError('internal', 'Error IA (' + pid + '): ' + (errIA.message || 'fallo de red'));
+  }
+});
+
+// ============================================================================
 // 25. VISOR PUBLICO DE COMPROBANTES DIGITALES (QR 24H UNIFICADO COL / VEN)
 // ============================================================================
 exports.obtenerComprobantePublico = functions.https.onRequest(async (req, res) => {
