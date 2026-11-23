@@ -1132,9 +1132,14 @@ function construirSlideSlot(personaje, spec, datoGuardado) {
       '<div style="font-size:10.5px; color:var(--muted);">' + esc(spec.desc) + '</div>' +
     '</div>' +
     '<div class="slot-actions">' +
-      (spec.key !== 'maestro_cuerpo' && spec.key !== 'maestro_perfil'
-        ? '<button type="button" class="btn btn-xs btn-green" style="grid-column:1 / -1;" onclick="window.extraerDesdeBaseEstudio(\'' + esc(spec.key) + '\',' + (spec.esVariante ? 'true' : 'false') + ')">Extraer de Base ($0 · Sombra Verde)</button>'
-        : '') +
+            (tieneImg && spec.key !== 'maestro_cuerpo' && spec.key !== 'maestro_perfil'
+        ? ('<button type="button" class="btn btn-xs btn-blue" onclick="window.editarImagenSlotEstudio(\'' + esc(spec.key) + '\',' + (spec.esVariante ? 'true' : 'false') + ')">Editar PNG</button>' +
+           '<button type="button" class="btn btn-xs btn-green" onclick="window.extraerDesdeBaseEstudio(\'' + esc(spec.key) + '\',' + (spec.esVariante ? 'true' : 'false') + ')">Extraer Base ($0)</button>')
+        : (tieneImg
+          ? '<button type="button" class="btn btn-xs btn-blue" style="grid-column:1 / -1;" onclick="window.editarImagenSlotEstudio(\'' + esc(spec.key) + '\',' + (spec.esVariante ? 'true' : 'false') + ')">Editar PNG en Estudio (1:1)</button>'
+          : (spec.key !== 'maestro_cuerpo' && spec.key !== 'maestro_perfil'
+            ? '<button type="button" class="btn btn-xs btn-green" style="grid-column:1 / -1;" onclick="window.extraerDesdeBaseEstudio(\'' + esc(spec.key) + '\',' + (spec.esVariante ? 'true' : 'false') + ')">Extraer de Base ($0 · Sombra Verde)</button>'
+            : ''))) +
       '<button type="button" class="btn btn-xs btn-purple" onclick="window.abrirGeneradorIASlot(\'personaje\',\'' + esc(spec.key) + '\',' + (spec.esVariante ? 'true' : 'false') + ')">Generar IA</button>' +
       '<button type="button" class="btn btn-xs btn-primary" onclick="window.iniciarSubidaSlotPersonaje(\'' + esc(spec.key) + '\',' + (spec.esVariante ? 'true' : 'false') + ')">' + (tieneImg ? 'Reemplazar' : 'Subir / Estudio') + '</button>' +
       '<div class="slot-actions-sub">' +
@@ -1186,6 +1191,34 @@ window.copiarPromptSlot = function(slotKey) {
   const p = obtenerPersonajeActual();
   if (!p) return;
   navigator.clipboard.writeText(generarPromptPersonaje(p, slotKey)).then(function() { toast('Prompt de "' + slotKey + '" copiado.', 'exito'); });
+};
+
+window.editarImagenSlotEstudio = async function(slotKey, esVariante) {
+  const p = obtenerPersonajeActual();
+  if (!p) return;
+  if (window.self === window.top) { toast('Abre este módulo desde piro-shell.html para usar Estudio PNG.', 'info'); return; }
+  const spec = esVariante
+    ? (p.variantes || []).find(function(v) { return v.id === slotKey; })
+    : SLOTS_BASICOS_PERSONAJE.find(function(s) { return s.key === slotKey; });
+  if (!spec) return;
+  const dato = esVariante ? spec : (p.piezas && p.piezas[slotKey]);
+  if (!dato || !dato.url) { toast('Este espacio aún no tiene imagen guardada.', 'info'); return; }
+  toast('Abriendo PNG guardado en Estudio (1:1)...', 'info');
+  let dataUrlEnviar = dato.url;
+  try { dataUrlEnviar = await urlADataUrlSeguro(dato.url); } catch (eCors) { dataUrlEnviar = dato.url; }
+  const slotMeta = {
+    tipo: 'personaje', entidadId: p.id, slotKey: slotKey, esVariante: Boolean(esVariante),
+    presetId: spec.preset || 'per_cuerpo', archivoNombre: spec.archivo || slotKey,
+    etiqueta: p.nombre + ' · ' + (spec.titulo || slotKey) + ' (Editar)',
+    calcoUrl: obtenerCalcoInteligente(p, slotKey), pivotesIniciales: parsearPivotesPersonaje(p)
+  };
+  window.parent.postMessage({
+    tipo: 'PIRO_IR_A_ESTUDIO', origen: 'contenido', etiqueta: slotMeta.etiqueta,
+    presetId: slotMeta.presetId, entidadId: slotMeta.entidadId, zonaId: 'zona_01',
+    archivoNombre: slotMeta.archivoNombre, dataUrl: dataUrlEnviar,
+    calcoUrl: slotMeta.calcoUrl || null, pivotesIniciales: slotMeta.pivotesIniciales || null,
+    modoCalco1a1: true, slotMeta: slotMeta
+  }, '*');
 };
 
 window.extraerDesdeBaseEstudio = async function(slotKey, esVariante) {
@@ -1476,7 +1509,8 @@ function renderizarVistaEscenarios() {
         '<div class="slide-card' + (reg && reg.url ? ' listo' : '') + '">' +
           '<div class="slide-preview checker-bg"><span class="slot-tag-dim">1920×1920</span>' + preview + '</div>' +
           '<div style="flex-shrink:0;"><div style="font-size:13px; font-weight:900;">' + esc(tit) + '</div><div style="font-size:10.5px; color:var(--muted);">' + esc(e.id + '/' + z.id + '/' + campo + '.png') + '</div></div>' +
-          '<div class="slot-actions">' +
+                    '<div class="slot-actions">' +
+            (reg && reg.url ? '<button type="button" class="btn btn-xs btn-green" style="grid-column:1 / -1;" onclick="window.editarImagenEscenarioEstudio(\'' + esc(z.id) + '\',\'' + campo + '\')">Editar PNG en Estudio</button>' : '') +
             '<button type="button" class="btn btn-xs btn-purple" onclick="window.abrirGeneradorIASlot(\'escenario\',\'' + esc(z.id) + '\',false,\'' + campo + '\')">Generar IA</button>' +
             '<button type="button" class="btn btn-xs btn-primary" onclick="window.subirSlotEscenario(\'' + esc(z.id) + '\',\'' + campo + '\')">Subir / Estudio</button>' +
             '<button type="button" class="btn btn-xs btn-blue" style="grid-column:1 / -1;" onclick="window.ticketSlotEscenario(\'' + esc(z.id) + '\',\'' + campo + '\')">+ Ticket</button>' +
@@ -1497,6 +1531,28 @@ window.editarCampoEscenario = function(campo, val) {
   if (!e) return;
   e[campo] = val;
   guardarBiblioteca(false);
+};
+
+window.editarImagenEscenarioEstudio = async function(zonaId, campo) {
+  const e = biblioteca.escenarios.find(function(x) { return x.id === selId.escenarios; });
+  if (!e) return;
+  if (window.self === window.top) { toast('Abre este módulo desde piro-shell.html para usar Estudio PNG.', 'info'); return; }
+  const z = (e.zonas || []).find(function(x) { return x.id === zonaId; });
+  const reg = z ? z[campo] : null;
+  if (!reg || !reg.url) { toast('Aún no hay imagen en esta capa.', 'info'); return; }
+  toast('Abriendo escenario en Estudio PNG...', 'info');
+  let dataUrlEnviar = reg.url;
+  try { dataUrlEnviar = await urlADataUrlSeguro(reg.url); } catch (eCors) { dataUrlEnviar = reg.url; }
+  const slotMeta = {
+    tipo: 'escenario', entidadId: e.id, zonaId: zonaId, campoZona: campo,
+    presetId: campo === 'fondo' ? 'esc_fondo' : 'esc_frente', archivoNombre: campo,
+    etiqueta: e.nombre + ' · ' + zonaId + ' · ' + campo + ' (Editar)'
+  };
+  window.parent.postMessage({
+    tipo: 'PIRO_IR_A_ESTUDIO', origen: 'contenido', etiqueta: slotMeta.etiqueta,
+    presetId: slotMeta.presetId, entidadId: slotMeta.entidadId, zonaId: zonaId,
+    archivoNombre: slotMeta.archivoNombre, dataUrl: dataUrlEnviar, slotMeta: slotMeta
+  }, '*');
 };
 
 window.subirSlotEscenario = function(zonaId, campo) {
@@ -1547,7 +1603,8 @@ function renderizarVistaProps() {
     return '<div class="slide-card' + (tiene ? ' listo' : '') + '">' +
       '<div class="slide-preview checker-bg"><span class="slot-tag-dim">' + (esAudio ? 'AUDIO' : '512×512') + '</span>' + preview + '</div>' +
       '<div style="flex-shrink:0;"><div style="font-size:13px; font-weight:900;">' + esc(pr.nombre) + '</div><div style="font-size:10.5px; color:var(--muted); font-family:monospace;">' + esc(pr.id) + '</div></div>' +
-      '<div class="slot-actions">' +
+            '<div class="slot-actions">' +
+        (!esAudio && tiene ? '<button type="button" class="btn btn-xs btn-green" style="grid-column:1 / -1;" onclick="window.editarImagenPropEstudio(\'' + esc(pr.id) + '\')">Editar PNG en Estudio</button>' : '') +
         (esAudio ? '' : '<button type="button" class="btn btn-xs btn-purple" onclick="window.abrirGeneradorIASlot(\'prop\',\'' + esc(pr.id) + '\',false)">Generar IA</button>') +
         '<button type="button" class="btn btn-xs btn-primary" onclick="window.subirSlotProp(\'' + esc(pr.id) + '\')">' + (esAudio ? 'Subir Archivo' : 'Subir / Estudio') + '</button>' +
         '<button type="button" class="btn btn-xs btn-blue"' + (esAudio ? '' : ' style="grid-column:1 / -1;"') + ' onclick="window.ticketSlotProp(\'' + esc(pr.id) + '\')">+ Ticket</button>' +
@@ -1556,6 +1613,24 @@ function renderizarVistaProps() {
   }).join('');
   ws.innerHTML = '<div class="carousel-stage">' + slides + '</div>';
 }
+
+window.editarImagenPropEstudio = async function(propId) {
+  const pr = biblioteca.props.find(function(x) { return x.id === propId; });
+  if (!pr || !pr.archivo || !pr.archivo.url) { toast('Aún no hay imagen en este prop.', 'info'); return; }
+  if (window.self === window.top) { toast('Abre este módulo desde piro-shell.html para usar Estudio PNG.', 'info'); return; }
+  toast('Abriendo prop en Estudio PNG...', 'info');
+  let dataUrlEnviar = pr.archivo.url;
+  try { dataUrlEnviar = await urlADataUrlSeguro(pr.archivo.url); } catch (eCors) { dataUrlEnviar = pr.archivo.url; }
+  const slotMeta = {
+    tipo: 'prop', entidadId: pr.id, presetId: pr.categoria === 'fx' ? 'prop_fx' : 'prop_item',
+    archivoNombre: pr.id, etiqueta: 'Prop · ' + pr.nombre + ' (Editar)'
+  };
+  window.parent.postMessage({
+    tipo: 'PIRO_IR_A_ESTUDIO', origen: 'contenido', etiqueta: slotMeta.etiqueta,
+    presetId: slotMeta.presetId, entidadId: slotMeta.entidadId, zonaId: 'zona_01',
+    archivoNombre: slotMeta.archivoNombre, dataUrl: dataUrlEnviar, slotMeta: slotMeta
+  }, '*');
+};
 
 window.subirSlotProp = function(propId) {
   const pr = biblioteca.props.find(function(x) { return x.id === propId; });
