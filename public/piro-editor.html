@@ -427,7 +427,7 @@ let safeZonesOn = true;
 let zoomPxSeg = 44;
 let debounceSync = null;
 let hayCambiosPendientesEd = false;
-let iaCloud = { modoPago: 'auto', provImagen: 'gemini', provLlm: 'gemini', provVoz: 'elevenlabs', resumen: { proveedores: {}, billetera: { saldo_creditos: 0 }, reventaDisponible: [], tarifas: {} } };
+let iaCloud = { modoPago: 'auto', provImagen: 'gemini', provLlm: 'gemini', provVoz: 'edge_tts', resumen: { proveedores: {}, billetera: { saldo_creditos: 0 }, reventaDisponible: [], tarifas: {} } };
 
 let reproduciendo = false;
 let playRaf = null;
@@ -471,16 +471,18 @@ function getAspectoEp(g) {
 
 // 1. BÓVEDA IA CIFRADA EN NUBE (CHG-128 · CERO CLAVES EN NAVEGADOR)
 function cargarVault() {
-  try { const raw = localStorage.getItem(CLAVE_PREFS_IA_ED); if (raw) iaCloud = Object.assign({ modoPago: 'auto', provImagen: 'gemini', provLlm: 'gemini', provVoz: 'elevenlabs', resumen: { proveedores: {}, billetera: { saldo_creditos: 0 }, reventaDisponible: [], tarifas: {} } }, JSON.parse(raw)); localStorage.removeItem('piro_api_vault_v1'); } catch (e) {}
+    try { const raw = localStorage.getItem(CLAVE_PREFS_IA_ED); if (raw) iaCloud = Object.assign({ modoPago: 'auto', provImagen: 'gemini', provLlm: 'gemini', provVoz: 'edge_tts', resumen: { proveedores: {}, billetera: { saldo_creditos: 0 }, reventaDisponible: [], tarifas: {} } }, JSON.parse(raw)); localStorage.removeItem('piro_api_vault_v1'); } catch (e) {}
   actualizarBadgeApis();
 }
 function obtenerCfgIAEditor() {
   const res = iaCloud.resumen || {}, provs = res.proveedores || {}, rev = Array.isArray(res.reventaDisponible) ? res.reventaDisponible : [], saldo = Number(res.billetera && res.billetera.saldo_creditos) || 0, modoPago = iaCloud.modoPago || 'auto';
   const provLlm = iaCloud.provLlm || (provs.groq ? 'groq' : (provs.openrouter ? 'openrouter' : (provs.deepseek ? 'deepseek' : 'gemini')));
-  const provImg = iaCloud.provImagen || 'gemini', provVoz = iaCloud.provVoz || 'elevenlabs';
+    const provImg = iaCloud.provImagen || 'gemini', provVoz = iaCloud.provVoz || 'edge_tts';
+  const esVozGratis = (provVoz === 'edge_tts' || provVoz === 'polly_free' || provVoz === 'google_tts_free');
   const pL = provs[provLlm] || null, pI = provs[provImg] || null, pV = provs[provVoz] || null;
   const disp = function(pid, o) { const bk = Boolean(o && o.activa), cr = rev.indexOf(pid) >= 0 && saldo > 0; return modoPago === 'byok' ? bk : (modoPago === 'creditos' ? cr : (bk || cr)); };
-  return { modoPago: modoPago, saldo: saldo, tarifas: res.tarifas || { imagen: 6, texto: 2, audio: 4 }, provLlm: provLlm, modLlm: (pL && pL.modelo) || MODELOS_DEF_ED[provLlm] || 'gemini-2.5-flash', listoLlm: disp(provLlm, pL), byokLlm: Boolean(pL && pL.activa), provImg: provImg, modImg: (pI && (pI.modeloImagen || pI.modelo)) || (provImg === 'openai' ? 'gpt-image-1' : 'gemini-2.5-flash-image'), listoImg: disp(provImg, pI), byokImg: Boolean(pI && pI.activa), provVoz: provVoz, modVoz: (pV && pV.modelo) || 'eleven_multilingual_v2', listoVoz: disp(provVoz, pV), byokVoz: Boolean(pV && pV.activa), totalProvs: Object.keys(provs).length };
+  const modVozDef = provVoz === 'gemini' ? 'gemini-2.5-flash-preview-tts' : (provVoz === 'openai' ? 'tts-1' : (provVoz === 'elevenlabs' ? 'eleven_multilingual_v2' : provVoz));
+  return { modoPago: modoPago, saldo: saldo, tarifas: res.tarifas || { imagen: 6, texto: 2, audio: 4 }, provLlm: provLlm, modLlm: (pL && pL.modelo) || MODELOS_DEF_ED[provLlm] || 'gemini-2.5-flash', listoLlm: disp(provLlm, pL), byokLlm: Boolean(pL && pL.activa), provImg: provImg, modImg: (pI && (pI.modeloImagen || pI.modelo)) || (provImg === 'openai' ? 'gpt-image-1' : 'gemini-2.5-flash-image'), listoImg: disp(provImg, pI), byokImg: Boolean(pI && pI.activa), provVoz: provVoz, modVoz: (pV && pV.modelo) || modVozDef, esVozGratis: esVozGratis, listoVoz: esVozGratis || disp(provVoz, pV), byokVoz: Boolean(pV && pV.activa), totalProvs: Object.keys(provs).length };
 }
 function actualizarBadgeApis() {
   const c = obtenerCfgIAEditor(), el = document.getElementById('txt-btn-apis'), resEl = document.getElementById('ed-v-resumen');
@@ -1174,19 +1176,24 @@ function renderDockTimeline() {
           '<select class="sel-mini" onchange="window.editEscena(' + clipSelIdx + ',\'sfx\',this.value)">' + sfxOpts + '</select>' +
         '</div>' +
       '</div>';
-  } else if (tlToolActiva === 'ia') {
+    } else if (tlToolActiva === 'ia') {
+    const cIA = obtenerCfgIAEditor();
+    const optsMV = [['edge_tts','Edge $0'],['polly_free','Polly $0'],['google_tts_free','Google $0'],['gemini','Gemini TTS'],['openai','OpenAI TTS'],['elevenlabs','ElevenLabs']].map(function(m) {
+      return '<option value="' + m[0] + '"' + (cIA.provVoz === m[0] ? ' selected' : '') + '>' + m[1] + '</option>';
+    }).join('');
     dock.innerHTML =
       '<div class="subpanel">' +
         '<div class="sub-top">' +
-          '<div style="display:flex; gap:5px; overflow-x:auto;">' +
-            '<button type="button" class="btn btn-xs btn-green" id="btn-gen-voz-clip" onclick="window.generarVozClip(' + clipSelIdx + ')">Voz ElevenLabs</button>' +
-            '<button type="button" class="btn btn-xs btn-purple" id="btn-gen-img-clip" onclick="window.generarPlanoClip(' + clipSelIdx + ')">Imagen Gemini</button>' +
+          '<div style="display:flex; gap:5px; overflow-x:auto; align-items:center;">' +
+            '<select class="sel-mini" onchange="window.cambiarMotorVozEditor(this.value)">' + optsMV + '</select>' +
+            '<button type="button" class="btn btn-xs btn-green" id="btn-gen-voz-clip" onclick="window.generarVozClip(' + clipSelIdx + ')">' + (cIA.esVozGratis ? 'Voz ($0)' : 'Generar Voz') + '</button>' +
+            '<button type="button" class="btn btn-xs btn-purple" id="btn-gen-img-clip" onclick="window.generarPlanoClip(' + clipSelIdx + ')">Imagen IA</button>' +
             (sc.plano_url ? '<button type="button" class="btn btn-xs btn-danger" onclick="window.quitarPlanoClip(' + clipSelIdx + ')">Quitar Img</button>' : '') +
           '</div>' +
           '<button type="button" class="btn btn-green btn-xs" onclick="window.cerrarToolTL()">Listo</button>' +
         '</div>' +
         '<div class="sub-row">' +
-          '<input class="inp" style="flex:1;" value="' + esc(sc.prompt_plano || '') + '" placeholder="Prompt visual en inglés para Imagen Gemini..." oninput="window.editEscena(' + clipSelIdx + ',\'prompt_plano\',this.value)">' +
+          '<input class="inp" style="flex:1;" value="' + esc(sc.prompt_plano || '') + '" placeholder="Prompt visual en inglés para Imagen IA..." oninput="window.editEscena(' + clipSelIdx + ',\'prompt_plano\',this.value)">' +
         '</div>' +
       '</div>';
   } else if (tlToolActiva === 'veo') {
@@ -1235,33 +1242,55 @@ function medirDuracionAudio(blob) {
   });
 }
 
+window.cambiarMotorVozEditor = function(val) {
+  iaCloud.provVoz = val || 'edge_tts';
+  try { localStorage.setItem(CLAVE_PREFS_IA_ED, JSON.stringify(iaCloud)); } catch (e) {}
+  renderDockTimeline();
+  toast('Motor de voz: ' + iaCloud.provVoz, 'info');
+};
+
+function resolverVozPersonajeParaMotor(per, provVoz) {
+  const p = per || {};
+  if (provVoz === 'edge_tts') {
+    const v = String(p.voz_es || p.voz_en || '').trim();
+    return { voiceId: v || 'es-CO-GonzaloNeural', pitch: String(p.voz_pitch || '+0Hz').trim(), rate: String(p.voz_rate || '+0%').trim() };
+  }
+  if (provVoz === 'polly_free') return { voiceId: String(p.voz_polly || 'Miguel').trim() };
+  if (provVoz === 'google_tts_free') return { voiceId: String(p.voz_gtts || 'es-CO').trim() };
+  if (provVoz === 'gemini') return { voiceId: String(p.voz_gemini || 'Puck').trim() };
+  if (provVoz === 'openai') return { voiceId: String(p.voz_openai || 'onyx').trim() };
+  return { voiceId: String(p.voice_id || '').trim() };
+}
+
 window.generarVozClip = async function(idx) {
   const g = getEp(); const sc = g && g.escenas ? g.escenas[idx] : null;
   if (!sc) return;
-    const cfgVoz = obtenerCfgIAEditor();
+  const cfgVoz = obtenerCfgIAEditor();
   if (!sc.texto || !sc.texto.trim()) { toast('Este clip no tiene diálogo.', 'error'); return; }
   const idVoz = (sc.hablante && sc.hablante !== 'ninguno') ? sc.hablante : sc.actor;
   const per = biblioteca.personajes.find(function(p) { return p.id === idVoz; });
-  const voiceId = per && per.voice_id ? per.voice_id.trim() : '';
-  if (!voiceId) { toast('Asigna voice_id de ' + (per ? per.nombre : sc.actor) + ' en Contenido.', 'error'); return; }
+  const vozCfg = resolverVozPersonajeParaMotor(per, cfgVoz.provVoz);
+  if (cfgVoz.provVoz === 'elevenlabs' && !vozCfg.voiceId) { toast('Asigna voice_id de ElevenLabs a ' + (per ? per.nombre : sc.actor) + ' en Contenido, o cambia el motor a Edge $0.', 'error'); return; }
   const btn = document.getElementById('btn-gen-voz-clip');
   if (btn) { btn.disabled = true; btn.textContent = 'Sintetizando...'; }
   try {
-        const resV = await GeokatuDB.PirobonianosService.llamarProxyIA({ proveedorId: cfgVoz.provVoz, accion: 'audio', tipoCobro: 'audio', modoPago: cfgVoz.modoPago, modelo: cfgVoz.modVoz, payload: { text: sc.texto, voiceId: voiceId, voice_settings: { stability: 0.45, similarity_boost: 0.78 } } });
+    const resV = await GeokatuDB.PirobonianosService.llamarProxyIA({ proveedorId: cfgVoz.provVoz, accion: 'audio', tipoCobro: 'audio', modoPago: cfgVoz.modoPago, modelo: cfgVoz.modVoz, payload: { text: sc.texto, voiceId: vozCfg.voiceId, pitch: vozCfg.pitch || '+0Hz', rate: vozCfg.rate || '+0%', voice_settings: { stability: 0.45, similarity_boost: 0.78 } } });
     if (!resV || !resV.success || !resV.b64) throw new Error((resV && resV.error) || 'Error sintetizando voz.');
     if (typeof resV.saldoRestante === 'number') window.sincronizarBovedaEd(false);
-    const blob = base64ABlob(resV.b64, resV.mime || 'audio/mpeg');
+    const mimeAud = resV.mime || 'audio/mpeg';
+    const extAud = mimeAud.indexOf('wav') >= 0 ? 'wav' : 'mp3';
+    const blob = base64ABlob(resV.b64, mimeAud);
     const dur = await medirDuracionAudio(blob);
-    const fileObj = new File([blob], 'voz_' + (idx + 1) + '.mp3', { type: 'audio/mpeg' });
-    const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(getEpStorageBucket(g.id), 'voces/' + Date.now() + '_clip_' + (idx + 1) + '.mp3', fileObj);
-    if (!up.success) throw new Error(up.error || 'Error subiendo MP3');
+    const fileObj = new File([blob], 'voz_' + (idx + 1) + '.' + extAud, { type: mimeAud });
+    const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(getEpStorageBucket(g.id), 'voces/' + Date.now() + '_clip_' + (idx + 1) + '.' + extAud, fileObj);
+    if (!up.success) throw new Error(up.error || 'Error subiendo audio');
     sc.audio_url = up.url; sc.audio_storage = up.rutaStorage; sc.duracion = Number((dur + 0.25).toFixed(2));
     guardarBiblioteca(true); renderTimeline();
-    toast('Voz guardada (' + dur + 's).', 'exito');
+    toast('Voz ' + cfgVoz.provVoz + ' guardada (' + dur + 's).', 'exito');
   } catch (err) {
     toast('Error voz #' + (idx + 1) + ': ' + err.message, 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Voz ElevenLabs'; }
+    if (btn) { btn.disabled = false; btn.textContent = cfgVoz.esVozGratis ? 'Voz ($0)' : 'Generar Voz'; }
   }
 };
 
@@ -1303,18 +1332,18 @@ function abrirConfirmacionLote(tipo) {
   }
   lotePendienteTipo = tipo;
   lotePendienteIndices = indices;
-  document.getElementById('lote-conf-tit').textContent = tipo === 'voces' ? 'Confirmar Lote de Voces (ElevenLabs)' : 'Confirmar Lote de Planos (Gemini Imagen)';
     const cfgL = obtenerCfgIAEditor();
+  document.getElementById('lote-conf-tit').textContent = tipo === 'voces' ? ('Confirmar Lote de Voces (' + cfgL.provVoz + ')') : ('Confirmar Lote de Planos (' + cfgL.provImg + ')');
   const alertas = [];
-  if (tipo === 'voces' && !cfgL.listoVoz) alertas.push('Vincula ElevenLabs en Bóveda IA o recarga Créditos.');
-  if (tipo === 'voces' && sinVozPer.length > 0) alertas.push('Personajes sin voice_id: ' + sinVozPer.join(', ') + '.');
+  if (tipo === 'voces' && !cfgL.listoVoz) alertas.push('Vincula ' + cfgL.provVoz + ' en Bóveda IA, recarga Créditos o cambia a Edge $0.');
+  if (tipo === 'voces' && cfgL.provVoz === 'elevenlabs' && sinVozPer.length > 0) alertas.push('Personajes sin voice_id: ' + sinVozPer.join(', ') + '.');
   if (tipo === 'planos' && !cfgL.listoImg) alertas.push('Vincula tu clave de ' + cfgL.provImg + ' en Bóveda IA o recarga Créditos.');
   document.getElementById('lote-conf-body').innerHTML =
     '<div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px;">' +
       '<div class="card-sub" style="margin:0; padding:7px;"><small style="color:var(--muted); display:block;">Formato</small><strong>' + esc(asp) + '</strong></div>' +
       '<div class="card-sub" style="margin:0; padding:7px;"><small style="color:var(--muted); display:block;">Por generar</small><strong style="color:var(--naranja);">' + indices.length + ' clips</strong></div>' +
     '</div>' +
-    '<div style="font-size:11px; color:var(--muted); margin-bottom:6px;">Ya listos (se saltan sin cobrar): <b>' + yaListos + '</b> · Modelo: <b>' + esc(tipo === 'voces' ? (cfgL.provVoz + ' · ' + cfgL.modVoz + (cfgL.byokVoz ? ' (BYOK)' : (' · ' + (cfgL.tarifas.audio || 4) + ' cr'))) : (cfgL.provImg + ' · ' + cfgL.modImg + (cfgL.byokImg ? ' (BYOK)' : (' · ' + (cfgL.tarifas.imagen || 6) + ' cr')))) + '</b></div>' +
+    '<div style="font-size:11px; color:var(--muted); margin-bottom:6px;">Ya listos (se saltan sin cobrar): <b>' + yaListos + '</b> · Modelo: <b>' + esc(tipo === 'voces' ? (cfgL.provVoz + (cfgL.esVozGratis ? ' (GRATIS $0)' : (' · ' + cfgL.modVoz + (cfgL.byokVoz ? ' (BYOK)' : (' · ' + (cfgL.tarifas.audio || 4) + ' cr'))))) : (cfgL.provImg + ' · ' + cfgL.modImg + (cfgL.byokImg ? ' (BYOK)' : (' · ' + (cfgL.tarifas.imagen || 6) + ' cr')))) + '</b></div>' +
     (alertas.length > 0 ? '<div style="padding:7px 9px; border-radius:8px; border:1px solid rgba(239,68,68,0.5); background:rgba(239,68,68,0.12); color:#fca5a5; font-size:11px; font-weight:700;">' + esc(alertas.join(' ')) + '</div>' : '<div style="font-size:11px; color:#86efac;">Consejo: prueba primero el clip #' + (indices[0] + 1) + ' para validar calidad antes de lanzar el lote.</div>');
   document.getElementById('btn-lote-prueba-1').textContent = 'Probar solo clip #' + (indices[0] + 1);
   document.getElementById('btn-lote-ejecutar-todo').textContent = 'Generar todos (' + indices.length + ')';
