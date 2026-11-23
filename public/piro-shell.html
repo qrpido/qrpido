@@ -511,92 +511,108 @@
     </form>
   </div>
 </div>
-<!-- MODAL CENTRAL: BÓVEDA DE APIs IA (ZERO-SCROLL · 3 PESTAÑAS) -->
+<!-- MODAL CENTRAL: BÓVEDA IA CIFRADA EN NUBE (BYOK MULTI-PROVEEDOR + CRÉDITOS) -->
 <div id="modal-boveda-apis-shell" onclick="if(event.target.id==='modal-boveda-apis-shell') window.PiroShell.cerrarBovedaApis()">
-  <div class="vault-card">
+  <div class="vault-card" style="max-height:90dvh;">
     <div class="vault-head">
       <div>
-        <strong style="font-size:14px; display:block;">Bóveda de APIs IA</strong>
-        <span style="font-size:10px; color:#86efac; font-weight:700;">Solo en este dispositivo · Nunca se sube a la nube</span>
+        <strong style="font-size:14px; display:block;">Bóveda IA Cifrada (Nube)</strong>
+        <span id="vault-head-sub" style="font-size:10px; color:#86efac; font-weight:700;">AES-256-GCM en servidor · Cero claves en navegador</span>
       </div>
       <button type="button" onclick="window.PiroShell.cerrarBovedaApis()" style="background:rgba(255,255,255,0.08); border:1px solid var(--border); border-radius:8px; padding:5px 10px; font-size:11px; font-weight:800; cursor:pointer;">Cerrar</button>
     </div>
     <div class="vault-tabs">
-      <button type="button" class="vault-tab activo" id="vtab-llm" onclick="window.PiroShell.setTabVault('llm')"><span class="v-dot" id="vdot-llm"></span>Guiones</button>
-      <button type="button" class="vault-tab" id="vtab-voces" onclick="window.PiroShell.setTabVault('voces')"><span class="v-dot" id="vdot-voces"></span>Voces</button>
-      <button type="button" class="vault-tab" id="vtab-imagen" onclick="window.PiroShell.setTabVault('imagen')"><span class="v-dot" id="vdot-imagen"></span>Imágenes</button>
+      <button type="button" class="vault-tab activo" id="vtab-byok" onclick="window.PiroShell.setTabVault('byok')"><span class="v-dot" id="vdot-byok"></span>Mis APIs</button>
+      <button type="button" class="vault-tab" id="vtab-creditos" onclick="window.PiroShell.setTabVault('creditos')"><span class="v-dot" id="vdot-creditos"></span>Créditos</button>
+      <button type="button" class="vault-tab" id="vtab-reventa" style="display:none;" onclick="window.PiroShell.setTabVault('reventa')"><span class="v-dot" id="vdot-reventa"></span>Reventa</button>
     </div>
-    <div class="vault-body">
-      <!-- PESTAÑA 1: GUIONES LLM -->
-      <div class="vault-pane activo" id="vpane-llm">
-        <div>
-          <label class="vault-lbl">Proveedor de Guiones</label>
-          <select id="sh-api-llm-prov" class="vault-sel" onchange="window.PiroShell.alCambiarProvVault()"><option value="deepseek">DeepSeek</option><option value="gemini">Google Gemini</option><option value="openai">OpenAI (ChatGPT)</option><option value="openrouter">OpenRouter</option></select>
+    <div class="vault-body" style="overflow-y:auto;">
+      <!-- PESTAÑA 1: MIS APIs MULTI-PROVEEDOR (BYOK) -->
+      <div class="vault-pane activo" id="vpane-byok">
+        <div id="vault-chips-activos" style="display:flex; flex-wrap:wrap; gap:5px;"></div>
+        <div style="display:grid; grid-template-columns:1fr auto; gap:6px; align-items:end;">
+          <div>
+            <label class="vault-lbl">Proveedor IA (cualquier API)</label>
+            <select id="sh-v-prov" class="vault-sel" onchange="window.PiroShell.alCambiarProvCloud()"></select>
+          </div>
+          <span id="sh-v-badge" style="font-size:10.5px; font-family:monospace; font-weight:800; padding:8px 9px; border-radius:9px; border:1px solid var(--border); background:rgba(0,0,0,0.4); color:var(--muted);">Sin clave</span>
+        </div>
+        <div id="sh-v-custom-box" style="display:none; grid-template-columns:1fr 1fr; gap:6px;">
+          <div><label class="vault-lbl">ID único (ej. claude_or)</label><input id="sh-v-cid" class="vault-inp" placeholder="mi_ia"></div>
+          <div><label class="vault-lbl">Protocolo</label><select id="sh-v-cprot" class="vault-sel"><option value="openai_compat">OpenAI Compatible</option><option value="google_gemini">Google Gemini</option><option value="audio_tts">Audio TTS</option></select></div>
+          <div style="grid-column:1/-1;"><label class="vault-lbl">URL Base HTTPS</label><input id="sh-v-curl" class="vault-inp" placeholder="https://api.openai.com/v1"></div>
         </div>
         <div>
-          <label class="vault-lbl">API Key</label>
+          <label class="vault-lbl">Pegar API Key (se cifra y borra del campo al guardar)</label>
           <div class="vault-key-row">
-            <input id="sh-api-llm-key" type="password" autocomplete="off" spellcheck="false" class="vault-inp" placeholder="Pega tu API Key" oninput="window.PiroShell.guardarVaultShell()">
-            <button type="button" class="vault-ico-btn" title="Ver/Ocultar" onclick="window.PiroShell.toggleVerClave('sh-api-llm-key')"><svg class="svg-ico-sm" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
-            <button type="button" class="vault-ico-btn del" title="Borrar clave" onclick="window.PiroShell.limpiarClaveVault('llm')"><svg class="svg-ico-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            <input id="sh-v-key" type="password" autocomplete="off" spellcheck="false" class="vault-inp" placeholder="Pega nueva clave o deja vacío para cambiar solo modelo">
+            <button type="button" class="vault-ico-btn" title="Ver/Ocultar" onclick="window.PiroShell.toggleVerClave('sh-v-key')"><svg class="svg-ico-sm" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button type="button" class="vault-ico-btn del" title="Revocar clave" onclick="window.PiroShell.revocarClaveCloud('cliente')"><svg class="svg-ico-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
           </div>
         </div>
-        <div>
-          <label class="vault-lbl">Modelo Activo</label>
-          <div class="vault-key-row">
-            <select id="sh-api-llm-model" class="vault-sel" onchange="window.PiroShell.guardarVaultShell()"></select>
-            <button type="button" class="vault-act-btn" id="sh-btn-det-llm" onclick="window.PiroShell.detectarModelosVault()">Detectar</button>
-          </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+          <div><label class="vault-lbl" id="sh-v-lbl-mod">Modelo Texto / Principal</label><input id="sh-v-mod" class="vault-inp" placeholder="gemini-2.5-flash"></div>
+          <div><label class="vault-lbl" id="sh-v-lbl-img">Modelo Imagen / Voice ID</label><input id="sh-v-img" class="vault-inp" placeholder="gemini-2.5-flash-image"></div>
         </div>
-        <div class="vault-status-msg" id="vstat-llm"></div>
+        <div id="sh-v-list-wrap" style="display:none;">
+          <label class="vault-lbl">Detectados en la nube (toca para asignar)</label>
+          <select id="sh-v-list" class="vault-sel" onchange="window.PiroShell.usarItemDetectadoCloud(this.value)"></select>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button type="button" class="vault-act-btn green" id="sh-btn-save-v" style="flex:1;" onclick="window.PiroShell.vincularClaveCloud('cliente')">Vincular y Cifrar en Nube</button>
+          <button type="button" class="vault-act-btn" id="sh-btn-test-v" onclick="window.PiroShell.probarProveedorCloud('byok')">Probar / Modelos</button>
+        </div>
+        <div class="vault-status-msg" id="vstat-byok"></div>
       </div>
 
-      <!-- PESTAÑA 2: VOCES ELEVENLABS -->
-      <div class="vault-pane" id="vpane-voces">
-        <div>
-          <label class="vault-lbl">API Key de ElevenLabs</label>
-          <div class="vault-key-row">
-            <input id="sh-api-el-key" type="password" autocomplete="off" spellcheck="false" class="vault-inp" placeholder="sk_..." oninput="window.PiroShell.guardarVaultShell()">
-            <button type="button" class="vault-ico-btn" title="Ver/Ocultar" onclick="window.PiroShell.toggleVerClave('sh-api-el-key')"><svg class="svg-ico-sm" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
-            <button type="button" class="vault-ico-btn del" title="Borrar clave" onclick="window.PiroShell.limpiarClaveVault('voces')"><svg class="svg-ico-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-          </div>
+      <!-- PESTAÑA 2: MODO DE PAGO Y CRÉDITOS PIRO -->
+      <div class="vault-pane" id="vpane-creditos">
+        <div style="padding:12px; border-radius:12px; border:1px solid rgba(56,189,248,0.35); background:rgba(56,189,248,0.08); display:flex; justify-content:space-between; align-items:center;">
+          <div><span class="vault-lbl" style="margin:0;">Saldo Disponible</span><strong id="sh-cred-saldo" style="font-size:22px; color:#38bdf8;">0 cr</strong></div>
+          <div style="text-align:right; font-size:10.5px; color:var(--muted);"><div>Comprados: <b id="sh-cred-comp">0</b></div><div>Consumidos: <b id="sh-cred-cons">0</b></div></div>
         </div>
         <div>
-          <label class="vault-lbl">Modelo de Síntesis</label>
-          <div class="vault-key-row">
-            <select id="sh-api-el-model" class="vault-sel" onchange="window.PiroShell.guardarVaultShell()"><option value="eleven_multilingual_v2">eleven_multilingual_v2</option><option value="eleven_flash_v2_5">eleven_flash_v2_5</option><option value="eleven_turbo_v2_5">eleven_turbo_v2_5</option></select>
-            <button type="button" class="vault-act-btn green" id="sh-btn-det-el" onclick="window.PiroShell.detectarVocesVault()">Detectar</button>
-          </div>
+          <label class="vault-lbl">Modo de Facturación IA</label>
+          <select id="sh-modo-pago" class="vault-sel" onchange="window.PiroShell.cambiarPreferenciaVault()">
+            <option value="auto">Automático (Mi API primero → luego Créditos)</option>
+            <option value="byok">Solo Mis APIs (BYOK · 0 créditos)</option>
+            <option value="creditos">Usar Créditos Piro (Reventa sin API propia)</option>
+          </select>
         </div>
-        <div>
-          <label class="vault-lbl">Voces Detectadas (selecciona para copiar voice_id)</label>
-          <select id="sh-api-el-voices" class="vault-sel" onchange="window.PiroShell.copiarVozVault(this.value)"><option value="">Pulsa Detectar para listar tus voces...</option></select>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+          <div><label class="vault-lbl">Proveedor para Imágenes</label><select id="sh-pref-img" class="vault-sel" onchange="window.PiroShell.cambiarPreferenciaVault()"></select></div>
+          <div><label class="vault-lbl">Proveedor para Guiones</label><select id="sh-pref-llm" class="vault-sel" onchange="window.PiroShell.cambiarPreferenciaVault()"></select></div>
         </div>
-        <div class="vault-status-msg" id="vstat-voces"></div>
+        <div id="sh-tarifas-info" style="font-size:11px; color:var(--muted); padding:8px 10px; border-radius:9px; background:rgba(255,255,255,0.03); border:1px solid var(--border);">Tarifas Créditos: Imagen 6 cr · Hoja Lote 12 cr · Guion 2 cr · Voz 4 cr</div>
+        <div class="vault-status-msg" id="vstat-creditos"></div>
       </div>
 
-      <!-- PESTAÑA 3: GEMINI IMÁGENES -->
-      <div class="vault-pane" id="vpane-imagen">
-        <div>
-          <label class="vault-lbl">API Key Gemini Imagen (si queda vacío usa tu clave Gemini)</label>
-          <div class="vault-key-row">
-            <input id="sh-api-gem-key" type="password" autocomplete="off" spellcheck="false" class="vault-inp" placeholder="AIza..." oninput="window.PiroShell.guardarVaultShell()">
-            <button type="button" class="vault-ico-btn" title="Ver/Ocultar" onclick="window.PiroShell.toggleVerClave('sh-api-gem-key')"><svg class="svg-ico-sm" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
-            <button type="button" class="vault-ico-btn del" title="Borrar clave" onclick="window.PiroShell.limpiarClaveVault('imagen')"><svg class="svg-ico-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-          </div>
+      <!-- PESTAÑA 3: REVENTA MAESTRA (SOLO SUPERADMIN) -->
+      <div class="vault-pane" id="vpane-reventa">
+        <div style="font-size:11px; color:#fcd34d; font-weight:700;">Claves maestras de plataforma para clientes que pagan con Créditos Piro:</div>
+        <div style="display:grid; grid-template-columns:1fr auto; gap:6px; align-items:end;">
+          <select id="sh-m-prov" class="vault-sel" onchange="window.PiroShell.alCambiarProvMaestro()"><option value="gemini">Google Gemini (Maestro)</option><option value="openai">OpenAI GPT (Maestro)</option><option value="deepseek">DeepSeek (Maestro)</option><option value="elevenlabs">ElevenLabs (Maestro)</option></select>
+          <span id="sh-m-badge" style="font-size:10px; font-family:monospace; padding:8px; border-radius:8px; border:1px solid var(--border); color:var(--muted);">Sin clave</span>
         </div>
-        <div>
-          <label class="vault-lbl">Modelo de Imágenes (Piezas y Planos)</label>
-          <div class="vault-key-row">
-            <select id="sh-api-gem-model" class="vault-sel" onchange="window.PiroShell.guardarVaultShell()"><option value="gemini-2.5-flash-image">gemini-2.5-flash-image</option><option value="gemini-2.0-flash-exp-image-generation">gemini-2.0-flash-exp-image-generation</option><option value="imagen-3.0-generate-002">imagen-3.0-generate-002</option></select>
-            <button type="button" class="vault-act-btn" id="sh-btn-test-gem" onclick="window.PiroShell.probarGeminiImagenVault()">Probar</button>
-          </div>
+        <div class="vault-key-row">
+          <input id="sh-m-key" type="password" autocomplete="off" spellcheck="false" class="vault-inp" placeholder="Pega API Key maestra para reventa">
+          <button type="button" class="vault-act-btn green" id="sh-btn-save-m" onclick="window.PiroShell.vincularClaveCloud('maestro')">Guardar</button>
+          <button type="button" class="vault-ico-btn del" title="Revocar maestra" onclick="window.PiroShell.revocarClaveCloud('maestro')"><svg class="svg-ico-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
-        <div class="vault-status-msg" id="vstat-imagen"></div>
+        <div style="border-top:1px solid var(--border); padding-top:8px;">
+          <label class="vault-lbl">Acreditar Créditos a Cliente (Nequi / Manual)</label>
+          <div style="display:grid; grid-template-columns:1fr 84px; gap:6px; margin-bottom:6px;">
+            <input id="sh-rec-email" type="email" class="vault-inp" placeholder="correo@cliente.com">
+            <input id="sh-rec-cant" type="number" class="vault-inp" value="250" placeholder="Créd.">
+          </div>
+          <button type="button" class="vault-act-btn" id="sh-btn-rec" style="width:100%;" onclick="window.PiroShell.acreditarCreditosCliente()">Acreditar Créditos</button>
+        </div>
+        <div class="vault-status-msg" id="vstat-reventa"></div>
       </div>
     </div>
     <div class="vault-foot">
-      <span>Tip seguridad: en Google Cloud restringe tu clave a <b>geokatu.com/*</b></span>
+      <span id="vault-foot-txt">Cifrado en servidor · Válido en todos tus dispositivos</span>
+      <button type="button" onclick="window.PiroShell.sincronizarBovedaNube(true)" style="background:none; border:1px solid var(--border); color:var(--azul); border-radius:7px; padding:3px 8px; font-size:10.5px; font-weight:800; cursor:pointer;">Sincronizar</button>
     </div>
   </div>
 </div>
@@ -805,12 +821,12 @@ window.PiroShell = {
     }
   },
     abrirMenuCrear: function() {
-    const b = document.getElementById('sheet-apis-badge');
+        const b = document.getElementById('sheet-apis-badge');
     if (b) {
-      const v = leerVaultShell();
-      const n = (v.keys[v.llmProv] ? 1 : 0) + (v.elKey ? 1 : 0) + ((v.gemImgKey || v.keys.gemini) ? 1 : 0);
-      b.textContent = n + '/3 activas';
-      b.style.color = n > 0 ? '#86efac' : '#94a3b8';
+      const n = Object.keys(estadoNubeIA.proveedores || {}).length;
+      const sc = Number(estadoNubeIA.billetera && estadoNubeIA.billetera.saldo_creditos) || 0;
+      b.textContent = n + ' APIs · ' + sc + ' cr';
+      b.style.color = (n > 0 || sc > 0) ? '#86efac' : '#94a3b8';
     }
     document.getElementById('modal-crear-rapido').classList.add('open');
   },
@@ -964,207 +980,232 @@ window.addEventListener('message', function(e) {
 });
 
 // =========================================================================
-// BÓVEDA CENTRAL DE APIs IA EN SHELL (CHG-102)
+// BÓVEDA CENTRAL IA CIFRADA EN NUBE (CHG-126 · CERO CLAVES EN NAVEGADOR)
 // =========================================================================
-const CLAVE_VAULT_SH = 'piro_api_vault_v1';
-const MODELOS_DEF_SH = {
-  deepseek: ['deepseek-chat', 'deepseek-reasoner'],
-  gemini: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
-  openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'],
-  openrouter: ['deepseek/deepseek-chat', 'google/gemini-2.5-flash', 'openai/gpt-4o-mini']
+const CLAVE_PREFS_IA = 'piro_ia_cloud_prefs_v2';
+const PRESETS_VAULT_SH = {
+  gemini: { nombre: 'Google Gemini (Texto + Imagen)', prot: 'google_gemini', url: 'https://generativelanguage.googleapis.com/v1beta', mod: 'gemini-2.5-flash', img: 'gemini-2.5-flash-image' },
+  openai: { nombre: 'OpenAI (GPT + GPT-Image)', prot: 'openai_compat', url: 'https://api.openai.com/v1', mod: 'gpt-4o-mini', img: 'gpt-image-1' },
+  deepseek: { nombre: 'DeepSeek (Guiones)', prot: 'openai_compat', url: 'https://api.deepseek.com/v1', mod: 'deepseek-chat', img: '' },
+  openrouter: { nombre: 'OpenRouter (+200 IAs)', prot: 'openai_compat', url: 'https://openrouter.ai/api/v1', mod: 'openai/gpt-4o-mini', img: '' },
+  groq: { nombre: 'Groq (Ultra rápido)', prot: 'openai_compat', url: 'https://api.groq.com/openai/v1', mod: 'llama-3.3-70b-versatile', img: '' },
+  xai: { nombre: 'xAI (Grok)', prot: 'openai_compat', url: 'https://api.x.ai/v1', mod: 'grok-2-latest', img: '' },
+  elevenlabs: { nombre: 'ElevenLabs (Voces TTS)', prot: 'audio_tts', url: 'https://api.elevenlabs.io/v1', mod: 'eleven_multilingual_v2', img: '' }
 };
+let estadoNubeIA = { proveedores: {}, billetera: { saldo_creditos: 0, total_comprados: 0, total_consumidos: 0 }, reventaDisponible: [], tarifas: { imagen: 6, hoja_lote: 12, texto: 2, audio: 4 }, esSuperadmin: false, proveedoresMaestro: {} };
 
-function leerVaultShell() {
-  const base = {
-    llmProv: 'deepseek',
-    keys: { deepseek: '', gemini: '', openai: '', openrouter: '' },
-    models: { deepseek: 'deepseek-chat', gemini: 'gemini-2.5-flash', openai: 'gpt-4o-mini', openrouter: 'deepseek/deepseek-chat' },
-    modelosCache: {}, elKey: '', elModel: 'eleven_multilingual_v2', gemImgKey: '', gemImgModel: 'gemini-2.5-flash-image'
-  };
-  try {
-    const raw = localStorage.getItem(CLAVE_VAULT_SH);
-    if (raw) {
-      const p = JSON.parse(raw);
-      Object.assign(base, p);
-      base.keys = Object.assign({ deepseek: '', gemini: '', openai: '', openrouter: '' }, p.keys || {});
-      base.models = Object.assign({ deepseek: 'deepseek-chat', gemini: 'gemini-2.5-flash', openai: 'gpt-4o-mini', openrouter: 'deepseek/deepseek-chat' }, p.models || {});
-      base.modelosCache = p.modelosCache || {};
-    }
-  } catch (e) {}
-  return base;
+function leerPrefsIA() {
+  const def = { modoPago: 'auto', provImagen: 'gemini', provLlm: 'gemini', provVoz: 'elevenlabs' };
+  try { const raw = localStorage.getItem(CLAVE_PREFS_IA); if (raw) Object.assign(def, JSON.parse(raw)); } catch (e) {}
+  return def;
 }
-
-function persistirVaultShell(v) {
-  try { localStorage.setItem(CLAVE_VAULT_SH, JSON.stringify(v)); } catch (e) {}
-  actualizarPuntosVault(v);
-  if (cargados.editor) enviarAFrame('editor', { tipo: 'PIRO_VAULT_ACTUALIZADO' });
-  if (cargados.contenido) enviarAFrame('contenido', { tipo: 'PIRO_VAULT_ACTUALIZADO' });
+function guardarPrefsIA(prefs) {
+  const p = Object.assign(leerPrefsIA(), prefs || {});
+  p.resumen = { proveedores: estadoNubeIA.proveedores || {}, billetera: estadoNubeIA.billetera || { saldo_creditos: 0 }, reventaDisponible: estadoNubeIA.reventaDisponible || [], tarifas: estadoNubeIA.tarifas || {} };
+  try { localStorage.setItem(CLAVE_PREFS_IA, JSON.stringify(p)); localStorage.removeItem('piro_api_vault_v1'); } catch (e) {}
+  if (cargados.editor) enviarAFrame('editor', { tipo: 'PIRO_VAULT_ACTUALIZADO', estadoIA: p });
+  if (cargados.contenido) enviarAFrame('contenido', { tipo: 'PIRO_VAULT_ACTUALIZADO', estadoIA: p });
 }
-
-function actualizarPuntosVault(v) {
-  const dL = document.getElementById('vdot-llm');
-  const dV = document.getElementById('vdot-voces');
-  const dI = document.getElementById('vdot-imagen');
-  if (dL) dL.classList.toggle('on', Boolean(v.keys[v.llmProv]));
-  if (dV) dV.classList.toggle('on', Boolean(v.elKey));
-  if (dI) dI.classList.toggle('on', Boolean(v.gemImgKey || v.keys.gemini));
-}
-
-function rellenarModelosVaultShell(v) {
-  const sel = document.getElementById('sh-api-llm-model');
-  if (!sel) return;
-  const lista = (v.modelosCache && v.modelosCache[v.llmProv] && v.modelosCache[v.llmProv].length > 0) ? v.modelosCache[v.llmProv] : (MODELOS_DEF_SH[v.llmProv] || ['deepseek-chat']);
-  const act = v.models[v.llmProv] || lista[0];
-  sel.innerHTML = lista.map(function(m) { return '<option value="' + m + '"' + (m === act ? ' selected' : '') + '>' + m + '</option>'; }).join('');
-}
-
 function setStatusVault(tab, txt, color) {
   const el = document.getElementById('vstat-' + tab);
   if (el) { el.textContent = txt || ''; el.style.color = color || '#94a3b8'; }
 }
+function renderSelectProveedoresVault() {
+  const sel = document.getElementById('sh-v-prov');
+  if (!sel) return;
+  const act = sel.value || 'gemini';
+  const provs = estadoNubeIA.proveedores || {};
+  const keys = Object.keys(PRESETS_VAULT_SH);
+  Object.keys(provs).forEach(function(k) { if (keys.indexOf(k) === -1) keys.push(k); });
+  sel.innerHTML = keys.map(function(k) {
+    const pre = PRESETS_VAULT_SH[k], ok = Boolean(provs[k] && provs[k].activa);
+    const lbl = (pre ? pre.nombre : (provs[k] ? provs[k].nombre : k)) + (ok ? (' · ••••' + provs[k].ultimos4) : '');
+    return '<option value="' + k + '">' + lbl + '</option>';
+  }).join('') + '<option value="__custom__">+ Proveedor Personalizado (HTTPS)</option>';
+  sel.value = (keys.indexOf(act) >= 0 || act === '__custom__') ? act : 'gemini';
+  const chips = document.getElementById('vault-chips-activos');
+  if (chips) {
+    const actKeys = Object.keys(provs);
+    chips.innerHTML = actKeys.length ? actKeys.map(function(k) { return '<button type="button" onclick="window.PiroShell.seleccionarProvChip(\'' + k + '\')" style="padding:3px 8px; border-radius:99px; border:1px solid rgba(34,197,94,0.45); background:rgba(34,197,94,0.12); color:#86efac; font-size:10px; font-weight:800; cursor:pointer;">' + k + ' · ••••' + provs[k].ultimos4 + '</button>'; }).join('') : '<span style="font-size:10.5px; color:var(--muted);">Sin claves vinculadas aún · Pega tu API Key abajo</span>';
+  }
+  const prefs = leerPrefsIA();
+  const sImg = document.getElementById('sh-pref-img'), sLlm = document.getElementById('sh-pref-llm');
+  const allImg = ['gemini', 'openai'].concat(Object.keys(provs).filter(function(k) { return k !== 'gemini' && k !== 'openai' && provs[k].protocolo !== 'audio_tts'; }));
+  if (sImg) { sImg.innerHTML = allImg.map(function(k) { return '<option value="' + k + '">' + k + '</option>'; }).join(''); sImg.value = allImg.indexOf(prefs.provImagen) >= 0 ? prefs.provImagen : 'gemini'; }
+  const allLlm = keys.filter(function(k) { return k !== 'elevenlabs'; });
+  if (sLlm) { sLlm.innerHTML = allLlm.map(function(k) { return '<option value="' + k + '">' + k + '</option>'; }).join(''); sLlm.value = allLlm.indexOf(prefs.provLlm) >= 0 ? prefs.provLlm : 'gemini'; }
+}
+function actualizarUIBovedaCloud() {
+  const nCli = Object.keys(estadoNubeIA.proveedores || {}).length;
+  const saldo = Number(estadoNubeIA.billetera && estadoNubeIA.billetera.saldo_creditos) || 0;
+  const nMae = Object.keys(estadoNubeIA.proveedoresMaestro || {}).length;
+  const dB = document.getElementById('vdot-byok'), dC = document.getElementById('vdot-creditos'), dR = document.getElementById('vdot-reventa');
+  if (dB) dB.classList.toggle('on', nCli > 0);
+  if (dC) dC.classList.toggle('on', saldo > 0);
+  if (dR) dR.classList.toggle('on', nMae > 0);
+  const tabRev = document.getElementById('vtab-reventa');
+  if (tabRev) tabRev.style.display = estadoNubeIA.esSuperadmin ? 'inline-flex' : 'none';
+  const sSaldo = document.getElementById('sh-cred-saldo'), sComp = document.getElementById('sh-cred-comp'), sCons = document.getElementById('sh-cred-cons');
+  if (sSaldo) sSaldo.textContent = saldo + ' cr';
+  if (sComp) sComp.textContent = Number(estadoNubeIA.billetera && estadoNubeIA.billetera.total_comprados) || 0;
+  if (sCons) sCons.textContent = Number(estadoNubeIA.billetera && estadoNubeIA.billetera.total_consumidos) || 0;
+  const t = estadoNubeIA.tarifas || {};
+  const tEl = document.getElementById('sh-tarifas-info');
+  if (tEl) tEl.textContent = 'Tarifas Créditos: Imagen ' + (t.imagen || 6) + ' cr · Hoja Lote ' + (t.hoja_lote || 12) + ' cr · Guion ' + (t.texto || 2) + ' cr · Voz ' + (t.audio || 4) + ' cr | Reventa activa: ' + ((estadoNubeIA.reventaDisponible || []).join(', ') || 'ninguna');
+  const mp = document.getElementById('sh-modo-pago');
+  if (mp) mp.value = leerPrefsIA().modoPago || 'auto';
+  renderSelectProveedoresVault();
+  window.PiroShell.alCambiarProvCloud();
+  window.PiroShell.alCambiarProvMaestro();
+}
 
+window.PiroShell.sincronizarBovedaNube = async function(mostrarAviso) {
+  if (!GeokatuDB.PirobonianosService || !GeokatuDB.PirobonianosService.obtenerEstadoBoveda) return;
+  const res = await GeokatuDB.PirobonianosService.obtenerEstadoBoveda();
+  if (res && res.success) {
+    estadoNubeIA = res;
+    guardarPrefsIA({});
+    actualizarUIBovedaCloud();
+    if (mostrarAviso) mostrarToastShell('Bóveda IA sincronizada desde la nube.', 'exito');
+  } else if (mostrarAviso && res && res.error) {
+    mostrarToastShell('Error bóveda: ' + res.error, 'error');
+  }
+};
 window.PiroShell.setTabVault = function(tab) {
-  ['llm', 'voces', 'imagen'].forEach(function(k) {
-    const b = document.getElementById('vtab-' + k);
-    const p = document.getElementById('vpane-' + k);
-    if (b) b.classList.toggle('activo', k === tab);
-    if (p) p.classList.toggle('activo', k === tab);
+  const mapTab = tab === 'imagen' || tab === 'llm' || tab === 'voces' ? 'byok' : tab;
+  ['byok', 'creditos', 'reventa'].forEach(function(k) {
+    const b = document.getElementById('vtab-' + k), p = document.getElementById('vpane-' + k);
+    if (b) b.classList.toggle('activo', k === mapTab);
+    if (p) p.classList.toggle('activo', k === mapTab);
   });
 };
-
 window.PiroShell.abrirBovedaApis = function(tab) {
-  const v = leerVaultShell();
-  document.getElementById('sh-api-llm-prov').value = v.llmProv;
-  document.getElementById('sh-api-llm-key').value = v.keys[v.llmProv] || '';
-  rellenarModelosVaultShell(v);
-  document.getElementById('sh-api-el-key').value = v.elKey || '';
-  document.getElementById('sh-api-el-model').value = v.elModel || 'eleven_multilingual_v2';
-  document.getElementById('sh-api-gem-key').value = v.gemImgKey || '';
-  document.getElementById('sh-api-gem-model').value = v.gemImgModel || 'gemini-2.5-flash-image';
-  ['sh-api-llm-key', 'sh-api-el-key', 'sh-api-gem-key'].forEach(function(id) { document.getElementById(id).type = 'password'; });
-  actualizarPuntosVault(v);
-  setStatusVault('llm', v.keys[v.llmProv] ? 'Clave guardada localmente.' : 'Sin clave para ' + v.llmProv + '.', v.keys[v.llmProv] ? '#86efac' : '#94a3b8');
-  setStatusVault('voces', v.elKey ? 'Clave ElevenLabs guardada.' : 'Pega tu clave sk_... para sintetizar voces.', v.elKey ? '#86efac' : '#94a3b8');
-  setStatusVault('imagen', (v.gemImgKey || v.keys.gemini) ? 'Clave Gemini lista (envío seguro por header).' : 'Pega tu clave AIza... para generar piezas y planos.', (v.gemImgKey || v.keys.gemini) ? '#86efac' : '#94a3b8');
-  this.setTabVault(tab || 'llm');
+  const sel = document.getElementById('sh-v-prov');
+  if (tab === 'voces' && sel) sel.value = 'elevenlabs';
+  else if (tab === 'imagen' && sel) sel.value = leerPrefsIA().provImagen || 'gemini';
+  actualizarUIBovedaCloud();
+  this.setTabVault(tab || 'byok');
   document.getElementById('modal-boveda-apis-shell').classList.add('open');
+  this.sincronizarBovedaNube(false);
 };
-
-window.PiroShell.cerrarBovedaApis = function() {
-  document.getElementById('modal-boveda-apis-shell').classList.remove('open');
+window.PiroShell.cerrarBovedaApis = function() { document.getElementById('modal-boveda-apis-shell').classList.remove('open'); };
+window.PiroShell.toggleVerClave = function(id) { const inp = document.getElementById(id); if (inp) inp.type = inp.type === 'password' ? 'text' : 'password'; };
+window.PiroShell.seleccionarProvChip = function(k) { const sel = document.getElementById('sh-v-prov'); if (sel) { sel.value = k; this.alCambiarProvCloud(); } };
+window.PiroShell.alCambiarProvCloud = function() {
+  const sel = document.getElementById('sh-v-prov'); if (!sel) return;
+  const pid = sel.value, esCust = pid === '__custom__';
+  document.getElementById('sh-v-custom-box').style.display = esCust ? 'grid' : 'none';
+  document.getElementById('sh-v-list-wrap').style.display = 'none';
+  const cur = (!esCust && estadoNubeIA.proveedores && estadoNubeIA.proveedores[pid]) ? estadoNubeIA.proveedores[pid] : null;
+  const pre = PRESETS_VAULT_SH[pid] || { prot: 'openai_compat', mod: '', img: '' };
+  const b = document.getElementById('sh-v-badge');
+  if (b) { b.textContent = cur ? ('••••' + cur.ultimos4) : 'Sin clave'; b.style.color = cur ? '#86efac' : '#94a3b8'; b.style.borderColor = cur ? 'rgba(34,197,94,0.5)' : 'var(--border)'; }
+  document.getElementById('sh-v-key').value = '';
+  document.getElementById('sh-v-key').type = 'password';
+  document.getElementById('sh-v-mod').value = (cur && cur.modelo) || pre.mod || '';
+  const esAudio = (cur ? cur.protocolo : pre.prot) === 'audio_tts';
+  document.getElementById('sh-v-lbl-img').textContent = esAudio ? 'Voice ID (opcional)' : 'Modelo Imagen';
+  document.getElementById('sh-v-img').value = esAudio ? ((cur && cur.voiceId) || '') : ((cur && cur.modeloImagen) || pre.img || '');
+  setStatusVault('byok', cur ? ('Vinculada en nube (' + cur.nombre + ' · ••••' + cur.ultimos4 + ').') : 'Pega tu clave y pulsa Vincular para cifrarla en tu cuenta.', cur ? '#86efac' : '#94a3b8');
 };
-
-window.PiroShell.toggleVerClave = function(inputId) {
-  const inp = document.getElementById(inputId);
-  if (inp) inp.type = inp.type === 'password' ? 'text' : 'password';
+window.PiroShell.alCambiarProvMaestro = function() {
+  const sel = document.getElementById('sh-m-prov'), b = document.getElementById('sh-m-badge');
+  if (!sel || !b) return;
+  const cur = estadoNubeIA.proveedoresMaestro && estadoNubeIA.proveedoresMaestro[sel.value];
+  b.textContent = cur ? ('••••' + cur.ultimos4) : 'Sin clave';
+  b.style.color = cur ? '#86efac' : '#94a3b8';
+  document.getElementById('sh-m-key').value = '';
 };
-
-window.PiroShell.alCambiarProvVault = function() {
-  const v = leerVaultShell();
-  v.llmProv = document.getElementById('sh-api-llm-prov').value;
-  document.getElementById('sh-api-llm-key').value = v.keys[v.llmProv] || '';
-  rellenarModelosVaultShell(v);
-  persistirVaultShell(v);
-  setStatusVault('llm', v.keys[v.llmProv] ? 'Clave activa para ' + v.llmProv + '.' : 'Sin clave para ' + v.llmProv + '.', v.keys[v.llmProv] ? '#86efac' : '#94a3b8');
-};
-
-window.PiroShell.guardarVaultShell = function() {
-  const v = leerVaultShell();
-  v.llmProv = document.getElementById('sh-api-llm-prov').value;
-  v.keys[v.llmProv] = document.getElementById('sh-api-llm-key').value.trim();
-  v.models[v.llmProv] = document.getElementById('sh-api-llm-model').value;
-  v.elKey = document.getElementById('sh-api-el-key').value.trim();
-  v.elModel = document.getElementById('sh-api-el-model').value;
-  v.gemImgKey = document.getElementById('sh-api-gem-key').value.trim();
-  v.gemImgModel = document.getElementById('sh-api-gem-model').value;
-  persistirVaultShell(v);
-};
-
-window.PiroShell.limpiarClaveVault = function(tab) {
-  const v = leerVaultShell();
-  if (tab === 'llm') { v.keys[v.llmProv] = ''; document.getElementById('sh-api-llm-key').value = ''; setStatusVault('llm', 'Clave borrada.', '#fca5a5'); }
-  else if (tab === 'voces') { v.elKey = ''; document.getElementById('sh-api-el-key').value = ''; setStatusVault('voces', 'Clave borrada.', '#fca5a5'); }
-  else if (tab === 'imagen') { v.gemImgKey = ''; document.getElementById('sh-api-gem-key').value = ''; setStatusVault('imagen', 'Clave de imágenes borrada.', '#fca5a5'); }
-  persistirVaultShell(v);
-};
-
-window.PiroShell.detectarModelosVault = async function() {
-  this.guardarVaultShell();
-  const v = leerVaultShell(), prov = v.llmProv, key = v.keys[prov];
-  if (!key) { setStatusVault('llm', 'Pega primero tu API Key.', '#fca5a5'); return; }
-  const btn = document.getElementById('sh-btn-det-llm');
-  btn.disabled = true; btn.textContent = '...';
+window.PiroShell.vincularClaveCloud = async function(ambito) {
+  const esMaes = ambito === 'maestro';
+  const btn = document.getElementById(esMaes ? 'sh-btn-save-m' : 'sh-btn-save-v');
+  const tab = esMaes ? 'reventa' : 'byok';
+  let payload = { ambito: ambito, accion: 'guardar' };
+  if (esMaes) {
+    payload.proveedorId = document.getElementById('sh-m-prov').value;
+    payload.apiKey = document.getElementById('sh-m-key').value.trim();
+    if (!payload.apiKey) { setStatusVault(tab, 'Pega la clave API maestra.', '#fca5a5'); return; }
+  } else {
+    const pid = document.getElementById('sh-v-prov').value;
+    const esCust = pid === '__custom__';
+    payload.proveedorId = esCust ? document.getElementById('sh-v-cid').value.trim() : pid;
+    if (esCust) { payload.protocolo = document.getElementById('sh-v-cprot').value; payload.baseUrl = document.getElementById('sh-v-curl').value.trim(); payload.nombre = payload.proveedorId; }
+    payload.apiKey = document.getElementById('sh-v-key').value.trim();
+    payload.modelo = document.getElementById('sh-v-mod').value.trim();
+    const esAudio = (esCust ? payload.protocolo : ((PRESETS_VAULT_SH[pid] && PRESETS_VAULT_SH[pid].prot) || '')) === 'audio_tts';
+    if (esAudio) payload.voiceId = document.getElementById('sh-v-img').value.trim();
+    else payload.modeloImagen = document.getElementById('sh-v-img').value.trim();
+  }
+  if (btn) { btn.disabled = true; btn.textContent = 'Cifrando...'; }
   try {
-    let modelos = [];
-    if (prov === 'gemini') {
-      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models', { headers: { 'x-goog-api-key': key } });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const j = await r.json();
-      modelos = (j.models || []).filter(function(m) { return Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.indexOf('generateContent') >= 0; }).map(function(m) { return String(m.name || '').replace(/^models\//, ''); });
-    } else {
-      const url = prov === 'deepseek' ? 'https://api.deepseek.com/v1/models' : (prov === 'openai' ? 'https://api.openai.com/v1/models' : 'https://openrouter.ai/api/v1/models');
-      const r = await fetch(url, { headers: { Authorization: 'Bearer ' + key } });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const j = await r.json();
-      modelos = (j.data || []).map(function(m) { return m.id; }).filter(Boolean);
-      if (prov === 'openai') modelos = modelos.filter(function(id) { return /^(gpt-|o1|o3|o4)/.test(id); });
-      if (prov === 'openrouter') modelos = modelos.slice(0, 80);
+    const res = await GeokatuDB.PirobonianosService.guardarApiKeyBoveda(payload);
+    if (!res.success) throw new Error(res.error || 'Error guardando clave');
+    document.getElementById(esMaes ? 'sh-m-key' : 'sh-v-key').value = '';
+    await this.sincronizarBovedaNube(false);
+    if (!esMaes && payload.proveedorId) { const s = document.getElementById('sh-v-prov'); if (s) { s.value = payload.proveedorId; this.alCambiarProvCloud(); } }
+    setStatusVault(tab, 'Cifrada y guardada en nube (••••' + (res.ultimos4 || '') + ').', '#86efac');
+    mostrarToastShell('Clave cifrada en tu cuenta. Nunca más tendrás que pegarla.', 'exito');
+  } catch (err) {
+    setStatusVault(tab, 'Error: ' + err.message, '#fca5a5');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = esMaes ? 'Guardar' : 'Vincular y Cifrar en Nube'; }
+  }
+};
+window.PiroShell.revocarClaveCloud = async function(ambito) {
+  const esMaes = ambito === 'maestro', pid = document.getElementById(esMaes ? 'sh-m-prov' : 'sh-v-prov').value;
+  if (!pid || pid === '__custom__') return;
+  const res = await GeokatuDB.PirobonianosService.guardarApiKeyBoveda({ proveedorId: pid, ambito: ambito, accion: 'revocar' });
+  if (res.success) { await this.sincronizarBovedaNube(false); setStatusVault(esMaes ? 'reventa' : 'byok', 'Clave revocada del servidor.', '#fca5a5'); }
+  else setStatusVault(esMaes ? 'reventa' : 'byok', 'Error: ' + res.error, '#fca5a5');
+};
+window.PiroShell.probarProveedorCloud = async function(modo) {
+  const pid = document.getElementById('sh-v-prov').value;
+  if (!pid || pid === '__custom__') { setStatusVault('byok', 'Guarda primero el proveedor personalizado.', '#fca5a5'); return; }
+  const btn = document.getElementById('sh-btn-test-v');
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  try {
+    const cur = estadoNubeIA.proveedores && estadoNubeIA.proveedores[pid];
+    const acc = (cur && cur.protocolo === 'audio_tts') ? 'listar_voces' : 'listar_modelos';
+    const res = await GeokatuDB.PirobonianosService.llamarProxyIA({ proveedorId: pid, accion: acc, modoPago: modo || 'byok' });
+    if (!res.success) throw new Error(res.error || 'Fallo de conexión');
+    const items = Array.isArray(res.items) ? res.items : [];
+    if (items.length) {
+      const sel = document.getElementById('sh-v-list');
+      sel.innerHTML = '<option value="">Seleccionar (' + items.length + ')...</option>' + items.map(function(it) { const v = typeof it === 'object' ? it.id : it, l = typeof it === 'object' ? (it.nombre + ' (' + it.id + ')') : it; return '<option value="' + v + '">' + l + '</option>'; }).join('');
+      document.getElementById('sh-v-list-wrap').style.display = 'block';
     }
-    if (modelos.length === 0) throw new Error('Sin modelos');
-    v.modelosCache[prov] = modelos;
-    v.models[prov] = modelos[0];
-    rellenarModelosVaultShell(v);
-    persistirVaultShell(v);
-    setStatusVault('llm', 'Conexión OK · ' + modelos.length + ' modelos disponibles.', '#86efac');
+    setStatusVault('byok', res.mensaje || ('Conexión verificada (' + items.length + ').'), '#86efac');
   } catch (err) {
-    setStatusVault('llm', 'Error: ' + err.message, '#fca5a5');
+    setStatusVault('byok', 'Error: ' + err.message, '#fca5a5');
   } finally {
-    btn.disabled = false; btn.textContent = 'Detectar';
+    if (btn) { btn.disabled = false; btn.textContent = 'Probar / Modelos'; }
   }
 };
-
-window.PiroShell.detectarVocesVault = async function() {
-  this.guardarVaultShell();
-  const v = leerVaultShell();
-  if (!v.elKey) { setStatusVault('voces', 'Pega tu clave de ElevenLabs.', '#fca5a5'); return; }
-  const btn = document.getElementById('sh-btn-det-el');
-  btn.disabled = true; btn.textContent = '...';
+window.PiroShell.usarItemDetectadoCloud = function(val) {
+  if (!val) return;
+  const pid = document.getElementById('sh-v-prov').value;
+  const cur = estadoNubeIA.proveedores && estadoNubeIA.proveedores[pid];
+  if (cur && cur.protocolo === 'audio_tts') { document.getElementById('sh-v-img').value = val; navigator.clipboard && navigator.clipboard.writeText(val).catch(function() {}); mostrarToastShell('voice_id asignado y copiado.', 'exito'); }
+  else if (val.indexOf('image') >= 0 || val.indexOf('imagen') >= 0 || val.indexOf('dall-e') >= 0) { document.getElementById('sh-v-img').value = val; }
+  else { document.getElementById('sh-v-mod').value = val; }
+};
+window.PiroShell.cambiarPreferenciaVault = function() {
+  guardarPrefsIA({ modoPago: document.getElementById('sh-modo-pago').value, provImagen: document.getElementById('sh-pref-img').value, provLlm: document.getElementById('sh-pref-llm').value });
+  setStatusVault('creditos', 'Preferencias guardadas.', '#86efac');
+};
+window.PiroShell.acreditarCreditosCliente = async function() {
+  const email = document.getElementById('sh-rec-email').value.trim(), cant = Number(document.getElementById('sh-rec-cant').value) || 0;
+  if (!email || !cant) { setStatusVault('reventa', 'Indica correo y cantidad de créditos.', '#fca5a5'); return; }
+  const btn = document.getElementById('sh-btn-rec');
+  if (btn) { btn.disabled = true; btn.textContent = 'Acreditando...'; }
   try {
-    const r = await fetch('https://api.elevenlabs.io/v1/voices', { headers: { 'xi-api-key': v.elKey } });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const j = await r.json();
-    const voces = j.voices || [];
-    const sel = document.getElementById('sh-api-el-voices');
-    sel.innerHTML = '<option value="">Selecciona para copiar (' + voces.length + ')</option>' + voces.map(function(vo) { return '<option value="' + vo.voice_id + '">' + vo.name + '</option>'; }).join('');
-    setStatusVault('voces', 'Conexión OK · ' + voces.length + ' voces cargadas.', '#86efac');
-  } catch (err) {
-    setStatusVault('voces', 'Error ElevenLabs: ' + err.message, '#fca5a5');
-  } finally {
-    btn.disabled = false; btn.textContent = 'Detectar';
-  }
-};
-
-window.PiroShell.copiarVozVault = function(id) {
-  if (!id) return;
-  navigator.clipboard.writeText(id).then(function() { mostrarToastShell('voice_id copiado al portapapeles.', 'exito'); });
-};
-
-window.PiroShell.probarGeminiImagenVault = async function() {
-  this.guardarVaultShell();
-  const v = leerVaultShell();
-  const key = v.gemImgKey || v.keys.gemini;
-  if (!key) { setStatusVault('imagen', 'Pega tu API Key de Gemini.', '#fca5a5'); return; }
-  const btn = document.getElementById('sh-btn-test-gem');
-  btn.disabled = true; btn.textContent = '...';
-  try {
-    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models', { headers: { 'x-goog-api-key': key } });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    setStatusVault('imagen', 'Conexión verificada por header seguro (sin consumo de saldo).', '#86efac');
-  } catch (err) {
-    setStatusVault('imagen', 'Clave rechazada o sin red: ' + err.message, '#fca5a5');
-  } finally {
-    btn.disabled = false; btn.textContent = 'Probar';
-  }
+    const res = await GeokatuDB.PirobonianosService.recargarCreditosAdmin({ emailDestino: email, creditos: cant, motivo: 'Recarga manual Superadmin' });
+    if (!res.success) throw new Error(res.error || 'Fallo acreditando');
+    document.getElementById('sh-rec-email').value = '';
+    await this.sincronizarBovedaNube(false);
+    setStatusVault('reventa', 'OK · Nuevo saldo de ' + email + ': ' + res.saldo_creditos + ' cr.', '#86efac');
+  } catch (err) { setStatusVault('reventa', 'Error: ' + err.message, '#fca5a5'); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = 'Acreditar Créditos'; } }
 };
 
 // Botón Atrás de Android
@@ -1197,7 +1238,8 @@ GeokatuDB.SecurityService.observarEstadoSesion(async function(user) {
         pVer.style.display = 'none';
         gate.style.display = 'none';
         shell.classList.add('listo');
-                        await cargarProyectosStudio();
+                                await cargarProyectosStudio();
+        window.PiroShell.sincronizarBovedaNube(false);
         asegurarFrame('contenido');
         setTimeout(function() { asegurarFrame('tickets'); }, 500);
         let vistaRestaurada = 'resumen';
