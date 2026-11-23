@@ -327,7 +327,7 @@
     <div id="gia-key-box" class="hidden" style="margin-bottom:8px; padding:8px; border-radius:9px; border:1px solid rgba(245,158,11,0.45); background:rgba(245,158,11,0.08);">
       <div style="font-size:10.5px; font-weight:800; color:#fcd34d; margin-bottom:4px;">Conecta tu API Key de Gemini (se comparte con Editor)</div>
       <div style="display:flex; gap:6px;">
-                <input id="gia-api-key-inp" type="password" autocomplete="off" spellcheck="false" class="inp" placeholder="AIza...">
+        <input id="gia-api-key-inp" type="password" autocomplete="off" spellcheck="false" class="inp" placeholder="AIza...">
         <button type="button" class="btn btn-xs btn-primary" onclick="window.guardarKeyGeminiRapida()">Guardar</button>
       </div>
     </div>
@@ -343,10 +343,18 @@
       <input type="checkbox" id="gia-usar-estilo-ejemplo" checked style="accent-color:var(--naranja);">
       <span id="gia-estilo-ref-txt">Adjuntar a Fernando como ejemplo exacto de estilo visual</span>
     </label>
+    <div id="gia-var-base-wrap" class="hidden" style="margin-bottom:8px;">
+      <label class="field" style="margin:0;"><label>Calco base para esta variante</label>
+        <select id="gia-var-base-sel" class="sel" onchange="window.alCambiarBaseVarianteGIA(this.value)">
+          <option value="look">Look Oficial 1:1 (conserva rostro/ropa actual y suma encima)</option>
+          <option value="maniqui">Maniquí Base 1:1 (molde limpio sin ropa anterior)</option>
+        </select>
+      </label>
+    </div>
     <div class="field" style="margin-bottom:8px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
         <label style="margin:0;">Instrucción (Prompt exacto para Gemini)</label>
-                <div style="display:flex; align-items:center; gap:6px;"><span id="gia-modelo-badge" style="font-size:10px; font-family:monospace; color:var(--azul);">gemini-2.5-flash-image</span><button type="button" class="btn btn-xs" onclick="window.abrirBovedaApisDesdeContenido()">APIs</button></div>
+        <div style="display:flex; align-items:center; gap:6px;"><span id="gia-modelo-badge" style="font-size:10px; font-family:monospace; color:var(--azul);">gemini-2.5-flash-image</span><button type="button" class="btn btn-xs" onclick="window.abrirBovedaApisDesdeContenido()">APIs</button></div>
       </div>
       <textarea id="gia-prompt" class="inp" rows="4" style="font-size:11px; line-height:1.38;"></textarea>
     </div>
@@ -419,7 +427,7 @@ function actualizarBadgeProy() { const b = document.getElementById('badge-proy-c
 
 const SLOTS_BASICOS_PERSONAJE = [
   { key: 'maestro_cuerpo', grupo: 'base', titulo: 'Cuerpo Entero Maestro', preset: 'per_ref', archivo: 'maestro_vest_01', dim: '1000×1600', desc: 'De pie mirando a la derecha, base de referencia.' },
-  { key: 'maestro_perfil', grupo: 'base', titulo: 'Busto / Perfil Maestro', preset: 'per_ref', archivo: 'maestro_perfil', dim: '1000×1600', desc: 'Primer plano de pecho arriba para expresiones.' },
+  { key: 'maestro_perfil', grupo: 'base', titulo: 'Look Oficial 1:1 (Identidad)', preset: 'per_ref', archivo: 'maestro_perfil', dim: '1000×1600', desc: 'Identidad, rostro y ropa oficial sobre calco 1:1.' },
   { key: 'cabeza_base', grupo: 'base', titulo: 'Cabeza Sin Rostro', preset: 'per_cabeza', archivo: 'base', dim: '1000×1600', desc: 'Cabeza, orejas y hocico SIN ojos ni boca.' },
   { key: 'cuerpo_base', grupo: 'base', titulo: 'Cuerpo / Vestuario 01', preset: 'per_cuerpo', archivo: 'vest_01', dim: '1000×1600', desc: 'Torso y ropa base SIN cabeza ni brazos.' },
   { key: 'ojos_neutro', grupo: 'ojos', titulo: 'Ojos: Neutro', preset: 'per_ojos', archivo: 'neutro', dim: '1000×1600', desc: 'Mirada relajada estándar.' },
@@ -656,54 +664,87 @@ function guardarBiblioteca(inmediato) {
 // =========================================================================
 // MOTOR DE PROMPTS UNIFICADO + CAPACIDADES
 // =========================================================================
-function generarPromptPersonaje(p, tipo, specObj) {
+function tipoROIParaSlot(tipo, specObj) {
+  const k = String(tipo || '');
+  if (k === 'cabeza_base') return 'cabeza';
+  if (k.indexOf('ojos') === 0 || k.indexOf('boca') === 0) return 'rostro';
+  if (specObj && (specObj.preset === 'per_ojos' || specObj.preset === 'per_boca')) return 'rostro';
+  if (specObj && specObj.preset === 'per_cabeza') return 'cabeza';
+  return 'cuerpo';
+}
+
+function generarPromptPersonaje(p, tipo, specObj, baseOverride) {
   const baseStyle = proyectoActivo.estilo_visual || 'A 2D cartoon animation character, BoJack Horseman style, clean black ink outlines, flat vibrant colors.';
   const prefId = proyectoActivo.plantilla === 'scifi_hibrido' ? ('Character profile: ' + (p.raza || 'human sci-fi character')) : ('Anthropomorphic ' + (p.raza || 'dog') + ' character');
   const identidad = prefId + '. Physique: ' + (p.contextura || 'adult stylized') + '. Features: ' + (p.pelaje_rasgos || 'distinctive look') + '.';
   const ropa = 'Wearing: ' + (p.vestuario_base || 'casual clothes') + '.';
-  const lock = 'PIXEL-LOCK IN-PLACE EDIT: Preserve the EXACT 1000x1600 canvas framing, silhouette, scale, head position, and three-quarter angle facing RIGHT of the attached reference image. DO NOT zoom, crop, shift, rescale, or change the pose. Background MUST stay completely flat solid chroma green (#00FF00) with zero shadows or gradients. ';
+  const lockClose = 'IN-PLACE CLOSE-UP LAYER ISOLATION: Keep the exact scale, framing, position, and three-quarter angle facing RIGHT of the attached close-up image. DO NOT zoom, crop, shift, or rescale. Background MUST be flat solid chroma green (#00FF00) with zero shadows. ';
+  const lockBody = 'IN-PLACE BODY LAYER ISOLATION: Keep the exact scale, pose, position, and three-quarter angle facing RIGHT of the attached character image. DO NOT zoom, crop, shift, or rescale. Background MUST be flat solid chroma green (#00FF00) with zero shadows. ';
 
   if (tipo === 'cuerpo_completo' || tipo === 'maestro_cuerpo') {
-    return baseStyle + ' Full-body clean anatomical mannequin base of ' + identidad + ' Showing completely from head to toe, facing three-quarters to the RIGHT. Pose: ' + (p.pose_iconica || 'standing neutral') + '. Leave face blank without eyes, eyebrows, or mouth (keep ears, hair, nose and base fur/skin markings) and NO clothing so this mannequin serves as a clean 2D puppet mold for interchangeable outfits and accessories. Isolated on completely flat solid chroma green (#00FF00) with zero shadows.';
+    return baseStyle + ' Full-body clean anatomical mannequin base of ' + identidad + ' Showing completely from head to toe, facing three-quarters to the RIGHT. Pose: ' + (p.pose_iconica || 'standing neutral') + '. Leave face blank without eyes, eyebrows, or mouth (keep ears, hair, nose and base fur/skin markings) and NO clothing so this mannequin serves as a clean 2D puppet mold. Isolated on completely flat solid chroma green (#00FF00) with zero shadows.';
   }
   if (tipo === 'maestro_perfil') {
-    return lock + 'Dress this exact mannequin in its official base outfit (' + (p.vestuario_base || 'casual outfit') + ') and draw a neutral calm facial expression (eyes, eyebrows and closed mouth) matching its exact style (' + baseStyle + '). Keep every limb and proportion aligned 1:1 with the reference image.';
+    return 'Using the first attached image (character mannequin on #00FF00) as strict position/scale mold and the second attached photo (real human person) as identity reference: transfer the person\'s real facial features, exact eye shape (including slanted/monolid or distinctive eyes if present), eyebrows, nose, hairstyle, facial hair, and calm neutral expression into this exact 2D art style (' + baseStyle + '). Dress the character on the exact mannequin silhouette (' + identidad + ' ' + ropa + ') over flat solid chroma green (#00FF00) with zero shadows. Do not zoom, crop, or change pose.';
   }
   if (tipo === 'cabeza_base') {
-    return lock + 'Keep ONLY the character head, ears, hair, fur markings, nose and jawline in its exact pixel position. REMOVE the eyes, eyebrows, mouth, neck, body, arms and legs completely, replacing the face area cleanly with matching fur and filling everything outside the head with solid chroma green (#00FF00).';
+    return lockClose + 'Output ONLY the isolated character head (ears, hair, fur markings, nose, jawline/beard) with a blank clean face: REMOVE the eyes, eyebrows, and mouth smoothly filling the face with matching fur, and REMOVE the shirt, collar, chain, shoulders, and body below the neck so ONLY the clean floating head remains over solid chroma green (#00FF00). Keep exact art style (' + baseStyle + ').';
   }
   if (tipo === 'cuerpo_base') {
-    return lock + 'Draw ONLY the torso and legs dressed in the base outfit (' + (p.vestuario_base || 'base outfit') + ') fitted precisely onto this exact body silhouette. REMOVE the head and BOTH arms completely, cleanly closing the collar and shoulder openings with black ink outlines, and fill everything else with solid chroma green (#00FF00).';
+    return lockBody + 'Output ONLY the torso and legs dressed in the official outfit (' + (p.vestuario_base || 'base outfit') + ') fitted precisely onto this exact silhouette. REMOVE the head, neck above the collar, and BOTH arms completely, cleanly closing the collar and sleeve openings with black ink outlines, filling everything removed with solid chroma green (#00FF00). Match exact art style (' + baseStyle + ').';
   }
   if (tipo.indexOf('ojos') === 0) {
     const emo = tipo === 'ojos' ? 'NEUTRAL' : tipo.replace('ojos_', '').toUpperCase();
-    return lock + 'Keep ONLY the eyes and eyebrows drawn in the exact face coordinates with expression: ' + emo + ' (' + baseStyle + '). REMOVE the entire head, fur, ears, nose, mouth, neck and body completely, leaving ONLY the floating eyes and eyebrows in their exact position over solid chroma green (#00FF00).';
+    return lockClose + 'Draw ONLY the character\'s eyes and eyebrows in their exact face coordinates with expression: ' + emo + ', faithfully preserving the character\'s natural eye shape, slant, and 2D ink style (' + baseStyle + '). REMOVE the head, fur, ears, hair, nose, mouth, beard, and shoulders completely so ONLY the floating eyes and eyebrows remain over solid chroma green (#00FF00).';
   }
   if (tipo.indexOf('boca') === 0) {
     const moc = tipo === 'bocas' ? 'CLOSED' : tipo.replace('boca_', '').toUpperCase();
-    return lock + 'Keep ONLY the mouth/lips drawn in the exact muzzle coordinates with shape: ' + moc + ' (' + baseStyle + '). REMOVE the entire head, eyes, nose, ears, beard, neck and body completely, leaving ONLY the floating mouth in their exact position over solid chroma green (#00FF00).';
+    return lockClose + 'Draw ONLY the character\'s mouth/lips in its exact muzzle coordinates with lip-sync shape: ' + moc + ' (' + baseStyle + '). REMOVE the head, fur, eyes, eyebrows, nose, ears, beard, and shoulders completely so ONLY the floating mouth remains over solid chroma green (#00FF00).';
   }
   if (tipo.indexOf('brazo') === 0 || tipo.indexOf('pierna') === 0) {
     const parte = tipo.replace(/_/g, ' ');
-    return lock + 'Keep ONLY the isolated limb (' + parte + ') in its exact pixel coordinates, matching the character markings and sleeve/pant (' + (p.vestuario_base || 'base outfit') + '), with a cleanly rounded shoulder/hip joint cap. REMOVE the rest of the body and head completely over solid chroma green (#00FF00).';
+    return lockBody + 'Output ONLY the isolated limb (' + parte + ') in its exact pixel coordinates, matching the character markings and sleeve/pant (' + (p.vestuario_base || 'base outfit') + '), with a cleanly rounded shoulder/hip joint cap. REMOVE the head, torso, and all other limbs completely over solid chroma green (#00FF00). Match exact art style (' + baseStyle + ').';
   }
   const descVar = (specObj && (specObj.titulo || specObj.nota)) ? (String(specObj.titulo || '') + (specObj.nota ? (' — ' + specObj.nota) : '')) : tipo;
-  const presetVar = (specObj && specObj.preset) ? specObj.preset : 'per_cuerpo';
-  const modoAislado = presetVar === 'per_cabeza' ? 'Draw ONLY this custom head/facial accessory (such as beard, hair, hat, glasses or scars) fitted precisely onto the head coordinates, and REMOVE the rest of the body over solid chroma green (#00FF00).' : (presetVar === 'per_cuerpo' ? 'Draw ONLY this custom outfit/torso+legs fitted precisely onto the body silhouette, removing head and arms over solid chroma green (#00FF00).' : 'Draw ONLY this custom piece fitted precisely in its exact anatomical coordinates, removing all other body parts over solid chroma green (#00FF00).');
-  return lock + 'Create the custom puppet layer: "' + descVar + '". ' + modoAislado + ' Match exact art direction: ' + baseStyle;
+  const roiT = tipoROIParaSlot(tipo, specObj);
+  if (roiT === 'cabeza' || roiT === 'rostro') {
+    return lockClose + 'Output ONLY the custom facial/head accessory layer "' + descVar + '" fitted precisely onto the head coordinates (match exact 2D ink outlines and flat colors: ' + baseStyle + '). REMOVE the rest of the head, body, and clothing so ONLY this isolated layer remains over solid chroma green (#00FF00).';
+  }
+  return lockBody + 'Output ONLY the custom outfit/body layer "' + descVar + '" fitted precisely onto the body silhouette (match exact 2D ink outlines and flat colors: ' + baseStyle + '). REMOVE the head and arms (or untouched body parts) over solid chroma green (#00FF00).';
 }
 
-function obtenerRefParaPrompt(p, tipo) {
+function obtenerRefParaPrompt(p, tipo, baseOverride) {
   const pz = (p && p.piezas) ? p.piezas : {};
+  const urlManiqui = (pz.maestro_cuerpo && pz.maestro_cuerpo.url) || null;
+  const urlLook = (pz.maestro_perfil && pz.maestro_perfil.url) || null;
+
   if (tipo === 'cuerpo_completo' || tipo === 'maestro_cuerpo') {
-    return { label: 'Molde Base: sube tu maniquí limpio o tu foto en "Foto Local"', url: (pz.maestro_cuerpo && pz.maestro_cuerpo.url) || null, archivo: (p.id || 'per') + '_maestro.png' };
+    return {
+      label: 'Molde Base: sube tu maniquí o foto en "Foto Local"',
+      url: urlManiqui,
+      archivo: (p.id || 'per') + '_maniqui_base.png'
+    };
   }
-  if (tipo.indexOf('ojos') === 0 || tipo.indexOf('boca') === 0) {
-    const reg = (pz.maestro_perfil && pz.maestro_perfil.url) ? pz.maestro_perfil : (pz.maestro_cuerpo || null);
-    return { label: 'Calco Facial 1:1 (Look Oficial con rostro)', url: reg && reg.url ? reg.url : null, archivo: (p.id || 'per') + '_look_oficial.png' };
+  if (tipo === 'maestro_perfil') {
+    return {
+      label: 'Calco Maniquí 1:1 + Foto Humana (rasgos reales)',
+      url: urlManiqui,
+      archivo: (p.id || 'per') + '_look_oficial.png'
+    };
   }
-  const regC = pz.maestro_cuerpo || pz.maestro_perfil || null;
-  return { label: 'Calco Maniquí 1:1 (Molde Anatómico Base)', url: regC && regC.url ? regC.url : null, archivo: (p.id || 'per') + '_maniqui_base.png' };
+  if (baseOverride === 'maniqui') {
+    return {
+      label: 'Calco Maniquí 1:1 (molde limpio sin ropa previa)',
+      url: urlManiqui || urlLook,
+      archivo: (p.id || 'per') + '_maniqui_base.png'
+    };
+  }
+  const refPrimaria = urlLook || urlManiqui;
+  return {
+    label: urlLook ? 'Calco Look Oficial 1:1 (identidad y proporciones)' : 'Calco Maniquí 1:1 (sube Look Oficial para rasgos)',
+    url: refPrimaria,
+    archivo: (p.id || 'per') + '_look_oficial.png'
+  };
 }
 
 function calcularProgresoPersonaje(p) {
@@ -716,7 +757,7 @@ function calcularProgresoPersonaje(p) {
   const tiene = function(k) { return Boolean(piezas[k] && piezas[k].url); };
   const tieneOjos = ['ojos_neutro','ojos_feliz','ojos_enojado','ojos_triste','ojos_duda','ojos_indignado'].some(tiene);
   const tieneHabla = tiene('boca_cerrada') && tiene('boca_media') && tiene('boca_abierta');
-  let capacidad = 'Paso 1: sube Cuerpo o Busto Maestro';
+  let capacidad = 'Paso 1: sube Maniquí Base o Look Oficial';
   if (tiene('cabeza_base') && tieneOjos && tieneHabla && tiene('cuerpo_base') && tiene('brazo_delantero_prop')) capacidad = 'Listo para escena completa + props';
   else if (tiene('cabeza_base') && tieneOjos && tieneHabla) capacidad = 'Listo para primer plano hablando';
   else if (tiene('cabeza_base') && tieneOjos && (tiene('boca_cerrada') || tiene('boca_sonrisa'))) capacidad = 'Listo para reacción (faltan 3 bocas)';
@@ -962,7 +1003,7 @@ function renderizarVistaPersonajes() {
           '<div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">' +
             '<select class="sel" style="flex:1;" onchange="window.cambiarTipoPromptVista(this.value)">' +
               '<option value="cuerpo_completo"' + (tipoPromptVista === 'cuerpo_completo' ? ' selected' : '') + '>1. Cuerpo Completo Maestro</option>' +
-              '<option value="maestro_perfil"' + (tipoPromptVista === 'maestro_perfil' ? ' selected' : '') + '>2. Busto / Perfil Maestro</option>' +
+              '<option value="maestro_perfil"' + (tipoPromptVista === 'maestro_perfil' ? ' selected' : '') + '>2. Look Oficial 1:1 (Identidad)</option>' +
               '<option value="cabeza_base"' + (tipoPromptVista === 'cabeza_base' ? ' selected' : '') + '>3. Cabeza Limpia</option>' +
               '<option value="cuerpo_base"' + (tipoPromptVista === 'cuerpo_base' ? ' selected' : '') + '>4. Cuerpo / Ropa</option>' +
               '<option value="ojos"' + (tipoPromptVista === 'ojos' ? ' selected' : '') + '>5. Lámina 6 Ojos</option>' +
@@ -1091,6 +1132,9 @@ function construirSlideSlot(personaje, spec, datoGuardado) {
       '<div style="font-size:10.5px; color:var(--muted);">' + esc(spec.desc) + '</div>' +
     '</div>' +
     '<div class="slot-actions">' +
+      (spec.key !== 'maestro_cuerpo' && spec.key !== 'maestro_perfil'
+        ? '<button type="button" class="btn btn-xs btn-green" style="grid-column:1 / -1;" onclick="window.extraerDesdeBaseEstudio(\'' + esc(spec.key) + '\',' + (spec.esVariante ? 'true' : 'false') + ')">Extraer de Base ($0 · Sombra Verde)</button>'
+        : '') +
       '<button type="button" class="btn btn-xs btn-purple" onclick="window.abrirGeneradorIASlot(\'personaje\',\'' + esc(spec.key) + '\',' + (spec.esVariante ? 'true' : 'false') + ')">Generar IA</button>' +
       '<button type="button" class="btn btn-xs btn-primary" onclick="window.iniciarSubidaSlotPersonaje(\'' + esc(spec.key) + '\',' + (spec.esVariante ? 'true' : 'false') + ')">' + (tieneImg ? 'Reemplazar' : 'Subir / Estudio') + '</button>' +
       '<div class="slot-actions-sub">' +
@@ -1144,6 +1188,49 @@ window.copiarPromptSlot = function(slotKey) {
   navigator.clipboard.writeText(generarPromptPersonaje(p, slotKey)).then(function() { toast('Prompt de "' + slotKey + '" copiado.', 'exito'); });
 };
 
+window.extraerDesdeBaseEstudio = async function(slotKey, esVariante) {
+  const p = obtenerPersonajeActual();
+  if (!p) return;
+  if (window.self === window.top) { toast('Abre este módulo desde piro-shell.html para usar Estudio PNG.', 'info'); return; }
+  const spec = esVariante
+    ? (p.variantes || []).find(function(v) { return v.id === slotKey; })
+    : SLOTS_BASICOS_PERSONAJE.find(function(s) { return s.key === slotKey; });
+  if (!spec) return;
+
+  const pz = p.piezas || {};
+  const urlManiqui = (pz.maestro_cuerpo && pz.maestro_cuerpo.url) || null;
+  const urlLook = (pz.maestro_perfil && pz.maestro_perfil.url) || null;
+  // Para Cabeza Sin Rostro prioriza el Maniquí Base (que ya viene sin ojos ni boca); para el resto prioriza el Look Oficial
+  const urlFuente = slotKey === 'cabeza_base' ? (urlManiqui || urlLook) : (urlLook || urlManiqui);
+  if (!urlFuente) {
+    toast('Sube primero tu Maniquí Base o Look Oficial en la pestaña Base.', 'error');
+    return;
+  }
+
+  toast('Cargando base en Estudio PNG ($0)...', 'info');
+  let dataUrlEnviar = urlFuente;
+  try {
+    dataUrlEnviar = await urlADataUrlSeguro(urlFuente);
+  } catch (eCors) {
+    // Si CORS impide fetch, intentamos pasar la URL directa (Estudio PNG carga con crossOrigin='anonymous')
+    dataUrlEnviar = urlFuente;
+  }
+
+  const slotMeta = {
+    tipo: 'personaje', entidadId: p.id, slotKey: slotKey, esVariante: Boolean(esVariante),
+    presetId: spec.preset || 'per_cuerpo', archivoNombre: spec.archivo || slotKey,
+    etiqueta: p.nombre + ' · ' + (spec.titulo || slotKey) + ' ($0)',
+    calcoUrl: obtenerCalcoInteligente(p, slotKey), pivotesIniciales: parsearPivotesPersonaje(p)
+  };
+  window.parent.postMessage({
+    tipo: 'PIRO_IR_A_ESTUDIO', origen: 'contenido', etiqueta: slotMeta.etiqueta,
+    presetId: slotMeta.presetId, entidadId: slotMeta.entidadId, zonaId: 'zona_01',
+    archivoNombre: slotMeta.archivoNombre, dataUrl: dataUrlEnviar,
+    calcoUrl: slotMeta.calcoUrl || null, pivotesIniciales: slotMeta.pivotesIniciales || null,
+    modoCalco1a1: true, slotMeta: slotMeta
+  }, '*');
+};
+
 window.iniciarSubidaSlotPersonaje = function(slotKey, esVariante) {
   const p = obtenerPersonajeActual();
   if (!p) return;
@@ -1187,7 +1274,8 @@ window.manejarArchivoSlotSeleccionado = async function(file) {
         tipo: 'PIRO_IR_A_ESTUDIO', origen: 'contenido', etiqueta: meta.etiqueta,
         presetId: meta.presetId, entidadId: meta.entidadId, zonaId: meta.zonaId || 'zona_01',
         archivoNombre: meta.archivoNombre, dataUrl: ev.target.result,
-        calcoUrl: meta.calcoUrl || null, pivotesIniciales: meta.pivotesIniciales || null, slotMeta: meta
+        calcoUrl: meta.calcoUrl || null, pivotesIniciales: meta.pivotesIniciales || null,
+        modoCalco1a1: Boolean(meta.tipo === 'personaje' && meta.slotKey !== 'maestro_cuerpo'), slotMeta: meta
       }, '*');
     };
     reader.readAsDataURL(file);
@@ -1203,10 +1291,12 @@ function parsearPivotesPersonaje(p) {
 
 function obtenerCalcoInteligente(p, slotKey) {
   if (!p || !p.piezas) return null;
-  if (String(slotKey || '').indexOf('ojos_') === 0 || String(slotKey || '').indexOf('boca_') === 0) {
+  const k = String(slotKey || '');
+  if (k === 'maestro_perfil') return (p.piezas.maestro_cuerpo && p.piezas.maestro_cuerpo.url) || null;
+  if (k.indexOf('ojos_') === 0 || k.indexOf('boca_') === 0) {
     return (p.piezas.cabeza_base && p.piezas.cabeza_base.url) || (p.piezas.maestro_perfil && p.piezas.maestro_perfil.url) || (p.piezas.maestro_cuerpo && p.piezas.maestro_cuerpo.url) || null;
   }
-  return (p.piezas.maestro_cuerpo && p.piezas.maestro_cuerpo.url) || null;
+  return (p.piezas.maestro_perfil && p.piezas.maestro_perfil.url) || (p.piezas.maestro_cuerpo && p.piezas.maestro_cuerpo.url) || null;
 }
 
 window.actualizarSandwich = function(campo, val) {
@@ -1835,27 +1925,28 @@ window.abrirGeneradorIASlot = function(tipo, idOKey, esVariante, campoExtra) {
       ? (p.variantes || []).find(function(v) { return v.id === idOKey; })
       : SLOTS_BASICOS_PERSONAJE.find(function(s) { return s.key === idOKey; });
     if (!spec) return;
+    const baseSel = esVariante ? 'look' : null;
     titulo = p.nombre + ' · ' + (spec.titulo || idOKey);
-        prompt = generarPromptPersonaje(p, idOKey, spec);
-    const refObj = obtenerRefParaPrompt(p, idOKey);
+    prompt = generarPromptPersonaje(p, idOKey, spec, baseSel);
+    const refObj = obtenerRefParaPrompt(p, idOKey, baseSel);
     refUrl = refObj.url || null;
     refLabel = refObj.label || 'Referencia del personaje';
 
-    // Si es el cuerpo maestro de un personaje nuevo, ofrecer a Fernando (o 1er personaje con maestro) como ejemplo exacto de estilo
-    if (idOKey === 'maestro_cuerpo') {
+    if (idOKey === 'maestro_cuerpo' || idOKey === 'maestro_perfil') {
       const ejemplo = (biblioteca.personajes || []).find(function(otro) {
-        return otro.id !== p.id && otro.piezas && otro.piezas.maestro_cuerpo && otro.piezas.maestro_cuerpo.url;
+        return otro.id !== p.id && otro.piezas && ((otro.piezas.maestro_perfil && otro.piezas.maestro_perfil.url) || (otro.piezas.maestro_cuerpo && otro.piezas.maestro_cuerpo.url));
       });
       if (ejemplo) {
-        estiloEjemploUrl = ejemplo.piezas.maestro_cuerpo.url;
+        estiloEjemploUrl = (ejemplo.piezas.maestro_perfil && ejemplo.piezas.maestro_perfil.url) || ejemplo.piezas.maestro_cuerpo.url;
         estiloEjemploNombre = ejemplo.nombre;
       }
-      if (!refUrl) refLabel = 'Opcional: sube tu selfie/foto en "Foto Local"';
+      if (idOKey === 'maestro_cuerpo' && !refUrl) refLabel = 'Opcional: sube tu maniquí o foto en "Foto Local"';
+      if (idOKey === 'maestro_perfil') refLabel = refUrl ? 'Maniquí 1:1 listo · adjunta tu foto real en "Foto Local"' : 'Sube tu foto real en "Foto Local"';
     }
 
     slotMeta = {
       tipo: 'personaje', entidadId: p.id, slotKey: idOKey, esVariante: Boolean(esVariante),
-      presetId: spec.preset || 'per_cuerpo', archivoNombre: spec.archivo || idOKey,
+      specRef: spec, presetId: spec.preset || 'per_cuerpo', archivoNombre: spec.archivo || idOKey,
       etiqueta: p.nombre + ' · ' + (spec.titulo || idOKey),
       calcoUrl: obtenerCalcoInteligente(p, idOKey), pivotesIniciales: parsearPivotesPersonaje(p)
     };
@@ -1907,8 +1998,26 @@ window.abrirGeneradorIASlot = function(tipo, idOKey, esVariante, campoExtra) {
   } else {
     wrapEst.classList.add('hidden');
   }
+  const varWrap = document.getElementById('gia-var-base-wrap');
+  const esVarModal = Boolean(tipo === 'personaje' && slotMeta && slotMeta.esVariante);
+  if (varWrap) {
+    varWrap.classList.toggle('hidden', !esVarModal);
+    if (esVarModal) document.getElementById('gia-var-base-sel').value = 'look';
+  }
   actualizarRefUIEnModalGIA();
   document.getElementById('modal-gen-ia-pieza').classList.add('open');
+};
+
+window.alCambiarBaseVarianteGIA = function(baseVal) {
+  if (!giaCtx || !giaCtx.slotMeta) return;
+  const p = obtenerPersonajeActual();
+  if (!p) return;
+  const refObj = obtenerRefParaPrompt(p, giaCtx.slotMeta.slotKey, baseVal);
+  giaCtx.refUrl = refObj.url || null;
+  giaCtx.refLabel = refObj.label || 'Referencia del personaje';
+  giaCtx.prompt = generarPromptPersonaje(p, giaCtx.slotMeta.slotKey, giaCtx.slotMeta.specRef, baseVal);
+  document.getElementById('gia-prompt').value = giaCtx.prompt;
+  actualizarRefUIEnModalGIA();
 };
 
 window.abrirBovedaApisDesdeContenido = function() {
@@ -1923,41 +2032,167 @@ window.cerrarModalGenIA = function() {
   document.getElementById('modal-gen-ia-pieza').classList.remove('open');
 };
 
-function aplanarSobreVerdeBase64(dataUrl, targetW, targetH) {
+function cargarImgPromise(src) {
   return new Promise(function(resolve, reject) {
     const im = new Image();
-    im.onload = function() {
-      const w = targetW || im.width || 1000;
-      const h = targetH || im.height || 1600;
-      const cv = document.createElement('canvas');
-      cv.width = w; cv.height = h;
-      const ctx = cv.getContext('2d');
-      ctx.fillStyle = '#00FF00';
-      ctx.fillRect(0, 0, w, h);
-      const sc = Math.min(w / im.width, h / im.height);
-      const dw = im.width * sc, dh = im.height * sc;
-      ctx.drawImage(im, (w - dw) / 2, (h - dh) / 2, dw, dh);
-      const out = cv.toDataURL('image/png');
-      const m = out.match(/^data:([^;]+);base64,(.+)$/);
-      if (!m) { reject(new Error('Error aplanando sobre verde')); return; }
-      resolve({ mime: 'image/png', data: m[2] });
-    };
-    im.onerror = function() { reject(new Error('No se pudo leer la imagen de referencia')); };
-    im.src = dataUrl;
+    im.onload = function() { resolve(im); };
+    im.onerror = function() { reject(new Error('No se pudo cargar imagen de referencia')); };
+    im.src = src;
   });
 }
 
-async function urlABase64Seguro(url, aplanarVerde, wObj, hObj) {
+function detectarBBoxAlfa(ctx, w, h) {
+  const d = ctx.getImageData(0, 0, w, h).data;
+  let minX = w, minY = h, maxX = 0, maxY = 0, hayTransp = false;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const a = d[(y * w + x) * 4 + 3];
+      if (a < 245) hayTransp = true;
+      if (a > 24) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (!hayTransp || maxX <= minX || maxY <= minY) return { minX: 0, minY: 0, maxX: w - 1, maxY: h - 1, headCx: w / 2 };
+  // Centro horizontal real de la cabeza (top 26% del personaje)
+  const yTopLim = Math.min(maxY, minY + Math.round((maxY - minY) * 0.26));
+  let hMinX = w, hMaxX = 0;
+  for (let y = minY; y <= yTopLim; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      if (d[(y * w + x) * 4 + 3] > 24) {
+        if (x < hMinX) hMinX = x;
+        if (x > hMaxX) hMaxX = x;
+      }
+    }
+  }
+  const headCx = hMaxX > hMinX ? (hMinX + hMaxX) / 2 : (minX + maxX) / 2;
+  return { minX: minX, minY: minY, maxX: maxX, maxY: maxY, headCx: headCx };
+}
+
+/**
+ * Extrae una zona de interés (ROI) sobre fondo blanco limpio (#FFFFFF) desde el lienzo 1000x1600
+ * y devuelve { mime, data, roi: { rx, ry, rw, rh, outW, outH, modo } } para re-inyectar 1:1 después.
+ */
+/**
+ * Extrae una zona de interés (ROI) sobre verde croma (#00FF00) desde el lienzo 1000x1600.
+ * El verde croma nunca existe en el pelaje blanco del dálmata ni en la ropa rosa/oscura,
+ * y el recorte cercano garantiza que la pieza ocupe la mayor parte del cuadro.
+ */
+async function extraerROISobreCromaBase64(dataUrl, modoROI) {
+  const im = await cargarImgPromise(dataUrl);
+  const W = 1000, H = 1600;
+  const cvFull = document.createElement('canvas');
+  cvFull.width = W; cvFull.height = H;
+  const ctxFull = cvFull.getContext('2d', { willReadFrequently: true });
+  const sc = Math.min(W / im.width, H / im.height);
+  const dw = im.width * sc, dh = im.height * sc;
+  ctxFull.drawImage(im, (W - dw) / 2, (H - dh) / 2, dw, dh);
+
+  const bb = detectarBBoxAlfa(ctxFull, W, H);
+  const cw = Math.max(120, bb.maxX - bb.minX + 1);
+  const ch = Math.max(200, bb.maxY - bb.minY + 1);
+
+  let rx = 0, ry = 0, rw = W, rh = H, outW = 768, outH = 768;
+  if (modoROI === 'rostro' || modoROI === 'cabeza') {
+    const factor = modoROI === 'rostro' ? 0.25 : 0.27;
+    const lado = Math.min(W, Math.max(240, Math.round(ch * factor)));
+    rw = lado; rh = lado;
+    rx = Math.max(0, Math.min(W - rw, Math.round(bb.headCx - rw / 2)));
+    ry = Math.max(0, Math.min(H - rh, Math.round(bb.minY - rh * 0.10)));
+    outW = 768; outH = 768;
+  } else {
+    rh = Math.min(H, Math.max(600, Math.round(ch * 1.14)));
+    rw = Math.min(W, Math.max(Math.round(cw * 1.30), Math.round(rh * 2 / 3)));
+    if (Math.round(rw * 1.5) <= H) rh = Math.round(rw * 1.5);
+    const bodyCx = (bb.minX + bb.maxX) / 2;
+    const bodyCy = (bb.minY + bb.maxY) / 2;
+    rx = Math.max(0, Math.min(W - rw, Math.round(bodyCx - rw / 2)));
+    ry = Math.max(0, Math.min(H - rh, Math.round(bodyCy - rh / 2)));
+    outW = 640; outH = Math.round(outW * (rh / rw));
+  }
+
+  const cvOut = document.createElement('canvas');
+  cvOut.width = outW; cvOut.height = outH;
+  const ctxOut = cvOut.getContext('2d');
+  ctxOut.fillStyle = '#00FF00';
+  ctxOut.fillRect(0, 0, outW, outH);
+  ctxOut.drawImage(cvFull, rx, ry, rw, rh, 0, 0, outW, outH);
+
+  const outDataUrl = cvOut.toDataURL('image/png');
+  const m = outDataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!m) throw new Error('Error generando recorte ROI');
+  return { mime: 'image/png', data: m[2], roi: { rx: rx, ry: ry, rw: rw, rh: rh, outW: outW, outH: outH, modo: modoROI } };
+}
+
+/**
+ * Elimina el fondo verde croma (#00FF00) con despill anti-halo sin tocar pelaje blanco ni líneas negras,
+ * verifica que no haya quedado un lienzo vacío y pega el resultado 1:1 en 1000x1600.
+ */
+async function reinyectarROIEnLienzo1000x1600(dataUrlGen, roi) {
+  const im = await cargarImgPromise(dataUrlGen);
+  const cvPatch = document.createElement('canvas');
+  cvPatch.width = roi.rw; cvPatch.height = roi.rh;
+  const ctxP = cvPatch.getContext('2d', { willReadFrequently: true });
+  const sc = Math.min(roi.rw / im.width, roi.rh / im.height);
+  const dw = im.width * sc, dh = im.height * sc;
+  ctxP.fillStyle = '#00FF00';
+  ctxP.fillRect(0, 0, roi.rw, roi.rh);
+  ctxP.drawImage(im, (roi.rw - dw) / 2, (roi.rh - dh) / 2, dw, dh);
+
+  const imgData = ctxP.getImageData(0, 0, roi.rw, roi.rh);
+  const d = imgData.data;
+  const totalPx = roi.rw * roi.rh;
+  let visibles = 0;
+
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], g = d[i + 1], b = d[i + 2];
+    const maxRB = r > b ? r : b;
+    const excesoG = g - maxRB;
+    if (g > 95 && excesoG > 42) {
+      d[i + 3] = 0;
+    } else if (g > 75 && excesoG > 18) {
+      // Anti-halo verde suave en bordes
+      const nuevoG = maxRB;
+      d[i + 1] = nuevoG;
+      if (excesoG > 30) d[i + 3] = Math.round(d[i + 3] * 0.45);
+      if (d[i + 3] > 25) visibles++;
+    } else if (d[i + 3] > 25) {
+      visibles++;
+    }
+  }
+
+  const ratioVis = visibles / Math.max(1, totalPx);
+  if (ratioVis < 0.0025) {
+    throw new Error('Gemini devolvió un lienzo vacío (todo verde). Pulsa "Reintentar" o usa "Extraer de Base ($0)".');
+  }
+
+  ctxP.putImageData(imgData, 0, 0);
+
+  const cvFinal = document.createElement('canvas');
+  cvFinal.width = 1000; cvFinal.height = 1600;
+  const ctxF = cvFinal.getContext('2d');
+  ctxF.clearRect(0, 0, 1000, 1600);
+  ctxF.drawImage(cvPatch, roi.rx, roi.ry, roi.rw, roi.rh);
+  return cvFinal.toDataURL('image/png');
+}
+
+async function urlADataUrlSeguro(url) {
   const resp = await fetch(url);
   if (!resp.ok) throw new Error('HTTP ' + resp.status);
   const blob = await resp.blob();
-  const dataUrl = await new Promise(function(resolve, reject) {
+  return await new Promise(function(resolve, reject) {
     const r = new FileReader();
     r.onload = function(ev) { resolve(ev.target.result); };
     r.onerror = function() { reject(new Error('Lectura fallida')); };
     r.readAsDataURL(blob);
   });
-  if (aplanarVerde) return await aplanarSobreVerdeBase64(dataUrl, wObj, hObj);
+}
+
+async function urlABase64Seguro(url) {
+  const dataUrl = await urlADataUrlSeguro(url);
   const m = String(dataUrl).match(/^data:([^;]+);base64,(.+)$/);
   if (!m) throw new Error('Formato base64 inválido');
   return { mime: m[1], data: m[2] };
@@ -1987,6 +2222,7 @@ window.ejecutarGeneracionIAPieza = async function() {
   try {
     const parts = [];
     let prefijoRefs = '';
+    let roiUsado = null;
     const usarEjemplo = Boolean(giaCtx.estiloEjemploUrl && document.getElementById('gia-usar-estilo-ejemplo') && document.getElementById('gia-usar-estilo-ejemplo').checked);
 
     if (usarEjemplo) {
@@ -1994,36 +2230,58 @@ window.ejecutarGeneracionIAPieza = async function() {
         const estPart = await urlABase64Seguro(giaCtx.estiloEjemploUrl);
         parts.push({ inlineData: { mimeType: estPart.mime, data: estPart.data } });
         prefijoRefs += 'STRICT STYLE REFERENCE: Match the exact 2D cartoon line thickness, flat shading, proportions, and character design aesthetic of the attached example character (' + giaCtx.estiloEjemploNombre + '). ';
-      } catch (eCorsEst) {
-        // Si falla CORS del ejemplo de estilo, continuamos con estilo textual pero avisamos si también falla la ref principal
-      }
+      } catch (eCorsEst) {}
     }
 
-        const esEdicionCalco = Boolean(giaCtx.tipo === 'personaje' && giaCtx.slotMeta && giaCtx.slotMeta.slotKey !== 'maestro_cuerpo');
-    if (giaCtx.refLocalDataUrl) {
-      const locP = esEdicionCalco ? await aplanarSobreVerdeBase64(giaCtx.refLocalDataUrl, 1000, 1600) : dataUrlAParteBase64(giaCtx.refLocalDataUrl, giaCtx.refLocalMime);
-      if (locP) {
-        parts.push({ inlineData: { mimeType: locP.mime, data: locP.data } });
-        if (giaCtx.slotMeta && giaCtx.slotMeta.slotKey === 'maestro_cuerpo') {
-          prefijoRefs += 'IDENTITY REFERENCE: Transform the person/subject in this attached photo into the character described below, keeping their recognizable facial features, hair, beard and build. ';
+    const sKey = giaCtx.slotMeta ? giaCtx.slotMeta.slotKey : '';
+    const specRef = giaCtx.slotMeta ? giaCtx.slotMeta.specRef : null;
+    const esLookConFoto = Boolean(giaCtx.tipo === 'personaje' && sKey === 'maestro_perfil' && giaCtx.refLocalDataUrl);
+    const esEdicionROI = Boolean(giaCtx.tipo === 'personaje' && sKey !== 'maestro_cuerpo');
+    const modoROI = tipoROIParaSlot(sKey, specRef);
+
+    if (esLookConFoto && giaCtx.refUrl) {
+      let manDataUrl = null;
+      try { manDataUrl = await urlADataUrlSeguro(giaCtx.refUrl); }
+      catch (eMan) { throw new Error('No se pudo leer el Maniquí Base por CORS. Habilita CORS en Firebase Storage o quita "Foto Local" para usar solo el calco.'); }
+      const manROI = await extraerROISobreCromaBase64(manDataUrl, 'cuerpo');
+      roiUsado = manROI.roi;
+      parts.push({ inlineData: { mimeType: manROI.mime, data: manROI.data } });
+      const humP = dataUrlAParteBase64(giaCtx.refLocalDataUrl, giaCtx.refLocalMime);
+      if (humP) parts.push({ inlineData: { mimeType: humP.mime, data: humP.data } });
+    } else if (giaCtx.refLocalDataUrl) {
+      if (esEdicionROI) {
+        const locROI = await extraerROISobreCromaBase64(giaCtx.refLocalDataUrl, modoROI);
+        roiUsado = locROI.roi;
+        parts.push({ inlineData: { mimeType: locROI.mime, data: locROI.data } });
+      } else {
+        const locP = dataUrlAParteBase64(giaCtx.refLocalDataUrl, giaCtx.refLocalMime);
+        if (locP) {
+          parts.push({ inlineData: { mimeType: locP.mime, data: locP.data } });
+          if (sKey === 'maestro_cuerpo' || sKey === 'maestro_perfil') {
+            prefijoRefs += 'IDENTITY REFERENCE: Transform the person/subject in this attached photo into the character described below, keeping their recognizable facial features, eye shape, hair, beard and build. ';
+          }
         }
       }
     } else if (giaCtx.refUrl) {
-      try {
-        const refP = await urlABase64Seguro(giaCtx.refUrl, esEdicionCalco, 1000, 1600);
-        parts.push({ inlineData: { mimeType: refP.mime, data: refP.data } });
-      } catch (eCors) {
-        throw new Error('Firebase Storage bloqueó leer la imagen de referencia por CORS. Pulsa "Foto Local" para adjuntar la imagen desde tu teléfono (o habilita CORS en tu bucket) y vuelve a generar para no perder consistencia.');
+      let refDataUrl = null;
+      try { refDataUrl = await urlADataUrlSeguro(giaCtx.refUrl); }
+      catch (eCors) { throw new Error('Firebase Storage bloqueó leer la imagen de referencia por CORS. Pulsa "Foto Local" para adjuntar la imagen desde tu teléfono (o habilita CORS en tu bucket) y vuelve a generar.'); }
+      if (esEdicionROI) {
+        const refROI = await extraerROISobreCromaBase64(refDataUrl, modoROI);
+        roiUsado = refROI.roi;
+        parts.push({ inlineData: { mimeType: refROI.mime, data: refROI.data } });
+      } else {
+        const rawP = dataUrlAParteBase64(refDataUrl, 'image/png');
+        if (rawP) parts.push({ inlineData: { mimeType: rawP.mime, data: rawP.data } });
       }
     }
-
     parts.push({ text: prefijoRefs + promptUsr });
 
     let b64 = null, mime = 'image/png';
-        if (cfg.model.indexOf('imagen-') === 0) {
+    if (cfg.model.indexOf('imagen-') === 0) {
       const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(cfg.model) + ':predict', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.key },
-        body: JSON.stringify({ instances: [{ prompt: prefijoRefs + promptUsr }], parameters: { sampleCount: 1, aspectRatio: giaCtx.tipo === 'personaje' ? '3:4' : '1:1' } })
+        body: JSON.stringify({ instances: [{ prompt: prefijoRefs + promptUsr }], parameters: { sampleCount: 1, aspectRatio: giaCtx.tipo === 'personaje' ? ((modoROI === 'cabeza' || modoROI === 'rostro') ? '1:1' : '3:4') : '1:1' } })
       });
       if (!r.ok) throw new Error('Imagen HTTP ' + r.status);
       const j = await r.json();
@@ -2056,11 +2314,18 @@ window.ejecutarGeneracionIAPieza = async function() {
     }
 
     if (!b64) throw new Error('Gemini no devolvió imagen (prueba ajustar una palabra del prompt o reintentar).');
-    giaCtx.resultadoMime = mime;
-    giaCtx.resultadoDataUrl = 'data:' + mime + ';base64,' + b64;
+    const rawResultDataUrl = 'data:' + mime + ';base64,' + b64;
+    if (roiUsado) {
+      giaCtx.resultadoMime = 'image/png';
+      giaCtx.resultadoDataUrl = await reinyectarROIEnLienzo1000x1600(rawResultDataUrl, roiUsado);
+      toast('Pieza aislada 1:1 en 1000x1600. Puedes Guardar Directo o pulir en Estudio PNG.', 'exito');
+    } else {
+      giaCtx.resultadoMime = mime;
+      giaCtx.resultadoDataUrl = rawResultDataUrl;
+      toast('Imagen generada. Revísala y ábrela en Estudio PNG.', 'exito');
+    }
     document.getElementById('gia-preview-img').src = giaCtx.resultadoDataUrl;
     document.getElementById('gia-preview-box').classList.remove('hidden');
-    toast('Imagen generada. Revísala y ábrela en Estudio PNG.', 'exito');
   } catch (err) {
     mostrarErrorGIA(err.message);
   } finally {
@@ -2077,7 +2342,7 @@ window.llevarGenIAEstudio = function() {
     window.parent.postMessage({
       tipo: 'PIRO_IR_A_ESTUDIO', origen: 'contenido', etiqueta: meta.etiqueta,
       presetId: meta.presetId, entidadId: meta.entidadId, zonaId: meta.zonaId || 'zona_01',
-            archivoNombre: meta.archivoNombre, dataUrl: dataUrl,
+      archivoNombre: meta.archivoNombre, dataUrl: dataUrl,
       calcoUrl: meta.calcoUrl || null, pivotesIniciales: meta.pivotesIniciales || null,
       modoCalco1a1: Boolean(meta.tipo === 'personaje' && meta.slotKey !== 'maestro_cuerpo'), slotMeta: meta
     }, '*');
@@ -2116,7 +2381,7 @@ window.addEventListener('message', async function(e) {
       proyectoActivo.docBibId = normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id);
     }
     cargarBiblioteca();
-    } else if (e.data.tipo === 'PIRO_VAULT_ACTUALIZADO') {
+  } else if (e.data.tipo === 'PIRO_VAULT_ACTUALIZADO') {
     const cfgN = leerConfigGeminiVault();
     const bM = document.getElementById('gia-modelo-badge');
     if (bM) bM.textContent = cfgN.model;
