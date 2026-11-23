@@ -321,40 +321,17 @@
 <!-- MODAL: BÓVEDA LOCAL DE APIs -->
 <div class="modal-ov" id="modal-apis" onclick="if(event.target.id==='modal-apis') window.cerrarModalApis()">
   <div class="modal-card">
-    <div class="modal-head">
-      <h3>Bóveda de APIs (Solo este dispositivo)</h3>
-      <button type="button" class="btn btn-xs" onclick="window.cerrarModalApis()">Cerrar</button>
-    </div>
-    <p style="margin:0 0 10px 0; font-size:11px; color:var(--muted);">Tus claves viven únicamente en <code>localStorage</code> de este navegador.</p>
+        <div class="modal-head"><h3>Bóveda IA Cifrada (Nube)</h3><button type="button" class="btn btn-xs" onclick="window.cerrarModalApis()">Cerrar</button></div>
+    <p style="margin:0 0 8px 0; font-size:11px; color:var(--muted);">Soporta APIs gratuitas (Groq, OpenRouter, Gemini) o pagas. Se cifran con AES-256-GCM en tu cuenta.</p>
     <div class="card-sub">
-      <div style="font-size:11px; font-weight:800; color:var(--naranja); margin-bottom:7px;">1. API DE GUIONES (LLM)</div>
       <div class="grid-2">
-        <div class="field"><label>Proveedor</label><select id="api-llm-prov" class="sel" onchange="window.alCambiarProveedorLLM()"><option value="deepseek">DeepSeek</option><option value="gemini">Google Gemini</option><option value="openai">OpenAI (ChatGPT)</option><option value="openrouter">OpenRouter</option></select></div>
-                <div class="field"><label>API Key</label><input id="api-llm-key" type="password" autocomplete="off" spellcheck="false" class="inp" placeholder="Pega tu API Key" oninput="window.guardarVaultLive()"></div>
+        <div class="field"><label>Proveedor</label><select id="ed-v-prov" class="sel"><option value="gemini">Google Gemini</option><option value="groq">Groq (Gratis)</option><option value="openrouter">OpenRouter (Gratis/Pro)</option><option value="deepseek">DeepSeek</option><option value="openai">OpenAI (GPT)</option><option value="xai">xAI (Grok)</option><option value="elevenlabs">ElevenLabs (Voz)</option></select></div>
+        <div class="field"><label>Modelo</label><input id="ed-v-mod" class="inp" placeholder="Ej: llama-3.3-70b-versatile"></div>
       </div>
-      <div style="display:flex; gap:6px; align-items:flex-end;">
-        <div style="flex:1;"><label style="display:block; font-size:10px; font-weight:800; color:var(--muted); margin-bottom:3px;">MODELO</label><select id="api-llm-model" class="sel" onchange="window.guardarVaultLive()"></select></div>
-        <button type="button" class="btn btn-xs btn-blue" id="btn-detect-llm" onclick="window.detectarModelosLLM()">Detectar</button>
-      </div>
+      <div class="field"><label>API Key (se cifra y limpia)</label><input id="ed-v-key" type="password" autocomplete="off" spellcheck="false" class="inp" placeholder="Pega tu clave API"></div>
+      <div style="display:flex; gap:6px;"><button type="button" class="btn btn-green" id="btn-ed-save-v" style="flex:1;" onclick="window.guardarKeyNubeEditor()">Vincular y Cifrar</button><button type="button" class="btn btn-blue" onclick="window.sincronizarBovedaEd(true)">Sincronizar</button></div>
     </div>
-    <div class="card-sub">
-      <div style="font-size:11px; font-weight:800; color:var(--verde); margin-bottom:7px;">2. ELEVENLABS (VOCES)</div>
-      <div style="display:flex; gap:6px; align-items:flex-end; margin-bottom:7px;">
-                <div style="flex:1;"><label style="display:block; font-size:10px; font-weight:800; color:var(--muted); margin-bottom:3px;">API KEY</label><input id="api-el-key" type="password" autocomplete="off" spellcheck="false" class="inp" placeholder="sk_..." oninput="window.guardarVaultLive()"></div>
-        <button type="button" class="btn btn-xs btn-green" id="btn-detect-el" onclick="window.detectarVocesEleven()">Detectar</button>
-      </div>
-      <div class="grid-2">
-        <div class="field" style="margin:0;"><label>Modelo</label><select id="api-el-model" class="sel" onchange="window.guardarVaultLive()"><option value="eleven_multilingual_v2">eleven_multilingual_v2</option><option value="eleven_flash_v2_5">eleven_flash_v2_5</option><option value="eleven_turbo_v2_5">eleven_turbo_v2_5</option></select></div>
-        <div class="field" style="margin:0;"><label>Voces (clic copia ID)</label><select id="api-el-voices" class="sel" onchange="window.copiarVoiceIdDetectado(this.value)"><option value="">Pulsa Detectar...</option></select></div>
-      </div>
-    </div>
-    <div class="card-sub" style="margin-bottom:0;">
-      <div style="font-size:11px; font-weight:800; color:var(--azul); margin-bottom:7px;">3. GEMINI IMAGEN (PLANOS)</div>
-      <div class="grid-2">
-                <div class="field" style="margin:0;"><label>API Key (vacío = clave Gemini)</label><input id="api-gem-img-key" type="password" autocomplete="off" spellcheck="false" class="inp" placeholder="AIza..." oninput="window.guardarVaultLive()"></div>
-        <div class="field" style="margin:0;"><label>Modelo</label><select id="api-gem-img-model" class="sel" onchange="window.guardarVaultLive()"><option value="gemini-2.5-flash-image">gemini-2.5-flash-image</option><option value="gemini-2.0-flash-exp-image-generation">gemini-2.0-flash-exp-image-generation</option><option value="imagen-3.0-generate-002">imagen-3.0-generate-002</option></select></div>
-      </div>
-    </div>
+    <div id="ed-v-resumen" style="font-size:11px; color:#86efac;"></div>
   </div>
 </div>
 
@@ -400,7 +377,7 @@ import GeokatuDB from './core-db.js';
 import { componerEscenaPiro, normalizarActoresEscena, extraerEnvolventeAudio, obtenerBocaDesdeEnvolvente } from './piro-compositor.js';
 
 const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
-const CLAVE_VAULT = 'piro_api_vault_v1';
+const CLAVE_PREFS_IA_ED = 'piro_ia_cloud_prefs_v2';
 function normalizarDocBibId(id, proyId) {
   const s = String(id || '').trim();
   if (!s || s === '__biblioteca_maestra__') return 'bib_pirobonianos';
@@ -437,12 +414,7 @@ function calcularPlanVeo(tension) {
   return t > 8 ? { cat: 'ALTA_TENSION (>8/10)', clips: 5, indices: [1, 3, 4, 6, 7], costo: 1.45 } : { cat: 'TENSION_ESTANDAR (<=8/10)', clips: 3, indices: [1, 4, 7], costo: 0.90 };
 }
 
-const MODELOS_DEF = {
-  deepseek: ['deepseek-chat', 'deepseek-reasoner'],
-  gemini: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
-  openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'],
-  openrouter: ['deepseek/deepseek-chat', 'google/gemini-2.5-flash', 'openai/gpt-4o-mini']
-};
+const MODELOS_DEF_ED = { gemini: 'gemini-2.5-flash', groq: 'llama-3.3-70b-versatile', openrouter: 'openai/gpt-4o-mini', deepseek: 'deepseek-chat', openai: 'gpt-4o-mini', xai: 'grok-2-latest', elevenlabs: 'eleven_multilingual_v2' };
 
 let biblioteca = { tipo_doc: 'biblioteca', personajes: [], escenarios: [], props: [], guiones: [] };
 let epIdActivo = null;
@@ -455,12 +427,7 @@ let safeZonesOn = true;
 let zoomPxSeg = 44;
 let debounceSync = null;
 let hayCambiosPendientesEd = false;
-let vault = {
-  llmProv: 'deepseek',
-  keys: { deepseek: '', gemini: '', openai: '', openrouter: '' },
-  models: { deepseek: 'deepseek-chat', gemini: 'gemini-2.5-flash', openai: 'gpt-4o-mini', openrouter: 'deepseek/deepseek-chat' },
-  modelosCache: {}, elKey: '', elModel: 'eleven_multilingual_v2', gemImgKey: '', gemImgModel: 'gemini-2.5-flash-image'
-};
+let iaCloud = { modoPago: 'auto', provImagen: 'gemini', provLlm: 'gemini', provVoz: 'elevenlabs', resumen: { proveedores: {}, billetera: { saldo_creditos: 0 }, reventaDisponible: [], tarifas: {} } };
 
 let reproduciendo = false;
 let playRaf = null;
@@ -502,134 +469,39 @@ function getAspectoEp(g) {
   return (g && g.aspecto === '16:9') ? '16:9' : '9:16';
 }
 
-// =========================================================================
-// 1. BÓVEDA DE APIs
-// =========================================================================
+// 1. BÓVEDA IA CIFRADA EN NUBE (CHG-128 · CERO CLAVES EN NAVEGADOR)
 function cargarVault() {
-  try {
-    const raw = localStorage.getItem(CLAVE_VAULT);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      vault = Object.assign(vault, parsed);
-      vault.keys = Object.assign({ deepseek: '', gemini: '', openai: '', openrouter: '' }, parsed.keys || {});
-      vault.models = Object.assign({ deepseek: 'deepseek-chat', gemini: 'gemini-2.5-flash', openai: 'gpt-4o-mini', openrouter: 'deepseek/deepseek-chat' }, parsed.models || {});
-    }
-  } catch (e) {}
+  try { const raw = localStorage.getItem(CLAVE_PREFS_IA_ED); if (raw) iaCloud = Object.assign({ modoPago: 'auto', provImagen: 'gemini', provLlm: 'gemini', provVoz: 'elevenlabs', resumen: { proveedores: {}, billetera: { saldo_creditos: 0 }, reventaDisponible: [], tarifas: {} } }, JSON.parse(raw)); localStorage.removeItem('piro_api_vault_v1'); } catch (e) {}
   actualizarBadgeApis();
 }
-
-function guardarVault() {
-  try { localStorage.setItem(CLAVE_VAULT, JSON.stringify(vault)); } catch (e) {}
-  actualizarBadgeApis();
+function obtenerCfgIAEditor() {
+  const res = iaCloud.resumen || {}, provs = res.proveedores || {}, rev = Array.isArray(res.reventaDisponible) ? res.reventaDisponible : [], saldo = Number(res.billetera && res.billetera.saldo_creditos) || 0, modoPago = iaCloud.modoPago || 'auto';
+  const provLlm = iaCloud.provLlm || (provs.groq ? 'groq' : (provs.openrouter ? 'openrouter' : (provs.deepseek ? 'deepseek' : 'gemini')));
+  const provImg = iaCloud.provImagen || 'gemini', provVoz = iaCloud.provVoz || 'elevenlabs';
+  const pL = provs[provLlm] || null, pI = provs[provImg] || null, pV = provs[provVoz] || null;
+  const disp = function(pid, o) { const bk = Boolean(o && o.activa), cr = rev.indexOf(pid) >= 0 && saldo > 0; return modoPago === 'byok' ? bk : (modoPago === 'creditos' ? cr : (bk || cr)); };
+  return { modoPago: modoPago, saldo: saldo, tarifas: res.tarifas || { imagen: 6, texto: 2, audio: 4 }, provLlm: provLlm, modLlm: (pL && pL.modelo) || MODELOS_DEF_ED[provLlm] || 'gemini-2.5-flash', listoLlm: disp(provLlm, pL), byokLlm: Boolean(pL && pL.activa), provImg: provImg, modImg: (pI && (pI.modeloImagen || pI.modelo)) || (provImg === 'openai' ? 'gpt-image-1' : 'gemini-2.5-flash-image'), listoImg: disp(provImg, pI), byokImg: Boolean(pI && pI.activa), provVoz: provVoz, modVoz: (pV && pV.modelo) || 'eleven_multilingual_v2', listoVoz: disp(provVoz, pV), byokVoz: Boolean(pV && pV.activa), totalProvs: Object.keys(provs).length };
 }
-
 function actualizarBadgeApis() {
-  const tieneLlm = Boolean(vault.keys[vault.llmProv]);
-  const tieneEl = Boolean(vault.elKey);
-  const el = document.getElementById('txt-btn-apis');
-  if (el) el.textContent = 'APIs (' + (tieneLlm ? vault.llmProv.toUpperCase() : 'Sin LLM') + (tieneEl ? '+Voz' : '') + ')';
+  const c = obtenerCfgIAEditor(), el = document.getElementById('txt-btn-apis'), resEl = document.getElementById('ed-v-resumen');
+  if (el) el.textContent = 'APIs (' + c.provLlm.toUpperCase() + ' · ' + (c.totalProvs > 0 ? (c.totalProvs + ' OK') : (c.saldo + ' cr')) + ')';
+  if (resEl) resEl.textContent = 'Activas en nube: ' + (Object.keys((iaCloud.resumen && iaCloud.resumen.proveedores) || {}).join(', ') || 'ninguna') + ' · Saldo: ' + c.saldo + ' cr';
 }
-
-function rellenarSelectModelosLLM(lista, sel) {
-  const s = document.getElementById('api-llm-model'); if (!s) return;
-  const arr = (lista && lista.length > 0) ? lista : (MODELOS_DEF[vault.llmProv] || ['deepseek-chat']);
-  s.innerHTML = arr.map(function(m) { return '<option value="' + esc(m) + '"' + (m === sel ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('');
-  if (arr.indexOf(sel) === -1) vault.models[vault.llmProv] = arr[0];
-}
-
+window.sincronizarBovedaEd = async function(avisar) {
+  if (!GeokatuDB.PirobonianosService || !GeokatuDB.PirobonianosService.obtenerEstadoBoveda) return;
+  const res = await GeokatuDB.PirobonianosService.obtenerEstadoBoveda();
+  if (res && res.success) { iaCloud.resumen = { proveedores: res.proveedores || {}, billetera: res.billetera || { saldo_creditos: 0 }, reventaDisponible: res.reventaDisponible || [], tarifas: res.tarifas || {} }; try { localStorage.setItem(CLAVE_PREFS_IA_ED, JSON.stringify(iaCloud)); } catch (e) {} actualizarBadgeApis(); if (vistaActual === 'guion') renderVistaGuionIA(); if (avisar) toast('Bóveda IA sincronizada.', 'exito'); }
+};
 window.abrirModalApis = function(tabOpcional) {
-  if (window.self !== window.top) {
-    window.parent.postMessage({ tipo: 'PIRO_ABRIR_BOVEDA_APIS', tab: tabOpcional || 'llm' }, '*');
-    return;
-  }
-  document.getElementById('api-llm-prov').value = vault.llmProv;
-  document.getElementById('api-llm-key').value = vault.keys[vault.llmProv] || '';
-  rellenarSelectModelosLLM(vault.modelosCache[vault.llmProv], vault.models[vault.llmProv]);
-  document.getElementById('api-el-key').value = vault.elKey || '';
-  document.getElementById('api-el-model').value = vault.elModel || 'eleven_multilingual_v2';
-  document.getElementById('api-gem-img-key').value = vault.gemImgKey || '';
-  document.getElementById('api-gem-img-model').value = vault.gemImgModel || 'gemini-2.5-flash-image';
-  document.getElementById('modal-apis').classList.add('open');
+  if (window.self !== window.top) { window.parent.postMessage({ tipo: 'PIRO_ABRIR_BOVEDA_APIS', tab: tabOpcional || 'byok' }, '*'); return; }
+  actualizarBadgeApis(); document.getElementById('modal-apis').classList.add('open'); window.sincronizarBovedaEd(false);
 };
-
 window.cerrarModalApis = function() { document.getElementById('modal-apis').classList.remove('open'); };
-
-window.alCambiarProveedorLLM = function() {
-  vault.llmProv = document.getElementById('api-llm-prov').value;
-  document.getElementById('api-llm-key').value = vault.keys[vault.llmProv] || '';
-  rellenarSelectModelosLLM(vault.modelosCache[vault.llmProv], vault.models[vault.llmProv]);
-  guardarVault();
-};
-
-window.guardarVaultLive = function() {
-  vault.llmProv = document.getElementById('api-llm-prov').value;
-  vault.keys[vault.llmProv] = document.getElementById('api-llm-key').value.trim();
-  vault.models[vault.llmProv] = document.getElementById('api-llm-model').value;
-  vault.elKey = document.getElementById('api-el-key').value.trim();
-  vault.elModel = document.getElementById('api-el-model').value;
-  vault.gemImgKey = document.getElementById('api-gem-img-key').value.trim();
-  vault.gemImgModel = document.getElementById('api-gem-img-model').value;
-  guardarVault();
-};
-
-window.detectarModelosLLM = async function() {
-  window.guardarVaultLive();
-  const prov = vault.llmProv, key = vault.keys[prov];
-  if (!key) { toast('Ingresa primero la API Key de ' + prov + '.', 'error'); return; }
-  const btn = document.getElementById('btn-detect-llm');
-  btn.disabled = true; btn.textContent = '...';
-  try {
-    let modelos = [];
-    if (prov === 'gemini') {
-            const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models', { headers: { 'x-goog-api-key': key } });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const j = await r.json();
-      modelos = (j.models || []).filter(function(m) { return Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.indexOf('generateContent') >= 0; }).map(function(m) { return String(m.name || '').replace(/^models\//, ''); });
-    } else {
-      const url = prov === 'deepseek' ? 'https://api.deepseek.com/v1/models' : (prov === 'openai' ? 'https://api.openai.com/v1/models' : 'https://openrouter.ai/api/v1/models');
-      const r = await fetch(url, { headers: { Authorization: 'Bearer ' + key } });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const j = await r.json();
-      modelos = (j.data || []).map(function(m) { return m.id; }).filter(Boolean);
-      if (prov === 'openai') modelos = modelos.filter(function(id) { return /^(gpt-|o1|o3|o4)/.test(id); });
-      if (prov === 'openrouter') modelos = modelos.slice(0, 80);
-    }
-    if (modelos.length === 0) throw new Error('Sin modelos');
-    vault.modelosCache[prov] = modelos;
-    vault.models[prov] = modelos[0];
-    rellenarSelectModelosLLM(modelos, modelos[0]);
-    guardarVault();
-    toast(modelos.length + ' modelos detectados.', 'exito');
-  } catch (err) {
-    toast('Error: ' + err.message, 'error');
-  } finally {
-    btn.disabled = false; btn.textContent = 'Detectar';
-  }
-};
-
-window.detectarVocesEleven = async function() {
-  window.guardarVaultLive();
-  if (!vault.elKey) { toast('Ingresa tu API Key de ElevenLabs.', 'error'); return; }
-  const btn = document.getElementById('btn-detect-el');
-  btn.disabled = true; btn.textContent = '...';
-  try {
-    const r = await fetch('https://api.elevenlabs.io/v1/voices', { headers: { 'xi-api-key': vault.elKey } });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const j = await r.json();
-    const voces = j.voices || [];
-    const sel = document.getElementById('api-el-voices');
-    sel.innerHTML = '<option value="">Selecciona para copiar (' + voces.length + ')</option>' + voces.map(function(v) { return '<option value="' + esc(v.voice_id) + '">' + esc(v.name) + '</option>'; }).join('');
-    toast(voces.length + ' voces cargadas.', 'exito');
-  } catch (err) {
-    toast('Error ElevenLabs: ' + err.message, 'error');
-  } finally {
-    btn.disabled = false; btn.textContent = 'Detectar';
-  }
-};
-
-window.copiarVoiceIdDetectado = function(id) {
-  if (!id) return;
-  navigator.clipboard.writeText(id).then(function() { toast('voice_id copiado.', 'exito'); });
+window.guardarKeyNubeEditor = async function() {
+  const pid = document.getElementById('ed-v-prov').value, mod = document.getElementById('ed-v-mod').value.trim(), key = document.getElementById('ed-v-key').value.trim();
+  if (!key) { toast('Pega una clave API válida.', 'error'); return; }
+  const btn = document.getElementById('btn-ed-save-v'); if (btn) { btn.disabled = true; btn.textContent = 'Cifrando...'; }
+  try { const res = await GeokatuDB.PirobonianosService.guardarApiKeyBoveda({ proveedorId: pid, apiKey: key, modelo: mod || undefined, ambito: 'cliente', accion: 'guardar' }); if (!res || !res.success) throw new Error((res && res.error) || 'No se pudo cifrar'); document.getElementById('ed-v-key').value = ''; if (pid !== 'elevenlabs') iaCloud.provLlm = pid; await window.sincronizarBovedaEd(false); toast('Clave ' + pid + ' cifrada (••••' + (res.ultimos4 || '') + ').', 'exito'); } catch (err) { toast('Error: ' + err.message, 'error'); } finally { if (btn) { btn.disabled = false; btn.textContent = 'Vincular y Cifrar'; } }
 };
 
 // =========================================================================
@@ -893,7 +765,7 @@ function renderVistaGuionIA() {
         '</div>' +
         '<label style="display:flex; align-items:center; gap:7px; font-size:12px; color:#e2e8f0; cursor:pointer; padding:6px 0;"><input type="checkbox"' + ((typeof g.bilingue === 'boolean' ? g.bilingue : proyectoActivo.bilingue) ? ' checked' : '') + ' style="accent-color:var(--naranja);" onchange="window.editEp(\'bilingue\', this.checked)"> Modo Bilingüe ES/EN + Plan Híbrido Veo</label>' +
                 '<div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-top:4px;">' +
-          '<div class="pill ok">LLM: ' + esc(vault.llmProv.toUpperCase() + ' / ' + (vault.models[vault.llmProv] || '')) + '</div>' +
+          '<button type="button" class="pill ok" style="cursor:pointer;" onclick="window.abrirModalApis(\'byok\')">IA: ' + esc(obtenerCfgIAEditor().provLlm.toUpperCase() + ' / ' + obtenerCfgIAEditor().modLlm + (obtenerCfgIAEditor().byokLlm ? ' (BYOK)' : (' (' + obtenerCfgIAEditor().saldo + ' cr)'))) + '</button>' +
           '<button type="button" class="btn btn-blue" onclick="window.abrirModalReglasGuion()">Reglas Anti-IA y Ejemplo' + (obtenerReglasGuion().ojo_director ? ' (Dir. ON)' : '') + '</button>' +
         '</div>' +
       '</div>';
@@ -951,21 +823,11 @@ window.irAClipTimeline = function(idx) {
 };
 
 async function llamarLLM(sysPrompt, userPrompt) {
-  const prov = vault.llmProv, key = vault.keys[prov];
-  const model = vault.models[prov] || (MODELOS_DEF[prov] ? MODELOS_DEF[prov][0] : 'deepseek-chat');
-  if (!key) throw new Error('Configura tu API Key en el menú ▶ -> APIs.');
-  if (prov === 'gemini') {
-        const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
-    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify({ systemInstruction: { parts: [{ text: sysPrompt }] }, contents: [{ role: 'user', parts: [{ text: userPrompt }] }], generationConfig: { temperature: 0.8 } }) });
-    if (!r.ok) throw new Error('Gemini HTTP ' + r.status);
-    const j = await r.json();
-    return (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) ? j.candidates[0].content.parts.map(function(p) { return p.text || ''; }).join('') : '';
-  }
-  const url = prov === 'deepseek' ? 'https://api.deepseek.com/v1/chat/completions' : (prov === 'openai' ? 'https://api.openai.com/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions');
-  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify({ model: model, temperature: 0.8, messages: [{ role: 'system', content: sysPrompt }, { role: 'user', content: userPrompt }] }) });
-  if (!r.ok) throw new Error(prov.toUpperCase() + ' HTTP ' + r.status);
-  const j = await r.json();
-  return (j.choices && j.choices[0] && j.choices[0].message) ? (j.choices[0].message.content || '') : '';
+  const cfg = obtenerCfgIAEditor();
+  const res = await GeokatuDB.PirobonianosService.llamarProxyIA({ proveedorId: cfg.provLlm, accion: 'texto', tipoCobro: 'texto', modoPago: cfg.modoPago, modelo: cfg.modLlm, payload: { prompt: userPrompt, systemInstruction: { parts: [{ text: sysPrompt }] }, generationConfig: { temperature: 0.8 }, messages: [{ role: 'system', content: sysPrompt }, { role: 'user', content: userPrompt }], temperature: 0.8 } });
+  if (!res || !res.success) throw new Error((res && res.error) || 'Error generando guion en servidor IA.');
+  if (typeof res.saldoRestante === 'number') window.sincronizarBovedaEd(false);
+  return String(res.texto || '');
 }
 
 function reglasPorDefectoProyecto() {
@@ -1376,7 +1238,7 @@ function medirDuracionAudio(blob) {
 window.generarVozClip = async function(idx) {
   const g = getEp(); const sc = g && g.escenas ? g.escenas[idx] : null;
   if (!sc) return;
-  if (!vault.elKey) { toast('Configura tu API Key de ElevenLabs en ▶ -> APIs.', 'error'); return; }
+    const cfgVoz = obtenerCfgIAEditor();
   if (!sc.texto || !sc.texto.trim()) { toast('Este clip no tiene diálogo.', 'error'); return; }
   const idVoz = (sc.hablante && sc.hablante !== 'ninguno') ? sc.hablante : sc.actor;
   const per = biblioteca.personajes.find(function(p) { return p.id === idVoz; });
@@ -1385,12 +1247,10 @@ window.generarVozClip = async function(idx) {
   const btn = document.getElementById('btn-gen-voz-clip');
   if (btn) { btn.disabled = true; btn.textContent = 'Sintetizando...'; }
   try {
-    const r = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + encodeURIComponent(voiceId), {
-      method: 'POST', headers: { 'xi-api-key': vault.elKey, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
-      body: JSON.stringify({ text: sc.texto, model_id: vault.elModel || 'eleven_multilingual_v2', voice_settings: { stability: 0.45, similarity_boost: 0.78 } })
-    });
-    if (!r.ok) throw new Error('ElevenLabs HTTP ' + r.status);
-    const blob = await r.blob();
+        const resV = await GeokatuDB.PirobonianosService.llamarProxyIA({ proveedorId: cfgVoz.provVoz, accion: 'audio', tipoCobro: 'audio', modoPago: cfgVoz.modoPago, modelo: cfgVoz.modVoz, payload: { text: sc.texto, voiceId: voiceId, voice_settings: { stability: 0.45, similarity_boost: 0.78 } } });
+    if (!resV || !resV.success || !resV.b64) throw new Error((resV && resV.error) || 'Error sintetizando voz.');
+    if (typeof resV.saldoRestante === 'number') window.sincronizarBovedaEd(false);
+    const blob = base64ABlob(resV.b64, resV.mime || 'audio/mpeg');
     const dur = await medirDuracionAudio(blob);
     const fileObj = new File([blob], 'voz_' + (idx + 1) + '.mp3', { type: 'audio/mpeg' });
     const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(getEpStorageBucket(g.id), 'voces/' + Date.now() + '_clip_' + (idx + 1) + '.mp3', fileObj);
@@ -1444,16 +1304,17 @@ function abrirConfirmacionLote(tipo) {
   lotePendienteTipo = tipo;
   lotePendienteIndices = indices;
   document.getElementById('lote-conf-tit').textContent = tipo === 'voces' ? 'Confirmar Lote de Voces (ElevenLabs)' : 'Confirmar Lote de Planos (Gemini Imagen)';
+    const cfgL = obtenerCfgIAEditor();
   const alertas = [];
-  if (tipo === 'voces' && !vault.elKey) alertas.push('Falta API Key de ElevenLabs en APIs.');
+  if (tipo === 'voces' && !cfgL.listoVoz) alertas.push('Vincula ElevenLabs en Bóveda IA o recarga Créditos.');
   if (tipo === 'voces' && sinVozPer.length > 0) alertas.push('Personajes sin voice_id: ' + sinVozPer.join(', ') + '.');
-  if (tipo === 'planos' && !(vault.gemImgKey || vault.keys.gemini)) alertas.push('Falta API Key de Gemini en APIs.');
+  if (tipo === 'planos' && !cfgL.listoImg) alertas.push('Vincula tu clave de ' + cfgL.provImg + ' en Bóveda IA o recarga Créditos.');
   document.getElementById('lote-conf-body').innerHTML =
     '<div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px;">' +
       '<div class="card-sub" style="margin:0; padding:7px;"><small style="color:var(--muted); display:block;">Formato</small><strong>' + esc(asp) + '</strong></div>' +
       '<div class="card-sub" style="margin:0; padding:7px;"><small style="color:var(--muted); display:block;">Por generar</small><strong style="color:var(--naranja);">' + indices.length + ' clips</strong></div>' +
     '</div>' +
-    '<div style="font-size:11px; color:var(--muted); margin-bottom:6px;">Ya listos (se saltan sin cobrar): <b>' + yaListos + '</b> · Modelo: <b>' + esc(tipo === 'voces' ? (vault.elModel || 'eleven_multilingual_v2') : (vault.gemImgModel || 'gemini-2.5-flash-image')) + '</b></div>' +
+    '<div style="font-size:11px; color:var(--muted); margin-bottom:6px;">Ya listos (se saltan sin cobrar): <b>' + yaListos + '</b> · Modelo: <b>' + esc(tipo === 'voces' ? (cfgL.provVoz + ' · ' + cfgL.modVoz + (cfgL.byokVoz ? ' (BYOK)' : (' · ' + (cfgL.tarifas.audio || 4) + ' cr'))) : (cfgL.provImg + ' · ' + cfgL.modImg + (cfgL.byokImg ? ' (BYOK)' : (' · ' + (cfgL.tarifas.imagen || 6) + ' cr')))) + '</b></div>' +
     (alertas.length > 0 ? '<div style="padding:7px 9px; border-radius:8px; border:1px solid rgba(239,68,68,0.5); background:rgba(239,68,68,0.12); color:#fca5a5; font-size:11px; font-weight:700;">' + esc(alertas.join(' ')) + '</div>' : '<div style="font-size:11px; color:#86efac;">Consejo: prueba primero el clip #' + (indices[0] + 1) + ' para validar calidad antes de lanzar el lote.</div>');
   document.getElementById('btn-lote-prueba-1').textContent = 'Probar solo clip #' + (indices[0] + 1);
   document.getElementById('btn-lote-ejecutar-todo').textContent = 'Generar todos (' + indices.length + ')';
@@ -1486,9 +1347,7 @@ function base64ABlob(b64, mime) {
 window.generarPlanoClip = async function(idx) {
   const g = getEp(); const sc = g && g.escenas ? g.escenas[idx] : null;
   if (!sc) return;
-  const key = vault.gemImgKey || vault.keys.gemini;
-  if (!key) { toast('Configura API Key Gemini en ▶ -> APIs.', 'error'); return; }
-  const model = vault.gemImgModel || 'gemini-2.5-flash-image';
+    const cfgImg = obtenerCfgIAEditor();
   const per = biblioteca.personajes.find(function(p) { return p.id === sc.actor; });
   const escObj = biblioteca.escenarios.find(function(e) { return e.id === (sc.escenario || g.escenario_id); });
   const asp = getAspectoEp(g);
@@ -1498,20 +1357,11 @@ window.generarPlanoClip = async function(idx) {
   const btn = document.getElementById('btn-gen-img-clip');
   if (btn) { btn.disabled = true; btn.textContent = 'Dibujando...'; }
   try {
-    let b64 = null, mime = 'image/png';
-        if (model.indexOf('imagen-') === 0) {
-      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':predict', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify({ instances: [{ prompt: promptFinal }], parameters: { sampleCount: 1, aspectRatio: asp } }) });
-      if (!r.ok) throw new Error('Imagen HTTP ' + r.status);
-      const j = await r.json();
-      if (j.predictions && j.predictions[0] && j.predictions[0].bytesBase64Encoded) { b64 = j.predictions[0].bytesBase64Encoded; mime = j.predictions[0].mimeType || 'image/png'; }
-    } else {
-      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: promptFinal }] }], generationConfig: { responseModalities: ['IMAGE', 'TEXT'] } }) });
-      if (!r.ok) throw new Error('Gemini Image HTTP ' + r.status);
-      const j = await r.json();
-      const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
-      for (let i = 0; i < parts.length; i++) { if (parts[i].inlineData && parts[i].inlineData.data) { b64 = parts[i].inlineData.data; mime = parts[i].inlineData.mimeType || 'image/png'; break; } }
-    }
-    if (!b64) throw new Error('Sin datos de imagen.');
+        const szOai = cfgImg.modImg.indexOf('gpt-image') === 0 ? (asp === '16:9' ? '1536x1024' : '1024x1536') : (cfgImg.modImg.indexOf('dall-e-3') === 0 ? (asp === '16:9' ? '1792x1024' : '1024x1792') : '1024x1024');
+    const resI = await GeokatuDB.PirobonianosService.llamarProxyIA({ proveedorId: cfgImg.provImg, accion: 'imagen', tipoCobro: 'imagen', modoPago: cfgImg.modoPago, modelo: cfgImg.modImg, payload: { prompt: promptFinal, aspectRatio: asp, size: szOai } });
+    if (!resI || !resI.success || !resI.b64) throw new Error((resI && resI.error) || 'Sin datos de imagen.');
+    if (typeof resI.saldoRestante === 'number') window.sincronizarBovedaEd(false);
+    const b64 = resI.b64, mime = resI.mime || 'image/png';
     const blob = base64ABlob(b64, mime);
     const fileObj = new File([blob], 'plano_' + (idx + 1) + '.png', { type: mime });
     const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(getEpStorageBucket(g.id), 'planos/' + Date.now() + '_clip_' + (idx + 1) + '.png', fileObj);
@@ -1704,7 +1554,8 @@ window.addEventListener('message', function(e) {
       proyectoActivo.docBibId = normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id);
     }
     cargarBiblioteca();
-    } else if (e.data.tipo === 'PIRO_VAULT_ACTUALIZADO') {
+      } else if (e.data.tipo === 'PIRO_VAULT_ACTUALIZADO') {
+    if (e.data.estadoIA) { try { localStorage.setItem(CLAVE_PREFS_IA_ED, JSON.stringify(e.data.estadoIA)); } catch (er) {} }
     cargarVault();
     if (vistaActual === 'guion') renderVistaGuionIA();
   } else if (e.data.tipo === 'PIRO_EDITOR_ABRIR_EPISODIO') {
@@ -1729,7 +1580,7 @@ window.addEventListener('pagehide', function() {
 
 cargarVault();
 GeokatuDB.SecurityService.observarEstadoSesion(function(user) {
-  if (user) cargarBiblioteca();
+  if (user) { cargarBiblioteca(); window.sincronizarBovedaEd(false); }
 });
 </script>
 </body>
