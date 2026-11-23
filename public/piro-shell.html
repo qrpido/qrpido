@@ -579,9 +579,20 @@
             <option value="creditos">Usar Créditos Piro (Reventa sin API propia)</option>
           </select>
         </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
           <div><label class="vault-lbl">Proveedor para Imágenes</label><select id="sh-pref-img" class="vault-sel" onchange="window.PiroShell.cambiarPreferenciaVault()"></select></div>
           <div><label class="vault-lbl">Proveedor para Guiones</label><select id="sh-pref-llm" class="vault-sel" onchange="window.PiroShell.cambiarPreferenciaVault()"></select></div>
+        </div>
+        <div>
+          <label class="vault-lbl">Motor de Voz (Gratis $0 o API)</label>
+          <select id="sh-pref-voz" class="vault-sel" onchange="window.PiroShell.cambiarPreferenciaVault()">
+            <option value="edge_tts">Edge Neural (Gratis $0 · 20 voces)</option>
+            <option value="polly_free">Polly Free (Gratis $0 · 11 voces)</option>
+            <option value="google_tts_free">Google TTS (Gratis $0 · 6 acentos)</option>
+            <option value="gemini">Gemini TTS (BYOK / Créditos)</option>
+            <option value="openai">OpenAI TTS (BYOK / Créditos)</option>
+            <option value="elevenlabs">ElevenLabs (BYOK / Créditos)</option>
+          </select>
         </div>
         <div id="sh-tarifas-info" style="font-size:11px; color:var(--muted); padding:8px 10px; border-radius:9px; background:rgba(255,255,255,0.03); border:1px solid var(--border);">Tarifas Créditos: Imagen 6 cr · Hoja Lote 12 cr · Guion 2 cr · Voz 4 cr</div>
         <div class="vault-status-msg" id="vstat-creditos"></div>
@@ -995,7 +1006,7 @@ const PRESETS_VAULT_SH = {
 let estadoNubeIA = { proveedores: {}, billetera: { saldo_creditos: 0, total_comprados: 0, total_consumidos: 0 }, reventaDisponible: [], tarifas: { imagen: 6, hoja_lote: 12, texto: 2, audio: 4 }, esSuperadmin: false, proveedoresMaestro: {} };
 
 function leerPrefsIA() {
-  const def = { modoPago: 'auto', provImagen: 'gemini', provLlm: 'gemini', provVoz: 'elevenlabs' };
+    const def = { modoPago: 'auto', provImagen: 'gemini', provLlm: 'gemini', provVoz: 'edge_tts' };
   try { const raw = localStorage.getItem(CLAVE_PREFS_IA); if (raw) Object.assign(def, JSON.parse(raw)); } catch (e) {}
   return def;
 }
@@ -1032,8 +1043,10 @@ function renderSelectProveedoresVault() {
   const sImg = document.getElementById('sh-pref-img'), sLlm = document.getElementById('sh-pref-llm');
   const allImg = ['gemini', 'openai'].concat(Object.keys(provs).filter(function(k) { return k !== 'gemini' && k !== 'openai' && provs[k].protocolo !== 'audio_tts'; }));
   if (sImg) { sImg.innerHTML = allImg.map(function(k) { return '<option value="' + k + '">' + k + '</option>'; }).join(''); sImg.value = allImg.indexOf(prefs.provImagen) >= 0 ? prefs.provImagen : 'gemini'; }
-  const allLlm = keys.filter(function(k) { return k !== 'elevenlabs'; });
+    const allLlm = keys.filter(function(k) { return k !== 'elevenlabs'; });
   if (sLlm) { sLlm.innerHTML = allLlm.map(function(k) { return '<option value="' + k + '">' + k + '</option>'; }).join(''); sLlm.value = allLlm.indexOf(prefs.provLlm) >= 0 ? prefs.provLlm : 'gemini'; }
+  const sVoz = document.getElementById('sh-pref-voz');
+  if (sVoz) sVoz.value = prefs.provVoz || 'edge_tts';
 }
 function actualizarUIBovedaCloud() {
   const nCli = Object.keys(estadoNubeIA.proveedores || {}).length;
@@ -1190,7 +1203,8 @@ window.PiroShell.usarItemDetectadoCloud = function(val) {
   else { document.getElementById('sh-v-mod').value = val; }
 };
 window.PiroShell.cambiarPreferenciaVault = function() {
-  guardarPrefsIA({ modoPago: document.getElementById('sh-modo-pago').value, provImagen: document.getElementById('sh-pref-img').value, provLlm: document.getElementById('sh-pref-llm').value });
+    const sV = document.getElementById('sh-pref-voz');
+  guardarPrefsIA({ modoPago: document.getElementById('sh-modo-pago').value, provImagen: document.getElementById('sh-pref-img').value, provLlm: document.getElementById('sh-pref-llm').value, provVoz: sV ? sV.value : 'edge_tts' });
   setStatusVault('creditos', 'Preferencias guardadas.', '#86efac');
 };
 window.PiroShell.acreditarCreditosCliente = async function() {
