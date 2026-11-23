@@ -2428,6 +2428,106 @@ exports.consultarEstadoOrdenPasarelaPOS = onCall({ memory: "256MB", maxInstances
 // 26. BOVEDA IA CIFRADA MULTI-PROVEEDOR (AES-256-GCM) Y PROXY DUAL BYOK/CREDITOS
 // ============================================================================
 const TARIFAS_IA_DEF = { imagen: 6, hoja_lote: 12, texto: 2, audio: 4, probar: 0, listar_modelos: 0, listar_voces: 0 };
+const PROVS_VOZ_GRATIS = { edge_tts: true, polly_free: true, google_tts_free: true };
+const VOCES_EDGE_CAT = [
+  { id: 'es-CO-GonzaloNeural', nombre: 'Gonzalo (CO Hombre)' }, { id: 'es-CO-SalomeNeural', nombre: 'Salome (CO Mujer)' },
+  { id: 'es-MX-JorgeNeural', nombre: 'Jorge (MX Hombre)' }, { id: 'es-MX-DaliaNeural', nombre: 'Dalia (MX Mujer)' },
+  { id: 'es-AR-TomasNeural', nombre: 'Tomas (AR Hombre)' }, { id: 'es-AR-ElenaNeural', nombre: 'Elena (AR Mujer)' },
+  { id: 'es-CL-LorenzoNeural', nombre: 'Lorenzo (CL Hombre)' }, { id: 'es-VE-SebastianNeural', nombre: 'Sebastian (VE Hombre)' },
+  { id: 'es-PE-AlexNeural', nombre: 'Alex (PE Hombre)' }, { id: 'es-ES-AlvaroNeural', nombre: 'Alvaro (ES Hombre)' },
+  { id: 'es-ES-ElviraNeural', nombre: 'Elvira (ES Mujer)' }, { id: 'es-US-AlonsoNeural', nombre: 'Alonso (US-ES Hombre)' },
+  { id: 'en-US-BrianNeural', nombre: 'Brian (EN-US Narrador)' }, { id: 'en-US-ChristopherNeural', nombre: 'Christopher (EN-US)' },
+  { id: 'en-US-GuyNeural', nombre: 'Guy (EN-US)' }, { id: 'en-US-AndrewNeural', nombre: 'Andrew (EN-US)' },
+  { id: 'en-US-JennyNeural', nombre: 'Jenny (EN-US Mujer)' }, { id: 'en-US-AriaNeural', nombre: 'Aria (EN-US IA)' },
+  { id: 'en-US-MichelleNeural', nombre: 'Michelle (EN-US Mujer)' }, { id: 'en-GB-RyanNeural', nombre: 'Ryan (EN-GB Hombre)' }
+];
+const VOCES_POLLY_CAT = [
+  { id: 'Miguel', nombre: 'Miguel (Latam Hombre)' }, { id: 'Lupe', nombre: 'Lupe (Latam Mujer)' },
+  { id: 'Mia', nombre: 'Mia (MX Mujer)' }, { id: 'Penelope', nombre: 'Penelope (US-ES Mujer)' },
+  { id: 'Enrique', nombre: 'Enrique (ES Hombre)' }, { id: 'Lucia', nombre: 'Lucia (ES Mujer)' },
+  { id: 'Conchita', nombre: 'Conchita (ES Mujer)' }, { id: 'Brian', nombre: 'Brian (EN-GB Clasico)' },
+  { id: 'Matthew', nombre: 'Matthew (EN-US Hombre)' }, { id: 'Joanna', nombre: 'Joanna (EN-US Mujer)' },
+  { id: 'Joey', nombre: 'Joey (EN-US Joven)' }
+];
+const VOCES_GTTS_CAT = [
+  { id: 'es-CO', nombre: 'Google ES Colombia' }, { id: 'es-MX', nombre: 'Google ES Mexico' },
+  { id: 'es-ES', nombre: 'Google ES Espana' }, { id: 'es-US', nombre: 'Google ES Latino' },
+  { id: 'en-US', nombre: 'Google EN USA' }, { id: 'en-GB', nombre: 'Google EN UK' }
+];
+const VOCES_GEMINI_CAT = [
+  { id: 'Puck', nombre: 'Puck (Gemini Energetico)' }, { id: 'Charon', nombre: 'Charon (Gemini Grave)' },
+  { id: 'Kore', nombre: 'Kore (Gemini Firme)' }, { id: 'Fenrir', nombre: 'Fenrir (Gemini Intenso)' },
+  { id: 'Aoede', nombre: 'Aoede (Gemini Calida)' }, { id: 'Zephyr', nombre: 'Zephyr (Gemini Brillante)' },
+  { id: 'Orus', nombre: 'Orus (Gemini Serio)' }, { id: 'Leda', nombre: 'Leda (Gemini Joven)' }
+];
+function envolverPcmEnWav(pcmBuf, rate) {
+  const sr = Number(rate) || 24000, hdr = Buffer.alloc(44);
+  hdr.write('RIFF', 0); hdr.writeUInt32LE(36 + pcmBuf.length, 4); hdr.write('WAVEfmt ', 8);
+  hdr.writeUInt32LE(16, 16); hdr.writeUInt16LE(1, 20); hdr.writeUInt16LE(1, 22);
+  hdr.writeUInt32LE(sr, 24); hdr.writeUInt32LE(sr * 2, 28); hdr.writeUInt16LE(2, 32);
+  hdr.writeUInt16LE(16, 34); hdr.write('data', 36); hdr.writeUInt32LE(pcmBuf.length, 40);
+  return Buffer.concat([hdr, pcmBuf]);
+}
+function dividirTextoTTS(txt, maxLen) {
+  const limpio = String(txt || '').replace(/\s+/g, ' ').trim();
+  if (!limpio) return [];
+  const out = []; let rest = limpio;
+  while (rest.length > maxLen) {
+    let corte = rest.lastIndexOf(' ', maxLen);
+    if (corte < Math.floor(maxLen * 0.4)) corte = maxLen;
+    out.push(rest.slice(0, corte).trim()); rest = rest.slice(corte).trim();
+  }
+  if (rest) out.push(rest);
+  return out;
+}
+async function ejecutarVozGratis(pid, acc, p) {
+  p = p || {};
+  if (pid === 'edge_tts') {
+    if (acc === 'probar' || acc === 'listar_voces') return { ok: true, items: VOCES_EDGE_CAT, mensaje: 'Edge Neural Gratis OK (' + VOCES_EDGE_CAT.length + ' voces).' };
+    const texto = String(p.text || p.prompt || '').trim(); if (!texto) throw new Error('Texto vacio para voz.');
+    const vid = String(p.voiceId || 'es-CO-GonzaloNeural').trim();
+    const pitch = String(p.pitch || '+0Hz').trim(), rate = String(p.rate || '+0%').trim();
+    let modEdge; try { modEdge = require('msedge-tts'); } catch (eReq) { throw new Error('Falta instalar msedge-tts en functions (ejecuta: cd functions && npm i msedge-tts).'); }
+    const tts = new modEdge.MsEdgeTTS();
+    await tts.setMetadata(vid, modEdge.OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+    const optsE = {}; if (pitch && pitch !== '+0Hz' && pitch !== '0Hz') optsE.pitch = pitch; if (rate && rate !== '+0%' && rate !== '0%') optsE.rate = rate;
+    const resSt = Object.keys(optsE).length ? tts.toStream(texto, optsE) : tts.toStream(texto);
+    const stream = (resSt && resSt.audioStream) ? resSt.audioStream : resSt;
+    const chunks = [];
+    await new Promise(function(resolve, reject) {
+      stream.on('data', function(ch) { chunks.push(Buffer.isBuffer(ch) ? ch : Buffer.from(ch)); });
+      stream.on('end', resolve); stream.on('error', reject);
+    });
+    const buf = Buffer.concat(chunks);
+    if (!buf.length) throw new Error('Edge Neural devolvio audio vacio.');
+    return { b64: buf.toString('base64'), mime: 'audio/mpeg' };
+  }
+  if (pid === 'polly_free') {
+    if (acc === 'probar' || acc === 'listar_voces') return { ok: true, items: VOCES_POLLY_CAT, mensaje: 'Polly Gratis OK (' + VOCES_POLLY_CAT.length + ' voces).' };
+    const texto = String(p.text || p.prompt || '').trim(); if (!texto) throw new Error('Texto vacio para voz.');
+    const vid = String(p.voiceId || 'Miguel').trim();
+    const partes = dividirTextoTTS(texto, 280), bufs = [];
+    for (let i = 0; i < partes.length; i++) {
+      const r = await fetch('https://api.streamelements.com/kappa/v2/speech?voice=' + encodeURIComponent(vid) + '&text=' + encodeURIComponent(partes[i]), { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      if (!r.ok) throw new Error('Polly Free HTTP ' + r.status);
+      bufs.push(Buffer.from(await r.arrayBuffer()));
+    }
+    return { b64: Buffer.concat(bufs).toString('base64'), mime: 'audio/mpeg' };
+  }
+  if (pid === 'google_tts_free') {
+    if (acc === 'probar' || acc === 'listar_voces') return { ok: true, items: VOCES_GTTS_CAT, mensaje: 'Google TTS Gratis OK (' + VOCES_GTTS_CAT.length + ' idiomas).' };
+    const texto = String(p.text || p.prompt || '').trim(); if (!texto) throw new Error('Texto vacio para voz.');
+    const tl = String(p.voiceId || 'es-CO').trim();
+    const partes = dividirTextoTTS(texto, 180), bufs = [];
+    for (let i = 0; i < partes.length; i++) {
+      const r = await fetch('https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=' + encodeURIComponent(tl) + '&q=' + encodeURIComponent(partes[i]), { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      if (!r.ok) throw new Error('Google TTS HTTP ' + r.status);
+      bufs.push(Buffer.from(await r.arrayBuffer()));
+    }
+    return { b64: Buffer.concat(bufs).toString('base64'), mime: 'audio/mpeg' };
+  }
+  throw new Error('Motor de voz gratis no soportado: ' + pid);
+}
 const PRESETS_IA = {
   gemini: { protocolo: 'google_gemini', nombre: 'Google Gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', modelo: 'gemini-2.5-flash', modeloImagen: 'gemini-2.5-flash-image' },
   openai: { protocolo: 'openai_compat', nombre: 'OpenAI (GPT)', baseUrl: 'https://api.openai.com/v1', modelo: 'gpt-4o-mini', modeloImagen: 'gpt-image-1' },
@@ -2558,6 +2658,26 @@ async function llamarProveedorIA(prot, key, baseUrl, mod, acc, p) {
   p = p || {};
   if (prot === 'google_gemini') {
     const base = baseUrl || 'https://generativelanguage.googleapis.com/v1beta';
+        if (acc === 'listar_voces') return { ok: true, items: VOCES_GEMINI_CAT, mensaje: 'Gemini TTS OK (' + VOCES_GEMINI_CAT.length + ' voces).' };
+    if (acc === 'audio') {
+      const mTts = String(mod && mod.indexOf('tts') >= 0 ? mod : 'gemini-2.5-flash-preview-tts').trim();
+      const vName = String(p.voiceId || 'Puck').trim();
+      const bodyT = { contents: [{ role: 'user', parts: [{ text: String(p.text || p.prompt || '') }] }], generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: vName } } } } };
+      const rT = await fetch(base + '/models/' + encodeURIComponent(mTts) + ':generateContent', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(bodyT) });
+      if (!rT.ok) throw new Error('Gemini TTS HTTP ' + rT.status + ': ' + (await rT.text()).slice(0, 200));
+      const jT = await rT.json(), ptsT = (jT.candidates && jT.candidates[0] && jT.candidates[0].content && jT.candidates[0].content.parts) || [];
+      for (let i = 0; i < ptsT.length; i++) {
+        if (ptsT[i].inlineData && ptsT[i].inlineData.data) {
+          const mt = String(ptsT[i].inlineData.mimeType || 'audio/wav'), rawB = Buffer.from(ptsT[i].inlineData.data, 'base64');
+          if (mt.indexOf('L16') >= 0 || mt.indexOf('pcm') >= 0) {
+            const mRate = mt.match(/rate=(\d+)/); const wav = envolverPcmEnWav(rawB, mRate ? Number(mRate[1]) : 24000);
+            return { b64: wav.toString('base64'), mime: 'audio/wav' };
+          }
+          return { b64: ptsT[i].inlineData.data, mime: mt };
+        }
+      }
+      throw new Error('Gemini TTS no devolvio audio.');
+    }
     if (acc === 'probar' || acc === 'listar_modelos') {
       const r = await fetch(base + '/models', { headers: { 'x-goog-api-key': key } });
       if (!r.ok) throw new Error('Gemini HTTP ' + r.status);
@@ -2587,6 +2707,16 @@ async function llamarProveedorIA(prot, key, baseUrl, mod, acc, p) {
   }
   if (prot === 'openai_compat') {
     const base = validarUrlIA(baseUrl || 'https://api.openai.com/v1'), hdr = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key };
+        if (acc === 'listar_voces') {
+      const vs = ['alloy', 'ash', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer'].map(function(v) { return { id: v, nombre: v }; });
+      return { ok: true, items: vs, mensaje: 'Voces OpenAI/Compat (' + vs.length + ').' };
+    }
+    if (acc === 'audio') {
+      const mSp = String(mod && (mod.indexOf('tts') >= 0 || mod.indexOf('orpheus') >= 0) ? mod : 'tts-1').trim();
+      const rS = await fetch(base + '/audio/speech', { method: 'POST', headers: hdr, body: JSON.stringify({ model: mSp, input: String(p.text || p.prompt || ''), voice: String(p.voiceId || 'onyx'), response_format: 'mp3' }) });
+      if (!rS.ok) throw new Error('Audio Speech HTTP ' + rS.status + ': ' + (await rS.text()).slice(0, 200));
+      return { b64: Buffer.from(await rS.arrayBuffer()).toString('base64'), mime: 'audio/mpeg' };
+    }
     if (acc === 'probar' || acc === 'listar_modelos') {
       const r = await fetch(base + '/models', { headers: { 'Authorization': 'Bearer ' + key } });
       if (!r.ok) throw new Error('Proveedor HTTP ' + r.status);
@@ -2631,7 +2761,15 @@ async function llamarProveedorIA(prot, key, baseUrl, mod, acc, p) {
 exports.proxyIACliente = onCall({ memory: '512MB', timeoutSeconds: 180, maxInstances: 20, secrets: [semillaMaestra] }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Inicia sesion para usar el motor IA.');
   const uid = request.auth.uid, d = request.data || {}, pid = limpiarProvIA(d.proveedorId || 'gemini');
-  const acc = String(d.accion || 'imagen').toLowerCase().trim(), tipoC = String(d.tipoCobro || acc).toLowerCase().trim(), modo = String(d.modoPago || 'auto').toLowerCase().trim();
+    const acc = String(d.accion || 'imagen').toLowerCase().trim(), tipoC = String(d.tipoCobro || acc).toLowerCase().trim(), modo = String(d.modoPago || 'auto').toLowerCase().trim();
+  if (PROVS_VOZ_GRATIS[pid]) {
+    try {
+      const resG = await ejecutarVozGratis(pid, acc, d.payload || {});
+      return Object.assign({ success: true, proveedorId: pid, modoUsado: 'gratis', creditosCobrados: 0 }, resG);
+    } catch (errG) {
+      throw new HttpsError('internal', 'Error voz gratis (' + pid + '): ' + (errG.message || 'fallo'));
+    }
+  }
   const db = admin.firestore();
   const [bovS, maeS, tarS] = await Promise.all([db.collection('Boveda_APIs_Clientes').doc(uid).get(), db.collection('Sistema_IA_Maestro').doc('Proveedores').get(), db.collection('Sistema').doc('Tarifas_IA').get()]);
   const pCli = (bovS.exists && bovS.data().proveedores) ? bovS.data().proveedores[pid] : null;
