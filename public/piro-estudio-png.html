@@ -259,6 +259,7 @@
                 <button type="button" class="mini-pill" id="btn-undo-mini" onclick="window.deshacerLimpieza()">Deshacer</button>
         <button type="button" class="mini-pill" id="btn-zoom-clean" onclick="window.ciclarZoomClean()">Zoom: 1x</button>
         <button type="button" class="mini-pill hidden" id="btn-guias-mini" onclick="window.toggleGuias()">Guías: ON</button>
+<button type="button" class="mini-pill hidden" id="btn-zoom-stage" onclick="window.ciclarZoomStage()">Zoom: 1x</button>
         <button type="button" class="mini-pill hidden" id="btn-descartar-mini" style="border-color:rgba(239,68,68,0.45); color:#fca5a5;" onclick="window.descartarBorradorActual()">Limpiar</button>
       </div>
       <span class="badge-info" id="badge-stage-dim">Sin imagen</span>
@@ -326,7 +327,11 @@
     </div>
 
     <div class="tool-strip hidden" id="strip-stage">
-      <button type="button" class="tool-btn accent" id="tbtn-altura" onclick="window.abrirHerramienta('altura')">
+  <button type="button" class="tool-btn accent" id="tbtn-cajas" style="border-color:rgba(34,197,94,0.55); color:#86efac;" onclick="window.abrirHerramienta('cajas')">
+    <svg class="svg-ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="4 3"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+    <span>Cajas Guía</span>
+  </button>
+  <button type="button" class="tool-btn accent" id="tbtn-altura" onclick="window.abrirHerramienta('altura')">
         <svg class="svg-ico" viewBox="0 0 24 24"><path d="M12 2v20"/><path d="m8 6 4-4 4 4"/><path d="m8 18 4 4 4-4"/></svg>
         <span>Altura</span>
       </button>
@@ -452,7 +457,20 @@
       </div>
     </div>
 
-    <div class="subpanel" id="sub-altura">
+    <div class="subpanel" id="sub-cajas">
+  <div class="sub-top">
+    <span class="sub-title" id="lbl-caja-activa" style="color:#86efac;">Caja Verde: Ojos · Arrastra sobre el calco</span>
+    <div style="display:flex; gap:5px;">
+      <button type="button" class="btn btn-xs btn-green" onclick="window.fijarCajaAPiezaActual()">Fijar a Pieza</button>
+      <button type="button" class="btn btn-xs btn-primary" onclick="window.encajarEnCajaActiva(true)">Encajar</button>
+      <button type="button" class="btn btn-xs btn-blue" onclick="window.encajarEnCajaActiva(false)">Altura</button>
+      <button type="button" class="btn btn-xs" onclick="window.cerrarHerramienta()">Listo</button>
+    </div>
+  </div>
+  <div class="sub-row" id="row-cajas-btns"></div>
+</div>
+
+<div class="subpanel" id="sub-altura">
       <div class="sub-top">
         <span class="sub-title">Altura Real del Personaje (Guía Superior)</span>
         <div style="display:flex; gap:5px;">
@@ -620,9 +638,32 @@ let st = { x: 500, y: 920, scale: 1, rot: 0, flipX: false };
 let pivotes = { cuello: null, hombro_trasero: null, hombro_delantero: null, mano_delantera: null };
 let pivoteActivo = 'cuello';
 
+const ZONAS_CAJA = [
+  ['ojos', 'Ojos'],
+  ['boca', 'Boca'],
+  ['barba', 'Barba'],
+  ['cabeza', 'Cabeza'],
+  ['brazo_del', 'Brazo Del.'],
+  ['brazo_tras', 'Brazo Tras.'],
+  ['pierna_del', 'Pierna Del.'],
+  ['pierna_tras', 'Pierna Tras.'],
+  ['ropa', 'Ropa'],
+  ['accesorios', 'Accesorios']
+];
+let cajasGuia = {};
+let cajasGuiaTs = 0;
+let zonaCajaActiva = 'ojos';
+let spriteVisBBox = null;
+let stageZoom = 1;
+let stagePanX = 0;
+let stagePanY = 0;
+let stageViewGesture = null;
+let cajaDrawStart = null;
+let cajaPreDraw = null;
+
 let pointersStage = new Map();
 let gestureState = null;
-let snapActivo = { x: false, suelo: false, altura: false, rot: false };
+let snapActivo = { x: false, suelo: false, altura: false, rot: false, cajaX: false, cajaY: false };
 let calcoUrlActual = null;
 let modoCalco1a1 = false;
 let recibidoConfigExterno = false;
@@ -790,6 +831,7 @@ async function intentarRestaurarBorrador() {
         document.getElementById('btn-undo-mini').classList.add('hidden');
 document.getElementById('btn-zoom-clean').classList.add('hidden');
         document.getElementById('btn-guias-mini').classList.remove('hidden');
+const bzsR = document.getElementById('btn-zoom-stage'); if (bzsR) bzsR.classList.remove('hidden');
         const btnTop = document.getElementById('btn-top-accion');
         btnTop.textContent = 'Guardar PNG';
         btnTop.className = 'btn btn-green btn-xs';
@@ -970,10 +1012,14 @@ window.abrirHerramienta = function(id) {
     colorBaseImageData = ctxClean.getImageData(0, 0, cvClean.width, cvClean.height);
     window.resetColorFiltros();
   }
-  if (id === 'pivotes') {
-    renderBotonesPivotes();
-    renderizarStage();
-  }
+  if (id === 'cajas') {
+  renderBotonesCajas();
+  renderizarStage();
+}
+if (id === 'pivotes') {
+  renderBotonesPivotes();
+  renderizarStage();
+}
   if (id === 'destino') {
     window.normalizarYActualizarRuta();
   }
@@ -1010,6 +1056,9 @@ window.irAPaso = function(p) {
   if (bz) bz.classList.toggle('hidden', p !== 2);
   if (p !== 2) resetZoomClean();
   document.getElementById('btn-guias-mini').classList.toggle('hidden', p !== 3);
+const bzs = document.getElementById('btn-zoom-stage');
+if (bzs) bzs.classList.toggle('hidden', p !== 3);
+if (p !== 3) resetZoomStage();
 
   const btnTop = document.getElementById('btn-top-accion');
   if (p === 2) {
@@ -1616,8 +1665,10 @@ function prepararStageDesdeSprite(conservarSt) {
   const im = new Image();
   im.onload = function() {
     spriteImg = im;
-    cvStage.width = presetActual.w;
-    cvStage.height = presetActual.h;
+spriteVisBBox = calcularBBoxVisibleCanvas(cvClean);
+resetZoomStage();
+cvStage.width = presetActual.w;
+cvStage.height = presetActual.h;
     requestAnimationFrame(ajustarCanvasActivos);
         if (conservarSt) {
       sincronizarSlidersStage();
@@ -1705,7 +1756,7 @@ window.autoAjustarStage = function(modo) {
 };
 
 window.setStageScale = function(s) {
-  st.scale = Math.max(0.1, Math.min(4, s));
+  cambiarEscalaConservandoVisible(s);
   sincronizarSlidersStage();
   renderizarStage();
 };
@@ -1742,16 +1793,232 @@ window.setOpacidadCalco = function(v) {
   renderizarStage();
 };
 
+function calcularBBoxVisibleCanvas(cv) {
+  if (!cv || !cv.width || !cv.height) return null;
+  const w = cv.width, h = cv.height;
+  const ctx = cv.getContext('2d', { willReadFrequently: true });
+  const d = ctx.getImageData(0, 0, w, h).data;
+  const paso = Math.max(w, h) > 1200 ? 2 : 1;
+  let minX = w, minY = h, maxX = 0, maxY = 0, hay = false;
+  for (let y = 0; y < h; y += paso) {
+    for (let x = 0; x < w; x += paso) {
+      if (d[(y * w + x) * 4 + 3] > 20) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+        hay = true;
+      }
+    }
+  }
+  if (!hay || maxX <= minX || maxY <= minY) {
+    return { minX: 0, minY: 0, maxX: w - 1, maxY: h - 1, w: w, h: h, cx: w / 2, cy: h / 2 };
+  }
+  return { minX: minX, minY: minY, maxX: maxX, maxY: maxY, w: maxX - minX + 1, h: maxY - minY + 1, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
+}
+
+function puntoSpriteAStage(px, py, stRef) {
+  const s = stRef || st;
+  const dx0 = (px - spriteImg.width / 2) * s.scale * (s.flipX ? -1 : 1);
+  const dy0 = (py - spriteImg.height / 2) * s.scale;
+  const rad = (s.rot * Math.PI) / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  return { x: s.x + dx0 * cos - dy0 * sin, y: s.y + dx0 * sin + dy0 * cos };
+}
+
+function obtenerBBoxVisibleEnStage(stRef) {
+  if (!spriteImg) return null;
+  const bb = spriteVisBBox || { minX: 0, minY: 0, maxX: spriteImg.width, maxY: spriteImg.height, w: spriteImg.width, h: spriteImg.height, cx: spriteImg.width / 2, cy: spriteImg.height / 2 };
+  const pts = [
+    puntoSpriteAStage(bb.minX, bb.minY, stRef),
+    puntoSpriteAStage(bb.maxX, bb.minY, stRef),
+    puntoSpriteAStage(bb.maxX, bb.maxY, stRef),
+    puntoSpriteAStage(bb.minX, bb.maxY, stRef)
+  ];
+  let minX = pts[0].x, maxX = pts[0].x, minY = pts[0].y, maxY = pts[0].y;
+  for (let i = 1; i < 4; i++) {
+    if (pts[i].x < minX) minX = pts[i].x; if (pts[i].x > maxX) maxX = pts[i].x;
+    if (pts[i].y < minY) minY = pts[i].y; if (pts[i].y > maxY) maxY = pts[i].y;
+  }
+  return { minX: minX, minY: minY, maxX: maxX, maxY: maxY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY), cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
+}
+
+function cambiarEscalaConservandoVisible(nuevaEscala) {
+  const cl = Math.max(0.08, Math.min(5, nuevaEscala));
+  if (!spriteImg || !spriteVisBBox) { st.scale = cl; return; }
+  const antes = puntoSpriteAStage(spriteVisBBox.cx, spriteVisBBox.cy);
+  st.scale = cl;
+  const despues = puntoSpriteAStage(spriteVisBBox.cx, spriteVisBBox.cy);
+  st.x += (antes.x - despues.x);
+  st.y += (antes.y - despues.y);
+}
+
 function obtenerEsquinasSprite() {
   if (!spriteImg) return [];
-  const hw = (spriteImg.width * st.scale) / 2;
-  const hh = (spriteImg.height * st.scale) / 2;
-  const rad = (st.rot * Math.PI) / 180;
-  const cos = Math.cos(rad), sin = Math.sin(rad);
-  return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(function(pt) {
-    return { x: st.x + pt[0] * cos - pt[1] * sin, y: st.y + pt[0] * sin + pt[1] * cos };
-  });
+  const bb = spriteVisBBox || { minX: 0, minY: 0, maxX: spriteImg.width, maxY: spriteImg.height, cx: spriteImg.width / 2, cy: spriteImg.height / 2 };
+  const padX = Math.max(6, Math.round(20 / Math.max(0.2, st.scale)));
+  const padY = Math.max(6, Math.round(20 / Math.max(0.2, st.scale)));
+  const x0 = bb.minX - padX, x1 = bb.maxX + padX;
+  const y0 = bb.minY - padY, y1 = bb.maxY + padY;
+  return [
+    puntoSpriteAStage(x0, y0),
+    puntoSpriteAStage(x1, y0),
+    puntoSpriteAStage(x1, y1),
+    puntoSpriteAStage(x0, y1)
+  ];
 }
+
+function detectarZonaCaja(presetId, archivo, etiqueta) {
+  const txt = (String(archivo || '') + ' ' + String(etiqueta || '')).toLowerCase();
+  if (presetId === 'per_ojos' || txt.indexOf('ojo') >= 0) return 'ojos';
+  if (presetId === 'per_boca' || txt.indexOf('boca') >= 0) return 'boca';
+  if (txt.indexOf('barba') >= 0 || txt.indexOf('bigote') >= 0) return 'barba';
+  if (txt.indexOf('pierna') >= 0) return txt.indexOf('tras') >= 0 ? 'pierna_tras' : 'pierna_del';
+  if (presetId === 'per_brazo' || txt.indexOf('brazo') >= 0) return txt.indexOf('tras') >= 0 ? 'brazo_tras' : 'brazo_del';
+  if (txt.indexOf('acces') >= 0 || txt.indexOf('gafa') >= 0 || txt.indexOf('lente') >= 0 || txt.indexOf('gorra') >= 0 || txt.indexOf('sombrero') >= 0 || txt.indexOf('cadena') >= 0 || txt.indexOf('collar') >= 0 || txt.indexOf('topo') >= 0 || txt.indexOf('arete') >= 0 || txt.indexOf('reloj') >= 0 || txt.indexOf('bolso') >= 0) return 'accesorios';
+  if (presetId === 'per_cabeza' || txt.indexOf('cabeza') >= 0) return 'cabeza';
+  return 'ropa';
+}
+
+function claveLocalCajas() {
+  const eId = slug(document.getElementById('input-entidad-id').value, 'per_001');
+  return 'piro_cajas_guia_' + eId;
+}
+
+function guardarCajasEnLocal() {
+  cajasGuiaTs = Date.now();
+  try { localStorage.setItem(claveLocalCajas(), JSON.stringify({ ts: cajasGuiaTs, cajas: cajasGuia })); } catch (e) {}
+}
+
+function cargarCajasCombinadas(pivInit) {
+  let locCajas = {}, locTs = 0;
+  try {
+    const raw = localStorage.getItem(claveLocalCajas());
+    if (raw) { const o = JSON.parse(raw); if (o && o.cajas) { locCajas = o.cajas; locTs = Number(o.ts) || 0; } }
+  } catch (e) {}
+  const nubeCajas = (pivInit && pivInit._cajas && typeof pivInit._cajas === 'object') ? pivInit._cajas : null;
+  const nubeTs = (pivInit && Number(pivInit._cajas_ts)) ? Number(pivInit._cajas_ts) : 0;
+  if (nubeCajas && (!locTs || nubeTs >= locTs)) {
+    cajasGuia = Object.assign({}, locCajas, nubeCajas);
+    cajasGuiaTs = Math.max(nubeTs, locTs);
+  } else {
+    cajasGuia = Object.assign({}, nubeCajas || {}, locCajas);
+    cajasGuiaTs = Math.max(nubeTs, locTs);
+  }
+}
+
+function nombreZonaCaja(k) {
+  const f = ZONAS_CAJA.find(function(z) { return z[0] === k; });
+  return f ? f[1] : k;
+}
+
+function renderBotonesCajas() {
+  const row = document.getElementById('row-cajas-btns');
+  const lbl = document.getElementById('lbl-caja-activa');
+  const bx = cajasGuia[zonaCajaActiva];
+  if (lbl) {
+    lbl.textContent = 'Caja ' + nombreZonaCaja(zonaCajaActiva) + (bx ? (' · Y=' + Math.round(bx.y + bx.h / 2) + ' (' + Math.round(bx.w) + '×' + Math.round(bx.h) + ')') : ' · Arrastra para marcar');
+  }
+  if (!row) return;
+  row.innerHTML = ZONAS_CAJA.map(function(z) {
+    const on = zonaCajaActiva === z[0];
+    const ok = Boolean(cajasGuia[z[0]]);
+    return '<button type="button" class="btn btn-xs ' + (on ? 'btn-primary' : (ok ? 'btn-green' : '')) + '" onclick="window.selZonaCaja(\'' + z[0] + '\')">' + z[1] + (ok ? ' OK' : '') + '</button>';
+  }).join('') + (bx ? '<button type="button" class="btn btn-xs btn-danger" onclick="window.borrarCajaActiva()">Borrar</button>' : '');
+}
+
+window.selZonaCaja = function(k) {
+  zonaCajaActiva = k;
+  renderBotonesCajas();
+  renderizarStage();
+};
+
+window.borrarCajaActiva = function() {
+  delete cajasGuia[zonaCajaActiva];
+  guardarCajasEnLocal();
+  renderBotonesCajas();
+  renderizarStage();
+  toast('Caja de ' + nombreZonaCaja(zonaCajaActiva) + ' eliminada.', 'info');
+};
+
+window.fijarCajaAPiezaActual = function() {
+  const b = obtenerBBoxVisibleEnStage();
+  if (!b) { toast('No hay pieza visible.', 'info'); return; }
+  cajasGuia[zonaCajaActiva] = { x: Math.round(b.minX), y: Math.round(b.minY), w: Math.max(12, Math.round(b.w)), h: Math.max(12, Math.round(b.h)) };
+  guardarCajasEnLocal();
+  guardarMetaSyncLocal();
+  renderBotonesCajas();
+  renderizarStage();
+  toast('Caja ' + nombreZonaCaja(zonaCajaActiva) + ' fijada (Y=' + Math.round(b.cy) + '). Guarda PNG para subirla a la nube.', 'exito');
+};
+
+window.encajarEnCajaActiva = function(ajustarEscala) {
+  const bx = cajasGuia[zonaCajaActiva];
+  if (!bx) { toast('Primero marca o fija la caja de ' + nombreZonaCaja(zonaCajaActiva) + '.', 'info'); return; }
+  if (!spriteImg || !spriteVisBBox) return;
+  if (ajustarEscala) {
+    const sc = Math.min(bx.w / Math.max(1, spriteVisBBox.w), bx.h / Math.max(1, spriteVisBBox.h));
+    st.scale = Math.max(0.08, Math.min(5, sc));
+    st.rot = 0;
+  }
+  const centroVis = puntoSpriteAStage(spriteVisBBox.cx, spriteVisBBox.cy);
+  const targetX = bx.x + bx.w / 2;
+  const targetY = bx.y + bx.h / 2;
+  st.x += (targetX - centroVis.x);
+  st.y += (targetY - centroVis.y);
+  sincronizarSlidersStage();
+  renderizarStage();
+  guardarMetaSyncLocal();
+  toast((ajustarEscala ? 'Encajado en Caja ' : 'Altura alineada a Caja ') + nombreZonaCaja(zonaCajaActiva) + ' (Y=' + Math.round(targetY) + ').', 'exito');
+};
+
+function aplicarTransformZoomStage() {
+  if (!cvStage) return;
+  const cssW = parseFloat(cvStage.style.width) || cvStage.clientWidth || 300;
+  const cssH = parseFloat(cvStage.style.height) || cvStage.clientHeight || 480;
+  if (stageZoom <= 1.01) {
+    stageZoom = 1; stagePanX = 0; stagePanY = 0;
+  } else {
+    const maxX = Math.max(40, (cssW * stageZoom) * 0.54);
+    const maxY = Math.max(40, (cssH * stageZoom) * 0.54);
+    stagePanX = Math.max(-maxX, Math.min(maxX, stagePanX));
+    stagePanY = Math.max(-maxY, Math.min(maxY, stagePanY));
+  }
+  cvStage.style.transform = stageZoom === 1 ? '' : ('translate(' + stagePanX.toFixed(1) + 'px, ' + stagePanY.toFixed(1) + 'px) scale(' + stageZoom.toFixed(3) + ')');
+  const bz = document.getElementById('btn-zoom-stage');
+  if (bz) {
+    const lbl = stageZoom === 1 ? '1x' : (Math.round(stageZoom * 10) / 10) + 'x';
+    bz.textContent = 'Zoom: ' + lbl;
+    bz.classList.toggle('on', stageZoom > 1.01);
+  }
+}
+
+function resetZoomStage() {
+  stageZoom = 1; stagePanX = 0; stagePanY = 0;
+  aplicarTransformZoomStage();
+}
+
+window.ciclarZoomStage = function() {
+  if (!cvStage || !cvStage.width) return;
+  const nextZ = stageZoom < 2.6 ? 3.0 : (stageZoom < 4.5 ? 5.0 : 1);
+  if (nextZ === 1) {
+    resetZoomStage();
+    renderizarStage();
+    return;
+  }
+  const bx = cajasGuia[zonaCajaActiva];
+  const vis = obtenerBBoxVisibleEnStage();
+  const focusX = bx ? (bx.x + bx.w / 2) : (vis ? vis.cx : presetActual.w / 2);
+  const focusY = bx ? (bx.y + bx.h / 2) : (vis ? vis.cy : presetActual.h / 2);
+  const cssW = parseFloat(cvStage.style.width) || cvStage.clientWidth || 300;
+  const cssH = parseFloat(cvStage.style.height) || cvStage.clientHeight || 480;
+  const dx = ((focusX - presetActual.w / 2) / presetActual.w) * cssW;
+  const dy = ((focusY - presetActual.h / 2) / presetActual.h) * cssH;
+  stageZoom = nextZ;
+  stagePanX = -stageZoom * dx;
+  stagePanY = -stageZoom * dy;
+  aplicarTransformZoomStage();
+  renderizarStage();
+  toast('Lupa ' + nextZ + 'x (2 dedos para mover vista, 1 dedo para cuadrar).', 'info');
+};
 
 let snapTimer = null;
 function mostrarSnapMsg(txt) {
@@ -1820,33 +2087,67 @@ function renderizarStage(soloExport) {
       }
     }
 
-    if (spriteImg && herramientaAbierta !== 'pivotes') {
-      const sq = obtenerEsquinasSprite();
-      ctxStage.setLineDash([8, 6]);
-      ctxStage.strokeStyle = 'rgba(255, 107, 0, 0.78)';
-      ctxStage.lineWidth = 3;
-      ctxStage.beginPath();
-      ctxStage.moveTo(sq[0].x, sq[0].y);
-      ctxStage.lineTo(sq[1].x, sq[1].y);
-      ctxStage.lineTo(sq[2].x, sq[2].y);
-      ctxStage.lineTo(sq[3].x, sq[3].y);
-      ctxStage.closePath();
-      ctxStage.stroke();
-
+    const zDiv = Math.max(1, stageZoom);
+if (presetActual.esPersonaje) {
+  const mostrarTodas = herramientaAbierta === 'cajas';
+  ZONAS_CAJA.forEach(function(z) {
+    const zk = z[0], bx = cajasGuia[zk];
+    if (!bx) return;
+    const esAct = zk === zonaCajaActiva;
+    if (!mostrarTodas && (!esAct || presetActual.id === 'per_ref')) return;
+    ctxStage.save();
+    ctxStage.fillStyle = esAct ? 'rgba(0, 255, 100, 0.09)' : 'rgba(34, 197, 94, 0.04)';
+    ctxStage.fillRect(bx.x, bx.y, bx.w, bx.h);
+    ctxStage.strokeStyle = esAct ? '#00ff64' : 'rgba(34, 197, 94, 0.42)';
+    ctxStage.lineWidth = (esAct ? 3.2 : 1.8) / zDiv;
+    ctxStage.setLineDash(esAct ? [10 / zDiv, 6 / zDiv] : [6 / zDiv, 6 / zDiv]);
+    ctxStage.strokeRect(bx.x, bx.y, bx.w, bx.h);
+    const cyB = bx.y + bx.h / 2;
+    const cxB = bx.x + bx.w / 2;
+    if (esAct) {
       ctxStage.setLineDash([]);
-      const rNode = Math.max(16, Math.round(W * 0.02));
-      sq.forEach(function(pt) {
-        ctxStage.fillStyle = '#ff6b00';
-        ctxStage.strokeStyle = '#ffffff';
-        ctxStage.lineWidth = 4;
-        ctxStage.beginPath();
-        ctxStage.arc(pt.x, pt.y, rNode, 0, Math.PI * 2);
-        ctxStage.fill();
-        ctxStage.stroke();
-      });
+      ctxStage.strokeStyle = snapActivo.cajaY ? '#00ff64' : 'rgba(0, 255, 100, 0.72)';
+      ctxStage.lineWidth = (snapActivo.cajaY ? 3.4 : 1.8) / zDiv;
+      ctxStage.beginPath(); ctxStage.moveTo(Math.max(0, bx.x - 28 / zDiv), cyB); ctxStage.lineTo(Math.min(W, bx.x + bx.w + 28 / zDiv), cyB); ctxStage.stroke();
+      ctxStage.strokeStyle = snapActivo.cajaX ? '#38bdf8' : 'rgba(0, 255, 100, 0.55)';
+      ctxStage.lineWidth = (snapActivo.cajaX ? 3.4 : 1.6) / zDiv;
+      ctxStage.beginPath(); ctxStage.moveTo(cxB, Math.max(0, bx.y - 16 / zDiv)); ctxStage.lineTo(cxB, Math.min(H, bx.y + bx.h + 16 / zDiv)); ctxStage.stroke();
     }
+    const fSize = Math.max(9, Math.round((esAct ? 20 : 15) / zDiv));
+    ctxStage.font = '800 ' + fSize + 'px monospace';
+    ctxStage.fillStyle = esAct ? '#86efac' : 'rgba(134, 239, 172, 0.65)';
+    ctxStage.fillText(z[1].toUpperCase() + (esAct ? (' Y=' + Math.round(cyB)) : ''), bx.x, Math.max(fSize + 2, bx.y - 6 / zDiv));
+    ctxStage.restore();
+  });
+}
 
-    Object.keys(pivotes).forEach(function(k) {
+if (spriteImg && herramientaAbierta !== 'pivotes' && herramientaAbierta !== 'cajas') {
+  const sq = obtenerEsquinasSprite();
+  ctxStage.setLineDash([8 / zDiv, 6 / zDiv]);
+  ctxStage.strokeStyle = 'rgba(255, 107, 0, 0.78)';
+  ctxStage.lineWidth = 2.6 / zDiv;
+  ctxStage.beginPath();
+  ctxStage.moveTo(sq[0].x, sq[0].y);
+  ctxStage.lineTo(sq[1].x, sq[1].y);
+  ctxStage.lineTo(sq[2].x, sq[2].y);
+  ctxStage.lineTo(sq[3].x, sq[3].y);
+  ctxStage.closePath();
+  ctxStage.stroke();
+
+  ctxStage.setLineDash([]);
+  const rNode = Math.max(5, Math.round(18 / zDiv));
+  sq.forEach(function(pt) {
+    ctxStage.fillStyle = '#ff6b00';
+    ctxStage.strokeStyle = '#ffffff';
+    ctxStage.lineWidth = Math.max(1.5, 3.5 / zDiv);
+    ctxStage.beginPath();
+    ctxStage.arc(pt.x, pt.y, rNode, 0, Math.PI * 2);
+    ctxStage.fill();
+    ctxStage.stroke();
+  });
+}
+
+['cuello', 'hombro_trasero', 'hombro_delantero', 'mano_delantera'].forEach(function(k) {
       const pv = pivotes[k];
       if (!pv) return;
       ctxStage.strokeStyle = '#ef4444'; ctxStage.fillStyle = '#ef4444'; ctxStage.lineWidth = 4;
@@ -1909,8 +2210,8 @@ async function guardarYExportarPNG() {
       blob: blob,
       rutaRelativa: rutaRelativa,
       nombreArchivo: rutaRelativa.split('/').pop(),
-      pivotes: pivotes,
-      alturaCm: alturaCm
+      pivotes: Object.assign({}, pivotes, (cajasGuiaTs > 0 || Object.keys(cajasGuia).length > 0) ? { _cajas: cajasGuia, _cajas_ts: cajasGuiaTs || Date.now() } : {}),
+alturaCm: alturaCm
     }, '*');
     toast('PNG enviado. Esperando confirmación en la nube...', 'info');
     return;
@@ -2069,111 +2370,212 @@ function iniciarCanvasListeners() {
     ctxClean.restore();
   }
 
-  cvStage.addEventListener('pointerdown', function(e) {
-    e.preventDefault();
-    cvStage.setPointerCapture(e.pointerId);
-    const pt = coordEnCanvas(cvStage, e.clientX, e.clientY);
+  const wrapStage = document.getElementById('wrap-canvas-stage');
 
-    if (herramientaAbierta === 'pivotes') {
-      pivotes[pivoteActivo] = { x: Math.round(pt.x), y: Math.round(pt.y) };
-      renderBotonesPivotes();
-      renderizarStage();
-      guardarMetaSyncLocal();
-      toast('Pivote ' + pivoteActivo + ': [' + Math.round(pt.x) + ', ' + Math.round(pt.y) + ']', 'exito');
-      return;
-    }
+function cancelarGestoStageEnCurso() {
+  if (cajaDrawStart) {
+    cajaDrawStart = null;
+    if (cajaPreDraw) cajasGuia[zonaCajaActiva] = cajaPreDraw;
+    else delete cajasGuia[zonaCajaActiva];
+    cajaPreDraw = null;
+    renderBotonesCajas();
+  }
+  if (gestureState) {
+    if (typeof gestureState.stX0 === 'number') st.x = gestureState.stX0;
+    if (typeof gestureState.stY0 === 'number') st.y = gestureState.stY0;
+    if (typeof gestureState.scale0 === 'number') st.scale = gestureState.scale0;
+    gestureState = null;
+  }
+  renderizarStage();
+}
 
-    pointersStage.set(e.pointerId, { cx: e.clientX, cy: e.clientY, x: pt.x, y: pt.y });
+wrapStage.addEventListener('pointerdown', function(e) {
+  if (!cvStage || !cvStage.width) return;
+  e.preventDefault();
+  if (wrapStage.setPointerCapture) { try { wrapStage.setPointerCapture(e.pointerId); } catch (err) {} }
+  const pt = coordEnCanvas(cvStage, e.clientX, e.clientY);
+  pointersStage.set(e.pointerId, { cx: e.clientX, cy: e.clientY, x: pt.x, y: pt.y });
 
-    if (pointersStage.size === 2) {
-      const arr = Array.from(pointersStage.values());
-      const dist = Math.hypot(arr[1].cx - arr[0].cx, arr[1].cy - arr[0].cy) || 1;
-      gestureState = { tipo: 'pinch', dist0: dist, scale0: st.scale };
-      return;
-    }
+  if (pointersStage.size >= 2) {
+    cancelarGestoStageEnCurso();
+    const arr = Array.from(pointersStage.values());
+    const wr = wrapStage.getBoundingClientRect();
+    const midX = (arr[0].cx + arr[1].cx) / 2 - (wr.left + wr.width / 2);
+    const midY = (arr[0].cy + arr[1].cy) / 2 - (wr.top + wr.height / 2);
+    stageViewGesture = {
+      dist0: Math.hypot(arr[1].cx - arr[0].cx, arr[1].cy - arr[0].cy) || 1,
+      zoom0: stageZoom,
+      px0: (midX - stagePanX) / stageZoom,
+      py0: (midY - stagePanY) / stageZoom,
+      bloqueo: true
+    };
+    return;
+  }
 
-    const sq = obtenerEsquinasSprite();
-    const hitR = Math.max(46, presetActual.w * 0.058);
-    for (let i = 0; i < sq.length; i++) {
-      if (Math.hypot(pt.x - sq[i].x, pt.y - sq[i].y) <= hitR) {
-        const d0 = Math.hypot(pt.x - st.x, pt.y - st.y) || 1;
-        gestureState = { tipo: 'handle', d0: d0, scale0: st.scale };
-        return;
-      }
-    }
+  if (stageViewGesture && stageViewGesture.bloqueo) return;
 
-    gestureState = { tipo: 'drag', x0: pt.x, y0: pt.y, stX0: st.x, stY0: st.y };
+  if (herramientaAbierta === 'pivotes') {
+    pivotes[pivoteActivo] = { x: Math.round(pt.x), y: Math.round(pt.y) };
+    renderBotonesPivotes();
     renderizarStage();
-  });
+    guardarMetaSyncLocal();
+    toast('Pivote ' + pivoteActivo + ': [' + Math.round(pt.x) + ', ' + Math.round(pt.y) + ']', 'exito');
+    return;
+  }
 
-  cvStage.addEventListener('pointermove', function(e) {
-    if (!pointersStage.has(e.pointerId) || !gestureState) return;
-    const pt = coordEnCanvas(cvStage, e.clientX, e.clientY);
-    pointersStage.set(e.pointerId, { cx: e.clientX, cy: e.clientY, x: pt.x, y: pt.y });
+  if (herramientaAbierta === 'cajas') {
+    cajaPreDraw = cajasGuia[zonaCajaActiva] ? Object.assign({}, cajasGuia[zonaCajaActiva]) : null;
+    cajaDrawStart = { x: pt.x, y: pt.y };
+    cajasGuia[zonaCajaActiva] = { x: Math.round(pt.x), y: Math.round(pt.y), w: 12, h: 12 };
+    renderizarStage();
+    return;
+  }
 
-    snapActivo = { x: false, suelo: false, altura: false, rot: Math.abs(st.rot) < 0.5 };
-    const W = presetActual.w;
+  const sq = obtenerEsquinasSprite();
+  const hitR = Math.max(16, Math.round(48 / Math.max(1, stageZoom)));
+  for (let i = 0; i < sq.length; i++) {
+    if (Math.hypot(pt.x - sq[i].x, pt.y - sq[i].y) <= hitR) {
+      const visC = obtenerBBoxVisibleEnStage() || { cx: st.x, cy: st.y };
+      const d0 = Math.hypot(pt.x - visC.cx, pt.y - visC.cy) || 1;
+      gestureState = { tipo: 'handle', d0: d0, scale0: st.scale, stX0: st.x, stY0: st.y, pivotX: visC.cx, pivotY: visC.cy };
+      return;
+    }
+  }
 
-    if (gestureState.tipo === 'pinch' && pointersStage.size >= 2) {
-      const arr = Array.from(pointersStage.values());
-      const dist = Math.hypot(arr[1].cx - arr[0].cx, arr[1].cy - arr[0].cy) || 1;
-      st.scale = Math.max(0.1, Math.min(4, gestureState.scale0 * (dist / gestureState.dist0)));
-      verificarSnapAltura();
-      sincronizarSlidersStage();
-      renderizarStage();
-    } else if (gestureState.tipo === 'handle') {
-      const d = Math.hypot(pt.x - st.x, pt.y - st.y) || 1;
-      st.scale = Math.max(0.1, Math.min(4, gestureState.scale0 * (d / gestureState.d0)));
-      verificarSnapAltura();
-      sincronizarSlidersStage();
-      renderizarStage();
-    } else if (gestureState.tipo === 'drag') {
-      let nx = gestureState.stX0 + (pt.x - gestureState.x0);
-      let ny = gestureState.stY0 + (pt.y - gestureState.y0);
-      if (Math.abs(nx - W / 2) < 18) {
-        nx = W / 2; snapActivo.x = true; mostrarSnapMsg('CENTRADO X=' + Math.round(W / 2));
+  gestureState = { tipo: 'drag', x0: pt.x, y0: pt.y, stX0: st.x, stY0: st.y, scale0: st.scale };
+  renderizarStage();
+});
+
+wrapStage.addEventListener('pointermove', function(e) {
+  if (!pointersStage.has(e.pointerId)) return;
+  const pt = coordEnCanvas(cvStage, e.clientX, e.clientY);
+  pointersStage.set(e.pointerId, { cx: e.clientX, cy: e.clientY, x: pt.x, y: pt.y });
+
+  if (stageViewGesture && pointersStage.size >= 2) {
+    const arr = Array.from(pointersStage.values());
+    const dist = Math.hypot(arr[1].cx - arr[0].cx, arr[1].cy - arr[0].cy) || 1;
+    const wr = wrapStage.getBoundingClientRect();
+    const midX = (arr[0].cx + arr[1].cx) / 2 - (wr.left + wr.width / 2);
+    const midY = (arr[0].cy + arr[1].cy) / 2 - (wr.top + wr.height / 2);
+    const nz = Math.max(1, Math.min(6, stageViewGesture.zoom0 * (dist / stageViewGesture.dist0)));
+    stageZoom = nz < 1.04 ? 1 : nz;
+    stagePanX = midX - stageZoom * stageViewGesture.px0;
+    stagePanY = midY - stageZoom * stageViewGesture.py0;
+    aplicarTransformZoomStage();
+    renderizarStage();
+    return;
+  }
+
+  if (stageViewGesture && stageViewGesture.bloqueo) return;
+
+  if (herramientaAbierta === 'cajas' && cajaDrawStart) {
+    const x = Math.max(0, Math.min(presetActual.w, Math.min(cajaDrawStart.x, pt.x)));
+    const y = Math.max(0, Math.min(presetActual.h, Math.min(cajaDrawStart.y, pt.y)));
+    const w = Math.max(12, Math.round(Math.abs(pt.x - cajaDrawStart.x)));
+    const h = Math.max(12, Math.round(Math.abs(pt.y - cajaDrawStart.y)));
+    cajasGuia[zonaCajaActiva] = { x: Math.round(x), y: Math.round(y), w: w, h: h };
+    renderBotonesCajas();
+    renderizarStage();
+    return;
+  }
+
+  if (!gestureState) return;
+  snapActivo = { x: false, suelo: false, altura: false, rot: Math.abs(st.rot) < 0.5, cajaX: false, cajaY: false };
+  const W = presetActual.w;
+
+  if (gestureState.tipo === 'handle') {
+    const d = Math.hypot(pt.x - gestureState.pivotX, pt.y - gestureState.pivotY) || 1;
+    cambiarEscalaConservandoVisible(gestureState.scale0 * (d / gestureState.d0));
+    verificarSnapAltura();
+    sincronizarSlidersStage();
+    renderizarStage();
+  } else if (gestureState.tipo === 'drag') {
+    let nx = gestureState.stX0 + (pt.x - gestureState.x0);
+    let ny = gestureState.stY0 + (pt.y - gestureState.y0);
+    const snapTol = Math.max(6, Math.round(16 / Math.max(1, stageZoom)));
+    const bx = (presetActual.esPersonaje && presetActual.id !== 'per_ref') ? cajasGuia[zonaCajaActiva] : null;
+    if (bx && spriteImg && spriteVisBBox) {
+      const cTmp = puntoSpriteAStage(spriteVisBBox.cx, spriteVisBBox.cy, { x: nx, y: ny, scale: st.scale, rot: st.rot, flipX: st.flipX });
+      const bxCx = bx.x + bx.w / 2, bxCy = bx.y + bx.h / 2;
+      if (Math.abs(cTmp.y - bxCy) < snapTol) {
+        ny += (bxCy - cTmp.y); snapActivo.cajaY = true;
+        mostrarSnapMsg('ALTURA ' + nombreZonaCaja(zonaCajaActiva).toUpperCase() + ' Y=' + Math.round(bxCy));
       }
-      if (presetActual.esPersonaje && spriteImg) {
-        const hh = (spriteImg.height * st.scale) / 2;
-        if (Math.abs((ny + hh) - SUELO_Y) < 18) {
-          ny = SUELO_Y - hh; snapActivo.suelo = true; mostrarSnapMsg('PIES EN SUELO Y=' + SUELO_Y);
+      if (Math.abs(cTmp.x - bxCx) < snapTol) {
+        nx += (bxCx - cTmp.x); snapActivo.cajaX = true;
+        if (!snapActivo.cajaY) mostrarSnapMsg('CENTRO ' + nombreZonaCaja(zonaCajaActiva).toUpperCase());
+      }
+    }
+    if (!snapActivo.cajaX && Math.abs(nx - W / 2) < 16) {
+      nx = W / 2; snapActivo.x = true; mostrarSnapMsg('CENTRADO X=' + Math.round(W / 2));
+    }
+    if (presetActual.esPersonaje && spriteImg && !bx) {
+      const vis = obtenerBBoxVisibleEnStage({ x: nx, y: ny, scale: st.scale, rot: st.rot, flipX: st.flipX });
+      if (vis) {
+        if (Math.abs(vis.maxY - SUELO_Y) < 18) {
+          ny += (SUELO_Y - vis.maxY); snapActivo.suelo = true; mostrarSnapMsg('PIES EN SUELO Y=' + SUELO_Y);
         }
         const yAlt = getYAltura();
-        if (Math.abs((ny - hh) - yAlt) < 18) {
-          ny = yAlt + hh; snapActivo.altura = true; mostrarSnapMsg('TOPE ALTURA ' + (alturaCm / 100).toFixed(2) + ' m');
+        if (Math.abs(vis.minY - yAlt) < 18) {
+          ny += (yAlt - vis.minY); snapActivo.altura = true; mostrarSnapMsg('TOPE ALTURA ' + (alturaCm / 100).toFixed(2) + ' m');
         }
       }
-      st.x = nx; st.y = ny;
-      renderizarStage();
     }
-  });
-
-  function verificarSnapAltura() {
-    if (!presetActual.esPersonaje || !spriteImg) return;
-    const hh = (spriteImg.height * st.scale) / 2;
-    const yAlt = getYAltura();
-    if (Math.abs((st.y - hh) - yAlt) < 14) { snapActivo.altura = true; mostrarSnapMsg('ALTURA ' + (alturaCm / 100).toFixed(2) + ' m OK'); }
-    if (Math.abs((st.y + hh) - SUELO_Y) < 14) { snapActivo.suelo = true; }
+    st.x = nx; st.y = ny;
+    renderizarStage();
   }
+});
 
-  function finStage(e) {
-    pointersStage.delete(e.pointerId);
-    if (pointersStage.size === 0) {
-      gestureState = null;
-      snapActivo = { x: false, suelo: false, altura: false, rot: false };
-      renderizarStage();
-      guardarMetaSyncLocal();
-    }
+function verificarSnapAltura() {
+  if (!presetActual.esPersonaje || !spriteImg) return;
+  const vis = obtenerBBoxVisibleEnStage();
+  if (!vis) return;
+  const yAlt = getYAltura();
+  if (Math.abs(vis.minY - yAlt) < 14) { snapActivo.altura = true; mostrarSnapMsg('ALTURA ' + (alturaCm / 100).toFixed(2) + ' m OK'); }
+  if (Math.abs(vis.maxY - SUELO_Y) < 14) { snapActivo.suelo = true; }
+}
+
+function finStage(e) {
+  pointersStage.delete(e.pointerId);
+  if (stageViewGesture && stageViewGesture.bloqueo) {
+    if (pointersStage.size === 0) stageViewGesture = null;
+    return;
   }
-  cvStage.addEventListener('pointerup', finStage);
-  cvStage.addEventListener('pointercancel', finStage);
+  if (herramientaAbierta === 'cajas' && cajaDrawStart) {
+    cajaDrawStart = null; cajaPreDraw = null;
+    guardarCajasEnLocal();
+    guardarMetaSyncLocal();
+    renderBotonesCajas();
+    renderizarStage();
+    toast('Caja ' + nombreZonaCaja(zonaCajaActiva) + ' guardada.', 'exito');
+    return;
+  }
+  if (pointersStage.size === 0) {
+    gestureState = null;
+    snapActivo = { x: false, suelo: false, altura: false, rot: false, cajaX: false, cajaY: false };
+    renderizarStage();
+    guardarMetaSyncLocal();
+  }
+}
+wrapStage.addEventListener('pointerup', finStage);
+wrapStage.addEventListener('pointercancel', finStage);
 
-  cvStage.addEventListener('wheel', function(e) {
-    if (!spriteImg) return;
-    e.preventDefault();
-    const f = e.deltaY < 0 ? 1.05 : 0.95;
-    window.setStageScale(st.scale * f);
-  }, { passive: false });
+wrapStage.addEventListener('wheel', function(e) {
+  if (!cvStage || !cvStage.width) return;
+  e.preventDefault();
+  const wr = wrapStage.getBoundingClientRect();
+  const mx = e.clientX - (wr.left + wr.width / 2);
+  const my = e.clientY - (wr.top + wr.height / 2);
+  const px = (mx - stagePanX) / stageZoom;
+  const py = (my - stagePanY) / stageZoom;
+  const f = e.deltaY < 0 ? 1.15 : 0.87;
+  const nz = Math.max(1, Math.min(6, stageZoom * f));
+  stageZoom = nz < 1.04 ? 1 : nz;
+  stagePanX = mx - stageZoom * px;
+  stagePanY = my - stageZoom * py;
+  aplicarTransformZoomStage();
+  renderizarStage();
+}, { passive: false });
 }
 
 // =========================================================================
@@ -2212,9 +2614,12 @@ window.addEventListener('message', async function(e) {
       else pivotes[k] = null;
     });
 
-    if (e.data.dataUrl) {
-      cargarDataUrlEnClean(e.data.dataUrl, pedirFormato);
-    } else if (pedirFormato) {
+    cargarCajasCombinadas(pivInit);
+zonaCajaActiva = detectarZonaCaja(presetActual.id, e.data.archivoNombre, e.data.etiqueta);
+
+if (e.data.dataUrl) {
+  cargarDataUrlEnClean(e.data.dataUrl, pedirFormato);
+} else if (pedirFormato) {
       window.abrirSelectorFormato();
     }
   }
