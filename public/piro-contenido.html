@@ -1083,11 +1083,35 @@ function renderizarVistaPersonajes() {
             '<div class="field"><label>Personalidad</label><input class="inp" value="' + esc(p.personalidad) + '" oninput="window.editarCampoPersonaje(\'personalidad\', this.value)"></div>' +
           '</div>' +
         '</div>';
-    } else if (subFichaPanel === 'voz') {
+        } else if (subFichaPanel === 'voz') {
+      const vEdOpts = [['es-CO-GonzaloNeural','Gonzalo (CO H)'],['es-CO-SalomeNeural','Salomé (CO M)'],['es-MX-JorgeNeural','Jorge (MX H)'],['es-MX-DaliaNeural','Dalia (MX M)'],['es-AR-TomasNeural','Tomás (AR H)'],['es-AR-ElenaNeural','Elena (AR M)'],['es-CL-LorenzoNeural','Lorenzo (CL H)'],['es-VE-SebastianNeural','Sebastián (VE H)'],['es-PE-AlexNeural','Alex (PE H)'],['es-ES-AlvaroNeural','Álvaro (ES H)'],['es-ES-ElviraNeural','Elvira (ES M)'],['es-US-AlonsoNeural','Alonso (US-ES)'],['en-US-BrianNeural','Brian (EN-US)'],['en-US-ChristopherNeural','Christopher (EN)'],['en-US-GuyNeural','Guy (EN)'],['en-US-AndrewNeural','Andrew (EN)'],['en-US-JennyNeural','Jenny (EN M)'],['en-US-AriaNeural','Aria (EN IA)'],['en-US-MichelleNeural','Michelle (EN M)'],['en-GB-RyanNeural','Ryan (EN-UK)']].map(function(v) { return '<option value="' + v[0] + '"' + ((p.voz_es || 'es-CO-GonzaloNeural') === v[0] ? ' selected' : '') + '>' + v[1] + '</option>'; }).join('');
+      const vPoOpts = ['Miguel','Lupe','Mia','Penelope','Enrique','Lucia','Conchita','Brian','Matthew','Joanna','Joey'].map(function(v) { return '<option value="' + v + '"' + ((p.voz_polly || 'Miguel') === v ? ' selected' : '') + '>' + v + '</option>'; }).join('');
+      const vGtOpts = [['es-CO','ES Colombia'],['es-MX','ES México'],['es-ES','ES España'],['es-US','ES Latino'],['en-US','EN USA'],['en-GB','EN UK']].map(function(v) { return '<option value="' + v[0] + '"' + ((p.voz_gtts || 'es-CO') === v[0] ? ' selected' : '') + '>' + v[1] + '</option>'; }).join('');
+      const vGemOpts = ['Puck','Charon','Kore','Fenrir','Aoede','Zephyr','Orus','Leda'].map(function(v) { return '<option value="' + v + '"' + ((p.voz_gemini || 'Puck') === v ? ' selected' : '') + '>' + v + '</option>'; }).join('');
+      const vOaiOpts = ['onyx','alloy','ash','coral','echo','fable','nova','sage','shimmer'].map(function(v) { return '<option value="' + v + '"' + ((p.voz_openai || 'onyx') === v ? ' selected' : '') + '>' + v + '</option>'; }).join('');
+      const pOpts = ['-12Hz','-8Hz','-4Hz','+0Hz','+4Hz','+8Hz','+12Hz'].map(function(x) { return '<option value="' + x + '"' + ((p.voz_pitch || '+0Hz') === x ? ' selected' : '') + '>' + x + '</option>'; }).join('');
+      const rOpts = ['-15%','-8%','+0%','+8%','+15%'].map(function(x) { return '<option value="' + x + '"' + ((p.voz_rate || '+0%') === x ? ' selected' : '') + '>' + x + '</option>'; }).join('');
       bodyF =
         '<div class="compact-pane">' +
-          '<div class="field"><label>ElevenLabs voice_id</label><input class="inp" value="' + esc(p.voice_id || '') + '" placeholder="Pega el voice_id de ElevenLabs" oninput="window.editarCampoPersonaje(\'voice_id\', this.value)"></div>' +
-          (proyectoActivo.bilingue ? '<div style="display:grid; grid-template-columns:1fr 1fr; gap:7px;"><div class="field"><label>Voz EN (edge-tts)</label><input class="inp" value="' + esc(p.voz_en || '') + '" oninput="window.editarCampoPersonaje(\'voz_en\', this.value)"></div><div class="field"><label>Voz ES (edge-tts)</label><input class="inp" value="' + esc(p.voz_es || '') + '" oninput="window.editarCampoPersonaje(\'voz_es\', this.value)"></div></div>' : '') +
+          '<div style="padding:8px; border-radius:10px; border:1px solid rgba(34,197,94,0.38); background:rgba(34,197,94,0.06);">' +
+            '<div style="display:flex; justify-content:space-between; align-items:center; gap:4px; margin-bottom:6px;"><span style="font-size:10.5px; font-weight:900; color:#86efac;">VOCES GRATIS ($0) Y TTS</span><div style="display:flex; gap:4px;"><button type="button" class="btn btn-xs btn-green" id="btn-test-voz-edge" onclick="window.probarVozGratisFicha(\'edge_tts\')">Edge</button><button type="button" class="btn btn-xs btn-blue" id="btn-test-voz-polly" onclick="window.probarVozGratisFicha(\'polly_free\')">Polly</button><button type="button" class="btn btn-xs" id="btn-test-voz-gtts" onclick="window.probarVozGratisFicha(\'google_tts_free\')">Google</button></div></div>' +
+            '<div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:6px;">' +
+              '<div class="field" style="margin:0;"><label>Edge Neural ($0)</label><select class="sel" onchange="window.editarCampoPersonaje(\'voz_es\', this.value)">' + vEdOpts + '</select></div>' +
+              '<div class="field" style="margin:0;"><label>Polly Free ($0)</label><select class="sel" onchange="window.editarCampoPersonaje(\'voz_polly\', this.value)">' + vPoOpts + '</select></div>' +
+            '</div>' +
+            '<div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-bottom:6px;">' +
+              '<div class="field" style="margin:0;"><label>Tono (Edge)</label><select class="sel" onchange="window.editarCampoPersonaje(\'voz_pitch\', this.value)">' + pOpts + '</select></div>' +
+              '<div class="field" style="margin:0;"><label>Vel. (Edge)</label><select class="sel" onchange="window.editarCampoPersonaje(\'voz_rate\', this.value)">' + rOpts + '</select></div>' +
+              '<div class="field" style="margin:0;"><label>Google ($0)</label><select class="sel" onchange="window.editarCampoPersonaje(\'voz_gtts\', this.value)">' + vGtOpts + '</select></div>' +
+            '</div>' +
+            '<div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">' +
+              '<div class="field" style="margin:0;"><label>Gemini TTS</label><select class="sel" onchange="window.editarCampoPersonaje(\'voz_gemini\', this.value)">' + vGemOpts + '</select></div>' +
+              '<div class="field" style="margin:0;"><label>OpenAI TTS</label><select class="sel" onchange="window.editarCampoPersonaje(\'voz_openai\', this.value)">' + vOaiOpts + '</select></div>' +
+            '</div>' +
+            '<audio id="audio-test-ficha" controls class="hidden" style="width:100%; height:30px; margin-top:6px;"></audio>' +
+          '</div>' +
+          '<div class="field"><label>ElevenLabs voice_id (opcional para render comercial)</label><input class="inp" value="' + esc(p.voice_id || '') + '" placeholder="Pega el voice_id de ElevenLabs" oninput="window.editarCampoPersonaje(\'voice_id\', this.value)"></div>' +
+          (proyectoActivo.bilingue ? '<div class="field"><label>Voz EN (edge-tts bilingüe)</label><input class="inp" value="' + esc(p.voz_en || '') + '" oninput="window.editarCampoPersonaje(\'voz_en\', this.value)"></div>' : '') +
           '<div class="field">' +
             '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">' +
               '<label style="margin:0;">Muestra de Voz (muestra_voz.mp3)</label>' +
@@ -1460,6 +1484,24 @@ window.dibujarProbadorSandwich = async function() {
   });
   const est = document.getElementById('sandwich-estado-txt');
   if (est) est.textContent = n > 0 ? ('Capas: ' + n + ' · Rig 50 OK') : 'Sube piezas en Base/Ojos/Bocas';
+};
+
+window.probarVozGratisFicha = async function(motor) {
+  const p = obtenerPersonajeActual(); if (!p) return;
+  const btnMap = { edge_tts: ['btn-test-voz-edge', 'Edge'], polly_free: ['btn-test-voz-polly', 'Polly'], google_tts_free: ['btn-test-voz-gtts', 'Google'] };
+  const bInfo = btnMap[motor] || ['btn-test-voz-edge', 'Edge'];
+  const btn = document.getElementById(bInfo[0]);
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  try {
+    const vid = motor === 'polly_free' ? (p.voz_polly || 'Miguel') : (motor === 'google_tts_free' ? (p.voz_gtts || 'es-CO') : (p.voz_es || 'es-CO-GonzaloNeural'));
+    const frase = 'Hola, soy ' + (p.nombre || 'personaje') + '. Probando mi voz gratuita en el estudio.';
+    const res = await GeokatuDB.PirobonianosService.llamarProxyIA({ proveedorId: motor, accion: 'audio', modoPago: 'auto', payload: { text: frase, voiceId: vid, pitch: p.voz_pitch || '+0Hz', rate: p.voz_rate || '+0%' } });
+    if (!res || !res.success || !res.b64) throw new Error((res && res.error) || 'No se pudo sintetizar prueba');
+    const aud = document.getElementById('audio-test-ficha');
+    if (aud) { aud.src = 'data:' + (res.mime || 'audio/mpeg') + ';base64,' + res.b64; aud.classList.remove('hidden'); aud.play().catch(function() {}); }
+    toast('Voz ' + vid + ' lista ($0).', 'exito');
+  } catch (err) { toast('Error prueba voz: ' + err.message, 'error'); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = bInfo[1]; } }
 };
 
 window.subirMuestraVozPersonaje = function() {
