@@ -373,6 +373,25 @@
   </div>
 </div>
 
+<!-- MODAL HOJA LOTE IA (1 LLAMADA API) -->
+<div class="modal-ov" id="modal-lote-hoja" onclick="if(event.target.id==='modal-lote-hoja') window.cerrarModalLoteHoja()">
+  <div class="modal-card" style="max-width:480px;">
+    <div class="modal-head"><h3 id="lote-titulo">Hoja Lote IA (1 API)</h3><button type="button" class="btn btn-xs" onclick="window.cerrarModalLoteHoja()">Cerrar</button></div>
+    <div style="font-size:11px; color:var(--muted); margin-bottom:7px;">Elige hasta 9 piezas para generarlas juntas en 1 llamada API y recortarlas a 1000×1600.</div>
+    <div id="lote-checks-box" style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px;"></div>
+    <div class="field" style="margin-bottom:8px;">
+      <div style="display:flex; justify-content:space-between; margin-bottom:3px;"><label style="margin:0;">Prompt Hoja de Sprites</label><span id="lote-grid-badge" style="font-size:10px; font-family:monospace; color:#86efac;">3×3</span></div>
+      <textarea id="lote-prompt" class="inp" rows="4" style="font-size:10.5px; line-height:1.35;"></textarea>
+    </div>
+    <div id="lote-error-box" class="hidden" style="margin-bottom:8px; padding:7px 9px; border-radius:8px; border:1px solid rgba(239,68,68,0.5); background:rgba(239,68,68,0.12); color:#fca5a5; font-size:11px; font-weight:700;"></div>
+    <div id="lote-result-box" class="hidden" style="margin-bottom:10px;">
+      <div style="font-size:10.5px; font-weight:800; color:#86efac; margin-bottom:6px;">Piezas recortadas 1:1 (desmarca si alguna no sirve):</div>
+      <div id="lote-result-grid" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; max-height:250px; overflow-y:auto;"></div>
+      <div style="display:flex; gap:6px; margin-top:8px;"><button type="button" class="btn btn-green" id="btn-guardar-lote" style="flex:1;" onclick="window.guardarLoteHojaSeleccionados()">Guardar Seleccionados</button><button type="button" class="btn btn-xs btn-purple" onclick="window.ejecutarLoteHojaIA()">Reintentar</button></div>
+    </div>
+    <button type="button" class="btn btn-purple" id="btn-run-lote" style="width:100%;" onclick="window.ejecutarLoteHojaIA()">Generar Hoja Completa (1 API)</button>
+  </div>
+</div>
 <!-- MODAL CREAR NUEVA ENTIDAD -->
 <div class="modal-ov" id="modal-crear-entidad" onclick="if(event.target.id==='modal-crear-entidad') window.cerrarModalC('modal-crear-entidad')">
   <div class="modal-card">
@@ -1128,7 +1147,7 @@ function renderizarVistaPersonajes() {
 
   ws.innerHTML =
     '<div class="carousel-stage">' + slidesHtml + '</div>' +
-    '<div style="height:30px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:10.5px; color:var(--muted); border-top:1px solid var(--border); background:rgba(12,16,24,0.96);">Desliza tarjetas izquierda / derecha · Toca Subir / Estudio para recortar</div>';
+    ((subTabPersonaje === 'ojos' || subTabPersonaje === 'bocas' || subTabPersonaje === 'manos') ? ('<div style="height:42px; flex-shrink:0; padding:0 10px; display:flex; align-items:center; justify-content:space-between; gap:8px; border-top:1px solid var(--border); background:rgba(12,16,24,0.98);"><span style="font-size:10.5px; color:var(--muted);">Desliza ↔ · o genera varias en 1 API</span><button type="button" class="btn btn-xs btn-purple" onclick="window.abrirModalLoteHoja(\'' + subTabPersonaje + '\')">Hoja Lote IA (1 API)</button></div>') : '<div style="height:30px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:10.5px; color:var(--muted); border-top:1px solid var(--border); background:rgba(12,16,24,0.96);">Desliza tarjetas izquierda / derecha · Toca Subir / Estudio para recortar</div>');
 }
 
 function renderHtmlDockSandwich(p) {
@@ -1859,7 +1878,7 @@ window.abrirModalCrear = function(tipo) {
     form.innerHTML =
       '<div class="field"><label>Nombre</label><input id="mc-nom" class="inp" placeholder="Ej: Camisa Elegante" required></div>' +
       '<div class="field"><label>Archivo (sin .png)</label><input id="mc-arch" class="inp" placeholder="Ej: vest_02" required></div>' +
-      '<div class="field"><label>Tipo de pieza</label><select id="mc-preset" class="sel"><option value="per_cuerpo">Cuerpo / Vestuario</option><option value="per_brazo">Brazo Extra</option><option value="per_ojos">Ojos Extra</option><option value="per_boca">Boca Extra</option><option value="per_cabeza">Cabeza Extra</option></select></div>' +
+      '<div class="field"><label>Tipo de pieza</label><select id="mc-preset" class="sel"><option value="per_cuerpo">Cuerpo / Vestuario</option><option value="per_brazo">Brazo Extra</option><option value="per_mano">Mano Extra</option><option value="per_ojos">Ojos Extra</option><option value="per_boca">Boca Extra</option><option value="per_cabeza">Cabeza Extra</option></select></div>' +
       '<div class="field"><label>Nota para prompt</label><input id="mc-nota" class="inp"></div>' +
       '<div style="display:flex; justify-content:flex-end; gap:8px; margin-top:10px;"><button type="submit" class="btn btn-primary">Añadir</button></div>';
   } else if (tipo === 'escenario') {
@@ -2779,6 +2798,126 @@ window.llevarGenIAEstudio = function() {
   } else {
     toast('Abre este módulo desde piro-shell.html para editar en Estudio PNG.', 'info');
   }
+};
+
+let loteCtx = null;
+function limpiarCromaHoja(ctx, w, h) {
+  const imgData = ctx.getImageData(0, 0, w, h), d = imgData.data, tot = w * h;
+  const esV = function(p, t) { const r = d[p], g = d[p + 1], b = d[p + 2]; return g > 85 && (g - (r > b ? r : b)) > t; };
+  const vis = new Uint8Array(tot), st = [], enc = function(i) { if (!vis[i] && esV(i * 4, 34)) { vis[i] = 1; st.push(i); } };
+  for (let x = 0; x < w; x++) { enc(x); enc((h - 1) * w + x); }
+  for (let y = 1; y < h - 1; y++) { enc(y * w); enc(y * w + (w - 1)); }
+  while (st.length) { const c = st.pop(), cx = c % w, cy = (c - cx) / w; d[c * 4 + 3] = 0; if (cx > 0) enc(c - 1); if (cx + 1 < w) enc(c + 1); if (cy > 0) enc(c - w); if (cy + 1 < h) enc(c + w); }
+  for (let i = 0; i < tot; i++) { const p = i * 4; if (d[p + 3] > 0 && esV(p, 56) && d[p + 1] > 120) d[p + 3] = 0; }
+  const bor = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x, p = i * 4; if (!d[p + 3]) continue;
+    if ((x > 0 && !d[(i - 1) * 4 + 3]) || (x + 1 < w && !d[(i + 1) * 4 + 3]) || (y > 0 && !d[(i - w) * 4 + 3]) || (y + 1 < h && !d[(i + w) * 4 + 3])) {
+      const mx = d[p] > d[p + 2] ? d[p] : d[p + 2], ex = d[p + 1] - mx;
+      if (d[p + 1] > 72 && ex > 22) bor.push(i); else if (d[p + 1] > 60 && ex > 10) d[p + 1] = mx;
+    }
+  }
+  for (let k = 0; k < bor.length; k++) d[bor[k] * 4 + 3] = 0;
+  ctx.putImageData(imgData, 0, 0);
+}
+function gridLote(n) { return n <= 4 ? { c: 2, r: 2 } : (n <= 6 ? { c: 3, r: 2 } : { c: 3, r: 3 }); }
+function promptLoteHoja(p, grupo, keys) {
+  const bs = proyectoActivo.estilo_visual || '2D cartoon BoJack Horseman style, clean black ink outlines, flat colors.';
+  const gr = gridLote(keys.length);
+  const m = { ojos_neutro:'NEUTRAL calm eyes', ojos_feliz:'HAPPY bright eyes + curved brows', ojos_enojado:'ANGRY fierce eyes + V brows', ojos_triste:'SAD heavy-lidded eyes + worried inner brows', ojos_duda:'SKEPTICAL side-glance + 1 raised brow', ojos_indignado:'SHOCKED wide eyes + high brows', ojos_cerrados:'CLOSED blinking eyelids', ojos_reojo:'AWKWARD side-glance eyes', ojos_celoso:'JEALOUS narrowed tense eyes', ojos_cansado:'TIRED half-closed eyes + faint under-eye lines', boca_cerrada:'CLOSED calm mouth', boca_media:'HALF-OPEN talking mouth', boca_abierta:'WIDE OPEN A/E mouth with teeth/tongue', boca_sonrisa:'SMILING mouth', boca_molesta:'ANNOYED frowning mouth', boca_o_u:'ROUNDED O/U mouth', boca_f_v:'F/V upper teeth on lower lip', boca_dientes:'CLENCHED TEETH grimace', boca_triste:'SAD downward frown', boca_grito:'SHOUTING wide open mouth', mano_relajada:'RELAXED hand', mano_abierta:'OPEN PALM gesturing hand', mano_senalando:'POINTING index finger hand', mano_puno:'CLENCHED FIST', mano_prop:'GRIPPING hand for cup/prop', mano_pecho:'DRAMATIC hand for chest', mano_ok:'THUMBS UP / OK hand', mano_telefono:'HOLDING PHONE / pinching hand' };
+  const celdas = keys.map(function(k, i) { return 'R' + (Math.floor(i / gr.c) + 1) + 'C' + ((i % gr.c) + 1) + ':' + (m[k] || k); }).join('; ');
+  const tt = grupo === 'ojos' ? 'isolated PAIRS OF EYES+EYEBROWS (3/4 facing RIGHT, NO head/fur/nose)' : (grupo === 'bocas' ? 'isolated 2D MOUTHS (3/4 facing RIGHT, NO head/fur/nose)' : 'isolated RIGHT HANDS from wrist down matching attached character fur/markings (NO arm/body/objects)');
+  return 'STRICT 2D SPRITE SHEET (' + gr.c + 'x' + gr.r + ' invisible square grid, 1:1 canvas): Match attached character art style (' + bs + '). Place exactly ' + keys.length + ' ' + tt + ' neatly centered in each cell with wide margin: ' + celdas + '. Pure flat #00FF00 background everywhere, ZERO grid lines, ZERO boxes, ZERO text/numbers, crisp #000000 outlines, flat cel-shading.';
+}
+function renderChecksLote() {
+  if (!loteCtx) return;
+  const p = obtenerPersonajeActual(), gr = gridLote(loteCtx.keys.length);
+  document.getElementById('lote-grid-badge').textContent = gr.c + '×' + gr.r + ' (' + loteCtx.keys.length + ')';
+  document.getElementById('lote-checks-box').innerHTML = SLOTS_BASICOS_PERSONAJE.filter(function(s){ return s.grupo === loteCtx.grupo; }).map(function(s){ const on = loteCtx.keys.indexOf(s.key) >= 0, ya = Boolean(p && p.piezas && p.piezas[s.key] && p.piezas[s.key].url); return '<button type="button" class="btn btn-xs ' + (on ? 'btn-primary' : (ya ? 'btn-green' : '')) + '" onclick="window.toggleKeyLoteHoja(\'' + s.key + '\')">' + esc(s.archivo) + (ya ? ' OK' : '') + '</button>'; }).join('');
+  if (p) document.getElementById('lote-prompt').value = promptLoteHoja(p, loteCtx.grupo, loteCtx.keys);
+}
+window.toggleKeyLoteHoja = function(k) {
+  if (!loteCtx) return; const i = loteCtx.keys.indexOf(k);
+  if (i >= 0) { if (loteCtx.keys.length <= 1) return; loteCtx.keys.splice(i, 1); }
+  else { if (loteCtx.keys.length >= 9) { toast('Máximo 9 piezas por hoja (3×3).', 'info'); return; } loteCtx.keys.push(k); }
+  renderChecksLote();
+};
+window.abrirModalLoteHoja = function(grupo) {
+  const p = obtenerPersonajeActual(); if (!p) return;
+  const sl = SLOTS_BASICOS_PERSONAJE.filter(function(s){ return s.grupo === grupo; });
+  const fl = sl.filter(function(s){ return !(p.piezas && p.piezas[s.key] && p.piezas[s.key].url); }).map(function(s){ return s.key; });
+  loteCtx = { grupo: grupo, keys: (fl.length ? fl : sl.map(function(s){ return s.key; })).slice(0, 9), items: [] };
+  document.getElementById('lote-titulo').textContent = 'Hoja Lote IA · ' + grupo.toUpperCase() + ' (1 API)';
+  document.getElementById('lote-result-box').classList.add('hidden');
+  document.getElementById('lote-error-box').classList.add('hidden');
+  renderChecksLote();
+  document.getElementById('modal-lote-hoja').classList.add('open');
+};
+window.cerrarModalLoteHoja = function() { document.getElementById('modal-lote-hoja').classList.remove('open'); };
+window.ejecutarLoteHojaIA = async function() {
+  if (!loteCtx || !loteCtx.keys.length) return;
+  const p = obtenerPersonajeActual(), cfg = leerConfigGeminiVault();
+  if (!p || !cfg.key) { toast('Configura tu API Key en Generar IA primero.', 'error'); return; }
+  const btn = document.getElementById('btn-run-lote'), errB = document.getElementById('lote-error-box');
+  errB.classList.add('hidden'); if (btn) { btn.disabled = true; btn.textContent = 'Generando hoja (1 API)...'; }
+  try {
+    const parts = [], pz = p.piezas || {}, piv = parsearPivotesPersonaje(p) || {}, cajas = piv._cajas || {};
+    const zn = loteCtx.grupo === 'ojos' ? 'ojos' : (loteCtx.grupo === 'bocas' ? 'boca' : 'mano');
+    const mp = piv.mano_delantera, mx = Array.isArray(mp) ? Number(mp[0]) : (mp && mp.x ? mp.x : 620), my = Array.isArray(mp) ? Number(mp[1]) : (mp && mp.y ? mp.y : 820);
+    let caja = cajas[zn] || (zn === 'mano' ? { x: mx - 70, y: my - 70, w: 140, h: 140 } : (zn === 'ojos' ? { x: 445, y: 315, w: 130, h: 68 } : { x: 460, y: 400, w: 96, h: 62 }));
+    const refUrl = zn === 'mano' ? ((pz.maestro_perfil && pz.maestro_perfil.url) || (pz.maestro_cuerpo && pz.maestro_cuerpo.url)) : ((pz.cabeza_base && pz.cabeza_base.url) || (pz.maestro_perfil && pz.maestro_perfil.url));
+    if (refUrl) { try { const rd = await urlADataUrlSeguro(refUrl), rp = dataUrlAParteBase64(rd, 'image/png'); if (rp) parts.push({ inlineData: { mimeType: rp.mime, data: rp.data } }); if (!cajas[zn] && zn !== 'mano') { const ir = await cargarImgPromise(rd), cr = document.createElement('canvas'); cr.width = 1000; cr.height = 1600; const cxr = cr.getContext('2d', { willReadFrequently: true }); cxr.drawImage(ir, 0, 0, 1000, 1600); const bb = detectarBBoxAlfa(cxr, 1000, 1600), g = calcularGeometriaCabeza1000(bb, (bb.maxY - bb.minY) < 520, 0, 0, 1000, 1600); caja = zn === 'ojos' ? { x: Math.round(g.ojoX - g.ojoAnchoMax / 2), y: Math.round(g.ojoY - g.ojoAltoMax / 2), w: Math.round(g.ojoAnchoMax), h: Math.round(g.ojoAltoMax) } : { x: Math.round(g.bocaX - g.bocaAnchoMax / 2), y: Math.round(g.bocaY - g.bocaAltoMax / 2), w: Math.round(g.bocaAnchoMax), h: Math.round(g.bocaAltoMax) }; } } catch (eR) {} }
+    parts.push({ text: (document.getElementById('lote-prompt').value || '').trim() });
+    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(cfg.model) + ':generateContent', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.key }, body: JSON.stringify({ contents: [{ role: 'user', parts: parts }], generationConfig: { responseModalities: ['IMAGE', 'TEXT'] } }) });
+    if (!r.ok) throw new Error('Gemini HTTP ' + r.status);
+    const j = await r.json(), cp = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
+    let b64 = null, mime = 'image/png'; for (let i = 0; i < cp.length; i++) if (cp[i].inlineData && cp[i].inlineData.data) { b64 = cp[i].inlineData.data; mime = cp[i].inlineData.mimeType || 'image/png'; break; }
+    if (!b64) throw new Error('Gemini no devolvió imagen.');
+    const im = await cargarImgPromise('data:' + mime + ';base64,' + b64), cvS = document.createElement('canvas'); cvS.width = im.width; cvS.height = im.height;
+    const ctxS = cvS.getContext('2d', { willReadFrequently: true }); ctxS.drawImage(im, 0, 0); limpiarCromaHoja(ctxS, cvS.width, cvS.height);
+    const gr = gridLote(loteCtx.keys.length), cw = Math.floor(cvS.width / gr.c), ch = Math.floor(cvS.height / gr.r), items = [];
+    for (let i = 0; i < loteCtx.keys.length; i++) {
+      const sk = loteCtx.keys[i], sp = SLOTS_BASICOS_PERSONAJE.find(function(x){ return x.key === sk; });
+      const px = Math.round(cw * 0.04), py = Math.round(ch * 0.04), sw = Math.max(10, cw - px * 2), sh = Math.max(10, ch - py * 2);
+      const cvC = document.createElement('canvas'); cvC.width = sw; cvC.height = sh; const cxC = cvC.getContext('2d', { willReadFrequently: true });
+      cxC.drawImage(cvS, (i % gr.c) * cw + px, Math.floor(i / gr.c) * ch + py, sw, sh, 0, 0, sw, sh);
+      const cd = cxC.getImageData(0, 0, sw, sh).data; let x0 = sw, y0 = sh, x1 = 0, y1 = 0, cnt = 0;
+      for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) if (cd[(y * sw + x) * 4 + 3] > 30) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; cnt++; }
+      const cvF = document.createElement('canvas'); cvF.width = 1000; cvF.height = 1600; let th = '', ok = cnt > 20 && x1 > x0 && y1 > y0;
+      if (ok) { const bw = x1 - x0 + 1, bh = y1 - y0 + 1, cc = document.createElement('canvas'); cc.width = bw; cc.height = bh; cc.getContext('2d').drawImage(cvC, x0, y0, bw, bh, 0, 0, bw, bh); th = cc.toDataURL('image/png'); const sc = Math.min(caja.w / bw, caja.h / bh), dw = Math.max(8, Math.round(bw * sc)), dh = Math.max(8, Math.round(bh * sc)); cvF.getContext('2d').drawImage(cc, 0, 0, bw, bh, Math.round(caja.x + (caja.w - dw) / 2), Math.round(caja.y + (caja.h - dh) / 2), dw, dh); }
+      items.push({ key: sk, titulo: sp ? sp.titulo : sk, archivo: sp ? sp.archivo : sk, preset: sp ? sp.preset : 'per_ojos', th: th, d1000: cvF.toDataURL('image/png'), inc: ok });
+    }
+    loteCtx.items = items; renderGridLote(); document.getElementById('lote-result-box').classList.remove('hidden');
+    toast('Hoja recortada en ' + items.length + ' piezas (1 API).', 'exito');
+  } catch (err) { errB.textContent = err.message; errB.classList.remove('hidden'); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = 'Generar Hoja Completa (1 API)'; } }
+};
+function renderGridLote() {
+  if (!loteCtx) return;
+  document.getElementById('lote-result-grid').innerHTML = loteCtx.items.map(function(it, i) {
+    return '<div style="border:1px solid ' + (it.inc ? 'rgba(34,197,94,0.55)' : 'var(--border)') + '; border-radius:9px; padding:5px; background:rgba(8,12,20,0.9); display:flex; flex-direction:column; gap:4px;"><div class="checker-bg" style="height:62px; border-radius:6px; display:flex; align-items:center; justify-content:center; overflow:hidden;">' + (it.th ? '<img src="' + it.th + '" style="max-width:100%; max-height:100%; object-fit:contain;">' : '<span style="font-size:9px; color:#fca5a5;">Vacía</span>') + '</div><label style="display:flex; align-items:center; gap:4px; font-size:9.5px; font-weight:800; cursor:pointer;"><input type="checkbox" ' + (it.inc ? 'checked' : '') + ' onchange="window.toggleItemLote(' + i + ', this.checked)">' + esc(it.archivo) + '</label><button type="button" class="btn btn-xs btn-blue" style="padding:2px 4px; font-size:9.5px;" onclick="window.abrirPiezaLoteEstudio(' + i + ')">Estudio</button></div>';
+  }).join('');
+}
+window.toggleItemLote = function(i, v) { if (!loteCtx || !loteCtx.items[i]) return; loteCtx.items[i].inc = Boolean(v); renderGridLote(); };
+window.abrirPiezaLoteEstudio = function(i) {
+  if (!loteCtx || !loteCtx.items[i]) return; const p = obtenerPersonajeActual(); if (!p || window.self === window.top) return;
+  const it = loteCtx.items[i], sm = { tipo: 'personaje', entidadId: p.id, slotKey: it.key, esVariante: false, presetId: it.preset, archivoNombre: it.archivo, etiqueta: p.nombre + ' · ' + it.titulo, calcoUrl: obtenerCalcoInteligente(p, it.key), pivotesIniciales: parsearPivotesPersonaje(p) };
+  window.cerrarModalLoteHoja();
+  window.parent.postMessage({ tipo: 'PIRO_IR_A_ESTUDIO', origen: 'contenido', etiqueta: sm.etiqueta, presetId: sm.presetId, entidadId: p.id, zonaId: 'zona_01', archivoNombre: sm.archivoNombre, dataUrl: it.d1000, calcoUrl: sm.calcoUrl || null, pivotesIniciales: sm.pivotesIniciales || null, modoCalco1a1: true, slotMeta: sm }, '*');
+};
+window.guardarLoteHojaSeleccionados = async function() {
+  if (!loteCtx) return; const p = obtenerPersonajeActual(); if (!p) return;
+  const sel = loteCtx.items.filter(function(it){ return it.inc && it.th; }); if (!sel.length) { toast('Marca al menos 1 pieza válida.', 'info'); return; }
+  const btn = document.getElementById('btn-guardar-lote'); let ok = 0;
+  for (let i = 0; i < sel.length; i++) {
+    if (btn) { btn.disabled = true; btn.textContent = 'Subiendo ' + (i + 1) + '/' + sel.length + '...'; }
+    const it = sel[i], pt = dataUrlAParteBase64(it.d1000, 'image/png'); if (!pt) continue;
+    const bin = atob(pt.data), arr = new Uint8Array(bin.length); for (let k = 0; k < bin.length; k++) arr[k] = bin.charCodeAt(k);
+    const f = new File([new Blob([arr], { type: 'image/png' })], it.archivo + '.png', { type: 'image/png' });
+    if (await subirYAsignarArchivoASlot(f, { tipo: 'personaje', entidadId: p.id, slotKey: it.key, esVariante: false, presetId: it.preset, archivoNombre: it.archivo }, null, false)) ok++;
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Guardar Seleccionados'; }
+  window.cerrarModalLoteHoja(); toast(ok + ' piezas guardadas (1 API).', 'exito');
 };
 
 window.guardarGenIADirecto = async function() {
