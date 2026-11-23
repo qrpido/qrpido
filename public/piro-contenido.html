@@ -694,13 +694,35 @@ function generarPromptPersonaje(p, tipo, specObj, baseOverride) {
   if (tipo === 'cuerpo_base') {
     return lockBody + 'Output ONLY the sleeveless torso and legs wearing the official outfit (' + (p.vestuario_base || 'base outfit') + ') aligned 1:1 on this exact silhouette. Remove the head, neck above the collar, and BOTH arms cleanly. Draw crisp, completely closed solid black ink outlines (#000000) along the collar neckline and BOTH left and right shoulder/armhole edges, with solid flat fabric color right up to the black outline and zero green smudge or fading on the shoulders. Match exact art style (' + baseStyle + ').';
   }
+    const tieneCabezaLimpia = Boolean(p && p.piezas && p.piezas.cabeza_base && p.piezas.cabeza_base.url);
   if (tipo.indexOf('ojos') === 0) {
-    const emo = tipo === 'ojos' ? 'NEUTRAL' : tipo.replace('ojos_', '').toUpperCase();
-    return lockClose + 'Output ONLY the character\'s eyes and eyebrows in their exact face coordinates with expression: ' + emo + ', faithfully preserving the character\'s natural eye shape, slant, crisp black outlines, and flat whites/irises (' + baseStyle + '). Omit the head, fur, ears, hair, nose, mouth, beard, and shoulders completely.';
+    const mapaOjos = {
+      ojos_neutro: 'NEUTRAL (calm relaxed eyes and natural eyebrows)',
+      ojos_feliz: 'HAPPY (bright cheerful eyes with raised curved eyebrows)',
+      ojos_enojado: 'ANGRY (narrowed fierce eyes with furrowed V-shaped eyebrows)',
+      ojos_triste: 'SAD (melancholic heavy-lidded eyes with drooping worried inner eyebrows raised, BoJack Horseman emotional style)',
+      ojos_duda: 'SKEPTICAL / DOUBTFUL (side-glancing narrowed eyes with one eyebrow raised)',
+      ojos_indignado: 'INDIGNANT / SHOCKED (wide-open eyes with high raised eyebrows)'
+    };
+    const emoDesc = mapaOjos[tipo] || tipo.replace('ojos_', '').toUpperCase();
+    if (tieneCabezaLimpia) {
+      return 'IN-PLACE FACIAL EXPRESSION EDIT: Keep EVERY single pixel of the attached blank head (ears, hair, fur spots, nose, beard, jawline, neck, scale, position, and solid #00FF00 background) 100% IDENTICAL. DO NOT remove the head, DO NOT zoom, DO NOT shift, DO NOT draw a mouth. Draw ONLY the eyes and eyebrows directly onto the blank face area above the nose in their exact anatomical eye-socket position with expression: ' + emoDesc + '. Crisp solid black ink outlines (#000000), flat white sclera, flat 2D cel-shading (' + baseStyle + ').';
+    }
+    return lockClose + 'Output ONLY the character\'s eyes and eyebrows in their exact face coordinates with expression: ' + emoDesc + ', faithfully preserving the character\'s natural eye shape, slant, crisp black outlines, and flat whites/irises (' + baseStyle + '). Omit the head, fur, ears, hair, nose, mouth, beard, and shoulders completely.';
   }
   if (tipo.indexOf('boca') === 0) {
-    const moc = tipo === 'bocas' ? 'CLOSED' : tipo.replace('boca_', '').toUpperCase();
-    return lockClose + 'Output ONLY the character\'s mouth/lips in its exact muzzle coordinates with crisp 2D lip-sync shape: ' + moc + ' (' + baseStyle + '). Omit the head, fur, eyes, eyebrows, nose, ears, beard, and shoulders completely.';
+    const mapaBocas = {
+      boca_cerrada: 'CLOSED (calm neutral closed mouth line)',
+      boca_media: 'HALF-OPEN SPEAKING (medium open talking mouth for lip-sync)',
+      boca_abierta: 'WIDE OPEN SPEAKING / SHOUTING (open talking mouth showing dark interior, teeth, and tongue)',
+      boca_sonrisa: 'SMILE (warm or confident 2D cartoon smile)',
+      boca_molesta: 'ANNOYED / DISGUSTED (frowning grimace mouth)'
+    };
+    const mocDesc = mapaBocas[tipo] || tipo.replace('boca_', '').toUpperCase();
+    if (tieneCabezaLimpia) {
+      return 'IN-PLACE MOUTH LIP-SYNC EDIT: Keep EVERY single pixel of the attached blank head (ears, hair, fur spots, nose, beard, jawline, neck, scale, position, and solid #00FF00 background) 100% IDENTICAL. DO NOT remove the head, DO NOT zoom, DO NOT shift, DO NOT draw eyes or eyebrows. Draw ONLY the mouth directly onto the lower muzzle/chin area below the nose in its exact anatomical position with shape: ' + mocDesc + '. Crisp solid black ink outlines (#000000) and flat 2D cel-shading (' + baseStyle + ').';
+    }
+    return lockClose + 'Output ONLY the character\'s mouth/lips in its exact muzzle coordinates with crisp 2D lip-sync shape: ' + mocDesc + ' (' + baseStyle + '). Omit the head, fur, eyes, eyebrows, nose, ears, beard, and shoulders completely.';
   }
   if (tipo.indexOf('brazo') === 0 || tipo.indexOf('pierna') === 0) {
     const parte = tipo.replace(/_/g, ' ');
@@ -718,6 +740,15 @@ function obtenerRefParaPrompt(p, tipo, baseOverride) {
   const pz = (p && p.piezas) ? p.piezas : {};
   const urlManiqui = (pz.maestro_cuerpo && pz.maestro_cuerpo.url) || null;
   const urlLook = (pz.maestro_perfil && pz.maestro_perfil.url) || null;
+  const urlCabeza = (pz.cabeza_base && pz.cabeza_base.url) || null;
+
+  if ((String(tipo || '').indexOf('ojos') === 0 || String(tipo || '').indexOf('boca') === 0) && urlCabeza) {
+    return {
+      label: 'Cabeza Sin Rostro 1:1 (calce exacto por diferencia)',
+      url: urlCabeza,
+      archivo: (p.id || 'per') + '_cabeza_base.png'
+    };
+  }
 
   if (tipo === 'cuerpo_completo' || tipo === 'maestro_cuerpo') {
     return {
@@ -2172,12 +2203,22 @@ async function extraerROISobreCromaBase64(dataUrl, modoROI) {
   const ch = Math.max(200, bb.maxY - bb.minY + 1);
 
   let rx = 0, ry = 0, rw = W, rh = H, outW = 768, outH = 768;
+    const esSoloCabeza = (bb.maxY - bb.minY) < 520;
   if (modoROI === 'rostro' || modoROI === 'cabeza') {
-    const factor = modoROI === 'rostro' ? 0.25 : 0.27;
-    const lado = Math.min(W, Math.max(240, Math.round(ch * factor)));
-    rw = lado; rh = lado;
-    rx = Math.max(0, Math.min(W - rw, Math.round(bb.headCx - rw / 2)));
-    ry = Math.max(0, Math.min(H - rh, Math.round(bb.minY - rh * 0.10)));
+    if (esSoloCabeza) {
+      const lado = Math.min(W, Math.max(240, Math.round(Math.max(cw, ch) * 1.48)));
+      rw = lado; rh = lado;
+      const cxC = (bb.minX + bb.maxX) / 2;
+      const cyC = (bb.minY + bb.maxY) / 2;
+      rx = Math.max(0, Math.min(W - rw, Math.round(cxC - rw / 2)));
+      ry = Math.max(0, Math.min(H - rh, Math.round(cyC - rh / 2)));
+    } else {
+      const factor = modoROI === 'rostro' ? 0.25 : 0.27;
+      const lado = Math.min(W, Math.max(240, Math.round(ch * factor)));
+      rw = lado; rh = lado;
+      rx = Math.max(0, Math.min(W - rw, Math.round(bb.headCx - rw / 2)));
+      ry = Math.max(0, Math.min(H - rh, Math.round(bb.minY - rh * 0.10)));
+    }
     outW = 768; outH = 768;
   } else {
     rh = Math.min(H, Math.max(600, Math.round(ch * 1.14)));
@@ -2200,7 +2241,8 @@ async function extraerROISobreCromaBase64(dataUrl, modoROI) {
   const outDataUrl = cvOut.toDataURL('image/png');
   const m = outDataUrl.match(/^data:([^;]+);base64,(.+)$/);
   if (!m) throw new Error('Error generando recorte ROI');
-  return { mime: 'image/png', data: m[2], roi: { rx: rx, ry: ry, rw: rw, rh: rh, outW: outW, outH: outH, modo: modoROI } };
+    const basePatch = (modoROI === 'rostro' && esSoloCabeza) ? ctxFull.getImageData(rx, ry, rw, rh) : null;
+  return { mime: 'image/png', data: m[2], roi: { rx: rx, ry: ry, rw: rw, rh: rh, outW: outW, outH: outH, modo: modoROI, basePatch: basePatch } };
 }
 
 /**
@@ -2279,6 +2321,9 @@ async function reinyectarROIEnLienzo1000x1600(dataUrlGen, roi) {
     throw new Error('Gemini devolvió un lienzo vacío (todo verde). Pulsa "Reintentar" o usa "Extraer de Base ($0)".');
   }
 
+    if (roi.basePatch && roi.basePatch.width === pw && roi.basePatch.height === ph) {
+    extraerCapaRostroPorDiferencia(d, roi.basePatch.data, pw, ph);
+  }
   ctxP.putImageData(imgData, 0, 0);
 
   const cvFinal = document.createElement('canvas');
@@ -2287,6 +2332,133 @@ async function reinyectarROIEnLienzo1000x1600(dataUrlGen, roi) {
   ctxF.clearRect(0, 0, 1000, 1600);
   ctxF.drawImage(cvPatch, roi.rx, roi.ry, roi.rw, roi.rh);
   return cvFinal.toDataURL('image/png');
+}
+
+function extraerCapaRostroPorDiferencia(genD, baseD, pw, ph) {
+  const total = pw * ph;
+  // 1) Micro-alineacion (dx, dy) contra la Cabeza Sin Rostro para corregir corrimientos de 1-12px de la IA
+  const evaluarDesfase = function(dx, dy, paso) {
+    let score = 0;
+    for (let y = 0; y < ph; y += paso) {
+      const by = y + dy;
+      if (by < 0 || by >= ph) continue;
+      for (let x = 0; x < pw; x += paso) {
+        const bx = x + dx;
+        if (bx < 0 || bx >= pw) continue;
+        const gp = (y * pw + x) * 4;
+        const bp = (by * pw + bx) * 4;
+        const ga = genD[gp + 3] > 40 ? 1 : 0;
+        const ba = baseD[bp + 3] > 40 ? 1 : 0;
+        if (ga && ba) {
+          const diff = Math.abs(genD[gp] - baseD[bp]) + Math.abs(genD[gp + 1] - baseD[bp + 1]) + Math.abs(genD[gp + 2] - baseD[bp + 2]);
+          score += diff < 60 ? 3 : 1;
+        } else if (ga !== ba) {
+          score -= 2;
+        }
+      }
+    }
+    return score;
+  };
+  let bestDx = 0, bestDy = 0, bestSc = -1e9;
+  for (let dy = -12; dy <= 12; dy += 2) {
+    for (let dx = -12; dx <= 12; dx += 2) {
+      const sc = evaluarDesfase(dx, dy, 3);
+      if (sc > bestSc) { bestSc = sc; bestDx = dx; bestDy = dy; }
+    }
+  }
+  const cDx = bestDx, cDy = bestDy;
+  for (let dy = cDy - 2; dy <= cDy + 2; dy++) {
+    for (let dx = cDx - 2; dx <= cDx + 2; dx++) {
+      const sc = evaluarDesfase(dx, dy, 2);
+      if (sc > bestSc) { bestSc = sc; bestDx = dx; bestDy = dy; }
+    }
+  }
+  const alD = new Uint8ClampedArray(genD.length);
+  for (let y = 0; y < ph; y++) {
+    const sy = y - bestDy;
+    if (sy < 0 || sy >= ph) continue;
+    for (let x = 0; x < pw; x++) {
+      const sx = x - bestDx;
+      if (sx < 0 || sx >= pw) continue;
+      const dp = (y * pw + x) * 4, sp = (sy * pw + sx) * 4;
+      alD[dp] = genD[sp]; alD[dp + 1] = genD[sp + 1]; alD[dp + 2] = genD[sp + 2]; alD[dp + 3] = genD[sp + 3];
+    }
+  }
+
+  // 2) Mascara de pixeles realmente nuevos (tolerancia local 2px para ignorar vibracion de pelo/orejas/manchas)
+  const nuevo = new Uint8Array(total);
+  for (let y = 2; y < ph - 2; y++) {
+    for (let x = 2; x < pw - 2; x++) {
+      const idx = y * pw + x, p = idx * 4;
+      if (alD[p + 3] < 45 || baseD[p + 3] < 45) continue;
+      const r = alD[p], g = alD[p + 1], b = alD[p + 2];
+      let existeCerca = false;
+      for (let oy = -2; oy <= 2 && !existeCerca; oy++) {
+        for (let ox = -2; ox <= 2; ox++) {
+          const bp = ((y + oy) * pw + (x + ox)) * 4;
+          if (baseD[bp + 3] < 45) continue;
+          const dist = Math.abs(r - baseD[bp]) + Math.abs(g - baseD[bp + 1]) + Math.abs(b - baseD[bp + 2]);
+          if (dist < 62) { existeCerca = true; break; }
+        }
+      }
+      if (!existeCerca) nuevo[idx] = 1;
+    }
+  }
+
+  // 3) Relleno de interiores cerrados (conserva esclerotica blanca del ojo y dientes blancos sobre pelaje blanco)
+  const ext = new Uint8Array(total);
+  const q = [];
+  const pushExt = function(i) { if (!ext[i] && !nuevo[i]) { ext[i] = 1; q.push(i); } };
+  for (let x = 0; x < pw; x++) { pushExt(x); pushExt((ph - 1) * pw + x); }
+  for (let y = 1; y < ph - 1; y++) { pushExt(y * pw); pushExt(y * pw + (pw - 1)); }
+  while (q.length > 0) {
+    const c = q.pop();
+    const cx = c % pw, cy = (c - cx) / pw;
+    if (cx > 0) pushExt(c - 1);
+    if (cx + 1 < pw) pushExt(c + 1);
+    if (cy > 0) pushExt(c - pw);
+    if (cy + 1 < ph) pushExt(c + pw);
+  }
+  for (let i = 0; i < total; i++) {
+    if (!ext[i] && alD[i * 4 + 3] > 45) nuevo[i] = 1;
+  }
+
+  // 4) Dilatacion 1px para bordes suaves + eliminar motas aisladas (< 14 px)
+  const dil = new Uint8Array(nuevo);
+  for (let y = 1; y < ph - 1; y++) {
+    for (let x = 1; x < pw - 1; x++) {
+      const i = y * pw + x;
+      if (nuevo[i] || alD[i * 4 + 3] < 45) continue;
+      if (nuevo[i - 1] || nuevo[i + 1] || nuevo[i - pw] || nuevo[i + pw]) dil[i] = 1;
+    }
+  }
+  const visC = new Uint8Array(total);
+  let totalKept = 0;
+  for (let i = 0; i < total; i++) {
+    if (!dil[i] || visC[i]) continue;
+    const comp = [i]; visC[i] = 1;
+    for (let k = 0; k < comp.length; k++) {
+      const c = comp[k], cx = c % pw, cy = (c - cx) / pw;
+      const nb = [cx > 0 ? c - 1 : -1, cx + 1 < pw ? c + 1 : -1, cy > 0 ? c - pw : -1, cy + 1 < ph ? c + pw : -1];
+      for (let t = 0; t < 4; t++) {
+        const ni = nb[t];
+        if (ni >= 0 && dil[ni] && !visC[ni]) { visC[ni] = 1; comp.push(ni); }
+      }
+    }
+    if (comp.length < 14) { for (let k = 0; k < comp.length; k++) dil[comp[k]] = 0; }
+    else totalKept += comp.length;
+  }
+  if (totalKept < 20) {
+    throw new Error('No se detectaron ojos/boca nuevos sobre la cabeza. Pulsa "Reintentar".');
+  }
+  for (let i = 0; i < total; i++) {
+    const p = i * 4;
+    if (dil[i]) {
+      genD[p] = alD[p]; genD[p + 1] = alD[p + 1]; genD[p + 2] = alD[p + 2]; genD[p + 3] = alD[p + 3];
+    } else {
+      genD[p + 3] = 0;
+    }
+  }
 }
 
 async function urlADataUrlSeguro(url) {
