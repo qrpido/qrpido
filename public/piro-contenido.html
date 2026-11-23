@@ -667,8 +667,8 @@ function guardarBiblioteca(inmediato) {
 function tipoROIParaSlot(tipo, specObj) {
   const k = String(tipo || '');
   if (k === 'cabeza_base') return 'cabeza';
-  if (k.indexOf('ojos') === 0 || k.indexOf('boca') === 0) return 'rostro';
-  if (specObj && (specObj.preset === 'per_ojos' || specObj.preset === 'per_boca')) return 'rostro';
+  if (k.indexOf('ojos') === 0 || (specObj && specObj.preset === 'per_ojos')) return 'ojos';
+  if (k.indexOf('boca') === 0 || (specObj && specObj.preset === 'per_boca')) return 'boca';
   if (specObj && specObj.preset === 'per_cabeza') return 'cabeza';
   return 'cuerpo';
 }
@@ -694,21 +694,19 @@ function generarPromptPersonaje(p, tipo, specObj, baseOverride) {
   if (tipo === 'cuerpo_base') {
     return lockBody + 'Output ONLY the sleeveless torso and legs wearing the official outfit (' + (p.vestuario_base || 'base outfit') + ') aligned 1:1 on this exact silhouette. Remove the head, neck above the collar, and BOTH arms cleanly. Draw crisp, completely closed solid black ink outlines (#000000) along the collar neckline and BOTH left and right shoulder/armhole edges, with solid flat fabric color right up to the black outline and zero green smudge or fading on the shoulders. Match exact art style (' + baseStyle + ').';
   }
-    const tieneCabezaLimpia = Boolean(p && p.piezas && p.piezas.cabeza_base && p.piezas.cabeza_base.url);
+      const ctxPersonaje = 'Character context: ' + identidad + ' Expressive 2D character acting (' + (p.personalidad || 'expressive 2D character') + '), three-quarter head facing RIGHT. ';
   if (tipo.indexOf('ojos') === 0) {
     const mapaOjos = {
       ojos_neutro: 'NEUTRAL (calm relaxed eyes and natural eyebrows)',
-      ojos_feliz: 'HAPPY (bright cheerful eyes with raised curved eyebrows)',
+      ojos_feliz: 'HAPPY (cheerful bright eyes with raised curved eyebrows)',
       ojos_enojado: 'ANGRY (narrowed fierce eyes with furrowed V-shaped eyebrows)',
       ojos_triste: 'SAD (melancholic heavy-lidded eyes with drooping worried inner eyebrows raised, BoJack Horseman emotional style)',
-      ojos_duda: 'SKEPTICAL / DOUBTFUL (side-glancing narrowed eyes with one eyebrow raised)',
-      ojos_indignado: 'INDIGNANT / SHOCKED (wide-open eyes with high raised eyebrows)'
+      ojos_duda: 'DOUBTFUL / SKEPTICAL (side-glancing narrowed eyes with one eyebrow raised)',
+      ojos_indignado: 'INDIGNANT / SHOCKED (wide-open eyes with high raised eyebrows)',
+      ojos_celoso: 'JEALOUS / ENVIOUS (narrowed side-glancing eyes with tense low eyebrows)'
     };
     const emoDesc = mapaOjos[tipo] || tipo.replace('ojos_', '').toUpperCase();
-    if (tieneCabezaLimpia) {
-      return 'IN-PLACE FACIAL EXPRESSION EDIT: Keep EVERY single pixel of the attached blank head (ears, hair, fur spots, nose, beard, jawline, neck, scale, position, and solid #00FF00 background) 100% IDENTICAL. DO NOT remove the head, DO NOT zoom, DO NOT shift, DO NOT draw a mouth. Draw ONLY the eyes and eyebrows directly onto the blank face area above the nose in their exact anatomical eye-socket position with expression: ' + emoDesc + '. Crisp solid black ink outlines (#000000), flat white sclera, flat 2D cel-shading (' + baseStyle + ').';
-    }
-    return lockClose + 'Output ONLY the character\'s eyes and eyebrows in their exact face coordinates with expression: ' + emoDesc + ', faithfully preserving the character\'s natural eye shape, slant, crisp black outlines, and flat whites/irises (' + baseStyle + '). Omit the head, fur, ears, hair, nose, mouth, beard, and shoulders completely.';
+    return lockClose + ctxPersonaje + 'Using the attached head ONLY as scale, angle, and position anchor (three-quarter view facing RIGHT), output ONLY the pair of eyes and eyebrows in their exact anatomical position above the nose. Expression: ' + emoDesc + '. Crisp solid black ink outlines (#000000), pure solid white sclera (#FFFFFF), flat dark pupils/irises, flat 2D cel-shading (' + baseStyle + '). CRITICAL: Output ONLY the floating pair of eyes and eyebrows over pure #00FF00—completely omit the head, fur, ears, hair, nose, mouth, beard, and neck.';
   }
   if (tipo.indexOf('boca') === 0) {
     const mapaBocas = {
@@ -719,10 +717,7 @@ function generarPromptPersonaje(p, tipo, specObj, baseOverride) {
       boca_molesta: 'ANNOYED / DISGUSTED (frowning grimace mouth)'
     };
     const mocDesc = mapaBocas[tipo] || tipo.replace('boca_', '').toUpperCase();
-    if (tieneCabezaLimpia) {
-      return 'IN-PLACE MOUTH LIP-SYNC EDIT: Keep EVERY single pixel of the attached blank head (ears, hair, fur spots, nose, beard, jawline, neck, scale, position, and solid #00FF00 background) 100% IDENTICAL. DO NOT remove the head, DO NOT zoom, DO NOT shift, DO NOT draw eyes or eyebrows. Draw ONLY the mouth directly onto the lower muzzle/chin area below the nose in its exact anatomical position with shape: ' + mocDesc + '. Crisp solid black ink outlines (#000000) and flat 2D cel-shading (' + baseStyle + ').';
-    }
-    return lockClose + 'Output ONLY the character\'s mouth/lips in its exact muzzle coordinates with crisp 2D lip-sync shape: ' + mocDesc + ' (' + baseStyle + '). Omit the head, fur, eyes, eyebrows, nose, ears, beard, and shoulders completely.';
+    return lockClose + ctxPersonaje + 'Using the attached head ONLY as scale, angle, and position anchor (three-quarter view facing RIGHT), output ONLY the mouth in its exact anatomical position below the nose on the lower muzzle. Shape: ' + mocDesc + '. Crisp solid black ink outlines (#000000) and flat 2D cel-shading (' + baseStyle + '). CRITICAL: Output ONLY the floating mouth over pure #00FF00—completely omit the head, fur, ears, hair, nose, eyes, eyebrows, beard, and neck.';
   }
   if (tipo.indexOf('brazo') === 0 || tipo.indexOf('pierna') === 0) {
     const parte = tipo.replace(/_/g, ' ');
@@ -730,7 +725,7 @@ function generarPromptPersonaje(p, tipo, specObj, baseOverride) {
   }
   const descVar = (specObj && (specObj.titulo || specObj.nota)) ? (String(specObj.titulo || '') + (specObj.nota ? (' — ' + specObj.nota) : '')) : tipo;
   const roiT = tipoROIParaSlot(tipo, specObj);
-  if (roiT === 'cabeza' || roiT === 'rostro') {
+    if (roiT === 'cabeza' || roiT === 'ojos' || roiT === 'boca') {
     return lockClose + 'Output ONLY the custom facial/head accessory layer "' + descVar + '" fitted precisely onto the head coordinates with crisp closed black ink outlines and flat colors (' + baseStyle + '). Omit the rest of the head, body, and clothing completely.';
   }
   return lockBody + 'Output ONLY the custom outfit/body layer "' + descVar + '" fitted precisely onto the body silhouette with crisp closed black ink outlines at the collar and armholes and flat fabric colors (' + baseStyle + '). Omit the head and arms completely.';
@@ -744,7 +739,7 @@ function obtenerRefParaPrompt(p, tipo, baseOverride) {
 
   if ((String(tipo || '').indexOf('ojos') === 0 || String(tipo || '').indexOf('boca') === 0) && urlCabeza) {
     return {
-      label: 'Cabeza Sin Rostro 1:1 (calce exacto por diferencia)',
+            label: 'Cabeza Sin Rostro 1:1 (anclaje matemático 1024px)',
       url: urlCabeza,
       archivo: (p.id || 'per') + '_cabeza_base.png'
     };
@@ -2203,23 +2198,24 @@ async function extraerROISobreCromaBase64(dataUrl, modoROI) {
   const ch = Math.max(200, bb.maxY - bb.minY + 1);
 
   let rx = 0, ry = 0, rw = W, rh = H, outW = 768, outH = 768;
-    const esSoloCabeza = (bb.maxY - bb.minY) < 520;
-  if (modoROI === 'rostro' || modoROI === 'cabeza') {
+      const esSoloCabeza = (bb.maxY - bb.minY) < 520;
+  const esRostro = (modoROI === 'ojos' || modoROI === 'boca');
+  if (esRostro || modoROI === 'cabeza') {
     if (esSoloCabeza) {
-      const lado = Math.min(W, Math.max(240, Math.round(Math.max(cw, ch) * 1.48)));
+      const lado = Math.min(W, Math.max(260, Math.round(Math.max(cw, ch) * 1.35)));
       rw = lado; rh = lado;
       const cxC = (bb.minX + bb.maxX) / 2;
       const cyC = (bb.minY + bb.maxY) / 2;
       rx = Math.max(0, Math.min(W - rw, Math.round(cxC - rw / 2)));
       ry = Math.max(0, Math.min(H - rh, Math.round(cyC - rh / 2)));
     } else {
-      const factor = modoROI === 'rostro' ? 0.25 : 0.27;
-      const lado = Math.min(W, Math.max(240, Math.round(ch * factor)));
+      const factor = esRostro ? 0.24 : 0.27;
+      const lado = Math.min(W, Math.max(260, Math.round(ch * factor)));
       rw = lado; rh = lado;
       rx = Math.max(0, Math.min(W - rw, Math.round(bb.headCx - rw / 2)));
-      ry = Math.max(0, Math.min(H - rh, Math.round(bb.minY - rh * 0.10)));
+      ry = Math.max(0, Math.min(H - rh, Math.round(bb.minY - rh * 0.08)));
     }
-    outW = 768; outH = 768;
+    outW = 1024; outH = 1024;
   } else {
     rh = Math.min(H, Math.max(600, Math.round(ch * 1.14)));
     rw = Math.min(W, Math.max(Math.round(cw * 1.30), Math.round(rh * 2 / 3)));
@@ -2238,11 +2234,15 @@ async function extraerROISobreCromaBase64(dataUrl, modoROI) {
   ctxOut.fillRect(0, 0, outW, outH);
   ctxOut.drawImage(cvFull, rx, ry, rw, rh, 0, 0, outW, outH);
 
+    if (esRostro || modoROI === 'cabeza') {
+    realzarNitidezROI(cvOut, outW, outH);
+  }
   const outDataUrl = cvOut.toDataURL('image/png');
   const m = outDataUrl.match(/^data:([^;]+);base64,(.+)$/);
   if (!m) throw new Error('Error generando recorte ROI');
-    const basePatch = (modoROI === 'rostro' && esSoloCabeza) ? ctxFull.getImageData(rx, ry, rw, rh) : null;
-  return { mime: 'image/png', data: m[2], roi: { rx: rx, ry: ry, rw: rw, rh: rh, outW: outW, outH: outH, modo: modoROI, basePatch: basePatch } };
+  const basePatch = (esRostro && esSoloCabeza) ? ctxFull.getImageData(rx, ry, rw, rh) : null;
+  const geoCabeza = esRostro ? calcularGeometriaCabeza1000(bb, esSoloCabeza, rx, ry, rw, rh) : null;
+  return { mime: 'image/png', data: m[2], roi: { rx: rx, ry: ry, rw: rw, rh: rh, outW: outW, outH: outH, modo: modoROI, basePatch: basePatch, geoCabeza: geoCabeza } };
 }
 
 /**
@@ -2321,10 +2321,31 @@ async function reinyectarROIEnLienzo1000x1600(dataUrlGen, roi) {
     throw new Error('Gemini devolvió un lienzo vacío (todo verde). Pulsa "Reintentar" o usa "Extraer de Base ($0)".');
   }
 
-    if (roi.basePatch && roi.basePatch.width === pw && roi.basePatch.height === ph) {
-    extraerCapaRostroPorDiferencia(d, roi.basePatch.data, pw, ph);
+      if (roi.geoCabeza && (roi.modo === 'ojos' || roi.modo === 'boca')) {
+    const g = roi.geoCabeza;
+    let gMinY = ph, gMaxY = 0, overlap = 0, basePx = 0;
+    const bD = (roi.basePatch && roi.basePatch.width === pw && roi.basePatch.height === ph) ? roi.basePatch.data : null;
+    for (let y = 0; y < ph; y++) {
+      for (let x = 0; x < pw; x++) {
+        const aIdx = (y * pw + x) * 4 + 3;
+        const ga = d[aIdx] > 35;
+        if (ga) { if (y < gMinY) gMinY = y; if (y > gMaxY) gMaxY = y; }
+        if (bD && bD[aIdx] > 35) { basePx++; if (ga) overlap++; }
+      }
+    }
+    const genH = gMaxY - gMinY + 1;
+    const ratioSolape = basePx > 0 ? (overlap / basePx) : 0;
+    const coloCabeza = Boolean(bD && genH >= g.hH * 0.72 && ratioSolape >= 0.62);
+    if (coloCabeza) {
+      extraerCapaRostroPorDiferencia(d, bD, pw, ph, roi.modo, g);
+      ctxP.putImageData(imgData, 0, 0);
+    } else {
+      ctxP.putImageData(imgData, 0, 0);
+      anclarMatematicamenteEnCabeza(ctxP, pw, ph, roi);
+    }
+  } else {
+    ctxP.putImageData(imgData, 0, 0);
   }
-  ctxP.putImageData(imgData, 0, 0);
 
   const cvFinal = document.createElement('canvas');
   cvFinal.width = 1000; cvFinal.height = 1600;
@@ -2334,7 +2355,79 @@ async function reinyectarROIEnLienzo1000x1600(dataUrlGen, roi) {
   return cvFinal.toDataURL('image/png');
 }
 
-function extraerCapaRostroPorDiferencia(genD, baseD, pw, ph) {
+function realzarNitidezROI(cv, w, h) {
+  const ctx = cv.getContext('2d', { willReadFrequently: true });
+  const orig = ctx.getImageData(0, 0, w, h);
+  const cvBlur = document.createElement('canvas');
+  cvBlur.width = w; cvBlur.height = h;
+  const ctxB = cvBlur.getContext('2d', { willReadFrequently: true });
+  ctxB.filter = 'blur(1.1px)';
+  ctxB.drawImage(cv, 0, 0);
+  const blur = ctxB.getImageData(0, 0, w, h);
+  const o = orig.data, b = blur.data;
+  const monto = 0.6;
+  for (let i = 0; i < o.length; i += 4) {
+    if (o[i + 3] < 20) continue;
+    if (o[i + 1] > 210 && (o[i + 1] - Math.max(o[i], o[i + 2])) > 90) continue;
+    for (let c = 0; c < 3; c++) {
+      const v = o[i + c] + monto * (o[i + c] - b[i + c]);
+      o[i + c] = v < 0 ? 0 : (v > 255 ? 255 : Math.round(v));
+    }
+  }
+  ctx.putImageData(orig, 0, 0);
+}
+
+function calcularGeometriaCabeza1000(bb, esSoloCabeza, rx, ry, rw, rh) {
+  const hW = esSoloCabeza ? Math.max(80, bb.maxX - bb.minX + 1) : Math.max(80, Math.round((bb.maxY - bb.minY + 1) * 0.21));
+  const hH = esSoloCabeza ? Math.max(80, bb.maxY - bb.minY + 1) : Math.max(80, Math.round((bb.maxY - bb.minY + 1) * 0.21));
+  const hMinX = esSoloCabeza ? bb.minX : Math.round(bb.headCx - hW / 2);
+  const hMinY = bb.minY;
+  const lx = hMinX - rx;
+  const ly = hMinY - ry;
+  return {
+    hW: hW, hH: hH, lx: lx, ly: ly,
+    ojoX: lx + hW * 0.58, ojoY: ly + hH * 0.42, ojoAnchoMax: hW * 0.46, ojoAnchoMin: hW * 0.25, ojoAltoMax: hH * 0.30,
+    bocaX: lx + hW * 0.61, bocaY: ly + hH * 0.72, bocaAnchoMax: hW * 0.34, bocaAnchoMin: hW * 0.14, bocaAltoMax: hH * 0.24
+  };
+}
+
+function anclarMatematicamenteEnCabeza(ctxP, pw, ph, roi) {
+  const g = roi.geoCabeza;
+  if (!g) return;
+  const img = ctxP.getImageData(0, 0, pw, ph);
+  const d = img.data;
+  let minX = pw, minY = ph, maxX = 0, maxY = 0, cnt = 0;
+  for (let y = 0; y < ph; y++) {
+    for (let x = 0; x < pw; x++) {
+      if (d[(y * pw + x) * 4 + 3] > 35) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+        cnt++;
+      }
+    }
+  }
+  if (cnt < 20 || maxX <= minX || maxY <= minY) return;
+  const bw = maxX - minX + 1, bh = maxY - minY + 1;
+  const esOjos = roi.modo === 'ojos';
+  const targetX = esOjos ? g.ojoX : g.bocaX;
+  const targetY = esOjos ? g.ojoY : g.bocaY;
+  const maxW = esOjos ? g.ojoAnchoMax : g.bocaAnchoMax;
+  const minW = esOjos ? g.ojoAnchoMin : g.bocaAnchoMin;
+  const maxH = esOjos ? g.ojoAltoMax : g.bocaAltoMax;
+  let escala = 1;
+  if (bw > maxW) escala = maxW / bw;
+  else if (bw < minW) escala = minW / bw;
+  if (bh * escala > maxH) escala = maxH / bh;
+  const cvTmp = document.createElement('canvas');
+  cvTmp.width = bw; cvTmp.height = bh;
+  cvTmp.getContext('2d').drawImage(ctxP.canvas, minX, minY, bw, bh, 0, 0, bw, bh);
+  const dw = Math.max(6, Math.round(bw * escala));
+  const dh = Math.max(4, Math.round(bh * escala));
+  ctxP.clearRect(0, 0, pw, ph);
+  ctxP.drawImage(cvTmp, 0, 0, bw, bh, Math.round(targetX - dw / 2), Math.round(targetY - dh / 2), dw, dh);
+}
+
+function extraerCapaRostroPorDiferencia(genD, baseD, pw, ph, modoRostro, geo) {
   const total = pw * ph;
   // 1) Micro-alineacion (dx, dy) contra la Cabeza Sin Rostro para corregir corrimientos de 1-12px de la IA
   const evaluarDesfase = function(dx, dy, paso) {
@@ -2385,10 +2478,24 @@ function extraerCapaRostroPorDiferencia(genD, baseD, pw, ph) {
     }
   }
 
-  // 2) Mascara de pixeles realmente nuevos (tolerancia local 2px para ignorar vibracion de pelo/orejas/manchas)
+    // 2) Mascara de pixeles nuevos SOLO dentro de la ventana anatomica (bloquea orejas, pelo, barba y cuello)
+  let winX0 = 2, winX1 = pw - 2, winY0 = 2, winY1 = ph - 2;
+  if (geo) {
+    if (modoRostro === 'boca') {
+      winX0 = Math.max(2, Math.floor(geo.lx + geo.hW * 0.34));
+      winX1 = Math.min(pw - 2, Math.ceil(geo.lx + geo.hW * 0.90));
+      winY0 = Math.max(2, Math.floor(geo.ly + geo.hH * 0.56));
+      winY1 = Math.min(ph - 2, Math.ceil(geo.ly + geo.hH * 0.86));
+    } else {
+      winX0 = Math.max(2, Math.floor(geo.lx + geo.hW * 0.26));
+      winX1 = Math.min(pw - 2, Math.ceil(geo.lx + geo.hW * 0.90));
+      winY0 = Math.max(2, Math.floor(geo.ly + geo.hH * 0.20));
+      winY1 = Math.min(ph - 2, Math.ceil(geo.ly + geo.hH * 0.58));
+    }
+  }
   const nuevo = new Uint8Array(total);
-  for (let y = 2; y < ph - 2; y++) {
-    for (let x = 2; x < pw - 2; x++) {
+  for (let y = winY0; y < winY1; y++) {
+    for (let x = winX0; x < winX1; x++) {
       const idx = y * pw + x, p = idx * 4;
       if (alD[p + 3] < 45 || baseD[p + 3] < 45) continue;
       const r = alD[p], g = alD[p + 1], b = alD[p + 2];
@@ -2563,7 +2670,7 @@ window.ejecutarGeneracionIAPieza = async function() {
     if (cfg.model.indexOf('imagen-') === 0) {
       const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(cfg.model) + ':predict', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.key },
-        body: JSON.stringify({ instances: [{ prompt: prefijoRefs + promptUsr }], parameters: { sampleCount: 1, aspectRatio: giaCtx.tipo === 'personaje' ? ((modoROI === 'cabeza' || modoROI === 'rostro') ? '1:1' : '3:4') : '1:1' } })
+        body: JSON.stringify({ instances: [{ prompt: prefijoRefs + promptUsr }], parameters: { sampleCount: 1, aspectRatio: giaCtx.tipo === 'personaje' ? ((modoROI === 'cabeza' || modoROI === 'ojos' || modoROI === 'boca') ? '1:1' : '3:4') : '1:1' } })
       });
       if (!r.ok) throw new Error('Imagen HTTP ' + r.status);
       const j = await r.json();
