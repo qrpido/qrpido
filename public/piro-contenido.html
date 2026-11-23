@@ -678,39 +678,40 @@ function generarPromptPersonaje(p, tipo, specObj, baseOverride) {
   const prefId = proyectoActivo.plantilla === 'scifi_hibrido' ? ('Character profile: ' + (p.raza || 'human sci-fi character')) : ('Anthropomorphic ' + (p.raza || 'dog') + ' character');
   const identidad = prefId + '. Physique: ' + (p.contextura || 'adult stylized') + '. Features: ' + (p.pelaje_rasgos || 'distinctive look') + '.';
   const ropa = 'Wearing: ' + (p.vestuario_base || 'casual clothes') + '.';
-  const lockClose = 'IN-PLACE CLOSE-UP LAYER ISOLATION: Keep the exact scale, framing, position, and three-quarter angle facing RIGHT of the attached close-up image. DO NOT zoom, crop, shift, or rescale. Background MUST be flat solid chroma green (#00FF00) with zero shadows. ';
-  const lockBody = 'IN-PLACE BODY LAYER ISOLATION: Keep the exact scale, pose, position, and three-quarter angle facing RIGHT of the attached character image. DO NOT zoom, crop, shift, or rescale. Background MUST be flat solid chroma green (#00FF00) with zero shadows. ';
+    const hardEdge = 'HARD-EDGE 2D CEL-SHADING: Seal every cut edge, neckline, armhole, shoulder opening, and isolated contour with a crisp, continuous solid black ink outline (#000000) of uniform line weight. Keep flat solid garment/fur colors right up to the black ink line. ZERO airbrushing, ZERO feathering, ZERO gradients, ZERO green spill or green tint on fabric, skin, or fur. Pure flat chroma green (#00FF00) background outside the black outline only. ';
+  const lockClose = 'IN-PLACE CLOSE-UP LAYER ISOLATION: Preserve the exact scale, framing, pixel position, and three-quarter angle facing RIGHT of the attached close-up image. DO NOT zoom, crop, shift, or rescale. ' + hardEdge;
+  const lockBody = 'IN-PLACE BODY LAYER ISOLATION: Preserve the exact scale, pose, pixel position, and three-quarter angle facing RIGHT of the attached character image. DO NOT zoom, crop, shift, or rescale. ' + hardEdge;
 
   if (tipo === 'cuerpo_completo' || tipo === 'maestro_cuerpo') {
-    return baseStyle + ' Full-body clean anatomical mannequin base of ' + identidad + ' Showing completely from head to toe, facing three-quarters to the RIGHT. Pose: ' + (p.pose_iconica || 'standing neutral') + '. Leave face blank without eyes, eyebrows, or mouth (keep ears, hair, nose and base fur/skin markings) and NO clothing so this mannequin serves as a clean 2D puppet mold. Isolated on completely flat solid chroma green (#00FF00) with zero shadows.';
+    return baseStyle + ' Full-body clean anatomical mannequin base of ' + identidad + ' Showing completely from head to toe, facing three-quarters to the RIGHT. Pose: ' + (p.pose_iconica || 'standing neutral') + '. Leave face blank without eyes, eyebrows, or mouth (keep ears, hair, nose and base fur/skin markings) and NO clothing so this mannequin serves as a clean 2D puppet mold. ' + hardEdge;
   }
   if (tipo === 'maestro_perfil') {
-    return 'Using the first attached image (character mannequin on #00FF00) as strict position/scale mold and the second attached photo (real human person) as identity reference: transfer the person\'s real facial features, exact eye shape (including slanted/monolid or distinctive eyes if present), eyebrows, nose, hairstyle, facial hair, and calm neutral expression into this exact 2D art style (' + baseStyle + '). Dress the character on the exact mannequin silhouette (' + identidad + ' ' + ropa + ') over flat solid chroma green (#00FF00) with zero shadows. Do not zoom, crop, or change pose.';
+    return 'Using the first attached image (character mannequin on #00FF00) as strict position/scale mold and the second attached photo (real human person) as identity reference: transfer the person\'s real facial features, exact eye shape (including slanted/monolid or distinctive eyes if present), eyebrows, nose, hairstyle, facial hair, and calm neutral expression into this exact 2D art style (' + baseStyle + '). Dress the character on the exact mannequin silhouette (' + identidad + ' ' + ropa + '). Do not zoom, crop, or change pose. ' + hardEdge;
   }
   if (tipo === 'cabeza_base') {
-    return lockClose + 'Output ONLY the isolated character head (ears, hair, fur markings, nose, jawline/beard) with a blank clean face: REMOVE the eyes, eyebrows, and mouth smoothly filling the face with matching fur, and REMOVE the shirt, collar, chain, shoulders, and body below the neck so ONLY the clean floating head remains over solid chroma green (#00FF00). Keep exact art style (' + baseStyle + ').';
+    return lockClose + 'Output ONLY the isolated floating character head (ears, hair, fur markings, nose, jawline/beard) with a blank clean face: remove eyes, eyebrows, and mouth smoothly filling the face with matching flat fur, and remove the shirt, chain, shoulders, and torso cleanly with a closed black ink outline at the base of the neck. Keep exact art style (' + baseStyle + ').';
   }
   if (tipo === 'cuerpo_base') {
-    return lockBody + 'Output ONLY the torso and legs dressed in the official outfit (' + (p.vestuario_base || 'base outfit') + ') fitted precisely onto this exact silhouette. REMOVE the head, neck above the collar, and BOTH arms completely, cleanly closing the collar and sleeve openings with black ink outlines, filling everything removed with solid chroma green (#00FF00). Match exact art style (' + baseStyle + ').';
+    return lockBody + 'Output ONLY the sleeveless torso and legs wearing the official outfit (' + (p.vestuario_base || 'base outfit') + ') aligned 1:1 on this exact silhouette. Remove the head, neck above the collar, and BOTH arms cleanly. Draw crisp, completely closed solid black ink outlines (#000000) along the collar neckline and BOTH left and right shoulder/armhole edges, with solid flat fabric color right up to the black outline and zero green smudge or fading on the shoulders. Match exact art style (' + baseStyle + ').';
   }
   if (tipo.indexOf('ojos') === 0) {
     const emo = tipo === 'ojos' ? 'NEUTRAL' : tipo.replace('ojos_', '').toUpperCase();
-    return lockClose + 'Draw ONLY the character\'s eyes and eyebrows in their exact face coordinates with expression: ' + emo + ', faithfully preserving the character\'s natural eye shape, slant, and 2D ink style (' + baseStyle + '). REMOVE the head, fur, ears, hair, nose, mouth, beard, and shoulders completely so ONLY the floating eyes and eyebrows remain over solid chroma green (#00FF00).';
+    return lockClose + 'Output ONLY the character\'s eyes and eyebrows in their exact face coordinates with expression: ' + emo + ', faithfully preserving the character\'s natural eye shape, slant, crisp black outlines, and flat whites/irises (' + baseStyle + '). Omit the head, fur, ears, hair, nose, mouth, beard, and shoulders completely.';
   }
   if (tipo.indexOf('boca') === 0) {
     const moc = tipo === 'bocas' ? 'CLOSED' : tipo.replace('boca_', '').toUpperCase();
-    return lockClose + 'Draw ONLY the character\'s mouth/lips in its exact muzzle coordinates with lip-sync shape: ' + moc + ' (' + baseStyle + '). REMOVE the head, fur, eyes, eyebrows, nose, ears, beard, and shoulders completely so ONLY the floating mouth remains over solid chroma green (#00FF00).';
+    return lockClose + 'Output ONLY the character\'s mouth/lips in its exact muzzle coordinates with crisp 2D lip-sync shape: ' + moc + ' (' + baseStyle + '). Omit the head, fur, eyes, eyebrows, nose, ears, beard, and shoulders completely.';
   }
   if (tipo.indexOf('brazo') === 0 || tipo.indexOf('pierna') === 0) {
     const parte = tipo.replace(/_/g, ' ');
-    return lockBody + 'Output ONLY the isolated limb (' + parte + ') in its exact pixel coordinates, matching the character markings and sleeve/pant (' + (p.vestuario_base || 'base outfit') + '), with a cleanly rounded shoulder/hip joint cap. REMOVE the head, torso, and all other limbs completely over solid chroma green (#00FF00). Match exact art style (' + baseStyle + ').';
+    return lockBody + 'Output ONLY the isolated limb (' + parte + ') in its exact pixel coordinates, matching the character markings and sleeve/pant (' + (p.vestuario_base || 'base outfit') + '), sealing the top shoulder/hip joint cap with a crisp closed black ink outline (#000000) and flat interior color. Omit the head, torso, and all other limbs completely. Match exact art style (' + baseStyle + ').';
   }
   const descVar = (specObj && (specObj.titulo || specObj.nota)) ? (String(specObj.titulo || '') + (specObj.nota ? (' — ' + specObj.nota) : '')) : tipo;
   const roiT = tipoROIParaSlot(tipo, specObj);
   if (roiT === 'cabeza' || roiT === 'rostro') {
-    return lockClose + 'Output ONLY the custom facial/head accessory layer "' + descVar + '" fitted precisely onto the head coordinates (match exact 2D ink outlines and flat colors: ' + baseStyle + '). REMOVE the rest of the head, body, and clothing so ONLY this isolated layer remains over solid chroma green (#00FF00).';
+    return lockClose + 'Output ONLY the custom facial/head accessory layer "' + descVar + '" fitted precisely onto the head coordinates with crisp closed black ink outlines and flat colors (' + baseStyle + '). Omit the rest of the head, body, and clothing completely.';
   }
-  return lockBody + 'Output ONLY the custom outfit/body layer "' + descVar + '" fitted precisely onto the body silhouette (match exact 2D ink outlines and flat colors: ' + baseStyle + '). REMOVE the head and arms (or untouched body parts) over solid chroma green (#00FF00).';
+  return lockBody + 'Output ONLY the custom outfit/body layer "' + descVar + '" fitted precisely onto the body silhouette with crisp closed black ink outlines at the collar and armholes and flat fabric colors (' + baseStyle + '). Omit the head and arms completely.';
 }
 
 function obtenerRefParaPrompt(p, tipo, baseOverride) {
@@ -2217,28 +2218,62 @@ async function reinyectarROIEnLienzo1000x1600(dataUrlGen, roi) {
   ctxP.fillRect(0, 0, roi.rw, roi.rh);
   ctxP.drawImage(im, (roi.rw - dw) / 2, (roi.rh - dh) / 2, dw, dh);
 
-  const imgData = ctxP.getImageData(0, 0, roi.rw, roi.rh);
+    const imgData = ctxP.getImageData(0, 0, roi.rw, roi.rh);
   const d = imgData.data;
-  const totalPx = roi.rw * roi.rh;
-  let visibles = 0;
-
-  for (let i = 0; i < d.length; i += 4) {
-    const r = d[i], g = d[i + 1], b = d[i + 2];
+  const pw = roi.rw, ph = roi.rh, totalPx = pw * ph;
+  const esVerdeCroma = function(p, tolExceso) {
+    const r = d[p], g = d[p + 1], b = d[p + 2];
     const maxRB = r > b ? r : b;
-    const excesoG = g - maxRB;
-    if (g > 95 && excesoG > 42) {
-      d[i + 3] = 0;
-    } else if (g > 75 && excesoG > 18) {
-      // Anti-halo verde suave en bordes
-      const nuevoG = maxRB;
-      d[i + 1] = nuevoG;
-      if (excesoG > 30) d[i + 3] = Math.round(d[i + 3] * 0.45);
-      if (d[i + 3] > 25) visibles++;
-    } else if (d[i + 3] > 25) {
-      visibles++;
-    }
+    return g > 85 && (g - maxRB) > tolExceso;
+  };
+
+  // 1) Flood-fill desde los 4 bordes exteriores (quita el fondo verde sin invadir ropa ni pelaje)
+  const vis = new Uint8Array(totalPx);
+  const stack = [];
+  const encolar = function(idx) {
+    if (vis[idx]) return;
+    if (esVerdeCroma(idx * 4, 34)) { vis[idx] = 1; stack.push(idx); }
+  };
+  for (let x = 0; x < pw; x++) { encolar(x); encolar((ph - 1) * pw + x); }
+  for (let y = 1; y < ph - 1; y++) { encolar(y * pw); encolar(y * pw + (pw - 1)); }
+  while (stack.length > 0) {
+    const cur = stack.pop();
+    d[cur * 4 + 3] = 0;
+    const cx = cur % pw, cy = (cur - cx) / pw;
+    if (cx > 0) encolar(cur - 1);
+    if (cx + 1 < pw) encolar(cur + 1);
+    if (cy > 0) encolar(cur - pw);
+    if (cy + 1 < ph) encolar(cur + pw);
   }
 
+  // 2) Huecos cerrados de verde puro intenso (ej. entre piernas o brazo doblado)
+  for (let idx = 0; idx < totalPx; idx++) {
+    const p = idx * 4;
+    if (d[p + 3] > 0 && esVerdeCroma(p, 58) && d[p + 1] > 120) d[p + 3] = 0;
+  }
+
+  // 3) Limpieza nitida de 1px SOLO en el borde directo contra transparencia (sin crear manchas grises)
+  const bordeBorrar = [];
+  for (let y = 0; y < ph; y++) {
+    for (let x = 0; x < pw; x++) {
+      const idx = y * pw + x, p = idx * 4;
+      if (d[p + 3] === 0) continue;
+      const tocaTransp = (x > 0 && d[(idx - 1) * 4 + 3] === 0) ||
+        (x + 1 < pw && d[(idx + 1) * 4 + 3] === 0) ||
+        (y > 0 && d[(idx - pw) * 4 + 3] === 0) ||
+        (y + 1 < ph && d[(idx + pw) * 4 + 3] === 0);
+      if (!tocaTransp) continue;
+      const r = d[p], g = d[p + 1], b = d[p + 2];
+      const maxRB = r > b ? r : b;
+      const ex = g - maxRB;
+      if (g > 72 && ex > 22) bordeBorrar.push(idx);
+      else if (g > 60 && ex > 10) d[p + 1] = maxRB;
+    }
+  }
+  for (let k = 0; k < bordeBorrar.length; k++) d[bordeBorrar[k] * 4 + 3] = 0;
+
+  let visibles = 0;
+  for (let i = 3; i < d.length; i += 4) { if (d[i] > 25) visibles++; }
   const ratioVis = visibles / Math.max(1, totalPx);
   if (ratioVis < 0.0025) {
     throw new Error('Gemini devolvió un lienzo vacío (todo verde). Pulsa "Reintentar" o usa "Extraer de Base ($0)".');
