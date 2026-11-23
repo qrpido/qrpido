@@ -126,6 +126,16 @@
     transform-origin: center center; will-change: transform;
   }
   .hidden { display: none !important; }
+  .brush-cursor {
+    position: absolute; top: 0; left: 0; pointer-events: none; z-index: 25;
+    border-radius: 50%; border: 2px solid #22c55e;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.85), inset 0 0 0 1px rgba(255, 255, 255, 0.65);
+    background: rgba(34, 197, 94, 0.14); transform: translate(-50%, -50%); display: none;
+  }
+  .brush-cursor::after {
+    content: ''; position: absolute; left: 50%; top: 50%; width: 3px; height: 3px;
+    border-radius: 50%; background: #fff; box-shadow: 0 0 2px #000; transform: translate(-50%, -50%);
+  }
 
   .empty-upload {
     width: 100%; max-width: 320px; padding: 22px 16px; text-align: center;
@@ -275,8 +285,9 @@
       </div>
     </div>
 
-    <div class="canvas-frame hidden" id="wrap-canvas-clean">
+        <div class="canvas-frame hidden" id="wrap-canvas-clean">
       <canvas id="canvas-clean" class="work-canvas checker-bg"></canvas>
+      <div id="clean-brush-cursor" class="brush-cursor"></div>
     </div>
 
     <div class="canvas-frame hidden" id="wrap-canvas-stage">
@@ -296,9 +307,13 @@
         <svg class="svg-ico" viewBox="0 0 24 24"><path d="M15 4V2"/><path d="M15 16v-2"/><path d="M8 9h2"/><path d="M20 9h2"/><path d="M17.8 11.8 19 13"/><path d="M15 9h0"/><path d="M17.8 6.2 19 5"/><path d="m3 21 9-9"/><path d="M12.2 6.2 11 5"/></svg>
         <span>Varita</span>
       </button>
-      <button type="button" class="tool-btn" id="tbtn-borrador" onclick="window.abrirHerramienta('borrador')">
+            <button type="button" class="tool-btn" id="tbtn-borrador" onclick="window.abrirHerramienta('borrador')">
         <svg class="svg-ico" viewBox="0 0 24 24"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
         <span>Borrador</span>
+      </button>
+      <button type="button" class="tool-btn accent" id="tbtn-pincel" onclick="window.abrirHerramienta('pincel')">
+        <svg class="svg-ico" viewBox="0 0 24 24"><path d="M18.37 2.63 14 7l-1.59-1.59a2 2 0 0 0-2.82 0L8 7l9 9 1.59-1.59a2 2 0 0 0 0-2.82L17 10l4.37-4.37a2.12 2.12 0 1 0-3-3Z"/><path d="M9 8c-2 3-4 3.5-7 4l8 10c2-1 6-5 6-7"/></svg>
+        <span>Pincel/Rell</span>
       </button>
             <button type="button" class="tool-btn" id="tbtn-recorte" onclick="window.abrirHerramienta('recorte')">
         <svg class="svg-ico" viewBox="0 0 24 24"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>
@@ -366,7 +381,7 @@
       </div>
     </div>
     <div class="sub-row">
-      <div class="slider-grp" style="min-width:118px;"><span>Tam</span><input type="range" id="rng-mask" min="8" max="130" value="40" oninput="document.getElementById('val-mask').textContent=this.value+'px'"><b id="val-mask">40px</b></div>
+      <div class="slider-grp" style="min-width:118px;"><span>Tam</span><input type="range" id="rng-mask" min="3" max="130" value="40" oninput="document.getElementById('val-mask').textContent=this.value+'px'; window.previsualizarCursorClean()"><b id="val-mask">40px</b></div>
       <button type="button" class="btn btn-xs btn-blue" id="btn-modo-mask" onclick="window.toggleModoMascara()">Pintar</button>
       <button type="button" class="btn btn-xs btn-green" onclick="window.aplicarMascaraVerde(true)">Extraer (1:1)</button>
       <button type="button" class="btn btn-xs btn-danger" onclick="window.aplicarMascaraVerde(false)">Borrar Sombra</button>
@@ -392,14 +407,31 @@
       </div>
     </div>
 
-    <div class="subpanel" id="sub-borrador">
+        <div class="subpanel" id="sub-borrador">
       <div class="sub-top">
         <span class="sub-title">Pincel Borrador · Desliza sobre la imagen</span>
         <button type="button" class="btn btn-green btn-xs" onclick="window.cerrarHerramienta()">Listo</button>
       </div>
       <div class="sub-row">
-        <div class="slider-grp"><span>Tamaño</span><input type="range" id="rng-brush" min="4" max="110" value="28" oninput="document.getElementById('val-brush').textContent=this.value+'px'"><b id="val-brush">28px</b></div>
+        <div class="slider-grp"><span>Tamaño</span><input type="range" id="rng-brush" min="3" max="110" value="28" oninput="document.getElementById('val-brush').textContent=this.value+'px'; window.previsualizarCursorClean()"><b id="val-brush">28px</b></div>
         <button type="button" class="btn btn-xs" onclick="window.deshacerLimpieza()">Deshacer</button>
+      </div>
+    </div>
+
+    <div class="subpanel" id="sub-pincel">
+      <div class="sub-top">
+        <span class="sub-title" id="lbl-pincel-modo" style="color:#7dd3fc;">Pincel · Toma un color con Gotero y pinta o rellena</span>
+        <div style="display:flex; gap:5px; align-items:center;">
+          <button type="button" class="btn btn-xs" onclick="window.deshacerLimpieza()">Deshacer</button>
+          <button type="button" class="btn btn-green btn-xs" onclick="window.cerrarHerramienta()">Listo</button>
+        </div>
+      </div>
+      <div class="sub-row">
+        <input type="color" id="inp-color-pincel" value="#f5f5ef" onchange="window.setColorPincel(this.value)" style="width:34px; height:28px; border:1px solid var(--border-hi); border-radius:7px; background:transparent; padding:1px; cursor:pointer; flex-shrink:0;">
+        <button type="button" class="btn btn-xs btn-primary" id="btn-pm-pintar" onclick="window.setModoPincel('pintar')">Pincel</button>
+        <button type="button" class="btn btn-xs btn-blue" id="btn-pm-relleno" onclick="window.setModoPincel('relleno')">Rellenar</button>
+        <button type="button" class="btn btn-xs" id="btn-pm-gotero" onclick="window.setModoPincel('gotero')">Gotero</button>
+        <div class="slider-grp" style="min-width:110px;"><span>Tam</span><input type="range" id="rng-pincel" min="2" max="90" value="18" oninput="document.getElementById('val-pincel').textContent=this.value+'px'; window.previsualizarCursorClean()"><b id="val-pincel">18px</b></div>
       </div>
     </div>
 
@@ -613,6 +645,11 @@ let imgOriginalDataUrl = null;
 let historialClean = [];
 let modoClean = 'varita';
 let dibujandoBorrador = false;
+let dibujandoPincel = false;
+let ultimoPtPincel = null;
+let modoPincel = 'pintar';
+let colorPincel = '#f5f5ef';
+let cursorCleanTimer = null;
 let cropRect = null;
 let cropStart = null;
 let formaZona = 'rect';
@@ -1005,11 +1042,13 @@ window.abrirHerramienta = function(id) {
   const sub = document.getElementById('sub-' + id);
   if (sub) sub.classList.add('activo');
 
-    if (id === 'varita' || id === 'borrador' || id === 'recorte' || id === 'mascara') {
+      if (id === 'varita' || id === 'borrador' || id === 'pincel' || id === 'recorte' || id === 'mascara') {
     modoClean = id;
     cropRect = null;
     if (id === 'recorte') renderizarCleanOverlay();
     if (id === 'mascara') { asegurarCanvasMascara(); renderizarMaskOverlay(); }
+    if (id === 'mascara' || id === 'borrador' || id === 'pincel') window.previsualizarCursorClean();
+    else ocultarCursorClean();
   }
   if (id === 'color') {
     colorBaseImageData = ctxClean.getImageData(0, 0, cvClean.width, cvClean.height);
@@ -1033,10 +1072,13 @@ window.cerrarHerramienta = function() {
     ctxClean.putImageData(colorBaseImageData, 0, 0);
     colorBaseImageData = null;
   }
-    herramientaAbierta = null;
+      herramientaAbierta = null;
   cropRect = null;
   dibujandoMascara = false;
   ultimoPtMascara = null;
+  dibujandoPincel = false;
+  ultimoPtPincel = null;
+  ocultarCursorClean();
   document.querySelectorAll('.subpanel').forEach(function(el) { el.classList.remove('activo'); });
   document.getElementById('strip-clean').classList.toggle('hidden', pasoActual !== 2);
   document.getElementById('strip-stage').classList.toggle('hidden', pasoActual !== 3);
@@ -1440,6 +1482,126 @@ function ejecutarVaritaEn(sx, sy, targetRGB) {
   }
   ctxClean.putImageData(imgData, 0, 0);
   pushHistorialClean();
+}
+
+function ocultarCursorClean() {
+  clearTimeout(cursorCleanTimer);
+  const cur = document.getElementById('clean-brush-cursor');
+  if (cur) cur.style.display = 'none';
+}
+
+function mostrarCursorCleanEn(clientX, clientY) {
+  const cur = document.getElementById('clean-brush-cursor');
+  const wrap = document.getElementById('wrap-canvas-clean');
+  if (!cur || !wrap || !cvClean || !cvClean.width || pasoActual !== 2) return;
+  const activo = (modoClean === 'mascara') || (modoClean === 'borrador') || (modoClean === 'pincel' && modoPincel === 'pintar');
+  if (!activo || (cleanGesture && cleanGesture.bloqueo)) { cur.style.display = 'none'; return; }
+  const rPx = modoClean === 'mascara' ? (Number(document.getElementById('rng-mask').value) || 40) : (modoClean === 'borrador' ? (Number(document.getElementById('rng-brush').value) || 28) : (Number(document.getElementById('rng-pincel').value) || 18));
+  const cvR = cvClean.getBoundingClientRect();
+  const wrR = wrap.getBoundingClientRect();
+  if (!cvR.width) return;
+  const diam = Math.max(6, (rPx * 2) * (cvR.width / cvClean.width));
+  cur.style.width = diam.toFixed(1) + 'px';
+  cur.style.height = diam.toFixed(1) + 'px';
+  cur.style.left = (clientX - wrR.left).toFixed(1) + 'px';
+  cur.style.top = (clientY - wrR.top).toFixed(1) + 'px';
+  if (modoClean === 'mascara') {
+    const esB = modoMascara === 'borrar';
+    cur.style.borderColor = esB ? '#ef4444' : '#22c55e';
+    cur.style.background = esB ? 'rgba(239,68,68,0.16)' : 'rgba(34,197,94,0.18)';
+  } else if (modoClean === 'borrador') {
+    cur.style.borderColor = '#fca5a5';
+    cur.style.background = 'rgba(239,68,68,0.12)';
+  } else {
+    cur.style.borderColor = colorPincel;
+    cur.style.background = 'rgba(56,189,248,0.12)';
+  }
+  cur.style.display = 'block';
+}
+
+window.previsualizarCursorClean = function() {
+  const wrap = document.getElementById('wrap-canvas-clean');
+  if (!wrap || pasoActual !== 2) return;
+  const r = wrap.getBoundingClientRect();
+  mostrarCursorCleanEn(r.left + r.width / 2, r.top + r.height / 2);
+  clearTimeout(cursorCleanTimer);
+  cursorCleanTimer = setTimeout(ocultarCursorClean, 850);
+};
+
+window.setColorPincel = function(hex) {
+  colorPincel = String(hex || '#f5f5ef');
+  const inp = document.getElementById('inp-color-pincel');
+  if (inp) inp.value = colorPincel;
+};
+
+window.setModoPincel = function(m) {
+  modoPincel = m || 'pintar';
+  const bP = document.getElementById('btn-pm-pintar'), bR = document.getElementById('btn-pm-relleno'), bG = document.getElementById('btn-pm-gotero');
+  if (bP) bP.className = 'btn btn-xs ' + (modoPincel === 'pintar' ? 'btn-primary' : '');
+  if (bR) bR.className = 'btn btn-xs ' + (modoPincel === 'relleno' ? 'btn-primary' : 'btn-blue');
+  if (bG) bG.className = 'btn btn-xs ' + (modoPincel === 'gotero' ? 'btn-primary' : '');
+  const lbl = document.getElementById('lbl-pincel-modo');
+  if (lbl) lbl.textContent = modoPincel === 'gotero' ? 'Gotero · Toca el pelaje o color que quieres copiar' : (modoPincel === 'relleno' ? 'Rellenar · Toca el hueco vacío para llenarlo de 1 toque' : 'Pincel · Desliza para pintar con ' + colorPincel.toUpperCase());
+  if (modoPincel === 'pintar') window.previsualizarCursorClean(); else ocultarCursorClean();
+};
+
+function hexARgbPincel(hex) {
+  const h = String(hex || '#ffffff').replace('#', '');
+  return [parseInt(h.slice(0, 2), 16) || 255, parseInt(h.slice(2, 4), 16) || 255, parseInt(h.slice(4, 6), 16) || 255];
+}
+
+function muestrearGoteroEn(sx, sy) {
+  const w = cvClean.width, h = cvClean.height;
+  const ix = Math.max(0, Math.min(w - 1, Math.floor(sx))), iy = Math.max(0, Math.min(h - 1, Math.floor(sy)));
+  const px = ctxClean.getImageData(ix, iy, 1, 1).data;
+  if (px[3] < 20) { toast('Toca sobre una parte con color (no transparente).', 'info'); return; }
+  const hex = '#' + [px[0], px[1], px[2]].map(function(v) { return v.toString(16).padStart(2, '0'); }).join('');
+  window.setColorPincel(hex);
+  window.setModoPincel('pintar');
+  toast('Color copiado: ' + hex.toUpperCase() + ' (listo para Pincel o Rellenar).', 'exito');
+}
+
+function pintarTrazoPincel(p0, p1) {
+  const r = Number(document.getElementById('rng-pincel').value) || 18;
+  ctxClean.save();
+  ctxClean.globalCompositeOperation = 'source-over';
+  ctxClean.strokeStyle = colorPincel;
+  ctxClean.fillStyle = colorPincel;
+  ctxClean.lineWidth = r * 2;
+  ctxClean.lineCap = 'round';
+  ctxClean.lineJoin = 'round';
+  ctxClean.beginPath(); ctxClean.moveTo(p0.x, p0.y); ctxClean.lineTo(p1.x, p1.y); ctxClean.stroke();
+  ctxClean.beginPath(); ctxClean.arc(p1.x, p1.y, r, 0, Math.PI * 2); ctxClean.fill();
+  ctxClean.restore();
+}
+
+function ejecutarRellenoEn(sx, sy) {
+  const w = cvClean.width, h = cvClean.height;
+  const ix = Math.max(0, Math.min(w - 1, Math.floor(sx))), iy = Math.max(0, Math.min(h - 1, Math.floor(sy)));
+  const imgData = ctxClean.getImageData(0, 0, w, h), d = imgData.data;
+  const idx0 = (iy * w + ix) * 4, esTransp = d[idx0 + 3] < 35;
+  const tr = d[idx0], tg = d[idx0 + 1], tb = d[idx0 + 2], rgb = hexARgbPincel(colorPincel);
+  const tolSq = 34 * 34 * 3, vis = new Uint8Array(w * h), stack = [iy * w + ix];
+  vis[iy * w + ix] = 1; let tocados = 0, tocaBorde = false; const pix = [];
+  while (stack.length > 0) {
+    const cur = stack.pop(), p = cur * 4; let match = false;
+    if (esTransp) match = d[p + 3] < 45;
+    else if (d[p + 3] >= 45) { const dr = d[p] - tr, dg = d[p + 1] - tg, db = d[p + 2] - tb; match = (dr * dr + dg * dg + db * db) <= tolSq; }
+    if (!match) continue;
+    const cx = cur % w, cy = (cur - cx) / w;
+    if (esTransp && (cx === 0 || cy === 0 || cx === w - 1 || cy === h - 1)) { tocaBorde = true; break; }
+    pix.push(cur); tocados++;
+    if (cx > 0 && !vis[cur - 1]) { vis[cur - 1] = 1; stack.push(cur - 1); }
+    if (cx + 1 < w && !vis[cur + 1]) { vis[cur + 1] = 1; stack.push(cur + 1); }
+    if (cy > 0 && !vis[cur - w]) { vis[cur - w] = 1; stack.push(cur - w); }
+    if (cy + 1 < h && !vis[cur + w]) { vis[cur + w] = 1; stack.push(cur + w); }
+  }
+  if (tocaBorde) { toast('Ese hueco está abierto al fondo exterior. Usa Pincel para cerrar el borde o pintar directo.', 'info'); return; }
+  if (tocados === 0) return;
+  for (let i = 0; i < pix.length; i++) { const p = pix[i] * 4; d[p] = rgb[0]; d[p + 1] = rgb[1]; d[p + 2] = rgb[2]; d[p + 3] = 255; }
+  ctxClean.putImageData(imgData, 0, 0);
+  pushHistorialClean();
+  toast('Hueco rellenado (' + tocados + ' px).', 'exito');
 }
 
 window.quitarColorPreset = function(tipo) {
@@ -2245,10 +2407,16 @@ function iniciarCanvasListeners() {
 
     const wrapClean = document.getElementById('wrap-canvas-clean');
 
-  function cancelarTrazoEnCursoClean() {
+    function cancelarTrazoEnCursoClean() {
     varitaTapStart = null;
+    ocultarCursorClean();
     if (dibujandoBorrador) {
       dibujandoBorrador = false;
+      restaurarUltimaCopiaCleanOverlay();
+    }
+    if (dibujandoPincel) {
+      dibujandoPincel = false;
+      ultimoPtPincel = null;
       restaurarUltimaCopiaCleanOverlay();
     }
     if (cropStart) {
@@ -2284,13 +2452,23 @@ function iniciarCanvasListeners() {
       return;
     }
 
-    if (cleanGesture && cleanGesture.bloqueo) return;
+        if (cleanGesture && cleanGesture.bloqueo) return;
+    clearTimeout(cursorCleanTimer);
+    mostrarCursorCleanEn(e.clientX, e.clientY);
     const pt = coordEnCanvas(cvClean, e.clientX, e.clientY);
     if (modoClean === 'varita') {
       varitaTapStart = { cx: e.clientX, cy: e.clientY, x: pt.x, y: pt.y };
     } else if (modoClean === 'borrador') {
       dibujandoBorrador = true;
       borrarEnPunto(pt.x, pt.y);
+    } else if (modoClean === 'pincel') {
+      if (modoPincel === 'gotero' || modoPincel === 'relleno') {
+        varitaTapStart = { cx: e.clientX, cy: e.clientY, x: pt.x, y: pt.y };
+      } else {
+        dibujandoPincel = true;
+        ultimoPtPincel = pt;
+        pintarTrazoPincel(pt, pt);
+      }
     } else if (modoClean === 'recorte') {
       cropStart = pt;
       cropRect = { x: pt.x, y: pt.y, w: 0, h: 0 };
@@ -2303,8 +2481,12 @@ function iniciarCanvasListeners() {
     }
   });
 
-  wrapClean.addEventListener('pointermove', function(e) {
-    if (!pointersClean.has(e.pointerId)) return;
+    wrapClean.addEventListener('pointermove', function(e) {
+    if (!pointersClean.has(e.pointerId)) {
+      if (e.pointerType === 'mouse' || e.pointerType === 'pen') mostrarCursorCleanEn(e.clientX, e.clientY);
+      return;
+    }
+    if (pointersClean.size === 1) mostrarCursorCleanEn(e.clientX, e.clientY);
     pointersClean.set(e.pointerId, { cx: e.clientX, cy: e.clientY });
 
     if (cleanGesture && pointersClean.size >= 2) {
@@ -2323,8 +2505,11 @@ function iniciarCanvasListeners() {
 
     if (cleanGesture && cleanGesture.bloqueo) return;
     const pt = coordEnCanvas(cvClean, e.clientX, e.clientY);
-    if (modoClean === 'borrador' && dibujandoBorrador) {
+        if (modoClean === 'borrador' && dibujandoBorrador) {
       borrarEnPunto(pt.x, pt.y);
+    } else if (modoClean === 'pincel' && dibujandoPincel) {
+      pintarTrazoPincel(ultimoPtPincel || pt, pt);
+      ultimoPtPincel = pt;
     } else if (modoClean === 'recorte' && cropStart) {
       cropRect = { x: cropStart.x, y: cropStart.y, w: pt.x - cropStart.x, h: pt.y - cropStart.y };
       renderizarCleanOverlay();
@@ -2348,12 +2533,23 @@ function iniciarCanvasListeners() {
         ejecutarVaritaEn(tap.x, tap.y, null);
       }
     }
+        if (modoClean === 'pincel' && varitaTapStart) {
+      const tapP = varitaTapStart; varitaTapStart = null;
+      const movP = infoPtr ? Math.hypot(infoPtr.cx - tapP.cx, infoPtr.cy - tapP.cy) : 0;
+      if (movP < 14 && tapP.x >= 0 && tapP.x <= cvClean.width && tapP.y >= 0 && tapP.y <= cvClean.height) {
+        if (modoPincel === 'gotero') muestrearGoteroEn(tapP.x, tapP.y);
+        else if (modoPincel === 'relleno') ejecutarRellenoEn(tapP.x, tapP.y);
+      }
+    }
+    if (modoClean === 'pincel' && dibujandoPincel) { dibujandoPincel = false; ultimoPtPincel = null; pushHistorialClean(); }
     if (modoClean === 'borrador' && dibujandoBorrador) { dibujandoBorrador = false; pushHistorialClean(); }
     if (modoClean === 'recorte' && cropStart) { cropStart = null; renderizarCleanOverlay(); }
     if (modoClean === 'mascara' && dibujandoMascara) { dibujandoMascara = false; ultimoPtMascara = null; maskPreStroke = null; }
+    if (e.pointerType !== 'mouse') ocultarCursorClean();
   }
   wrapClean.addEventListener('pointerup', finClean);
   wrapClean.addEventListener('pointercancel', finClean);
+  wrapClean.addEventListener('pointerleave', ocultarCursorClean);
 
   wrapClean.addEventListener('wheel', function(e) {
     if (!cvClean || !cvClean.width) return;
