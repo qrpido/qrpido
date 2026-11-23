@@ -1,0 +1,2228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>GEOKATU Studio · Contenido Zero-Scroll</title>
+<style>
+  :root {
+    --bg: #07090e;
+    --panel: #101521;
+    --panel-2: #171f30;
+    --border: rgba(255, 255, 255, 0.11);
+    --border-hi: rgba(255, 255, 255, 0.24);
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --naranja: #ff6b00;
+    --miel: #ffb300;
+    --verde: #22c55e;
+    --azul: #38bdf8;
+    --rojo: #ef4444;
+    --radius: 13px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; height: 100dvh;
+    overflow: hidden; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px; line-height: 1.38;
+  }
+  button, input, textarea, select { font-family: inherit; color: var(--text); }
+  .svg-ico { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+  .svg-sm { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+  .hidden { display: none !important; }
+
+  /* CONTENEDOR FIJO 100DVH ZERO-SCROLL */
+  .app-shell {
+    display: flex; flex-direction: column; width: 100%; height: 100%; height: 100dvh;
+    overflow: hidden; background: var(--bg); position: relative;
+  }
+
+  /* BARRA SUPERIOR ULTRADELGADA (42PX) + BOTÓN NARANJA IZQUIERDO */
+  .top-slim {
+    height: 44px; flex-shrink: 0; padding: 0 8px;
+    background: rgba(11, 15, 23, 0.98); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  }
+  .top-left { display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1; }
+  .btn-drawer-orange {
+    width: 34px; height: 32px; flex-shrink: 0; border-radius: 9px;
+    border: 1px solid #ff8533;
+    background: linear-gradient(135deg, var(--naranja), #ea580c);
+    color: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 10px rgba(255, 107, 0, 0.35);
+  }
+  .btn-drawer-orange:active { transform: scale(0.94); }
+  .ctx-title { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+  .ctx-title strong { font-size: 12.5px; font-weight: 900; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ctx-title small { font-size: 10px; color: var(--azul); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sync-pill {
+    font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 99px;
+    border: 1px solid var(--border); background: rgba(255, 255, 255, 0.05); color: var(--muted);
+    white-space: nowrap; flex-shrink: 0;
+  }
+  .sync-pill.ok { color: #86efac; border-color: rgba(34, 197, 94, 0.45); background: rgba(34, 197, 94, 0.14); }
+  .sync-pill.warn { color: #fcd34d; border-color: rgba(245, 158, 11, 0.45); background: rgba(245, 158, 11, 0.14); }
+
+  /* FILA COMPACTA DE SUB-PESTAÑAS HORIZONTALES (36PX) */
+  .subtab-strip {
+    height: 36px; flex-shrink: 0; padding: 4px 8px;
+    background: rgba(14, 18, 28, 0.94); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 5px; overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .subtab-strip::-webkit-scrollbar { display: none; }
+  .sub-pill {
+    flex: 0 0 auto; padding: 4px 10px; border-radius: 8px;
+    border: 1px solid var(--border); background: rgba(255, 255, 255, 0.04);
+    color: var(--muted); font-size: 11px; font-weight: 800; cursor: pointer; white-space: nowrap;
+  }
+  .sub-pill.activo { border-color: var(--azul); background: rgba(56, 189, 248, 0.18); color: #e0f2fe; }
+  .sub-pill.hot { border-color: rgba(255, 107, 0, 0.5); color: #fdba74; }
+  .sub-pill.hot.activo { background: var(--naranja); border-color: var(--naranja); color: #fff; }
+
+  /* ESCENARIO PRINCIPAL FIJO (CERO SCROLL VERTICAL DE PÁGINA) */
+  .workspace-stage {
+    flex: 1; min-height: 0; overflow: hidden;
+    display: flex; flex-direction: column; position: relative;
+  }
+
+  /* BOTONES Y CONTROLES */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    padding: 6px 10px; border-radius: 9px; border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.06); font-size: 11.5px; font-weight: 800;
+    cursor: pointer; white-space: nowrap;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn-primary { background: linear-gradient(135deg, var(--naranja), #ea580c); border-color: var(--naranja); color: #fff; }
+  .btn-green { background: rgba(34, 197, 94, 0.18); border-color: rgba(34, 197, 94, 0.5); color: #86efac; }
+  .btn-blue { background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.45); color: var(--azul); }
+  .btn-purple { background: rgba(168, 85, 247, 0.2); border-color: rgba(168, 85, 247, 0.52); color: #e9d5ff; }
+  .btn-danger { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.45); color: #fca5a5; }
+  .slot-actions-sub { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; grid-column: 1 / -1; }
+  .btn-xs { padding: 4px 8px; font-size: 10.5px; border-radius: 7px; }
+  .inp, .txt, .sel {
+    width: 100%; padding: 7px 9px; border-radius: 8px;
+    border: 1px solid var(--border); background: rgba(5, 8, 14, 0.85);
+    font-size: 12px; outline: none;
+  }
+  .inp:focus, .txt:focus, .sel:focus { border-color: var(--naranja); }
+  .field { margin-bottom: 7px; }
+  .field label { display: block; font-size: 10px; font-weight: 800; color: var(--muted); margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.3px; }
+
+  /* DOCK INFERIOR ESTILO SNAPSEED (114PX FIJO) */
+  .snapseed-dock {
+    height: 114px; flex-shrink: 0; background: rgba(12, 16, 25, 0.99);
+    border-top: 1px solid var(--border-hi);
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 6px 8px; overflow: hidden;
+  }
+  .tool-strip {
+    display: flex; align-items: center; gap: 6px;
+    overflow-x: auto; overflow-y: hidden; scrollbar-width: none; height: 100%; padding: 2px;
+  }
+  .tool-strip::-webkit-scrollbar { display: none; }
+  .tool-btn {
+    flex: 0 0 auto; min-width: 66px; height: 74px; padding: 6px;
+    border-radius: 12px; border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.04);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+    cursor: pointer; color: #cbd5e1; font-size: 10.5px; font-weight: 800;
+  }
+  .tool-btn.activo { border-color: var(--naranja); background: rgba(255, 107, 0, 0.16); color: #fff; }
+  .tool-btn.accent { border-color: rgba(56, 189, 248, 0.42); color: #7dd3fc; }
+  .subpanel {
+    display: flex; flex-direction: column; justify-content: space-between;
+    height: 100%; gap: 6px;
+  }
+  .sub-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .sub-title { font-size: 11px; font-weight: 900; color: var(--miel); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sub-row {
+    display: flex; align-items: center; gap: 6px;
+    overflow-x: auto; overflow-y: hidden; scrollbar-width: none; padding-bottom: 2px;
+  }
+  .sub-row::-webkit-scrollbar { display: none; }
+  .slider-grp {
+    flex: 1; min-width: 120px; display: flex; align-items: center; gap: 6px;
+    background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border);
+    border-radius: 9px; padding: 5px 8px;
+  }
+  .slider-grp span { font-size: 10.5px; font-weight: 800; color: var(--muted); white-space: nowrap; }
+  .slider-grp b { font-size: 11px; font-family: monospace; color: var(--azul); min-width: 32px; text-align: right; }
+  .slider-grp input[type="range"] { flex: 1; min-width: 55px; accent-color: var(--naranja); margin: 0; }
+
+  /* VISOR SÁNDWICH FIJO */
+  .sandwich-stage {
+    flex: 1; min-height: 0; position: relative; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    padding: 34px 8px 8px 8px;
+    background: radial-gradient(circle at 50% 45%, #121826, #06080d);
+  }
+  .stage-float-top {
+    position: absolute; top: 6px; left: 8px; right: 8px; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between; gap: 6px; pointer-events: none;
+  }
+  .float-grp { display: flex; gap: 4px; pointer-events: auto; }
+  .mini-pill {
+    padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border);
+    background: rgba(10, 14, 22, 0.88); color: var(--text);
+    font-size: 10.5px; font-weight: 800; cursor: pointer;
+  }
+  .mini-pill.on { border-color: var(--azul); color: var(--azul); background: rgba(56, 189, 248, 0.16); }
+  .checker-bg {
+    background-color: #161b26;
+    background-image: linear-gradient(45deg, #222a3a 25%, transparent 25%),
+      linear-gradient(-45deg, #222a3a 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #222a3a 75%),
+      linear-gradient(-45deg, transparent 75%, #222a3a 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  }
+  .dark-bg { background: #05070b; }
+  .light-bg { background: #e2e8f0; }
+  #canvas-sandwich {
+    display: block; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow: 0 8px 26px rgba(0, 0, 0, 0.55);
+  }
+
+  /* CARRUSEL HORIZONTAL DE TARJETAS ZERO-SCROLL (PIEZAS / ESCENARIOS / PROPS / ESCENAS) */
+  .carousel-stage {
+    flex: 1; min-height: 0; display: flex; align-items: stretch; gap: 10px;
+    overflow-x: auto; overflow-y: hidden; padding: 10px 12px;
+    scroll-snap-type: x mandatory;
+  }
+  .carousel-stage::-webkit-scrollbar { height: 4px; }
+  .carousel-stage::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 99px; }
+  .slide-card {
+    flex: 0 0 min(88vw, 330px); height: 100%; scroll-snap-align: center;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 15px;
+    padding: 10px; display: flex; flex-direction: column; gap: 8px; overflow: hidden;
+  }
+  .slide-card.listo { border-color: rgba(34, 197, 94, 0.45); }
+  .slide-preview {
+    flex: 1; min-height: 100px; border-radius: 10px; border: 1px dashed rgba(255, 255, 255, 0.14);
+    display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative;
+  }
+  .slide-preview img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+  .slot-empty-label { text-align: center; padding: 10px; color: var(--muted); font-size: 11px; background: rgba(8, 10, 15, 0.78); border-radius: 8px; }
+  .slot-tag-dim { position: absolute; top: 6px; right: 6px; font-family: monospace; font-size: 9.5px; padding: 2px 6px; border-radius: 5px; background: rgba(0, 0, 0, 0.78); color: var(--azul); }
+  .slot-tag-ok { position: absolute; top: 6px; left: 6px; font-size: 9.5px; font-weight: 800; padding: 2px 6px; border-radius: 5px; background: rgba(34, 197, 94, 0.88); color: #052e16; }
+  .slot-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; flex-shrink: 0; }
+
+  /* PANELES COMPACTOS INTERNOS (FICHA / PROMPTS / GUION) */
+  .compact-pane {
+    flex: 1; min-height: 0; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+    overflow-y: auto; max-width: 720px; width: 100%; margin: 0 auto;
+  }
+  .prompt-out {
+    flex: 1; width: 100%; min-height: 110px; padding: 9px; border-radius: 10px;
+    border: 1px solid rgba(56, 189, 248, 0.35); background: #05070b;
+    color: #86efac; font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 11px; line-height: 1.42; resize: none; outline: none;
+  }
+
+  /* DRAWER DESLIZABLE DESDE LA ESQUINA IZQUIERDA (BOTÓN ▶ NARANJA) */
+  .drawer-ov {
+    position: fixed; inset: 0; z-index: 70000; background: rgba(4, 6, 11, 0.72);
+    backdrop-filter: blur(5px); opacity: 0; pointer-events: none; transition: opacity .18s;
+  }
+  .drawer-ov.open { opacity: 1; pointer-events: auto; }
+  .drawer-panel {
+    position: absolute; top: 0; left: 0; bottom: 0; width: min(84vw, 310px);
+    background: linear-gradient(165deg, #151c2c, #0a0e16);
+    border-right: 1px solid var(--border-hi);
+    transform: translateX(-104%); transition: transform .2s ease;
+    display: flex; flex-direction: column; padding: 12px; gap: 10px; overflow: hidden;
+  }
+  .drawer-ov.open .drawer-panel { transform: translateX(0); }
+  .drawer-head { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  .drawer-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+  .drawer-sec-lbl { font-size: 10px; font-weight: 900; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .drawer-cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .drawer-item {
+    width: 100%; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.04); text-align: left; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12px; font-weight: 700;
+  }
+  .drawer-item.activo { border-color: var(--naranja); background: rgba(255, 107, 0, 0.18); color: #fff; }
+  .pct-mini { font-family: monospace; font-size: 10px; padding: 2px 6px; border-radius: 6px; background: rgba(0, 0, 0, 0.45); color: var(--miel); }
+  .pct-mini.full { background: rgba(34, 197, 94, 0.25); color: #86efac; }
+
+  /* MODALES */
+  .modal-ov {
+    position: fixed; inset: 0; z-index: 80000;
+    background: rgba(4, 6, 10, 0.84); backdrop-filter: blur(8px);
+    display: none; align-items: center; justify-content: center; padding: 12px;
+  }
+  .modal-ov.open { display: flex; }
+  .modal-card {
+    width: 100%; max-width: 440px; max-height: 86dvh; overflow-y: auto;
+    background: linear-gradient(150deg, #161c2a, #0b0e16);
+    border: 1px solid var(--border-hi); border-radius: 16px; padding: 15px;
+  }
+  .modal-head { display: flex; justify-content: space-between; align-items: center; padding-bottom: 9px; margin-bottom: 10px; border-bottom: 1px solid var(--border); }
+  .modal-head h3 { margin: 0; font-size: 13.5px; font-weight: 800; }
+
+  #toasts-cont { position: fixed; top: 50px; left: 50%; transform: translateX(-50%); z-index: 95000; display: flex; flex-direction: column; gap: 5px; pointer-events: none; max-width: 92vw; }
+  .toast-c { padding: 8px 13px; border-radius: 99px; font-size: 11.5px; font-weight: 800; background: rgba(12, 16, 25, 0.96); border: 1px solid var(--border); text-align: center; }
+  .toast-c.exito { border-color: rgba(34, 197, 94, 0.6); color: #86efac; }
+  .toast-c.error { border-color: rgba(239, 68, 68, 0.6); color: #fca5a5; }
+  .toast-c.info { border-color: rgba(56, 189, 248, 0.6); color: #7dd3fc; }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+  <!-- BARRA SUPERIOR COMPACTA CON BOTÓN NARANJA ▶ A LA IZQUIERDA -->
+  <header class="top-slim">
+    <div class="top-left">
+      <button type="button" class="btn-drawer-orange" id="btn-abrir-drawer" title="Menú Contenido" onclick="window.toggleDrawerCont(true)">
+        <svg class="svg-ico" style="fill:currentColor; stroke:none;" viewBox="0 0 24 24"><polygon points="7 4 20 12 7 20 7 4"/></svg>
+      </button>
+      <div class="ctx-title">
+        <strong id="hdr-entidad-titulo">Personajes</strong>
+        <small id="hdr-entidad-sub">Cargando biblioteca...</small>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:5px;">
+      <button type="button" class="btn btn-xs btn-blue" id="btn-quick-hdr" onclick="window.accionRapidaHeader()">+ Nuevo</button>
+      <span id="badge-sync-cont" class="sync-pill">...</span>
+    </div>
+  </header>
+
+  <!-- TIRA HORIZONTAL DE SUB-VISTAS (1 SOLA LÍNEA) -->
+  <nav class="subtab-strip" id="subtab-strip"></nav>
+
+  <!-- ÁREA CENTRAL ZERO-SCROLL -->
+  <main class="workspace-stage" id="workspace-stage"></main>
+</div>
+
+<!-- DRAWER LATERAL IZQUIERDO (SE ABRE CON EL BOTÓN ▶ NARANJA) -->
+<div class="drawer-ov" id="drawer-cont" onclick="if(event.target.id==='drawer-cont') window.toggleDrawerCont(false)">
+  <aside class="drawer-panel">
+    <div class="drawer-head">
+      <div style="display:flex; align-items:center; gap:6px;">
+        <span id="badge-proy-cont" class="sync-pill ok">Pirobonianos</span>
+      </div>
+      <button type="button" class="btn btn-xs" onclick="window.toggleDrawerCont(false)">Cerrar</button>
+    </div>
+    <div class="drawer-scroll" id="drawer-cont-body"></div>
+    <div style="border-top:1px solid var(--border); padding-top:8px; display:flex; gap:6px;">
+      <button type="button" class="btn btn-xs btn-blue" style="flex:1;" onclick="window.toggleDrawerCont(false); window.exportarManifiestoTermux();">Exportar JSON Termux</button>
+    </div>
+  </aside>
+</div>
+
+<input type="file" id="input-file-slot" class="hidden" onchange="window.manejarArchivoSlotSeleccionado(this.files[0]); this.value='';">
+<input type="file" id="input-ref-local-ia" accept="image/*" class="hidden" onchange="window.cargarRefLocalIA(this.files[0]); this.value='';">
+
+<!-- MODAL GENERAR PIEZA CON GEMINI IA -->
+<div class="modal-ov" id="modal-gen-ia-pieza" onclick="if(event.target.id==='modal-gen-ia-pieza') window.cerrarModalGenIA()">
+  <div class="modal-card" style="max-width:460px;">
+    <div class="modal-head">
+      <h3 id="gia-titulo">Generar Pieza con Gemini</h3>
+      <button type="button" class="btn btn-xs" onclick="window.cerrarModalGenIA()">Cerrar</button>
+    </div>
+    <div id="gia-key-box" class="hidden" style="margin-bottom:8px; padding:8px; border-radius:9px; border:1px solid rgba(245,158,11,0.45); background:rgba(245,158,11,0.08);">
+      <div style="font-size:10.5px; font-weight:800; color:#fcd34d; margin-bottom:4px;">Conecta tu API Key de Gemini (se comparte con Editor)</div>
+      <div style="display:flex; gap:6px;">
+        <input id="gia-api-key-inp" type="password" autocomplete="off" spellcheck="false" class="inp" placeholder="AIza...">
+        <button type="button" class="btn btn-xs btn-primary" onclick="window.guardarKeyGeminiRapida()">Guardar</button>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:9px; padding:8px; border-radius:10px; border:1px solid var(--border); background:rgba(5,8,14,0.75); margin-bottom:8px;">
+      <div id="gia-ref-thumb" style="width:46px; height:46px; border-radius:7px; border:1px dashed var(--border); overflow:hidden; display:flex; align-items:center; justify-content:center; flex-shrink:0; background:#0b0f18; font-size:9px; color:var(--muted);">REF</div>
+      <div style="flex:1; min-width:0;">
+        <div style="font-size:11px; font-weight:800; color:#fff;" id="gia-ref-lbl">Imagen de referencia</div>
+        <div style="font-size:10px; color:var(--muted);" id="gia-ref-sub">Se adjuntará automáticamente a Gemini</div>
+      </div>
+      <button type="button" class="btn btn-xs btn-blue" onclick="document.getElementById('input-ref-local-ia').click()">Foto Local</button>
+    </div>
+    <label id="gia-estilo-ref-wrap" class="hidden" style="display:flex; align-items:center; gap:6px; font-size:11px; color:#7dd3fc; font-weight:700; margin-bottom:8px; cursor:pointer;">
+      <input type="checkbox" id="gia-usar-estilo-ejemplo" checked style="accent-color:var(--naranja);">
+      <span id="gia-estilo-ref-txt">Adjuntar a Fernando como ejemplo exacto de estilo visual</span>
+    </label>
+    <div id="gia-var-base-wrap" class="hidden" style="margin-bottom:8px;">
+      <label class="field" style="margin:0;"><label>Calco base para esta variante</label>
+        <select id="gia-var-base-sel" class="sel" onchange="window.alCambiarBaseVarianteGIA(this.value)">
+          <option value="look">Look Oficial 1:1 (conserva rostro/ropa actual y suma encima)</option>
+          <option value="maniqui">Maniquí Base 1:1 (molde limpio sin ropa anterior)</option>
+        </select>
+      </label>
+    </div>
+    <div class="field" style="margin-bottom:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+        <label style="margin:0;">Instrucción (Prompt exacto para Gemini)</label>
+        <div style="display:flex; align-items:center; gap:6px;"><span id="gia-modelo-badge" style="font-size:10px; font-family:monospace; color:var(--azul);">gemini-2.5-flash-image</span><button type="button" class="btn btn-xs" onclick="window.abrirBovedaApisDesdeContenido()">APIs</button></div>
+      </div>
+      <textarea id="gia-prompt" class="inp" rows="4" style="font-size:11px; line-height:1.38;"></textarea>
+    </div>
+    <div id="gia-preview-box" class="hidden" style="margin-bottom:10px; border-radius:10px; border:1px solid rgba(34,197,94,0.45); background:rgba(5,8,14,0.85); padding:8px; text-align:center;">
+      <img id="gia-preview-img" src="" style="max-width:100%; max-height:210px; object-fit:contain; border-radius:7px; display:block; margin:0 auto 8px auto;">
+      <div style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap;">
+        <button type="button" class="btn btn-green" onclick="window.llevarGenIAEstudio()">Abrir en Estudio PNG</button>
+        <button type="button" class="btn btn-xs btn-blue" onclick="window.guardarGenIADirecto()">Guardar Directo</button>
+        <button type="button" class="btn btn-xs btn-purple" onclick="window.ejecutarGeneracionIAPieza()">Reintentar</button>
+      </div>
+    </div>
+    <div id="gia-error-box" class="hidden" style="margin-bottom:8px; padding:7px 9px; border-radius:8px; border:1px solid rgba(239,68,68,0.5); background:rgba(239,68,68,0.12); color:#fca5a5; font-size:11px; font-weight:700;"></div>
+    <div style="display:flex; justify-content:flex-end; gap:6px;" id="gia-footer-btns">
+      <button type="button" class="btn btn-purple" id="btn-run-gia" style="width:100%;" onclick="window.ejecutarGeneracionIAPieza()">Generar Imagen con Gemini</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CREAR NUEVA ENTIDAD -->
+<div class="modal-ov" id="modal-crear-entidad" onclick="if(event.target.id==='modal-crear-entidad') window.cerrarModalC('modal-crear-entidad')">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3 id="modal-crear-titulo">Crear Nuevo</h3>
+      <button type="button" class="btn btn-xs" onclick="window.cerrarModalC('modal-crear-entidad')">Cerrar</button>
+    </div>
+    <form id="form-crear-entidad" onsubmit="event.preventDefault(); window.confirmarCrearEntidad();"></form>
+  </div>
+</div>
+
+<!-- MODAL CONFIRMACIÓN -->
+<div class="modal-ov" id="modal-conf-c" style="z-index:92000;">
+  <div class="modal-card" style="max-width:360px;">
+    <h3 id="conf-c-tit" style="margin:0 0 8px 0; font-size:14px;">Confirmar</h3>
+    <p id="conf-c-msg" style="margin:0 0 14px 0; font-size:12px; color:var(--muted);"></p>
+    <div style="display:flex; justify-content:flex-end; gap:8px;">
+      <button type="button" class="btn" id="conf-c-no">Cancelar</button>
+      <button type="button" class="btn btn-primary" id="conf-c-si">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts-cont"></div>
+
+<script type="module">
+import GeokatuDB from './core-db.js';
+import { dibujarMarionetaPiro, cargarImagenPiro } from './piro-compositor.js';
+
+const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
+function normalizarDocBibId(id, proyId) {
+  const s = String(id || '').trim();
+  if (!s || s === '__biblioteca_maestra__') return 'bib_pirobonianos';
+  const limpio = s.replace(/^_+/, '').replace(/_+$/, '');
+  return limpio || ('bib_' + (proyId || 'pirobonianos'));
+}
+let proyectoActivo = {
+  id: 'pirobonianos', nombre: 'Pirobonianos', docBibId: 'bib_pirobonianos',
+  storageDir: 'biblioteca_contenido', plantilla: 'piro_rig', bilingue: false,
+  tipo_personaje: 'Anthropomorphic dog',
+  estilo_visual: 'A 2D cartoon animation character, BoJack Horseman style, clean black ink outlines, flat vibrant colors.'
+};
+try {
+  const rawP = localStorage.getItem(CLAVE_PROY_ACTIVO);
+  if (rawP) { const parsed = JSON.parse(rawP); if (parsed && parsed.docBibId) proyectoActivo = Object.assign(proyectoActivo, parsed); }
+} catch (e) {}
+proyectoActivo.docBibId = normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id);
+function getDocBibId() { return normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id); }
+function getLocalBibKey() { return proyectoActivo.id === 'pirobonianos' ? 'piro_biblioteca_maestra_v1' : ('piro_bib_' + proyectoActivo.id + '_v1'); }
+function getStorageDir() { return proyectoActivo.storageDir || 'biblioteca_contenido'; }
+function actualizarBadgeProy() { const b = document.getElementById('badge-proy-cont'); if (b) b.textContent = proyectoActivo.nombre || 'Pirobonianos'; }
+
+const SLOTS_BASICOS_PERSONAJE = [
+  { key: 'maestro_cuerpo', grupo: 'base', titulo: 'Cuerpo Entero Maestro', preset: 'per_ref', archivo: 'maestro_vest_01', dim: '1000×1600', desc: 'De pie mirando a la derecha, base de referencia.' },
+  { key: 'maestro_perfil', grupo: 'base', titulo: 'Look Oficial 1:1 (Identidad)', preset: 'per_ref', archivo: 'maestro_perfil', dim: '1000×1600', desc: 'Identidad, rostro y ropa oficial sobre calco 1:1.' },
+  { key: 'cabeza_base', grupo: 'base', titulo: 'Cabeza Sin Rostro', preset: 'per_cabeza', archivo: 'base', dim: '1000×1600', desc: 'Cabeza, orejas y hocico SIN ojos ni boca.' },
+  { key: 'cuerpo_base', grupo: 'base', titulo: 'Cuerpo / Vestuario 01', preset: 'per_cuerpo', archivo: 'vest_01', dim: '1000×1600', desc: 'Torso y ropa base SIN cabeza ni brazos.' },
+  { key: 'ojos_neutro', grupo: 'ojos', titulo: 'Ojos: Neutro', preset: 'per_ojos', archivo: 'neutro', dim: '1000×1600', desc: 'Mirada relajada estándar.' },
+  { key: 'ojos_feliz', grupo: 'ojos', titulo: 'Ojos: Feliz', preset: 'per_ojos', archivo: 'feliz', dim: '1000×1600', desc: 'Ojos alegres y cejas arqueadas.' },
+  { key: 'ojos_enojado', grupo: 'ojos', titulo: 'Ojos: Enojado', preset: 'per_ojos', archivo: 'enojado', dim: '1000×1600', desc: 'Cejas en V y mirada furiosa.' },
+  { key: 'ojos_triste', grupo: 'ojos', titulo: 'Ojos: Triste', preset: 'per_ojos', archivo: 'triste', dim: '1000×1600', desc: 'Párpados caídos y cejas melancólicas.' },
+  { key: 'ojos_duda', grupo: 'ojos', titulo: 'Ojos: Duda / Sospecha', preset: 'per_ojos', archivo: 'duda', dim: '1000×1600', desc: 'Mirada de reojo y una ceja levantada.' },
+  { key: 'ojos_indignado', grupo: 'ojos', titulo: 'Ojos: Indignado', preset: 'per_ojos', archivo: 'indignado', dim: '1000×1600', desc: 'Ojos muy abiertos de escándalo o chisme.' },
+  { key: 'boca_cerrada', grupo: 'bocas', titulo: 'Boca: Cerrada (Reposo)', preset: 'per_boca', archivo: 'cerrada', dim: '1000×1600', desc: 'Silencio / reposo lip-sync.' },
+  { key: 'boca_media', grupo: 'bocas', titulo: 'Boca: Media (Sílabas)', preset: 'per_boca', archivo: 'media', dim: '1000×1600', desc: 'Habla suave automática.' },
+  { key: 'boca_abierta', grupo: 'bocas', titulo: 'Boca: Abierta (Fuerte)', preset: 'per_boca', archivo: 'abierta', dim: '1000×1600', desc: 'Vocal abierta o grito lip-sync.' },
+  { key: 'boca_sonrisa', grupo: 'bocas', titulo: 'Boca: Sonrisa', preset: 'per_boca', archivo: 'sonrisa', dim: '1000×1600', desc: 'Gesto confiado o risueño.' },
+  { key: 'boca_molesta', grupo: 'bocas', titulo: 'Boca: Molesta / Asco', preset: 'per_boca', archivo: 'molesta', dim: '1000×1600', desc: 'Mueca de fastidio o disgusto.' },
+  { key: 'brazo_trasero_reposo', grupo: 'extremidades', titulo: 'Brazo Trasero Reposo', preset: 'per_brazo', archivo: 'trasero_reposo', dim: '1000×1600', desc: 'Brazo de atrás suelto con hombro limpio.' },
+  { key: 'brazo_delantero_reposo', grupo: 'extremidades', titulo: 'Brazo Delantero Reposo', preset: 'per_brazo', archivo: 'delantero_reposo', dim: '1000×1600', desc: 'Brazo frontal en pose icónica.' },
+  { key: 'brazo_delantero_prop', grupo: 'extremidades', titulo: 'Brazo Sosteniendo Prop', preset: 'per_brazo', archivo: 'delantero_prop', dim: '1000×1600', desc: 'Mano lista para agarrar celular o tinto.' },
+  { key: 'pierna_trasera', grupo: 'extremidades', titulo: 'Pierna Trasera', preset: 'per_cuerpo', archivo: 'pierna_trasera', dim: '1000×1600', desc: 'Pierna de apoyo para ciclo de caminata.' },
+  { key: 'pierna_delantera', grupo: 'extremidades', titulo: 'Pierna Delantera', preset: 'per_cuerpo', archivo: 'pierna_delantera', dim: '1000×1600', desc: 'Pierna frontal articulada para caminar.' }
+];
+
+let biblioteca = { tipo_doc: 'biblioteca', personajes: [], escenarios: [], props: [], guiones: [], fecha_actualizacion: '' };
+let catActiva = 'personajes';
+let selId = { personajes: null, escenarios: null, guiones: null };
+let subTabPersonaje = 'sandwich'; // sandwich | base | ojos | bocas | extremidades | variantes | ficha
+let subFichaPanel = 'identidad'; // identidad | voz | prompts
+let subGuionPanel = 'resumen'; // resumen | escenas
+let swToolActiva = null; // null | ojos | bocas | brazo | prop | rotar
+let tipoPromptVista = 'cuerpo_completo';
+let filtroPropsCat = 'todos';
+let sandwichCfg = { ojos: 'ojos_neutro', boca: 'boca_cerrada', brazoDel: 'brazo_delantero_reposo', rotCab: 0, rotBrazo: 0, bg: 'checker', piernas: true, prop: '' };
+let slotUploadPendiente = null;
+let tipoModalCrear = null;
+let debounceGuardar = null;
+let hayCambiosPendientes = false;
+
+function esc(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function toast(msg, tipo) {
+  if (window.self !== window.top) {
+    window.parent.postMessage({ tipo: 'PIRO_TOAST', mensaje: msg, nivel: tipo || 'info' }, '*');
+    return;
+  }
+  const cont = document.getElementById('toasts-cont');
+  const el = document.createElement('div');
+  el.className = 'toast-c ' + (tipo || 'info');
+  el.textContent = msg;
+  cont.appendChild(el);
+  setTimeout(function() { el.remove(); }, 2800);
+}
+
+function confirmar(tit, msg) {
+  return new Promise(function(resolve) {
+    const m = document.getElementById('modal-conf-c');
+    document.getElementById('conf-c-tit').textContent = tit;
+    document.getElementById('conf-c-msg').textContent = msg;
+    const no = document.getElementById('conf-c-no');
+    const si = document.getElementById('conf-c-si');
+    m.classList.add('open');
+    const fin = function(v) { m.classList.remove('open'); no.onclick = null; si.onclick = null; resolve(v); };
+    no.onclick = function() { fin(false); };
+    si.onclick = function() { fin(true); };
+  });
+}
+
+function setSyncBadge(txt, cls) {
+  const el = document.getElementById('badge-sync-cont');
+  if (!el) return;
+  el.textContent = txt;
+  el.className = 'sync-pill ' + (cls || '');
+}
+
+window.toggleDrawerCont = function(abrir) {
+  const d = document.getElementById('drawer-cont');
+  if (!d) return;
+  if (abrir) renderizarDrawer();
+  d.classList.toggle('open', Boolean(abrir));
+};
+
+window.accionRapidaHeader = function() {
+  if (catActiva === 'personajes') {
+    if (subTabPersonaje === 'variantes') window.abrirModalCrear('variante');
+    else window.abrirModalCrear('personaje');
+  } else if (catActiva === 'escenarios') {
+    window.abrirModalCrear('zona');
+  } else if (catActiva === 'props') {
+    window.abrirModalCrear('prop');
+  } else if (catActiva === 'guiones') {
+    window.abrirGuionEnEditor();
+  }
+};
+
+function crearBibliotecaSemilla() {
+  return {
+    tipo_doc: 'biblioteca',
+    personajes: [{
+      id: 'per_001', nombre: 'Fernando Azules', raza: 'Dálmata',
+      contextura: 'Muy esbelto, extremadamente definido pero sin volumen muscular excesivo, abdominales y músculos marcados',
+      pelaje_rasgos: 'Pelaje dálmata fondo blanco con manchas negras, rasgos faciales finos, nariz perfilada, cabello oscuro corte quiff estilizado, barba corta perfilada',
+      vestuario_base: 'Camiseta unicolor rosa pastel muy ajustada que marca abdominales, jean oscuro ajustado, zapatillas deportivas, topos de diamante blanco en ambas orejas y cadena plateada fina sin dije',
+      pose_iconica: 'De pie, mano derecha en la cadera, peso apoyado en la pierna izquierda, barbilla ligeramente levantada',
+      personalidad: 'Adulto niño, femenino en expresiones, masculino al vestir, dramático con su imagen y vanidoso',
+      voice_id: '', pivotes_json: '', piezas: {}, variantes: []
+    }],
+    escenarios: [{
+      id: 'esc_001', nombre: 'Almacén de Ropa',
+      iluminacion: 'Luz blanca fría comercial, paredes claras minimalistas, percheros metálicos',
+      zonas: [{ id: 'zona_01', nombre: 'Cajas', puntos_camara: 'pos_izq: fila clientes | pos_der: mostrador | horizonte: tercio medio', fondo: null, frente: null }]
+    }],
+    props: [
+      { id: 'prop_celular', nombre: 'Celular', categoria: 'prop', archivo: null },
+      { id: 'prop_tinto', nombre: 'Vaso de Tinto', categoria: 'prop', archivo: null },
+      { id: 'fx_exclamacion', nombre: 'Ícono Exclamación (!)', categoria: 'fx', archivo: null },
+      { id: 'sfx_pop', nombre: 'SFX Pop', categoria: 'audio', archivo: null }
+    ],
+    guiones: [{
+      id: 'ep001', titulo: 'Episodio 001 · Prueba Semilla',
+      escenario_id: 'esc_001', zona_id: 'zona_01', reparto: ['per_001'], estado: 'Borrador', anecdota: '', escenas: []
+    }],
+    fecha_actualizacion: new Date().toISOString()
+  };
+}
+
+function crearSemillaPorProyecto() {
+  if (proyectoActivo.id === 'pirobonianos') return crearBibliotecaSemilla();
+  if (proyectoActivo.id === 'cruzando_la_frontera' || proyectoActivo.plantilla === 'scifi_hibrido') {
+    const baseCast = [
+      ['NARRADOR', 'Narrador', 'Voz en off documental', 'en-US-BrianNeural', 'es-MX-JorgeNeural'],
+      ['DANIEL_CHEN', 'Daniel Chen', 'Ingeniero protagonista', 'en-US-ChristopherNeural', 'es-CO-GonzaloNeural'],
+      ['DARIO_KELLER', 'Darío Keller', 'Analista técnico', 'en-US-GuyNeural', 'es-ES-AlvaroNeural'],
+      ['MAGNUS_STERLING', 'Magnus Sterling', 'Ejecutivo corporativo', 'en-US-EricNeural', 'es-AR-TomasNeural'],
+      ['JULIAN_VANCE', 'Julian Vance', 'Estratega', 'en-US-RogerNeural', 'es-CL-LorenzoNeural'],
+      ['ELENA_ROSTOVA', 'Elena Rostova', 'Científica', 'en-US-JennyNeural', 'es-ES-ElviraNeural'],
+      ['ARIS_THORNE', 'Aris Thorne', 'Investigador', 'en-GB-RyanNeural', 'es-PE-AlexNeural'],
+      ['MATEO_VARGAS', 'Mateo Vargas', 'Operador de campo', 'en-US-AndrewNeural', 'es-US-AlonsoNeural'],
+      ['ARTHUR_WARD', 'Arthur Ward', 'Militar / Defensa', 'en-US-TonyNeural', 'es-VE-SebastianNeural'],
+      ['PRESIDENTE', 'Presidente', 'Mandatario', 'en-US-DavisNeural', 'es-BO-MarceloNeural'],
+      ['LIN_WEI', 'Lin Wei', 'Ingeniera hardware', 'en-US-MichelleNeural', 'es-CO-SalomeNeural'],
+      ['JACK_NOVAK', 'Jack Novak', 'Agente táctico', 'en-US-SteffanNeural', 'es-UY-MateoNeural'],
+      ['MARCOS_MORENO', 'Marcos Moreno', 'Especialista sistemas', 'en-US-BrandonNeural', 'es-ES-ArnauNeural'],
+      ['AGI_CORE', 'AGI Core', 'Entidad sintética IA', 'en-US-AriaNeural', 'es-MX-DaliaNeural']
+    ];
+    return {
+      tipo_doc: 'biblioteca', meta_proyecto: proyectoActivo,
+      personajes: baseCast.map(function(c) {
+        return { id: c[0], nombre: c[1], raza: c[2], contextura: 'Humano adulto estilizado', pelaje_rasgos: '', vestuario_base: '', pose_iconica: 'De pie en plano 3/4 mirando a la derecha', personalidad: c[2], voice_id: '', voz_en: c[3], voz_es: c[4], pivotes_json: '', piezas: {}, variantes: [] };
+      }),
+      escenarios: [{ id: 'esc_001', nombre: 'Centro de Control / Laboratorio EUV', iluminacion: 'Sombras profundas con destellos neón cian y ámbar', zonas: [{ id: 'zona_01', nombre: 'Sala Principal', puntos_camara: 'Plano general + zoom consolas', fondo: null, frente: null }] }],
+      props: [{ id: 'prop_terminal', nombre: 'Terminal Holográfica', categoria: 'prop', archivo: null }, { id: 'sfx_alarma', nombre: 'Alarma Táctica', categoria: 'audio', archivo: null }],
+      guiones: [{ id: 'cap_01', titulo: 'Capítulo I · Short 01', escenario_id: 'esc_001', zona_id: 'zona_01', reparto: ['NARRADOR', 'DANIEL_CHEN'], estado: 'Borrador', anecdota: '', escenas: [] }],
+      fecha_actualizacion: new Date().toISOString()
+    };
+  }
+  return {
+    tipo_doc: 'biblioteca', meta_proyecto: proyectoActivo,
+    personajes: [{ id: 'per_001', nombre: 'Protagonista 01', raza: proyectoActivo.tipo_personaje || 'Personaje', contextura: '', pelaje_rasgos: '', vestuario_base: '', pose_iconica: 'De pie mirando a la derecha', personalidad: '', voice_id: '', voz_en: '', voz_es: '', pivotes_json: '', piezas: {}, variantes: [] }],
+    escenarios: [{ id: 'esc_001', nombre: 'Escenario Principal', iluminacion: 'Iluminación base', zonas: [{ id: 'zona_01', nombre: 'Zona 01', puntos_camara: '', fondo: null, frente: null }] }],
+    props: [], guiones: [{ id: 'ep001', titulo: 'Episodio 001', escenario_id: 'esc_001', reparto: ['per_001'], estado: 'Borrador', anecdota: '', escenas: [] }],
+    fecha_actualizacion: new Date().toISOString()
+  };
+}
+
+async function cargarBiblioteca() {
+  actualizarBadgeProy();
+  setSyncBadge('...', 'warn');
+  biblioteca = { tipo_doc: 'biblioteca', personajes: [], escenarios: [], props: [], guiones: [] };
+  const kLoc = getLocalBibKey();
+  try { const raw = localStorage.getItem(kLoc); if (raw) biblioteca = JSON.parse(raw); } catch (e) {}
+
+  if (GeokatuDB.PirobonianosService && navigator.onLine) {
+    const res = await GeokatuDB.PirobonianosService.obtenerProyectoEDT(getDocBibId());
+    if (res.success && res.data && Array.isArray(res.data.personajes)) {
+      if (!biblioteca.fecha_actualizacion || String(res.data.fecha_actualizacion || '') >= String(biblioteca.fecha_actualizacion)) {
+        biblioteca = res.data;
+        try { localStorage.setItem(kLoc, JSON.stringify(biblioteca)); } catch (e) {}
+      }
+      setSyncBadge(res.origen === 'nube' ? 'Nube OK' : 'Local', res.origen === 'nube' ? 'ok' : 'warn');
+    } else if (res.success) {
+      setSyncBadge('Nube OK', 'ok');
+    } else {
+      setSyncBadge('Local', 'warn');
+    }
+  } else {
+    setSyncBadge('Offline', 'warn');
+  }
+
+  if (!Array.isArray(biblioteca.personajes) || biblioteca.personajes.length === 0) {
+    biblioteca = crearSemillaPorProyecto();
+    guardarBiblioteca(true);
+  }
+  try {
+    const rawUiC = localStorage.getItem('piro_cont_ui_' + proyectoActivo.id);
+    if (rawUiC) {
+      const u = JSON.parse(rawUiC);
+      if (u.catActiva) catActiva = u.catActiva;
+      if (u.subTabPersonaje) subTabPersonaje = u.subTabPersonaje;
+      if (u.selId) selId = Object.assign(selId, u.selId);
+    }
+  } catch (e) {}
+  if (!biblioteca.personajes.some(function(x) { return x.id === selId.personajes; })) selId.personajes = biblioteca.personajes[0] ? biblioteca.personajes[0].id : null;
+  if (!biblioteca.escenarios.some(function(x) { return x.id === selId.escenarios; })) selId.escenarios = biblioteca.escenarios[0] ? biblioteca.escenarios[0].id : null;
+  if (!biblioteca.guiones.some(function(x) { return x.id === selId.guiones; })) selId.guiones = biblioteca.guiones[0] ? biblioteca.guiones[0].id : null;
+  renderizarTodo();
+}
+
+function guardarBiblioteca(inmediato) {
+  hayCambiosPendientes = true;
+  biblioteca.tipo_doc = 'biblioteca';
+  biblioteca.meta_proyecto = proyectoActivo;
+  biblioteca.fecha_actualizacion = new Date().toISOString();
+  const limpioJson = JSON.parse(JSON.stringify(biblioteca));
+  try { localStorage.setItem(getLocalBibKey(), JSON.stringify(limpioJson)); } catch (e) {}
+  setSyncBadge('Guardando...', 'warn');
+  clearTimeout(debounceGuardar);
+  const run = async function() {
+    if (!GeokatuDB.PirobonianosService) { setSyncBadge('Local', 'warn'); return { success: false, offline: true }; }
+    const res = await GeokatuDB.PirobonianosService.guardarProyectoEDT(getDocBibId(), limpioJson);
+    if (res.success && !res.offline) {
+      hayCambiosPendientes = false;
+      setSyncBadge('Nube OK', 'ok');
+    } else {
+      setSyncBadge('Local', 'warn');
+      if (res && res.error) toast('Aviso nube: ' + res.error, 'error');
+    }
+    if (window.self !== window.top) window.parent.postMessage({ tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA', origen: 'contenido' }, '*');
+    return res;
+  };
+  if (inmediato) return run();
+  debounceGuardar = setTimeout(run, 650);
+  return Promise.resolve({ success: true, debounced: true });
+}
+
+// =========================================================================
+// MOTOR DE PROMPTS UNIFICADO + CAPACIDADES
+// =========================================================================
+function generarPromptPersonaje(p, tipo, specObj, baseOverride) {
+  const baseStyle = proyectoActivo.estilo_visual || 'A 2D cartoon animation character, BoJack Horseman style, clean black ink outlines, flat vibrant colors.';
+  const prefId = proyectoActivo.plantilla === 'scifi_hibrido' ? ('Character profile: ' + (p.raza || 'human sci-fi character')) : ('Anthropomorphic ' + (p.raza || 'dog') + ' character');
+  const identidad = prefId + '. Physique: ' + (p.contextura || 'adult stylized') + '. Features: ' + (p.pelaje_rasgos || 'distinctive look') + '.';
+  const ropa = 'Wearing: ' + (p.vestuario_base || 'casual clothes') + '.';
+  const lock = 'PIXEL-LOCK IN-PLACE EDIT: Preserve the EXACT 1000x1600 canvas framing, silhouette, scale, head position, and three-quarter angle facing RIGHT of the attached reference image. DO NOT zoom, crop, shift, rescale, or change the pose. Background MUST stay completely flat solid chroma green (#00FF00) with zero shadows or gradients. ';
+
+  if (tipo === 'cuerpo_completo' || tipo === 'maestro_cuerpo') {
+    return baseStyle + ' Full-body clean anatomical mannequin base of ' + identidad + ' Showing completely from head to toe, facing three-quarters to the RIGHT. Pose: ' + (p.pose_iconica || 'standing neutral') + '. Leave face blank without eyes, eyebrows, or mouth (keep ears, hair, nose and base fur/skin markings) and NO clothing so this mannequin serves as a clean 2D puppet mold for interchangeable outfits and accessories. Isolated on completely flat solid chroma green (#00FF00) with zero shadows.';
+  }
+  if (tipo === 'maestro_perfil') {
+    return 'Using the first attached image (1000x1600 mannequin on #00FF00) as strict PIXEL-LOCK position/scale mold and the second attached photo (real human person) as identity reference: transform the person\'s real facial features, eye shape (including slanted/monolid or specific eye shape if present), eyebrows, nose, hairstyle, facial hair and expression into this exact 2D art style (' + baseStyle + '). Fit the character cleanly onto the exact silhouette and pose of the mannequin (' + identidad + ' ' + ropa + ') over solid chroma green (#00FF00) with zero shadows.';
+  }
+  if (tipo === 'cabeza_base') {
+    return lock + 'Keep ONLY the character head, ears, hair, fur markings, nose and jawline in its exact pixel position. REMOVE the eyes, eyebrows, mouth, neck, body, arms and legs completely, replacing the face area cleanly with matching fur and filling everything outside the head with solid chroma green (#00FF00).';
+  }
+  if (tipo === 'cuerpo_base') {
+    return lock + 'Draw ONLY the torso and legs dressed in the base outfit (' + (p.vestuario_base || 'base outfit') + ') fitted precisely onto this exact body silhouette. REMOVE the head and BOTH arms completely, cleanly closing the collar and shoulder openings with black ink outlines, and fill everything else with solid chroma green (#00FF00).';
+  }
+  if (tipo.indexOf('ojos') === 0) {
+    const emo = tipo === 'ojos' ? 'NEUTRAL' : tipo.replace('ojos_', '').toUpperCase();
+    return lock + 'Keep ONLY the eyes and eyebrows drawn in the exact face coordinates with expression: ' + emo + ', faithfully preserving the exact eye shape and slant of the reference character (' + baseStyle + '). REMOVE the entire head, fur, ears, nose, mouth, neck and body completely, leaving ONLY the floating eyes and eyebrows in their exact position over solid chroma green (#00FF00).';
+  }
+  if (tipo.indexOf('boca') === 0) {
+    const moc = tipo === 'bocas' ? 'CLOSED' : tipo.replace('boca_', '').toUpperCase();
+    return lock + 'Keep ONLY the mouth/lips drawn in the exact muzzle coordinates with shape: ' + moc + ' (' + baseStyle + '). REMOVE the entire head, eyes, nose, ears, beard, neck and body completely, leaving ONLY the floating mouth in their exact position over solid chroma green (#00FF00).';
+  }
+  if (tipo.indexOf('brazo') === 0 || tipo.indexOf('pierna') === 0) {
+    const parte = tipo.replace(/_/g, ' ');
+    return lock + 'Keep ONLY the isolated limb (' + parte + ') in its exact pixel coordinates, matching the character markings and sleeve/pant (' + (p.vestuario_base || 'base outfit') + '), with a cleanly rounded shoulder/hip joint cap. REMOVE the rest of the body and head completely over solid chroma green (#00FF00).';
+  }
+  const descVar = (specObj && (specObj.titulo || specObj.nota)) ? (String(specObj.titulo || '') + (specObj.nota ? (' — ' + specObj.nota) : '')) : tipo;
+  const presetVar = (specObj && specObj.preset) ? specObj.preset : 'per_cuerpo';
+  const modoAislado = presetVar === 'per_cabeza'
+    ? 'Draw ONLY this custom head/facial element (such as beard, hair, hat, glasses or scars) fitted precisely onto the head coordinates, and REMOVE the rest of the body over solid chroma green (#00FF00).'
+    : (presetVar === 'per_cuerpo'
+      ? 'Draw ONLY this custom outfit/torso+legs fitted precisely onto the body silhouette, removing head and arms over solid chroma green (#00FF00).'
+      : 'Draw ONLY this custom piece fitted precisely in its exact anatomical coordinates, removing all other body parts over solid chroma green (#00FF00).');
+  return lock + 'Create the custom puppet layer: "' + descVar + '". ' + modoAislado + ' Match exact art direction: ' + baseStyle + (baseOverride === 'maniqui' ? (' ' + identidad) : '');
+}
+
+function obtenerRefParaPrompt(p, tipo, baseOverride) {
+  const pz = (p && p.piezas) ? p.piezas : {};
+  const urlManiqui = (pz.maestro_cuerpo && pz.maestro_cuerpo.url) || null;
+  const urlLook = (pz.maestro_perfil && pz.maestro_perfil.url) || null;
+
+  if (tipo === 'cuerpo_completo' || tipo === 'maestro_cuerpo') {
+    return {
+      label: 'Molde Base: sube tu maniquí o foto en "Foto Local"',
+      url: urlManiqui,
+      archivo: (p.id || 'per') + '_maniqui_base.png'
+    };
+  }
+  if (tipo === 'maestro_perfil') {
+    return {
+      label: 'Calco Maniquí 1:1 + Foto Humana (rasgos reales)',
+      url: urlManiqui,
+      archivo: (p.id || 'per') + '_look_oficial.png'
+    };
+  }
+  if (baseOverride === 'maniqui') {
+    return {
+      label: 'Calco Maniquí 1:1 (molde limpio sin ropa previa)',
+      url: urlManiqui || urlLook,
+      archivo: (p.id || 'per') + '_maniqui_base.png'
+    };
+  }
+  const refPrimaria = urlLook || urlManiqui;
+  return {
+    label: urlLook ? 'Calco Look Oficial 1:1 (identidad y proporciones)' : 'Calco Maniquí 1:1 (sube Look Oficial para rasgos)',
+    url: refPrimaria,
+    archivo: (p.id || 'per') + '_look_oficial.png'
+  };
+}
+
+function calcularProgresoPersonaje(p) {
+  const piezas = p.piezas || {};
+  let listos = 0;
+  SLOTS_BASICOS_PERSONAJE.forEach(function(s) { if (piezas[s.key] && piezas[s.key].url) listos++; });
+  const total = SLOTS_BASICOS_PERSONAJE.length;
+  const pct = Math.round((listos / total) * 100);
+  const extras = (p.variantes || []).filter(function(v) { return v.url; }).length;
+  const tiene = function(k) { return Boolean(piezas[k] && piezas[k].url); };
+  const tieneOjos = ['ojos_neutro','ojos_feliz','ojos_enojado','ojos_triste','ojos_duda','ojos_indignado'].some(tiene);
+  const tieneHabla = tiene('boca_cerrada') && tiene('boca_media') && tiene('boca_abierta');
+  let capacidad = 'Paso 1: sube Maniquí Base o Look Oficial';
+  if (tiene('cabeza_base') && tieneOjos && tieneHabla && tiene('cuerpo_base') && tiene('brazo_delantero_prop')) capacidad = 'Listo para escena completa + props';
+  else if (tiene('cabeza_base') && tieneOjos && tieneHabla) capacidad = 'Listo para primer plano hablando';
+  else if (tiene('cabeza_base') && tieneOjos && (tiene('boca_cerrada') || tiene('boca_sonrisa'))) capacidad = 'Listo para reacción (faltan 3 bocas)';
+  else if (tiene('maestro_cuerpo') || tiene('maestro_perfil')) capacidad = 'Ref. aprobada · sigue Cabeza, Ojos y Bocas';
+  return { listos: listos, total: total, pct: pct, extras: extras, totalExtras: (p.variantes || []).length, capacidad: capacidad };
+}
+
+function obtenerPersonajeActual() {
+  return biblioteca.personajes.find(function(p) { return p.id === selId.personajes; }) || biblioteca.personajes[0] || null;
+}
+
+// =========================================================================
+// DRAWER LATERAL IZQUIERDO (BOTÓN ▶ NARANJA)
+// =========================================================================
+function renderizarDrawer() {
+  const body = document.getElementById('drawer-cont-body');
+  if (!body) return;
+  let entHtml = '';
+  if (catActiva === 'personajes') {
+    const pAct = obtenerPersonajeActual();
+    entHtml =
+      '<div class="drawer-sec-lbl">Personajes (' + biblioteca.personajes.length + ')</div>' +
+      biblioteca.personajes.map(function(p) {
+        const pr = calcularProgresoPersonaje(p);
+        return '<button type="button" class="drawer-item' + (p.id === selId.personajes ? ' activo' : '') + '" onclick="window.selEntidadDesdeDrawer(\'personajes\',\'' + esc(p.id) + '\')">' +
+          '<span>' + esc(p.nombre) + '</span><span class="pct-mini' + (pr.pct === 100 ? ' full' : '') + '">' + pr.pct + '%</span></button>';
+      }).join('') +
+      '<button type="button" class="btn btn-xs btn-primary" style="width:100%; margin-top:4px;" onclick="window.toggleDrawerCont(false); window.abrirModalCrear(\'personaje\');">+ Nuevo Personaje</button>' +
+      (pAct ? '<div style="display:flex; gap:5px; margin-top:6px;">' +
+        '<button type="button" class="btn btn-xs btn-blue" style="flex:1;" onclick="window.toggleDrawerCont(false); window.enviarFaltantesATickets();">+ Tickets Faltantes</button>' +
+        '<button type="button" class="btn btn-xs btn-danger" onclick="window.toggleDrawerCont(false); window.eliminarPersonajeActual();">Eliminar</button>' +
+      '</div>' : '');
+  } else if (catActiva === 'escenarios') {
+    entHtml =
+      '<div class="drawer-sec-lbl">Escenarios (' + biblioteca.escenarios.length + ')</div>' +
+      biblioteca.escenarios.map(function(e) {
+        return '<button type="button" class="drawer-item' + (e.id === selId.escenarios ? ' activo' : '') + '" onclick="window.selEntidadDesdeDrawer(\'escenarios\',\'' + esc(e.id) + '\')">' +
+          '<span>' + esc(e.id + ' · ' + e.nombre) + '</span><span class="pct-mini">' + (e.zonas || []).length + 'z</span></button>';
+      }).join('') +
+      '<button type="button" class="btn btn-xs btn-primary" style="width:100%; margin-top:4px;" onclick="window.toggleDrawerCont(false); window.abrirModalCrear(\'escenario\');">+ Nuevo Escenario</button>';
+  } else if (catActiva === 'props') {
+    entHtml =
+      '<div class="drawer-sec-lbl">Props, FX y Audio (' + (biblioteca.props || []).length + ')</div>' +
+      '<button type="button" class="btn btn-xs btn-primary" style="width:100%;" onclick="window.toggleDrawerCont(false); window.abrirModalCrear(\'prop\');">+ Añadir Prop / FX / Audio</button>';
+  } else if (catActiva === 'guiones') {
+    entHtml =
+      '<div class="drawer-sec-lbl">Guiones (' + biblioteca.guiones.length + ')</div>' +
+      biblioteca.guiones.map(function(g) {
+        return '<button type="button" class="drawer-item' + (g.id === selId.guiones ? ' activo' : '') + '" onclick="window.selEntidadDesdeDrawer(\'guiones\',\'' + esc(g.id) + '\')">' +
+          '<span>' + esc(g.id + ' · ' + g.titulo) + '</span></button>';
+      }).join('') +
+      '<button type="button" class="btn btn-xs btn-primary" style="width:100%; margin-top:4px;" onclick="window.toggleDrawerCont(false); window.abrirModalCrear(\'guion\');">+ Nuevo Guion</button>';
+  }
+
+  body.innerHTML =
+    '<div>' +
+      '<div class="drawer-sec-lbl">Módulos de Contenido</div>' +
+      '<div class="drawer-cat-grid">' +
+        '<button type="button" class="drawer-item' + (catActiva === 'personajes' ? ' activo' : '') + '" onclick="window.cambiarCategoria(\'personajes\', true)">Personajes</button>' +
+        '<button type="button" class="drawer-item' + (catActiva === 'escenarios' ? ' activo' : '') + '" onclick="window.cambiarCategoria(\'escenarios\', true)">Escenarios</button>' +
+        '<button type="button" class="drawer-item' + (catActiva === 'props' ? ' activo' : '') + '" onclick="window.cambiarCategoria(\'props\', true)">Props & Audio</button>' +
+        '<button type="button" class="drawer-item' + (catActiva === 'guiones' ? ' activo' : '') + '" onclick="window.cambiarCategoria(\'guiones\', true)">Guiones</button>' +
+      '</div>' +
+    '</div>' +
+    '<div style="display:flex; flex-direction:column; gap:5px;">' + entHtml + '</div>';
+}
+
+window.selEntidadDesdeDrawer = function(cat, id) {
+  catActiva = cat;
+  selId[cat] = id;
+  window.toggleDrawerCont(false);
+  renderizarTodo();
+};
+
+window.cambiarCategoria = function(cat, desdeDrawer) {
+  catActiva = cat;
+  if (desdeDrawer) renderizarDrawer();
+  renderizarTodo();
+};
+
+// =========================================================================
+// RENDER PRINCIPAL ZERO-SCROLL
+// =========================================================================
+function renderizarTodo() {
+  actualizarHeaderYSubtabs();
+  if (catActiva === 'personajes') renderizarVistaPersonajes();
+  else if (catActiva === 'escenarios') renderizarVistaEscenarios();
+  else if (catActiva === 'props') renderizarVistaProps();
+  else if (catActiva === 'guiones') renderizarVistaGuiones();
+}
+
+function actualizarHeaderYSubtabs() {
+  const tit = document.getElementById('hdr-entidad-titulo');
+  const sub = document.getElementById('hdr-entidad-sub');
+  const btnQ = document.getElementById('btn-quick-hdr');
+  const strip = document.getElementById('subtab-strip');
+
+  if (catActiva === 'personajes') {
+    const p = obtenerPersonajeActual();
+    if (!p) { tit.textContent = 'Personajes'; sub.textContent = 'Crea tu primer personaje'; strip.innerHTML = ''; btnQ.textContent = '+ Personaje'; return; }
+    const pr = calcularProgresoPersonaje(p);
+    tit.textContent = p.nombre + ' · ' + pr.pct + '% (' + pr.listos + '/' + pr.total + ')';
+    sub.textContent = pr.capacidad;
+    btnQ.textContent = subTabPersonaje === 'variantes' ? '+ Variante' : '+ Personaje';
+    const cnt = function(g) {
+      const it = SLOTS_BASICOS_PERSONAJE.filter(function(s) { return s.grupo === g; });
+      const ok = it.filter(function(s) { return p.piezas && p.piezas[s.key] && p.piezas[s.key].url; }).length;
+      return ok + '/' + it.length;
+    };
+    strip.classList.remove('hidden');
+    strip.innerHTML =
+      '<button type="button" class="sub-pill hot' + (subTabPersonaje === 'sandwich' ? ' activo' : '') + '" onclick="window.setSubTabPersonaje(\'sandwich\')">Sándwich</button>' +
+      '<button type="button" class="sub-pill' + (subTabPersonaje === 'base' ? ' activo' : '') + '" onclick="window.setSubTabPersonaje(\'base\')">Base ' + cnt('base') + '</button>' +
+      '<button type="button" class="sub-pill' + (subTabPersonaje === 'ojos' ? ' activo' : '') + '" onclick="window.setSubTabPersonaje(\'ojos\')">Ojos ' + cnt('ojos') + '</button>' +
+      '<button type="button" class="sub-pill' + (subTabPersonaje === 'bocas' ? ' activo' : '') + '" onclick="window.setSubTabPersonaje(\'bocas\')">Bocas ' + cnt('bocas') + '</button>' +
+      '<button type="button" class="sub-pill' + (subTabPersonaje === 'extremidades' ? ' activo' : '') + '" onclick="window.setSubTabPersonaje(\'extremidades\')">Brazos ' + cnt('extremidades') + '</button>' +
+      '<button type="button" class="sub-pill' + (subTabPersonaje === 'variantes' ? ' activo' : '') + '" onclick="window.setSubTabPersonaje(\'variantes\')">Extras +' + pr.totalExtras + '</button>' +
+      '<button type="button" class="sub-pill' + (subTabPersonaje === 'ficha' ? ' activo' : '') + '" onclick="window.setSubTabPersonaje(\'ficha\')">Ficha & Prompts</button>';
+  } else if (catActiva === 'escenarios') {
+    const e = biblioteca.escenarios.find(function(x) { return x.id === selId.escenarios; }) || biblioteca.escenarios[0];
+    tit.textContent = e ? (e.id + ' · ' + e.nombre) : 'Escenarios';
+    sub.textContent = e ? ((e.zonas || []).length + ' zona(s) · 1920×1920') : 'Sin escenarios';
+    btnQ.textContent = '+ Sub-Zona';
+    strip.classList.add('hidden');
+  } else if (catActiva === 'props') {
+    tit.textContent = 'Props, FX y Audio';
+    sub.textContent = (biblioteca.props || []).length + ' elementos · Desliza tarjetas ↔';
+    btnQ.textContent = '+ Añadir';
+    strip.classList.remove('hidden');
+    strip.innerHTML =
+      '<button type="button" class="sub-pill' + (filtroPropsCat === 'todos' ? ' activo' : '') + '" onclick="window.setFiltroProps(\'todos\')">Todos (' + (biblioteca.props || []).length + ')</button>' +
+      '<button type="button" class="sub-pill' + (filtroPropsCat === 'prop' ? ' activo' : '') + '" onclick="window.setFiltroProps(\'prop\')">Props PNG</button>' +
+      '<button type="button" class="sub-pill' + (filtroPropsCat === 'fx' ? ' activo' : '') + '" onclick="window.setFiltroProps(\'fx\')">Íconos FX</button>' +
+      '<button type="button" class="sub-pill' + (filtroPropsCat === 'audio' ? ' activo' : '') + '" onclick="window.setFiltroProps(\'audio\')">Audio & Fuentes</button>';
+  } else if (catActiva === 'guiones') {
+    const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; }) || biblioteca.guiones[0];
+    tit.textContent = g ? (g.id + ' · ' + g.titulo) : 'Guiones';
+    sub.textContent = g ? ((g.escenas || []).length + ' líneas de escena') : 'Sin guiones';
+    btnQ.textContent = 'Ir a Editor';
+    strip.classList.remove('hidden');
+    strip.innerHTML =
+      '<button type="button" class="sub-pill' + (subGuionPanel === 'resumen' ? ' activo' : '') + '" onclick="window.setSubGuionPanel(\'resumen\')">Resumen & Reparto</button>' +
+      '<button type="button" class="sub-pill' + (subGuionPanel === 'escenas' ? ' activo' : '') + '" onclick="window.setSubGuionPanel(\'escenas\')">Escenas (' + (g && g.escenas ? g.escenas.length : 0) + ')</button>';
+  }
+}
+
+window.setSubTabPersonaje = function(tab) {
+  subTabPersonaje = tab;
+  swToolActiva = null;
+  renderizarTodo();
+};
+
+window.setSubFichaPanel = function(p) { subFichaPanel = p; renderizarVistaPersonajes(); };
+window.setSubGuionPanel = function(p) { subGuionPanel = p; renderizarTodo(); };
+
+// =========================================================================
+// VISTA 1: PERSONAJES (SÁNDWICH ESTILO SNAPSEED + CARRUSEL + FICHA COMPACTA)
+// =========================================================================
+function ajustarTamanoCanvasSandwich() {
+  const cv = document.getElementById('canvas-sandwich');
+  const stage = document.getElementById('sw-stage-wrap');
+  if (!cv || !stage) return;
+  const maxW = Math.max(80, stage.clientWidth - 16);
+  const maxH = Math.max(100, stage.clientHeight - 44);
+  const ratio = Math.min(maxW / 1000, maxH / 1600);
+  cv.style.width = Math.max(50, Math.floor(1000 * ratio)) + 'px';
+  cv.style.height = Math.max(80, Math.floor(1600 * ratio)) + 'px';
+}
+window.addEventListener('resize', ajustarTamanoCanvasSandwich);
+
+function renderizarVistaPersonajes() {
+  const ws = document.getElementById('workspace-stage');
+  const p = obtenerPersonajeActual();
+  if (!p) {
+    ws.innerHTML = '<div style="margin:auto; text-align:center; padding:24px; color:var(--muted);">Pulsa el botón naranja superior izquierdo o "+ Personaje" para comenzar.</div>';
+    return;
+  }
+  selId.personajes = p.id;
+  if (!p.piezas) p.piezas = {};
+  if (!p.variantes) p.variantes = [];
+
+  if (subTabPersonaje === 'sandwich') {
+    const bgCls = sandwichCfg.bg === 'dark' ? 'dark-bg' : (sandwichCfg.bg === 'light' ? 'light-bg' : 'checker-bg');
+    const bgLbl = sandwichCfg.bg === 'dark' ? 'Oscuro' : (sandwichCfg.bg === 'light' ? 'Claro' : 'Grid');
+    ws.innerHTML =
+      '<div class="sandwich-stage" id="sw-stage-wrap">' +
+        '<div class="stage-float-top">' +
+          '<div class="float-grp">' +
+            '<button type="button" class="mini-pill on" onclick="window.ciclarFondoSandwich()">Fondo: ' + bgLbl + '</button>' +
+            '<button type="button" class="mini-pill' + (sandwichCfg.piernas ? ' on' : '') + '" onclick="window.actualizarSandwich(\'piernas\',' + (!sandwichCfg.piernas) + ')">Piernas: ' + (sandwichCfg.piernas ? 'ON' : 'OFF') + '</button>' +
+          '</div>' +
+          '<span class="mini-pill" id="sandwich-estado-txt" style="pointer-events:none; color:#93c5fd;">Piro-Compositor</span>' +
+        '</div>' +
+        '<canvas id="canvas-sandwich" class="' + bgCls + '" width="1000" height="1600"></canvas>' +
+      '</div>' +
+      '<footer class="snapseed-dock" id="sw-dock">' + renderHtmlDockSandwich(p) + '</footer>';
+    requestAnimationFrame(function() {
+      ajustarTamanoCanvasSandwich();
+      window.dibujarProbadorSandwich();
+    });
+    return;
+  }
+
+  if (subTabPersonaje === 'ficha') {
+    let bodyF = '';
+    if (subFichaPanel === 'identidad') {
+      bodyF =
+        '<div class="compact-pane">' +
+          '<div style="display:grid; grid-template-columns:1fr 1fr; gap:7px;">' +
+            '<div class="field"><label>Nombre</label><input class="inp" value="' + esc(p.nombre) + '" oninput="window.editarCampoPersonaje(\'nombre\', this.value)"></div>' +
+            '<div class="field"><label>' + (proyectoActivo.plantilla === 'scifi_hibrido' ? 'Rol' : 'Raza') + '</label><input class="inp" value="' + esc(p.raza) + '" oninput="window.editarCampoPersonaje(\'raza\', this.value)"></div>' +
+          '</div>' +
+          '<div class="field"><label>Contextura Física</label><input class="inp" value="' + esc(p.contextura) + '" oninput="window.editarCampoPersonaje(\'contextura\', this.value)"></div>' +
+          '<div class="field"><label>Pelaje y Rasgos Faciales</label><textarea class="inp" rows="2" oninput="window.editarCampoPersonaje(\'pelaje_rasgos\', this.value)">' + esc(p.pelaje_rasgos) + '</textarea></div>' +
+          '<div class="field"><label>Vestuario Base Único</label><textarea class="inp" rows="2" oninput="window.editarCampoPersonaje(\'vestuario_base\', this.value)">' + esc(p.vestuario_base) + '</textarea></div>' +
+          '<div style="display:grid; grid-template-columns:1fr 1fr; gap:7px;">' +
+            '<div class="field"><label>Pose Icónica</label><input class="inp" value="' + esc(p.pose_iconica) + '" oninput="window.editarCampoPersonaje(\'pose_iconica\', this.value)"></div>' +
+            '<div class="field"><label>Personalidad</label><input class="inp" value="' + esc(p.personalidad) + '" oninput="window.editarCampoPersonaje(\'personalidad\', this.value)"></div>' +
+          '</div>' +
+        '</div>';
+    } else if (subFichaPanel === 'voz') {
+      bodyF =
+        '<div class="compact-pane">' +
+          '<div class="field"><label>ElevenLabs voice_id</label><input class="inp" value="' + esc(p.voice_id || '') + '" placeholder="Pega el voice_id de ElevenLabs" oninput="window.editarCampoPersonaje(\'voice_id\', this.value)"></div>' +
+          (proyectoActivo.bilingue ? '<div style="display:grid; grid-template-columns:1fr 1fr; gap:7px;"><div class="field"><label>Voz EN (edge-tts)</label><input class="inp" value="' + esc(p.voz_en || '') + '" oninput="window.editarCampoPersonaje(\'voz_en\', this.value)"></div><div class="field"><label>Voz ES (edge-tts)</label><input class="inp" value="' + esc(p.voz_es || '') + '" oninput="window.editarCampoPersonaje(\'voz_es\', this.value)"></div></div>' : '') +
+          '<div class="field">' +
+            '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">' +
+              '<label style="margin:0;">Muestra de Voz (muestra_voz.mp3)</label>' +
+              '<div style="display:flex; gap:5px;">' +
+                '<button type="button" class="btn btn-xs btn-blue" onclick="window.subirMuestraVozPersonaje()">' + (p.muestra_voz && p.muestra_voz.url ? 'Cambiar' : 'Subir Audio') + '</button>' +
+                (p.muestra_voz && p.muestra_voz.url ? '<button type="button" class="btn btn-xs btn-danger" onclick="window.quitarMuestraVozPersonaje()">Quitar</button>' : '') +
+              '</div>' +
+            '</div>' +
+            (p.muestra_voz && p.muestra_voz.url ? '<audio controls src="' + esc(p.muestra_voz.url) + '" style="width:100%; height:32px;"></audio>' : '<div style="font-size:11px; color:var(--muted);">Sin muestra de voz cargada.</div>') +
+          '</div>' +
+          '<div class="field" style="flex:1; display:flex; flex-direction:column;"><label>Pivotes Piro-Rig JSON</label><textarea class="inp" style="flex:1; min-height:80px; font-family:monospace; font-size:11px;" placeholder=\'{"cuello":[500,420],...}\' oninput="window.editarCampoPersonaje(\'pivotes_json\', this.value)">' + esc(p.pivotes_json || '') + '</textarea></div>' +
+        '</div>';
+    } else {
+      const promptActual = generarPromptPersonaje(p, tipoPromptVista);
+      bodyF =
+        '<div class="compact-pane">' +
+          '<div id="box-ref-prompt" style="display:flex; align-items:center; gap:9px; padding:7px 9px; border-radius:9px; border:1px solid var(--border); background:rgba(5,8,14,0.78); flex-shrink:0;">' + renderHtmlRefPrompt(p, tipoPromptVista) + '</div>' +
+          '<div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">' +
+            '<select class="sel" style="flex:1;" onchange="window.cambiarTipoPromptVista(this.value)">' +
+              '<option value="cuerpo_completo"' + (tipoPromptVista === 'cuerpo_completo' ? ' selected' : '') + '>1. Cuerpo Completo Maestro</option>' +
+              '<option value="maestro_perfil"' + (tipoPromptVista === 'maestro_perfil' ? ' selected' : '') + '>2. Look Oficial 1:1 (Identidad)</option>' +
+              '<option value="cabeza_base"' + (tipoPromptVista === 'cabeza_base' ? ' selected' : '') + '>3. Cabeza Limpia</option>' +
+              '<option value="cuerpo_base"' + (tipoPromptVista === 'cuerpo_base' ? ' selected' : '') + '>4. Cuerpo / Ropa</option>' +
+              '<option value="ojos"' + (tipoPromptVista === 'ojos' ? ' selected' : '') + '>5. Lámina 6 Ojos</option>' +
+              '<option value="bocas"' + (tipoPromptVista === 'bocas' ? ' selected' : '') + '>6. Lámina 5 Bocas</option>' +
+              '<option value="brazo_delantero_prop"' + (tipoPromptVista === 'brazo_delantero_prop' ? ' selected' : '') + '>7. Brazo con Prop</option>' +
+              '<option value="pierna_delantera"' + (tipoPromptVista === 'pierna_delantera' ? ' selected' : '') + '>8. Pierna Articulada</option>' +
+            '</select>' +
+            '<button type="button" class="btn btn-primary" onclick="window.copiarPromptCaja()">Copiar</button>' +
+          '</div>' +
+          '<textarea id="caja-prompt-live" class="prompt-out" readonly>' + esc(promptActual) + '</textarea>' +
+        '</div>';
+    }
+    ws.innerHTML =
+      bodyF +
+      '<footer class="snapseed-dock" style="height:82px;">' +
+        '<div class="tool-strip">' +
+          '<button type="button" class="tool-btn' + (subFichaPanel === 'identidad' ? ' activo' : '') + '" style="height:60px; flex:1;" onclick="window.setSubFichaPanel(\'identidad\')"><span>Identidad</span></button>' +
+          '<button type="button" class="tool-btn' + (subFichaPanel === 'voz' ? ' activo' : '') + '" style="height:60px; flex:1;" onclick="window.setSubFichaPanel(\'voz\')"><span>Voz & Pivotes</span></button>' +
+          '<button type="button" class="tool-btn' + (subFichaPanel === 'prompts' ? ' activo' : '') + '" style="height:60px; flex:1;" onclick="window.setSubFichaPanel(\'prompts\')"><span>Prompts IA</span></button>' +
+        '</div>' +
+      '</footer>';
+    return;
+  }
+
+  // CARRUSEL HORIZONTAL PARA BASE, OJOS, BOCAS, BRAZOS Y VARIANTES
+  let slidesHtml = '';
+  if (subTabPersonaje === 'variantes') {
+    if (p.variantes.length === 0) {
+      slidesHtml = '<div class="slide-card" style="justify-content:center; align-items:center; text-align:center;"><strong style="margin-bottom:6px;">Sin variantes extra</strong><small style="color:var(--muted); margin-bottom:10px;">Agrega camisas, vestuarios alternos o poses especiales sin afectar tu 100% básico.</small><button type="button" class="btn btn-primary" onclick="window.abrirModalCrear(\'variante\')">+ Añadir Variante</button></div>';
+    } else {
+      slidesHtml = p.variantes.map(function(v, idx) {
+        return construirSlideSlot(p, { key: v.id, titulo: v.titulo, preset: v.preset || 'per_cuerpo', archivo: v.archivo || v.id, dim: '1000×1600', desc: v.nota || 'Variante personalizada', esVariante: true, varIdx: idx }, v);
+      }).join('');
+    }
+  } else {
+    const slotsGrupo = SLOTS_BASICOS_PERSONAJE.filter(function(s) { return s.grupo === subTabPersonaje; });
+    slidesHtml = slotsGrupo.map(function(s) { return construirSlideSlot(p, s, p.piezas[s.key] || null); }).join('');
+  }
+
+  ws.innerHTML =
+    '<div class="carousel-stage">' + slidesHtml + '</div>' +
+    '<div style="height:30px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:10.5px; color:var(--muted); border-top:1px solid var(--border); background:rgba(12,16,24,0.96);">Desliza tarjetas izquierda / derecha · Toca Subir / Estudio para recortar</div>';
+}
+
+function renderHtmlDockSandwich(p) {
+  if (!swToolActiva) {
+    return '<div class="tool-strip">' +
+      '<button type="button" class="tool-btn accent" onclick="window.abrirToolSandwich(\'ojos\')"><svg class="svg-ico" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><span>Ojos</span></button>' +
+      '<button type="button" class="tool-btn" onclick="window.abrirToolSandwich(\'bocas\')"><svg class="svg-ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/></svg><span>Bocas</span></button>' +
+      '<button type="button" class="tool-btn" onclick="window.abrirToolSandwich(\'brazo\')"><svg class="svg-ico" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2 2 2 0 0 0-2 2v6"/><path d="M10 10.5V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2v8a6 6 0 0 0 6 6h2a6 6 0 0 0 6-6v-3a2 2 0 0 0-2-2Z"/></svg><span>Brazo</span></button>' +
+      '<button type="button" class="tool-btn" onclick="window.abrirToolSandwich(\'prop\')"><svg class="svg-ico" viewBox="0 0 24 24"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/></svg><span>Prop</span></button>' +
+      '<button type="button" class="tool-btn" onclick="window.abrirToolSandwich(\'rotar\')"><svg class="svg-ico" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg><span>Rotar</span></button>' +
+      '<button type="button" class="tool-btn" onclick="window.resetearSandwich()"><svg class="svg-ico" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg><span>Reset</span></button>' +
+    '</div>';
+  }
+
+  let titulo = '';
+  let row = '';
+  if (swToolActiva === 'ojos') {
+    titulo = 'Ojos + Cejas';
+    row = ['ojos_neutro','ojos_feliz','ojos_enojado','ojos_triste','ojos_duda','ojos_indignado'].map(function(k) {
+      const ok = Boolean(p.piezas[k] && p.piezas[k].url);
+      return '<button type="button" class="btn btn-xs ' + (sandwichCfg.ojos === k ? 'btn-primary' : (ok ? 'btn-blue' : '')) + '" onclick="window.actualizarSandwich(\'ojos\',\'' + k + '\')">' + k.replace('ojos_', '') + (ok ? ' OK' : '') + '</button>';
+    }).join('');
+  } else if (swToolActiva === 'bocas') {
+    titulo = 'Boca (Lip-Sync)';
+    row = ['boca_cerrada','boca_media','boca_abierta','boca_sonrisa','boca_molesta'].map(function(k) {
+      const ok = Boolean(p.piezas[k] && p.piezas[k].url);
+      return '<button type="button" class="btn btn-xs ' + (sandwichCfg.boca === k ? 'btn-primary' : (ok ? 'btn-blue' : '')) + '" onclick="window.actualizarSandwich(\'boca\',\'' + k + '\')">' + k.replace('boca_', '') + (ok ? ' OK' : '') + '</button>';
+    }).join('');
+  } else if (swToolActiva === 'brazo') {
+    titulo = 'Brazo Delantero';
+    row = [['brazo_delantero_reposo','Reposo'],['brazo_delantero_prop','Con Prop'],['ninguno','Oculto']].map(function(it) {
+      return '<button type="button" class="btn btn-xs ' + (sandwichCfg.brazoDel === it[0] ? 'btn-primary' : '') + '" onclick="window.actualizarSandwich(\'brazoDel\',\'' + it[0] + '\')">' + it[1] + '</button>';
+    }).join('');
+  } else if (swToolActiva === 'prop') {
+    titulo = 'Prop en Mano (anclado a pivote)';
+    const props = (biblioteca.props || []).filter(function(x) { return x.categoria === 'prop'; });
+    row = '<button type="button" class="btn btn-xs ' + (!sandwichCfg.prop ? 'btn-primary' : '') + '" onclick="window.actualizarSandwich(\'prop\',\'\')">Sin prop</button>' +
+      props.map(function(x) {
+        return '<button type="button" class="btn btn-xs ' + (sandwichCfg.prop === x.id ? 'btn-primary' : 'btn-blue') + '" onclick="window.actualizarSandwich(\'prop\',\'' + esc(x.id) + '\')">' + esc(x.nombre) + '</button>';
+      }).join('');
+  } else if (swToolActiva === 'rotar') {
+    titulo = 'Giro sobre Pivotes (Cuello y Hombro)';
+    row =
+      '<div class="slider-grp"><span>Cab</span><input type="range" min="-25" max="25" value="' + sandwichCfg.rotCab + '" oninput="window.actualizarSandwich(\'rotCab\', Number(this.value))"><b id="sw-rot-cab-val">' + sandwichCfg.rotCab + '°</b></div>' +
+      '<div class="slider-grp"><span>Brz</span><input type="range" min="-45" max="45" value="' + sandwichCfg.rotBrazo + '" oninput="window.actualizarSandwich(\'rotBrazo\', Number(this.value))"><b id="sw-rot-brz-val">' + sandwichCfg.rotBrazo + '°</b></div>' +
+      '<button type="button" class="btn btn-xs" onclick="window.actualizarSandwich(\'rotCab\',0); window.actualizarSandwich(\'rotBrazo\',0); window.abrirToolSandwich(\'rotar\');">0°</button>';
+  }
+
+  return '<div class="subpanel">' +
+    '<div class="sub-top"><span class="sub-title">' + titulo + '</span><button type="button" class="btn btn-green btn-xs" onclick="window.cerrarToolSandwich()">Listo</button></div>' +
+    '<div class="sub-row">' + row + '</div>' +
+  '</div>';
+}
+
+window.abrirToolSandwich = function(tool) {
+  swToolActiva = tool;
+  const dock = document.getElementById('sw-dock');
+  const p = obtenerPersonajeActual();
+  if (dock && p) dock.innerHTML = renderHtmlDockSandwich(p);
+};
+
+window.cerrarToolSandwich = function() {
+  swToolActiva = null;
+  const dock = document.getElementById('sw-dock');
+  const p = obtenerPersonajeActual();
+  if (dock && p) dock.innerHTML = renderHtmlDockSandwich(p);
+};
+
+window.ciclarFondoSandwich = function() {
+  sandwichCfg.bg = sandwichCfg.bg === 'checker' ? 'dark' : (sandwichCfg.bg === 'dark' ? 'light' : 'checker');
+  renderizarVistaPersonajes();
+};
+
+function construirSlideSlot(personaje, spec, datoGuardado) {
+  const tieneImg = Boolean(datoGuardado && datoGuardado.url);
+  const preview = tieneImg
+    ? '<span class="slot-tag-ok">Listo</span><img src="' + esc(datoGuardado.url) + '" alt="' + esc(spec.titulo) + '">'
+    : '<div class="slot-empty-label">Inserta PNG aquí<br><b>' + esc(spec.archivo) + '.png</b></div>';
+
+  return '<div class="slide-card' + (tieneImg ? ' listo' : '') + '">' +
+    '<div class="slide-preview checker-bg"><span class="slot-tag-dim">' + esc(spec.dim) + '</span>' + preview + '</div>' +
+    '<div style="flex-shrink:0;">' +
+      '<div style="font-size:13px; font-weight:900; color:#fff;">' + esc(spec.titulo) + '</div>' +
+      '<div style="font-size:10.5px; color:var(--muted);">' + esc(spec.desc) + '</div>' +
+    '</div>' +
+    '<div class="slot-actions">' +
+      '<button type="button" class="btn btn-xs btn-purple" onclick="window.abrirGeneradorIASlot(\'personaje\',\'' + esc(spec.key) + '\',' + (spec.esVariante ? 'true' : 'false') + ')">Generar IA</button>' +
+      '<button type="button" class="btn btn-xs btn-primary" onclick="window.iniciarSubidaSlotPersonaje(\'' + esc(spec.key) + '\',' + (spec.esVariante ? 'true' : 'false') + ')">' + (tieneImg ? 'Reemplazar' : 'Subir / Estudio') + '</button>' +
+      '<div class="slot-actions-sub">' +
+        '<button type="button" class="btn btn-xs" onclick="window.copiarPromptSlot(\'' + esc(spec.key) + '\')">Prompt</button>' +
+        '<button type="button" class="btn btn-xs btn-blue" onclick="window.crearTicketDesdeSlot(\'' + esc(spec.key) + '\',' + (spec.esVariante ? 'true' : 'false') + ')">+ Ticket</button>' +
+        (spec.esVariante
+          ? '<button type="button" class="btn btn-xs btn-danger" onclick="window.eliminarVariante(' + spec.varIdx + ')">Borrar</button>'
+          : (tieneImg
+            ? '<button type="button" class="btn btn-xs btn-danger" onclick="window.quitarImagenSlot(\'' + esc(spec.key) + '\')">Quitar</button>'
+            : '<button type="button" class="btn btn-xs" onclick="window.abrirEstudioVacioParaSlot(\'' + esc(spec.key) + '\',false)">Estudio</button>')) +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+window.editarCampoPersonaje = function(campo, valor) {
+  const p = obtenerPersonajeActual();
+  if (!p) return;
+  p[campo] = valor;
+  if (campo === 'nombre') actualizarHeaderYSubtabs();
+  const caja = document.getElementById('caja-prompt-live');
+  if (caja) caja.value = generarPromptPersonaje(p, tipoPromptVista);
+  guardarBiblioteca(false);
+};
+
+function renderHtmlRefPrompt(p, tipo) {
+  const ref = obtenerRefParaPrompt(p, tipo);
+  const thumb = ref.url ? '<img src="' + esc(ref.url) + '" style="width:38px; height:38px; object-fit:contain; border-radius:6px; background:#0b0f18; border:1px solid var(--border); flex-shrink:0;">' : '<div style="width:38px; height:38px; border-radius:6px; border:1px dashed var(--border); display:flex; align-items:center; justify-content:center; font-size:9px; color:var(--muted); flex-shrink:0;">REF</div>';
+  const btnDl = ref.url ? '<a href="' + esc(ref.url) + '" download="' + esc(ref.archivo) + '" target="_blank" rel="noopener" class="btn btn-xs btn-blue" style="text-decoration:none;">Abrir Ref</a>' : '';
+  return thumb + '<div style="flex:1; min-width:0;"><div style="font-size:10.5px; font-weight:800; color:#e2e8f0;">Referencia a adjuntar</div><div style="font-size:10px; color:var(--muted);">' + esc(ref.label) + '</div></div>' + btnDl;
+}
+
+window.cambiarTipoPromptVista = function(val) {
+  tipoPromptVista = val;
+  const p = obtenerPersonajeActual();
+  const caja = document.getElementById('caja-prompt-live');
+  if (p && caja) caja.value = generarPromptPersonaje(p, tipoPromptVista);
+  const boxR = document.getElementById('box-ref-prompt');
+  if (p && boxR) boxR.innerHTML = renderHtmlRefPrompt(p, tipoPromptVista);
+};
+
+window.copiarPromptCaja = function() {
+  const caja = document.getElementById('caja-prompt-live');
+  if (!caja) return;
+  navigator.clipboard.writeText(caja.value).then(function() { toast('Prompt copiado al portapapeles.', 'exito'); });
+};
+
+window.copiarPromptSlot = function(slotKey) {
+  const p = obtenerPersonajeActual();
+  if (!p) return;
+  navigator.clipboard.writeText(generarPromptPersonaje(p, slotKey)).then(function() { toast('Prompt de "' + slotKey + '" copiado.', 'exito'); });
+};
+
+window.iniciarSubidaSlotPersonaje = function(slotKey, esVariante) {
+  const p = obtenerPersonajeActual();
+  if (!p) return;
+  const spec = esVariante
+    ? (p.variantes || []).find(function(v) { return v.id === slotKey; })
+    : SLOTS_BASICOS_PERSONAJE.find(function(s) { return s.key === slotKey; });
+  if (!spec) return;
+  slotUploadPendiente = {
+    tipo: 'personaje', entidadId: p.id, slotKey: slotKey, esVariante: Boolean(esVariante),
+    presetId: spec.preset || 'per_cuerpo', archivoNombre: spec.archivo || slotKey,
+    etiqueta: p.nombre + ' · ' + (spec.titulo || slotKey),
+    calcoUrl: obtenerCalcoInteligente(p, slotKey), pivotesIniciales: parsearPivotesPersonaje(p)
+  };
+  const inp = document.getElementById('input-file-slot');
+  inp.accept = 'image/*';
+  inp.click();
+};
+
+window.abrirEstudioVacioParaSlot = function(slotKey, esVariante) {
+  const p = obtenerPersonajeActual();
+  if (!p) return;
+  const spec = SLOTS_BASICOS_PERSONAJE.find(function(s) { return s.key === slotKey; });
+  if (!spec) return;
+  if (window.self === window.top) { toast('Abre este módulo desde piro-shell.html.', 'info'); return; }
+  window.parent.postMessage({
+    tipo: 'PIRO_IR_A_ESTUDIO', origen: 'contenido', etiqueta: p.nombre + ' · ' + spec.titulo,
+    presetId: spec.preset, entidadId: p.id, archivoNombre: spec.archivo,
+    calcoUrl: obtenerCalcoInteligente(p, slotKey), pivotesIniciales: parsearPivotesPersonaje(p),
+    slotMeta: { tipo: 'personaje', entidadId: p.id, slotKey: slotKey, esVariante: Boolean(esVariante) }
+  }, '*');
+};
+
+window.manejarArchivoSlotSeleccionado = async function(file) {
+  if (!file || !slotUploadPendiente) return;
+  const meta = slotUploadPendiente;
+  slotUploadPendiente = null;
+  if (window.self !== window.top && String(file.type || '').indexOf('image/') === 0 && meta.usarEstudio !== false) {
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      window.parent.postMessage({
+        tipo: 'PIRO_IR_A_ESTUDIO', origen: 'contenido', etiqueta: meta.etiqueta,
+        presetId: meta.presetId, entidadId: meta.entidadId, zonaId: meta.zonaId || 'zona_01',
+        archivoNombre: meta.archivoNombre, dataUrl: ev.target.result,
+        calcoUrl: meta.calcoUrl || null, pivotesIniciales: meta.pivotesIniciales || null,
+        modoCalco1a1: Boolean(meta.tipo === 'personaje' && meta.slotKey !== 'maestro_cuerpo'), slotMeta: meta
+      }, '*');
+    };
+    reader.readAsDataURL(file);
+    return;
+  }
+  await subirYAsignarArchivoASlot(file, meta, null, false);
+};
+
+function parsearPivotesPersonaje(p) {
+  if (!p || !p.pivotes_json) return null;
+  try { const o = JSON.parse(p.pivotes_json); return (o && typeof o === 'object') ? o : null; } catch (e) { return null; }
+}
+
+function obtenerCalcoInteligente(p, slotKey) {
+  if (!p || !p.piezas) return null;
+  const k = String(slotKey || '');
+  if (k === 'maestro_perfil') return (p.piezas.maestro_cuerpo && p.piezas.maestro_cuerpo.url) || null;
+  if (k.indexOf('ojos_') === 0 || k.indexOf('boca_') === 0) {
+    return (p.piezas.cabeza_base && p.piezas.cabeza_base.url) || (p.piezas.maestro_perfil && p.piezas.maestro_perfil.url) || (p.piezas.maestro_cuerpo && p.piezas.maestro_cuerpo.url) || null;
+  }
+  return (p.piezas.maestro_perfil && p.piezas.maestro_perfil.url) || (p.piezas.maestro_cuerpo && p.piezas.maestro_cuerpo.url) || null;
+}
+
+window.actualizarSandwich = function(campo, val) {
+  sandwichCfg[campo] = val;
+  if (campo === 'prop' && val) sandwichCfg.brazoDel = 'brazo_delantero_prop';
+  if (campo === 'bg' || campo === 'piernas') { renderizarVistaPersonajes(); return; }
+  const c = document.getElementById('sw-rot-cab-val'), b = document.getElementById('sw-rot-brz-val');
+  if (c) c.textContent = sandwichCfg.rotCab + '°';
+  if (b) b.textContent = sandwichCfg.rotBrazo + '°';
+  if (campo !== 'rotCab' && campo !== 'rotBrazo') {
+    const dock = document.getElementById('sw-dock');
+    const p = obtenerPersonajeActual();
+    if (dock && p) dock.innerHTML = renderHtmlDockSandwich(p);
+  }
+  window.dibujarProbadorSandwich();
+};
+
+window.resetearSandwich = function() {
+  sandwichCfg = { ojos: 'ojos_neutro', boca: 'boca_cerrada', brazoDel: 'brazo_delantero_reposo', rotCab: 0, rotBrazo: 0, bg: sandwichCfg.bg, piernas: true, prop: '' };
+  swToolActiva = null;
+  renderizarVistaPersonajes();
+};
+
+window.dibujarProbadorSandwich = async function() {
+  const canvas = document.getElementById('canvas-sandwich'), p = obtenerPersonajeActual();
+  if (!canvas || !p) return;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 1000, 1600);
+  let propImg = null;
+  if (sandwichCfg.prop) {
+    const prObj = (biblioteca.props || []).find(function(x) { return x.id === sandwichCfg.prop; });
+    if (prObj && prObj.archivo && prObj.archivo.url) propImg = await cargarImagenPiro(prObj.archivo.url);
+  }
+  const n = await dibujarMarionetaPiro(ctx, p, {
+    modoLienzoCompleto: true, ojos: sandwichCfg.ojos, boca: sandwichCfg.boca,
+    brazoDel: sandwichCfg.brazoDel, rotCab: sandwichCfg.rotCab, rotBrazo: sandwichCfg.rotBrazo,
+    piernas: sandwichCfg.piernas, propImg: propImg, mostrarGuias: true
+  });
+  const est = document.getElementById('sandwich-estado-txt');
+  if (est) est.textContent = n > 0 ? ('Capas: ' + n + ' · Motor OK') : 'Sube piezas en Base/Ojos/Bocas';
+};
+
+window.subirMuestraVozPersonaje = function() {
+  const p = obtenerPersonajeActual(); if (!p) return;
+  slotUploadPendiente = { tipo: 'voz', entidadId: p.id, usarEstudio: false };
+  const inp = document.getElementById('input-file-slot'); inp.accept = 'audio/*'; inp.click();
+};
+
+window.quitarMuestraVozPersonaje = async function() {
+  const p = obtenerPersonajeActual(); if (!p || !p.muestra_voz) return;
+  if (!(await confirmar('Quitar Muestra de Voz', 'Se quitará el audio de muestra de ' + p.nombre + '.'))) return;
+  const reg = p.muestra_voz; delete p.muestra_voz;
+  if (reg && reg.rutaStorage && GeokatuDB.PirobonianosService) GeokatuDB.PirobonianosService.eliminarActivoPirobonianos(reg.rutaStorage).catch(function() {});
+  guardarBiblioteca(true); renderizarVistaPersonajes();
+};
+
+function aplicarRegistroEnSlot(meta, registro, pivotesRecibidos) {
+  if (meta.tipo === 'personaje') {
+    const p = biblioteca.personajes.find(function(x) { return x.id === meta.entidadId; });
+    if (p) {
+      if (meta.esVariante) { const v = (p.variantes || []).find(function(x) { return x.id === meta.slotKey; }); if (v) Object.assign(v, registro); }
+      else { if (!p.piezas) p.piezas = {}; p.piezas[meta.slotKey] = registro; }
+      if (pivotesRecibidos && typeof pivotesRecibidos === 'object' && Object.keys(pivotesRecibidos).some(function(k) { return Boolean(pivotesRecibidos[k]); })) {
+        p.pivotes_json = JSON.stringify(pivotesRecibidos, null, 2);
+      }
+    }
+  } else if (meta.tipo === 'voz') {
+    const p = biblioteca.personajes.find(function(x) { return x.id === meta.entidadId; }); if (p) p.muestra_voz = registro;
+  } else if (meta.tipo === 'escenario') {
+    const e = biblioteca.escenarios.find(function(x) { return x.id === meta.entidadId; });
+    const z = e ? (e.zonas || []).find(function(x) { return x.id === meta.zonaId; }) : null; if (z) z[meta.campoZona] = registro;
+  } else if (meta.tipo === 'prop') {
+    const pr = biblioteca.props.find(function(x) { return x.id === meta.entidadId; }); if (pr) pr.archivo = registro;
+  }
+}
+
+async function subirYAsignarArchivoASlot(fileObj, meta, pivotesRecibidos, desdeEstudio) {
+  if (!GeokatuDB.PirobonianosService) { toast('Falta PirobonianosService en core-db.js.', 'error'); return false; }
+  setSyncBadge('Subiendo...', 'warn');
+  const ruta = meta.tipo + '/' + meta.entidadId + '/' + (meta.zonaId ? (meta.zonaId + '/') : '') + Date.now() + '_' + String(fileObj.name || 'activo.png').replace(/[^a-zA-Z0-9._-]+/g, '_');
+  const res = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(getStorageDir(), ruta, fileObj);
+  if (!res.success) {
+    toast('Error subiendo archivo. Tu borrador sigue guardado en Estudio PNG.', 'error');
+    setSyncBadge('Error', 'warn');
+    return false;
+  }
+  const registro = { url: res.url, rutaStorage: res.rutaStorage, nombre: fileObj.name, tipo: res.tipo, fecha: res.fecha };
+  aplicarRegistroEnSlot(meta, registro, pivotesRecibidos);
+  const gRes = await guardarBiblioteca(true);
+  renderizarTodo();
+  if (window.self !== window.top && meta.tipo !== 'voz') {
+    window.parent.postMessage({ tipo: 'PIRO_SLOT_COMPLETADO', slotMeta: meta }, '*');
+    if (desdeEstudio) window.parent.postMessage({ tipo: 'PIRO_PNG_GUARDADO_OK' }, '*');
+  }
+  toast(gRes && gRes.offline ? 'Activo subido y guardado localmente.' : 'Activo guardado y confirmado en la nube.', 'exito');
+  return true;
+}
+
+window.quitarImagenSlot = async function(slotKey) {
+  const p = obtenerPersonajeActual();
+  if (!p || !p.piezas || !p.piezas[slotKey]) return;
+  if (!(await confirmar('Quitar Imagen', 'Se quitará la imagen asignada a este espacio.'))) return;
+  const reg = p.piezas[slotKey];
+  delete p.piezas[slotKey];
+  if (reg && reg.rutaStorage && GeokatuDB.PirobonianosService) GeokatuDB.PirobonianosService.eliminarActivoPirobonianos(reg.rutaStorage).catch(function() {});
+  guardarBiblioteca(true);
+  renderizarTodo();
+};
+
+window.eliminarVariante = async function(idx) {
+  const p = obtenerPersonajeActual();
+  if (!p || !p.variantes || !p.variantes[idx]) return;
+  if (!(await confirmar('Eliminar Variante', '¿Eliminar "' + p.variantes[idx].titulo + '"?'))) return;
+  const v = p.variantes.splice(idx, 1)[0];
+  if (v && v.rutaStorage && GeokatuDB.PirobonianosService) GeokatuDB.PirobonianosService.eliminarActivoPirobonianos(v.rutaStorage).catch(function() {});
+  guardarBiblioteca(true);
+  renderizarTodo();
+};
+
+window.crearTicketDesdeSlot = function(slotKey, esVariante) {
+  const p = obtenerPersonajeActual();
+  if (!p) return;
+  const spec = esVariante
+    ? (p.variantes || []).find(function(v) { return v.id === slotKey; })
+    : SLOTS_BASICOS_PERSONAJE.find(function(s) { return s.key === slotKey; });
+  if (!spec) return;
+  enviarTicketAShell({
+    codigo: p.id.toUpperCase() + '-' + String(spec.archivo || slotKey).slice(0, 6).toUpperCase(),
+    mision: 'Personaje: ' + p.nombre,
+    titulo: 'Crear ' + (spec.titulo || slotKey) + ' (' + p.nombre + ')',
+    detalle: 'Pieza de marioneta para ' + p.nombre + ' (' + p.id + ').\nPreset Estudio PNG: ' + (spec.preset || 'per_cuerpo') + ' (1000x1600).\n\nPrompt sugerido para Gemini:\nPlaintext\n' + generarPromptPersonaje(p, slotKey),
+    slotMeta: { tipo: 'personaje', entidadId: p.id, slotKey: slotKey, esVariante: Boolean(esVariante), preset: spec.preset || 'per_cuerpo', archivo: spec.archivo || slotKey, calcoUrl: obtenerCalcoInteligente(p, slotKey), pivotesIniciales: parsearPivotesPersonaje(p) }
+  });
+};
+
+window.enviarFaltantesATickets = async function() {
+  const p = obtenerPersonajeActual();
+  if (!p) return;
+  const faltantes = SLOTS_BASICOS_PERSONAJE.filter(function(s) { return !(p.piezas && p.piezas[s.key] && p.piezas[s.key].url); });
+  if (faltantes.length === 0) { toast('Este personaje ya está al 100% en básicos.', 'exito'); return; }
+  if (!(await confirmar('Enviar Faltantes a Tickets', 'Se crearán ' + faltantes.length + ' tickets en la cola para ' + p.nombre + '.'))) return;
+  faltantes.forEach(function(s) { window.crearTicketDesdeSlot(s.key, false); });
+};
+
+function enviarTicketAShell(ticket) {
+  if (window.self !== window.top) window.parent.postMessage({ tipo: 'PIRO_CREAR_TICKET_EN_COLA', ticket: ticket }, '*');
+  else toast('Ticket preparado (abre piro-shell.html).', 'info');
+}
+
+window.eliminarPersonajeActual = async function() {
+  const p = obtenerPersonajeActual();
+  if (!p) return;
+  if (!(await confirmar('Eliminar Personaje', '¿Eliminar a "' + p.nombre + '" de tu biblioteca?'))) return;
+  biblioteca.personajes = biblioteca.personajes.filter(function(x) { return x.id !== p.id; });
+  selId.personajes = biblioteca.personajes[0] ? biblioteca.personajes[0].id : null;
+  guardarBiblioteca(true);
+  renderizarTodo();
+};
+
+// =========================================================================
+// VISTA 2: ESCENARIOS (CARRUSEL HORIZONTAL ZERO-SCROLL)
+// =========================================================================
+function renderizarVistaEscenarios() {
+  const ws = document.getElementById('workspace-stage');
+  const e = biblioteca.escenarios.find(function(x) { return x.id === selId.escenarios; }) || biblioteca.escenarios[0];
+  if (!e) { ws.innerHTML = '<div style="margin:auto; color:var(--muted);">Crea tu primer escenario desde el botón ▶.</div>'; return; }
+  selId.escenarios = e.id;
+  let slides = '';
+  (e.zonas || []).forEach(function(z) {
+    ['fondo', 'frente'].forEach(function(campo) {
+      const reg = z[campo];
+      const tit = z.nombre + ' · ' + (campo === 'fondo' ? 'Fondo Base' : 'Capa Frontal');
+      const preview = reg && reg.url
+        ? '<span class="slot-tag-ok">Listo</span><img src="' + esc(reg.url) + '">'
+        : '<div class="slot-empty-label">PNG 1920×1920<br><b>' + campo + '.png</b></div>';
+      slides +=
+        '<div class="slide-card' + (reg && reg.url ? ' listo' : '') + '">' +
+          '<div class="slide-preview checker-bg"><span class="slot-tag-dim">1920×1920</span>' + preview + '</div>' +
+          '<div style="flex-shrink:0;"><div style="font-size:13px; font-weight:900;">' + esc(tit) + '</div><div style="font-size:10.5px; color:var(--muted);">' + esc(e.id + '/' + z.id + '/' + campo + '.png') + '</div></div>' +
+          '<div class="slot-actions">' +
+            '<button type="button" class="btn btn-xs btn-purple" onclick="window.abrirGeneradorIASlot(\'escenario\',\'' + esc(z.id) + '\',false,\'' + campo + '\')">Generar IA</button>' +
+            '<button type="button" class="btn btn-xs btn-primary" onclick="window.subirSlotEscenario(\'' + esc(z.id) + '\',\'' + campo + '\')">Subir / Estudio</button>' +
+            '<button type="button" class="btn btn-xs btn-blue" style="grid-column:1 / -1;" onclick="window.ticketSlotEscenario(\'' + esc(z.id) + '\',\'' + campo + '\')">+ Ticket</button>' +
+          '</div>' +
+        '</div>';
+    });
+  });
+
+  ws.innerHTML =
+    '<div style="padding:7px 10px; border-bottom:1px solid var(--border); flex-shrink:0; background:rgba(12,16,24,0.85);">' +
+      '<input class="inp" value="' + esc(e.iluminacion || '') + '" placeholder="Paleta e iluminación del escenario..." oninput="window.editarCampoEscenario(\'iluminacion\', this.value)">' +
+    '</div>' +
+    '<div class="carousel-stage">' + slides + '</div>';
+}
+
+window.editarCampoEscenario = function(campo, val) {
+  const e = biblioteca.escenarios.find(function(x) { return x.id === selId.escenarios; });
+  if (!e) return;
+  e[campo] = val;
+  guardarBiblioteca(false);
+};
+
+window.subirSlotEscenario = function(zonaId, campo) {
+  const e = biblioteca.escenarios.find(function(x) { return x.id === selId.escenarios; });
+  if (!e) return;
+  slotUploadPendiente = {
+    tipo: 'escenario', entidadId: e.id, zonaId: zonaId, campoZona: campo,
+    presetId: campo === 'fondo' ? 'esc_fondo' : 'esc_frente', archivoNombre: campo,
+    etiqueta: e.nombre + ' · ' + zonaId + ' · ' + campo
+  };
+  const inp = document.getElementById('input-file-slot');
+  inp.accept = 'image/*';
+  inp.click();
+};
+
+window.ticketSlotEscenario = function(zonaId, campo) {
+  const e = biblioteca.escenarios.find(function(x) { return x.id === selId.escenarios; });
+  if (!e) return;
+  const z = (e.zonas || []).find(function(x) { return x.id === zonaId; });
+  const estiloEsc = proyectoActivo.estilo_visual || '2D cartoon background illustration, BoJack Horseman art style, clean ink lines';
+  const prompt = 'Background illustration matching art direction (' + estiloEsc + '), empty ' + (e.nombre || '') + ' (' + (z ? z.nombre : zonaId) + '), NO characters, square 1:1 composition, lighting: ' + (e.iluminacion || 'flat daylight') + (campo === 'frente' ? '. Draw ONLY the foreground counter/furniture isolated on solid chroma green #00FF00.' : '.');
+  enviarTicketAShell({
+    codigo: e.id.toUpperCase() + '-' + zonaId.toUpperCase(),
+    mision: 'Escenario: ' + e.nombre,
+    titulo: 'Crear ' + campo + '.png de ' + (z ? z.nombre : zonaId),
+    detalle: 'Escenario 1920x1920.\n\nPrompt Gemini:\nPlaintext\n' + prompt,
+    slotMeta: { tipo: 'escenario', entidadId: e.id, zonaId: zonaId, campoZona: campo, preset: campo === 'fondo' ? 'esc_fondo' : 'esc_frente', archivo: campo }
+  });
+};
+
+// =========================================================================
+// VISTA 3: PROPS & AUDIO (CARRUSEL HORIZONTAL ZERO-SCROLL)
+// =========================================================================
+window.setFiltroProps = function(cat) { filtroPropsCat = cat; renderizarTodo(); };
+function renderizarVistaProps() {
+  const ws = document.getElementById('workspace-stage');
+  const lista = (biblioteca.props || []).filter(function(pr) { return filtroPropsCat === 'todos' || pr.categoria === filtroPropsCat; });
+  if (lista.length === 0) {
+    ws.innerHTML = '<div style="margin:auto; text-align:center; color:var(--muted);">Sin elementos en esta categoría. Pulsa "+ Añadir" arriba.</div>';
+    return;
+  }
+  const slides = lista.map(function(pr) {
+    const tiene = Boolean(pr.archivo && pr.archivo.url);
+    const esAudio = pr.categoria === 'audio';
+    const preview = tiene
+      ? (esAudio ? '<audio controls src="' + esc(pr.archivo.url) + '" style="width:92%;"></audio>' : '<span class="slot-tag-ok">Listo</span><img src="' + esc(pr.archivo.url) + '">')
+      : '<div class="slot-empty-label">' + (esAudio ? 'Subir .mp3 / .wav / .ttf' : 'PNG 512×512 transparente') + '</div>';
+    return '<div class="slide-card' + (tiene ? ' listo' : '') + '">' +
+      '<div class="slide-preview checker-bg"><span class="slot-tag-dim">' + (esAudio ? 'AUDIO' : '512×512') + '</span>' + preview + '</div>' +
+      '<div style="flex-shrink:0;"><div style="font-size:13px; font-weight:900;">' + esc(pr.nombre) + '</div><div style="font-size:10.5px; color:var(--muted); font-family:monospace;">' + esc(pr.id) + '</div></div>' +
+      '<div class="slot-actions">' +
+        (esAudio ? '' : '<button type="button" class="btn btn-xs btn-purple" onclick="window.abrirGeneradorIASlot(\'prop\',\'' + esc(pr.id) + '\',false)">Generar IA</button>') +
+        '<button type="button" class="btn btn-xs btn-primary" onclick="window.subirSlotProp(\'' + esc(pr.id) + '\')">' + (esAudio ? 'Subir Archivo' : 'Subir / Estudio') + '</button>' +
+        '<button type="button" class="btn btn-xs btn-blue"' + (esAudio ? '' : ' style="grid-column:1 / -1;"') + ' onclick="window.ticketSlotProp(\'' + esc(pr.id) + '\')">+ Ticket</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  ws.innerHTML = '<div class="carousel-stage">' + slides + '</div>';
+}
+
+window.subirSlotProp = function(propId) {
+  const pr = biblioteca.props.find(function(x) { return x.id === propId; });
+  if (!pr) return;
+  const esAudio = pr.categoria === 'audio';
+  slotUploadPendiente = {
+    tipo: 'prop', entidadId: pr.id, presetId: pr.categoria === 'fx' ? 'prop_fx' : 'prop_item',
+    archivoNombre: pr.id, etiqueta: 'Prop · ' + pr.nombre, usarEstudio: !esAudio
+  };
+  const inp = document.getElementById('input-file-slot');
+  inp.accept = esAudio ? 'audio/*,.ttf,.otf' : 'image/*';
+  inp.click();
+};
+
+window.ticketSlotProp = function(propId) {
+  const pr = biblioteca.props.find(function(x) { return x.id === propId; });
+  if (!pr) return;
+  enviarTicketAShell({
+    codigo: pr.id.slice(0, 10).toUpperCase(),
+    mision: 'Capa 2 · Props & Audio',
+    titulo: 'Preparar ' + pr.nombre + ' (' + pr.id + ')',
+    detalle: 'Elemento de utilería (' + pr.categoria + '). Subir en Contenido -> Props & Audio.',
+    slotMeta: { tipo: 'prop', entidadId: pr.id, preset: pr.categoria === 'fx' ? 'prop_fx' : 'prop_item', archivo: pr.id }
+  });
+};
+
+// =========================================================================
+// VISTA 4: GUIONES (ZERO-SCROLL CON RESUMEN + CARRUSEL DE ESCENAS)
+// =========================================================================
+function renderizarVistaGuiones() {
+  const ws = document.getElementById('workspace-stage');
+  const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; }) || biblioteca.guiones[0];
+  if (!g) { ws.innerHTML = '<div style="margin:auto; color:var(--muted);">Crea un guion desde el menú ▶.</div>'; return; }
+  selId.guiones = g.id;
+  if (!Array.isArray(g.escenas)) g.escenas = [];
+
+  if (subGuionPanel === 'resumen') {
+    const repartoSet = new Set(g.reparto || []);
+    const chipsReparto = biblioteca.personajes.map(function(p) {
+      return '<button type="button" class="btn btn-xs ' + (repartoSet.has(p.id) ? 'btn-green' : '') + '" onclick="window.toggleActorGuion(\'' + esc(p.id) + '\')">' + esc(p.nombre) + '</button>';
+    }).join(' ');
+    const optsEsc = biblioteca.escenarios.map(function(e) {
+      return '<option value="' + esc(e.id) + '"' + (g.escenario_id === e.id ? ' selected' : '') + '>' + esc(e.id + ' · ' + e.nombre) + '</option>';
+    }).join('');
+    ws.innerHTML =
+      '<div class="compact-pane">' +
+        '<div style="display:grid; grid-template-columns:1fr 1fr; gap:7px;">' +
+          '<div class="field"><label>Título</label><input class="inp" value="' + esc(g.titulo) + '" oninput="window.editarCampoGuion(\'titulo\', this.value)"></div>' +
+          '<div class="field"><label>Escenario</label><select class="sel" onchange="window.editarCampoGuion(\'escenario_id\', this.value)">' + optsEsc + '</select></div>' +
+        '</div>' +
+        '<div class="field"><label>Reparto</label><div style="display:flex; gap:5px; overflow-x:auto; padding-bottom:2px;">' + chipsReparto + '</div></div>' +
+        '<div class="field" style="flex:1; display:flex; flex-direction:column; margin-bottom:0;"><label>Anécdota / Texto Base</label><textarea class="inp" style="flex:1; min-height:100px; resize:none;" oninput="window.editarCampoGuion(\'anecdota\', this.value)">' + esc(g.anecdota || '') + '</textarea></div>' +
+      '</div>' +
+      '<footer class="snapseed-dock" style="height:72px;">' +
+        '<div class="tool-strip">' +
+          '<button type="button" class="btn btn-primary" style="flex:1;" onclick="window.abrirGuionEnEditor()">Abrir en Timeline</button>' +
+          '<button type="button" class="btn btn-blue" onclick="window.enviarGuionATickets()">+ Ticket</button>' +
+          '<button type="button" class="btn" onclick="window.copiarPromptDirectorEscenas()">Prompt JSON</button>' +
+          '<button type="button" class="btn" onclick="window.abrirModalCrear(\'importar_escenas\')">Pegar JSON</button>' +
+        '</div>' +
+      '</footer>';
+    return;
+  }
+
+  const optsAct = function(s) { return biblioteca.personajes.map(function(p) { return '<option value="' + esc(p.id) + '"' + (s === p.id ? ' selected' : '') + '>' + esc(p.nombre) + '</option>'; }).join(''); };
+  const optsPr = function(s) { return '<option value="">Sin prop</option>' + (biblioteca.props || []).filter(function(x) { return x.categoria !== 'audio'; }).map(function(x) { return '<option value="' + esc(x.id) + '"' + (s === x.id ? ' selected' : '') + '>' + esc(x.nombre) + '</option>'; }).join(''); };
+  const optsSfx = function(s) { return '<option value="">Sin SFX</option>' + (biblioteca.props || []).filter(function(x) { return x.categoria === 'audio'; }).map(function(x) { return '<option value="' + esc(x.id) + '"' + (s === x.id ? ' selected' : '') + '>' + esc(x.nombre) + '</option>'; }).join(''); };
+  const slidesEsc = g.escenas.length === 0
+    ? '<div class="slide-card" style="justify-content:center; align-items:center; text-align:center;"><small style="color:var(--muted); margin-bottom:10px;">Sin escenas aún.</small><button type="button" class="btn btn-primary" onclick="window.agregarEscenaGuion()">+ Añadir Línea</button></div>'
+    : g.escenas.map(function(sc, idx) {
+      return '<div class="slide-card">' +
+        '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+          '<strong style="color:var(--naranja);">LÍNEA #' + (idx + 1) + '</strong>' +
+          '<div style="display:flex; gap:4px;"><button type="button" class="btn btn-xs" onclick="window.moverEscenaGuion(' + idx + ',-1)">←</button><button type="button" class="btn btn-xs" onclick="window.moverEscenaGuion(' + idx + ',1)">→</button><button type="button" class="btn btn-xs btn-danger" onclick="window.eliminarEscenaGuion(' + idx + ')">X</button></div>' +
+        '</div>' +
+        '<div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">' +
+          '<select class="sel" onchange="window.editarEscenaGuion(' + idx + ',\'actor\',this.value)">' + optsAct(sc.actor) + '</select>' +
+          '<select class="sel" onchange="window.editarEscenaGuion(' + idx + ',\'ojos\',this.value)">' + ['neutro','feliz','enojado','triste','duda','indignado'].map(function(e) { return '<option value="' + e + '"' + ((sc.ojos || 'neutro') === e ? ' selected' : '') + '>' + e + '</option>'; }).join('') + '</select>' +
+          '<select class="sel" onchange="window.editarEscenaGuion(' + idx + ',\'camara\',this.value)">' + [['centro','Centro'],['izq','Izq'],['der','Der'],['zoom_actor','Zoom'],['plano_general','General']].map(function(c) { return '<option value="' + c[0] + '"' + ((sc.camara || 'centro') === c[0] ? ' selected' : '') + '>' + c[1] + '</option>'; }).join('') + '</select>' +
+          '<select class="sel" onchange="window.editarEscenaGuion(' + idx + ',\'prop\',this.value)">' + optsPr(sc.prop || '') + '</select>' +
+        '</div>' +
+        '<select class="sel" onchange="window.editarEscenaGuion(' + idx + ',\'sfx\',this.value)">' + optsSfx(sc.sfx || '') + '</select>' +
+        '<textarea class="inp" style="flex:1; resize:none;" placeholder="Diálogo exacto..." oninput="window.editarEscenaGuion(' + idx + ',\'texto\',this.value)">' + esc(sc.texto || '') + '</textarea>' +
+      '</div>';
+    }).join('');
+
+  ws.innerHTML =
+    '<div class="carousel-stage">' + slidesEsc + '</div>' +
+    '<footer class="snapseed-dock" style="height:68px;">' +
+      '<div class="tool-strip">' +
+        '<button type="button" class="btn btn-primary" style="flex:1;" onclick="window.agregarEscenaGuion()">+ Línea</button>' +
+        '<button type="button" class="btn btn-blue" onclick="window.abrirModalCrear(\'importar_escenas\')">Pegar JSON</button>' +
+        '<button type="button" class="btn btn-green" onclick="window.abrirGuionEnEditor()">Editor</button>' +
+      '</div>' +
+    '</footer>';
+}
+
+window.agregarEscenaGuion = function() {
+  const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; }); if (!g) return;
+  if (!Array.isArray(g.escenas)) g.escenas = [];
+  const act = (g.reparto && g.reparto[0]) || (biblioteca.personajes[0] ? biblioteca.personajes[0].id : 'per_001');
+  g.escenas.push({ actor: act, ojos: 'neutro', camara: 'centro', prop: '', sfx: '', texto: '' });
+  guardarBiblioteca(true); renderizarTodo();
+};
+window.editarEscenaGuion = function(idx, c, v) { const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; }); if (!g || !g.escenas || !g.escenas[idx]) return; g.escenas[idx][c] = v; guardarBiblioteca(false); };
+window.moverEscenaGuion = function(idx, d) { const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; }); if (!g || !g.escenas) return; const t = idx + d; if (t < 0 || t >= g.escenas.length) return; const tmp = g.escenas[idx]; g.escenas[idx] = g.escenas[t]; g.escenas[t] = tmp; guardarBiblioteca(true); renderizarTodo(); };
+window.eliminarEscenaGuion = function(idx) { const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; }); if (!g || !g.escenas) return; g.escenas.splice(idx, 1); guardarBiblioteca(true); renderizarTodo(); };
+window.copiarPromptDirectorEscenas = function() {
+  const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; }); if (!g) return;
+  const act = biblioteca.personajes.map(function(p) { return p.id + ' (' + p.nombre + ')'; }).join(', ');
+  const pr = (biblioteca.props || []).filter(function(x) { return x.categoria !== 'audio'; }).map(function(x) { return x.id; }).join(', ');
+  const sfx = (biblioteca.props || []).filter(function(x) { return x.categoria === 'audio'; }).map(function(x) { return x.id; }).join(', ');
+  const txt = 'Convierte esta anécdota colombiana en un guion ágil de 35-45s para YouTube Shorts. Devuelve SOLO un array JSON válido sin markdown con objetos: {"actor":"per_001","ojos":"neutro|feliz|enojado|triste|duda|indignado","camara":"centro|izq|der|zoom_actor|plano_general","prop":"","sfx":"","texto":"diálogo corto"}.\nActores: ' + act + '\nProps: ' + (pr || 'ninguno') + '\nSFX: ' + (sfx || 'ninguno') + '\nAnécdota: ' + (g.anecdota || g.titulo);
+  navigator.clipboard.writeText(txt).then(function() { toast('Prompt IA -> JSON copiado.', 'exito'); });
+};
+window.editarCampoGuion = function(campo, val) {
+  const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; }); if (!g) return;
+  g[campo] = val;
+  if (campo === 'titulo') actualizarHeaderYSubtabs();
+  guardarBiblioteca(false);
+};
+window.toggleActorGuion = function(perId) {
+  const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; }); if (!g) return;
+  if (!g.reparto) g.reparto = [];
+  const idx = g.reparto.indexOf(perId);
+  if (idx >= 0) g.reparto.splice(idx, 1); else g.reparto.push(perId);
+  guardarBiblioteca(true); renderizarVistaGuiones();
+};
+window.abrirGuionEnEditor = function() {
+  const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; }); if (!g) return;
+  if (window.self !== window.top) window.parent.postMessage({ tipo: 'PIRO_ABRIR_EDITOR_GUION', episodioId: g.id }, '*');
+  else toast('Abre piro-shell.html para saltar al Editor.', 'info');
+};
+window.enviarGuionATickets = function() {
+  const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; }); if (!g) return;
+  enviarTicketAShell({ codigo: g.id.toUpperCase(), mision: 'Producción · ' + g.id, titulo: 'Producir Short: ' + g.titulo, detalle: 'Escenario: ' + (g.escenario_id || 'N/A') + '\nReparto: ' + (g.reparto || []).join(', ') + '\n\nAnécdota:\n' + (g.anecdota || '') });
+};
+
+// =========================================================================
+// MODALES DE CREACIÓN + EXPORTACIÓN MANIFIESTO
+// =========================================================================
+window.abrirModalCrear = function(tipo) {
+  tipoModalCrear = tipo;
+  const tit = document.getElementById('modal-crear-titulo');
+  const form = document.getElementById('form-crear-entidad');
+  if (tipo === 'personaje') {
+    const nextNum = String(biblioteca.personajes.length + 1).padStart(3, '0');
+    const esSciFi = proyectoActivo.plantilla === 'scifi_hibrido';
+    tit.textContent = 'Nuevo Personaje (' + (proyectoActivo.nombre || 'Proyecto') + ')';
+    form.innerHTML =
+      '<div class="field"><label>ID Permanente</label><input id="mc-id" class="inp" value="per_' + nextNum + '" required></div>' +
+      '<div class="field"><label>Nombre Visible</label><input id="mc-nom" class="inp" placeholder="' + (esSciFi ? 'Ej: Clara' : 'Ej: Brayan el Bully') + '" required></div>' +
+      '<div class="field"><label>' + (esSciFi ? 'Rol / Perfil' : 'Raza / Especie') + '</label><input id="mc-raza" class="inp" placeholder="' + (esSciFi ? 'Ingeniera' : 'Dálmata / Pitbull') + '" required></div>' +
+      (proyectoActivo.bilingue ? '<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;"><div class="field"><label>Voz EN</label><input id="mc-voz-en" class="inp"></div><div class="field"><label>Voz ES</label><input id="mc-voz-es" class="inp"></div></div>' : '') +
+      '<div style="display:flex; justify-content:flex-end; gap:8px; margin-top:10px;"><button type="submit" class="btn btn-primary">Crear</button></div>';
+  } else if (tipo === 'variante') {
+    tit.textContent = 'Añadir Variante Extra';
+    form.innerHTML =
+      '<div class="field"><label>Nombre</label><input id="mc-nom" class="inp" placeholder="Ej: Camisa Elegante" required></div>' +
+      '<div class="field"><label>Archivo (sin .png)</label><input id="mc-arch" class="inp" placeholder="Ej: vest_02" required></div>' +
+      '<div class="field"><label>Tipo de pieza</label><select id="mc-preset" class="sel"><option value="per_cuerpo">Cuerpo / Vestuario</option><option value="per_brazo">Brazo Extra</option><option value="per_ojos">Ojos Extra</option><option value="per_boca">Boca Extra</option><option value="per_cabeza">Cabeza Extra</option></select></div>' +
+      '<div class="field"><label>Nota para prompt</label><input id="mc-nota" class="inp"></div>' +
+      '<div style="display:flex; justify-content:flex-end; gap:8px; margin-top:10px;"><button type="submit" class="btn btn-primary">Añadir</button></div>';
+  } else if (tipo === 'escenario') {
+    const nextNum = String(biblioteca.escenarios.length + 1).padStart(3, '0');
+    tit.textContent = 'Nuevo Escenario (1920×1920)';
+    form.innerHTML =
+      '<div class="field"><label>ID</label><input id="mc-id" class="inp" value="esc_' + nextNum + '" required></div>' +
+      '<div class="field"><label>Nombre del Lugar</label><input id="mc-nom" class="inp" required></div>' +
+      '<div class="field"><label>Primera Sub-Zona</label><input id="mc-zona" class="inp" value="Principal" required></div>' +
+      '<div style="display:flex; justify-content:flex-end; gap:8px; margin-top:10px;"><button type="submit" class="btn btn-primary">Crear</button></div>';
+  } else if (tipo === 'zona') {
+    tit.textContent = 'Nueva Sub-Zona';
+    form.innerHTML = '<div class="field"><label>Nombre</label><input id="mc-nom" class="inp" required></div><div style="display:flex; justify-content:flex-end; margin-top:10px;"><button type="submit" class="btn btn-primary">Añadir</button></div>';
+  } else if (tipo === 'prop') {
+    tit.textContent = 'Nuevo Prop / FX / Audio';
+    form.innerHTML =
+      '<div class="field"><label>Nombre</label><input id="mc-nom" class="inp" required></div>' +
+      '<div class="field"><label>Categoría</label><select id="mc-cat" class="sel"><option value="prop">Prop Cotidiano (512×512 PNG)</option><option value="fx">Ícono FX (512×512 PNG)</option><option value="audio">Audio SFX / Música / Fuente</option></select></div>' +
+      '<div style="display:flex; justify-content:flex-end; margin-top:10px;"><button type="submit" class="btn btn-primary">Añadir</button></div>';
+  } else if (tipo === 'guion') {
+    const nextNum = String(biblioteca.guiones.length + 1).padStart(3, '0');
+    tit.textContent = 'Nuevo Guion';
+    form.innerHTML =
+      '<div class="field"><label>ID Episodio</label><input id="mc-id" class="inp" value="ep' + nextNum + '" required></div>' +
+      '<div class="field"><label>Título</label><input id="mc-nom" class="inp" required></div>' +
+      '<div style="display:flex; justify-content:flex-end; margin-top:10px;"><button type="submit" class="btn btn-primary">Crear</button></div>';
+  } else if (tipo === 'importar_escenas') {
+    tit.textContent = 'Pegar JSON de Escenas';
+    form.innerHTML = '<div class="field"><label>Array JSON</label><textarea id="mc-json-esc" class="inp" style="min-height:140px; font-family:monospace; font-size:11px;" required></textarea></div><div style="display:flex; justify-content:flex-end; margin-top:10px;"><button type="submit" class="btn btn-primary">Cargar</button></div>';
+  }
+  document.getElementById('modal-crear-entidad').classList.add('open');
+};
+
+window.cerrarModalC = function(id) { const m = document.getElementById(id); if (m) m.classList.remove('open'); };
+
+window.confirmarCrearEntidad = function() {
+  const cleanId = function(s, fb) { return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '') || fb; };
+  if (tipoModalCrear === 'personaje') {
+    const id = cleanId(document.getElementById('mc-id').value, 'per_' + Date.now());
+    biblioteca.personajes.push({
+      id: id, nombre: document.getElementById('mc-nom').value.trim(), raza: document.getElementById('mc-raza').value.trim(),
+      contextura: '', pelaje_rasgos: '', vestuario_base: '', pose_iconica: 'De pie mirando a la derecha',
+      personalidad: '', voice_id: '',
+      voz_en: document.getElementById('mc-voz-en') ? document.getElementById('mc-voz-en').value.trim() : '',
+      voz_es: document.getElementById('mc-voz-es') ? document.getElementById('mc-voz-es').value.trim() : '',
+      pivotes_json: '', piezas: {}, variantes: []
+    });
+    catActiva = 'personajes'; selId.personajes = id; subTabPersonaje = 'ficha';
+  } else if (tipoModalCrear === 'variante') {
+    const p = obtenerPersonajeActual();
+    if (p) {
+      p.variantes.push({ id: 'var_' + Date.now(), titulo: document.getElementById('mc-nom').value.trim(), archivo: cleanId(document.getElementById('mc-arch').value, 'var_' + Date.now()), preset: document.getElementById('mc-preset').value, nota: document.getElementById('mc-nota').value.trim(), url: null });
+      subTabPersonaje = 'variantes';
+    }
+  } else if (tipoModalCrear === 'escenario') {
+    const id = cleanId(document.getElementById('mc-id').value, 'esc_' + Date.now());
+    biblioteca.escenarios.push({ id: id, nombre: document.getElementById('mc-nom').value.trim(), iluminacion: '', zonas: [{ id: 'zona_01', nombre: document.getElementById('mc-zona').value.trim(), fondo: null, frente: null }] });
+    catActiva = 'escenarios'; selId.escenarios = id;
+  } else if (tipoModalCrear === 'zona') {
+    const e = biblioteca.escenarios.find(function(x) { return x.id === selId.escenarios; });
+    if (e) e.zonas.push({ id: 'zona_' + String((e.zonas || []).length + 1).padStart(2, '0'), nombre: document.getElementById('mc-nom').value.trim(), fondo: null, frente: null });
+  } else if (tipoModalCrear === 'prop') {
+    const cat = document.getElementById('mc-cat').value, nom = document.getElementById('mc-nom').value.trim();
+    const pref = cat === 'fx' ? 'fx_' : (cat === 'audio' ? 'sfx_' : 'prop_');
+    biblioteca.props.push({ id: pref + cleanId(nom, String(Date.now()).slice(-4)), nombre: nom, categoria: cat, archivo: null });
+    catActiva = 'props';
+  } else if (tipoModalCrear === 'guion') {
+    const id = cleanId(document.getElementById('mc-id').value, 'ep_' + Date.now());
+    biblioteca.guiones.push({ id: id, titulo: document.getElementById('mc-nom').value.trim(), escenario_id: biblioteca.escenarios[0] ? biblioteca.escenarios[0].id : '', reparto: [], estado: 'Borrador', anecdota: '', escenas: [] });
+    catActiva = 'guiones'; selId.guiones = id;
+  } else if (tipoModalCrear === 'importar_escenas') {
+    const g = biblioteca.guiones.find(function(x) { return x.id === selId.guiones; }); if (!g) return;
+    try {
+      const raw = document.getElementById('mc-json-esc').value.trim().replace(/^```json\s*/i, '').replace(/```$/, '').trim();
+      const arr = JSON.parse(raw); if (!Array.isArray(arr)) throw new Error('Debe ser un array JSON');
+      g.escenas = arr.map(function(i) { return { actor: String(i.actor || 'per_001'), ojos: String(i.ojos || 'neutro'), camara: String(i.camara || 'centro'), prop: String(i.prop || ''), sfx: String(i.sfx || ''), texto: String(i.texto || '') }; });
+      catActiva = 'guiones'; subGuionPanel = 'escenas';
+    } catch (err) { toast('JSON inválido: ' + err.message, 'error'); return; }
+  }
+  window.cerrarModalC('modal-crear-entidad');
+  guardarBiblioteca(true);
+  renderizarTodo();
+  toast('Cambios guardados.', 'exito');
+};
+
+window.exportarManifiestoTermux = function() {
+  const descargas = [];
+  const addDl = function(r, reg) { if (reg && reg.url) descargas.push({ ruta_local: r, url: reg.url, tipo: reg.tipo || 'application/octet-stream' }); };
+  const rutaSlot = function(pid, s) {
+    const sub = s.preset === 'per_ref' ? 'referencia/' : (s.preset === 'per_cabeza' ? 'piezas/cabeza/' : (s.preset === 'per_ojos' ? 'piezas/ojos/' : (s.preset === 'per_boca' ? 'piezas/bocas/' : (s.preset === 'per_brazo' ? 'piezas/brazos/' : 'piezas/cuerpo/'))));
+    return 'biblioteca/personajes/' + pid + '/' + sub + s.archivo + '.png';
+  };
+  const perOut = (biblioteca.personajes || []).map(function(p) {
+    const pz = {}, vr = {};
+    SLOTS_BASICOS_PERSONAJE.forEach(function(s) { const reg = p.piezas && p.piezas[s.key]; if (reg && reg.url) { const r = rutaSlot(p.id, s); pz[s.key] = r; addDl(r, reg); } });
+    (p.variantes || []).forEach(function(v) { if (v && v.url) { const r = 'biblioteca/personajes/' + p.id + '/piezas/variantes/' + (v.archivo || v.id) + '.png'; vr[v.archivo || v.id] = r; addDl(r, v); } });
+    if (p.muestra_voz && p.muestra_voz.url) addDl('biblioteca/personajes/' + p.id + '/referencia/muestra_voz.mp3', p.muestra_voz);
+    return { id: p.id, nombre: p.nombre, raza: p.raza, voice_id: p.voice_id || '', pivotes: parsearPivotesPersonaje(p), piezas: pz, variantes: vr };
+  });
+  const escOut = (biblioteca.escenarios || []).map(function(e) {
+    return { id: e.id, nombre: e.nombre, iluminacion: e.iluminacion || '', zonas: (e.zonas || []).map(function(z) {
+      const o = { id: z.id, nombre: z.nombre, puntos_camara: z.puntos_camara || '' };
+      if (z.fondo && z.fondo.url) { o.fondo = 'biblioteca/escenarios/' + e.id + '/zonas/' + z.id + '/fondo.png'; addDl(o.fondo, z.fondo); }
+      if (z.frente && z.frente.url) { o.frente = 'biblioteca/escenarios/' + e.id + '/zonas/' + z.id + '/frente.png'; addDl(o.frente, z.frente); }
+      return o;
+    }) };
+  });
+  const propsOut = {};
+  (biblioteca.props || []).forEach(function(pr) {
+    if (pr.archivo && pr.archivo.url) {
+      const ext = pr.categoria === 'audio' ? (String(pr.archivo.nombre || '').toLowerCase().indexOf('.ttf') >= 0 ? '.ttf' : '.mp3') : '.png';
+      const dir = pr.categoria === 'audio' ? (ext === '.ttf' ? 'biblioteca/fuentes/' : 'biblioteca/audio/sfx/') : 'biblioteca/props/';
+      const r = dir + pr.id + ext; propsOut[pr.id] = r; addDl(r, pr.archivo);
+    }
+  });
+  const man = { proyecto: proyectoActivo.id, generado_en: new Date().toISOString(), total_archivos: descargas.length, descargas: descargas, catalogo: { personajes: perOut, escenarios: escOut, props: propsOut, guiones: biblioteca.guiones || [] } };
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(man, null, 2)], { type: 'application/json' })); a.download = 'catalogo_sync.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+  toast('Manifiesto catalogo_sync.json exportado (' + descargas.length + ' activos).', 'exito');
+};
+
+// =========================================================================
+// MOTOR DE GENERACIÓN DIRECTA DE PIEZAS CON GEMINI IMAGEN (CHG-101)
+// =========================================================================
+const CLAVE_VAULT_IA = 'piro_api_vault_v1';
+let giaCtx = null; // { tipo, slotMeta, prompt, refUrl, refLabel, refLocalDataUrl, refLocalMime, estiloEjemploUrl, estiloEjemploNombre, resultadoDataUrl, resultadoMime }
+
+function leerConfigGeminiVault() {
+  let v = { keys: {}, gemImgKey: '', gemImgModel: 'gemini-2.5-flash-image' };
+  try {
+    const raw = localStorage.getItem(CLAVE_VAULT_IA);
+    if (raw) v = Object.assign(v, JSON.parse(raw));
+  } catch (e) {}
+  const key = (v.gemImgKey || (v.keys && v.keys.gemini) || '').trim();
+  const model = (v.gemImgModel || 'gemini-2.5-flash-image').trim();
+  return { raw: v, key: key, model: model };
+}
+
+window.guardarKeyGeminiRapida = function() {
+  const k = (document.getElementById('gia-api-key-inp').value || '').trim();
+  if (!k) { toast('Pega tu API Key de Gemini.', 'error'); return; }
+  const cfg = leerConfigGeminiVault();
+  cfg.raw.gemImgKey = k;
+  if (!cfg.raw.keys) cfg.raw.keys = {};
+  if (!cfg.raw.keys.gemini) cfg.raw.keys.gemini = k;
+  try { localStorage.setItem(CLAVE_VAULT_IA, JSON.stringify(cfg.raw)); } catch (e) {}
+  document.getElementById('gia-key-box').classList.add('hidden');
+  toast('API Key de Gemini guardada.', 'exito');
+};
+
+function mostrarErrorGIA(msg) {
+  const b = document.getElementById('gia-error-box');
+  if (!b) return;
+  if (!msg) { b.classList.add('hidden'); b.textContent = ''; }
+  else { b.classList.remove('hidden'); b.textContent = msg; }
+}
+
+function actualizarRefUIEnModalGIA() {
+  if (!giaCtx) return;
+  const thumb = document.getElementById('gia-ref-thumb');
+  const lbl = document.getElementById('gia-ref-lbl');
+  const sub = document.getElementById('gia-ref-sub');
+  const urlVer = giaCtx.refLocalDataUrl || giaCtx.refUrl || null;
+  if (urlVer) {
+    thumb.innerHTML = '<img src="' + esc(urlVer) + '" style="width:100%; height:100%; object-fit:contain;">';
+    lbl.textContent = giaCtx.refLocalDataUrl ? 'Foto local adjunta (lista)' : (giaCtx.refLabel || 'Referencia automática');
+    sub.textContent = giaCtx.refLocalDataUrl ? 'Se enviará directo desde tu dispositivo' : 'Se descargará de tu biblioteca para mantener consistencia';
+  } else {
+    thumb.innerHTML = 'SIN REF';
+    lbl.textContent = giaCtx.refLabel || 'Sin imagen de referencia';
+    sub.textContent = 'Opcional: pulsa "Foto Local" si quieres basarte en una foto o selfie';
+  }
+}
+
+window.cargarRefLocalIA = function(file) {
+  if (!file || !giaCtx) return;
+  const r = new FileReader();
+  r.onload = function(ev) {
+    giaCtx.refLocalDataUrl = ev.target.result;
+    giaCtx.refLocalMime = file.type || 'image/png';
+    mostrarErrorGIA('');
+    actualizarRefUIEnModalGIA();
+    toast('Referencia local cargada.', 'exito');
+  };
+  r.readAsDataURL(file);
+};
+
+window.abrirGeneradorIASlot = function(tipo, idOKey, esVariante, campoExtra) {
+  const cfg = leerConfigGeminiVault();
+  document.getElementById('gia-modelo-badge').textContent = cfg.model;
+  document.getElementById('gia-key-box').classList.toggle('hidden', Boolean(cfg.key));
+  document.getElementById('gia-preview-box').classList.add('hidden');
+  mostrarErrorGIA('');
+
+  let titulo = 'Generar con Gemini';
+  let prompt = '';
+  let refUrl = null;
+  let refLabel = 'Referencia visual';
+  let estiloEjemploUrl = null;
+  let estiloEjemploNombre = '';
+  let slotMeta = null;
+
+  if (tipo === 'personaje') {
+    const p = obtenerPersonajeActual();
+    if (!p) return;
+    const spec = esVariante
+      ? (p.variantes || []).find(function(v) { return v.id === idOKey; })
+      : SLOTS_BASICOS_PERSONAJE.find(function(s) { return s.key === idOKey; });
+    if (!spec) return;
+    const baseSel = esVariante ? 'look' : null;
+    titulo = p.nombre + ' · ' + (spec.titulo || idOKey);
+    prompt = generarPromptPersonaje(p, idOKey, spec, baseSel);
+    const refObj = obtenerRefParaPrompt(p, idOKey, baseSel);
+    refUrl = refObj.url || null;
+    refLabel = refObj.label || 'Referencia del personaje';
+
+    if (idOKey === 'maestro_cuerpo' || idOKey === 'maestro_perfil') {
+      const ejemplo = (biblioteca.personajes || []).find(function(otro) {
+        return otro.id !== p.id && otro.piezas && ((otro.piezas.maestro_perfil && otro.piezas.maestro_perfil.url) || (otro.piezas.maestro_cuerpo && otro.piezas.maestro_cuerpo.url));
+      });
+      if (ejemplo) {
+        estiloEjemploUrl = (ejemplo.piezas.maestro_perfil && ejemplo.piezas.maestro_perfil.url) || ejemplo.piezas.maestro_cuerpo.url;
+        estiloEjemploNombre = ejemplo.nombre;
+      }
+      if (idOKey === 'maestro_cuerpo' && !refUrl) refLabel = 'Opcional: sube tu maniquí o foto en "Foto Local"';
+      if (idOKey === 'maestro_perfil') refLabel = refUrl ? 'Maniquí 1:1 listo · adjunta tu foto real en "Foto Local"' : 'Sube tu foto real en "Foto Local"';
+    }
+
+    slotMeta = {
+      tipo: 'personaje', entidadId: p.id, slotKey: idOKey, esVariante: Boolean(esVariante),
+      specRef: spec, presetId: spec.preset || 'per_cuerpo', archivoNombre: spec.archivo || idOKey,
+      etiqueta: p.nombre + ' · ' + (spec.titulo || idOKey),
+      calcoUrl: obtenerCalcoInteligente(p, idOKey), pivotesIniciales: parsearPivotesPersonaje(p)
+    };
+  } else if (tipo === 'escenario') {
+    const e = biblioteca.escenarios.find(function(x) { return x.id === selId.escenarios; });
+    if (!e) return;
+    const z = (e.zonas || []).find(function(x) { return x.id === idOKey; });
+    const campo = campoExtra || 'fondo';
+    const estiloEsc = proyectoActivo.estilo_visual || '2D cartoon background illustration, BoJack Horseman art style, clean black ink outlines, flat vibrant colors';
+    titulo = e.nombre + ' · ' + (z ? z.nombre : idOKey) + ' (' + campo + ')';
+    prompt = 'Square 1:1 background illustration matching exact art direction (' + estiloEsc + '), empty ' + (e.nombre || '') + ' (' + (z ? z.nombre : idOKey) + '), NO characters, NO text, lighting: ' + (e.iluminacion || 'flat daylight') + (campo === 'frente' ? '. Draw ONLY the foreground counter, table or furniture piece isolated on a flat solid chroma green background (#00FF00) with zero shadows.' : '. Clean full room background with horizontal breathing space for camera panning.');
+    if (campo === 'frente' && z && z.fondo && z.fondo.url) {
+      refUrl = z.fondo.url;
+      refLabel = 'Fondo de la misma zona (referencia de estilo y perspectiva)';
+    } else {
+      refLabel = 'Opcional: adjunta foto de referencia del lugar';
+    }
+    slotMeta = {
+      tipo: 'escenario', entidadId: e.id, zonaId: idOKey, campoZona: campo,
+      presetId: campo === 'fondo' ? 'esc_fondo' : 'esc_frente', archivoNombre: campo,
+      etiqueta: e.nombre + ' · ' + idOKey + ' · ' + campo
+    };
+  } else if (tipo === 'prop') {
+    const pr = (biblioteca.props || []).find(function(x) { return x.id === idOKey; });
+    if (!pr) return;
+    const estiloPr = proyectoActivo.estilo_visual || '2D cartoon animation style, BoJack Horseman clean black ink outlines, flat vibrant colors';
+    titulo = (pr.categoria === 'fx' ? 'Ícono FX · ' : 'Prop · ') + pr.nombre;
+    prompt = 'Single isolated ' + (pr.categoria === 'fx' ? 'comic comedy reaction icon' : 'handheld everyday object prop') + ': "' + pr.nombre + '". Art direction: ' + estiloPr + '. Centered in a 1:1 square with generous margin, NO hands, NO character, NO text, isolated on a completely flat solid chroma green background (#00FF00) with zero shadows for PNG cut-out.';
+    refLabel = 'Opcional: foto de referencia del objeto';
+    slotMeta = {
+      tipo: 'prop', entidadId: pr.id, presetId: pr.categoria === 'fx' ? 'prop_fx' : 'prop_item',
+      archivoNombre: pr.id, etiqueta: 'Prop · ' + pr.nombre
+    };
+  }
+
+  giaCtx = {
+    tipo: tipo, slotMeta: slotMeta, prompt: prompt, refUrl: refUrl, refLabel: refLabel,
+    refLocalDataUrl: null, refLocalMime: null, estiloEjemploUrl: estiloEjemploUrl,
+    estiloEjemploNombre: estiloEjemploNombre, resultadoDataUrl: null, resultadoMime: 'image/png'
+  };
+
+  document.getElementById('gia-titulo').textContent = titulo;
+  document.getElementById('gia-prompt').value = prompt;
+  const wrapEst = document.getElementById('gia-estilo-ref-wrap');
+  if (estiloEjemploUrl) {
+    wrapEst.classList.remove('hidden');
+    document.getElementById('gia-estilo-ref-txt').textContent = 'Adjuntar a ' + estiloEjemploNombre + ' como ejemplo exacto de estilo visual';
+    document.getElementById('gia-usar-estilo-ejemplo').checked = true;
+  } else {
+    wrapEst.classList.add('hidden');
+  }
+  const varWrap = document.getElementById('gia-var-base-wrap');
+  const esVarModal = Boolean(tipo === 'personaje' && slotMeta && slotMeta.esVariante);
+  if (varWrap) {
+    varWrap.classList.toggle('hidden', !esVarModal);
+    if (esVarModal) document.getElementById('gia-var-base-sel').value = 'look';
+  }
+  actualizarRefUIEnModalGIA();
+  document.getElementById('modal-gen-ia-pieza').classList.add('open');
+};
+
+window.alCambiarBaseVarianteGIA = function(baseVal) {
+  if (!giaCtx || !giaCtx.slotMeta) return;
+  const p = obtenerPersonajeActual();
+  if (!p) return;
+  const refObj = obtenerRefParaPrompt(p, giaCtx.slotMeta.slotKey, baseVal);
+  giaCtx.refUrl = refObj.url || null;
+  giaCtx.refLabel = refObj.label || 'Referencia del personaje';
+  giaCtx.prompt = generarPromptPersonaje(p, giaCtx.slotMeta.slotKey, giaCtx.slotMeta.specRef, baseVal);
+  document.getElementById('gia-prompt').value = giaCtx.prompt;
+  actualizarRefUIEnModalGIA();
+};
+
+window.abrirBovedaApisDesdeContenido = function() {
+  if (window.self !== window.top) {
+    window.parent.postMessage({ tipo: 'PIRO_ABRIR_BOVEDA_APIS', tab: 'imagen' }, '*');
+  } else {
+    document.getElementById('gia-key-box').classList.remove('hidden');
+  }
+};
+
+window.cerrarModalGenIA = function() {
+  document.getElementById('modal-gen-ia-pieza').classList.remove('open');
+};
+
+function aplanarSobreVerdeBase64(dataUrl, targetW, targetH) {
+  return new Promise(function(resolve, reject) {
+    const im = new Image();
+    im.onload = function() {
+      const w = targetW || im.width || 1000;
+      const h = targetH || im.height || 1600;
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = '#00FF00';
+      ctx.fillRect(0, 0, w, h);
+      const sc = Math.min(w / im.width, h / im.height);
+      const dw = im.width * sc, dh = im.height * sc;
+      ctx.drawImage(im, (w - dw) / 2, (h - dh) / 2, dw, dh);
+      const out = cv.toDataURL('image/png');
+      const m = out.match(/^data:([^;]+);base64,(.+)$/);
+      if (!m) { reject(new Error('Error aplanando sobre verde')); return; }
+      resolve({ mime: 'image/png', data: m[2] });
+    };
+    im.onerror = function() { reject(new Error('No se pudo leer la imagen de referencia')); };
+    im.src = dataUrl;
+  });
+}
+
+async function urlABase64Seguro(url, aplanarVerde, wObj, hObj) {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  const blob = await resp.blob();
+  const dataUrl = await new Promise(function(resolve, reject) {
+    const r = new FileReader();
+    r.onload = function(ev) { resolve(ev.target.result); };
+    r.onerror = function() { reject(new Error('Lectura fallida')); };
+    r.readAsDataURL(blob);
+  });
+  if (aplanarVerde) return await aplanarSobreVerdeBase64(dataUrl, wObj, hObj);
+  const m = String(dataUrl).match(/^data:([^;]+);base64,(.+)$/);
+  if (!m) throw new Error('Formato base64 inválido');
+  return { mime: m[1], data: m[2] };
+}
+
+function dataUrlAParteBase64(dataUrl, mimeDef) {
+  const m = String(dataUrl || '').match(/^data:([^;]+);base64,(.+)$/);
+  if (!m) return null;
+  return { mime: m[1] || mimeDef || 'image/png', data: m[2] };
+}
+
+window.ejecutarGeneracionIAPieza = async function() {
+  if (!giaCtx) return;
+  const cfg = leerConfigGeminiVault();
+  if (!cfg.key) {
+    document.getElementById('gia-key-box').classList.remove('hidden');
+    mostrarErrorGIA('Pega primero tu API Key de Gemini arriba y pulsa Guardar.');
+    return;
+  }
+  const promptUsr = (document.getElementById('gia-prompt').value || '').trim();
+  if (!promptUsr) { mostrarErrorGIA('El prompt no puede estar vacío.'); return; }
+
+  const btn = document.getElementById('btn-run-gia');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generando con Gemini...'; }
+  mostrarErrorGIA('');
+
+  try {
+    const parts = [];
+    let prefijoRefs = '';
+    const usarEjemplo = Boolean(giaCtx.estiloEjemploUrl && document.getElementById('gia-usar-estilo-ejemplo') && document.getElementById('gia-usar-estilo-ejemplo').checked);
+
+    if (usarEjemplo) {
+      try {
+        const estPart = await urlABase64Seguro(giaCtx.estiloEjemploUrl);
+        parts.push({ inlineData: { mimeType: estPart.mime, data: estPart.data } });
+        prefijoRefs += 'STRICT STYLE REFERENCE: Match the exact 2D cartoon line thickness, flat shading, proportions, and character design aesthetic of the attached example character (' + giaCtx.estiloEjemploNombre + '). ';
+      } catch (eCorsEst) {
+        // Si falla CORS del ejemplo de estilo, continuamos con estilo textual pero avisamos si también falla la ref principal
+      }
+    }
+
+    const sKey = giaCtx.slotMeta ? giaCtx.slotMeta.slotKey : '';
+    const esLookConFoto = Boolean(giaCtx.tipo === 'personaje' && sKey === 'maestro_perfil' && giaCtx.refLocalDataUrl);
+    const esEdicionCalco = Boolean(giaCtx.tipo === 'personaje' && sKey !== 'maestro_cuerpo');
+    if (esLookConFoto && giaCtx.refUrl) {
+      try {
+        const manP = await urlABase64Seguro(giaCtx.refUrl, true, 1000, 1600);
+        parts.push({ inlineData: { mimeType: manP.mime, data: manP.data } });
+      } catch (eMan) {
+        throw new Error('No se pudo leer el Maniquí Base por CORS. Habilita CORS en Firebase Storage o quita "Foto Local" para usar solo el calco.');
+      }
+      const humP = dataUrlAParteBase64(giaCtx.refLocalDataUrl, giaCtx.refLocalMime);
+      if (humP) parts.push({ inlineData: { mimeType: humP.mime, data: humP.data } });
+    } else if (giaCtx.refLocalDataUrl) {
+      const locP = esEdicionCalco ? await aplanarSobreVerdeBase64(giaCtx.refLocalDataUrl, 1000, 1600) : dataUrlAParteBase64(giaCtx.refLocalDataUrl, giaCtx.refLocalMime);
+      if (locP) {
+        parts.push({ inlineData: { mimeType: locP.mime, data: locP.data } });
+        if (sKey === 'maestro_cuerpo' || sKey === 'maestro_perfil') {
+          prefijoRefs += 'IDENTITY REFERENCE: Transform the person/subject in this attached photo into the character described below, keeping their recognizable facial features, eye shape, hair, beard and build. ';
+        }
+      }
+    } else if (giaCtx.refUrl) {
+      try {
+        const refP = await urlABase64Seguro(giaCtx.refUrl, esEdicionCalco, 1000, 1600);
+        parts.push({ inlineData: { mimeType: refP.mime, data: refP.data } });
+      } catch (eCors) {
+        throw new Error('Firebase Storage bloqueó leer la imagen de referencia por CORS. Pulsa "Foto Local" para adjuntar la imagen desde tu teléfono (o habilita CORS en tu bucket) y vuelve a generar para no perder consistencia.');
+      }
+    }
+    parts.push({ text: prefijoRefs + promptUsr });
+
+    let b64 = null, mime = 'image/png';
+    if (cfg.model.indexOf('imagen-') === 0) {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(cfg.model) + ':predict', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.key },
+        body: JSON.stringify({ instances: [{ prompt: prefijoRefs + promptUsr }], parameters: { sampleCount: 1, aspectRatio: giaCtx.tipo === 'personaje' ? '3:4' : '1:1' } })
+      });
+      if (!r.ok) throw new Error('Imagen HTTP ' + r.status);
+      const j = await r.json();
+      if (j.predictions && j.predictions[0] && j.predictions[0].bytesBase64Encoded) {
+        b64 = j.predictions[0].bytesBase64Encoded;
+        mime = j.predictions[0].mimeType || 'image/png';
+      }
+    } else {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(cfg.model) + ':generateContent', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.key },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: parts }],
+          generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
+        })
+      });
+      if (!r.ok) {
+        let det = 'HTTP ' + r.status;
+        try { const ej = await r.json(); if (ej && ej.error && ej.error.message) det += ' · ' + ej.error.message; } catch (e2) {}
+        throw new Error('Gemini ' + det);
+      }
+      const j = await r.json();
+      const candParts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
+      for (let i = 0; i < candParts.length; i++) {
+        if (candParts[i].inlineData && candParts[i].inlineData.data) {
+          b64 = candParts[i].inlineData.data;
+          mime = candParts[i].inlineData.mimeType || 'image/png';
+          break;
+        }
+      }
+    }
+
+    if (!b64) throw new Error('Gemini no devolvió imagen (prueba ajustar una palabra del prompt o reintentar).');
+    giaCtx.resultadoMime = mime;
+    giaCtx.resultadoDataUrl = 'data:' + mime + ';base64,' + b64;
+    document.getElementById('gia-preview-img').src = giaCtx.resultadoDataUrl;
+    document.getElementById('gia-preview-box').classList.remove('hidden');
+    toast('Imagen generada. Revísala y ábrela en Estudio PNG.', 'exito');
+  } catch (err) {
+    mostrarErrorGIA(err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Generar Imagen con Gemini'; }
+  }
+};
+
+window.llevarGenIAEstudio = function() {
+  if (!giaCtx || !giaCtx.resultadoDataUrl || !giaCtx.slotMeta) return;
+  const meta = giaCtx.slotMeta;
+  const dataUrl = giaCtx.resultadoDataUrl;
+  window.cerrarModalGenIA();
+  if (window.self !== window.top) {
+    window.parent.postMessage({
+      tipo: 'PIRO_IR_A_ESTUDIO', origen: 'contenido', etiqueta: meta.etiqueta,
+      presetId: meta.presetId, entidadId: meta.entidadId, zonaId: meta.zonaId || 'zona_01',
+      archivoNombre: meta.archivoNombre, dataUrl: dataUrl,
+      calcoUrl: meta.calcoUrl || null, pivotesIniciales: meta.pivotesIniciales || null,
+      modoCalco1a1: Boolean(meta.tipo === 'personaje' && meta.slotKey !== 'maestro_cuerpo'), slotMeta: meta
+    }, '*');
+  } else {
+    toast('Abre este módulo desde piro-shell.html para editar en Estudio PNG.', 'info');
+  }
+};
+
+window.guardarGenIADirecto = async function() {
+  if (!giaCtx || !giaCtx.resultadoDataUrl || !giaCtx.slotMeta) return;
+  const p = dataUrlAParteBase64(giaCtx.resultadoDataUrl, giaCtx.resultadoMime);
+  if (!p) return;
+  const bin = atob(p.data), arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  const blob = new Blob([arr], { type: p.mime });
+  const nom = (giaCtx.slotMeta.archivoNombre || 'pieza_ia') + '.png';
+  const fileObj = new File([blob], nom, { type: p.mime });
+  const meta = giaCtx.slotMeta;
+  window.cerrarModalGenIA();
+  await subirYAsignarArchivoASlot(fileObj, meta, null, false);
+};
+
+// =========================================================================
+// PUENTE POSTMESSAGE + PERSISTENCIA
+// =========================================================================
+window.addEventListener('message', async function(e) {
+  if (!e.data || !e.data.tipo) return;
+  if (e.data.tipo === 'PIRO_SHELL_CAMBIAR_PROYECTO' && e.data.proyecto) {
+    proyectoActivo = Object.assign(proyectoActivo, e.data.proyecto);
+    proyectoActivo.docBibId = normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id);
+    selId = { personajes: null, escenarios: null, guiones: null };
+    cargarBiblioteca();
+  } else if (e.data.tipo === 'PIRO_SHELL_AUTH' || e.data.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA') {
+    if (e.data.proyecto) {
+      proyectoActivo = Object.assign(proyectoActivo, e.data.proyecto);
+      proyectoActivo.docBibId = normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id);
+    }
+    cargarBiblioteca();
+  } else if (e.data.tipo === 'PIRO_VAULT_ACTUALIZADO') {
+    const cfgN = leerConfigGeminiVault();
+    const bM = document.getElementById('gia-modelo-badge');
+    if (bM) bM.textContent = cfgN.model;
+    const bK = document.getElementById('gia-key-box');
+    if (bK) bK.classList.toggle('hidden', Boolean(cfgN.key));
+  } else if (e.data.tipo === 'PIRO_SHELL_ABRIR_CREAR') {
+    if (e.data.entidad === 'personaje') window.cambiarCategoria('personajes');
+    else if (e.data.entidad === 'escenario') window.cambiarCategoria('escenarios');
+    else if (e.data.entidad === 'guion') window.cambiarCategoria('guiones');
+    window.abrirModalCrear(e.data.entidad);
+  } else if (e.data.tipo === 'PIRO_PNG_RECIBIDO' && e.data.blob && e.data.slotMeta) {
+    const fileObj = new File([e.data.blob], e.data.nombreArchivo || 'pieza.png', { type: 'image/png' });
+    await subirYAsignarArchivoASlot(fileObj, e.data.slotMeta, e.data.pivotes || null, true);
+  } else if (e.data.tipo === 'PIRO_SHELL_VINCULAR_ASSET_TICKET' && e.data.slotMeta && e.data.registro) {
+    aplicarRegistroEnSlot(e.data.slotMeta, e.data.registro, e.data.pivotes || null);
+    await guardarBiblioteca(true); renderizarTodo();
+    toast('Pieza vinculada automáticamente desde Tickets.', 'exito');
+  }
+});
+
+function guardarEstadoUICont() {
+  try {
+    localStorage.setItem('piro_cont_ui_' + proyectoActivo.id, JSON.stringify({
+      catActiva: catActiva, selId: selId, subTabPersonaje: subTabPersonaje
+    }));
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'hidden') {
+    guardarEstadoUICont();
+    if (hayCambiosPendientes && biblioteca && Array.isArray(biblioteca.personajes) && biblioteca.personajes.length > 0) guardarBiblioteca(true);
+  }
+});
+window.addEventListener('pagehide', function() {
+  guardarEstadoUICont();
+  if (hayCambiosPendientes && biblioteca && Array.isArray(biblioteca.personajes) && biblioteca.personajes.length > 0) guardarBiblioteca(true);
+});
+
+GeokatuDB.SecurityService.observarEstadoSesion(function(user) {
+  if (user) cargarBiblioteca();
+});
+</script>
+</body>
+</html>
