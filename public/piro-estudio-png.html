@@ -292,9 +292,9 @@
         <svg class="svg-ico" viewBox="0 0 24 24"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
         <span>Borrador</span>
       </button>
-      <button type="button" class="tool-btn" id="tbtn-recorte" onclick="window.abrirHerramienta('recorte')">
+            <button type="button" class="tool-btn" id="tbtn-recorte" onclick="window.abrirHerramienta('recorte')">
         <svg class="svg-ico" viewBox="0 0 24 24"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>
-        <span>Recortar</span>
+        <span>Aislar/Cortar</span>
       </button>
       <button type="button" class="tool-btn accent" onclick="window.autoRecortarTransparencia()">
         <svg class="svg-ico" viewBox="0 0 24 24"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
@@ -374,15 +374,17 @@
       </div>
     </div>
 
-    <div class="subpanel" id="sub-recorte">
+        <div class="subpanel" id="sub-recorte">
       <div class="sub-top">
-        <span class="sub-title">Recortar · Arrastra un recuadro sobre la imagen</span>
+        <span class="sub-title">Aislar Zona (1:1) · Arrastra sobre la pieza a dejar o borrar</span>
         <button type="button" class="btn btn-green btn-xs" onclick="window.cerrarHerramienta()">Listo</button>
       </div>
       <div class="sub-row">
-        <button type="button" class="btn btn-xs btn-primary" onclick="window.aplicarRecorteSeleccion()">Aplicar Recorte</button>
+        <button type="button" class="btn btn-xs btn-green" onclick="window.aislarZonaSeleccion(true)">Dejar Zona (1:1)</button>
+        <button type="button" class="btn btn-xs btn-danger" onclick="window.aislarZonaSeleccion(false)">Borrar Zona</button>
+        <button type="button" class="btn btn-xs btn-blue" id="btn-forma-zona" onclick="window.toggleFormaZona()">Forma: Rect</button>
+        <button type="button" class="btn btn-xs btn-primary" onclick="window.aplicarRecorteSeleccion()">Recortar Lienzo</button>
         <button type="button" class="btn btn-xs" onclick="window.cancelarRecorteSeleccion()">Limpiar Marco</button>
-        <button type="button" class="btn btn-xs btn-blue" onclick="window.autoRecortarTransparencia()">Auto-Trim PNG</button>
       </div>
     </div>
 
@@ -570,6 +572,7 @@ let modoClean = 'varita';
 let dibujandoBorrador = false;
 let cropRect = null;
 let cropStart = null;
+let formaZona = 'rect';
 let colorBaseImageData = null;
 
 let cvStage = null, ctxStage = null;
@@ -1185,16 +1188,62 @@ window.autoRecortarTransparencia = function() {
   toast('Recortado a ' + nw + '×' + nh + ' px.', 'exito');
 };
 
+window.toggleFormaZona = function() {
+  formaZona = formaZona === 'rect' ? 'ovalo' : 'rect';
+  const b = document.getElementById('btn-forma-zona');
+  if (b) b.textContent = formaZona === 'ovalo' ? 'Forma: Óvalo' : 'Forma: Rect';
+  if (cropRect) renderizarCleanOverlay();
+};
+
 function renderizarCleanOverlay() {
   restaurarUltimaCopiaCleanOverlay();
   if (!cropRect) return;
+  const x = Math.min(cropRect.x, cropRect.x + cropRect.w);
+  const y = Math.min(cropRect.y, cropRect.y + cropRect.h);
+  const w = Math.abs(cropRect.w);
+  const h = Math.abs(cropRect.h);
   ctxClean.save();
-  ctxClean.strokeStyle = '#ff6b00';
+  ctxClean.strokeStyle = '#22c55e';
   ctxClean.lineWidth = Math.max(3, Math.round(cvClean.width / 220));
   ctxClean.setLineDash([10, 6]);
-  ctxClean.strokeRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
+  if (formaZona === 'ovalo') {
+    ctxClean.beginPath();
+    ctxClean.ellipse(x + w / 2, y + h / 2, Math.max(1, w / 2), Math.max(1, h / 2), 0, 0, Math.PI * 2);
+    ctxClean.stroke();
+  } else {
+    ctxClean.strokeRect(x, y, w, h);
+  }
   ctxClean.restore();
 }
+
+window.aislarZonaSeleccion = function(conservarInterior) {
+  if (!cropRect || Math.abs(cropRect.w) < 8 || Math.abs(cropRect.h) < 8) {
+    toast('Arrastra primero un marco sobre la zona que quieres ' + (conservarInterior ? 'dejar.' : 'borrar.'), 'info');
+    return;
+  }
+  restaurarUltimaCopiaCleanOverlay();
+  const x = Math.max(0, Math.round(Math.min(cropRect.x, cropRect.x + cropRect.w)));
+  const y = Math.max(0, Math.round(Math.min(cropRect.y, cropRect.y + cropRect.h)));
+  const w = Math.min(cvClean.width - x, Math.round(Math.abs(cropRect.w)));
+  const h = Math.min(cvClean.height - y, Math.round(Math.abs(cropRect.h)));
+  ctxClean.save();
+  ctxClean.globalCompositeOperation = conservarInterior ? 'destination-in' : 'destination-out';
+  ctxClean.fillStyle = '#000000';
+  ctxClean.beginPath();
+  if (formaZona === 'ovalo') {
+    ctxClean.ellipse(x + w / 2, y + h / 2, Math.max(1, w / 2), Math.max(1, h / 2), 0, 0, Math.PI * 2);
+  } else {
+    ctxClean.rect(x, y, w, h);
+  }
+  ctxClean.fill();
+  ctxClean.restore();
+  cropRect = null;
+  if (presetActual.esPersonaje && cvClean.width === presetActual.w && cvClean.height === presetActual.h) {
+    modoCalco1a1 = true;
+  }
+  pushHistorialClean();
+  toast(conservarInterior ? 'Zona aislada 1:1 (sin mover coordenadas).' : 'Zona borrada (1:1 conservado).', 'exito');
+};
 
 window.aplicarRecorteSeleccion = function() {
   if (!cropRect || Math.abs(cropRect.w) < 10 || Math.abs(cropRect.h) < 10) {
