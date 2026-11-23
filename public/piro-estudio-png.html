@@ -589,7 +589,8 @@ const PRESETS = [
   { id: 'per_cabeza', cat: 'personaje', nombre: 'Cabeza Base', w: 1000, h: 1600, esPersonaje: true, usaZona: false, entidadDefault: 'per_001', archivoDefault: 'base', sugerencias: ['base'], desc: 'Cabeza y hocico sin ojos ni boca.', rutaFn: function(e, z, a) { return 'biblioteca/personajes/' + e + '/piezas/cabeza/' + a + '.png'; } },
   { id: 'per_ojos', cat: 'personaje', nombre: 'Ojos + Cejas', w: 1000, h: 1600, esPersonaje: true, usaZona: false, entidadDefault: 'per_001', archivoDefault: 'neutro', sugerencias: ['neutro', 'feliz', 'enojado', 'triste', 'duda', 'indignado'], desc: 'Expresión facial alineada sobre calco.', rutaFn: function(e, z, a) { return 'biblioteca/personajes/' + e + '/piezas/ojos/' + a + '.png'; } },
   { id: 'per_boca', cat: 'personaje', nombre: 'Boca (Lip-Sync)', w: 1000, h: 1600, esPersonaje: true, usaZona: false, entidadDefault: 'per_001', archivoDefault: 'cerrada', sugerencias: ['cerrada', 'media', 'abierta', 'sonrisa', 'molesta'], desc: 'Boca para sincronización labial.', rutaFn: function(e, z, a) { return 'biblioteca/personajes/' + e + '/piezas/bocas/' + a + '.png'; } },
-  { id: 'per_brazo', cat: 'personaje', nombre: 'Brazo / Pierna', w: 1000, h: 1600, esPersonaje: true, usaZona: false, entidadDefault: 'per_001', archivoDefault: 'delantero_reposo', sugerencias: ['delantero_reposo', 'trasero_reposo', 'delantero_prop'], desc: 'Extremidad articulada lista para rotar.', rutaFn: function(e, z, a) { return 'biblioteca/personajes/' + e + '/piezas/brazos/' + a + '.png'; } },
+  { id: 'per_brazo', cat: 'personaje', nombre: 'Brazo / Pierna', w: 1000, h: 1600, esPersonaje: true, usaZona: false, entidadDefault: 'per_001', archivoDefault: 'delantero_reposo', sugerencias: ['delantero_reposo', 'brazo_del_sup', 'brazo_del_ant', 'brazos_cruzados'], desc: 'Extremidad o segmento articulado listo para rotar.', rutaFn: function(e, z, a) { return 'biblioteca/personajes/' + e + '/piezas/brazos/' + a + '.png'; } },
+  { id: 'per_mano', cat: 'personaje', nombre: 'Mano Intercambiable', w: 1000, h: 1600, esPersonaje: true, usaZona: false, entidadDefault: 'per_001', archivoDefault: 'mano_relajada', sugerencias: ['mano_relajada', 'mano_abierta', 'mano_senalando', 'mano_puno', 'mano_prop'], desc: 'Mano modular alineada al pivote de muñeca.', rutaFn: function(e, z, a) { return 'biblioteca/personajes/' + e + '/piezas/manos/' + a + '.png'; } },
   { id: 'esc_fondo', cat: 'escenario', nombre: 'Escenario: Fondo', w: 1920, h: 1920, esPersonaje: false, usaZona: true, entidadDefault: 'esc_001', archivoDefault: 'fondo', sugerencias: ['fondo'], desc: 'Fondo cuadrado 1920×1920 para 9:16 y 16:9.', rutaFn: function(e, z, a) { return 'biblioteca/escenarios/' + e + '/zonas/' + z + '/' + a + '.png'; } },
   { id: 'esc_frente', cat: 'escenario', nombre: 'Escenario: Frente', w: 1920, h: 1920, esPersonaje: false, usaZona: true, entidadDefault: 'esc_001', archivoDefault: 'frente', sugerencias: ['frente'], desc: 'Mueble o mostrador frontal transparente.', rutaFn: function(e, z, a) { return 'biblioteca/escenarios/' + e + '/zonas/' + z + '/' + a + '.png'; } },
   { id: 'prop_item', cat: 'props', nombre: 'Prop Cotidiano', w: 512, h: 512, esPersonaje: false, usaZona: false, entidadDefault: 'props', archivoDefault: 'prop_celular', sugerencias: ['prop_celular', 'prop_tinto', 'prop_arepa'], desc: 'Objeto recortado para mano o mesa.', rutaFn: function(e, z, a) { return 'biblioteca/props/' + a + '.png'; } },
@@ -635,7 +636,8 @@ let imgCalco = null;
 let opacidadCalco = 0.4;
 let alturaCm = 175;
 let st = { x: 500, y: 920, scale: 1, rot: 0, flipX: false };
-let pivotes = { cuello: null, hombro_trasero: null, hombro_delantero: null, mano_delantera: null };
+const PIVOTES_KEYS = ['cuello', 'hombro_trasero', 'codo_trasero', 'hombro_delantero', 'codo_delantero', 'mano_delantera', 'cadera_delantera', 'cadera_trasera'];
+let pivotes = { cuello: null, hombro_trasero: null, codo_trasero: null, hombro_delantero: null, codo_delantero: null, mano_delantera: null, cadera_delantera: null, cadera_trasera: null };
 let pivoteActivo = 'cuello';
 
 const ZONAS_CAJA = [
@@ -645,6 +647,7 @@ const ZONAS_CAJA = [
   ['cabeza', 'Cabeza'],
   ['brazo_del', 'Brazo Del.'],
   ['brazo_tras', 'Brazo Tras.'],
+  ['mano', 'Mano'],
   ['pierna_del', 'Pierna Del.'],
   ['pierna_tras', 'Pierna Tras.'],
   ['ropa', 'Ropa'],
@@ -797,7 +800,7 @@ async function intentarRestaurarBorrador() {
 
     if (typeof meta.alturaCm === 'number') alturaCm = meta.alturaCm;
     if (typeof meta.opacidadCalco === 'number') opacidadCalco = meta.opacidadCalco;
-    if (meta.pivotes) pivotes = Object.assign({ cuello: null, hombro_trasero: null, hombro_delantero: null, mano_delantera: null }, meta.pivotes);
+    if (meta.pivotes) pivotes = Object.assign({ cuello: null, hombro_trasero: null, codo_trasero: null, hombro_delantero: null, codo_delantero: null, mano_delantera: null, cadera_delantera: null, cadera_trasera: null }, meta.pivotes);
     if (meta.st) st = Object.assign({ x: 500, y: 920, scale: 1, rot: 0, flipX: false }, meta.st);
 
     if (meta.calcoUrl) {
@@ -1872,7 +1875,8 @@ function detectarZonaCaja(presetId, archivo, etiqueta) {
   if (presetId === 'per_boca' || txt.indexOf('boca') >= 0) return 'boca';
   if (txt.indexOf('barba') >= 0 || txt.indexOf('bigote') >= 0) return 'barba';
   if (txt.indexOf('pierna') >= 0) return txt.indexOf('tras') >= 0 ? 'pierna_tras' : 'pierna_del';
-  if (presetId === 'per_brazo' || txt.indexOf('brazo') >= 0) return txt.indexOf('tras') >= 0 ? 'brazo_tras' : 'brazo_del';
+  if (presetId === 'per_mano' || (txt.indexOf('mano') >= 0 && txt.indexOf('cintura') < 0)) return 'mano';
+  if (presetId === 'per_brazo' || txt.indexOf('brazo') >= 0 || txt.indexOf('cintura') >= 0) return txt.indexOf('tras') >= 0 ? 'brazo_tras' : 'brazo_del';
   if (txt.indexOf('acces') >= 0 || txt.indexOf('gafa') >= 0 || txt.indexOf('lente') >= 0 || txt.indexOf('gorra') >= 0 || txt.indexOf('sombrero') >= 0 || txt.indexOf('cadena') >= 0 || txt.indexOf('collar') >= 0 || txt.indexOf('topo') >= 0 || txt.indexOf('arete') >= 0 || txt.indexOf('reloj') >= 0 || txt.indexOf('bolso') >= 0) return 'accesorios';
   if (presetId === 'per_cabeza' || txt.indexOf('cabeza') >= 0) return 'cabeza';
   return 'ropa';
@@ -2147,15 +2151,16 @@ if (spriteImg && herramientaAbierta !== 'pivotes' && herramientaAbierta !== 'caj
   });
 }
 
-['cuello', 'hombro_trasero', 'hombro_delantero', 'mano_delantera'].forEach(function(k) {
-      const pv = pivotes[k];
-      if (!pv) return;
-      ctxStage.strokeStyle = '#ef4444'; ctxStage.fillStyle = '#ef4444'; ctxStage.lineWidth = 4;
-      ctxStage.beginPath(); ctxStage.arc(pv.x, pv.y, 12, 0, Math.PI * 2); ctxStage.fill();
-      ctxStage.strokeStyle = '#fff'; ctxStage.stroke();
-      ctxStage.fillStyle = '#fca5a5'; ctxStage.font = '800 22px monospace';
-      ctxStage.fillText(k, pv.x + 16, pv.y + 7);
-    });
+PIVOTES_KEYS.forEach(function(k) {
+  const pv = pivotes[k];
+  if (!pv) return;
+  const rPv = Math.max(4, Math.round(12 / zDiv));
+  ctxStage.strokeStyle = '#ef4444'; ctxStage.fillStyle = '#ef4444'; ctxStage.lineWidth = Math.max(1.5, 3.5 / zDiv);
+  ctxStage.beginPath(); ctxStage.arc(pv.x, pv.y, rPv, 0, Math.PI * 2); ctxStage.fill();
+  ctxStage.strokeStyle = '#fff'; ctxStage.stroke();
+  ctxStage.fillStyle = '#fca5a5'; ctxStage.font = '800 ' + Math.max(9, Math.round(20 / zDiv)) + 'px monospace';
+  ctxStage.fillText(k, pv.x + rPv + 4, pv.y + Math.round(rPv * 0.5));
+});
     ctxStage.restore();
   }
 }
@@ -2163,11 +2168,15 @@ if (spriteImg && herramientaAbierta !== 'pivotes' && herramientaAbierta !== 'caj
 function renderBotonesPivotes() {
   const row = document.getElementById('row-pivotes-btns');
   const keys = [
-    ['cuello', 'Cuello'],
-    ['hombro_trasero', 'Hombro Tras.'],
-    ['hombro_delantero', 'Hombro Del.'],
-    ['mano_delantera', 'Mano Prop']
-  ];
+  ['cuello', 'Cuello'],
+  ['hombro_delantero', 'Hombro Del.'],
+  ['codo_delantero', 'Codo Del.'],
+  ['mano_delantera', 'Muñeca/Prop'],
+  ['hombro_trasero', 'Hombro Tras.'],
+  ['codo_trasero', 'Codo Tras.'],
+  ['cadera_delantera', 'Cadera Del.'],
+  ['cadera_trasera', 'Cadera Tras.']
+];
   row.innerHTML = keys.map(function(k) {
     const pv = pivotes[k[0]];
     const on = pivoteActivo === k[0];
@@ -2607,8 +2616,8 @@ window.addEventListener('message', async function(e) {
     }
 
     const pivInit = e.data.pivotesIniciales;
-    ['cuello', 'hombro_trasero', 'hombro_delantero', 'mano_delantera'].forEach(function(k) {
-      const val = pivInit && pivInit[k] ? pivInit[k] : null;
+    PIVOTES_KEYS.forEach(function(k) {
+  const val = pivInit && pivInit[k] ? pivInit[k] : null;
       if (Array.isArray(val) && val.length >= 2) pivotes[k] = { x: Number(val[0]) || 0, y: Number(val[1]) || 0 };
       else if (val && typeof val.x === 'number' && typeof val.y === 'number') pivotes[k] = { x: val.x, y: val.y };
       else pivotes[k] = null;
