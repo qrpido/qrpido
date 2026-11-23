@@ -3194,14 +3194,54 @@ obtenerContactoComercio: async (idNegocio) => {
             if (!rutaStorage || String(rutaStorage).indexOf("pirobonianos/") !== 0) {
                 return { success: false, error: "Ruta de almacenamiento invalida." };
             }
-            try {
-                await deleteObject(ref(storage, rutaStorage));
-                return { success: true };
-            } catch (e) {
-                return { success: false, error: e.message };
-            }
-        }
+                  try {
+        await deleteObject(ref(storage, rutaStorage));
+        return { success: true };
+      } catch (e) {
+        return { success: false, error: e.message };
+      }
     },
+    guardarApiKeyBoveda: async (payload) => {
+      if (!functions) return { success: false, error: 'Cloud Functions no inicializado.' };
+      try {
+        const fn = httpsCallable(functions, 'guardarApiKeyCliente');
+        const res = await fn(payload || {});
+        return res.data || { success: true };
+      } catch (e) {
+        return { success: false, error: e.message };
+      }
+    },
+    obtenerEstadoBoveda: async () => {
+      if (!functions) return { success: false, error: 'Cloud Functions no inicializado.' };
+      try {
+        const fn = httpsCallable(functions, 'estadoBovedaCliente');
+        const res = await fn({});
+        return res.data || { success: false, error: 'Respuesta vacia' };
+      } catch (e) {
+        return { success: false, error: e.message };
+      }
+    },
+    llamarProxyIA: async (payload) => {
+      if (!functions) return { success: false, error: 'Cloud Functions no inicializado.' };
+      try {
+        const fn = httpsCallable(functions, 'proxyIACliente', { timeout: 185000 });
+        const res = await fn(payload || {});
+        return res.data || { success: false, error: 'Respuesta vacia del proxy IA' };
+      } catch (e) {
+        return { success: false, error: e.message, code: e.code || '' };
+      }
+    },
+    recargarCreditosAdmin: async (payload) => {
+      if (!functions) return { success: false, error: 'Cloud Functions no inicializado.' };
+      try {
+        const fn = httpsCallable(functions, 'recargarCreditosAdmin');
+        const res = await fn(payload || {});
+        return res.data || { success: false };
+      } catch (e) {
+        return { success: false, error: e.message };
+      }
+    }
+  },
 
     /**
      * @namespace MediaService
