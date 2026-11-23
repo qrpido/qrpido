@@ -324,11 +324,14 @@
       <h3 id="gia-titulo">Generar Pieza con Gemini</h3>
       <button type="button" class="btn btn-xs" onclick="window.cerrarModalGenIA()">Cerrar</button>
     </div>
-    <div id="gia-key-box" class="hidden" style="margin-bottom:8px; padding:8px; border-radius:9px; border:1px solid rgba(245,158,11,0.45); background:rgba(245,158,11,0.08);">
-      <div style="font-size:10.5px; font-weight:800; color:#fcd34d; margin-bottom:4px;">Conecta tu API Key de Gemini (se comparte con Editor)</div>
+        <div id="gia-key-box" class="hidden" style="margin-bottom:8px; padding:8px; border-radius:9px; border:1px solid rgba(245,158,11,0.45); background:rgba(245,158,11,0.08);">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:5px;">
+        <span style="font-size:10.5px; font-weight:800; color:#fcd34d;">Vincula tu clave IA (se cifra en tu cuenta) o usa Créditos</span>
+        <button type="button" class="btn btn-xs btn-blue" onclick="window.abrirBovedaApisDesdeContenido()">Bóveda IA</button>
+      </div>
       <div style="display:flex; gap:6px;">
-        <input id="gia-api-key-inp" type="password" autocomplete="off" spellcheck="false" class="inp" placeholder="AIza...">
-        <button type="button" class="btn btn-xs btn-primary" onclick="window.guardarKeyGeminiRapida()">Guardar</button>
+        <input id="gia-api-key-inp" type="password" autocomplete="off" spellcheck="false" class="inp" placeholder="Pega API Key Gemini (se cifra en nube)">
+        <button type="button" class="btn btn-xs btn-primary" id="btn-save-key-rap" onclick="window.guardarKeyGeminiRapida()">Cifrar</button>
       </div>
     </div>
     <div style="display:flex; align-items:center; gap:9px; padding:8px; border-radius:10px; border:1px solid var(--border); background:rgba(5,8,14,0.75); margin-bottom:8px;">
@@ -368,7 +371,7 @@
     </div>
     <div id="gia-error-box" class="hidden" style="margin-bottom:8px; padding:7px 9px; border-radius:8px; border:1px solid rgba(239,68,68,0.5); background:rgba(239,68,68,0.12); color:#fca5a5; font-size:11px; font-weight:700;"></div>
     <div style="display:flex; justify-content:flex-end; gap:6px;" id="gia-footer-btns">
-      <button type="button" class="btn btn-purple" id="btn-run-gia" style="width:100%;" onclick="window.ejecutarGeneracionIAPieza()">Generar Imagen con Gemini</button>
+      <button type="button" class="btn btn-purple" id="btn-run-gia" style="width:100%;" onclick="window.ejecutarGeneracionIAPieza()">Generar Imagen con IA</button>
     </div>
   </div>
 </div>
@@ -2000,32 +2003,67 @@ window.exportarManifiestoTermux = function() {
 };
 
 // =========================================================================
-// MOTOR DE GENERACIÓN DIRECTA DE PIEZAS CON GEMINI IMAGEN (CHG-101)
+// MOTOR DE GENERACIÓN IA VÍA PROXY CIFRADO EN NUBE (CHG-127 · BYOK/CRÉDITOS)
 // =========================================================================
-const CLAVE_VAULT_IA = 'piro_api_vault_v1';
-let giaCtx = null; // { tipo, slotMeta, prompt, refUrl, refLabel, refLocalDataUrl, refLocalMime, estiloEjemploUrl, estiloEjemploNombre, resultadoDataUrl, resultadoMime }
+const CLAVE_PREFS_IA_CONT = 'piro_ia_cloud_prefs_v2';
+let giaCtx = null;
 
 function leerConfigGeminiVault() {
-  let v = { keys: {}, gemImgKey: '', gemImgModel: 'gemini-2.5-flash-image' };
+  const prefs = { modoPago: 'auto', provImagen: 'gemini', provLlm: 'gemini', resumen: { proveedores: {}, billetera: { saldo_creditos: 0 }, reventaDisponible: [], tarifas: {} } };
   try {
-    const raw = localStorage.getItem(CLAVE_VAULT_IA);
-    if (raw) v = Object.assign(v, JSON.parse(raw));
+    const raw = localStorage.getItem(CLAVE_PREFS_IA_CONT);
+    if (raw) Object.assign(prefs, JSON.parse(raw));
+    localStorage.removeItem('piro_api_vault_v1');
   } catch (e) {}
-  const key = (v.gemImgKey || (v.keys && v.keys.gemini) || '').trim();
-  const model = (v.gemImgModel || 'gemini-2.5-flash-image').trim();
-  return { raw: v, key: key, model: model };
+  const res = prefs.resumen || {};
+  const provId = prefs.provImagen || 'gemini';
+  const provObj = (res.proveedores && res.proveedores[provId]) ? res.proveedores[provId] : null;
+  const tieneByok = Boolean(provObj && provObj.activa);
+  const saldo = Number(res.billetera && res.billetera.saldo_creditos) || 0;
+  const tieneReventa = Array.isArray(res.reventaDisponible) && res.reventaDisponible.indexOf(provId) >= 0;
+  const modoPago = prefs.modoPago || 'auto';
+  const model = (provObj && (provObj.modeloImagen || provObj.modelo)) || (provId === 'openai' ? 'gpt-image-1' : 'gemini-2.5-flash-image');
+  const listo = modoPago === 'byok' ? tieneByok : (modoPago === 'creditos' ? (tieneReventa && saldo > 0) : (tieneByok || (tieneReventa && saldo > 0)));
+  const modoTag = (tieneByok && modoPago !== 'creditos') ? 'BYOK' : (saldo + ' cr');
+  return { raw: prefs, provId: provId, model: model, modoPago: modoPago, tieneByok: tieneByok, saldo: saldo, listo: listo, key: listo ? 'CLOUD_PROXY' : '', badge: provId + ' · ' + model + ' (' + modoTag + ')' };
 }
 
-window.guardarKeyGeminiRapida = function() {
-  const k = (document.getElementById('gia-api-key-inp').value || '').trim();
-  if (!k) { toast('Pega tu API Key de Gemini.', 'error'); return; }
+function actualizarBadgeModalGIA() {
   const cfg = leerConfigGeminiVault();
-  cfg.raw.gemImgKey = k;
-  if (!cfg.raw.keys) cfg.raw.keys = {};
-  if (!cfg.raw.keys.gemini) cfg.raw.keys.gemini = k;
-  try { localStorage.setItem(CLAVE_VAULT_IA, JSON.stringify(cfg.raw)); } catch (e) {}
-  document.getElementById('gia-key-box').classList.add('hidden');
-  toast('API Key de Gemini guardada.', 'exito');
+  const bM = document.getElementById('gia-modelo-badge');
+  if (bM) bM.textContent = cfg.badge;
+  const bK = document.getElementById('gia-key-box');
+  if (bK) bK.classList.toggle('hidden', cfg.listo);
+}
+
+async function sincronizarEstadoBovedaCont() {
+  if (!GeokatuDB.PirobonianosService || !GeokatuDB.PirobonianosService.obtenerEstadoBoveda) return;
+  const res = await GeokatuDB.PirobonianosService.obtenerEstadoBoveda();
+  if (res && res.success) {
+    const cur = leerConfigGeminiVault().raw;
+    cur.resumen = { proveedores: res.proveedores || {}, billetera: res.billetera || { saldo_creditos: 0 }, reventaDisponible: res.reventaDisponible || [], tarifas: res.tarifas || {} };
+    try { localStorage.setItem(CLAVE_PREFS_IA_CONT, JSON.stringify(cur)); } catch (e) {}
+    actualizarBadgeModalGIA();
+  }
+}
+
+window.guardarKeyGeminiRapida = async function() {
+  const inp = document.getElementById('gia-api-key-inp');
+  const k = (inp && inp.value || '').trim();
+  if (!k) { toast('Pega tu API Key de Gemini.', 'error'); return; }
+  const btn = document.getElementById('btn-save-key-rap');
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  try {
+    const res = await GeokatuDB.PirobonianosService.guardarApiKeyBoveda({ proveedorId: 'gemini', apiKey: k, ambito: 'cliente', accion: 'guardar' });
+    if (!res || !res.success) throw new Error((res && res.error) || 'No se pudo cifrar la clave');
+    if (inp) inp.value = '';
+    await sincronizarEstadoBovedaCont();
+    toast('Clave cifrada en tu cuenta (••••' + (res.ultimos4 || '') + ').', 'exito');
+  } catch (err) {
+    toast('Error: ' + err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Cifrar'; }
+  }
 };
 
 function mostrarErrorGIA(msg) {
@@ -2066,9 +2104,8 @@ window.cargarRefLocalIA = function(file) {
 };
 
 window.abrirGeneradorIASlot = function(tipo, idOKey, esVariante, campoExtra) {
-  const cfg = leerConfigGeminiVault();
-  document.getElementById('gia-modelo-badge').textContent = cfg.model;
-  document.getElementById('gia-key-box').classList.toggle('hidden', Boolean(cfg.key));
+  actualizarBadgeModalGIA();
+  sincronizarEstadoBovedaCont();
   document.getElementById('gia-preview-box').classList.add('hidden');
   mostrarErrorGIA('');
 
@@ -2656,16 +2693,11 @@ function dataUrlAParteBase64(dataUrl, mimeDef) {
 window.ejecutarGeneracionIAPieza = async function() {
   if (!giaCtx) return;
   const cfg = leerConfigGeminiVault();
-  if (!cfg.key) {
-    document.getElementById('gia-key-box').classList.remove('hidden');
-    mostrarErrorGIA('Pega primero tu API Key de Gemini arriba y pulsa Guardar.');
-    return;
-  }
   const promptUsr = (document.getElementById('gia-prompt').value || '').trim();
   if (!promptUsr) { mostrarErrorGIA('El prompt no puede estar vacío.'); return; }
 
   const btn = document.getElementById('btn-run-gia');
-  if (btn) { btn.disabled = true; btn.textContent = 'Generando con Gemini...'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Generando en servidor seguro...'; }
   mostrarErrorGIA('');
 
   try {
@@ -2726,43 +2758,19 @@ window.ejecutarGeneracionIAPieza = async function() {
     }
     parts.push({ text: prefijoRefs + promptUsr });
 
-    let b64 = null, mime = 'image/png';
-    if (cfg.model.indexOf('imagen-') === 0) {
-      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(cfg.model) + ':predict', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.key },
-        body: JSON.stringify({ instances: [{ prompt: prefijoRefs + promptUsr }], parameters: { sampleCount: 1, aspectRatio: giaCtx.tipo === 'personaje' ? ((modoROI === 'cabeza' || modoROI === 'ojos' || modoROI === 'boca') ? '1:1' : '3:4') : '1:1' } })
-      });
-      if (!r.ok) throw new Error('Imagen HTTP ' + r.status);
-      const j = await r.json();
-      if (j.predictions && j.predictions[0] && j.predictions[0].bytesBase64Encoded) {
-        b64 = j.predictions[0].bytesBase64Encoded;
-        mime = j.predictions[0].mimeType || 'image/png';
-      }
-    } else {
-      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(cfg.model) + ':generateContent', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.key },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: parts }],
-          generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
-        })
-      });
-      if (!r.ok) {
-        let det = 'HTTP ' + r.status;
-        try { const ej = await r.json(); if (ej && ej.error && ej.error.message) det += ' · ' + ej.error.message; } catch (e2) {}
-        throw new Error('Gemini ' + det);
-      }
-      const j = await r.json();
-      const candParts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
-      for (let i = 0; i < candParts.length; i++) {
-        if (candParts[i].inlineData && candParts[i].inlineData.data) {
-          b64 = candParts[i].inlineData.data;
-          mime = candParts[i].inlineData.mimeType || 'image/png';
-          break;
-        }
-      }
+        const asp = giaCtx.tipo === 'personaje' ? ((modoROI === 'cabeza' || modoROI === 'ojos' || modoROI === 'boca') ? '1:1' : '3:4') : '1:1';
+    const resIA = await GeokatuDB.PirobonianosService.llamarProxyIA({
+      proveedorId: cfg.provId, accion: 'imagen', tipoCobro: 'imagen', modoPago: cfg.modoPago, modelo: cfg.model,
+      payload: { prompt: prefijoRefs + promptUsr, parts: parts, aspectRatio: asp, size: '1024x1024' }
+    });
+    if (!resIA || !resIA.success) {
+      const msgE = (resIA && resIA.error) || 'Error en servidor IA';
+      if (msgE.indexOf('Vincula') >= 0 || msgE.indexOf('Saldo') >= 0 || msgE.indexOf('API') >= 0) document.getElementById('gia-key-box').classList.remove('hidden');
+      throw new Error(msgE);
     }
-
-    if (!b64) throw new Error('Gemini no devolvió imagen (prueba ajustar una palabra del prompt o reintentar).');
+    const b64 = resIA.b64 || null, mime = resIA.mime || 'image/png';
+    if (typeof resIA.saldoRestante === 'number') sincronizarEstadoBovedaCont();
+    if (!b64) throw new Error('El proveedor IA no devolvió imagen (reintenta o ajusta el prompt).');
     const rawResultDataUrl = 'data:' + mime + ';base64,' + b64;
     if (roiUsado) {
       giaCtx.resultadoMime = 'image/png';
@@ -2778,7 +2786,7 @@ window.ejecutarGeneracionIAPieza = async function() {
   } catch (err) {
     mostrarErrorGIA(err.message);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Generar Imagen con Gemini'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Generar Imagen con IA'; }
   }
 };
 
@@ -2856,8 +2864,8 @@ window.abrirModalLoteHoja = function(grupo) {
 window.cerrarModalLoteHoja = function() { document.getElementById('modal-lote-hoja').classList.remove('open'); };
 window.ejecutarLoteHojaIA = async function() {
   if (!loteCtx || !loteCtx.keys.length) return;
-  const p = obtenerPersonajeActual(), cfg = leerConfigGeminiVault();
-  if (!p || !cfg.key) { toast('Configura tu API Key en Generar IA primero.', 'error'); return; }
+    const p = obtenerPersonajeActual(), cfg = leerConfigGeminiVault();
+  if (!p) return;
   const btn = document.getElementById('btn-run-lote'), errB = document.getElementById('lote-error-box');
   errB.classList.add('hidden'); if (btn) { btn.disabled = true; btn.textContent = 'Generando hoja (1 API)...'; }
   try {
@@ -2867,12 +2875,13 @@ window.ejecutarLoteHojaIA = async function() {
     let caja = cajas[zn] || (zn === 'mano' ? { x: mx - 70, y: my - 70, w: 140, h: 140 } : (zn === 'ojos' ? { x: 445, y: 315, w: 130, h: 68 } : { x: 460, y: 400, w: 96, h: 62 }));
     const refUrl = zn === 'mano' ? ((pz.maestro_perfil && pz.maestro_perfil.url) || (pz.maestro_cuerpo && pz.maestro_cuerpo.url)) : ((pz.cabeza_base && pz.cabeza_base.url) || (pz.maestro_perfil && pz.maestro_perfil.url));
     if (refUrl) { try { const rd = await urlADataUrlSeguro(refUrl), rp = dataUrlAParteBase64(rd, 'image/png'); if (rp) parts.push({ inlineData: { mimeType: rp.mime, data: rp.data } }); if (!cajas[zn] && zn !== 'mano') { const ir = await cargarImgPromise(rd), cr = document.createElement('canvas'); cr.width = 1000; cr.height = 1600; const cxr = cr.getContext('2d', { willReadFrequently: true }); cxr.drawImage(ir, 0, 0, 1000, 1600); const bb = detectarBBoxAlfa(cxr, 1000, 1600), g = calcularGeometriaCabeza1000(bb, (bb.maxY - bb.minY) < 520, 0, 0, 1000, 1600); caja = zn === 'ojos' ? { x: Math.round(g.ojoX - g.ojoAnchoMax / 2), y: Math.round(g.ojoY - g.ojoAltoMax / 2), w: Math.round(g.ojoAnchoMax), h: Math.round(g.ojoAltoMax) } : { x: Math.round(g.bocaX - g.bocaAnchoMax / 2), y: Math.round(g.bocaY - g.bocaAltoMax / 2), w: Math.round(g.bocaAnchoMax), h: Math.round(g.bocaAltoMax) }; } } catch (eR) {} }
-    parts.push({ text: (document.getElementById('lote-prompt').value || '').trim() });
-    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(cfg.model) + ':generateContent', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.key }, body: JSON.stringify({ contents: [{ role: 'user', parts: parts }], generationConfig: { responseModalities: ['IMAGE', 'TEXT'] } }) });
-    if (!r.ok) throw new Error('Gemini HTTP ' + r.status);
-    const j = await r.json(), cp = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
-    let b64 = null, mime = 'image/png'; for (let i = 0; i < cp.length; i++) if (cp[i].inlineData && cp[i].inlineData.data) { b64 = cp[i].inlineData.data; mime = cp[i].inlineData.mimeType || 'image/png'; break; }
-    if (!b64) throw new Error('Gemini no devolvió imagen.');
+        const txtLote = (document.getElementById('lote-prompt').value || '').trim();
+    parts.push({ text: txtLote });
+    const resLote = await GeokatuDB.PirobonianosService.llamarProxyIA({ proveedorId: cfg.provId, accion: 'imagen', tipoCobro: 'hoja_lote', modoPago: cfg.modoPago, modelo: cfg.model, payload: { prompt: txtLote, parts: parts, aspectRatio: '1:1', size: '1024x1024' } });
+    if (!resLote || !resLote.success) throw new Error((resLote && resLote.error) || 'Error en servidor IA');
+    const b64 = resLote.b64 || null, mime = resLote.mime || 'image/png';
+    if (typeof resLote.saldoRestante === 'number') sincronizarEstadoBovedaCont();
+    if (!b64) throw new Error('El proveedor IA no devolvió la hoja de sprites.');
     const im = await cargarImgPromise('data:' + mime + ';base64,' + b64), cvS = document.createElement('canvas'); cvS.width = im.width; cvS.height = im.height;
     const ctxS = cvS.getContext('2d', { willReadFrequently: true }); ctxS.drawImage(im, 0, 0); limpiarCromaHoja(ctxS, cvS.width, cvS.height);
     const gr = gridLote(loteCtx.keys.length), cw = Math.floor(cvS.width / gr.c), ch = Math.floor(cvS.height / gr.r), items = [];
@@ -2950,12 +2959,9 @@ window.addEventListener('message', async function(e) {
       proyectoActivo.docBibId = normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id);
     }
     cargarBiblioteca();
-  } else if (e.data.tipo === 'PIRO_VAULT_ACTUALIZADO') {
-    const cfgN = leerConfigGeminiVault();
-    const bM = document.getElementById('gia-modelo-badge');
-    if (bM) bM.textContent = cfgN.model;
-    const bK = document.getElementById('gia-key-box');
-    if (bK) bK.classList.toggle('hidden', Boolean(cfgN.key));
+    } else if (e.data.tipo === 'PIRO_VAULT_ACTUALIZADO') {
+    if (e.data.estadoIA) { try { localStorage.setItem(CLAVE_PREFS_IA_CONT, JSON.stringify(e.data.estadoIA)); } catch (er) {} }
+    actualizarBadgeModalGIA();
   } else if (e.data.tipo === 'PIRO_SHELL_ABRIR_CREAR') {
     if (e.data.entidad === 'personaje') window.cambiarCategoria('personajes');
     else if (e.data.entidad === 'escenario') window.cambiarCategoria('escenarios');
@@ -2990,7 +2996,7 @@ window.addEventListener('pagehide', function() {
 });
 
 GeokatuDB.SecurityService.observarEstadoSesion(function(user) {
-  if (user) cargarBiblioteca();
+  if (user) { cargarBiblioteca(); sincronizarEstadoBovedaCont(); }
 });
 </script>
 </body>
