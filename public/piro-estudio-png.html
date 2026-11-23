@@ -283,7 +283,11 @@
   </main>
 
   <footer class="snapseed-dock">
-    <div class="tool-strip" id="strip-clean">
+      <div class="tool-strip" id="strip-clean">
+    <button type="button" class="tool-btn accent" id="tbtn-mascara" style="border-color:rgba(34,197,94,0.55); color:#86efac;" onclick="window.abrirHerramienta('mascara')">
+      <svg class="svg-ico" viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+      <span>Sombra Verde</span>
+    </button>
       <button type="button" class="tool-btn activo" id="tbtn-varita" onclick="window.abrirHerramienta('varita')">
         <svg class="svg-ico" viewBox="0 0 24 24"><path d="M15 4V2"/><path d="M15 16v-2"/><path d="M8 9h2"/><path d="M20 9h2"/><path d="M17.8 11.8 19 13"/><path d="M15 9h0"/><path d="M17.8 6.2 19 5"/><path d="m3 21 9-9"/><path d="M12.2 6.2 11 5"/></svg>
         <span>Varita</span>
@@ -345,7 +349,24 @@
       </button>
     </div>
 
-    <div class="subpanel" id="sub-varita">
+      <div class="subpanel" id="sub-mascara">
+    <div class="sub-top">
+      <span class="sub-title" style="color:#86efac;">Sombra Verde (1:1) · Pinta la pieza que quieres extraer</span>
+      <div style="display:flex; gap:5px;">
+        <button type="button" class="btn btn-xs btn-blue" onclick="window.pintarAutoCabeza()">Auto-Cabeza</button>
+        <button type="button" class="btn btn-green btn-xs" onclick="window.cerrarHerramienta()">Listo</button>
+      </div>
+    </div>
+    <div class="sub-row">
+      <div class="slider-grp" style="min-width:118px;"><span>Tam</span><input type="range" id="rng-mask" min="8" max="130" value="40" oninput="document.getElementById('val-mask').textContent=this.value+'px'"><b id="val-mask">40px</b></div>
+      <button type="button" class="btn btn-xs btn-blue" id="btn-modo-mask" onclick="window.toggleModoMascara()">Pintar</button>
+      <button type="button" class="btn btn-xs btn-green" onclick="window.aplicarMascaraVerde(true)">Extraer (1:1)</button>
+      <button type="button" class="btn btn-xs btn-danger" onclick="window.aplicarMascaraVerde(false)">Borrar Sombra</button>
+      <button type="button" class="btn btn-xs" onclick="window.limpiarMascaraVerde()">Limpiar</button>
+    </div>
+  </div>
+
+  <div class="subpanel" id="sub-varita">
       <div class="sub-top">
         <span class="sub-title">Varita Mágica · Toca el fondo en la imagen</span>
         <div style="display:flex; gap:5px; align-items:center;">
@@ -573,6 +594,11 @@ let dibujandoBorrador = false;
 let cropRect = null;
 let cropStart = null;
 let formaZona = 'rect';
+let cvMask = null;
+let ctxMask = null;
+let dibujandoMascara = false;
+let ultimoPtMascara = null;
+let modoMascara = 'pintar';
 let colorBaseImageData = null;
 
 let cvStage = null, ctxStage = null;
@@ -923,10 +949,11 @@ window.abrirHerramienta = function(id) {
   const sub = document.getElementById('sub-' + id);
   if (sub) sub.classList.add('activo');
 
-  if (id === 'varita' || id === 'borrador' || id === 'recorte') {
+    if (id === 'varita' || id === 'borrador' || id === 'recorte' || id === 'mascara') {
     modoClean = id;
     cropRect = null;
     if (id === 'recorte') renderizarCleanOverlay();
+    if (id === 'mascara') { asegurarCanvasMascara(); renderizarMaskOverlay(); }
   }
   if (id === 'color') {
     colorBaseImageData = ctxClean.getImageData(0, 0, cvClean.width, cvClean.height);
@@ -946,8 +973,10 @@ window.cerrarHerramienta = function() {
     ctxClean.putImageData(colorBaseImageData, 0, 0);
     colorBaseImageData = null;
   }
-  herramientaAbierta = null;
+    herramientaAbierta = null;
   cropRect = null;
+  dibujandoMascara = false;
+  ultimoPtMascara = null;
   document.querySelectorAll('.subpanel').forEach(function(el) { el.classList.remove('activo'); });
   document.getElementById('strip-clean').classList.toggle('hidden', pasoActual !== 2);
   document.getElementById('strip-stage').classList.toggle('hidden', pasoActual !== 3);
@@ -1049,10 +1078,14 @@ function cargarDataUrlEnClean(dataUrl, abrirSelectorAlCargar) {
     historialClean = [ctxClean.getImageData(0, 0, w, h)];
     document.getElementById('box-empty-upload').classList.add('hidden');
     document.getElementById('btn-descartar-mini').classList.remove('hidden');
-    window.irAPaso(2);
+        window.irAPaso(2);
+    if (cvMask) { cvMask.width = cvClean.width; cvMask.height = cvClean.height; }
     guardarBorradorEnDisco(true);
     if (abrirSelectorAlCargar) {
       window.abrirSelectorFormato();
+    } else if (modoCalco1a1 && presetActual.esPersonaje && presetActual.id !== 'per_ref') {
+      window.abrirHerramienta('mascara');
+      if (presetActual.id === 'per_cabeza') toast('Pulsa Auto-Cabeza o pinta con Sombra Verde y luego Extraer (1:1).', 'info');
     }
   };
   im.src = dataUrl;
@@ -1078,10 +1111,140 @@ window.deshacerLimpieza = function() {
   historialClean.pop();
   const prev = historialClean[historialClean.length - 1];
   cvClean.width = prev.width; cvClean.height = prev.height;
-  ctxClean.putImageData(prev, 0, 0);
+    ctxClean.putImageData(prev, 0, 0);
+  if (cvMask) { cvMask.width = prev.width; cvMask.height = prev.height; }
   ajustarCanvasActivos();
   actualizarBadgeDimension();
   guardarBorradorEnDisco(false);
+};
+
+function asegurarCanvasMascara() {
+  if (!cvClean || !cvClean.width) return;
+  if (!cvMask) {
+    cvMask = document.createElement('canvas');
+    ctxMask = cvMask.getContext('2d', { willReadFrequently: true });
+  }
+  if (cvMask.width !== cvClean.width || cvMask.height !== cvClean.height) {
+    cvMask.width = cvClean.width;
+    cvMask.height = cvClean.height;
+    ctxMask.clearRect(0, 0, cvMask.width, cvMask.height);
+  }
+}
+
+function renderizarMaskOverlay() {
+  restaurarUltimaCopiaCleanOverlay();
+  if (!cvMask || !cvClean || !cvClean.width) return;
+  ctxClean.save();
+  ctxClean.globalAlpha = 0.46;
+  ctxClean.drawImage(cvMask, 0, 0);
+  ctxClean.restore();
+}
+
+function pintarTrazoMascara(p0, p1) {
+  asegurarCanvasMascara();
+  if (!ctxMask) return;
+  const r = Number(document.getElementById('rng-mask').value) || 40;
+  ctxMask.save();
+  ctxMask.globalCompositeOperation = modoMascara === 'borrar' ? 'destination-out' : 'source-over';
+  ctxMask.strokeStyle = '#22c55e';
+  ctxMask.fillStyle = '#22c55e';
+  ctxMask.lineWidth = r * 2;
+  ctxMask.lineCap = 'round';
+  ctxMask.lineJoin = 'round';
+  ctxMask.beginPath();
+  ctxMask.moveTo(p0.x, p0.y);
+  ctxMask.lineTo(p1.x, p1.y);
+  ctxMask.stroke();
+  ctxMask.beginPath();
+  ctxMask.arc(p1.x, p1.y, r, 0, Math.PI * 2);
+  ctxMask.fill();
+  ctxMask.restore();
+  renderizarMaskOverlay();
+}
+
+window.toggleModoMascara = function() {
+  modoMascara = modoMascara === 'pintar' ? 'borrar' : 'pintar';
+  const b = document.getElementById('btn-modo-mask');
+  if (b) {
+    b.textContent = modoMascara === 'pintar' ? 'Pintar' : 'Despintar';
+    b.className = 'btn btn-xs ' + (modoMascara === 'pintar' ? 'btn-blue' : 'btn-danger');
+  }
+};
+
+window.limpiarMascaraVerde = function() {
+  asegurarCanvasMascara();
+  if (ctxMask) ctxMask.clearRect(0, 0, cvMask.width, cvMask.height);
+  renderizarMaskOverlay();
+  toast('Sombra verde limpiada.', 'info');
+};
+
+window.pintarAutoCabeza = function() {
+  if (!historialClean.length) return;
+  asegurarCanvasMascara();
+  const base = historialClean[historialClean.length - 1];
+  const w = base.width, h = base.height, d = base.data;
+  let minX = w, minY = h, maxX = 0, maxY = 0;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (d[(y * w + x) * 4 + 3] > 20) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxY <= minY) { toast('No se detectó silueta visible.', 'info'); return; }
+  const ch = maxY - minY;
+  let yCorte = Math.round(minY + ch * 0.225);
+  if (pivotes && pivotes.cuello && pivotes.cuello.y > minY + 30 && pivotes.cuello.y < maxY) {
+    yCorte = Math.round(pivotes.cuello.y + 14);
+  } else {
+    let bestW = w, bestY = yCorte;
+    const yA = Math.round(minY + ch * 0.16), yB = Math.round(minY + ch * 0.27);
+    for (let y = yA; y <= yB; y++) {
+      let rMin = w, rMax = 0;
+      for (let x = minX; x <= maxX; x++) {
+        if (d[(y * w + x) * 4 + 3] > 20) { if (x < rMin) rMin = x; if (x > rMax) rMax = x; }
+      }
+      const span = rMax - rMin;
+      if (span > 18 && span < bestW) { bestW = span; bestY = y; }
+    }
+    yCorte = Math.min(maxY, bestY + 8);
+  }
+  let hMinX = w, hMaxX = 0;
+  for (let y = minY; y <= yCorte; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      if (d[(y * w + x) * 4 + 3] > 20) { if (x < hMinX) hMinX = x; if (x > hMaxX) hMaxX = x; }
+    }
+  }
+  ctxMask.clearRect(0, 0, w, h);
+  ctxMask.fillStyle = '#22c55e';
+  const pad = 16;
+  const rx = Math.max(0, hMinX - pad), ry = Math.max(0, minY - pad);
+  const rw = Math.min(w - rx, (hMaxX - hMinX) + pad * 2);
+  const rh = Math.min(h - ry, (yCorte - ry));
+  ctxMask.fillRect(rx, ry, rw, rh);
+  renderizarMaskOverlay();
+  toast('Cabeza sombreada. Retoca el cuello si hace falta y pulsa Extraer (1:1).', 'exito');
+};
+
+window.aplicarMascaraVerde = function(conservarPintado) {
+  asegurarCanvasMascara();
+  if (!ctxMask) return;
+  const md = ctxMask.getImageData(0, 0, cvMask.width, cvMask.height).data;
+  let hay = false;
+  for (let i = 3; i < md.length; i += 16) { if (md[i] > 10) { hay = true; break; } }
+  if (!hay) { toast('Pinta primero con la sombra verde o pulsa Auto-Cabeza.', 'info'); return; }
+  restaurarUltimaCopiaCleanOverlay();
+  ctxClean.save();
+  ctxClean.globalCompositeOperation = conservarPintado ? 'destination-in' : 'destination-out';
+  ctxClean.drawImage(cvMask, 0, 0);
+  ctxClean.restore();
+  ctxMask.clearRect(0, 0, cvMask.width, cvMask.height);
+  if (presetActual.esPersonaje && cvClean.width === presetActual.w && cvClean.height === presetActual.h) {
+    modoCalco1a1 = true;
+  }
+  pushHistorialClean();
+  toast(conservarPintado ? 'Pieza extraída 1:1. Pulsa Encuadrar → y Guardar PNG.' : 'Zona pintada borrada (1:1 intacto).', 'exito');
 };
 
 window.restaurarOriginal = function() {
@@ -1700,9 +1863,13 @@ function iniciarCanvasListeners() {
     } else if (modoClean === 'borrador') {
       dibujandoBorrador = true;
       borrarEnPunto(pt.x, pt.y);
-    } else if (modoClean === 'recorte') {
+        } else if (modoClean === 'recorte') {
       cropStart = pt;
       cropRect = { x: pt.x, y: pt.y, w: 0, h: 0 };
+    } else if (modoClean === 'mascara') {
+      dibujandoMascara = true;
+      ultimoPtMascara = pt;
+      pintarTrazoMascara(pt, pt);
     }
   });
 
@@ -1710,15 +1877,19 @@ function iniciarCanvasListeners() {
     const pt = coordEnCanvas(cvClean, e.clientX, e.clientY);
     if (modoClean === 'borrador' && dibujandoBorrador) {
       borrarEnPunto(pt.x, pt.y);
-    } else if (modoClean === 'recorte' && cropStart) {
+        } else if (modoClean === 'recorte' && cropStart) {
       cropRect = { x: cropStart.x, y: cropStart.y, w: pt.x - cropStart.x, h: pt.y - cropStart.y };
       renderizarCleanOverlay();
+    } else if (modoClean === 'mascara' && dibujandoMascara) {
+      pintarTrazoMascara(ultimoPtMascara || pt, pt);
+      ultimoPtMascara = pt;
     }
   });
 
   function finClean() {
-    if (modoClean === 'borrador' && dibujandoBorrador) { dibujandoBorrador = false; pushHistorialClean(); }
+        if (modoClean === 'borrador' && dibujandoBorrador) { dibujandoBorrador = false; pushHistorialClean(); }
     if (modoClean === 'recorte' && cropStart) { cropStart = null; renderizarCleanOverlay(); }
+    if (modoClean === 'mascara' && dibujandoMascara) { dibujandoMascara = false; ultimoPtMascara = null; }
   }
   cvClean.addEventListener('pointerup', finClean);
   cvClean.addEventListener('pointercancel', finClean);
