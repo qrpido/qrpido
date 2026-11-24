@@ -55,7 +55,99 @@ export function parsearPivotes(p) {
       res[k] = { x: def.x, y: def.y, marcado: false };
     }
   });
-  return res;
+    return res;
+}
+
+export function obtenerPerspectivaCabeza(cabezaKey) {
+  const k = String(cabezaKey || 'cabeza_base');
+  if (k === 'cabeza_frente') return 'frente';
+  if (k === 'cabeza_perfil') return 'perfil';
+  return '3_4';
+}
+
+export function parsearMoldes(p) {
+  let raw = null;
+  if (p && p.pivotes && typeof p.pivotes === 'object') raw = p.pivotes;
+  else if (p && p.pivotes_json) {
+    try { raw = JSON.parse(p.pivotes_json); } catch (e) { raw = null; }
+  }
+  const moldes = {};
+  if (raw && raw._moldes && typeof raw._moldes === 'object') {
+    Object.keys(raw._moldes).forEach(function(mk) {
+      const m = raw._moldes[mk];
+      if (m && typeof m === 'object') moldes[mk] = m;
+    });
+  }
+  const cajasLegacy = (raw && raw._cajas && typeof raw._cajas === 'object') ? raw._cajas : null;
+  if (cajasLegacy && !moldes.cabeza_base) {
+    const zBase = {};
+    ['ojos', 'boca', 'accesorio'].forEach(function(z) {
+      if (cajasLegacy[z] && cajasLegacy[z].w > 4 && cajasLegacy[z].h > 4) {
+        zBase[z] = { caja: cajasLegacy[z], puntos: [] };
+      }
+    });
+    if (Object.keys(zBase).length > 0) {
+      moldes.cabeza_base = { angulo: '3_4', zonas: zBase, calibrado: true };
+    }
+  }
+  return moldes;
+}
+
+export function calcularTransformZona(cajaSrc, cajaDst) {
+  if (!cajaSrc || !cajaDst || !(cajaSrc.w > 4) || !(cajaSrc.h > 4) || !(cajaDst.w > 4) || !(cajaDst.h > 4)) return null;
+  const cxSrc = cajaSrc.x + cajaSrc.w / 2;
+  const cySrc = cajaSrc.y + cajaSrc.h / 2;
+  const cxDst = cajaDst.x + cajaDst.w / 2;
+  const cyDst = cajaDst.y + cajaDst.h / 2;
+  const sc = Math.min(cajaDst.w / cajaSrc.w, cajaDst.h / cajaSrc.h);
+  return { cxSrc: cxSrc, cySrc: cySrc, cxDst: cxDst, cyDst: cyDst, scale: Math.max(0.45, Math.min(2.2, sc)) };
+}
+
+export function resolverPiezaPerspectiva(personaje, grupo, claveSolicitada, cabezaKey, opts) {
+  const cfg = opts || {};
+  const piezas = (personaje && personaje.piezas) || {};
+  const persp = obtenerPerspectivaCabeza(cabezaKey);
+  const pref = grupo === 'ojos' ? 'ojos_' : 'boca_';
+  const defBase = grupo === 'ojos' ? 'ojos_neutro' : 'boca_cerrada';
+  const rawStr = String(claveSolicitada || defBase);
+  const sinPref = rawStr.indexOf(pref) === 0 ? rawStr.slice(pref.length) : rawStr;
+  const exprLimpia = sinPref.replace(/^(frente|perfil)_/, '') || (grupo === 'ojos' ? 'neutro' : 'cerrada');
+  const claveExacta = persp === '3_4' ? (pref + exprLimpia) : (pref + persp + '_' + exprLimpia);
+  const claveDefaultPersp = persp === '3_4' ? defBase : (pref + persp + '_' + (grupo === 'ojos' ? 'neutro' : 'cerrada'));
+
+  if (piezas[claveExacta] && piezas[claveExacta].url) {
+    return { key: claveExacta, url: piezas[claveExacta].url, esExacta: true, perspectiva: persp, transform: null };
+  }
+  if (persp === '3_4') {
+    if (piezas[defBase] && piezas[defBase].url && !cfg.sinFallbackDefault) {
+      return { key: defBase, url: piezas[defBase].url, esExacta: true, perspectiva: persp, transform: null };
+    }
+    return { key: claveExacta, url: null, esExacta: false, perspectiva: persp, transform: null };
+  }
+  if (piezas[claveDefaultPersp] && piezas[claveDefaultPersp].url && !cfg.sinFallbackDefault) {
+    return { key: claveDefaultPersp, url: piezas[claveDefaultPersp].url, esExacta: true, perspectiva: persp, transform: null };
+  }
+
+  const moldes = parsearMoldes(personaje);
+  const zSrc = moldes.cabeza_base && moldes.cabeza_base.zonas && moldes.cabeza_base.zonas[grupo] ? moldes.cabeza_base.zonas[grupo].caja : null;
+  const zDst = moldes[cabezaKey] && moldes[cabezaKey].zonas && moldes[cabezaKey].zonas[grupo] ? moldes[cabezaKey].zonas[grupo].caja : null;
+  const tf = calcularTransformZona(zSrc, zDst);
+
+  if (cfg.soloPerspectiva) {
+    if (grupo === 'boca' && cfg.adaptarBocas && persp === 'frente' && tf) {
+      const k34 = pref + exprLimpia;
+      const u34 = (piezas[k34] && piezas[k34].url) || (piezas[defBase] && piezas[defBase].url) || null;
+      if (u34) return { key: (piezas[k34] && piezas[k34].url) ? k34 : defBase, url: u34, esExacta: false, adaptada: true, perspectiva: persp, transform: tf };
+    }
+    return { key: claveExacta, url: null, esExacta: false, perspectiva: persp, transform: null };
+  }
+
+  const kFb = pref + exprLimpia;
+  const uFb = (piezas[kFb] && piezas[kFb].url) || (piezas[defBase] && piezas[defBase].url) || null;
+  if (uFb) {
+    return { key: (piezas[kFb] && piezas[kFb].url) ? kFb : defBase, url: uFb, esExacta: false, adaptada: Boolean(tf), perspectiva: persp, transform: tf };
+  }
+  return { key: claveExacta, url: null, esExacta: false, perspectiva: persp, transform: null };
 }
 
 export async function extraerEnvolventeAudio(url, fps) {
@@ -162,10 +254,13 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
   const piezas = personaje.piezas || {};
   const piv = parsearPivotes(personaje);
 
-    const cabezaKey = cfg.cabeza || 'cabeza_base';
+      const cabezaKey = cfg.cabeza || 'cabeza_base';
   const cuerpoKey = cfg.cuerpo || 'cuerpo_base';
-  const ojosKey = cfg.ojos ? (String(cfg.ojos).indexOf('ojos_') === 0 ? cfg.ojos : ('ojos_' + cfg.ojos)) : 'ojos_neutro';
-  const bocaKey = cfg.boca ? (String(cfg.boca).indexOf('boca_') === 0 ? cfg.boca : ('boca_' + cfg.boca)) : 'boca_cerrada';
+  const moldes = parsearMoldes(personaje);
+  const resOjos = resolverPiezaPerspectiva(personaje, 'ojos', cfg.ojos, cabezaKey, { soloPerspectiva: Boolean(cfg.soloPerspectiva), sinFallbackDefault: Boolean(cfg.soloPerspectiva) });
+  const resBoca = resolverPiezaPerspectiva(personaje, 'boca', cfg.boca, cabezaKey, { soloPerspectiva: Boolean(cfg.soloPerspectiva), adaptarBocas: cfg.adaptarBocas === true, sinFallbackDefault: Boolean(cfg.soloPerspectiva) });
+  const ojosKey = resOjos.url ? resOjos.key : 'ninguno';
+  const bocaKey = resBoca.url ? resBoca.key : 'ninguno';
   const brazoDelKey = cfg.brazoDel || (cfg.propImg ? 'brazo_delantero_prop' : 'brazo_delantero_reposo');
   const brazoTrasKey = cfg.brazoTras || 'brazo_trasero_reposo';
   const manoKey = cfg.mano ? (String(cfg.mano).indexOf('mano_') === 0 ? cfg.mano : ('mano_' + cfg.mano)) : '';
@@ -183,7 +278,7 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
     'brazo_trasero_reposo', brazoTrasKey, 'brazo_tras_sup', 'brazo_tras_ant',
     'pierna_trasera', 'pierna_delantera', piernaTrasKey, piernaDelKey,
     'cuerpo_base', cuerpoKey, 'maestro_cuerpo', 'maestro_perfil',
-    'cabeza_base', cabezaKey, 'ojos_neutro', ojosKey, 'boca_cerrada', bocaKey,
+    'cabeza_base', cabezaKey, ojosKey, bocaKey,
     'brazo_delantero_reposo', brazoDelKey, 'brazo_del_sup', 'brazo_del_ant', manoKey
   ];
   const imgs = {};
@@ -194,9 +289,9 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
   }));
 
   const cuerpoImg = imgs[cuerpoKey] || imgs.cuerpo_base;
-  const cabezaImg = imgs[cabezaKey] || imgs.cabeza_base;
-  const ojosImg = imgs[ojosKey] || imgs.ojos_neutro;
-  const bocaImg = imgs[bocaKey] || imgs.boca_cerrada;
+  const cabezaImg = imgs[cabezaKey] || (cfg.soloPerspectiva ? null : imgs.cabeza_base);
+  const ojosImg = resOjos.url ? imgs[resOjos.key] : null;
+  const bocaImg = resBoca.url ? imgs[resBoca.key] : null;
   const tieneArtDel = Boolean(imgs.brazo_del_sup || imgs.brazo_del_ant);
   const tieneArtTras = Boolean(imgs.brazo_tras_sup || imgs.brazo_tras_ant);
   const tieneModulares = Boolean(
@@ -259,10 +354,23 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
       ctx.save(); ctx.globalAlpha = 0.42; drawP(imgs.maestro_cuerpo); ctx.restore();
     }
 
-    const ptCuello = piv.cuello;
+        const moldeCab = moldes[cabezaKey] || null;
+    const ptCuello = (moldeCab && moldeCab.cuello && typeof moldeCab.cuello.x === 'number') ? moldeCab.cuello : piv.cuello;
+    const drawRFacial = function(im, tf) {
+      if (!im) return;
+      if (!tf) { drawR(im, ptCuello, rotCab); return; }
+      ctx.save();
+      ctx.translate(ptCuello.x, ptCuello.y);
+      ctx.rotate((rotCab * Math.PI) / 180);
+      ctx.translate(tf.cxDst - ptCuello.x, tf.cyDst - ptCuello.y);
+      ctx.scale(tf.scale, tf.scale);
+      ctx.drawImage(im, -tf.cxSrc, -tf.cySrc, 1000, 1600);
+      ctx.restore();
+      capasDibujadas++;
+    };
     drawR(cabezaImg, ptCuello, rotCab);
-    drawR(ojosImg, ptCuello, rotCab);
-    drawR(bocaImg, ptCuello, rotCab);
+    drawRFacial(ojosImg, resOjos.transform);
+    drawRFacial(bocaImg, resBoca.transform);
 
     const ptHombro = piv.hombro_delantero;
     const ptCodo = piv.codo_delantero;
@@ -325,12 +433,34 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
     ctx.setLineDash([14, 10]);
     ctx.beginPath(); ctx.moveTo(0, 1480); ctx.lineTo(1000, 1480); ctx.stroke();
     ctx.setLineDash([]);
-    Object.keys(piv).forEach(function(k) {
+        Object.keys(piv).forEach(function(k) {
       if (!piv[k].marcado) return;
       ctx.fillStyle = '#f43f5e';
       ctx.beginPath(); ctx.arc(piv[k].x, piv[k].y, 10, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
     });
+    const mCabG = moldes[cabezaKey];
+    if (mCabG && mCabG.zonas) {
+      Object.keys(mCabG.zonas).forEach(function(zk) {
+        const z = mCabG.zonas[zk];
+        if (!z) return;
+        if (z.caja && z.caja.w > 4 && z.caja.h > 4) {
+          ctx.strokeStyle = zk === 'ojos' ? 'rgba(56,189,248,0.85)' : (zk === 'boca' ? 'rgba(250,204,21,0.85)' : 'rgba(192,132,252,0.85)');
+          ctx.lineWidth = 3; ctx.setLineDash([8, 6]);
+          ctx.strokeRect(z.caja.x, z.caja.y, z.caja.w, z.caja.h);
+          ctx.setLineDash([]);
+        }
+        if (Array.isArray(z.puntos)) {
+          ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 3;
+          z.puntos.forEach(function(pt) {
+            ctx.beginPath();
+            ctx.moveTo(pt.x - 8, pt.y - 8); ctx.lineTo(pt.x + 8, pt.y + 8);
+            ctx.moveTo(pt.x + 8, pt.y - 8); ctx.lineTo(pt.x - 8, pt.y + 8);
+            ctx.stroke();
+          });
+        }
+      });
+    }
     ctx.restore();
   }
 
