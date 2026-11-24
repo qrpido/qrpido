@@ -2542,15 +2542,40 @@ function limpiarProvIA(raw) {
   if (s.length < 2 || s.length > 40) throw new HttpsError('invalid-argument', 'ID de proveedor IA invalido.');
   return s;
 }
-function validarUrlIA(urlStr) {
+const HOSTS_IA_OFICIALES = {
+  gemini: ['generativelanguage.googleapis.com'],
+  openai: ['api.openai.com'],
+  deepseek: ['api.deepseek.com'],
+  openrouter: ['openrouter.ai'],
+  groq: ['api.groq.com'],
+  xai: ['api.x.ai'],
+  elevenlabs: ['api.elevenlabs.io']
+};
+const MODELOS_CREDITOS_PERMITIDOS = {
+  gemini: { texto: ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'], imagen: ['gemini-2.5-flash-image'], audio: ['gemini-2.5-flash-preview-tts'] },
+  openai: { texto: ['gpt-4o-mini', 'gpt-4.1-mini', 'gpt-4.1-nano'], imagen: ['gpt-image-1', 'gpt-image-1-mini'], audio: ['tts-1', 'gpt-4o-mini-tts'] },
+  elevenlabs: { audio: ['eleven_multilingual_v2', 'eleven_flash_v2_5', 'eleven_turbo_v2_5'] }
+};
+function validarUrlIA(urlStr, hostsPermitidos) {
   const u = String(urlStr || '').trim().replace(/\/+$/, '');
   if (!u) return '';
   let p; try { p = new URL(u); } catch (e) { throw new HttpsError('invalid-argument', 'URL base invalida.'); }
   const h = p.hostname.toLowerCase();
-  if (p.protocol !== 'https:' || !h || h === 'localhost' || h.endsWith('.local') || h.endsWith('.internal') || /^\d+\.\d+\.\d+\.\d+$/.test(h) || h.indexOf(':') !== -1) {
+  if (p.protocol !== 'https:' || p.username || p.password || p.port || !h || h === 'localhost' || h.endsWith('.local') || h.endsWith('.internal') || h.endsWith('.localhost') || h.indexOf('metadata.google') !== -1 || /^\d+\.\d+\.\d+\.\d+$/.test(h) || h.indexOf(':') !== -1) {
     throw new HttpsError('invalid-argument', 'Endpoint HTTPS no permitido por seguridad.');
   }
+  if (Array.isArray(hostsPermitidos) && hostsPermitidos.length > 0 && hostsPermitidos.indexOf(h) === -1) {
+    throw new HttpsError('permission-denied', 'Host de proveedor IA no autorizado: ' + h);
+  }
   return u;
+}
+function resolverModeloSeguroCreditos(pid, acc, modSol, cfg) {
+  const defMod = String((acc === 'imagen' ? (cfg.modeloImagen || cfg.modelo) : cfg.modelo) || (PRESETS_IA[pid] && (acc === 'imagen' ? PRESETS_IA[pid].modeloImagen : PRESETS_IA[pid].modelo)) || '').trim();
+  const sol = String(modSol || '').trim();
+  if (!sol || sol === defMod) return defMod;
+  const lista = (MODELOS_CREDITOS_PERMITIDOS[pid] && MODELOS_CREDITOS_PERMITIDOS[pid][acc]) || [];
+  if (lista.indexOf(sol) !== -1) return sol;
+  return defMod || lista[0] || sol;
 }
 function llaveIA(sec, aad) { return crypto.createHmac('sha256', String(sec)).update('PIRO_IA_VAULT_V1:' + String(aad)).digest(); }
 function cifrarIA(txt, sec, aad) {
@@ -2595,7 +2620,8 @@ exports.guardarApiKeyCliente = onCall({ memory: '256MB', maxInstances: 20, secre
   const pre = PRESETS_IA[pid] || {};
   const pRaw = String(d.protocolo || pre.protocolo || 'openai_compat').trim();
   const prot = ['google_gemini', 'openai_compat', 'audio_tts'].indexOf(pRaw) !== -1 ? pRaw : 'openai_compat';
-  const baseUrl = validarUrlIA(d.baseUrl || pre.baseUrl || '');
+    if (esMaes && !HOSTS_IA_OFICIALES[pid]) throw new HttpsError('invalid-argument', 'Solo se permiten proveedores oficiales en Boveda Maestra.');
+  const baseUrl = validarUrlIA(esMaes ? (pre.baseUrl || '') : (d.baseUrl || pre.baseUrl || ''), HOSTS_IA_OFICIALES[pid] || null);
   if (prot === 'openai_compat' && !baseUrl) throw new HttpsError('invalid-argument', 'Falta URL Base HTTPS del proveedor.');
   const nombre = String(d.nombre || pre.nombre || pid).trim().slice(0, 60);
   const modelo = String(d.modelo !== undefined ? d.modelo : (pre.modelo || '')).trim().slice(0, 120);
@@ -2654,10 +2680,10 @@ exports.recargarCreditosAdmin = onCall({ memory: '256MB', maxInstances: 10 }, as
   return { success: true, uidDestino: uidDest, creditos: cred, saldo_creditos: nuevo };
 });
 
-async function llamarProveedorIA(prot, key, baseUrl, mod, acc, p) {
+async function llamarProveedorIA(prot, key, baseUrl, mod, acc, p, hostsPermitidos) {
   p = p || {};
   if (prot === 'google_gemini') {
-    const base = baseUrl || 'https://generativelanguage.googleapis.com/v1beta';
+    const base = validarUrlIA(baseUrl || 'https://generativelanguage.googleapis.com/v1beta', ['generativelanguage.googleapis.com']);
         if (acc === 'listar_voces') return { ok: true, items: VOCES_GEMINI_CAT, mensaje: 'Gemini TTS OK (' + VOCES_GEMINI_CAT.length + ' voces).' };
     if (acc === 'audio') {
       const mTts = String(mod && mod.indexOf('tts') >= 0 ? mod : 'gemini-2.5-flash-preview-tts').trim();
@@ -2705,8 +2731,8 @@ async function llamarProveedorIA(prot, key, baseUrl, mod, acc, p) {
     }
     return { texto: pts.map(function(x) { return x.text || ''; }).join(''), usage: j.usageMetadata || null };
   }
-  if (prot === 'openai_compat') {
-    const base = validarUrlIA(baseUrl || 'https://api.openai.com/v1'), hdr = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key };
+    if (prot === 'openai_compat') {
+    const base = validarUrlIA(baseUrl || 'https://api.openai.com/v1', hostsPermitidos || null), hdr = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key };
         if (acc === 'listar_voces') {
       const vs = ['alloy', 'ash', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer'].map(function(v) { return { id: v, nombre: v }; });
       return { ok: true, items: vs, mensaje: 'Voces OpenAI/Compat (' + vs.length + ').' };
@@ -2730,7 +2756,7 @@ async function llamarProveedorIA(prot, key, baseUrl, mod, acc, p) {
       if (!r.ok) throw new Error('Imagen HTTP ' + r.status + ': ' + (await r.text()).slice(0, 220));
       const d0 = ((await r.json()).data || [])[0];
       if (d0 && d0.b64_json) return { b64: d0.b64_json, mime: 'image/png' };
-      if (d0 && d0.url) { const rf = await fetch(d0.url); return { b64: Buffer.from(await rf.arrayBuffer()).toString('base64'), mime: rf.headers.get('content-type') || 'image/png' }; }
+            if (d0 && d0.url) { const uImg = validarUrlIA(d0.url); const rf = await fetch(uImg); if (!rf.ok) throw new Error('Descarga imagen HTTP ' + rf.status); return { b64: Buffer.from(await rf.arrayBuffer()).toString('base64'), mime: rf.headers.get('content-type') || 'image/png' }; }
       throw new Error('Sin imagen en respuesta.');
     }
     const bc = { model: String(mod || 'gpt-4o-mini').trim(), messages: Array.isArray(p.messages) ? p.messages : [{ role: 'user', content: String(p.prompt || '') }] };
@@ -2742,8 +2768,8 @@ async function llamarProveedorIA(prot, key, baseUrl, mod, acc, p) {
     const j = await r.json();
     return { texto: (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '', usage: j.usage || null };
   }
-  if (prot === 'audio_tts') {
-    const base = validarUrlIA(baseUrl || 'https://api.elevenlabs.io/v1');
+    if (prot === 'audio_tts') {
+    const base = validarUrlIA(baseUrl || 'https://api.elevenlabs.io/v1', ['api.elevenlabs.io']);
     if (acc === 'probar' || acc === 'listar_voces') {
       const r = await fetch(base + '/voices', { headers: { 'xi-api-key': key } });
       if (!r.ok) throw new Error('TTS HTTP ' + r.status);
@@ -2777,8 +2803,21 @@ exports.proxyIACliente = onCall({ memory: '512MB', timeoutSeconds: 180, maxInsta
   const usarCred = modo === 'creditos' ? true : (modo === 'byok' ? false : !(pCli && pCli.activa && pCli.secreto));
   const cfg = usarCred ? pMae : pCli;
   if (!cfg || !cfg.activa || !cfg.secreto) throw new HttpsError('failed-precondition', usarCred ? ('Proveedor ' + pid + ' no habilitado en Creditos Piro.') : ('Vincula tu clave API de ' + pid + ' en la Boveda primero.'));
+    if (['imagen', 'texto', 'audio', 'probar', 'listar_modelos', 'listar_voces'].indexOf(acc) === -1) {
+    throw new HttpsError('invalid-argument', 'Accion IA no soportada.');
+  }
+  const esDiagnostico = (acc === 'probar' || acc === 'listar_modelos' || acc === 'listar_voces');
+  if (usarCred && esDiagnostico && !(await esSuperAdminIA(db, uid))) {
+    throw new HttpsError('permission-denied', 'Solo Superadmin puede consultar o probar proveedores maestros.');
+  }
+  if (usarCred && !HOSTS_IA_OFICIALES[pid]) {
+    throw new HttpsError('permission-denied', 'Proveedor no autorizado para modo Creditos Piro.');
+  }
+  const tipoCobroSeguro = (acc === 'imagen' && tipoC === 'hoja_lote') ? 'hoja_lote' : acc;
   const tarifas = Object.assign({}, TARIFAS_IA_DEF, tarS.exists ? (tarS.data() || {}) : {});
-  const costo = (usarCred && acc !== 'probar' && acc !== 'listar_modelos' && acc !== 'listar_voces') ? Math.max(0, Math.round(Number(tarifas[tipoC] !== undefined ? tarifas[tipoC] : tarifas[acc]) || 0)) : 0;
+  const costoTarifa = Math.round(Number(tarifas[tipoCobroSeguro] !== undefined ? tarifas[tipoCobroSeguro] : (TARIFAS_IA_DEF[tipoCobroSeguro] || 0)) || 0);
+  const costoMin = Number(TARIFAS_IA_DEF[tipoCobroSeguro] || 0);
+  const costo = (usarCred && !esDiagnostico) ? Math.max(costoMin, costoTarifa) : 0;
   const billRef = db.collection('Billeteras_IA').doc(uid); let movRef = null, saldoRest = null;
   if (costo > 0) {
     movRef = db.collection('Movimientos_IA').doc();
@@ -2792,11 +2831,15 @@ exports.proxyIACliente = onCall({ memory: '512MB', timeoutSeconds: 180, maxInsta
     });
   }
   try {
-    const keyViva = descifrarIA(cfg.secreto, semillaMaestra.value(), usarCred ? 'MAESTRO_PLATAFORMA' : uid);
-    const modU = String(d.modelo || (acc === 'imagen' ? (cfg.modeloImagen || cfg.modelo) : cfg.modelo) || '').trim();
+        const keyViva = descifrarIA(cfg.secreto, semillaMaestra.value(), usarCred ? 'MAESTRO_PLATAFORMA' : uid);
+    const modSolicitado = String(d.modelo || (acc === 'imagen' ? (cfg.modeloImagen || cfg.modelo) : cfg.modelo) || '').trim();
+    const modU = usarCred ? resolverModeloSeguroCreditos(pid, acc, modSolicitado, cfg) : modSolicitado;
     const payU = Object.assign({}, d.payload || {});
+    if (usarCred && typeof payU.max_tokens === 'number' && payU.max_tokens > 4096) payU.max_tokens = 4096;
     if (cfg.protocolo === 'audio_tts' && !payU.voiceId && cfg.voiceId) payU.voiceId = cfg.voiceId;
-    const res = await llamarProveedorIA(cfg.protocolo, keyViva, String(d.baseUrl || cfg.baseUrl || '').trim(), modU, acc, payU);
+    const hostsPermit = HOSTS_IA_OFICIALES[pid] || null;
+    const baseUrlSegura = usarCred ? String((PRESETS_IA[pid] && PRESETS_IA[pid].baseUrl) || cfg.baseUrl || '').trim() : String(cfg.baseUrl || (PRESETS_IA[pid] && PRESETS_IA[pid].baseUrl) || '').trim();
+    const res = await llamarProveedorIA(cfg.protocolo, keyViva, baseUrlSegura, modU, acc, payU, hostsPermit);
     if (movRef) await movRef.update({ estado: 'completado', modelo: modU, finalizado_en: admin.firestore.FieldValue.serverTimestamp() });
     return Object.assign({ success: true, proveedorId: pid, modoUsado: usarCred ? 'creditos' : 'byok', creditosCobrados: costo, saldoRestante: saldoRest }, res);
   } catch (errIA) {
