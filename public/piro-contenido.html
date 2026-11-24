@@ -422,7 +422,7 @@
 
 <script type="module">
 import GeokatuDB from './core-db.js';
-import { dibujarMarionetaPiro, cargarImagenPiro } from './piro-compositor.js';
+import { dibujarMarionetaPiro, cargarImagenPiro, parsearMoldes, obtenerPerspectivaCabeza, resolverPiezaPerspectiva } from './piro-compositor.js';
 
 const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
 function normalizarDocBibId(id, proyId) {
@@ -509,6 +509,7 @@ let subGuionPanel = 'resumen'; // resumen | escenas
 let swToolActiva = null; // null | ojos | bocas | brazo | prop | rotar
 let tipoPromptVista = 'cuerpo_completo';
 let filtroPropsCat = 'todos';
+let perspCarrusel = '3_4';
 let sandwichCfg = { cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', ojos: 'ojos_neutro', boca: 'boca_cerrada', brazoDel: 'brazo_delantero_reposo', brazoTras: 'brazo_trasero_reposo', mano: '', rotCab: 0, rotBrazo: 0, rotAntebrazo: 0, rotMano: 0, rotBrazoTras: 0, bg: 'checker', piernas: true, prop: '' };
 let slotUploadPendiente = null;
 let tipoModalCrear = null;
@@ -716,6 +717,97 @@ function guardarBiblioteca(inmediato) {
 // =========================================================================
 // MOTOR DE PROMPTS UNIFICADO + CAPACIDADES
 // =========================================================================
+function obtenerPerspectivaSlot(slotKey) {
+  const k = String(slotKey || '');
+  if (k.indexOf('_frente_') >= 0 || k === 'cabeza_frente') return 'frente';
+  if (k.indexOf('_perfil_') >= 0 || k === 'cabeza_perfil') return 'perfil';
+  return '3_4';
+}
+function obtenerMoldeClaveParaSlot(slotKey, perspOverride) {
+  const k = String(slotKey || '');
+  if (k.indexOf('mano_') === 0) return 'cuerpo_base';
+  const p = perspOverride || obtenerPerspectivaSlot(k);
+  return p === 'frente' ? 'cabeza_frente' : (p === 'perfil' ? 'cabeza_perfil' : 'cabeza_base');
+}
+function claveBaseDeSlot(slotKey) {
+  return String(slotKey || '').replace(/^(ojos|boca)_(frente|perfil)_/, '$1_');
+}
+function construirSpecPerspectiva(baseSpec, persp) {
+  if (!baseSpec || !persp || persp === '3_4') return baseSpec;
+  const pref = baseSpec.key.indexOf('ojos_') === 0 ? 'ojos_' : (baseSpec.key.indexOf('boca_') === 0 ? 'boca_' : '');
+  if (!pref) return baseSpec;
+  const suf = baseSpec.key.slice(pref.length), tag = persp === 'frente' ? 'Frente' : 'Perfil';
+  return Object.assign({}, baseSpec, { key: pref + persp + '_' + suf, archivo: persp + '_' + baseSpec.archivo, titulo: baseSpec.titulo + ' (' + tag + ')', perspectiva: persp, moldeKey: persp === 'frente' ? 'cabeza_frente' : 'cabeza_perfil' });
+}
+function buscarSpecSlot(p, slotKey, esVariante) {
+  if (esVariante) return ((p && p.variantes) || []).find(function(v) { return v.id === slotKey; }) || null;
+  const d = SLOTS_BASICOS_PERSONAJE.find(function(s) { return s.key === slotKey; });
+  if (d) return d;
+  const m = String(slotKey || '').match(/^(ojos|boca)_(frente|perfil)_(.+)$/);
+  if (m) { const b = SLOTS_BASICOS_PERSONAJE.find(function(s) { return s.key === (m[1] + '_' + m[3]); }); if (b) return construirSpecPerspectiva(b, m[2]); }
+  return null;
+}
+function construirReglasMoldeIA(p, tipo, zonaOverride, perspOverride) {
+  const persp = perspOverride || obtenerPerspectivaSlot(tipo);
+  const zn = zonaOverride || (String(tipo || '').indexOf('ojos') === 0 ? 'ojos' : (String(tipo || '').indexOf('boca') === 0 ? 'boca' : 'mano'));
+  const mk = obtenerMoldeClaveParaSlot(tipo, persp);
+  const moldes = parsearMoldes(p), mObj = moldes[mk] || null;
+  const zObj = (mObj && mObj.zonas && mObj.zonas[zn]) ? mObj.zonas[zn] : null;
+  const piv = parsearPivotesPersonaje(p) || {};
+  const caja = (zObj && zObj.caja && zObj.caja.w > 4 && zObj.caja.h > 4) ? zObj.caja : ((mk === 'cabeza_base' || mk === 'cuerpo_base') && piv._cajas && piv._cajas[zn] ? piv._cajas[zn] : null);
+  const pts = (zObj && Array.isArray(zObj.puntos)) ? zObj.puntos : [], nX = pts.length;
+  const angDesc = persp === 'frente' ? 'STRAIGHT SYMMETRICAL FRONT VIEW facing directly at the camera' : (persp === 'perfil' ? 'STRICT 90-DEGREE SIDE PROFILE facing RIGHT' : 'three-quarter perspective facing RIGHT');
+  let conteoTxt = '';
+  if (zn === 'ojos') {
+    const nO = nX > 0 ? nX : (persp === 'perfil' ? 1 : 2);
+    conteoTxt = nO === 1 ? 'EXACTLY 1 EYE + 1 EYEBROW (2 elements total)' : (nO === 2 ? 'EXACTLY 2 EYES + 2 EYEBROWS (4 elements total, left and right)' : ('EXACTLY ' + nO + ' EYES + ' + nO + ' EYEBROWS (' + (nO * 2) + ' elements arranged across calibrated eye zone)'));
+  } else if (zn === 'boca') {
+    const nB = nX > 1 ? nX : 1;
+    conteoTxt = nB === 1 ? 'EXACTLY 1 ISOLATED MOUTH SHAPE ONLY' : ('EXACTLY ' + nB + ' ISOLATED MOUTHS matching calibrated anchors');
+  }
+  const propTxt = (caja && caja.w > 8 && caja.h > 6) ? (' Target aspect ratio approx ' + (caja.w / caja.h).toFixed(2) + ':1 (width:height).') : '';
+  return { moldeKey: mk, persp: persp, zonaKey: zn, angDesc: angDesc, caja: caja, puntos: pts, nX: nX, conteoTxt: conteoTxt, propTxt: propTxt, calibrado: Boolean(mObj && (mObj.calibrado || caja)) };
+}
+function badgeCalibracionMolde(personaje, key) {
+  if (['cabeza_base', 'cabeza_frente', 'cabeza_perfil', 'cuerpo_base', 'cuerpo_sentado'].indexOf(key) < 0) return '';
+  const mC = parsearMoldes(personaje)[key];
+  const ok = Boolean(mC && (mC.calibrado || (mC.zonas && Object.keys(mC.zonas).some(function(z){ return Boolean(mC.zonas[z] && mC.zonas[z].caja); }))));
+  return ok ? '<span class="slot-tag-ok" style="top:26px; background:rgba(56,189,248,0.88); color:#082f49;">Calibrado OK</span>' : '<span class="slot-tag-ok" style="top:26px; background:rgba(245,158,11,0.9); color:#451a03;">Falta Calibrar</span>';
+}
+function renderBarraPerspectivaFacial(p) {
+  if (subTabPersonaje !== 'ojos' && subTabPersonaje !== 'bocas') return '';
+  const mkP = perspCarrusel === 'frente' ? 'cabeza_frente' : (perspCarrusel === 'perfil' ? 'cabeza_perfil' : 'cabeza_base');
+  const regM = construirReglasMoldeIA(p, subTabPersonaje === 'ojos' ? 'ojos_neutro' : 'boca_cerrada', subTabPersonaje === 'ojos' ? 'ojos' : 'boca', perspCarrusel);
+  const tieneCab = Boolean(p.piezas && p.piezas[mkP] && p.piezas[mkP].url);
+  const estCal = !tieneCab ? '<span style="color:#fca5a5;">Falta ' + mkP + '</span>' : (regM.calibrado ? ('<span style="color:#86efac;">Molde OK (' + regM.nX + ' X)</span>') : '<span style="color:#fcd34d;">Sin calibrar</span>');
+  const mkBtnP = function(pv, lbl) {
+    const okCnt = SLOTS_BASICOS_PERSONAJE.filter(function(s) { return s.grupo === subTabPersonaje; }).filter(function(s) { const sp = construirSpecPerspectiva(s, pv); return Boolean(p.piezas[sp.key] && p.piezas[sp.key].url); }).length;
+    return '<button type="button" class="btn btn-xs ' + (perspCarrusel === pv ? 'btn-primary' : '') + '" onclick="window.setPerspCarrusel(\'' + pv + '\')">' + lbl + ' ' + okCnt + '/10</button>';
+  };
+  return '<div style="height:36px; flex-shrink:0; padding:0 8px; display:flex; align-items:center; justify-content:space-between; gap:5px; border-bottom:1px solid var(--border); background:rgba(10,14,22,0.96);"><div style="display:flex; gap:4px; overflow-x:auto;">' + mkBtnP('3_4', '3/4') + mkBtnP('frente', 'Frente') + mkBtnP('perfil', 'Perfil') + '</div><div style="font-size:10px; font-weight:800; white-space:nowrap;">' + estCal + '</div></div>';
+}
+function construirDockFacialSandwich(p, tool) {
+  const esO = tool === 'ojos', cmp = esO ? 'ojos' : 'boca', pref = esO ? 'ojos_' : 'boca_';
+  const perspSw = obtenerPerspectivaCabeza(sandwichCfg.cabeza);
+  const lblP = perspSw === 'frente' ? 'FRENTE' : (perspSw === 'perfil' ? 'PERFIL' : '3/4');
+  const slotsSw = SLOTS_BASICOS_PERSONAJE.filter(function(s){ return s.grupo === tool; }).map(function(s){ return construirSpecPerspectiva(s, perspSw); });
+  const okCntSw = slotsSw.filter(function(s){ return Boolean(p.piezas[s.key] && p.piezas[s.key].url); }).length;
+  const btnCrear = okCntSw < 10 ? ('<button type="button" class="btn btn-xs btn-purple" onclick="window.irACrearPerspectiva(\'' + tool + '\',\'' + perspSw + '\')">+ Crear ' + lblP + '</button>') : '';
+  const btnAdap = (!esO && perspSw === 'frente') ? ('<button type="button" class="btn btn-xs ' + (sandwichCfg.adaptarBocas ? 'btn-green' : '') + '" onclick="window.actualizarSandwich(\'adaptarBocas\',' + (!sandwichCfg.adaptarBocas) + ')">Auto 3/4: ' + (sandwichCfg.adaptarBocas ? 'ON' : 'OFF') + '</button>') : '';
+  const btns = slotsSw.map(function(s){ const ok = Boolean(p.piezas[s.key] && p.piezas[s.key].url), bKey = claveBaseDeSlot(s.key), sel = (claveBaseDeSlot(sandwichCfg[cmp]) === bKey); return '<button type="button" class="btn btn-xs ' + (sel ? 'btn-primary' : (ok ? 'btn-blue' : '')) + '" style="' + (ok ? '' : 'opacity:0.52;') + '" onclick="window.actualizarSandwich(\'' + cmp + '\',\'' + s.key + '\')">' + bKey.replace(pref, '') + (ok ? ' OK' : ' · falta') + '</button>'; }).join('');
+  return { titulo: (esO ? 'Ojos ' : 'Bocas ') + lblP + ' (' + okCntSw + '/10)', row: btnCrear + btnAdap + btns };
+}
+function textoEstadoSandwich(p, n) {
+  if (!(n > 0)) return 'Sube piezas en Base/Ojos/Bocas';
+  const perspSw = obtenerPerspectivaCabeza(sandwichCfg.cabeza);
+  const lblP = perspSw === 'frente' ? 'Frente' : (perspSw === 'perfil' ? 'Perfil' : '3/4');
+  const rO = resolverPiezaPerspectiva(p, 'ojos', sandwichCfg.ojos, sandwichCfg.cabeza, { soloPerspectiva: true, sinFallbackDefault: true });
+  const rB = resolverPiezaPerspectiva(p, 'boca', sandwichCfg.boca, sandwichCfg.cabeza, { soloPerspectiva: true, adaptarBocas: Boolean(sandwichCfg.adaptarBocas), sinFallbackDefault: true });
+  const falt = []; if (!rO.url) falt.push('ojos'); if (!rB.url) falt.push('boca');
+  return lblP + ' · Capas: ' + n + (falt.length ? (' · Falta ' + falt.join('/')) : ' · OK');
+}
+window.setPerspCarrusel = function(pv) { perspCarrusel = pv || '3_4'; renderizarVistaPersonajes(); };
+window.irACrearPerspectiva = function(tab, pv) { perspCarrusel = pv || '3_4'; subTabPersonaje = tab; swToolActiva = null; renderizarTodo(); };
 function tipoROIParaSlot(tipo, specObj) {
   const k = String(tipo || '');
   if (k === 'cabeza_base' || k === 'cabeza_frente' || k === 'cabeza_perfil') return 'cabeza';
@@ -775,8 +867,9 @@ if (tipo === 'brazos_cruzados' || tipo === 'manos_cintura') {
       ojos_reojo: 'eyes with pupils shifted sharply to the far corner and tense flat eyebrows',
       ojos_cansado: 'half-closed droopy eyelids with subtle dark tired under-eye crease lines and low eyebrows'
     };
-    const emoDesc = mapaOjos[tipo] || tipo.replace('ojos_', '');
-    return 'STRICT 2D PUPPET EYE LAYER — EXACTLY 4 ELEMENTS ONLY (left eye, right eye, left eyebrow, right eyebrow) floating on pure flat chroma green (#00FF00). ZERO mouth, ZERO smile, ZERO lips, ZERO nose, ZERO head, ZERO fur, ZERO hair, ZERO beard, ZERO ears. Keep exact three-quarter perspective facing RIGHT and match the exact eye shape, pupil style, and crisp solid #000000 ink line weight from the attached character reference (' + baseStyle + '). Draw ONLY the pair of eyes and eyebrows with: ' + emoDesc + '. Pure solid #FFFFFF sclera, flat dark irises/pupils, flat 2D cel-shading, zero gradients, zero green tint.';
+        const kBaseO = claveBaseDeSlot(tipo), regO = construirReglasMoldeIA(p, tipo, 'ojos');
+    const emoDesc = mapaOjos[kBaseO] || kBaseO.replace('ojos_', '');
+    return 'STRICT 2D PUPPET EYE LAYER — ' + regO.conteoTxt + ' floating on pure flat chroma green (#00FF00). ZERO mouth, ZERO smile, ZERO lips, ZERO nose, ZERO head, ZERO fur, ZERO hair, ZERO beard, ZERO ears. Angle: ' + regO.angDesc + '.' + regO.propTxt + ' Match the exact eye shape, pupil style, and crisp solid #000000 ink line weight from the attached character reference (' + baseStyle + '). Draw ONLY the eyes and eyebrows with: ' + emoDesc + '. Pure solid #FFFFFF sclera, flat dark irises/pupils, flat 2D cel-shading, zero gradients, zero green tint.';
   }
   if (tipo.indexOf('boca') === 0) {
     const mapaBocas = {
@@ -791,8 +884,9 @@ if (tipo === 'brazos_cruzados' || tipo === 'manos_cintura') {
       boca_triste: 'downward-curved melancholic closed frown line',
       boca_grito: 'wide dramatic shouting open mouth showing teeth and tongue'
     };
-    const mocDesc = mapaBocas[tipo] || tipo.replace('boca_', '');
-    return 'STRICT 2D PUPPET MOUTH LAYER — EXACTLY 1 ISOLATED MOUTH SHAPE ONLY floating on pure flat chroma green (#00FF00). ZERO eyes, ZERO eyebrows, ZERO nose, ZERO head, ZERO fur, ZERO beard, ZERO ears. Match exact three-quarter angle facing RIGHT and crisp #000000 ink line weight from the attached character reference (' + baseStyle + '). Draw ONLY this single mouth shape: ' + mocDesc + '. Flat 2D cel-shading, zero gradients, zero green tint.';
+        const kBaseB = claveBaseDeSlot(tipo), regB = construirReglasMoldeIA(p, tipo, 'boca');
+    const mocDesc = mapaBocas[kBaseB] || kBaseB.replace('boca_', '');
+    return 'STRICT 2D PUPPET MOUTH LAYER — ' + regB.conteoTxt + ' floating on pure flat chroma green (#00FF00). ZERO eyes, ZERO eyebrows, ZERO nose, ZERO head, ZERO fur, ZERO beard, ZERO ears. Angle: ' + regB.angDesc + '.' + regB.propTxt + ' Match crisp #000000 ink line weight from the attached character reference (' + baseStyle + '). Draw ONLY this mouth shape: ' + mocDesc + '. Flat 2D cel-shading, zero gradients, zero green tint.';
   }
   if (tipo.indexOf('brazo') === 0 || tipo.indexOf('pierna') === 0) {
   const ml = { brazo_del_sup: 'FRONT UPPER ARM segment ONLY (rounded shoulder to elbow cap, NO forearm/hand)', brazo_del_ant: 'FRONT FOREARM segment ONLY (rounded elbow to wrist cuff, NO upper arm/hand)', brazo_tras_sup: 'BACK UPPER ARM segment ONLY (shoulder to elbow cap)', brazo_tras_ant: 'BACK FOREARM segment ONLY (elbow to wrist)', brazo_delantero_senalando: 'complete FRONT ARM raised forward gesturing/pointing' };
@@ -811,11 +905,12 @@ function obtenerRefParaPrompt(p, tipo, baseOverride) {
   const pz = (p && p.piezas) ? p.piezas : {};
   const urlManiqui = (pz.maestro_cuerpo && pz.maestro_cuerpo.url) || null;
   const urlLook = (pz.maestro_perfil && pz.maestro_perfil.url) || null;
-  const urlCabeza = (pz.cabeza_base && pz.cabeza_base.url) || null;
+  const mkCabRef = obtenerMoldeClaveParaSlot(tipo);
+  const urlCabeza = (pz[mkCabRef] && pz[mkCabRef].url) || (pz.cabeza_base && pz.cabeza_base.url) || null;
 
   if ((String(tipo || '').indexOf('ojos') === 0 || String(tipo || '').indexOf('boca') === 0) && urlCabeza) {
     return {
-            label: 'Cabeza Sin Rostro 1:1 (anclaje matemático 1024px)',
+            label: mkCabRef === 'cabeza_frente' ? 'Cabeza Frente Sin Rostro 1:1 (molde frontal)' : (mkCabRef === 'cabeza_perfil' ? 'Cabeza Perfil Sin Rostro 1:1 (molde perfil)' : 'Cabeza Sin Rostro 1:1 (anclaje matemático 1024px)'),
       url: urlCabeza,
       archivo: (p.id || 'per') + '_cabeza_base.png'
     };
@@ -1168,11 +1263,11 @@ function renderizarVistaPersonajes() {
     }
   } else {
     const slotsGrupo = SLOTS_BASICOS_PERSONAJE.filter(function(s) { return s.grupo === subTabPersonaje; });
-    slidesHtml = slotsGrupo.map(function(s) { return construirSlideSlot(p, s, p.piezas[s.key] || null); }).join('');
+    slidesHtml = slotsGrupo.map(function(s) { const sp = (subTabPersonaje === 'ojos' || subTabPersonaje === 'bocas') ? construirSpecPerspectiva(s, perspCarrusel) : s; return construirSlideSlot(p, sp, p.piezas[sp.key] || null); }).join('');
   }
 
   ws.innerHTML =
-    '<div class="carousel-stage">' + slidesHtml + '</div>' +
+    renderBarraPerspectivaFacial(p) + '<div class="carousel-stage">' + slidesHtml + '</div>' +
     ((subTabPersonaje === 'ojos' || subTabPersonaje === 'bocas' || subTabPersonaje === 'manos') ? ('<div style="height:42px; flex-shrink:0; padding:0 10px; display:flex; align-items:center; justify-content:space-between; gap:8px; border-top:1px solid var(--border); background:rgba(12,16,24,0.98);"><span style="font-size:10.5px; color:var(--muted);">Desliza ↔ · o genera varias en 1 API</span><button type="button" class="btn btn-xs btn-purple" onclick="window.abrirModalLoteHoja(\'' + subTabPersonaje + '\')">Hoja Lote IA (1 API)</button></div>') : '<div style="height:30px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:10.5px; color:var(--muted); border-top:1px solid var(--border); background:rgba(12,16,24,0.96);">Desliza tarjetas izquierda / derecha · Toca Subir / Estudio para recortar</div>');
 }
 
@@ -1197,7 +1292,7 @@ function renderHtmlDockSandwich(p) {
   } else if (swToolActiva === 'ojos' || swToolActiva === 'bocas') {
     const esO = swToolActiva === 'ojos', cmp = esO ? 'ojos' : 'boca', pref = esO ? 'ojos_' : 'boca_';
     titulo = esO ? 'Ojos + Cejas (10)' : 'Bocas Lip-Sync (10)';
-    row = SLOTS_BASICOS_PERSONAJE.filter(function(s){ return s.grupo === swToolActiva; }).map(function(s){ const ok = Boolean(p.piezas[s.key] && p.piezas[s.key].url); return '<button type="button" class="btn btn-xs ' + (sandwichCfg[cmp] === s.key ? 'btn-primary' : (ok ? 'btn-blue' : '')) + '" onclick="window.actualizarSandwich(\'' + cmp + '\',\'' + s.key + '\')">' + s.key.replace(pref, '') + (ok ? ' OK' : '') + '</button>'; }).join('');
+    const swF = construirDockFacialSandwich(p, swToolActiva); titulo = swF.titulo; row = swF.row;
   } else if (swToolActiva === 'brazo') {
     titulo = 'Brazos (Articulado / Overlays / Trasero)';
     row = [['articulado','Artic.'],['brazo_delantero_reposo','Reposo'],['brazo_delantero_prop','Prop'],['brazo_delantero_senalando','Gesto'],['brazos_cruzados','Cruzados'],['manos_cintura','Cintura'],['ninguno','Off']].map(function(i){ return '<button type="button" class="btn btn-xs ' + (sandwichCfg.brazoDel === i[0] ? 'btn-primary' : '') + '" onclick="window.actualizarSandwich(\'brazoDel\',\'' + i[0] + '\')">' + i[1] + '</button>'; }).join('') +
@@ -1242,7 +1337,7 @@ window.ciclarFondoSandwich = function() {
 function construirSlideSlot(personaje, spec, datoGuardado) {
   const tieneImg = Boolean(datoGuardado && datoGuardado.url);
   const preview = tieneImg
-    ? '<span class="slot-tag-ok">Listo</span><img src="' + esc(datoGuardado.url) + '" alt="' + esc(spec.titulo) + '">'
+    ? ('<span class="slot-tag-ok">Listo</span>' + badgeCalibracionMolde(personaje, spec.key) + '<img src="' + esc(datoGuardado.url) + '" alt="' + esc(spec.titulo) + '">')
     : '<div class="slot-empty-label">Inserta PNG aquí<br><b>' + esc(spec.archivo) + '.png</b></div>';
 
   return '<div class="slide-card' + (tieneImg ? ' listo' : '') + '">' +
@@ -1317,9 +1412,7 @@ window.editarImagenSlotEstudio = async function(slotKey, esVariante) {
   const p = obtenerPersonajeActual();
   if (!p) return;
   if (window.self === window.top) { toast('Abre este módulo desde piro-shell.html para usar Estudio PNG.', 'info'); return; }
-  const spec = esVariante
-    ? (p.variantes || []).find(function(v) { return v.id === slotKey; })
-    : SLOTS_BASICOS_PERSONAJE.find(function(s) { return s.key === slotKey; });
+  const spec = buscarSpecSlot(p, slotKey, esVariante);
   if (!spec) return;
   const dato = esVariante ? spec : (p.piezas && p.piezas[slotKey]);
   if (!dato || !dato.url) { toast('Este espacio aún no tiene imagen guardada.', 'info'); return; }
@@ -1345,9 +1438,7 @@ window.extraerDesdeBaseEstudio = async function(slotKey, esVariante) {
   const p = obtenerPersonajeActual();
   if (!p) return;
   if (window.self === window.top) { toast('Abre este módulo desde piro-shell.html para usar Estudio PNG.', 'info'); return; }
-  const spec = esVariante
-    ? (p.variantes || []).find(function(v) { return v.id === slotKey; })
-    : SLOTS_BASICOS_PERSONAJE.find(function(s) { return s.key === slotKey; });
+  const spec = buscarSpecSlot(p, slotKey, esVariante);
   if (!spec) return;
 
   const pz = p.piezas || {};
@@ -1387,9 +1478,7 @@ window.extraerDesdeBaseEstudio = async function(slotKey, esVariante) {
 window.iniciarSubidaSlotPersonaje = function(slotKey, esVariante) {
   const p = obtenerPersonajeActual();
   if (!p) return;
-  const spec = esVariante
-    ? (p.variantes || []).find(function(v) { return v.id === slotKey; })
-    : SLOTS_BASICOS_PERSONAJE.find(function(s) { return s.key === slotKey; });
+  const spec = buscarSpecSlot(p, slotKey, esVariante);
   if (!spec) return;
   slotUploadPendiente = {
     tipo: 'personaje', entidadId: p.id, slotKey: slotKey, esVariante: Boolean(esVariante),
@@ -1405,7 +1494,7 @@ window.iniciarSubidaSlotPersonaje = function(slotKey, esVariante) {
 window.abrirEstudioVacioParaSlot = function(slotKey, esVariante) {
   const p = obtenerPersonajeActual();
   if (!p) return;
-  const spec = SLOTS_BASICOS_PERSONAJE.find(function(s) { return s.key === slotKey; });
+  const spec = buscarSpecSlot(p, slotKey, esVariante);
   if (!spec) return;
   if (window.self === window.top) { toast('Abre este módulo desde piro-shell.html.', 'info'); return; }
   window.parent.postMessage({
@@ -1447,7 +1536,7 @@ function obtenerCalcoInteligente(p, slotKey) {
   const k = String(slotKey || '');
   if (k === 'maestro_perfil') return (p.piezas.maestro_cuerpo && p.piezas.maestro_cuerpo.url) || null;
   if (k.indexOf('ojos_') === 0 || k.indexOf('boca_') === 0) {
-    return (p.piezas.cabeza_base && p.piezas.cabeza_base.url) || (p.piezas.maestro_perfil && p.piezas.maestro_perfil.url) || (p.piezas.maestro_cuerpo && p.piezas.maestro_cuerpo.url) || null;
+    const mkC = obtenerMoldeClaveParaSlot(k); return (p.piezas[mkC] && p.piezas[mkC].url) || (p.piezas.cabeza_base && p.piezas.cabeza_base.url) || (p.piezas.maestro_perfil && p.piezas.maestro_perfil.url) || (p.piezas.maestro_cuerpo && p.piezas.maestro_cuerpo.url) || null;
   }
   return (p.piezas.maestro_perfil && p.piezas.maestro_perfil.url) || (p.piezas.maestro_cuerpo && p.piezas.maestro_cuerpo.url) || null;
 }
@@ -1479,10 +1568,10 @@ window.dibujarProbadorSandwich = async function() {
     modoLienzoCompleto: true, cabeza: sandwichCfg.cabeza, cuerpo: sandwichCfg.cuerpo, ojos: sandwichCfg.ojos, boca: sandwichCfg.boca,
     brazoDel: sandwichCfg.brazoDel, brazoTras: sandwichCfg.brazoTras, mano: sandwichCfg.mano,
     rotCab: sandwichCfg.rotCab, rotBrazo: sandwichCfg.rotBrazo, rotAntebrazo: sandwichCfg.rotAntebrazo, rotMano: sandwichCfg.rotMano, rotBrazoTras: sandwichCfg.rotBrazoTras,
-    piernas: sandwichCfg.piernas, propImg: propImg, mostrarGuias: true
+    piernas: sandwichCfg.piernas, propImg: propImg, mostrarGuias: true, soloPerspectiva: true, adaptarBocas: Boolean(sandwichCfg.adaptarBocas)
   });
   const est = document.getElementById('sandwich-estado-txt');
-  if (est) est.textContent = n > 0 ? ('Capas: ' + n + ' · Rig 50 OK') : 'Sube piezas en Base/Ojos/Bocas';
+  if (est) est.textContent = textoEstadoSandwich(p, n);
 };
 
 window.probarVozGratisFicha = async function(motor) {
@@ -1524,7 +1613,7 @@ function aplicarRegistroEnSlot(meta, registro, pivotesRecibidos) {
       if (meta.esVariante) { const v = (p.variantes || []).find(function(x) { return x.id === meta.slotKey; }); if (v) Object.assign(v, registro); }
       else { if (!p.piezas) p.piezas = {}; p.piezas[meta.slotKey] = registro; }
       if (pivotesRecibidos && typeof pivotesRecibidos === 'object' && Object.keys(pivotesRecibidos).some(function(k) { return Boolean(pivotesRecibidos[k]); })) {
-        p.pivotes_json = JSON.stringify(pivotesRecibidos, null, 2);
+        const prevPiv = parsearPivotesPersonaje(p) || {}, mPiv = Object.assign({}, prevPiv, pivotesRecibidos); if (prevPiv._moldes || pivotesRecibidos._moldes) mPiv._moldes = Object.assign({}, prevPiv._moldes || {}, pivotesRecibidos._moldes || {}); if (prevPiv._cajas || pivotesRecibidos._cajas) mPiv._cajas = Object.assign({}, prevPiv._cajas || {}, pivotesRecibidos._cajas || {}); p.pivotes_json = JSON.stringify(mPiv, null, 2);
       }
     }
   } else if (meta.tipo === 'voz') {
@@ -1583,9 +1672,7 @@ window.eliminarVariante = async function(idx) {
 window.crearTicketDesdeSlot = function(slotKey, esVariante) {
   const p = obtenerPersonajeActual();
   if (!p) return;
-  const spec = esVariante
-    ? (p.variantes || []).find(function(v) { return v.id === slotKey; })
-    : SLOTS_BASICOS_PERSONAJE.find(function(s) { return s.key === slotKey; });
+  const spec = buscarSpecSlot(p, slotKey, esVariante);
   if (!spec) return;
   enviarTicketAShell({
     codigo: p.id.toUpperCase() + '-' + String(spec.archivo || slotKey).slice(0, 6).toUpperCase(),
@@ -2017,7 +2104,7 @@ window.exportarManifiestoTermux = function() {
   };
   const perOut = (biblioteca.personajes || []).map(function(p) {
     const pz = {}, vr = {};
-    SLOTS_BASICOS_PERSONAJE.forEach(function(s) { const reg = p.piezas && p.piezas[s.key]; if (reg && reg.url) { const r = rutaSlot(p.id, s); pz[s.key] = r; addDl(r, reg); } });
+    SLOTS_BASICOS_PERSONAJE.forEach(function(s) { const reg = p.piezas && p.piezas[s.key]; if (reg && reg.url) { const r = rutaSlot(p.id, s); pz[s.key] = r; addDl(r, reg); } }); Object.keys(p.piezas || {}).forEach(function(kE) { if (!pz[kE] && p.piezas[kE] && p.piezas[kE].url) { const spE = buscarSpecSlot(p, kE, false); if (spE) { const rE = rutaSlot(p.id, spE); pz[kE] = rE; addDl(rE, p.piezas[kE]); } } });
     (p.variantes || []).forEach(function(v) { if (v && v.url) { const r = 'biblioteca/personajes/' + p.id + '/piezas/variantes/' + (v.archivo || v.id) + '.png'; vr[v.archivo || v.id] = r; addDl(r, v); } });
     if (p.muestra_voz && p.muestra_voz.url) addDl('biblioteca/personajes/' + p.id + '/referencia/muestra_voz.mp3', p.muestra_voz);
     return { id: p.id, nombre: p.nombre, raza: p.raza, voice_id: p.voice_id || '', pivotes: parsearPivotesPersonaje(p), piezas: pz, variantes: vr };
@@ -2163,7 +2250,7 @@ window.abrirGeneradorIASlot = function(tipo, idOKey, esVariante, campoExtra) {
     if (!p) return;
     const spec = esVariante
       ? (p.variantes || []).find(function(v) { return v.id === idOKey; })
-      : SLOTS_BASICOS_PERSONAJE.find(function(s) { return s.key === idOKey; });
+      : buscarSpecSlot(p, idOKey, false);
     if (!spec) return;
     const baseSel = esVariante ? 'look' : null;
     titulo = p.nombre + ' · ' + (spec.titulo || idOKey);
@@ -2801,7 +2888,7 @@ window.ejecutarGeneracionIAPieza = async function() {
         roiUsado = refROI.roi;
         const pAct = obtenerPersonajeActual();
         const pivAct = parsearPivotesPersonaje(pAct);
-        if (pivAct && pivAct._cajas && pivAct._cajas[modoROI]) roiUsado.cajaGuia = pivAct._cajas[modoROI];
+        const regROI = construirReglasMoldeIA(pAct, sKey, modoROI); if (regROI && regROI.caja) { roiUsado.cajaGuia = regROI.caja; roiUsado.puntosX = regROI.puntos; roiUsado.moldeKey = regROI.moldeKey; }
         parts.push({ inlineData: { mimeType: refROI.mime, data: refROI.data } });
         if ((modoROI === 'ojos' || modoROI === 'boca') && pAct && pAct.piezas && pAct.piezas.maestro_perfil && pAct.piezas.maestro_perfil.url && pAct.piezas.maestro_perfil.url !== giaCtx.refUrl) {
           try {
@@ -2893,15 +2980,15 @@ function promptLoteHoja(p, grupo, keys) {
   const bs = proyectoActivo.estilo_visual || '2D cartoon BoJack Horseman style, clean black ink outlines, flat colors.';
   const gr = gridLote(keys.length);
   const m = { ojos_neutro:'NEUTRAL calm eyes', ojos_feliz:'HAPPY bright eyes + curved brows', ojos_enojado:'ANGRY fierce eyes + V brows', ojos_triste:'SAD heavy-lidded eyes + worried inner brows', ojos_duda:'SKEPTICAL side-glance + 1 raised brow', ojos_indignado:'SHOCKED wide eyes + high brows', ojos_cerrados:'CLOSED blinking eyelids', ojos_reojo:'AWKWARD side-glance eyes', ojos_celoso:'JEALOUS narrowed tense eyes', ojos_cansado:'TIRED half-closed eyes + faint under-eye lines', boca_cerrada:'CLOSED calm mouth', boca_media:'HALF-OPEN talking mouth', boca_abierta:'WIDE OPEN A/E mouth with teeth/tongue', boca_sonrisa:'SMILING mouth', boca_molesta:'ANNOYED frowning mouth', boca_o_u:'ROUNDED O/U mouth', boca_f_v:'F/V upper teeth on lower lip', boca_dientes:'CLENCHED TEETH grimace', boca_triste:'SAD downward frown', boca_grito:'SHOUTING wide open mouth', mano_relajada:'RELAXED hand', mano_abierta:'OPEN PALM gesturing hand', mano_senalando:'POINTING index finger hand', mano_puno:'CLENCHED FIST', mano_prop:'GRIPPING hand for cup/prop', mano_pecho:'DRAMATIC hand for chest', mano_ok:'THUMBS UP / OK hand', mano_telefono:'HOLDING PHONE / pinching hand' };
-  const celdas = keys.map(function(k, i) { return 'R' + (Math.floor(i / gr.c) + 1) + 'C' + ((i % gr.c) + 1) + ':' + (m[k] || k); }).join('; ');
-    const tt = grupo === 'ojos' ? 'isolated PAIRS OF EYES+EYEBROWS ONLY (4 strokes per cell, 3/4 facing RIGHT, STRICTLY NO mouth, NO smile, NO lips, NO head, NO fur, NO nose)' : (grupo === 'bocas' ? 'isolated 2D MOUTHS ONLY (3/4 facing RIGHT, STRICTLY NO eyes, NO eyebrows, NO head, NO fur, NO nose)' : 'isolated RIGHT HANDS from wrist down matching attached character fur/markings (NO arm/body/objects)');
+  const znL = grupo === 'ojos' ? 'ojos' : (grupo === 'bocas' ? 'boca' : 'mano'), pvL = (loteCtx && loteCtx.persp) || '3_4', regL = construirReglasMoldeIA(p, keys[0] || '', znL, pvL); const celdas = keys.map(function(k, i) { const kb = claveBaseDeSlot(k); return 'R' + (Math.floor(i / gr.c) + 1) + 'C' + ((i % gr.c) + 1) + ':' + (m[kb] || kb); }).join('; ');
+    const tt = grupo === 'ojos' ? ('isolated EYE SETS ONLY (' + regL.conteoTxt + ' per cell, ' + regL.angDesc + ', STRICTLY NO mouth, NO smile, NO lips, NO head, NO fur, NO nose)') : (grupo === 'bocas' ? ('isolated 2D MOUTHS ONLY (' + regL.conteoTxt + ' per cell, ' + regL.angDesc + ', STRICTLY NO eyes, NO eyebrows, NO head, NO fur, NO nose)') : 'isolated RIGHT HANDS from wrist down matching attached character fur/markings (NO arm/body/objects)');
   return 'STRICT 2D SPRITE SHEET (' + gr.c + 'x' + gr.r + ' invisible square grid, 1:1 canvas): Match attached character art style (' + bs + '). Place exactly ' + keys.length + ' ' + tt + ' neatly centered in each cell with wide margin: ' + celdas + '. Pure flat #00FF00 background everywhere, ZERO grid lines, ZERO boxes, ZERO text/numbers, crisp #000000 outlines, flat cel-shading.';
 }
 function renderChecksLote() {
   if (!loteCtx) return;
   const p = obtenerPersonajeActual(), gr = gridLote(loteCtx.keys.length);
-  document.getElementById('lote-grid-badge').textContent = gr.c + '×' + gr.r + ' (' + loteCtx.keys.length + ')';
-  document.getElementById('lote-checks-box').innerHTML = SLOTS_BASICOS_PERSONAJE.filter(function(s){ return s.grupo === loteCtx.grupo; }).map(function(s){ const on = loteCtx.keys.indexOf(s.key) >= 0, ya = Boolean(p && p.piezas && p.piezas[s.key] && p.piezas[s.key].url); return '<button type="button" class="btn btn-xs ' + (on ? 'btn-primary' : (ya ? 'btn-green' : '')) + '" onclick="window.toggleKeyLoteHoja(\'' + s.key + '\')">' + esc(s.archivo) + (ya ? ' OK' : '') + '</button>'; }).join('');
+  const pvB = loteCtx.persp || '3_4'; document.getElementById('lote-grid-badge').textContent = gr.c + '×' + gr.r + ' (' + loteCtx.keys.length + ') · ' + (pvB === 'frente' ? 'Frente' : (pvB === 'perfil' ? 'Perfil' : '3/4'));
+  document.getElementById('lote-checks-box').innerHTML = SLOTS_BASICOS_PERSONAJE.filter(function(s){ return s.grupo === loteCtx.grupo; }).map(function(s){ const sp = (loteCtx.grupo === 'ojos' || loteCtx.grupo === 'bocas') ? construirSpecPerspectiva(s, pvB) : s, on = loteCtx.keys.indexOf(sp.key) >= 0, ya = Boolean(p && p.piezas && p.piezas[sp.key] && p.piezas[sp.key].url); return '<button type="button" class="btn btn-xs ' + (on ? 'btn-primary' : (ya ? 'btn-green' : '')) + '" onclick="window.toggleKeyLoteHoja(\'' + sp.key + '\')">' + esc(s.archivo) + (ya ? ' OK' : '') + '</button>'; }).join('');
   if (p) document.getElementById('lote-prompt').value = promptLoteHoja(p, loteCtx.grupo, loteCtx.keys);
 }
 window.toggleKeyLoteHoja = function(k) {
@@ -2912,10 +2999,10 @@ window.toggleKeyLoteHoja = function(k) {
 };
 window.abrirModalLoteHoja = function(grupo) {
   const p = obtenerPersonajeActual(); if (!p) return;
-  const sl = SLOTS_BASICOS_PERSONAJE.filter(function(s){ return s.grupo === grupo; });
+  const pvOpen = (grupo === 'ojos' || grupo === 'bocas') ? perspCarrusel : '3_4'; const sl = SLOTS_BASICOS_PERSONAJE.filter(function(s){ return s.grupo === grupo; }).map(function(s){ return (grupo === 'ojos' || grupo === 'bocas') ? construirSpecPerspectiva(s, pvOpen) : s; });
   const fl = sl.filter(function(s){ return !(p.piezas && p.piezas[s.key] && p.piezas[s.key].url); }).map(function(s){ return s.key; });
-  loteCtx = { grupo: grupo, keys: (fl.length ? fl : sl.map(function(s){ return s.key; })).slice(0, 9), items: [] };
-  document.getElementById('lote-titulo').textContent = 'Hoja Lote IA · ' + grupo.toUpperCase() + ' (1 API)';
+  loteCtx = { grupo: grupo, persp: pvOpen, keys: (fl.length ? fl : sl.map(function(s){ return s.key; })).slice(0, 9), items: [] };
+  document.getElementById('lote-titulo').textContent = 'Hoja Lote IA · ' + grupo.toUpperCase() + ((grupo === 'ojos' || grupo === 'bocas') ? (' · ' + (pvOpen === 'frente' ? 'FRENTE' : (pvOpen === 'perfil' ? 'PERFIL' : '3/4'))) : '') + ' (1 API)';
   document.getElementById('lote-result-box').classList.add('hidden');
   document.getElementById('lote-error-box').classList.add('hidden');
   renderChecksLote();
@@ -2932,9 +3019,9 @@ window.ejecutarLoteHojaIA = async function() {
     const parts = [], pz = p.piezas || {}, piv = parsearPivotesPersonaje(p) || {}, cajas = piv._cajas || {};
     const zn = loteCtx.grupo === 'ojos' ? 'ojos' : (loteCtx.grupo === 'bocas' ? 'boca' : 'mano');
     const mp = piv.mano_delantera, mx = Array.isArray(mp) ? Number(mp[0]) : (mp && mp.x ? mp.x : 620), my = Array.isArray(mp) ? Number(mp[1]) : (mp && mp.y ? mp.y : 820);
-    let caja = cajas[zn] || (zn === 'mano' ? { x: mx - 70, y: my - 70, w: 140, h: 140 } : (zn === 'ojos' ? { x: 445, y: 315, w: 130, h: 68 } : { x: 460, y: 400, w: 96, h: 62 }));
+    const regLote = construirReglasMoldeIA(p, loteCtx.keys[0] || '', zn, loteCtx.persp || '3_4'); let caja = regLote.caja || cajas[zn] || (zn === 'mano' ? { x: mx - 70, y: my - 70, w: 140, h: 140 } : (zn === 'ojos' ? { x: 445, y: 315, w: 130, h: 68 } : { x: 460, y: 400, w: 96, h: 62 }));
         const refUrl = (pz.maestro_perfil && pz.maestro_perfil.url) || (pz.cabeza_base && pz.cabeza_base.url) || (pz.maestro_cuerpo && pz.maestro_cuerpo.url);
-    if (refUrl) { try { const rd = await urlADataUrlSeguro(refUrl), rp = dataUrlAParteBase64(rd, 'image/png'); if (rp) parts.push({ inlineData: { mimeType: rp.mime, data: rp.data } }); if (!cajas[zn] && zn !== 'mano') { const ir = await cargarImgPromise(rd), cr = document.createElement('canvas'); cr.width = 1000; cr.height = 1600; const cxr = cr.getContext('2d', { willReadFrequently: true }); cxr.drawImage(ir, 0, 0, 1000, 1600); const bb = detectarBBoxAlfa(cxr, 1000, 1600), g = calcularGeometriaCabeza1000(bb, (bb.maxY - bb.minY) < 520, 0, 0, 1000, 1600); caja = zn === 'ojos' ? { x: Math.round(g.ojoX - g.ojoAnchoMax / 2), y: Math.round(g.ojoY - g.ojoAltoMax / 2), w: Math.round(g.ojoAnchoMax), h: Math.round(g.ojoAltoMax) } : { x: Math.round(g.bocaX - g.bocaAnchoMax / 2), y: Math.round(g.bocaY - g.bocaAltoMax / 2), w: Math.round(g.bocaAnchoMax), h: Math.round(g.bocaAltoMax) }; } } catch (eR) {} }
+    if (refUrl) { try { const rd = await urlADataUrlSeguro(refUrl), rp = dataUrlAParteBase64(rd, 'image/png'); if (rp) parts.push({ inlineData: { mimeType: rp.mime, data: rp.data } }); if (!regLote.caja && !cajas[zn] && zn !== 'mano') { const ir = await cargarImgPromise(rd), cr = document.createElement('canvas'); cr.width = 1000; cr.height = 1600; const cxr = cr.getContext('2d', { willReadFrequently: true }); cxr.drawImage(ir, 0, 0, 1000, 1600); const bb = detectarBBoxAlfa(cxr, 1000, 1600), g = calcularGeometriaCabeza1000(bb, (bb.maxY - bb.minY) < 520, 0, 0, 1000, 1600); caja = zn === 'ojos' ? { x: Math.round(g.ojoX - g.ojoAnchoMax / 2), y: Math.round(g.ojoY - g.ojoAltoMax / 2), w: Math.round(g.ojoAnchoMax), h: Math.round(g.ojoAltoMax) } : { x: Math.round(g.bocaX - g.bocaAnchoMax / 2), y: Math.round(g.bocaY - g.bocaAltoMax / 2), w: Math.round(g.bocaAnchoMax), h: Math.round(g.bocaAltoMax) }; } } catch (eR) {} }
         const txtLote = (document.getElementById('lote-prompt').value || '').trim();
     parts.push({ text: txtLote });
     const resLote = await GeokatuDB.PirobonianosService.llamarProxyIA({ proveedorId: cfg.provId, accion: 'imagen', tipoCobro: 'hoja_lote', modoPago: cfg.modoPago, modelo: cfg.model, payload: { prompt: txtLote, parts: parts, aspectRatio: '1:1', size: '1024x1024' } });
@@ -2946,7 +3033,7 @@ window.ejecutarLoteHojaIA = async function() {
     const ctxS = cvS.getContext('2d', { willReadFrequently: true }); ctxS.drawImage(im, 0, 0); limpiarCromaHoja(ctxS, cvS.width, cvS.height);
     const gr = gridLote(loteCtx.keys.length), cw = Math.floor(cvS.width / gr.c), ch = Math.floor(cvS.height / gr.r), items = [];
     for (let i = 0; i < loteCtx.keys.length; i++) {
-      const sk = loteCtx.keys[i], sp = SLOTS_BASICOS_PERSONAJE.find(function(x){ return x.key === sk; });
+      const sk = loteCtx.keys[i], sp = buscarSpecSlot(p, sk, false);
       const px = Math.round(cw * 0.04), py = Math.round(ch * 0.04), sw = Math.max(10, cw - px * 2), sh = Math.max(10, ch - py * 2);
       const cvC = document.createElement('canvas'); cvC.width = sw; cvC.height = sh; const cxC = cvC.getContext('2d', { willReadFrequently: true });
       cxC.drawImage(cvS, (i % gr.c) * cw + px, Math.floor(i / gr.c) * ch + py, sw, sh, 0, 0, sw, sh);
