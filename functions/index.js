@@ -2428,7 +2428,7 @@ exports.consultarEstadoOrdenPasarelaPOS = onCall({ memory: "256MB", maxInstances
 // 26. BOVEDA IA CIFRADA MULTI-PROVEEDOR (AES-256-GCM) Y PROXY DUAL BYOK/CREDITOS
 // ============================================================================
 const TARIFAS_IA_DEF = { imagen: 6, hoja_lote: 12, texto: 2, audio: 4, probar: 0, listar_modelos: 0, listar_voces: 0 };
-const PROVS_VOZ_GRATIS = { edge_tts: true, polly_free: true, google_tts_free: true };
+const PROVS_VOZ_GRATIS = { edge_tts: true, polly_free: true, google_tts_free: true, openverse_audio: true };
 const VOCES_EDGE_CAT = [
   { id: 'es-CO-GonzaloNeural', nombre: 'Gonzalo (CO Hombre)' }, { id: 'es-CO-SalomeNeural', nombre: 'Salome (CO Mujer)' },
   { id: 'es-MX-JorgeNeural', nombre: 'Jorge (MX Hombre)' }, { id: 'es-MX-DaliaNeural', nombre: 'Dalia (MX Mujer)' },
@@ -2489,18 +2489,44 @@ async function ejecutarVozGratis(pid, acc, p) {
     const pitch = String(p.pitch || '+0Hz').trim(), rate = String(p.rate || '+0%').trim();
     let modEdge; try { modEdge = require('msedge-tts'); } catch (eReq) { throw new Error('Falta instalar msedge-tts en functions (ejecuta: cd functions && npm i msedge-tts).'); }
     const tts = new modEdge.MsEdgeTTS();
-    await tts.setMetadata(vid, modEdge.OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+        try { await tts.setMetadata(vid, modEdge.OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3, { wordBoundaryEnabled: true }); } catch (eMeta) { await tts.setMetadata(vid, modEdge.OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3); }
     const optsE = {}; if (pitch && pitch !== '+0Hz' && pitch !== '0Hz') optsE.pitch = pitch; if (rate && rate !== '+0%' && rate !== '0%') optsE.rate = rate;
     const resSt = Object.keys(optsE).length ? tts.toStream(texto, optsE) : tts.toStream(texto);
     const stream = (resSt && resSt.audioStream) ? resSt.audioStream : resSt;
-    const chunks = [];
+    const metaSt = (resSt && resSt.metadataStream) ? resSt.metadataStream : null;
+    const chunks = [], rawMeta = [];
+    if (metaSt && typeof metaSt.on === 'function') {
+      metaSt.on('data', function(mCh) { rawMeta.push(Buffer.isBuffer(mCh) ? mCh.toString('utf8') : String(mCh || '')); });
+      metaSt.on('error', function() {});
+    }
     await new Promise(function(resolve, reject) {
       stream.on('data', function(ch) { chunks.push(Buffer.isBuffer(ch) ? ch : Buffer.from(ch)); });
       stream.on('end', resolve); stream.on('error', reject);
     });
     const buf = Buffer.concat(chunks);
     if (!buf.length) throw new Error('Edge Neural devolvio audio vacio.');
-    return { b64: buf.toString('base64'), mime: 'audio/mpeg' };
+    const marcasRaw = [];
+    rawMeta.forEach(function(txtM) {
+      const lines = String(txtM || '').split(/\r?\n/).filter(Boolean);
+      lines.forEach(function(ln) {
+        try {
+          const j = JSON.parse(ln);
+          const arrM = Array.isArray(j && j.Metadata) ? j.Metadata : (Array.isArray(j) ? j : [j]);
+          arrM.forEach(function(it) {
+            if (!it) return;
+            const d = it.Data || it.data || it;
+            const off = Number(d.Offset !== undefined ? d.Offset : d.offset);
+            const dur = Number(d.Duration !== undefined ? d.Duration : d.duration);
+            const w = String((d.text && (d.text.Text || d.text.text)) || d.Text || d.text || '').trim();
+            if (w && Number.isFinite(off) && Number.isFinite(dur)) marcasRaw.push({ off: off, dur: dur, w: w });
+          });
+        } catch (eJson) {}
+      });
+    });
+    let maxD = 0; marcasRaw.forEach(function(m) { if (m.dur > maxD) maxD = m.dur; });
+    const divT = maxD > 50000 ? 10000000 : (maxD > 50 ? 1000 : 1);
+    const marcas = marcasRaw.map(function(m) { return { t: Number((m.off / divT).toFixed(3)), d: Number(Math.max(0.04, m.dur / divT).toFixed(3)), w: m.w }; });
+    return { b64: buf.toString('base64'), mime: 'audio/mpeg', marcas: marcas };
   }
   if (pid === 'polly_free') {
     if (acc === 'probar' || acc === 'listar_voces') return { ok: true, items: VOCES_POLLY_CAT, mensaje: 'Polly Gratis OK (' + VOCES_POLLY_CAT.length + ' voces).' };
@@ -2525,6 +2551,41 @@ async function ejecutarVozGratis(pid, acc, p) {
       bufs.push(Buffer.from(await r.arrayBuffer()));
     }
     return { b64: Buffer.concat(bufs).toString('base64'), mime: 'audio/mpeg' };
+  }
+    if (pid === 'openverse_audio') {
+    if (acc === 'buscar' || acc === 'probar') {
+      const q = String(p.q || 'cartoon comedy').trim().slice(0, 80);
+      const lic = String(p.license || 'commercial').trim();
+      const qs = 'q=' + encodeURIComponent(q) + '&page_size=12' + (lic === 'cc0' ? '&license=cc0' : '&license_type=commercial');
+      const rO = await fetch('https://api.openverse.org/v1/audio/?' + qs, { headers: { 'User-Agent': 'PiroStudio/1.0', 'Accept': 'application/json' } });
+      if (!rO.ok) throw new Error('Openverse HTTP ' + rO.status);
+      const jO = await rO.json();
+      const items = (Array.isArray(jO.results) ? jO.results : []).filter(function(x) { return Boolean(x && x.url); }).map(function(x) {
+        return {
+          id: String(x.id || ''), titulo: String(x.title || 'Sin titulo').slice(0, 80),
+          autor: String(x.creator || 'Desconocido').slice(0, 60),
+          licencia: String(x.license || 'cc').toUpperCase(), licenciaUrl: String(x.license_url || ''),
+          fuente: String(x.source || x.provider || 'openverse'),
+          duracionSeg: Number(((Number(x.duration) || 0) / 1000).toFixed(1)),
+          url: String(x.url || ''), paginaUrl: String(x.foreign_landing_url || '')
+        };
+      });
+      return { ok: true, items: items, total: Number(jO.result_count) || items.length };
+    }
+    if (acc === 'importar') {
+      const uRaw = String(p.url || '').trim();
+      const uVal = validarUrlIA(uRaw);
+      const host = new URL(uVal).hostname.toLowerCase();
+      const hostOk = host === 'upload.wikimedia.org' || host === 'freesound.org' || host.endsWith('.freesound.org') || host.endsWith('.jamendo.com') || host.endsWith('.archive.org') || host === 'archive.org' || host === 'cdn.pixabay.com';
+      if (!hostOk) throw new Error('Host de audio no permitido para importacion directa: ' + host);
+      const rA = await fetch(uVal, { headers: { 'User-Agent': 'PiroStudio/1.0' } });
+      if (!rA.ok) throw new Error('Descarga audio HTTP ' + rA.status);
+      const mimeA = String(rA.headers.get('content-type') || 'audio/mpeg').split(';')[0].trim();
+      if (mimeA.indexOf('audio/') !== 0 && mimeA !== 'application/ogg' && mimeA !== 'application/octet-stream') throw new Error('El recurso no es un audio valido (' + mimeA + ').');
+      const ab = await rA.arrayBuffer();
+      if (ab.byteLength > 8 * 1024 * 1024) throw new Error('Audio demasiado pesado (maximo 8 MB).');
+      return { b64: Buffer.from(ab).toString('base64'), mime: mimeA === 'application/octet-stream' ? 'audio/mpeg' : mimeA };
+    }
   }
   throw new Error('Motor de voz gratis no soportado: ' + pid);
 }
