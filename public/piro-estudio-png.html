@@ -829,7 +829,10 @@ window.descartarBorradorActual = async function() {
   await limpiarBorradorEnDisco();
   imgOriginalDataUrl = null;
   spriteImg = null;
-  historialClean = [];
+    historialClean = [];
+  colorBaseImageData = null; maskPreStroke = null;
+  if (cvMask) { cvMask.width = 0; cvMask.height = 0; }
+  if (cvStage) { cvStage.width = 0; cvStage.height = 0; }
   cvClean.width = 0; cvClean.height = 0;
   document.getElementById('wrap-canvas-clean').classList.add('hidden');
   document.getElementById('wrap-canvas-stage').classList.add('hidden');
@@ -1147,7 +1150,8 @@ if (p !== 3) resetZoomStage();
     btnTop.className = 'btn btn-primary btn-xs';
     requestAnimationFrame(ajustarCanvasActivos);
     actualizarBadgeDimension();
-  } else {
+    } else {
+    liberarBuffersInactivosClean();
     btnTop.textContent = 'Guardar PNG';
     btnTop.className = 'btn btn-green btn-xs';
     prepararStageDesdeSprite();
@@ -1236,9 +1240,34 @@ function cargarDataUrlEnClean(dataUrl, abrirSelectorAlCargar) {
   im.src = dataUrl;
 }
 
+const MAX_BYTES_HISTORIAL_CLEAN = 48 * 1024 * 1024;
+const MAX_PASOS_HISTORIAL_CLEAN = 12;
+const MIN_PASOS_HISTORIAL_CLEAN = 3;
+
+function recortarHistorialCleanPorMemoria() {
+  let totalBytes = 0;
+  for (let i = 0; i < historialClean.length; i++) {
+    const it = historialClean[i];
+    totalBytes += (it && it.data) ? it.data.byteLength : 0;
+  }
+  while (historialClean.length > MIN_PASOS_HISTORIAL_CLEAN && (historialClean.length > MAX_PASOS_HISTORIAL_CLEAN || totalBytes > MAX_BYTES_HISTORIAL_CLEAN)) {
+    const elim = historialClean.shift();
+    totalBytes -= (elim && elim.data) ? elim.data.byteLength : 0;
+  }
+}
+
+function liberarBuffersInactivosClean() {
+  colorBaseImageData = null;
+  maskPreStroke = null;
+  if (cvMask && cvMask.width > 0) { cvMask.width = 0; cvMask.height = 0; }
+  if (historialClean.length > MIN_PASOS_HISTORIAL_CLEAN) {
+    historialClean = historialClean.slice(-MIN_PASOS_HISTORIAL_CLEAN);
+  }
+}
+
 function pushHistorialClean() {
   historialClean.push(ctxClean.getImageData(0, 0, cvClean.width, cvClean.height));
-  if (historialClean.length > 15) historialClean.shift();
+  recortarHistorialCleanPorMemoria();
   guardarBorradorEnDisco(false);
 }
 
@@ -1883,10 +1912,18 @@ cvStage.height = presetActual.h;
     } else {
       window.autoAjustarStage('contain');
     }
-    actualizarBadgeDimension();
+        actualizarBadgeDimension();
     guardarBorradorEnDisco(false);
+    if (im._piroObjUrl) { try { URL.revokeObjectURL(im._piroObjUrl); } catch (e) {} im._piroObjUrl = null; }
   };
-  im.src = cvClean.toDataURL('image/png');
+  if (cvClean.toBlob) {
+    cvClean.toBlob(function(blob) {
+      if (blob) { const u = URL.createObjectURL(blob); im._piroObjUrl = u; im.src = u; }
+      else im.src = cvClean.toDataURL('image/png');
+    }, 'image/png');
+  } else {
+    im.src = cvClean.toDataURL('image/png');
+  }
 }
 
 function sincronizarSlidersStage() {
