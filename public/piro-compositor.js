@@ -262,6 +262,116 @@ export function obtenerBocaDesdeEnvolvente(env, tiempoLocalSeg, textoFallback) {
   return 'boca_cerrada';
 }
 
+const FALLBACK_BOCAS_VISEMA = {
+  boca_f_v: ['boca_f_v', 'boca_dientes', 'boca_media', 'boca_cerrada'],
+  boca_o_u: ['boca_o_u', 'boca_media', 'boca_abierta', 'boca_cerrada'],
+  boca_dientes: ['boca_dientes', 'boca_media', 'boca_cerrada'],
+  boca_abierta: ['boca_abierta', 'boca_media', 'boca_cerrada'],
+  boca_media: ['boca_media', 'boca_abierta', 'boca_cerrada'],
+  boca_cerrada: ['boca_cerrada']
+};
+
+export function palabraAVisemasPiro(palabra) {
+  const w = String(palabra || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/g, '');
+  if (!w) return [];
+  const out = [];
+  for (let i = 0; i < w.length; i++) {
+    const ch = w[i], nxt = w[i + 1] || '';
+    let v = 'boca_media';
+    if (ch === 'p' || ch === 'b' || ch === 'm') v = 'boca_cerrada';
+    else if (ch === 'f' || ch === 'v') v = 'boca_f_v';
+    else if (ch === 'o' || ch === 'u' || ch === 'w') v = 'boca_o_u';
+    else if (ch === 'a') v = 'boca_abierta';
+    else if (ch === 'e' || ch === 'i' || ch === 'y') v = 'boca_media';
+    else if ((ch === 'c' && nxt === 'h') || (ch === 's' && nxt === 'h') || (ch === 't' && nxt === 'h')) { v = 'boca_dientes'; i++; }
+    else if ('szctdnlrjxkq'.indexOf(ch) >= 0) v = 'boca_dientes';
+    else if (ch === 'h') continue;
+    if (out.length === 0 || out[out.length - 1] !== v) out.push(v);
+  }
+  return out;
+}
+
+export function construirVisemasDesdeMarcasPiro(marcas, textoFallback, duracionSeg) {
+  const pista = [];
+  if (Array.isArray(marcas) && marcas.length > 0) {
+    marcas.forEach(function(m) {
+      const t0 = Math.max(0, Number(m.t) || 0);
+      const d = Math.max(0.05, Number(m.d) || 0.16);
+      const seq = palabraAVisemasPiro(m.w);
+      if (!seq.length) return;
+      const paso = d / seq.length;
+      for (let i = 0; i < seq.length; i++) {
+        pista.push({ t: Number((t0 + i * paso).toFixed(3)), d: Number(paso.toFixed(3)), b: seq[i] });
+      }
+    });
+    return pista;
+  }
+  const palabras = String(textoFallback || '').trim().split(/\s+/).filter(Boolean);
+  if (!palabras.length) return pista;
+  const total = Math.max(0.5, Number(duracionSeg) || (palabras.length * 0.34));
+  const pesos = palabras.map(function(w) { return Math.max(2, w.replace(/[^a-zA-ZáéíóúñÁÉÍÓÚÑ]/g, '').length); });
+  const sumP = pesos.reduce(function(a, b) { return a + b; }, 0) || 1;
+  let cur = 0.06;
+  const spanUtil = Math.max(0.3, total - 0.18);
+  palabras.forEach(function(w, idx) {
+    const dw = (pesos[idx] / sumP) * spanUtil;
+    const seq = palabraAVisemasPiro(w);
+    if (seq.length) {
+      const paso = dw / seq.length;
+      for (let i = 0; i < seq.length; i++) {
+        pista.push({ t: Number((cur + i * paso).toFixed(3)), d: Number(paso.toFixed(3)), b: seq[i] });
+      }
+    }
+    cur += dw;
+  });
+  return pista;
+}
+
+function elegirBocaDisponiblePiro(personaje, cabezaKey, bocaObjetivo) {
+  if (!personaje) return bocaObjetivo;
+  const cands = FALLBACK_BOCAS_VISEMA[bocaObjetivo] || [bocaObjetivo, 'boca_media', 'boca_cerrada'];
+  for (let i = 0; i < cands.length; i++) {
+    const r = resolverPiezaPerspectiva(personaje, 'boca', cands[i], cabezaKey, { soloPerspectiva: false, sinFallbackDefault: true });
+    if (r && r.url) return cands[i];
+  }
+  return bocaObjetivo;
+}
+
+export function obtenerBocaLipSyncPiro(opts) {
+  const o = opts || {};
+  const t = Math.max(0, Number(o.tiempoLocal) || 0);
+  const modo = o.modo === 'volumen' ? 'volumen' : 'visemas';
+  const env = o.envolvente || null;
+  const texto = String(o.texto || '');
+  const cabezaKey = o.cabezaKey || 'cabeza_base';
+  if (modo === 'volumen') {
+    return obtenerBocaDesdeEnvolvente(env, t, texto);
+  }
+  let amp = -1;
+  if (env && Array.isArray(env.frames) && env.frames.length > 0) {
+    const idx = Math.floor(t * (env.fps || 24));
+    if (idx >= env.frames.length) return 'boca_cerrada';
+    amp = env.frames[idx] || 0;
+    if (amp < 0.08) return 'boca_cerrada';
+  }
+  let pista = Array.isArray(o.visemas) && o.visemas.length > 0 ? o.visemas : null;
+  if (!pista && Array.isArray(o.marcas) && o.marcas.length > 0) pista = construirVisemasDesdeMarcasPiro(o.marcas, texto, o.duracion);
+  if (!pista && texto.trim()) pista = construirVisemasDesdeMarcasPiro(null, texto, (env && env.duracion) || o.duracion || 3);
+  if (pista && pista.length > 0) {
+    for (let i = 0; i < pista.length; i++) {
+      const it = pista[i];
+      if (t >= it.t && t <= it.t + it.d + 0.03) {
+        let bSel = it.b || 'boca_media';
+        if (amp > 0.62 && bSel === 'boca_media') bSel = 'boca_abierta';
+        return elegirBocaDisponiblePiro(o.personaje, cabezaKey, bSel);
+      }
+    }
+    if (amp >= 0.14) return elegirBocaDisponiblePiro(o.personaje, cabezaKey, amp >= 0.42 ? 'boca_abierta' : 'boca_media');
+    return 'boca_cerrada';
+  }
+  return obtenerBocaDesdeEnvolvente(env, t, texto);
+}
+
 export const CURVAS_PIRO = {
   linear: function(u) { return u; },
   easeInOut: function(u) { return u < 0.5 ? (2 * u * u) : (1 - Math.pow(-2 * u + 2, 2) / 2); },
