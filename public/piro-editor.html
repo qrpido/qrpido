@@ -314,7 +314,7 @@
     <div style="border-top:1px solid var(--border); padding-top:8px; display:flex; gap:6px;">
       <button type="button" class="btn btn-xs btn-purple" style="flex:1;" onclick="window.toggleDrawerEd(false); window.abrirModalApis();"><span id="txt-btn-apis">APIs</span></button>
       <button type="button" class="btn btn-xs btn-green" style="flex:1;" onclick="window.toggleDrawerEd(false); window.abrirModalAudioLib();">Música/SFX</button>
-      <button type="button" class="btn btn-xs btn-blue" style="flex:1;" onclick="window.toggleDrawerEd(false); window.exportarPaqueteEpisodio();">Exportar</button>
+      <button type="button" class="btn btn-xs btn-blue" style="flex:1;" onclick="window.toggleDrawerEd(false); window.abrirModalExportar('nav');">Exportar</button>
     </div>
   </aside>
 </div>
@@ -409,6 +409,44 @@
     </div>
   </div>
 </div>
+<div class="modal-ov" id="modal-exportar-video" onclick="if(event.target.id==='modal-exportar-video') window.cerrarModalExportar()">
+  <div class="modal-card" style="max-width:560px;">
+    <div class="modal-head"><h3>Exportar y Renderizar Video</h3><button type="button" class="btn btn-xs" onclick="window.cerrarModalExportar()">Cerrar</button></div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:10px;">
+      <button type="button" class="btn btn-primary" id="tab-exp-nav" onclick="window.setTabExportar('nav')">Video Aquí (Navegador)</button>
+      <button type="button" class="btn" id="tab-exp-termux" onclick="window.setTabExportar('termux')">Render Pro Termux</button>
+    </div>
+    <div id="pane-exp-nav">
+      <div class="card-sub">
+        <div style="font-size:11.5px; color:#cbd5e1; margin-bottom:8px;">Graba el lienzo en tiempo real con <b>Voz + Música (ducking) + SFX + Visemas</b> sin instalar nada. Ideal para pruebas rápidas y usuarios SaaS.</div>
+        <div class="grid-2" style="margin-bottom:8px;">
+          <div class="field" style="margin:0;"><label>FPS</label><select id="exp-fps" class="sel"><option value="24">24 fps (Animación)</option><option value="30">30 fps (Fluido)</option></select></div>
+          <div class="field" style="margin:0;"><label>Modo Lip-Sync</label><select id="exp-lipsync" class="sel" onchange="window.cambiarModoLipSync(this.value)"><option value="visemas">Visemas (Fonético)</option><option value="volumen">Volumen (Clásico)</option></select></div>
+        </div>
+        <div id="exp-nav-estado" style="font-size:11px; color:var(--azul); margin-bottom:6px;">Listo para renderizar.</div>
+        <div style="height:7px; border-radius:99px; background:rgba(255,255,255,0.08); overflow:hidden; margin-bottom:10px;"><div id="exp-nav-barra" style="height:100%; width:0%; background:linear-gradient(90deg, var(--naranja), var(--verde)); transition:width .15s;"></div></div>
+        <div style="display:flex; gap:6px;">
+          <button type="button" class="btn btn-green" id="btn-run-exp-nav" style="flex:1;" onclick="window.ejecutarExportacionNavegador()">Renderizar y Descargar Video</button>
+          <button type="button" class="btn btn-danger hidden" id="btn-cancel-exp-nav" onclick="window.cancelarExportacionNavegador()">Detener</button>
+        </div>
+      </div>
+    </div>
+    <div id="pane-exp-termux" class="hidden">
+      <div class="card-sub">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:6px; flex-wrap:wrap;"><strong style="font-size:11.5px; color:#86efac;">1. Descarga el Paquete JSON (contrato v1.0)</strong><button type="button" class="btn btn-xs btn-primary" onclick="window.exportarPaqueteEpisodio()">Descargar JSON</button></div>
+        <div style="font-size:10.5px; color:var(--muted); margin-bottom:6px;">Incluye escenas, actuaciones, eventos REC, visemas, música y enlaces de descarga.</div>
+        <div style="font-size:10px; font-weight:800; color:var(--azul); margin-bottom:4px;">2. COMANDOS EN TERMUX (PEGA Y EJECUTA)</div>
+        <div style="display:flex; gap:5px; align-items:center; margin-bottom:8px;"><input id="inp-cmd-termux" class="inp" readonly style="font-family:monospace; font-size:10.5px; flex:1;"><button type="button" class="btn btn-xs btn-blue" onclick="window.copiarTextoExport('inp-cmd-termux', 'Comandos Termux')">Copiar</button></div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; gap:5px; flex-wrap:wrap;">
+          <span style="font-size:10px; font-weight:800; color:var(--miel);">3. SCRIPT TERMUX EDITABLE (render_piro_termux.py)</span>
+          <div style="display:flex; gap:4px;"><button type="button" class="btn btn-xs btn-green" onclick="window.copiarTextoExport('txt-script-termux', 'Script Termux')">Copiar Script</button><button type="button" class="btn btn-xs btn-blue" onclick="window.descargarScriptTermux()">Descargar .py</button><button type="button" class="btn btn-xs" onclick="window.restaurarScriptTermux()">Restaurar</button></div>
+        </div>
+        <textarea id="txt-script-termux" class="inp" rows="9" style="font-family:monospace; font-size:10.5px; line-height:1.35; resize:vertical;" oninput="window.guardarScriptTermuxLocal(this.value)"></textarea>
+      </div>
+    </div>
+  </div>
+</div>
+
 <input type="file" id="input-audio-local" accept="audio/*,.mp3,.wav,.ogg,.m4a" class="hidden" onchange="window.subirAudioLocalSeleccionado(this.files[0]); this.value='';">
 <audio id="audio-musica-tl" crossorigin="anonymous" loop style="display:none;"></audio>
 <audio id="audio-sfx-tl" crossorigin="anonymous" style="display:none;"></audio>
@@ -1333,6 +1371,7 @@ function renderDockTimeline() {
           '<button type="button" class="btn btn-xs btn-primary" onclick="window.agregarClipTimeline()">+ Clip</button>' +
           '<button type="button" class="btn btn-xs btn-green" id="btn-lote-voces" onclick="window.generarVocesLote()">Voces Lote</button>' +
           '<button type="button" class="btn btn-xs btn-purple" id="btn-lote-planos" onclick="window.generarPlanosLote()">Planos Lote</button>' +
+            '<button type="button" class="btn btn-xs btn-blue" onclick="window.abrirModalExportar(\'nav\')">Exportar Video</button>' +
           '<button type="button" class="btn btn-xs" onclick="window.moverClip(' + clipSelIdx + ',-1)">Mover ←</button>' +
           '<button type="button" class="btn btn-xs" onclick="window.moverClip(' + clipSelIdx + ',1)">Mover →</button>' +
           '<button type="button" class="btn btn-xs btn-danger" onclick="window.borrarEscena(' + clipSelIdx + ')">Borrar</button>' +
@@ -1733,6 +1772,152 @@ window.aplicarAudioOpenverse = async function(idx, destino) {
   if (destino === 'sfx') { const sc = g.escenas && g.escenas[clipSelIdx]; if (sc) { sc.sfx_url = urlFinal; sc.sfx_nombre = it.titulo; } }
   else { g.musica_url = urlFinal; g.musica_nombre = it.titulo; g.musica_credito = cred; if (typeof g.musica_vol !== 'number') g.musica_vol = 25; }
   guardarBiblioteca(true); actualizarEstadoModalAudio(); renderTimeline(); toast((destino === 'sfx' ? 'SFX asignado al clip: ' : 'Música aplicada: ') + it.titulo, 'exito');
+};
+
+const CLAVE_SCRIPT_TERMUX = 'piro_script_termux_v1';
+let exportandoNavActivo = false, exportNavRecorder = null, exportNavAbortar = false;
+function obtenerScriptTermuxBase() {
+  return [
+    '#!/usr/bin/env python3',
+    '# PIRO Studio · Renderizador Pro Termux (contrato_anim_version 1.0)',
+    '# Requisitos: pkg install -y ffmpeg python && pip install pillow requests',
+    'import json, os, subprocess, sys, requests',
+    'PAQUETE = sys.argv[1] if len(sys.argv) > 1 else "paquete_produccion_termux.json"',
+    'FPS = int(sys.argv[2]) if len(sys.argv) > 2 else 24',
+    'with open(PAQUETE, "r", encoding="utf-8") as f: data = json.load(f)',
+    'ep = data["episodio"]; OUT_DIR = "render_" + ep["id"]',
+    'for sub in ("cache", "frames", "audio"): os.makedirs(os.path.join(OUT_DIR, sub), exist_ok=True)',
+    'def descargar(url, ruta):',
+    '    if not url: return None',
+    '    if os.path.exists(ruta): return ruta',
+    '    r = requests.get(url, timeout=30); r.raise_for_status()',
+    '    open(ruta, "wb").write(r.content); return ruta',
+    'print("Descargando medios:", ep["id"], "(", len(ep.get("escenas", [])), "clips )")',
+    'for d in data.get("descargas_episodio", []):',
+    '    dst = os.path.join(OUT_DIR, "cache", os.path.basename(d["ruta_local"]))',
+    '    try: descargar(d["url"], dst)',
+    '    except Exception as e: print("Aviso descarga:", d["ruta_local"], e)',
+    'lista_concat = []',
+    'for i, sc in enumerate(ep.get("escenas", [])):',
+    '    dur = max(0.5, float(sc.get("duracion", 3.0)))',
+    '    wav_clip = os.path.join(OUT_DIR, "audio", f"clip_{i+1:03d}.wav")',
+    '    aud_src = os.path.join(OUT_DIR, "cache", f"clip_{i+1}.mp3")',
+    '    sfx_src = os.path.join(OUT_DIR, "cache", f"sfx_{i+1}.mp3")',
+    '    if sc.get("audio_url") and os.path.exists(aud_src):',
+    '        cmd = ["ffmpeg", "-y", "-i", aud_src]',
+    '        if os.path.exists(sfx_src): cmd += ["-i", sfx_src, "-filter_complex", "[0:a]apad[v];[1:a]volume=0.85[s];[v][s]amix=inputs=2:duration=first", "-t", str(dur), "-ar", "44100", "-ac", "2", wav_clip]',
+    '        else: cmd += ["-t", str(dur), "-af", "apad", "-ar", "44100", "-ac", "2", wav_clip]',
+    '        subprocess.run(cmd, check=True)',
+    '    else: subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", str(dur), wav_clip], check=True)',
+    '    lista_concat.append(f"file \x27{os.path.abspath(wav_clip)}\x27")',
+    'txt_list = os.path.join(OUT_DIR, "audio", "concat.txt"); open(txt_list, "w").write("\n".join(lista_concat))',
+    'voz_master = os.path.join(OUT_DIR, "audio", "voz_master.wav")',
+    'subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", txt_list, "-c:a", "pcm_s16le", voz_master], check=True)',
+    'audio_final = voz_master; mus_url = ep.get("musica_url")',
+    'if mus_url:',
+    '    mus_file = descargar(mus_url, os.path.join(OUT_DIR, "cache", "musica_fondo.mp3"))',
+    '    vol = max(0.02, min(1.0, float(ep.get("musica_vol", 25)) / 100.0))',
+    '    audio_final = os.path.join(OUT_DIR, "audio", "mix_final.m4a")',
+    '    fc = f"[1:a]volume={vol:.2f}[bg];[bg][0:a]sidechaincompress=threshold=0.04:ratio=6:attack=20:release=250[duck];[0:a][duck]amix=inputs=2:duration=first:dropout_transition=2"',
+    '    subprocess.run(["ffmpeg", "-y", "-i", voz_master, "-stream_loop", "-1", "-i", mus_file, "-filter_complex", fc, "-c:a", "aac", "-b:a", "192k", audio_final], check=True)',
+    'print("Audio maestro listo:", audio_final)',
+    'print(f"Remux MP4 H.264 Pro: ffmpeg -y -i video_nav.webm -i {audio_final} -map 0:v:0 -map 1:a:0 -c:v libx264 -pix_fmt yuv420p -crf 18 -c:a aac -shortest {OUT_DIR}/final_pro.mp4")'
+  ].join('\n');
+}
+window.setTabExportar = function(tab) {
+  const esT = tab === 'termux';
+  document.getElementById('pane-exp-nav').classList.toggle('hidden', esT);
+  document.getElementById('pane-exp-termux').classList.toggle('hidden', !esT);
+  document.getElementById('tab-exp-nav').className = 'btn ' + (esT ? '' : 'btn-primary');
+  document.getElementById('tab-exp-termux').className = 'btn ' + (esT ? 'btn-primary' : '');
+};
+window.abrirModalExportar = function(tabInicial) {
+  const g = getEp(), nomJson = proyectoActivo.id + '_' + (g ? g.id : 'ep001') + '_produccion_termux.json';
+  const cmdEl = document.getElementById('inp-cmd-termux'), txtEl = document.getElementById('txt-script-termux'), selL = document.getElementById('exp-lipsync');
+  if (cmdEl) cmdEl.value = 'pkg install -y ffmpeg python && pip install pillow requests && python render_piro_termux.py ~/storage/downloads/' + nomJson + ' 24';
+  if (txtEl) { let guard = ''; try { guard = localStorage.getItem(CLAVE_SCRIPT_TERMUX) || ''; } catch (e) {} txtEl.value = guard || obtenerScriptTermuxBase(); }
+  if (selL) selL.value = obtenerModoLipSyncEp(g);
+  window.setTabExportar(tabInicial || 'nav'); document.getElementById('modal-exportar-video').classList.add('open');
+};
+window.cerrarModalExportar = function() { if (exportandoNavActivo) window.cancelarExportacionNavegador(); document.getElementById('modal-exportar-video').classList.remove('open'); };
+window.guardarScriptTermuxLocal = function(val) { try { localStorage.setItem(CLAVE_SCRIPT_TERMUX, String(val || '')); } catch (e) {} };
+window.restaurarScriptTermux = function() { const b = obtenerScriptTermuxBase(), el = document.getElementById('txt-script-termux'); if (el) el.value = b; window.guardarScriptTermuxLocal(b); toast('Script Termux restaurado.', 'info'); };
+window.copiarTextoExport = function(idEl, nombre) {
+  const el = document.getElementById(idEl); if (!el) return; const txt = el.value || '';
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function() { toast(nombre + ' copiado.', 'exito'); }).catch(function() { el.select(); document.execCommand('copy'); toast(nombre + ' copiado.', 'exito'); });
+  else { el.select(); document.execCommand('copy'); toast(nombre + ' copiado.', 'exito'); }
+};
+window.descargarScriptTermux = function() {
+  const el = document.getElementById('txt-script-termux'), txt = (el && el.value) ? el.value : obtenerScriptTermuxBase();
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: 'text/x-python' })); a.download = 'render_piro_termux.py';
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href); toast('render_piro_termux.py descargado.', 'exito');
+};
+window.cancelarExportacionNavegador = function() { exportNavAbortar = true; if (exportNavRecorder && exportNavRecorder.state !== 'inactive') { try { exportNavRecorder.stop(); } catch (e) {} } };
+window.ejecutarExportacionNavegador = async function() {
+  const g = getEp(); if (!g || !g.escenas || !g.escenas.length) { toast('No hay clips para exportar.', 'error'); return; }
+  if (typeof MediaRecorder === 'undefined') { toast('Tu navegador no soporta MediaRecorder. Usa Render Pro Termux.', 'error'); return; }
+  window.detenerTimeline(); exportandoNavActivo = true; exportNavAbortar = false;
+  const btnRun = document.getElementById('btn-run-exp-nav'), btnCan = document.getElementById('btn-cancel-exp-nav'), est = document.getElementById('exp-nav-estado'), bar = document.getElementById('exp-nav-barra');
+  if (btnRun) btnRun.disabled = true; if (btnCan) btnCan.classList.remove('hidden');
+  const setProg = function(pct, msg) { if (bar) bar.style.width = Math.max(0, Math.min(100, pct)) + '%'; if (est) est.textContent = msg; };
+  let ac = null;
+  try {
+    limpiarBloqueosCorsPiro();
+    const fps = Number(document.getElementById('exp-fps').value) || 24, esH = getAspectoEp(g) === '16:9', W = esH ? 1280 : 720, H = esH ? 720 : 1280;
+    const cvExp = document.createElement('canvas'); cvExp.width = W; cvExp.height = H; const ctxExp = cvExp.getContext('2d');
+    setProg(5, 'Preparando pistas de audio y envolventes...');
+    const AC = window.AudioContext || window.webkitAudioContext; ac = new AC(); if (ac.state === 'suspended') await ac.resume();
+    const dest = ac.createMediaStreamDestination();
+    const decodificar = async function(u) { if (!u) return null; try { const r = await fetch(u); if (!r.ok) return null; return await ac.decodeAudioData(await r.arrayBuffer()); } catch (e) { return null; } };
+    const musBuf = g.musica_url ? await decodificar(g.musica_url) : null;
+    const clipsData = []; let totDur = 0;
+    for (let i = 0; i < g.escenas.length; i++) {
+      const sc = g.escenas[i], d = Math.max(0.5, Number(sc.duracion) || 3);
+      const aBuf = sc.audio_url ? await decodificar(sc.audio_url) : null;
+      const sfxU = resolverSfxUrlClip(sc), sBuf = sfxU ? await decodificar(sfxU) : null;
+      const env = sc.audio_url ? await extraerEnvolventeAudio(sc.audio_url, fps) : null;
+      clipsData.push({ sc: sc, ini: totDur, dur: d, aBuf: aBuf, sBuf: sBuf, env: env }); totDur += d;
+    }
+    const mimes = ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+    const mimeOk = mimes.find(function(m) { return MediaRecorder.isTypeSupported(m); }) || '', extVid = mimeOk.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
+    const vStream = cvExp.captureStream(fps), tracks = vStream.getVideoTracks().concat(dest.stream.getAudioTracks());
+    const rec = new MediaRecorder(new MediaStream(tracks), mimeOk ? { mimeType: mimeOk, videoBitsPerSecond: 4500000 } : { videoBitsPerSecond: 4500000 });
+    exportNavRecorder = rec; const chunks = [];
+    rec.ondataavailable = function(ev) { if (ev.data && ev.data.size > 0) chunks.push(ev.data); };
+    const finProm = new Promise(function(resolve) { rec.onstop = resolve; });
+    const t0Ac = ac.currentTime + 0.12;
+    if (musBuf) {
+      const mSrc = ac.createBufferSource(); mSrc.buffer = musBuf; mSrc.loop = true; const mGain = ac.createGain();
+      const vBase = (typeof g.musica_vol === 'number' ? g.musica_vol : 25) / 100; mGain.gain.setValueAtTime(vBase, t0Ac);
+      if (g.musica_ducking !== false) { clipsData.forEach(function(cd) { if (cd.aBuf) { mGain.gain.setTargetAtTime(vBase * 0.35, t0Ac + cd.ini, 0.08); mGain.gain.setTargetAtTime(vBase, t0Ac + cd.ini + Math.min(cd.dur, cd.aBuf.duration), 0.14); } }); }
+      mSrc.connect(mGain); mGain.connect(dest); mSrc.start(t0Ac); mSrc.stop(t0Ac + totDur + 0.15);
+    }
+    clipsData.forEach(function(cd) {
+      if (cd.aBuf) { const s = ac.createBufferSource(); s.buffer = cd.aBuf; s.connect(dest); s.start(t0Ac + cd.ini); }
+      if (cd.sBuf) { const s2 = ac.createBufferSource(); s2.buffer = cd.sBuf; const g2 = ac.createGain(); g2.gain.value = 0.85; s2.connect(g2); g2.connect(dest); s2.start(t0Ac + cd.ini); }
+    });
+    rec.start(250); const modoLS = obtenerModoLipSyncEp(g);
+    while (!exportNavAbortar) {
+      const t = Math.max(0, ac.currentTime - t0Ac); if (t >= totDur) break;
+      let cd = clipsData[clipsData.length - 1]; for (let i = 0; i < clipsData.length; i++) { if (t < clipsData[i].ini + clipsData[i].dur) { cd = clipsData[i]; break; } }
+      const sc = cd.sc, tLoc = Math.max(0, t - cd.ini), habId = sc.hablante !== undefined ? sc.hablante : sc.actor;
+      const perHab = (biblioteca.personajes || []).find(function(x) { return x.id === habId; }) || null;
+      const acts = normalizarActoresEscena(sc), aHab = acts.find(function(a) { return a.id === habId; }) || acts[0];
+      const boca = (habId && habId !== 'ninguno') ? obtenerBocaLipSyncPiro({ modo: modoLS, tiempoLocal: tLoc, envolvente: cd.env, marcas: sc.marcas_voz, visemas: sc.visemas, texto: sc.texto, duracion: cd.dur, personaje: perHab, cabezaKey: aHab ? aHab.cabeza : 'cabeza_base' }) : 'boca_cerrada';
+      await componerEscenaPiro(ctxExp, { escena: sc, episodio: g, biblioteca: biblioteca, ancho: W, alto: H, esHorizontal: esH, bocaHablante: boca, hablanteActivoId: habId, subtituloOverride: sc.texto || '', safeZones: false, tiempoLocal: tLoc, modoExportacion: true });
+      setProg(10 + Math.round((t / Math.max(0.1, totDur)) * 88), 'Renderizando ' + t.toFixed(1) + 's / ' + totDur.toFixed(1) + 's (' + extVid.toUpperCase() + ')...');
+      await new Promise(function(r) { setTimeout(r, Math.max(12, Math.floor(1000 / fps))); });
+    }
+    if (rec.state !== 'inactive') rec.stop(); await finProm;
+    if (exportNavAbortar) { setProg(0, 'Exportación cancelada.'); return; }
+    const blobVid = new Blob(chunks, { type: mimeOk || ('video/' + extVid) });
+    const aDl = document.createElement('a'); aDl.href = URL.createObjectURL(blobVid); aDl.download = proyectoActivo.id + '_' + g.id + '.' + extVid;
+    document.body.appendChild(aDl); aDl.click(); aDl.remove(); URL.revokeObjectURL(aDl.href);
+    const bloqCors = obtenerBloqueosCorsPiro();
+    setProg(100, 'Listo (' + (blobVid.size / (1024 * 1024)).toFixed(2) + ' MB).' + (bloqCors.length ? (' Aviso: ' + bloqCors.length + ' imagen(es) omitidas por CORS.') : ''));
+    toast('Video ' + extVid.toUpperCase() + ' descargado.', 'exito');
+  } catch (err) { setProg(0, 'Error exportando: ' + err.message); toast('Error exportación: ' + err.message, 'error'); }
+  finally { exportandoNavActivo = false; exportNavRecorder = null; if (ac) { try { ac.close(); } catch (e) {} } if (btnRun) btnRun.disabled = false; if (btnCan) btnCan.classList.add('hidden'); }
 };
 
 function fmtSeg(s) { const n = Math.max(0, Math.floor(s)); return String(Math.floor(n / 60)).padStart(2, '0') + ':' + String(n % 60).padStart(2, '0'); }
