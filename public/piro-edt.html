@@ -230,7 +230,7 @@
           <input type="checkbox" id="chk-saltar" checked style="accent-color:var(--naranja);" onchange="window.renderizarRiel()"> Libre
         </label>
       </div>
-      <button type="button" class="btn btn-xs btn-blue" onclick="window.irAlSiguientePendiente()">Siguiente Pendiente</button>
+      <div style="display:flex; align-items:center; gap:5px;"><span id="badge-prog-mision" class="pill">0/0</span><button type="button" class="btn btn-xs btn-blue" onclick="window.irAlSiguientePendiente()">Siguiente</button></div>
     </div>
     <div class="rail-track" id="rail-tickets"></div>
   </section>
@@ -298,9 +298,12 @@
       <button type="button" class="btn btn-xs" onclick="window.cerrarModal('modal-ingesta')">Cerrar</button>
     </div>
     <textarea id="txt-ingesta-edt" class="txt" style="min-height:175px;" placeholder="Pega aquí tu plan EDT con Misión 0, 0.1, 0.2, Misión 1, 1.1..."></textarea>
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
-      <button type="button" class="btn btn-xs btn-blue" onclick="window.procesarIngestaEDT(false)">Añadir al Tablero</button>
-      <button type="button" class="btn btn-xs btn-primary" onclick="window.procesarIngestaEDT(true)">Reemplazar Tickets</button>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
+      <button type="button" class="btn btn-xs btn-green" onclick="window.inyectarMisionPruebas10s()">+ Misión Pruebas 10s (7 tks)</button>
+      <div style="display:flex; gap:6px;">
+        <button type="button" class="btn btn-xs btn-blue" onclick="window.procesarIngestaEDT(false)">Añadir al Tablero</button>
+        <button type="button" class="btn btn-xs btn-primary" onclick="window.procesarIngestaEDT(true)">Reemplazar Tickets</button>
+      </div>
     </div>
   </div>
 </div>
@@ -649,6 +652,38 @@ window.procesarIngestaEDT = function(reemplazar) {
 // =========================================================================
 // 3. RENDER UI ZERO-SCROLL (RIEL HORIZONTAL + FICHA POR PESTAÑAS)
 // =========================================================================
+window.inyectarMisionPruebas10s = function() {
+  if (!proyectoActual) proyectoActual = crearTableroVacio('EDT Maestro');
+  const mNom = 'Misión Intermedia: Pruebas de Rig (6 Clips <=10s)';
+  const yaTiene = (proyectoActual.tickets || []).some(function(t) { return t.mision === mNom; });
+  if (yaTiene) { toast('La Misión de Pruebas 10s ya está cargada en este tablero.', 'info'); window.cerrarModal('modal-ingesta'); return; }
+  const plan = [
+    { cod: 'P.1', tit: 'Clip Prueba 1 (8s): Feliz Cantando', det: 'Objetivo: Validar ojos felices, lip-sync gratis ($0) y squash & stretch.\n1. En Editor -> menú lateral -> pulsa "+ Pack 6 Pruebas Rig (10s)".\n2. Genera voz con Edge ($0) en Clip #1 y dale Play.\n3. Audita: bordes de ojos, encuadre de boca y rebote sobre los pies.' },
+    { cod: 'P.2', tit: 'Clip Prueba 2 (8s): Triste Llorando', det: 'Objetivo: Validar expresión triste, inclinación de cuello y boca triste.\n1. En Clip #2 (llorar_triste) sintetiza voz Edge ($0) y reproduce.\n2. Revisa que la cabeza no se despegue del cuello al inclinarse.' },
+    { cod: 'P.3', tit: 'Clip Prueba 3 (8s): Enojado en Rabieta', det: 'Objetivo: Validar sacudida rápida, pivote de hombro y boca grito/dientes.\n1. En Clip #3 (rabieta_enojado) prueba la actuación con voz Edge ($0).\n2. Verifica que el brazo delantero gire limpio desde el hombro.' },
+    { cod: 'P.4', tit: 'Clip Prueba 4 (8s): Saludar y Carcajada (REC)', det: 'Objetivo: Validar transición de actuación en vivo (saludar -> reír).\n1. En Clip #4 abre Actuar -> REC Vivo y prueba disparar gestos sobre el audio.\n2. Verifica fluidez del cambio de mano y expresión.' },
+    { cod: 'P.5', tit: 'Clip Prueba 5 (8s): Sorpresa y Giro 3/4 a Frente', det: 'Objetivo: Validar cambio de perspectiva (cabeza_base -> cabeza_frente) sin piezas atravesadas.\n1. Calibra cabeza_frente y genera al menos 2 ojos frontales.\n2. Reproduce Clip #5 y comprueba el cambio limpio a cámara.' },
+    { cod: 'P.6', tit: 'Clip Prueba 6 (8s): Pensar y Señalar', det: 'Objetivo: Validar contraste de ritmo (pausa reflexiva -> impulso al señalar).\n1. Reproduce Clip #6 y revisa ojos duda/indignado y mano señalando.\n2. Anota cualquier ajuste de pivote en la Bitácora.' },
+    { cod: 'P.7', tit: 'Auditoría Final de Piezas antes del Episodio 1', det: 'Objetivo: Corregir en Estudio PNG cualquier borde, pivote o marco detectado en los 6 clips de prueba (<=10s).\nAl cerrar este ticket tu personaje queda certificado para producir el Episodio 1 completo.' }
+  ];
+  const baseOrd = (proyectoActual.tickets || []).length;
+  plan.forEach(function(it, i) {
+    proyectoActual.tickets.push({
+      id: 'tk_pr10_' + Date.now() + '_' + i,
+      orden: baseOrd + i + 1,
+      codigo: it.cod, mision: mNom, titulo: it.tit, detalle: it.det,
+      completado: false, notas: '', segundos_invertidos: 0, adjuntos: []
+    });
+  });
+  ticketActivoId = proyectoActual.tickets[baseOrd].id;
+  window.cerrarModal('modal-ingesta');
+  programarGuardadoProyecto(true);
+  actualizarUIProyecto();
+  const selM = document.getElementById('sel-mision');
+  if (selM) { selM.value = mNom; window.renderizarRiel(); }
+  toast('Misión Intermedia (6 clips <=10s + Auditoría) añadida.', 'exito');
+};
+
 function obtenerTicketActual() {
   if (!proyectoActual || !Array.isArray(proyectoActual.tickets)) return null;
   return proyectoActual.tickets.find(function(t) { return t.id === ticketActivoId; }) || null;
@@ -704,7 +739,9 @@ window.renderizarRiel = function() {
   const filtroM = document.getElementById('sel-mision').value;
   const libre = document.getElementById('chk-saltar').checked;
   const primerPend = obtenerPrimerPendiente();
-  const tks = (proyectoActual.tickets || []).filter(function(t) { return !filtroM || t.mision === filtroM; });
+    const tks = (proyectoActual.tickets || []).filter(function(t) { return !filtroM || t.mision === filtroM; });
+  const bMis = document.getElementById('badge-prog-mision');
+  if (bMis) { const hm = tks.filter(function(x){ return x.completado; }).length; const pm = tks.length ? Math.round((hm / tks.length) * 100) : 0; bMis.textContent = hm + '/' + tks.length + ' (' + pm + '%)'; bMis.className = 'pill ' + (pm === 100 && tks.length ? 'ok' : (hm > 0 ? 'warn' : '')); }
 
   if (tks.length === 0) {
     rail.innerHTML = '<div style="font-size:11px; color:var(--muted); padding:16px 8px;">Sin tickets. Pulsa "+ EDT" arriba.</div>';
