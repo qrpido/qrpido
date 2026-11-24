@@ -262,6 +262,78 @@ export function obtenerBocaDesdeEnvolvente(env, tiempoLocalSeg, textoFallback) {
   return 'boca_cerrada';
 }
 
+export const CURVAS_PIRO = {
+  linear: function(u) { return u; },
+  easeInOut: function(u) { return u < 0.5 ? (2 * u * u) : (1 - Math.pow(-2 * u + 2, 2) / 2); },
+  easeOut: function(u) { return 1 - Math.pow(1 - u, 3); },
+  easeIn: function(u) { return u * u * u; },
+  elastic: function(u) { return (u <= 0 || u >= 1) ? u : (Math.pow(2, -10 * u) * Math.sin((u * 10 - 0.75) * ((2 * Math.PI) / 3)) + 1); },
+  bounce: function(u) { const n1 = 7.5625, d1 = 2.75; if (u < 1 / d1) return n1 * u * u; if (u < 2 / d1) { const t = u - 1.5 / d1; return n1 * t * t + 0.75; } if (u < 2.5 / d1) { const t = u - 2.25 / d1; return n1 * t * t + 0.9375; } const t = u - 2.625 / d1; return n1 * t * t + 0.984375; },
+  step: function(u) { return u >= 1 ? 1 : 0; }
+};
+export function evaluarCurvaPiro(nombre, u) { const c = Math.max(0, Math.min(1, Number(u) || 0)); return (CURVAS_PIRO[nombre] || CURVAS_PIRO.easeInOut)(c); }
+function hashSemillaPiro(txt) { const s = String(txt || 'piro'); let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0); }
+export const ACTUACIONES_PIRO = {
+  ninguna: { id: 'ninguna', nombre: 'Normal (Base)', durCiclo: 1.0, loop: false, curva: 'easeInOut', frames: [] },
+  saludar: { id: 'saludar', nombre: 'Saludar', durCiclo: 1.4, loop: true, curva: 'easeInOut', ojos: 'feliz', mano: 'mano_abierta', frames: [{ p: 0, rotCab: -4, rotBrazo: -38, rotAntebrazo: -25, rotMano: -12, scaleX: 1, scaleY: 1, offsetY: 0 }, { p: 0.25, rotCab: 5, rotBrazo: -52, rotAntebrazo: -12, rotMano: 18, scaleX: 0.98, scaleY: 1.02, offsetY: -6 }, { p: 0.5, rotCab: -3, rotBrazo: -40, rotAntebrazo: -28, rotMano: -16, scaleX: 1.01, scaleY: 0.99, offsetY: 0 }, { p: 0.75, rotCab: 5, rotBrazo: -52, rotAntebrazo: -10, rotMano: 18, scaleX: 0.98, scaleY: 1.02, offsetY: -6 }, { p: 1, rotCab: -4, rotBrazo: -38, rotAntebrazo: -25, rotMano: -12, scaleX: 1, scaleY: 1, offsetY: 0 }] },
+  cantar_feliz: { id: 'cantar_feliz', nombre: 'Feliz Cantando', durCiclo: 1.2, loop: true, curva: 'easeInOut', ojos: 'feliz', mano: 'mano_abierta', frames: [{ p: 0, rotCab: -9, rotBrazo: -18, rotAntebrazo: -14, rotMano: 8, scaleX: 1.03, scaleY: 0.97, offsetY: 4 }, { p: 0.25, rotCab: 2, rotBrazo: -30, rotAntebrazo: -6, rotMano: -8, scaleX: 0.97, scaleY: 1.04, offsetY: -12 }, { p: 0.5, rotCab: 9, rotBrazo: -14, rotAntebrazo: -18, rotMano: 10, scaleX: 1.03, scaleY: 0.97, offsetY: 4 }, { p: 0.75, rotCab: -2, rotBrazo: -28, rotAntebrazo: -8, rotMano: -8, scaleX: 0.97, scaleY: 1.04, offsetY: -12 }, { p: 1, rotCab: -9, rotBrazo: -18, rotAntebrazo: -14, rotMano: 8, scaleX: 1.03, scaleY: 0.97, offsetY: 4 }] },
+  llorar_triste: { id: 'llorar_triste', nombre: 'Triste Llorando', durCiclo: 1.5, loop: true, curva: 'easeInOut', ojos: 'triste', bocaDef: 'boca_triste', mano: 'mano_pecho', frames: [{ p: 0, rotCab: 11, rotBrazo: 14, rotAntebrazo: -18, rotMano: 0, scaleX: 1.02, scaleY: 0.97, offsetY: 6 }, { p: 0.22, rotCab: 15, rotBrazo: 18, rotAntebrazo: -22, rotMano: -4, scaleX: 1.04, scaleY: 0.95, offsetY: 10 }, { p: 0.45, rotCab: 9, rotBrazo: 12, rotAntebrazo: -15, rotMano: 3, scaleX: 1, scaleY: 0.99, offsetY: 3 }, { p: 0.7, rotCab: 15, rotBrazo: 17, rotAntebrazo: -22, rotMano: -4, scaleX: 1.04, scaleY: 0.95, offsetY: 10 }, { p: 1, rotCab: 11, rotBrazo: 14, rotAntebrazo: -18, rotMano: 0, scaleX: 1.02, scaleY: 0.97, offsetY: 6 }] },
+  rabieta_enojado: { id: 'rabieta_enojado', nombre: 'Enojado Rabieta', durCiclo: 0.65, loop: true, curva: 'bounce', ojos: 'enojado', bocaDef: 'boca_grito', mano: 'mano_puno', frames: [{ p: 0, rotCab: -10, rotBrazo: -42, rotAntebrazo: -18, rotMano: -10, scaleX: 1.06, scaleY: 0.94, offsetY: 8 }, { p: 0.35, rotCab: 10, rotBrazo: -10, rotAntebrazo: 12, rotMano: 12, scaleX: 0.95, scaleY: 1.06, offsetY: -14 }, { p: 0.7, rotCab: -8, rotBrazo: -46, rotAntebrazo: -22, rotMano: -14, scaleX: 1.06, scaleY: 0.94, offsetY: 8 }, { p: 1, rotCab: -10, rotBrazo: -42, rotAntebrazo: -18, rotMano: -10, scaleX: 1.06, scaleY: 0.94, offsetY: 8 }] },
+  reir: { id: 'reir', nombre: 'Reir', durCiclo: 0.55, loop: true, curva: 'easeOut', ojos: 'feliz', bocaDef: 'boca_abierta', frames: [{ p: 0, rotCab: -8, rotBrazo: -10, rotAntebrazo: -6, rotMano: 0, scaleX: 1.03, scaleY: 0.97, offsetY: 4 }, { p: 0.5, rotCab: -15, rotBrazo: -18, rotAntebrazo: -12, rotMano: 6, scaleX: 0.97, scaleY: 1.04, offsetY: -10 }, { p: 1, rotCab: -8, rotBrazo: -10, rotAntebrazo: -6, rotMano: 0, scaleX: 1.03, scaleY: 0.97, offsetY: 4 }] },
+  sorprenderse: { id: 'sorprenderse', nombre: 'Sorprenderse', durCiclo: 1.1, loop: false, curva: 'elastic', ojos: 'indignado', bocaDef: 'boca_o_u', mano: 'mano_abierta', frames: [{ p: 0, rotCab: 0, rotBrazo: 0, rotAntebrazo: 0, rotMano: 0, scaleX: 1, scaleY: 1, offsetY: 0 }, { p: 0.25, rotCab: -12, rotBrazo: -36, rotAntebrazo: -20, rotMano: 14, scaleX: 0.92, scaleY: 1.09, offsetY: -18 }, { p: 1, rotCab: -6, rotBrazo: -24, rotAntebrazo: -12, rotMano: 6, scaleX: 0.98, scaleY: 1.02, offsetY: -4 }] },
+  pensar: { id: 'pensar', nombre: 'Pensar', durCiclo: 2.2, loop: true, curva: 'easeInOut', ojos: 'duda', mano: 'mano_pecho', frames: [{ p: 0, rotCab: -8, rotBrazo: -24, rotAntebrazo: -28, rotMano: -8, scaleX: 1, scaleY: 1, offsetY: 0 }, { p: 0.5, rotCab: -13, rotBrazo: -28, rotAntebrazo: -32, rotMano: -12, scaleX: 0.99, scaleY: 1.01, offsetY: -2 }, { p: 1, rotCab: -8, rotBrazo: -24, rotAntebrazo: -28, rotMano: -8, scaleX: 1, scaleY: 1, offsetY: 0 }] },
+  senalar: { id: 'senalar', nombre: 'Senalar', durCiclo: 1.2, loop: false, curva: 'easeOut', ojos: 'indignado', mano: 'mano_senalando', frames: [{ p: 0, rotCab: 2, rotBrazo: 6, rotAntebrazo: 0, rotMano: 0, scaleX: 1.02, scaleY: 0.98, offsetY: 3 }, { p: 0.35, rotCab: -5, rotBrazo: -44, rotAntebrazo: -10, rotMano: 8, scaleX: 0.97, scaleY: 1.03, offsetY: -8 }, { p: 1, rotCab: -3, rotBrazo: -36, rotAntebrazo: -6, rotMano: 4, scaleX: 1, scaleY: 1, offsetY: 0 }] },
+  asentir: { id: 'asentir', nombre: 'Asentir', durCiclo: 0.9, loop: true, curva: 'easeInOut', frames: [{ p: 0, rotCab: -4, rotBrazo: 0, rotAntebrazo: 0, rotMano: 0, scaleX: 1, scaleY: 1, offsetY: 0 }, { p: 0.45, rotCab: 12, rotBrazo: 2, rotAntebrazo: 0, rotMano: 0, scaleX: 1.01, scaleY: 0.99, offsetY: 3 }, { p: 1, rotCab: -4, rotBrazo: 0, rotAntebrazo: 0, rotMano: 0, scaleX: 1, scaleY: 1, offsetY: 0 }] },
+  negar: { id: 'negar', nombre: 'Negar', durCiclo: 0.85, loop: true, curva: 'easeInOut', ojos: 'duda', frames: [{ p: 0, rotCab: -11, rotBrazo: -6, rotAntebrazo: 0, rotMano: 0, scaleX: 1, scaleY: 1, offsetY: 0 }, { p: 0.5, rotCab: 11, rotBrazo: 6, rotAntebrazo: 0, rotMano: 0, scaleX: 1, scaleY: 1, offsetY: 0 }, { p: 1, rotCab: -11, rotBrazo: -6, rotAntebrazo: 0, rotMano: 0, scaleX: 1, scaleY: 1, offsetY: 0 }] }
+};
+function interpolarActuacion(actDef, tLocal) {
+  if (!actDef || !Array.isArray(actDef.frames) || !actDef.frames.length) return null;
+  const dur = Math.max(0.2, Number(actDef.durCiclo) || 1), tPos = Math.max(0, Number(tLocal) || 0);
+  const uCiclo = actDef.loop ? ((tPos % dur) / dur) : Math.min(1, tPos / dur), fs = actDef.frames;
+  let a = fs[0], b = fs[fs.length - 1];
+  for (let i = 0; i < fs.length - 1; i++) { if (uCiclo >= fs[i].p && uCiclo <= fs[i + 1].p) { a = fs[i]; b = fs[i + 1]; break; } }
+  const k = evaluarCurvaPiro(actDef.curva || 'easeInOut', (uCiclo - a.p) / Math.max(0.0001, b.p - a.p));
+  const lr = function(v0, v1) { return v0 + (v1 - v0) * k; };
+  return { rotCab: lr(a.rotCab || 0, b.rotCab || 0), rotBrazo: lr(a.rotBrazo || 0, b.rotBrazo || 0), rotAntebrazo: lr(a.rotAntebrazo || 0, b.rotAntebrazo || 0), rotMano: lr(a.rotMano || 0, b.rotMano || 0), scaleX: lr(a.scaleX || 1, b.scaleX || 1), scaleY: lr(a.scaleY || 1, b.scaleY || 1), offsetY: lr(a.offsetY || 0, b.offsetY || 0) };
+}
+export function calcularVidaAutonomaPiro(tSeg, seedStr, estaHablando) {
+  const t = Math.max(0, Number(tSeg) || 0), h = hashSemillaPiro(seedStr), fase = (h % 628) / 100;
+  const resp = Math.sin(t * 2.1 + fase), cicloParp = 3.2 + ((h % 19) * 0.11), posParp = (t + fase * 0.5) % cicloParp;
+  let cabExtra = Math.sin(t * 1.15 + fase) * (estaHablando ? 1.8 : 0.9);
+  if (!estaHablando) { const cEsc = (t + fase) % 4.6; if (cEsc > 3.9 && cEsc < 4.45) cabExtra += Math.sin(((cEsc - 3.9) / 0.55) * Math.PI) * 4.5; }
+  return { rotCab: cabExtra, rotBrazo: Math.sin(t * 1.4 + fase) * (estaHablando ? 2.6 : 1.0), scaleX: 1 - (resp * 0.007), scaleY: 1 + (resp * 0.013), offsetY: -resp * 2.5, parpadeando: posParp > (cicloParp - 0.14) };
+}
+export function evaluarAnimacionActorPiro(actorObj, sc, tLocalSeg, estaHablando, personaje) {
+  const a = actorObj || {}, t = Math.max(0, Number(tLocalSeg) || 0), vidaOn = !sc || sc.vida_auto !== false;
+  const out = { cabeza: a.cabeza || 'cabeza_base', ojos: a.ojos || 'neutro', bocaDef: a.boca || 'boca_cerrada', mano: a.mano || '', rotCab: Number(a.rotCab) || 0, rotBrazo: Number(a.rotBrazo) || 0, rotAntebrazo: Number(a.rotAntebrazo) || 0, rotMano: Number(a.rotMano) || 0, rotBrazoTras: Number(a.rotBrazoTras) || 0, scaleX: 1, scaleY: 1, offsetY: 0, actuacionActiva: a.actuacion || (sc && sc.actuacion) || 'ninguna' };
+  let tActInicio = 0;
+  const evs = (sc && Array.isArray(sc.eventos_actuacion)) ? sc.eventos_actuacion : [];
+  for (let i = 0; i < evs.length; i++) {
+    const ev = evs[i]; if (!ev || typeof ev.t !== 'number' || (ev.actorId && ev.actorId !== a.id)) continue;
+    if (t >= ev.t) {
+      if (ev.cabeza) out.cabeza = ev.cabeza; if (ev.ojos) out.ojos = ev.ojos; if (ev.mano !== undefined) out.mano = ev.mano;
+      const durEv = Number(ev.dur) || 0; if (ev.actuacion && (!durEv || t <= ev.t + durEv)) { out.actuacionActiva = ev.actuacion; tActInicio = ev.t; }
+    }
+  }
+  if (vidaOn) {
+    const v = calcularVidaAutonomaPiro(t, (sc && sc.id ? sc.id : 'sc') + '_' + (a.id || 'per'), estaHablando);
+    out.rotCab += v.rotCab; out.rotBrazo += v.rotBrazo; out.scaleX *= v.scaleX; out.scaleY *= v.scaleY; out.offsetY += v.offsetY;
+    if (v.parpadeando && out.ojos !== 'cerrados' && out.ojos !== 'ojos_cerrados') {
+      const rCerr = resolverPiezaPerspectiva(personaje, 'ojos', 'ojos_cerrados', out.cabeza, { soloPerspectiva: true, sinFallbackDefault: true });
+      if (rCerr && rCerr.url) out.ojos = 'ojos_cerrados';
+    }
+  }
+  const actDef = ACTUACIONES_PIRO[out.actuacionActiva];
+  if (actDef && actDef.frames && actDef.frames.length > 0) {
+    const pose = interpolarActuacion(actDef, Math.max(0, t - tActInicio));
+    if (pose) { out.rotCab += pose.rotCab; out.rotBrazo += pose.rotBrazo; out.rotAntebrazo += pose.rotAntebrazo; out.rotMano += pose.rotMano; out.scaleX *= pose.scaleX; out.scaleY *= pose.scaleY; out.offsetY += pose.offsetY; }
+    if (actDef.ojos && out.ojos !== 'ojos_cerrados') out.ojos = actDef.ojos;
+    if (actDef.bocaDef) out.bocaDef = actDef.bocaDef;
+    if (actDef.mano && !out.mano) out.mano = actDef.mano;
+  }
+  return out;
+}
+
 export function normalizarActoresEscena(sc) {
   if (!sc) return [];
   if (Array.isArray(sc.actores) && sc.actores.length > 0) {
@@ -282,6 +354,7 @@ export function normalizarActoresEscena(sc) {
         rotMano: Number(a.rotMano) || 0,
         rotBrazoTras: Number(a.rotBrazoTras) || 0,
         prop: String(a.prop || ''),
+        actuacion: String(a.actuacion || ''),
         escala: Number(a.escala) || 1
       };
     });
@@ -297,6 +370,7 @@ export function normalizarActoresEscena(sc) {
     rotCab: Number(sc.rotCab) || 0,
     rotBrazo: Number(sc.rotBrazo) || 0,
     prop: esPropMano ? String(sc.prop) : '',
+    actuacion: String(sc.actuacion || ''),
     escala: 1
   }];
 }
@@ -362,8 +436,14 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
     const sc = Number(cfg.scale) || 0.44;
     ctx.translate(Number(cfg.x) || 270, Number(cfg.y) || 530);
     if (cfg.flipX) ctx.scale(-1, 1);
-    ctx.scale(sc, sc);
+        ctx.scale(sc, sc);
     ctx.translate(-500, -800);
+  }
+  const sxAnim = Number(cfg.scaleX) || 1, syAnim = Number(cfg.scaleY) || 1, oyAnim = Number(cfg.offsetY) || 0;
+  if (sxAnim !== 1 || syAnim !== 1 || oyAnim !== 0) {
+    ctx.translate(500, 1480 + oyAnim);
+    ctx.scale(sxAnim, syAnim);
+    ctx.translate(-500, -1480);
   }
 
   let capasDibujadas = 0;
@@ -620,26 +700,30 @@ export async function componerEscenaPiro(ctx, params) {
                 if (prObj && prObj.archivo && prObj.archivo.url) propImg = await cargarImagenPiro(prObj.archivo.url, corsOpt);
       }
 
-      const estaHablando = Boolean(hablanteId && hablanteId !== 'ninguno' && a.id === hablanteId);
-      const bocaFinal = estaHablando ? bocaActiva : (a.boca || 'boca_cerrada');
+            const estaHablando = Boolean(hablanteId && hablanteId !== 'ninguno' && a.id === hablanteId);
+      const anim = evaluarAnimacionActorPiro(a, sc, Number(params.tiempoLocal) || 0, estaHablando, per);
+      const bocaFinal = estaHablando ? bocaActiva : (anim.bocaDef || a.boca || 'boca_cerrada');
 
-              await dibujarMarionetaPiro(ctx, per, {
-          cabeza: a.cabeza || 'cabeza_base',
-          cuerpo: a.cuerpo || 'cuerpo_base',
-          ojos: a.ojos || 'neutro',
-          boca: bocaFinal,
-          brazoDel: a.brazo || (propImg ? 'brazo_delantero_prop' : 'brazo_delantero_reposo'),
-          brazoTras: a.brazoTras || 'brazo_trasero_reposo',
-          mano: a.mano || '',
-          rotCab: a.rotCab || 0,
-          rotBrazo: a.rotBrazo || 0,
-          rotAntebrazo: a.rotAntebrazo || 0,
-          rotMano: a.rotMano || 0,
-          rotBrazoTras: a.rotBrazoTras || 0,
-          propImg: propImg,
+      await dibujarMarionetaPiro(ctx, per, {
+        cabeza: anim.cabeza || 'cabeza_base',
+        cuerpo: a.cuerpo || 'cuerpo_base',
+        ojos: anim.ojos || 'neutro',
+        boca: bocaFinal,
+        brazoDel: a.brazo || (propImg ? 'brazo_delantero_prop' : 'brazo_delantero_reposo'),
+        brazoTras: a.brazoTras || 'brazo_trasero_reposo',
+        mano: anim.mano || '',
+        rotCab: anim.rotCab || 0,
+        rotBrazo: anim.rotBrazo || 0,
+        rotAntebrazo: anim.rotAntebrazo || 0,
+        rotMano: anim.rotMano || 0,
+        rotBrazoTras: anim.rotBrazoTras || 0,
+        scaleX: anim.scaleX,
+        scaleY: anim.scaleY,
+        offsetY: anim.offsetY,
+        propImg: propImg,
         x: xBase + panX * 0.45,
         y: yBase,
-                scale: scPer,
+        scale: scPer,
         flipX: flip,
         modoExportacion: Boolean(params.modoExportacion)
       });
