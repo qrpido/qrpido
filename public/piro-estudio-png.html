@@ -342,6 +342,10 @@
     </div>
 
     <div class="tool-strip hidden" id="strip-stage">
+    <button type="button" class="tool-btn accent" id="tbtn-calibrar" style="border-color:rgba(56,189,248,0.65); color:#7dd3fc;" onclick="window.iniciarAsistenteMolde(false)">
+      <svg class="svg-ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+      <span>Calibrar</span>
+    </button>
   <button type="button" class="tool-btn accent" id="tbtn-cajas" style="border-color:rgba(34,197,94,0.55); color:#86efac;" onclick="window.abrirHerramienta('cajas')">
     <svg class="svg-ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="4 3"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
     <span>Cajas Guía</span>
@@ -489,7 +493,25 @@
       </div>
     </div>
 
-    <div class="subpanel" id="sub-cajas">
+      <div class="subpanel" id="sub-calibrar">
+    <div class="sub-top">
+      <span class="sub-title" id="lbl-calib-paso" style="color:#7dd3fc;">Calibrar Molde · 1/4 Ojos</span>
+      <div style="display:flex; gap:5px; align-items:center;">
+        <button type="button" class="btn btn-xs" id="btn-calib-omitir" onclick="window.omitirCalibracionMolde()">Omitir</button>
+        <button type="button" class="btn btn-xs" id="btn-calib-prev" onclick="window.pasoCalibrarMolde(-1)">Ant</button>
+        <button type="button" class="btn btn-xs btn-green" id="btn-calib-next" onclick="window.pasoCalibrarMolde(1)">Sig →</button>
+      </div>
+    </div>
+    <div class="sub-row" id="row-calib-tools">
+      <button type="button" class="btn btn-xs btn-primary" id="btn-cal-m-x" onclick="window.setModoCalib('x')">+ X Centro</button>
+      <button type="button" class="btn btn-xs btn-blue" id="btn-cal-m-caja" onclick="window.setModoCalib('caja')">Marco</button>
+      <button type="button" class="btn btn-xs" id="btn-cal-undo-x" onclick="window.quitarUltimaXCalib()">-1 X</button>
+      <button type="button" class="btn btn-xs btn-danger" id="btn-cal-clear" onclick="window.limpiarZonaCalib()">Limpiar</button>
+      <span id="lbl-calib-hint" style="font-size:10.5px; color:var(--muted); white-space:nowrap;">Toca para marcar cada centro X</span>
+    </div>
+  </div>
+
+  <div class="subpanel" id="sub-cajas">
   <div class="sub-top">
     <span class="sub-title" id="lbl-caja-activa" style="color:#86efac;">Caja Verde: Ojos · Arrastra sobre el calco</span>
     <div style="display:flex; gap:5px;">
@@ -700,6 +722,16 @@ let stagePanY = 0;
 let stageViewGesture = null;
 let cajaDrawStart = null;
 let cajaPreDraw = null;
+let moldesRig = {};
+let moldesRigTs = 0;
+let slotKeyActual = '';
+let calibPasos = [];
+let calibIdx = 0;
+let calibModo = 'x';
+let calibGuardarAlCerrar = false;
+let calibTapStart = null;
+let calibBoxStart = null;
+let calibBoxPre = null;
 
 let pointersStage = new Map();
 let gestureState = null;
@@ -837,7 +869,7 @@ async function intentarRestaurarBorrador() {
 
     if (typeof meta.alturaCm === 'number') alturaCm = meta.alturaCm;
     if (typeof meta.opacidadCalco === 'number') opacidadCalco = meta.opacidadCalco;
-    if (meta.pivotes) pivotes = Object.assign({ cuello: null, hombro_trasero: null, codo_trasero: null, hombro_delantero: null, codo_delantero: null, mano_delantera: null, cadera_delantera: null, cadera_trasera: null }, meta.pivotes);
+      if (meta.pivotes) { pivotes = Object.assign({ cuello: null, hombro_trasero: null, codo_trasero: null, hombro_delantero: null, codo_delantero: null, mano_delantera: null, cadera_delantera: null, cadera_trasera: null }, meta.pivotes); cargarMoldesCombinados(meta.pivotes); }
     if (meta.st) st = Object.assign({ x: 500, y: 920, scale: 1, rot: 0, flipX: false }, meta.st);
 
     if (meta.calcoUrl) {
@@ -1076,8 +1108,12 @@ window.cerrarHerramienta = function() {
   cropRect = null;
   dibujandoMascara = false;
   ultimoPtMascara = null;
-  dibujandoPincel = false;
+    dibujandoPincel = false;
   ultimoPtPincel = null;
+  calibTapStart = null;
+  calibBoxStart = null;
+  calibBoxPre = null;
+  calibGuardarAlCerrar = false;
   ocultarCursorClean();
   document.querySelectorAll('.subpanel').forEach(function(el) { el.classList.remove('activo'); });
   document.getElementById('strip-clean').classList.toggle('hidden', pasoActual !== 2);
@@ -2054,6 +2090,120 @@ function guardarCajasEnLocal() {
   try { localStorage.setItem(claveLocalCajas(), JSON.stringify({ ts: cajasGuiaTs, cajas: cajasGuia })); } catch (e) {}
 }
 
+function inferirClaveMoldeActual() {
+  if (slotKeyActual) return slotKeyActual;
+  const arch = slug(document.getElementById('input-nombre-archivo').value, '');
+  if (presetActual.id === 'per_cabeza') {
+    if (arch.indexOf('frente') >= 0) return 'cabeza_frente';
+    if (arch.indexOf('perfil') >= 0) return 'cabeza_perfil';
+    return 'cabeza_base';
+  }
+  if (presetActual.id === 'per_cuerpo') return arch.indexOf('sentad') >= 0 ? 'cuerpo_sentado' : 'cuerpo_base';
+  if (presetActual.id === 'per_ref') return arch.indexOf('perfil') >= 0 ? 'maestro_perfil' : 'maestro_cuerpo';
+  return '';
+}
+function esMoldeCalibrable(mk) { return ['cabeza_base', 'cabeza_frente', 'cabeza_perfil', 'cuerpo_base', 'cuerpo_sentado'].indexOf(mk) >= 0; }
+function anguloParaMolde(mk) { return mk === 'cabeza_frente' ? 'frente' : (mk === 'cabeza_perfil' ? 'perfil' : '3_4'); }
+function pasosParaMolde(mk) {
+  if (mk && mk.indexOf('cabeza_') === 0) {
+    return [
+      { key: 'ojos', titulo: 'Ojos', tipo: 'zona', hint: 'Toca cada ojo (X) y luego Marco' },
+      { key: 'boca', titulo: 'Boca', tipo: 'zona', hint: 'Marca 1 X en boca y luego Marco' },
+      { key: 'cuello', titulo: 'Pivote Cuello', tipo: 'pivote', hint: 'Toca el punto de giro del cuello' },
+      { key: 'accesorios', titulo: 'Pelo/Acc (Opc)', tipo: 'zona', hint: 'Opcional: X + Marco para accesorios' }
+    ];
+  }
+  return [
+    { key: 'cabeza', titulo: 'Zona Cabeza', tipo: 'zona', hint: 'Marca X en cabeza y luego Marco' },
+    { key: 'mano', titulo: 'Zona Mano', tipo: 'zona', hint: 'Marca X en muñeca y luego Marco' },
+    { key: 'brazo_del', titulo: 'Brazo Del.', tipo: 'zona', hint: 'Marca X en hombro y luego Marco' },
+    { key: 'cuello', titulo: 'Pivote Cuello', tipo: 'pivote', hint: 'Toca el punto de unión del cuello' }
+  ];
+}
+function claveLocalMoldes() { return 'piro_moldes_rig_' + slug(document.getElementById('input-entidad-id').value, 'per_001'); }
+function guardarMoldesEnLocal() { moldesRigTs = Date.now(); try { localStorage.setItem(claveLocalMoldes(), JSON.stringify({ ts: moldesRigTs, moldes: moldesRig })); } catch (e) {} }
+function cargarMoldesCombinados(pivInit) {
+  let locM = {}, locTs = 0;
+  try { const raw = localStorage.getItem(claveLocalMoldes()); if (raw) { const o = JSON.parse(raw); if (o && o.moldes) { locM = o.moldes; locTs = Number(o.ts) || 0; } } } catch (e) {}
+  const nubeM = (pivInit && pivInit._moldes && typeof pivInit._moldes === 'object') ? pivInit._moldes : null;
+  const nubeTs = (pivInit && Number(pivInit._moldes_ts)) ? Number(pivInit._moldes_ts) : 0;
+  moldesRig = (nubeM && (!locTs || nubeTs >= locTs)) ? Object.assign({}, locM, nubeM) : Object.assign({}, nubeM || {}, locM);
+  moldesRigTs = Math.max(nubeTs, locTs);
+}
+function asegurarMoldeObj(mk) {
+  if (!moldesRig[mk] || typeof moldesRig[mk] !== 'object') moldesRig[mk] = { angulo: anguloParaMolde(mk), zonas: {}, cuello: null, calibrado: false };
+  if (!moldesRig[mk].zonas || typeof moldesRig[mk].zonas !== 'object') moldesRig[mk].zonas = {};
+  moldesRig[mk].angulo = anguloParaMolde(mk);
+  return moldesRig[mk];
+}
+function asegurarZonaMolde(mk, zk) {
+  const m = asegurarMoldeObj(mk);
+  if (!m.zonas[zk] || typeof m.zonas[zk] !== 'object') m.zonas[zk] = { caja: null, puntos: [] };
+  if (!Array.isArray(m.zonas[zk].puntos)) m.zonas[zk].puntos = [];
+  return m.zonas[zk];
+}
+function moldeEstaCalibrado(mk) {
+  const m = moldesRig[mk]; if (!m || !m.zonas) return false; if (m.calibrado) return true;
+  if (mk.indexOf('cabeza_') === 0) return Boolean(m.zonas.ojos && m.zonas.ojos.caja && m.zonas.boca && m.zonas.boca.caja);
+  return Object.keys(m.zonas).some(function(k) { return Boolean(m.zonas[k] && m.zonas[k].caja); });
+}
+function sincronizarMoldeACajasLegacy(mk) {
+  const m = moldesRig[mk]; if (!m || !m.zonas) return;
+  if (mk === 'cabeza_base' || mk === 'cuerpo_base') {
+    Object.keys(m.zonas).forEach(function(zk) { const z = m.zonas[zk]; if (z && z.caja && z.caja.w > 4 && z.caja.h > 4) cajasGuia[zk] = Object.assign({}, z.caja); });
+    guardarCajasEnLocal();
+  }
+  if (m.cuello && (mk === 'cabeza_base' || mk === 'cuerpo_base' || !pivotes.cuello)) pivotes.cuello = { x: m.cuello.x, y: m.cuello.y };
+}
+function renderUICalibrar() {
+  const mk = inferirClaveMoldeActual() || 'cabeza_base', paso = calibPasos[calibIdx] || calibPasos[0]; if (!paso) return;
+  const m = asegurarMoldeObj(mk), esPiv = paso.tipo === 'pivote';
+  let estadoTxt = '';
+  if (esPiv) estadoTxt = m.cuello ? ('OK (' + m.cuello.x + ',' + m.cuello.y + ')') : 'Sin marcar';
+  else { const z = asegurarZonaMolde(mk, paso.key); estadoTxt = z.puntos.length + ' X · ' + (z.caja ? (Math.round(z.caja.w) + '×' + Math.round(z.caja.h)) : 'sin marco'); }
+  const lblP = document.getElementById('lbl-calib-paso'), btnNext = document.getElementById('btn-calib-next'), btnPrev = document.getElementById('btn-calib-prev'), btnOm = document.getElementById('btn-calib-omitir');
+  const bX = document.getElementById('btn-cal-m-x'), bC = document.getElementById('btn-cal-m-caja'), bU = document.getElementById('btn-cal-undo-x'), hint = document.getElementById('lbl-calib-hint');
+  if (lblP) lblP.textContent = (calibIdx + 1) + '/' + calibPasos.length + ' ' + paso.titulo + ' · ' + estadoTxt;
+  if (btnPrev) btnPrev.disabled = calibIdx === 0;
+  if (btnNext) btnNext.textContent = calibIdx === calibPasos.length - 1 ? (calibGuardarAlCerrar ? 'Guardar PNG' : 'Finalizar') : 'Sig →';
+  if (btnOm) btnOm.textContent = calibGuardarAlCerrar ? 'Omitir y Guardar' : 'Cerrar';
+  if (bX) bX.className = 'btn btn-xs ' + (calibModo === 'x' ? 'btn-primary' : '') + (esPiv ? ' hidden' : '');
+  if (bC) bC.className = 'btn btn-xs ' + (calibModo === 'caja' ? 'btn-primary' : 'btn-blue') + (esPiv ? ' hidden' : '');
+  if (bU) bU.classList.toggle('hidden', esPiv);
+  if (hint) hint.textContent = esPiv ? paso.hint : (calibModo === 'x' ? 'Toca para marcar cada centro X' : 'Arrastra el marco delimitador de ' + paso.titulo);
+}
+window.iniciarAsistenteMolde = function(guardarAlTerminar) {
+  if (!imgOriginalDataUrl) { toast('Primero carga una imagen.', 'info'); return; }
+  if (pasoActual !== 3) window.irAPaso(3);
+  const mk = inferirClaveMoldeActual() || 'cabeza_base';
+  calibPasos = pasosParaMolde(mk); calibIdx = 0; calibModo = 'x'; calibGuardarAlCerrar = Boolean(guardarAlTerminar);
+  asegurarMoldeObj(mk); window.abrirHerramienta('calibrar'); renderUICalibrar(); renderizarStage();
+  if (guardarAlTerminar) toast('Calibra este molde 1 sola vez (X + Marco) antes de guardar, o pulsa Omitir.', 'info');
+};
+window.setModoCalib = function(m) { calibModo = m === 'caja' ? 'caja' : 'x'; renderUICalibrar(); };
+window.quitarUltimaXCalib = function() {
+  const mk = inferirClaveMoldeActual() || 'cabeza_base', paso = calibPasos[calibIdx]; if (!paso || paso.tipo !== 'zona') return;
+  const z = asegurarZonaMolde(mk, paso.key); if (z.puntos.length) { z.puntos.pop(); guardarMoldesEnLocal(); renderUICalibrar(); renderizarStage(); }
+};
+window.limpiarZonaCalib = function() {
+  const mk = inferirClaveMoldeActual() || 'cabeza_base', paso = calibPasos[calibIdx]; if (!paso) return;
+  const m = asegurarMoldeObj(mk); if (paso.tipo === 'pivote') m.cuello = null; else m.zonas[paso.key] = { caja: null, puntos: [] };
+  guardarMoldesEnLocal(); renderUICalibrar(); renderizarStage();
+};
+window.pasoCalibrarMolde = function(delta) {
+  const mk = inferirClaveMoldeActual() || 'cabeza_base', sig = calibIdx + delta; if (sig < 0) return;
+  if (sig >= calibPasos.length) {
+    const m = asegurarMoldeObj(mk); m.calibrado = true; m.updatedAt = Date.now();
+    sincronizarMoldeACajasLegacy(mk); guardarMoldesEnLocal(); guardarMetaSyncLocal();
+    const debeGuardar = calibGuardarAlCerrar; window.cerrarHerramienta();
+    toast('Molde ' + mk + ' calibrado y listo para IA y Sándwich.', 'exito');
+    if (debeGuardar) guardarYExportarPNG(true);
+    return;
+  }
+  calibIdx = sig; calibModo = 'x'; renderUICalibrar(); renderizarStage();
+};
+window.omitirCalibracionMolde = function() { const debeGuardar = calibGuardarAlCerrar; window.cerrarHerramienta(); if (debeGuardar) guardarYExportarPNG(true); };
+
 function cargarCajasCombinadas(pivInit) {
   let locCajas = {}, locTs = 0;
   try {
@@ -2287,7 +2437,48 @@ if (presetActual.esPersonaje) {
   });
 }
 
-if (spriteImg && herramientaAbierta !== 'pivotes' && herramientaAbierta !== 'cajas') {
+if (presetActual.esPersonaje) {
+  const mkR = inferirClaveMoldeActual(), mR = mkR ? moldesRig[mkR] : null;
+  const pasoCal = herramientaAbierta === 'calibrar' ? (calibPasos[calibIdx] || null) : null;
+  if (mR && mR.zonas && (herramientaAbierta === 'calibrar' || esMoldeCalibrable(mkR))) {
+    Object.keys(mR.zonas).forEach(function(zk) {
+      const z = mR.zonas[zk]; if (!z) return;
+      const esActZ = Boolean(pasoCal && pasoCal.key === zk);
+      const colZ = zk === 'ojos' ? '#38bdf8' : (zk === 'boca' ? '#facc15' : (zk === 'accesorios' ? '#c084fc' : '#22c55e'));
+      ctxStage.save();
+      if (z.caja && z.caja.w > 4 && z.caja.h > 4) {
+        ctxStage.fillStyle = esActZ ? 'rgba(56,189,248,0.12)' : 'rgba(56,189,248,0.04)';
+        ctxStage.fillRect(z.caja.x, z.caja.y, z.caja.w, z.caja.h);
+        ctxStage.strokeStyle = colZ; ctxStage.lineWidth = (esActZ ? 3.5 : 2) / zDiv;
+        ctxStage.setLineDash([10 / zDiv, 6 / zDiv]); ctxStage.strokeRect(z.caja.x, z.caja.y, z.caja.w, z.caja.h); ctxStage.setLineDash([]);
+        const fsM = Math.max(9, Math.round((esActZ ? 20 : 14) / zDiv));
+        ctxStage.font = '800 ' + fsM + 'px monospace'; ctxStage.fillStyle = colZ;
+        ctxStage.fillText(zk.toUpperCase() + ' (' + (z.puntos ? z.puntos.length : 0) + ' X)', z.caja.x, Math.max(fsM + 2, z.caja.y - 6 / zDiv));
+      }
+      if (Array.isArray(z.puntos)) {
+        const arm = Math.max(5, Math.round(14 / zDiv));
+        z.puntos.forEach(function(pt, idxP) {
+          ctxStage.strokeStyle = '#000'; ctxStage.lineWidth = Math.max(3, 6 / zDiv);
+          ctxStage.beginPath(); ctxStage.moveTo(pt.x - arm, pt.y - arm); ctxStage.lineTo(pt.x + arm, pt.y + arm); ctxStage.moveTo(pt.x + arm, pt.y - arm); ctxStage.lineTo(pt.x - arm, pt.y + arm); ctxStage.stroke();
+          ctxStage.strokeStyle = esActZ ? '#22c55e' : colZ; ctxStage.lineWidth = Math.max(1.8, 3.2 / zDiv);
+          ctxStage.beginPath(); ctxStage.moveTo(pt.x - arm, pt.y - arm); ctxStage.lineTo(pt.x + arm, pt.y + arm); ctxStage.moveTo(pt.x + arm, pt.y - arm); ctxStage.lineTo(pt.x - arm, pt.y + arm); ctxStage.stroke();
+          ctxStage.fillStyle = '#fff'; ctxStage.font = '900 ' + Math.max(9, Math.round(16 / zDiv)) + 'px monospace';
+          ctxStage.fillText(String(idxP + 1), pt.x + arm + 3 / zDiv, pt.y + 4 / zDiv);
+        });
+      }
+      ctxStage.restore();
+    });
+  }
+  if (mR && mR.cuello && herramientaAbierta === 'calibrar') {
+    const rc = Math.max(5, Math.round(13 / zDiv));
+    ctxStage.save(); ctxStage.fillStyle = '#f43f5e'; ctxStage.strokeStyle = '#fff'; ctxStage.lineWidth = Math.max(1.5, 3 / zDiv);
+    ctxStage.beginPath(); ctxStage.arc(mR.cuello.x, mR.cuello.y, rc, 0, Math.PI * 2); ctxStage.fill(); ctxStage.stroke();
+    ctxStage.fillStyle = '#fda4af'; ctxStage.font = '800 ' + Math.max(9, Math.round(18 / zDiv)) + 'px monospace';
+    ctxStage.fillText('CUELLO', mR.cuello.x + rc + 4 / zDiv, mR.cuello.y + 5 / zDiv); ctxStage.restore();
+  }
+}
+
+if (spriteImg && herramientaAbierta !== 'pivotes' && herramientaAbierta !== 'cajas' && herramientaAbierta !== 'calibrar') {
   const sq = obtenerEsquinasSprite();
   ctxStage.setLineDash([8 / zDiv, 6 / zDiv]);
   ctxStage.strokeStyle = 'rgba(255, 107, 0, 0.78)';
@@ -2368,8 +2559,13 @@ function generarBlobPNGFinal() {
   });
 }
 
-async function guardarYExportarPNG() {
+async function guardarYExportarPNG(saltarCalibracion) {
   if (!spriteImg) { toast('No hay imagen para guardar.', 'error'); return; }
+  const mkSave = inferirClaveMoldeActual();
+  if (!saltarCalibracion && presetActual.esPersonaje && esMoldeCalibrable(mkSave) && !moldeEstaCalibrado(mkSave)) {
+    window.iniciarAsistenteMolde(true);
+    return;
+  }
   const rutaRelativa = obtenerRutaRelativaActual();
   const blob = await generarBlobPNGFinal();
   if (!blob) { toast('Error generando PNG.', 'error'); return; }
@@ -2381,7 +2577,7 @@ async function guardarYExportarPNG() {
       blob: blob,
       rutaRelativa: rutaRelativa,
       nombreArchivo: rutaRelativa.split('/').pop(),
-      pivotes: Object.assign({}, pivotes, (cajasGuiaTs > 0 || Object.keys(cajasGuia).length > 0) ? { _cajas: cajasGuia, _cajas_ts: cajasGuiaTs || Date.now() } : {}),
+      pivotes: Object.assign({}, pivotes, (cajasGuiaTs > 0 || Object.keys(cajasGuia).length > 0) ? { _cajas: cajasGuia, _cajas_ts: cajasGuiaTs || Date.now() } : {}, (moldesRigTs > 0 || Object.keys(moldesRig).length > 0) ? { _moldes: moldesRig, _moldes_ts: moldesRigTs || Date.now() } : {}),
 alturaCm: alturaCm
     }, '*');
     toast('PNG enviado. Esperando confirmación en la nube...', 'info');
@@ -2578,6 +2774,12 @@ function iniciarCanvasListeners() {
   const wrapStage = document.getElementById('wrap-canvas-stage');
 
 function cancelarGestoStageEnCurso() {
+  calibTapStart = null;
+  if (calibBoxStart) {
+    const mkC = inferirClaveMoldeActual() || 'cabeza_base', pC = calibPasos[calibIdx];
+    if (pC && pC.tipo === 'zona') { const zC = asegurarZonaMolde(mkC, pC.key); zC.caja = calibBoxPre; }
+    calibBoxStart = null; calibBoxPre = null; renderUICalibrar();
+  }
   if (cajaDrawStart) {
     cajaDrawStart = null;
     if (cajaPreDraw) cajasGuia[zonaCajaActiva] = cajaPreDraw;
@@ -2628,6 +2830,20 @@ wrapStage.addEventListener('pointerdown', function(e) {
     return;
   }
 
+    if (herramientaAbierta === 'calibrar') {
+    const mkC = inferirClaveMoldeActual() || 'cabeza_base', pC = calibPasos[calibIdx];
+    if (!pC) return;
+    if (pC.tipo === 'pivote' || calibModo === 'x') {
+      calibTapStart = { cx: e.clientX, cy: e.clientY, x: pt.x, y: pt.y };
+    } else {
+      const zC = asegurarZonaMolde(mkC, pC.key);
+      calibBoxPre = zC.caja ? Object.assign({}, zC.caja) : null;
+      calibBoxStart = { x: pt.x, y: pt.y };
+      zC.caja = { x: Math.round(pt.x), y: Math.round(pt.y), w: 12, h: 12 };
+      renderizarStage();
+    }
+    return;
+  }
   if (herramientaAbierta === 'cajas') {
     cajaPreDraw = cajasGuia[zonaCajaActiva] ? Object.assign({}, cajasGuia[zonaCajaActiva]) : null;
     cajaDrawStart = { x: pt.x, y: pt.y };
@@ -2673,6 +2889,17 @@ wrapStage.addEventListener('pointermove', function(e) {
 
   if (stageViewGesture && stageViewGesture.bloqueo) return;
 
+    if (herramientaAbierta === 'calibrar' && calibBoxStart) {
+    const mkC = inferirClaveMoldeActual() || 'cabeza_base', pC = calibPasos[calibIdx];
+    if (pC && pC.tipo === 'zona') {
+      const zC = asegurarZonaMolde(mkC, pC.key);
+      const x = Math.max(0, Math.min(presetActual.w, Math.min(calibBoxStart.x, pt.x)));
+      const y = Math.max(0, Math.min(presetActual.h, Math.min(calibBoxStart.y, pt.y)));
+      zC.caja = { x: Math.round(x), y: Math.round(y), w: Math.max(12, Math.round(Math.abs(pt.x - calibBoxStart.x))), h: Math.max(12, Math.round(Math.abs(pt.y - calibBoxStart.y))) };
+      renderUICalibrar(); renderizarStage();
+    }
+    return;
+  }
   if (herramientaAbierta === 'cajas' && cajaDrawStart) {
     const x = Math.max(0, Math.min(presetActual.w, Math.min(cajaDrawStart.x, pt.x)));
     const y = Math.max(0, Math.min(presetActual.h, Math.min(cajaDrawStart.y, pt.y)));
@@ -2744,6 +2971,33 @@ function finStage(e) {
   pointersStage.delete(e.pointerId);
   if (stageViewGesture && stageViewGesture.bloqueo) {
     if (pointersStage.size === 0) stageViewGesture = null;
+    return;
+  }
+    if (herramientaAbierta === 'calibrar' && calibTapStart) {
+    const tap = calibTapStart; calibTapStart = null;
+    const mkC = inferirClaveMoldeActual() || 'cabeza_base', pC = calibPasos[calibIdx];
+    const mov = Math.hypot(e.clientX - tap.cx, e.clientY - tap.cy);
+    if (pC && mov < 18) {
+      const mC = asegurarMoldeObj(mkC);
+      if (pC.tipo === 'pivote') {
+        mC.cuello = { x: Math.round(tap.x), y: Math.round(tap.y) };
+        if (mkC === 'cabeza_base' || !pivotes.cuello) pivotes.cuello = { x: mC.cuello.x, y: mC.cuello.y };
+        toast('Cuello del molde fijado (' + mC.cuello.x + ', ' + mC.cuello.y + ').', 'exito');
+      } else {
+        const zC = asegurarZonaMolde(mkC, pC.key);
+        zC.puntos.push({ x: Math.round(tap.x), y: Math.round(tap.y) });
+        toast(pC.titulo + ': ' + zC.puntos.length + ' X marcada(s). Ahora toca Marco.', 'exito');
+      }
+      guardarMoldesEnLocal(); guardarMetaSyncLocal(); renderUICalibrar(); renderizarStage();
+    }
+    return;
+  }
+  if (herramientaAbierta === 'calibrar' && calibBoxStart) {
+    calibBoxStart = null; calibBoxPre = null;
+    const mkC = inferirClaveMoldeActual() || 'cabeza_base';
+    sincronizarMoldeACajasLegacy(mkC);
+    guardarMoldesEnLocal(); guardarMetaSyncLocal(); renderUICalibrar(); renderizarStage();
+    toast('Marco guardado en molde ' + mkC + '.', 'exito');
     return;
   }
   if (herramientaAbierta === 'cajas' && cajaDrawStart) {
@@ -2820,7 +3074,9 @@ window.addEventListener('message', async function(e) {
     });
 
     cargarCajasCombinadas(pivInit);
-zonaCajaActiva = detectarZonaCaja(presetActual.id, e.data.archivoNombre, e.data.etiqueta);
+slotKeyActual = (e.data.slotMeta && e.data.slotMeta.slotKey) ? String(e.data.slotMeta.slotKey) : '';
+    cargarMoldesCombinados(pivInit);
+    zonaCajaActiva = detectarZonaCaja(presetActual.id, e.data.archivoNombre, e.data.etiqueta);
 
 if (e.data.dataUrl) {
   cargarDataUrlEnClean(e.data.dataUrl, pedirFormato);
