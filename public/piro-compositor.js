@@ -4,9 +4,49 @@
  * múltiples actores simultáneos en plano, L-cuts y lip-sync por envolvente real.
  */
 
-const _imgCache = {};
-const _envCache = {};
+const MAX_IMG_CACHE = 80;
+const MAX_ENV_CACHE = 40;
+const _imgCache = new Map();
+const _envCache = new Map();
+const _corsBloqueadas = new Set();
 let _audioCtx = null;
+
+function lruGet(map, k) {
+  if (!map.has(k)) return undefined;
+  const v = map.get(k);
+  map.delete(k);
+  map.set(k, v);
+  return v;
+}
+
+function lruSet(map, k, v, maxSize) {
+  if (map.has(k)) map.delete(k);
+  map.set(k, v);
+  while (map.size > maxSize) {
+    const oldest = map.keys().next().value;
+    map.delete(oldest);
+  }
+}
+
+export function limpiarCacheCompositor() {
+  _imgCache.clear();
+  _envCache.clear();
+  _corsBloqueadas.clear();
+}
+
+export function limpiarBloqueosCorsPiro() {
+  _corsBloqueadas.clear();
+}
+
+export function obtenerBloqueosCorsPiro() {
+  return Array.from(_corsBloqueadas);
+}
+
+export function obtenerEstadisticasCachePiro() {
+  let sinCors = 0;
+  _imgCache.forEach(function(im) { if (im && im._corsOk === false) sinCors++; });
+  return { imagenes: _imgCache.size, envolventes: _envCache.size, sinCorsCache: sinCors, bloqueadasExport: _corsBloqueadas.size };
+}
 
 export const PIVOTES_DEFAULT = {
   cuello: { x: 500, y: 480 },
@@ -19,17 +59,34 @@ export const PIVOTES_DEFAULT = {
   cadera_trasera: { x: 535, y: 920 }
 };
 
-export function cargarImagenPiro(url) {
+export function cargarImagenPiro(url, opts) {
+  const strictCors = Boolean(opts === true || (opts && opts.strictCors));
   return new Promise(function(resolve) {
     if (!url) { resolve(null); return; }
-    if (_imgCache[url]) { resolve(_imgCache[url]); return; }
+    const hit = lruGet(_imgCache, url);
+    if (hit) {
+      if (!strictCors || hit._corsOk === true) { resolve(hit); return; }
+    }
     const im = new Image();
     im.crossOrigin = 'anonymous';
-    im.onload = function() { _imgCache[url] = im; resolve(im); };
+    im.onload = function() {
+      im._corsOk = true;
+      _corsBloqueadas.delete(url);
+      lruSet(_imgCache, url, im, MAX_IMG_CACHE);
+      resolve(im);
+    };
     im.onerror = function() {
-      // Reintento sin crossOrigin solo para vista previa si el servidor no devuelve CORS
+      if (strictCors) {
+        _corsBloqueadas.add(url);
+        resolve(null);
+        return;
+      }
       const im2 = new Image();
-      im2.onload = function() { _imgCache[url] = im2; resolve(im2); };
+      im2.onload = function() {
+        im2._corsOk = false;
+        lruSet(_imgCache, url, im2, MAX_IMG_CACHE);
+        resolve(im2);
+      };
       im2.onerror = function() { resolve(null); };
       im2.src = url;
     };
@@ -154,7 +211,8 @@ export async function extraerEnvolventeAudio(url, fps) {
   const rate = fps || 24;
   if (!url) return null;
   const key = url + '@' + rate;
-  if (_envCache[key]) return _envCache[key];
+    const hitEnv = lruGet(_envCache, key);
+  if (hitEnv) return hitEnv;
   try {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
@@ -181,7 +239,7 @@ export async function extraerEnvolventeAudio(url, fps) {
     const norm = new Array(totalFrames);
     for (let f = 0; f < totalFrames; f++) norm[f] = Number((rms[f] / maxVal).toFixed(3));
     const env = { fps: rate, duracion: audioBuf.duration, frames: norm };
-    _envCache[key] = env;
+        lruSet(_envCache, key, env, MAX_ENV_CACHE);
     return env;
   } catch (e) {
     return null;
@@ -284,7 +342,7 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
   const imgs = {};
   await Promise.all(claves.map(async function(k) {
     if (k && k !== 'ninguno' && k !== 'articulado' && !imgs[k]) {
-      imgs[k] = await cargarImagenPiro(piezas[k] ? piezas[k].url : null);
+            imgs[k] = await cargarImagenPiro(piezas[k] ? piezas[k].url : null, { strictCors: Boolean(cfg.modoExportacion) });
     }
   }));
 
@@ -515,7 +573,7 @@ export async function componerEscenaPiro(ctx, params) {
   }
 
   if (sc.modo === 'plano' && sc.plano_url) {
-    const imPlano = await cargarImagenPiro(sc.plano_url);
+      const imPlano = await cargarImagenPiro(sc.plano_url, { strictCors: Boolean(params.modoExportacion) });
     if (imPlano) {
       const r = Math.max(W / imPlano.width, H / imPlano.height);
       const dw = imPlano.width * r, dh = imPlano.height * r;
@@ -525,8 +583,9 @@ export async function componerEscenaPiro(ctx, params) {
     const escList = bib.escenarios || [];
     const escObj = escList.find(function(e) { return e.id === (sc.escenario || g.escenario_id); }) || escList[0];
     const zObj = escObj ? ((escObj.zonas || []).find(function(z) { return z.id === (sc.zona || g.zona_id); }) || (escObj.zonas || [])[0]) : null;
-    const imFondo = zObj && zObj.fondo ? await cargarImagenPiro(zObj.fondo.url) : null;
-    const imFrente = zObj && zObj.frente ? await cargarImagenPiro(zObj.frente.url) : null;
+        const corsOpt = { strictCors: Boolean(params.modoExportacion) };
+    const imFondo = zObj && zObj.fondo ? await cargarImagenPiro(zObj.fondo.url, corsOpt) : null;
+    const imFrente = zObj && zObj.frente ? await cargarImagenPiro(zObj.frente.url, corsOpt) : null;
 
     const zoom = sc.camara === 'zoom_actor' ? 1.18 : (sc.camara === 'plano_general' ? 0.92 : 1.0);
     const panX = esH
@@ -558,7 +617,7 @@ export async function componerEscenaPiro(ctx, params) {
       let propImg = null;
       if (a.prop) {
         const prObj = propsBib.find(function(x) { return x.id === a.prop; });
-        if (prObj && prObj.archivo && prObj.archivo.url) propImg = await cargarImagenPiro(prObj.archivo.url);
+                if (prObj && prObj.archivo && prObj.archivo.url) propImg = await cargarImagenPiro(prObj.archivo.url, corsOpt);
       }
 
       const estaHablando = Boolean(hablanteId && hablanteId !== 'ninguno' && a.id === hablanteId);
@@ -580,8 +639,9 @@ export async function componerEscenaPiro(ctx, params) {
           propImg: propImg,
         x: xBase + panX * 0.45,
         y: yBase,
-        scale: scPer,
-        flipX: flip
+                scale: scPer,
+        flipX: flip,
+        modoExportacion: Boolean(params.modoExportacion)
       });
     }
 
@@ -591,7 +651,7 @@ export async function componerEscenaPiro(ctx, params) {
     if (sc.prop && String(sc.prop).indexOf('fx_') === 0) {
       const fxObj = propsBib.find(function(x) { return x.id === sc.prop; });
       if (fxObj && fxObj.archivo && fxObj.archivo.url) {
-        const imFx = await cargarImagenPiro(fxObj.archivo.url);
+                const imFx = await cargarImagenPiro(fxObj.archivo.url, corsOpt);
         if (imFx) ctx.drawImage(imFx, esH ? 710 : 330, esH ? 70 : 185, 130, 130);
       }
     }
