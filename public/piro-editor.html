@@ -313,7 +313,8 @@
     <div class="drawer-scroll" id="drawer-ed-body"></div>
     <div style="border-top:1px solid var(--border); padding-top:8px; display:flex; gap:6px;">
       <button type="button" class="btn btn-xs btn-purple" style="flex:1;" onclick="window.toggleDrawerEd(false); window.abrirModalApis();"><span id="txt-btn-apis">APIs</span></button>
-      <button type="button" class="btn btn-xs btn-blue" style="flex:1;" onclick="window.toggleDrawerEd(false); window.exportarPaqueteEpisodio();">Exportar Termux</button>
+      <button type="button" class="btn btn-xs btn-green" style="flex:1;" onclick="window.toggleDrawerEd(false); window.abrirModalAudioLib();">Música/SFX</button>
+      <button type="button" class="btn btn-xs btn-blue" style="flex:1;" onclick="window.toggleDrawerEd(false); window.exportarPaqueteEpisodio();">Exportar</button>
     </div>
   </aside>
 </div>
@@ -368,13 +369,57 @@
   </div>
 </div>
 
+<div class="modal-ov" id="modal-audio-lib" onclick="if(event.target.id==='modal-audio-lib') window.cerrarModalAudioLib()">
+  <div class="modal-card" style="max-width:560px;">
+    <div class="modal-head"><h3>Música y SFX sin Copyright</h3><button type="button" class="btn btn-xs" onclick="window.cerrarModalAudioLib()">Cerrar</button></div>
+    <div class="card-sub">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:6px;">
+        <strong style="font-size:11.5px; color:#86efac;" id="lbl-musica-actual">Música Episodio: ninguna</strong>
+        <div style="display:flex; gap:4px;"><button type="button" class="btn btn-xs btn-blue" onclick="window.iniciarSubidaAudioLocal('musica')">Subir MP3</button><button type="button" class="btn btn-xs btn-danger" onclick="window.quitarMusicaEp()">Quitar</button></div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+        <span style="font-size:10.5px; color:var(--muted);">Volumen: <b id="lbl-vol-mus">25%</b></span>
+        <input type="range" id="rng-vol-mus" min="0" max="100" value="25" style="flex:1; min-width:90px; accent-color:var(--verde);" oninput="window.cambiarVolMusicaEp(Number(this.value))">
+        <label style="font-size:10.5px; color:#7dd3fc; display:inline-flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="chk-duck-mus" checked style="accent-color:var(--azul);" onchange="window.toggleDuckingMusicaEp(this.checked)"> Ducking al hablar</label>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; padding-top:6px; border-top:1px solid var(--border);">
+        <span style="font-size:11px; color:#fcd34d;" id="lbl-sfx-clip-actual">SFX Clip activo: ninguno</span>
+        <div style="display:flex; gap:4px;"><button type="button" class="btn btn-xs btn-blue" onclick="window.iniciarSubidaAudioLocal('sfx')">Subir SFX</button><button type="button" class="btn btn-xs btn-danger" onclick="window.quitarSfxClip()">Quitar</button></div>
+      </div>
+    </div>
+    <div class="card-sub">
+      <div style="font-size:10.5px; font-weight:800; color:var(--azul); margin-bottom:6px;">BUSCADOR IN-SITU GRATIS ($0 · FREESOUND + JAMENDO + WIKIMEDIA)</div>
+      <div style="display:flex; gap:5px; margin-bottom:7px;">
+        <input id="inp-buscar-audio" class="inp" style="flex:1;" placeholder="Ej: cartoon pop, whoosh, comedy jazz, laugh..." onkeydown="if(event.key==='Enter') window.buscarAudioOpenverse()">
+        <select id="sel-lic-audio" class="sel" style="width:auto; min-width:96px;"><option value="commercial">Comercial</option><option value="cc0">CC0 Libre</option></select>
+        <button type="button" class="btn btn-primary" id="btn-buscar-audio" onclick="window.buscarAudioOpenverse()">Buscar</button>
+      </div>
+      <div id="res-buscar-audio" style="display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto;"><small style="color:var(--muted);">Busca efectos o música y escúchalos aquí antes de aplicarlos.</small></div>
+    </div>
+    <div class="card-sub" style="margin-bottom:0;">
+      <div style="font-size:10px; font-weight:800; color:var(--muted); margin-bottom:6px; text-transform:uppercase;">Librerías externas sin copyright (abre, descarga y sube MP3 arriba)</div>
+      <div style="display:flex; gap:5px; flex-wrap:wrap;">
+        <a class="btn btn-xs" href="https://studio.youtube.com/" target="_blank" rel="noopener">YouTube Audio</a>
+        <a class="btn btn-xs btn-green" href="https://pixabay.com/music/" target="_blank" rel="noopener">Pixabay Music</a>
+        <a class="btn btn-xs btn-blue" href="https://pixabay.com/sound-effects/" target="_blank" rel="noopener">Pixabay SFX</a>
+        <a class="btn btn-xs btn-purple" href="https://freesound.org/" target="_blank" rel="noopener">Freesound</a>
+        <a class="btn btn-xs" href="https://incompetech.com/music/royalty-free/" target="_blank" rel="noopener">Incompetech</a>
+        <a class="btn btn-xs" href="https://mixkit.co/free-sound-effects/" target="_blank" rel="noopener">Mixkit SFX</a>
+      </div>
+    </div>
+  </div>
+</div>
+<input type="file" id="input-audio-local" accept="audio/*,.mp3,.wav,.ogg,.m4a" class="hidden" onchange="window.subirAudioLocalSeleccionado(this.files[0]); this.value='';">
+<audio id="audio-musica-tl" crossorigin="anonymous" loop style="display:none;"></audio>
+<audio id="audio-sfx-tl" crossorigin="anonymous" style="display:none;"></audio>
+
 <input type="file" id="input-md-caps" accept=".md,.txt" multiple class="hidden" onchange="window.cargarCapitulosMD(this.files); this.value='';">
 <audio id="audio-player-tl" crossorigin="anonymous" style="display:none;"></audio>
 <div id="toasts-ed"></div>
 
 <script type="module">
 import GeokatuDB from './core-db.js';
-import { componerEscenaPiro, normalizarActoresEscena, extraerEnvolventeAudio, obtenerBocaDesdeEnvolvente, ACTUACIONES_PIRO, limpiarCacheCompositor } from './piro-compositor.js';
+import { componerEscenaPiro, normalizarActoresEscena, extraerEnvolventeAudio, obtenerBocaDesdeEnvolvente, construirVisemasDesdeMarcasPiro, obtenerBocaLipSyncPiro, limpiarBloqueosCorsPiro, obtenerBloqueosCorsPiro, ACTUACIONES_PIRO, limpiarCacheCompositor } from './piro-compositor.js';
 
 const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
 const CLAVE_PREFS_IA_ED = 'piro_ia_cloud_prefs_v2';
@@ -1123,7 +1168,7 @@ function renderTimeline() {
     cFx.className = 'tl-fx';
     cFx.style.width = wPx + 'px';
     cFx.onclick = function() { window.seleccionarClip(idx); };
-    const nEv = Array.isArray(sc.eventos_actuacion) ? sc.eventos_actuacion.length : 0; cFx.textContent = [sc.actuacion && sc.actuacion !== 'ninguna' ? sc.actuacion : '', nEv > 0 ? (nEv + ' REC') : '', sc.prop || '', sc.sfx || ''].filter(Boolean).join(' + ') || '-';
+    const nEv = Array.isArray(sc.eventos_actuacion) ? sc.eventos_actuacion.length : 0; cFx.textContent = [sc.actuacion && sc.actuacion !== 'ninguna' ? sc.actuacion : '', nEv > 0 ? (nEv + ' REC') : '', sc.prop || '', sc.sfx_nombre || sc.sfx || ''].filter(Boolean).join(' + ') || '-';
     tf.appendChild(cFx);
   });
 
@@ -1232,7 +1277,7 @@ function renderDockTimeline() {
     const sfxOpts = '<option value="">Sin SFX</option>' + (biblioteca.props || []).filter(function(x) { return x.categoria === 'audio'; }).map(function(x) { return '<option value="' + esc(x.id) + '"' + (sc.sfx === x.id ? ' selected' : '') + '>' + esc(x.nombre) + '</option>'; }).join('');
     dock.innerHTML =
       '<div class="subpanel">' +
-        '<div class="sub-top"><span class="sub-title">Cámara, Modo, Duración y FX</span><button type="button" class="btn btn-green btn-xs" onclick="window.cerrarToolTL()">Listo</button></div>' +
+        '<div class="sub-top"><div style="display:flex; gap:5px; align-items:center;"><span class="sub-title">Cám/FX</span><button type="button" class="btn btn-xs btn-green" onclick="window.abrirModalAudioLib()">+ Música/SFX</button></div><button type="button" class="btn btn-green btn-xs" onclick="window.cerrarToolTL()">Listo</button></div>' +
         '<div class="sub-row">' +
           '<select class="sel-mini" onchange="window.editEscena(' + clipSelIdx + ',\'camara\',this.value)">' + [['centro','Cám Centro'],['izq','Cám Izq'],['der','Cám Der'],['zoom_actor','Zoom'],['plano_general','General']].map(function(c) { return '<option value="' + c[0] + '"' + ((sc.camara || 'centro') === c[0] ? ' selected' : '') + '>' + c[1] + '</option>'; }).join('') + '</select>' +
           '<select class="sel-mini" onchange="window.editEscena(' + clipSelIdx + ',\'modo\',this.value)"><option value="rig"' + ((sc.modo || 'rig') === 'rig' ? ' selected' : '') + '>Piro-Rig</option><option value="plano"' + (sc.modo === 'plano' ? ' selected' : '') + '>Plano IA</option></select>' +
@@ -1252,6 +1297,7 @@ function renderDockTimeline() {
           '<div style="display:flex; gap:5px; overflow-x:auto; align-items:center;">' +
             '<select class="sel-mini" onchange="window.cambiarMotorVozEditor(this.value)">' + optsMV + '</select>' +
             '<button type="button" class="btn btn-xs btn-green" id="btn-gen-voz-clip" onclick="window.generarVozClip(' + clipSelIdx + ')">' + (cIA.esVozGratis ? 'Voz ($0)' : 'Generar Voz') + '</button>' +
+            '<button type="button" class="btn btn-xs btn-blue" onclick="window.cambiarModoLipSync(\'' + (obtenerModoLipSyncEp(g) === 'visemas' ? 'volumen' : 'visemas') + '\')">Boca: ' + (obtenerModoLipSyncEp(g) === 'visemas' ? 'Visemas' : 'Volumen') + '</button>' +
             '<button type="button" class="btn btn-xs btn-purple" id="btn-gen-img-clip" onclick="window.generarPlanoClip(' + clipSelIdx + ')">Imagen IA</button>' +
             (sc.plano_url ? '<button type="button" class="btn btn-xs btn-danger" onclick="window.quitarPlanoClip(' + clipSelIdx + ')">Quitar Img</button>' : '') +
           '</div>' +
@@ -1349,7 +1395,7 @@ window.generarVozClip = async function(idx) {
     const fileObj = new File([blob], 'voz_' + (idx + 1) + '.' + extAud, { type: mimeAud });
     const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(getEpStorageBucket(g.id), 'voces/' + Date.now() + '_clip_' + (idx + 1) + '.' + extAud, fileObj);
     if (!up.success) throw new Error(up.error || 'Error subiendo audio');
-    sc.audio_url = up.url; sc.audio_storage = up.rutaStorage; sc.duracion = Number((dur + 0.25).toFixed(2));
+    sc.audio_url = up.url; sc.audio_storage = up.rutaStorage; sc.duracion = Number((dur + 0.25).toFixed(2)); sc.marcas_voz = Array.isArray(resV.marcas) ? resV.marcas : []; sc.visemas = construirVisemasDesdeMarcasPiro(sc.marcas_voz, sc.texto, dur);
     guardarBiblioteca(true); renderTimeline();
     toast('Voz ' + cfgVoz.provVoz + ' guardada (' + dur + 's).', 'exito');
   } catch (err) {
@@ -1593,6 +1639,102 @@ window.renderPreviewCanvas = async function(bocaForzada, hablanteOverride, subti
   });
 };
 
+let tipoSubidaAudioPendiente = 'musica';
+let resultadosAudioOpenverse = [];
+function obtenerModoLipSyncEp(g) { return (g && g.modo_lipsync === 'volumen') ? 'volumen' : 'visemas'; }
+window.cambiarModoLipSync = function(modo) {
+  const g = getEp(); if (!g) return;
+  g.modo_lipsync = modo === 'volumen' ? 'volumen' : 'visemas'; guardarBiblioteca(false);
+  const selExp = document.getElementById('exp-lipsync'); if (selExp) selExp.value = g.modo_lipsync;
+  renderDockTimeline(); toast('Lip-Sync: ' + (g.modo_lipsync === 'visemas' ? 'Visemas (fonético)' : 'Volumen (clásico)'), 'info');
+};
+function resolverSfxUrlClip(sc) {
+  if (!sc) return '';
+  if (sc.sfx_url) return sc.sfx_url;
+  if (sc.sfx) { const pr = (biblioteca.props || []).find(function(x) { return x.id === sc.sfx; }); if (pr && pr.archivo && pr.archivo.url) return pr.archivo.url; }
+  return '';
+}
+function actualizarEstadoModalAudio() {
+  const g = getEp(), sc = g && g.escenas ? g.escenas[clipSelIdx] : null;
+  const vol = g && typeof g.musica_vol === 'number' ? g.musica_vol : 25;
+  const lM = document.getElementById('lbl-musica-actual'), lS = document.getElementById('lbl-sfx-clip-actual'), rV = document.getElementById('rng-vol-mus'), lV = document.getElementById('lbl-vol-mus'), cD = document.getElementById('chk-duck-mus');
+  if (lM) lM.textContent = 'Música Episodio: ' + ((g && g.musica_url) ? (g.musica_nombre || 'Pista activa') : 'ninguna');
+  if (lS) lS.textContent = 'SFX Clip #' + (clipSelIdx + 1) + ': ' + ((sc && (sc.sfx_url || sc.sfx)) ? (sc.sfx_nombre || sc.sfx || 'SFX activo') : 'ninguno');
+  if (rV) rV.value = vol; if (lV) lV.textContent = vol + '%'; if (cD) cD.checked = !g || g.musica_ducking !== false;
+}
+window.abrirModalAudioLib = function() { actualizarEstadoModalAudio(); document.getElementById('modal-audio-lib').classList.add('open'); };
+window.cerrarModalAudioLib = function() { document.getElementById('modal-audio-lib').classList.remove('open'); };
+window.cambiarVolMusicaEp = function(v) {
+  const g = getEp(); if (!g) return;
+  g.musica_vol = Math.max(0, Math.min(100, Number(v) || 0));
+  const lV = document.getElementById('lbl-vol-mus'); if (lV) lV.textContent = g.musica_vol + '%';
+  const mAud = document.getElementById('audio-musica-tl'); if (mAud) mAud.volume = g.musica_vol / 100;
+  guardarBiblioteca(false);
+};
+window.toggleDuckingMusicaEp = function(on) { const g = getEp(); if (!g) return; g.musica_ducking = Boolean(on); guardarBiblioteca(false); };
+window.quitarMusicaEp = function() {
+  const g = getEp(); if (!g) return;
+  g.musica_url = ''; g.musica_nombre = ''; g.musica_credito = '';
+  const mAud = document.getElementById('audio-musica-tl'); if (mAud) { mAud.pause(); mAud.src = ''; }
+  guardarBiblioteca(true); actualizarEstadoModalAudio(); toast('Música de fondo quitada.', 'info');
+};
+window.quitarSfxClip = function() {
+  const g = getEp(), sc = g && g.escenas ? g.escenas[clipSelIdx] : null; if (!sc) return;
+  sc.sfx = ''; sc.sfx_url = ''; sc.sfx_nombre = '';
+  guardarBiblioteca(true); actualizarEstadoModalAudio(); renderTimeline(); toast('SFX quitado del clip.', 'info');
+};
+window.iniciarSubidaAudioLocal = function(tipo) { tipoSubidaAudioPendiente = tipo === 'sfx' ? 'sfx' : 'musica'; document.getElementById('input-audio-local').click(); };
+window.subirAudioLocalSeleccionado = async function(file) {
+  const g = getEp(); if (!g || !file) return; toast('Subiendo audio a tu biblioteca...', 'info');
+  try {
+    const subDir = tipoSubidaAudioPendiente === 'sfx' ? 'sfx/' : 'musica/';
+    const nom = String(file.name || 'audio.mp3').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(getEpStorageBucket(g.id), subDir + Date.now() + '_' + nom, file);
+    if (!up.success) throw new Error(up.error || 'Error subiendo audio');
+    if (tipoSubidaAudioPendiente === 'sfx') { const sc = g.escenas && g.escenas[clipSelIdx]; if (sc) { sc.sfx_url = up.url; sc.sfx_nombre = nom; } }
+    else { g.musica_url = up.url; g.musica_nombre = nom; g.musica_credito = 'Archivo local'; if (typeof g.musica_vol !== 'number') g.musica_vol = 25; }
+    guardarBiblioteca(true); actualizarEstadoModalAudio(); renderTimeline(); toast('Audio guardado en nube y listo para mezcla.', 'exito');
+  } catch (err) { toast('Error audio: ' + err.message, 'error'); }
+};
+window.buscarAudioOpenverse = async function() {
+  const q = (document.getElementById('inp-buscar-audio').value || '').trim() || 'cartoon comedy', lic = document.getElementById('sel-lic-audio').value || 'commercial';
+  const btn = document.getElementById('btn-buscar-audio'), box = document.getElementById('res-buscar-audio');
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  if (box) box.innerHTML = '<small style="color:var(--azul);">Buscando en Freesound, Jamendo y Wikimedia...</small>';
+  try {
+    const res = await GeokatuDB.PirobonianosService.llamarProxyIA({ proveedorId: 'openverse_audio', accion: 'buscar', modoPago: 'auto', payload: { q: q, license: lic } });
+    if (!res || !res.success) throw new Error((res && res.error) || 'Sin respuesta de Openverse');
+    resultadosAudioOpenverse = Array.isArray(res.items) ? res.items : [];
+    if (!resultadosAudioOpenverse.length) { box.innerHTML = '<small style="color:var(--muted);">Sin resultados. Prueba en inglés (whoosh, pop, jazz, upbeat).</small>'; return; }
+    box.innerHTML = resultadosAudioOpenverse.map(function(it, i) {
+      return '<div style="padding:7px; border-radius:9px; border:1px solid var(--border); background:rgba(255,255,255,0.03);">' +
+        '<div style="display:flex; justify-content:space-between; align-items:center; gap:5px; margin-bottom:4px;"><strong style="font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + esc(it.titulo) + '</strong><span class="pill ok">' + esc(it.licencia) + (it.duracionSeg ? (' · ' + it.duracionSeg + 's') : '') + '</span></div>' +
+        '<div style="font-size:10px; color:var(--muted); margin-bottom:5px;">' + esc(it.autor + ' · ' + it.fuente) + '</div>' +
+        '<audio controls preload="none" src="' + esc(it.url) + '" style="width:100%; height:28px; margin-bottom:5px;"></audio>' +
+        '<div style="display:flex; gap:5px;"><button type="button" class="btn btn-xs btn-green" style="flex:1;" onclick="window.aplicarAudioOpenverse(' + i + ',\'musica\')">Usar Música Ep</button><button type="button" class="btn btn-xs btn-blue" style="flex:1;" onclick="window.aplicarAudioOpenverse(' + i + ',\'sfx\')">Usar SFX Clip</button></div></div>';
+    }).join('');
+  } catch (err) { if (box) box.innerHTML = '<small style="color:#fca5a5;">Error buscando: ' + esc(err.message) + '</small>'; }
+  finally { if (btn) { btn.disabled = false; btn.textContent = 'Buscar'; } }
+};
+window.aplicarAudioOpenverse = async function(idx, destino) {
+  const g = getEp(), it = resultadosAudioOpenverse[idx]; if (!g || !it) return;
+  toast('Importando pista a tu Storage (sin CORS)...', 'info');
+  let urlFinal = it.url;
+  try {
+    const imp = await GeokatuDB.PirobonianosService.llamarProxyIA({ proveedorId: 'openverse_audio', accion: 'importar', modoPago: 'auto', payload: { url: it.url } });
+    if (imp && imp.success && imp.b64) {
+      const mimeA = imp.mime || 'audio/mpeg', ext = mimeA.indexOf('ogg') >= 0 ? 'ogg' : (mimeA.indexOf('wav') >= 0 ? 'wav' : 'mp3');
+      const blob = base64ABlob(imp.b64, mimeA), slugNom = String(it.titulo || 'audio').toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 30) + '.' + ext;
+      const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(getEpStorageBucket(g.id), (destino === 'sfx' ? 'sfx/' : 'musica/') + Date.now() + '_' + slugNom, new File([blob], slugNom, { type: mimeA }));
+      if (up && up.success && up.url) urlFinal = up.url;
+    }
+  } catch (eImp) {}
+  const cred = it.titulo + ' — ' + it.autor + ' (' + it.licencia + ' / ' + it.fuente + ')';
+  if (destino === 'sfx') { const sc = g.escenas && g.escenas[clipSelIdx]; if (sc) { sc.sfx_url = urlFinal; sc.sfx_nombre = it.titulo; } }
+  else { g.musica_url = urlFinal; g.musica_nombre = it.titulo; g.musica_credito = cred; if (typeof g.musica_vol !== 'number') g.musica_vol = 25; }
+  guardarBiblioteca(true); actualizarEstadoModalAudio(); renderTimeline(); toast((destino === 'sfx' ? 'SFX asignado al clip: ' : 'Música aplicada: ') + it.titulo, 'exito');
+};
+
 function fmtSeg(s) { const n = Math.max(0, Math.floor(s)); return String(Math.floor(n / 60)).padStart(2, '0') + ':' + String(n % 60).padStart(2, '0'); }
 function actualizarPlayheadUI(seg) {
   const tc = document.getElementById('txt-timecode');
@@ -1608,6 +1750,9 @@ window.detenerTimeline = function() {
   if (playRaf) { cancelAnimationFrame(playRaf); playRaf = null; }
   const aud = document.getElementById('audio-player-tl');
   if (aud) { aud.pause(); aud.currentTime = 0; }
+  const mAudStop = document.getElementById('audio-musica-tl'), sAudStop = document.getElementById('audio-sfx-tl');
+  if (mAudStop) { mAudStop.pause(); mAudStop.currentTime = 0; }
+  if (sAudStop) { sAudStop.pause(); sAudStop.currentTime = 0; }
   clipSonandoIdx = -1; clipAudioOrigenIdx = -1; audioOrigenInicioSeg = 0; envolventeActiva = null; playOffsetSeg = 0;
   const b = document.getElementById('btn-play-tl'); if (b) b.textContent = 'Play';
   actualizarPlayheadUI(0);
@@ -1620,6 +1765,8 @@ window.togglePlayTimeline = function() {
   if (reproduciendo) {
     reproduciendo = false; if (playRaf) cancelAnimationFrame(playRaf);
     document.getElementById('audio-player-tl').pause();
+    const mP = document.getElementById('audio-musica-tl'); if (mP) mP.pause();
+    const sP = document.getElementById('audio-sfx-tl'); if (sP) sP.pause();
     document.getElementById('btn-play-tl').textContent = 'Play';
     return;
   }
@@ -1628,6 +1775,8 @@ window.togglePlayTimeline = function() {
   reproduciendo = true; clipSonandoIdx = -1; clipAudioOrigenIdx = -1; audioOrigenInicioSeg = 0; envolventeActiva = null;
   playInicioMs = performance.now() - playOffsetSeg * 1000;
   document.getElementById('btn-play-tl').textContent = 'Pausa';
+  const mAudPlay = document.getElementById('audio-musica-tl');
+  if (mAudPlay && g.musica_url) { if (mAudPlay.src !== g.musica_url) mAudPlay.src = g.musica_url; mAudPlay.volume = (typeof g.musica_vol === 'number' ? g.musica_vol : 25) / 100; mAudPlay.currentTime = playOffsetSeg % Math.max(1, mAudPlay.duration || 60); mAudPlay.play().catch(function() {}); }
 
   const tick = function(now) {
     if (!reproduciendo) return;
@@ -1642,6 +1791,8 @@ window.togglePlayTimeline = function() {
     }
     if (idxAct !== clipSonandoIdx) {
       clipSonandoIdx = idxAct; clipSelIdx = idxAct; renderTimeline();
+      const sfxU = resolverSfxUrlClip(g.escenas[idxAct]), sAud = document.getElementById('audio-sfx-tl');
+      if (sAud) { if (sfxU) { sAud.src = sfxU; sAud.currentTime = 0; sAud.play().catch(function() {}); } else { sAud.pause(); } }
       const sc = g.escenas[idxAct], aud = document.getElementById('audio-player-tl');
       if (!(sc.continuar_audio && clipAudioOrigenIdx >= 0 && !sc.audio_url)) {
         if (sc.audio_url) {
@@ -1657,7 +1808,11 @@ window.togglePlayTimeline = function() {
     const scAud = (scAct && scAct.continuar_audio && clipAudioOrigenIdx >= 0) ? g.escenas[clipAudioOrigenIdx] : scAct;
     const habId = scAud ? (scAud.hablante !== undefined ? scAud.hablante : scAud.actor) : 'ninguno';
     const tLocalAud = (scAct && scAct.continuar_audio && clipAudioOrigenIdx >= 0) ? (t - audioOrigenInicioSeg) : (t - acum);
-    const boca = (habId && habId !== 'ninguno') ? obtenerBocaDesdeEnvolvente(envolventeActiva, tLocalAud, scAud ? scAud.texto : '') : 'boca_cerrada';
+    const perHab = (biblioteca.personajes || []).find(function(x) { return x.id === habId; }) || null;
+    const actsPlay = normalizarActoresEscena(scAct), aHabPlay = actsPlay.find(function(a) { return a.id === habId; }) || actsPlay[0];
+    const boca = (habId && habId !== 'ninguno') ? obtenerBocaLipSyncPiro({ modo: obtenerModoLipSyncEp(g), tiempoLocal: tLocalAud, envolvente: envolventeActiva, marcas: scAud ? scAud.marcas_voz : null, visemas: scAud ? scAud.visemas : null, texto: scAud ? scAud.texto : '', duracion: scAud ? (Number(scAud.duracion) || 3) : 3, personaje: perHab, cabezaKey: aHabPlay ? aHabPlay.cabeza : 'cabeza_base' }) : 'boca_cerrada';
+    const mAudDuck = document.getElementById('audio-musica-tl');
+    if (mAudDuck && g.musica_url) { const vB = (typeof g.musica_vol === 'number' ? g.musica_vol : 25) / 100; const hablandoAhora = Boolean(habId && habId !== 'ninguno' && boca !== 'boca_cerrada'); mAudDuck.volume = (g.musica_ducking !== false && hablandoAhora) ? (vB * 0.38) : vB; }
         const subTxt = (scAct && scAct.texto && scAct.texto.trim()) ? scAct.texto : (scAud ? (scAud.texto || '') : '');
     const tLocClip = Math.max(0, t - acum);
     tLocalPreviewActual = tLocClip;
@@ -1673,7 +1828,9 @@ window.exportarPaqueteEpisodio = function() {
   (g.escenas || []).forEach(function(sc, idx) {
     if (sc.audio_url) descargas.push({ ruta_local: 'episodios/' + g.id + '/voces/clip_' + (idx + 1) + '.mp3', url: sc.audio_url });
     if (sc.plano_url) descargas.push({ ruta_local: 'episodios/' + g.id + '/medios/plano_' + (idx + 1) + '.png', url: sc.plano_url });
+    const sfxUDl = resolverSfxUrlClip(sc); if (sfxUDl) descargas.push({ ruta_local: 'episodios/' + g.id + '/sfx/sfx_' + (idx + 1) + '.mp3', url: sfxUDl });
   });
+  if (g.musica_url) descargas.push({ ruta_local: 'episodios/' + g.id + '/musica/musica_fondo.mp3', url: g.musica_url });
   const instruccionesVeo = (g.escenas || []).map(function(sc, i) {
     if (sc.render_mode !== 'VEO_ANIMATED') return null;
     return '[ESCENA ' + String(i + 1).padStart(2, '0') + ' · ANIMAR CON VEO]\nFrame 0: plano_' + (i + 1) + '.png\nDuración: ' + (sc.duracion || 6) + 's\nPrompt: ' + (proyectoActivo.estilo_visual || '') + ' ' + (sc.veo_bridge_prompt || '');
