@@ -371,6 +371,14 @@
         </div>
 
         <div class="portal-grid">
+          <button type="button" class="portal-card destacada" style="grid-column:1/-1; border-color:rgba(56,189,248,0.55); background:linear-gradient(145deg, rgba(56,189,248,0.16), rgba(16,20,29,0.96));" onclick="window.PiroShell.irA('fabrica')">
+            <div class="portal-card-top" style="color:var(--azul);">
+              <strong>Fábrica v2 · Encuesta 60 + Rueda 2D Offline</strong>
+              <svg class="svg-ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18"/><path d="M3 12h18"/></svg>
+            </div>
+            <span>Llena la encuesta 1 vez, genera todos los prompts en JSON (1 llamada), crea lienzos auto-recortados y juega offline con la rueda 2D estilo consola.</span>
+          </button>
+
           <button type="button" class="portal-card destacada" onclick="window.PiroShell.irA('contenido')">
             <div class="portal-card-top">
               <strong>Contenido &amp; Marionetas</strong>
@@ -422,6 +430,10 @@
     </section>
 
     <!-- PORTAL 4: EDITOR TIMELINE Y GUION IA -->
+    <section id="vista-fabrica" class="vista-portal">
+      <iframe id="frame-fabrica" class="portal-iframe" title="Fábrica v2"></iframe>
+    </section>
+
     <section id="vista-editor" class="vista-portal">
       <iframe id="frame-editor" class="portal-iframe" title="Editor Timeline"></iframe>
     </section>
@@ -462,6 +474,10 @@
       <button type="button" class="sheet-opt" onclick="window.PiroShell.crearElemento('ticket')">
         <strong><svg class="svg-ico-sm" style="color:var(--azul);" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Ticket Genérico</strong>
         <small>Pegar pasos EDT o crear tarea en el riel</small>
+      </button>
+      <button type="button" class="sheet-opt" style="grid-column:1/-1; border-color:rgba(56,189,248,0.55); background:rgba(56,189,248,0.12);" onclick="window.PiroShell.cerrarMenuCrear(); window.PiroShell.irA('fabrica')">
+        <strong><svg class="svg-ico-sm" style="color:var(--azul);" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18"/><path d="M3 12h18"/></svg> Fábrica v2 (1-Clic · Rueda 2D)</strong>
+        <small>Encuesta 60 campos -> JSON maestro -> Lienzos auto-recortados offline</small>
       </button>
       <button type="button" class="sheet-opt" onclick="window.PiroShell.crearElemento('personaje')">
         <strong><svg class="svg-ico-sm" style="color:var(--naranja);" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Personaje</strong>
@@ -638,14 +654,16 @@ const RUTAS = {
   tickets: './piro-edt.html?embed=shell',
   contenido: './piro-contenido.html?embed=shell',
   estudio: './piro-estudio-png.html?embed=shell',
-  editor: './piro-editor.html?embed=shell'
+    editor: './piro-editor.html?embed=shell',
+  fabrica: './piro-fabrica.html?embed=shell'
 };
 
 const FRAMES = {
   tickets: document.getElementById('frame-tickets'),
   contenido: document.getElementById('frame-contenido'),
   estudio: document.getElementById('frame-estudio'),
-  editor: document.getElementById('frame-editor')
+    editor: document.getElementById('frame-editor'),
+  fabrica: document.getElementById('frame-fabrica')
 };
 
 const VISTAS = {
@@ -653,11 +671,12 @@ const VISTAS = {
   tickets: document.getElementById('vista-tickets'),
   contenido: document.getElementById('vista-contenido'),
   estudio: document.getElementById('vista-estudio'),
-  editor: document.getElementById('vista-editor')
+    editor: document.getElementById('vista-editor'),
+  fabrica: document.getElementById('vista-fabrica')
 };
 
-const cargados = { tickets: false, contenido: false, estudio: false, editor: false };
-const pendientes = { tickets: [], contenido: [], estudio: [], editor: [] };
+const cargados = { tickets: false, contenido: false, estudio: false, editor: false, fabrica: false };
+const pendientes = { tickets: [], contenido: [], estudio: [], editor: [], fabrica: [] };
 let vistaActiva = 'resumen';
 let contextoEstudio = null;
 let usuarioActual = null;
@@ -867,7 +886,8 @@ window.PiroShell = {
     guardarIndiceProyectosNube();
     renderSelectorProyectosShell();
     if (cargados.contenido) enviarAFrame('contenido', { tipo: 'PIRO_SHELL_CAMBIAR_PROYECTO', proyecto: proyectoActivo });
-    if (cargados.editor) enviarAFrame('editor', { tipo: 'PIRO_SHELL_CAMBIAR_PROYECTO', proyecto: proyectoActivo });
+        if (cargados.editor) enviarAFrame('editor', { tipo: 'PIRO_SHELL_CAMBIAR_PROYECTO', proyecto: proyectoActivo });
+    if (cargados.fabrica) enviarAFrame('fabrica', { tipo: 'PIRO_SHELL_CAMBIAR_PROYECTO', proyecto: proyectoActivo });
     mostrarToastShell('Proyecto activo: ' + p.nombre, 'exito');
   },
   abrirModalProyecto: function() {
@@ -984,9 +1004,13 @@ window.addEventListener('message', function(e) {
     });
       } else if (d.tipo === 'PIRO_ABRIR_BOVEDA_APIS') {
     window.PiroShell.abrirBovedaApis(d.tab || 'llm');
+    } else if (d.tipo === 'PIRO_EDITOR_CREAR_PACK_PRUEBAS') {
+    window.PiroShell.irA('editor');
+    enviarAFrame('editor', { tipo: 'PIRO_EDITOR_CREAR_PACK_PRUEBAS', personajeId: d.personajeId || null });
   } else if (d.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA') {
     if (cargados.contenido && d.origen !== 'contenido') enviarAFrame('contenido', { tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA' });
     if (cargados.editor && d.origen !== 'editor') enviarAFrame('editor', { tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA' });
+    if (cargados.fabrica && d.origen !== 'fabrica') enviarAFrame('fabrica', { tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA' });
   }
 });
 
@@ -1015,7 +1039,8 @@ function guardarPrefsIA(prefs) {
   p.resumen = { proveedores: estadoNubeIA.proveedores || {}, billetera: estadoNubeIA.billetera || { saldo_creditos: 0 }, reventaDisponible: estadoNubeIA.reventaDisponible || [], tarifas: estadoNubeIA.tarifas || {} };
   try { localStorage.setItem(CLAVE_PREFS_IA, JSON.stringify(p)); localStorage.removeItem('piro_api_vault_v1'); } catch (e) {}
   if (cargados.editor) enviarAFrame('editor', { tipo: 'PIRO_VAULT_ACTUALIZADO', estadoIA: p });
-  if (cargados.contenido) enviarAFrame('contenido', { tipo: 'PIRO_VAULT_ACTUALIZADO', estadoIA: p });
+    if (cargados.contenido) enviarAFrame('contenido', { tipo: 'PIRO_VAULT_ACTUALIZADO', estadoIA: p });
+  if (cargados.fabrica) enviarAFrame('fabrica', { tipo: 'PIRO_VAULT_ACTUALIZADO', estadoIA: p });
 }
 function setStatusVault(tab, txt, color) {
   const el = document.getElementById('vstat-' + tab);
