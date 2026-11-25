@@ -115,10 +115,32 @@ export function parsearPivotes(p) {
     return res;
 }
 
+export const ANGULOS_360_PIRO = {
+  frente: { id: 'frente', nombre: '0° Frente', cabeza: 'cabeza_frente', cuerpo: 'cuerpo_frente', flipAuto: false, ocultarCara: false },
+  '3_4_der': { id: '3_4_der', nombre: '45° 3/4 Der', cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', flipAuto: false, ocultarCara: false },
+  perfil_der: { id: 'perfil_der', nombre: '90° Perfil Der', cabeza: 'cabeza_perfil', cuerpo: 'cuerpo_perfil', flipAuto: false, ocultarCara: false },
+  espalda_3_4_der: { id: 'espalda_3_4_der', nombre: '135° Esp 3/4 Der', cabeza: 'cabeza_espalda_3_4', cuerpo: 'cuerpo_espalda_3_4', flipAuto: false, ocultarCara: true },
+  espalda: { id: 'espalda', nombre: '180° Espalda', cabeza: 'cabeza_espalda', cuerpo: 'cuerpo_espalda', flipAuto: false, ocultarCara: true },
+  espalda_3_4_izq: { id: 'espalda_3_4_izq', nombre: '225° Esp 3/4 Izq', cabeza: 'cabeza_espalda_3_4', cuerpo: 'cuerpo_espalda_3_4', flipAuto: true, ocultarCara: true },
+  perfil_izq: { id: 'perfil_izq', nombre: '270° Perfil Izq', cabeza: 'cabeza_perfil', cuerpo: 'cuerpo_perfil', flipAuto: true, ocultarCara: false },
+  '3_4_izq': { id: '3_4_izq', nombre: '315° 3/4 Izq', cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', flipAuto: true, ocultarCara: false }
+};
+
+export const CEJAS_PIRO = {
+  neutro: 'Neutro', enojado: 'Enojado', triste: 'Triste', duda_izq: 'Duda Izq',
+  duda_der: 'Duda Der', sorpresa: 'Sorpresa', coqueto: 'Coqueto', preocupado: 'Preocupado', sarcasmo: 'Sarcasmo'
+};
+
+export function resolverAngulo360Piro(anguloId) {
+  if (!anguloId || !ANGULOS_360_PIRO[anguloId]) return null;
+  return ANGULOS_360_PIRO[anguloId];
+}
+
 export function obtenerPerspectivaCabeza(cabezaKey) {
   const k = String(cabezaKey || 'cabeza_base');
   if (k === 'cabeza_frente') return 'frente';
   if (k === 'cabeza_perfil') return 'perfil';
+  if (k === 'cabeza_espalda' || k === 'cabeza_espalda_3_4') return 'espalda';
   return '3_4';
 }
 
@@ -164,13 +186,13 @@ export function resolverPiezaPerspectiva(personaje, grupo, claveSolicitada, cabe
   const cfg = opts || {};
   const piezas = (personaje && personaje.piezas) || {};
   const persp = obtenerPerspectivaCabeza(cabezaKey);
-  const pref = grupo === 'ojos' ? 'ojos_' : 'boca_';
-  const defBase = grupo === 'ojos' ? 'ojos_neutro' : 'boca_cerrada';
+  const pref = grupo === 'ojos' ? 'ojos_' : (grupo === 'cejas' ? 'cejas_' : 'boca_');
+  const defBase = grupo === 'ojos' ? 'ojos_neutro' : (grupo === 'cejas' ? 'cejas_neutro' : 'boca_cerrada');
   const rawStr = String(claveSolicitada || defBase);
   const sinPref = rawStr.indexOf(pref) === 0 ? rawStr.slice(pref.length) : rawStr;
-  const exprLimpia = sinPref.replace(/^(frente|perfil)_/, '') || (grupo === 'ojos' ? 'neutro' : 'cerrada');
+  const exprLimpia = sinPref.replace(/^(frente|perfil)_/, '') || (grupo === 'boca' ? 'cerrada' : 'neutro');
   const claveExacta = persp === '3_4' ? (pref + exprLimpia) : (pref + persp + '_' + exprLimpia);
-  const claveDefaultPersp = persp === '3_4' ? defBase : (pref + persp + '_' + (grupo === 'ojos' ? 'neutro' : 'cerrada'));
+  const claveDefaultPersp = persp === '3_4' ? defBase : (pref + persp + '_' + (grupo === 'boca' ? 'cerrada' : 'neutro'));
 
   if (piezas[claveExacta] && piezas[claveExacta].url) {
     return { key: claveExacta, url: piezas[claveExacta].url, esExacta: true, perspectiva: persp, transform: null };
@@ -186,8 +208,9 @@ export function resolverPiezaPerspectiva(personaje, grupo, claveSolicitada, cabe
   }
 
   const moldes = parsearMoldes(personaje);
-  const zSrc = moldes.cabeza_base && moldes.cabeza_base.zonas && moldes.cabeza_base.zonas[grupo] ? moldes.cabeza_base.zonas[grupo].caja : null;
-  const zDst = moldes[cabezaKey] && moldes[cabezaKey].zonas && moldes[cabezaKey].zonas[grupo] ? moldes[cabezaKey].zonas[grupo].caja : null;
+  const zonaKey = grupo === 'cejas' ? 'ojos' : grupo;
+  const zSrc = moldes.cabeza_base && moldes.cabeza_base.zonas && moldes.cabeza_base.zonas[zonaKey] ? moldes.cabeza_base.zonas[zonaKey].caja : null;
+  const zDst = moldes[cabezaKey] && moldes[cabezaKey].zonas && moldes[cabezaKey].zonas[zonaKey] ? moldes[cabezaKey].zonas[zonaKey].caja : null;
   const tf = calcularTransformZona(zSrc, zDst);
 
   if (cfg.soloPerspectiva) {
@@ -263,12 +286,24 @@ export function obtenerBocaDesdeEnvolvente(env, tiempoLocalSeg, textoFallback) {
 }
 
 const FALLBACK_BOCAS_VISEMA = {
-  boca_f_v: ['boca_f_v', 'boca_dientes', 'boca_media', 'boca_cerrada'],
-  boca_o_u: ['boca_o_u', 'boca_media', 'boca_abierta', 'boca_cerrada'],
-  boca_dientes: ['boca_dientes', 'boca_media', 'boca_cerrada'],
-  boca_abierta: ['boca_abierta', 'boca_media', 'boca_cerrada'],
-  boca_media: ['boca_media', 'boca_abierta', 'boca_cerrada'],
-  boca_cerrada: ['boca_cerrada']
+  boca_mbp: ['boca_mbp', 'boca_cerrada'],
+  boca_aa: ['boca_aa', 'boca_abierta', 'boca_media', 'boca_cerrada'],
+  boca_ee: ['boca_ee', 'boca_sonrisa', 'boca_media', 'boca_cerrada'],
+  boca_oh: ['boca_oh', 'boca_o_u', 'boca_abierta', 'boca_media', 'boca_cerrada'],
+  boca_oo: ['boca_oo', 'boca_o_u', 'boca_media', 'boca_cerrada'],
+  boca_fv: ['boca_fv', 'boca_f_v', 'boca_dientes', 'boca_media', 'boca_cerrada'],
+  boca_lth: ['boca_lth', 'boca_dientes', 'boca_media', 'boca_cerrada'],
+  boca_s: ['boca_s', 'boca_dientes', 'boca_media', 'boca_cerrada'],
+  boca_dtn: ['boca_dtn', 'boca_dientes', 'boca_media', 'boca_cerrada'],
+  boca_sh: ['boca_sh', 'boca_o_u', 'boca_dientes', 'boca_media', 'boca_cerrada'],
+  boca_kg: ['boca_kg', 'boca_media', 'boca_abierta', 'boca_cerrada'],
+  boca_r: ['boca_r', 'boca_o_u', 'boca_media', 'boca_cerrada'],
+  boca_f_v: ['boca_fv', 'boca_f_v', 'boca_dientes', 'boca_media', 'boca_cerrada'],
+  boca_o_u: ['boca_oh', 'boca_oo', 'boca_o_u', 'boca_media', 'boca_abierta', 'boca_cerrada'],
+  boca_dientes: ['boca_s', 'boca_dtn', 'boca_dientes', 'boca_media', 'boca_cerrada'],
+  boca_abierta: ['boca_aa', 'boca_abierta', 'boca_media', 'boca_cerrada'],
+  boca_media: ['boca_ee', 'boca_media', 'boca_abierta', 'boca_cerrada'],
+  boca_cerrada: ['boca_mbp', 'boca_cerrada']
 };
 
 export function palabraAVisemasPiro(palabra) {
@@ -276,15 +311,26 @@ export function palabraAVisemasPiro(palabra) {
   if (!w) return [];
   const out = [];
   for (let i = 0; i < w.length; i++) {
-    const ch = w[i], nxt = w[i + 1] || '';
-    let v = 'boca_media';
-    if (ch === 'p' || ch === 'b' || ch === 'm') v = 'boca_cerrada';
-    else if (ch === 'f' || ch === 'v') v = 'boca_f_v';
-    else if (ch === 'o' || ch === 'u' || ch === 'w') v = 'boca_o_u';
-    else if (ch === 'a') v = 'boca_abierta';
-    else if (ch === 'e' || ch === 'i' || ch === 'y') v = 'boca_media';
-    else if ((ch === 'c' && nxt === 'h') || (ch === 's' && nxt === 'h') || (ch === 't' && nxt === 'h')) { v = 'boca_dientes'; i++; }
-    else if ('szctdnlrjxkq'.indexOf(ch) >= 0) v = 'boca_dientes';
+    const ch = w[i], nxt = w[i + 1] || '', dig = ch + nxt;
+    let v = 'boca_ee';
+    if (dig === 'ch' || dig === 'sh') { v = 'boca_sh'; i++; }
+    else if (dig === 'th' || dig === 'll') { v = 'boca_lth'; i++; }
+    else if (dig === 'ph') { v = 'boca_fv'; i++; }
+    else if (dig === 'wh' || dig === 'qu' || dig === 'oo') { v = 'boca_oo'; i++; }
+    else if (dig === 'aw' || dig === 'ay' || dig === 'ai') { v = 'boca_aa'; i++; }
+    else if (dig === 'or') { v = 'boca_oh'; i++; }
+    else if (ch === 'm' || ch === 'b' || ch === 'p') v = 'boca_mbp';
+    else if (ch === 'f' || ch === 'v') v = 'boca_fv';
+    else if (ch === 'a') v = 'boca_aa';
+    else if (ch === 'e' || ch === 'i' || ch === 'y') v = 'boca_ee';
+    else if (ch === 'o') v = 'boca_oh';
+    else if (ch === 'u' || ch === 'w') v = 'boca_oo';
+    else if (ch === 'l') v = 'boca_lth';
+    else if (ch === 's' || ch === 'z' || ch === 'x' || (ch === 'c' && (nxt === 'e' || nxt === 'i'))) v = 'boca_s';
+    else if (ch === 'd' || ch === 't' || ch === 'n') v = 'boca_dtn';
+    else if (ch === 'j') v = 'boca_sh';
+    else if (ch === 'r') v = 'boca_r';
+    else if (ch === 'c' || ch === 'k' || ch === 'g' || ch === 'q') v = 'boca_kg';
     else if (ch === 'h') continue;
     if (out.length === 0 || out[out.length - 1] !== v) out.push(v);
   }
@@ -561,19 +607,20 @@ export function calcularVidaAutonomaPiro(tSeg, seedStr, estaHablando) {
 }
 export function evaluarAnimacionActorPiro(actorObj, sc, tLocalSeg, estaHablando, personaje) {
   const a = actorObj || {}, t = Math.max(0, Number(tLocalSeg) || 0), vidaOn = !sc || sc.vida_auto !== false;
-  const out = { cabeza: a.cabeza || 'cabeza_base', ojos: a.ojos || 'neutro', bocaDef: a.boca || 'boca_cerrada', mano: a.mano || '', rotCab: Number(a.rotCab) || 0, rotBrazo: Number(a.rotBrazo) || 0, rotAntebrazo: Number(a.rotAntebrazo) || 0, rotMano: Number(a.rotMano) || 0, rotBrazoTras: Number(a.rotBrazoTras) || 0, scaleX: 1, scaleY: 1, offsetY: 0, actuacionActiva: a.actuacion || (sc && sc.actuacion) || 'ninguna' };
+  const out = { cabeza: a.cabeza || 'cabeza_base', angulo: a.angulo || (sc && sc.angulo) || '', cejas: a.cejas || (sc && sc.cejas) || '', cejasOffsetY: 0, ojos: a.ojos || 'neutro', bocaDef: a.boca || 'boca_cerrada', mano: a.mano || '', rotCab: Number(a.rotCab) || 0, rotBrazo: Number(a.rotBrazo) || 0, rotAntebrazo: Number(a.rotAntebrazo) || 0, rotMano: Number(a.rotMano) || 0, rotBrazoTras: Number(a.rotBrazoTras) || 0, scaleX: 1, scaleY: 1, offsetY: 0, actuacionActiva: a.actuacion || (sc && sc.actuacion) || 'ninguna' };
   let tActInicio = 0;
   const evs = (sc && Array.isArray(sc.eventos_actuacion)) ? sc.eventos_actuacion : [];
   for (let i = 0; i < evs.length; i++) {
     const ev = evs[i]; if (!ev || typeof ev.t !== 'number' || (ev.actorId && ev.actorId !== a.id)) continue;
     if (t >= ev.t) {
-      if (ev.cabeza) out.cabeza = ev.cabeza; if (ev.ojos) out.ojos = ev.ojos; if (ev.mano !== undefined) out.mano = ev.mano;
+      if (ev.cabeza) out.cabeza = ev.cabeza; if (ev.angulo) out.angulo = ev.angulo; if (ev.cejas !== undefined) out.cejas = ev.cejas; if (ev.ojos) out.ojos = ev.ojos; if (ev.mano !== undefined) out.mano = ev.mano;
       const durEv = Number(ev.dur) || 0; if (ev.actuacion && (!durEv || t <= ev.t + durEv)) { out.actuacionActiva = ev.actuacion; tActInicio = ev.t; }
     }
   }
   if (vidaOn) {
     const v = calcularVidaAutonomaPiro(t, (sc && sc.id ? sc.id : 'sc') + '_' + (a.id || 'per'), estaHablando);
     out.rotCab += v.rotCab; out.rotBrazo += v.rotBrazo; out.scaleX *= v.scaleX; out.scaleY *= v.scaleY; out.offsetY += v.offsetY;
+    if (estaHablando) out.cejasOffsetY += Math.sin(t * 7.5) * -3.5;
     if (v.parpadeando && out.ojos !== 'cerrados' && out.ojos !== 'ojos_cerrados') {
       const rCerr = resolverPiezaPerspectiva(personaje, 'ojos', 'ojos_cerrados', out.cabeza, { soloPerspectiva: true, sinFallbackDefault: true });
       if (rCerr && rCerr.url) out.ojos = 'ojos_cerrados';
@@ -612,6 +659,8 @@ export function normalizarActoresEscena(sc) {
         prop: String(a.prop || ''),
         actuacion: String(a.actuacion || ''),
         mirada: String(a.mirada || ''),
+        cejas: String(a.cejas || ''),
+        angulo: String(a.angulo || ''),
         escala: Number(a.escala) || 1
       };
     });
@@ -629,6 +678,8 @@ export function normalizarActoresEscena(sc) {
     prop: esPropMano ? String(sc.prop) : '',
     actuacion: String(sc.actuacion || ''),
     mirada: String(sc.mirada || ''),
+    cejas: String(sc.cejas || ''),
+    angulo: String(sc.angulo || ''),
     escala: 1
   }];
 }
@@ -644,12 +695,19 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
   const piezas = personaje.piezas || {};
   const piv = parsearPivotes(personaje);
 
-      const cabezaKey = cfg.cabeza || 'cabeza_base';
-  const cuerpoKey = cfg.cuerpo || 'cuerpo_base';
+      const ang360 = resolverAngulo360Piro(cfg.angulo360);
+  const cabezaKey = (ang360 && ang360.cabeza) ? ang360.cabeza : (cfg.cabeza || 'cabeza_base');
+  const cuerpoKey = (ang360 && ang360.cuerpo) ? ang360.cuerpo : (cfg.cuerpo || 'cuerpo_base');
+  const ocultarCara360 = Boolean((ang360 && ang360.ocultarCara) || cabezaKey === 'cabeza_espalda' || cabezaKey === 'cabeza_espalda_3_4');
+  const flip360 = Boolean(ang360 && ang360.flipAuto);
   const moldes = parsearMoldes(personaje);
   const resOjos = resolverPiezaPerspectiva(personaje, 'ojos', cfg.ojos, cabezaKey, { soloPerspectiva: Boolean(cfg.soloPerspectiva), sinFallbackDefault: Boolean(cfg.soloPerspectiva) });
   const resBoca = resolverPiezaPerspectiva(personaje, 'boca', cfg.boca, cabezaKey, { soloPerspectiva: Boolean(cfg.soloPerspectiva), adaptarBocas: cfg.adaptarBocas === true, sinFallbackDefault: Boolean(cfg.soloPerspectiva) });
-  const ojosKey = resOjos.url ? resOjos.key : 'ninguno';
+  const tieneCejasLib = Object.keys(piezas).some(function(k) { return k.indexOf('cejas_') === 0 && piezas[k] && piezas[k].url; });
+  const cejasSol = (cfg.cejas && cfg.cejas !== 'ninguno') ? cfg.cejas : (tieneCejasLib ? ('cejas_' + String(cfg.ojos || 'neutro').replace(/^ojos_(frente_|perfil_)?/, '')) : '');
+  const resCejas = (!ocultarCara360 && cejasSol && tieneCejasLib) ? resolverPiezaPerspectiva(personaje, 'cejas', cejasSol, cabezaKey, { soloPerspectiva: Boolean(cfg.soloPerspectiva), sinFallbackDefault: Boolean(cfg.soloPerspectiva) }) : { key: 'ninguno', url: null, transform: null };
+  const ojosKey = (!ocultarCara360 && resOjos.url) ? resOjos.key : 'ninguno';
+  const cejasKey = (!ocultarCara360 && resCejas.url) ? resCejas.key : 'ninguno';
   const bocaKey = resBoca.url ? resBoca.key : 'ninguno';
   const brazoDelKey = cfg.brazoDel || (cfg.propImg ? 'brazo_delantero_prop' : 'brazo_delantero_reposo');
   const brazoTrasKey = cfg.brazoTras || 'brazo_trasero_reposo';
@@ -668,7 +726,7 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
     'brazo_trasero_reposo', brazoTrasKey, 'brazo_tras_sup', 'brazo_tras_ant',
     'pierna_trasera', 'pierna_delantera', piernaTrasKey, piernaDelKey,
     'cuerpo_base', cuerpoKey, 'maestro_cuerpo', 'maestro_perfil',
-    'cabeza_base', cabezaKey, ojosKey, bocaKey,
+    'cabeza_base', cabezaKey, ojosKey, cejasKey, bocaKey, 'cuerpo_frente', 'cuerpo_perfil', 'cuerpo_espalda', 'cuerpo_espalda_3_4',
     'brazo_delantero_reposo', brazoDelKey, 'brazo_del_sup', 'brazo_del_ant', manoKey
   ];
   const imgs = {};
@@ -680,8 +738,9 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
 
   const cuerpoImg = imgs[cuerpoKey] || imgs.cuerpo_base;
   const cabezaImg = imgs[cabezaKey] || (cfg.soloPerspectiva ? null : imgs.cabeza_base);
-  const ojosImg = resOjos.url ? imgs[resOjos.key] : null;
-  const bocaImg = resBoca.url ? imgs[resBoca.key] : null;
+  const ojosImg = (!ocultarCara360 && resOjos.url) ? imgs[resOjos.key] : null;
+  const cejasImg = (!ocultarCara360 && resCejas.url) ? imgs[resCejas.key] : null;
+  const bocaImg = (!ocultarCara360 && resBoca.url) ? imgs[resBoca.key] : null;
   const tieneArtDel = Boolean(imgs.brazo_del_sup || imgs.brazo_del_ant);
   const tieneArtTras = Boolean(imgs.brazo_tras_sup || imgs.brazo_tras_ant);
   const tieneModulares = Boolean(
@@ -694,8 +753,11 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
     const sc = Number(cfg.scale) || 0.44;
     ctx.translate(Number(cfg.x) || 270, Number(cfg.y) || 530);
     if (cfg.flipX) ctx.scale(-1, 1);
-        ctx.scale(sc, sc);
+    ctx.scale(sc, sc);
     ctx.translate(-500, -800);
+  } else if (flip360) {
+    ctx.translate(1000, 0);
+    ctx.scale(-1, 1);
   }
   const sxAnim = Number(cfg.scaleX) || 1, syAnim = Number(cfg.scaleY) || 1, oyAnim = Number(cfg.offsetY) || 0;
   if (sxAnim !== 1 || syAnim !== 1 || oyAnim !== 0) {
@@ -766,8 +828,13 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
     };
     drawR(cabezaImg, ptCuello, rotCab);
     drawRFacial(ojosImg, resOjos.transform);
-    if (resOjos.key && resOjos.key.indexOf('cerrad') < 0 && piezas[resOjos.key] && piezas[resOjos.key].pupila_dinamica) {
+    if (!ocultarCara360 && resOjos.key && resOjos.key.indexOf('cerrad') < 0 && piezas[resOjos.key] && piezas[resOjos.key].pupila_dinamica) {
       dibujarPupilasDinamicasPiro(ctx, piezas[resOjos.key], cfg.miradaVec || null, ptCuello, rotCab, resOjos.transform, personaje);
+    }
+    if (cejasImg) {
+      const cOffY = Number(cfg.cejasOffsetY) || 0;
+      if (cOffY) { ctx.save(); ctx.translate(0, cOffY); drawRFacial(cejasImg, resCejas.transform); ctx.restore(); }
+      else drawRFacial(cejasImg, resCejas.transform);
     }
     drawRFacial(bocaImg, resBoca.transform);
 
@@ -987,6 +1054,9 @@ export async function componerEscenaPiro(ctx, params) {
         cuerpo: a.cuerpo || 'cuerpo_base',
         ojos: anim.ojos || 'neutro',
         miradaVec: miradaVec,
+        angulo360: anim.angulo || a.angulo || sc.angulo || '',
+        cejas: anim.cejas || a.cejas || '',
+        cejasOffsetY: anim.cejasOffsetY || 0,
         boca: bocaFinal,
         brazoDel: a.brazo || (propImg ? 'brazo_delantero_prop' : 'brazo_delantero_reposo'),
         brazoTras: a.brazoTras || 'brazo_trasero_reposo',
@@ -1003,7 +1073,7 @@ export async function componerEscenaPiro(ctx, params) {
         x: xBase + panX * 0.45,
         y: yBase,
         scale: scPer,
-        flipX: flip,
+        flipX: (function() { const ag = resolverAngulo360Piro(anim.angulo || a.angulo || sc.angulo); return ag ? Boolean(ag.flipAuto) : flip; })(),
         modoExportacion: Boolean(params.modoExportacion)
       });
     }
