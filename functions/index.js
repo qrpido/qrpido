@@ -2427,7 +2427,7 @@ exports.consultarEstadoOrdenPasarelaPOS = onCall({ memory: "256MB", maxInstances
 // ============================================================================
 // 26. BOVEDA IA CIFRADA MULTI-PROVEEDOR (AES-256-GCM) Y PROXY DUAL BYOK/CREDITOS
 // ============================================================================
-const TARIFAS_IA_DEF = { imagen: 6, hoja_lote: 12, texto: 2, audio: 4, probar: 0, listar_modelos: 0, listar_voces: 0 };
+const TARIFAS_IA_DEF = { imagen: 6, hoja_lote: 12, plano_personaje: 8, texto: 2, audio: 4, probar: 0, listar_modelos: 0, listar_voces: 0 };
 const PROVS_VOZ_GRATIS = { edge_tts: true, polly_free: true, google_tts_free: true, openverse_audio: true };
 const VOCES_EDGE_CAT = [
   { id: 'es-CO-GonzaloNeural', nombre: 'Gonzalo (CO Hombre)' }, { id: 'es-CO-SalomeNeural', nombre: 'Salome (CO Mujer)' },
@@ -2613,8 +2613,8 @@ const HOSTS_IA_OFICIALES = {
   elevenlabs: ['api.elevenlabs.io']
 };
 const MODELOS_CREDITOS_PERMITIDOS = {
-  gemini: { texto: ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'], imagen: ['gemini-2.5-flash-image'], audio: ['gemini-2.5-flash-preview-tts'] },
-  openai: { texto: ['gpt-4o-mini', 'gpt-4.1-mini', 'gpt-4.1-nano'], imagen: ['gpt-image-1', 'gpt-image-1-mini'], audio: ['tts-1', 'gpt-4o-mini-tts'] },
+    gemini: { texto: ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'], plano_personaje: ['gemini-2.5-pro', 'gemini-2.5-flash'], imagen: ['gemini-2.5-flash-image'], audio: ['gemini-2.5-flash-preview-tts'] },
+    openai: { texto: ['gpt-4o-mini', 'gpt-4.1-mini', 'gpt-4.1-nano'], plano_personaje: ['gpt-4.1', 'gpt-4o-mini', 'gpt-4.1-mini'], imagen: ['gpt-image-1', 'gpt-image-1-mini'], audio: ['tts-1', 'gpt-4o-mini-tts'] },
   elevenlabs: { audio: ['eleven_multilingual_v2', 'eleven_flash_v2_5', 'eleven_turbo_v2_5'] }
 };
 function validarUrlIA(urlStr, hostsPermitidos) {
@@ -2630,11 +2630,12 @@ function validarUrlIA(urlStr, hostsPermitidos) {
   }
   return u;
 }
-function resolverModeloSeguroCreditos(pid, acc, modSol, cfg) {
+function resolverModeloSeguroCreditos(pid, acc, modSol, cfg, tipoCobro) {
   const defMod = String((acc === 'imagen' ? (cfg.modeloImagen || cfg.modelo) : cfg.modelo) || (PRESETS_IA[pid] && (acc === 'imagen' ? PRESETS_IA[pid].modeloImagen : PRESETS_IA[pid].modelo)) || '').trim();
   const sol = String(modSol || '').trim();
   if (!sol || sol === defMod) return defMod;
-  const lista = (MODELOS_CREDITOS_PERMITIDOS[pid] && MODELOS_CREDITOS_PERMITIDOS[pid][acc]) || [];
+  const cat = (tipoCobro && MODELOS_CREDITOS_PERMITIDOS[pid] && MODELOS_CREDITOS_PERMITIDOS[pid][tipoCobro]) ? tipoCobro : acc;
+  const lista = (MODELOS_CREDITOS_PERMITIDOS[pid] && MODELOS_CREDITOS_PERMITIDOS[pid][cat]) || [];
   if (lista.indexOf(sol) !== -1) return sol;
   return defMod || lista[0] || sol;
 }
@@ -2781,8 +2782,13 @@ async function llamarProveedorIA(prot, key, baseUrl, mod, acc, p, hostsPermitido
     }
     const body = { contents: Array.isArray(p.contents) ? p.contents : [{ role: 'user', parts: Array.isArray(p.parts) ? p.parts : [{ text: String(p.prompt || '') }] }] };
     if (p.systemInstruction) body.systemInstruction = p.systemInstruction;
-    if (acc === 'imagen') body.generationConfig = Object.assign({ responseModalities: ['IMAGE', 'TEXT'] }, p.generationConfig || {});
-    else if (p.generationConfig) body.generationConfig = p.generationConfig;
+        if (acc === 'imagen') body.generationConfig = Object.assign({ responseModalities: ['IMAGE', 'TEXT'] }, p.generationConfig || {});
+    else {
+      const gc = Object.assign({}, p.generationConfig || {});
+      if (p.responseMimeType && !gc.responseMimeType) gc.responseMimeType = String(p.responseMimeType);
+      if (typeof p.maxOutputTokens === 'number' && !gc.maxOutputTokens) gc.maxOutputTokens = p.maxOutputTokens;
+      if (Object.keys(gc).length > 0) body.generationConfig = gc;
+    }
     const r = await fetch(base + '/models/' + encodeURIComponent(m) + ':generateContent', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) });
     if (!r.ok) throw new Error('Gemini HTTP ' + r.status + ': ' + (await r.text()).slice(0, 220));
     const j = await r.json(), pts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
@@ -2790,7 +2796,7 @@ async function llamarProveedorIA(prot, key, baseUrl, mod, acc, p, hostsPermitido
       for (let i = 0; i < pts.length; i++) if (pts[i].inlineData && pts[i].inlineData.data) return { b64: pts[i].inlineData.data, mime: pts[i].inlineData.mimeType || 'image/png' };
       throw new Error('Gemini no devolvio imagen.');
     }
-    return { texto: pts.map(function(x) { return x.text || ''; }).join(''), usage: j.usageMetadata || null };
+        return { texto: pts.map(function(x) { return x.text || ''; }).join(''), finishReason: (j.candidates && j.candidates[0] && j.candidates[0].finishReason) || null, usage: j.usageMetadata || null };
   }
     if (prot === 'openai_compat') {
     const base = validarUrlIA(baseUrl || 'https://api.openai.com/v1', hostsPermitidos || null), hdr = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key };
@@ -2874,7 +2880,7 @@ exports.proxyIACliente = onCall({ memory: '512MB', timeoutSeconds: 180, maxInsta
   if (usarCred && !HOSTS_IA_OFICIALES[pid]) {
     throw new HttpsError('permission-denied', 'Proveedor no autorizado para modo Creditos Piro.');
   }
-  const tipoCobroSeguro = (acc === 'imagen' && tipoC === 'hoja_lote') ? 'hoja_lote' : acc;
+    const tipoCobroSeguro = (acc === 'imagen' && tipoC === 'hoja_lote') ? 'hoja_lote' : ((acc === 'texto' && tipoC === 'plano_personaje') ? 'plano_personaje' : acc);
   const tarifas = Object.assign({}, TARIFAS_IA_DEF, tarS.exists ? (tarS.data() || {}) : {});
   const costoTarifa = Math.round(Number(tarifas[tipoCobroSeguro] !== undefined ? tarifas[tipoCobroSeguro] : (TARIFAS_IA_DEF[tipoCobroSeguro] || 0)) || 0);
   const costoMin = Number(TARIFAS_IA_DEF[tipoCobroSeguro] || 0);
@@ -2894,9 +2900,11 @@ exports.proxyIACliente = onCall({ memory: '512MB', timeoutSeconds: 180, maxInsta
   try {
         const keyViva = descifrarIA(cfg.secreto, semillaMaestra.value(), usarCred ? 'MAESTRO_PLATAFORMA' : uid);
     const modSolicitado = String(d.modelo || (acc === 'imagen' ? (cfg.modeloImagen || cfg.modelo) : cfg.modelo) || '').trim();
-    const modU = usarCred ? resolverModeloSeguroCreditos(pid, acc, modSolicitado, cfg) : modSolicitado;
+        const modU = usarCred ? resolverModeloSeguroCreditos(pid, acc, modSolicitado, cfg, tipoCobroSeguro) : modSolicitado;
     const payU = Object.assign({}, d.payload || {});
-    if (usarCred && typeof payU.max_tokens === 'number' && payU.max_tokens > 4096) payU.max_tokens = 4096;
+    const topeTok = tipoCobroSeguro === 'plano_personaje' ? 16384 : 4096;
+    if (usarCred && typeof payU.max_tokens === 'number' && payU.max_tokens > topeTok) payU.max_tokens = topeTok;
+    if (usarCred && payU.generationConfig && typeof payU.generationConfig.maxOutputTokens === 'number' && payU.generationConfig.maxOutputTokens > topeTok) payU.generationConfig.maxOutputTokens = topeTok;
     if (cfg.protocolo === 'audio_tts' && !payU.voiceId && cfg.voiceId) payU.voiceId = cfg.voiceId;
     const hostsPermit = HOSTS_IA_OFICIALES[pid] || null;
     const baseUrlSegura = usarCred ? String((PRESETS_IA[pid] && PRESETS_IA[pid].baseUrl) || cfg.baseUrl || '').trim() : String(cfg.baseUrl || (PRESETS_IA[pid] && PRESETS_IA[pid].baseUrl) || '').trim();
