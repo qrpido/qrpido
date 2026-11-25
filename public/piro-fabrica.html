@@ -333,7 +333,7 @@
 
 <script type="module">
 import GeokatuDB from './core-db.js';
-import { dibujarMarionetaPiro, cargarImagenPiro, parsearMoldes, MIRADAS_PIRO, dibujarElementosVivosPiro } from './piro-compositor.js';
+import { dibujarMarionetaPiro, cargarImagenPiro, parsearMoldes, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO, dibujarElementosVivosPiro } from './piro-compositor.js';
 
 const BLOQUES_60 = [
   { id: 'b1', tit: '1. Identidad y Arte (8)', campos: [
@@ -387,7 +387,7 @@ const BLOQUES_60 = [
     ['dentadura', 'Rasgo dental al hablar', 'text', 40, 0, 'Dientes blancos limpios'],
     ['lengua_interior', 'Color interior boca/lengua', 'text', 30, 0, 'Interior oscuro, lengua rosa plana'],
     ['gesto_boca_firma', 'Gesto de boca característico', 'text', 40, 0, 'Sonrisa confiada / puchero dramático'],
-    ['set_visemas', 'Nivel de lip-sync', 'select', 20, 0, ['Pro 9 visemas ES-EN', 'Básico 5 bocas']]
+    ['set_visemas', 'Nivel de lip-sync', 'select', 32, 0, ['Pro 12 Visemas (42 Speech Sounds)', 'Básico 5 bocas']]
   ]},
   { id: 'b7', tit: '7. Vestuario por Capas (9)', campos: [
     ['arquetipo_vestuario', 'Estilo general de ropa', 'text', 40, 1, 'Urbano casual ajustado'],
@@ -410,7 +410,7 @@ const BLOQUES_60 = [
     ['idioma_principal', 'Idioma voz/subtítulos', 'select', 25, 0, ['es-CO', 'es-MX', 'es-ES', 'en-US', 'Bilingüe ES/EN']],
     ['timbre_voz', 'Timbre de voz', 'select', 25, 0, ['Juvenil expresiva', 'Grave', 'Aguda', 'Dulce', 'Robótica']],
     ['restricciones_negativas', 'Qué NO dibujar nunca', 'text', 75, 0, 'Sin sombras 3D, sin texto, sin músculos exagerados, sin sangrado verde'],
-    ['perspectivas_rig', 'Ángulos de cabeza', 'select', 30, 0, ['3/4 + Frente', 'Completo (3/4 + Frente + Perfil)', 'Solo 3/4']]
+    ['perspectivas_rig', 'Ángulos Turnaround 360', 'select', 36, 0, ['Turnaround 360° (5 vistas + espejo)', '3/4 + Frente', 'Solo 3/4']]
   ]}
 ];
 
@@ -445,8 +445,9 @@ const PRESET_FERNANDO = {
 };
 
 const CATS_RUEDA = [
-  { id: 'cabeza', nom: 'Perspectiva', pref: 'cabeza_' },
+  { id: 'angulo', nom: 'Giro 360°', pref: '' },
   { id: 'ojos', nom: 'Ojos', pref: 'ojos_' },
+  { id: 'cejas', nom: 'Cejas', pref: 'cejas_' },
   { id: 'boca', nom: 'Bocas', pref: 'boca_' },
   { id: 'mano', nom: 'Manos', pref: 'mano_' },
   { id: 'brazo', nom: 'Brazos', pref: 'brazo_' },
@@ -463,7 +464,7 @@ let datosEncuesta = {};
 let fotoRefDataUrl = '';
 let catIdxRueda = 1;
 let bgModo = 'grid';
-let estadoRueda = { cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', ojos: 'ojos_neutro', boca: 'boca_cerrada', brazo: 'brazo_delantero_reposo', mano: '', acc: '' };
+let estadoRueda = { angulo: '3_4_der', cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', ojos: 'ojos_neutro', cejas: '', boca: 'boca_cerrada', brazo: 'brazo_delantero_reposo', mano: '', acc: '' };
 let cacheLocalUrls = {};
 let ocupandoApi = false;
 let lienzoSelId = '';
@@ -769,7 +770,7 @@ function asegurarPersonajeDesdeEncuesta() {
 
 let vaciarPupilaAuto = true;
 let miradaPreviewId = 'frente';
-const REGLA_OJOS_SIN_PUPILA_EN = ' DYNAMIC PUPIL RIG RULE: Every open eye MUST have EMPTY PURE WHITE SCLERA (#FFFFFF) inside clean black outlines with ZERO pupils, ZERO iris, ZERO black dots inside the white eyeballs (only closed eyelids may be closed lines).';
+const REGLA_OJOS_SIN_PUPILA_EN = ' DYNAMIC PUPIL & SEPARATE EYEBROWS RULE: Draw ONLY eyes/eyelids with ZERO eyebrows (eyebrows go on their own sheet). Every open eye MUST have EMPTY PURE WHITE SCLERA (#FFFFFF) inside clean black outlines with ZERO pupils, ZERO iris, ZERO black dots inside the white eyeballs (only closed eyelids may be closed lines).';
 window.toggleVaciarPupilaFab = function() {
   vaciarPupilaAuto = !vaciarPupilaAuto;
   const b = document.getElementById('btn-vaciar-pup');
@@ -1210,28 +1211,31 @@ window.togglePlayAmb25D = function() {
 
 function construirInstruccionesArquitecto(fichaLimpia) {
   return [
-    'You are a Senior 2D Cut-Out Animation Rig Architect. Convert the character survey JSON into a strict production blueprint JSON for 2D modular puppet sheets on pure flat chroma green (#00FF00).',
+    'You are a Senior 2D Cut-Out Animation Rig Architect (Toon Boom / Archer / Bluey standard). Convert the character survey JSON into a strict production blueprint JSON for 12 modular 2D puppet sheets on pure flat chroma green (#00FF00).',
     'Return ONLY valid JSON (no markdown fences, no commentary) with this EXACT top-level structure:',
     '{',
-    '  "version_esquema": "piro_blueprint_v2",',
+    '  "version_esquema": "piro_blueprint_v3",',
     '  "identidad_canonica_en": "Concise immutable visual bible in English (species, style, ink line, fur/skin hex, spots, hairstyle, beard, outfit, negative rules)",',
     '  "paleta_hex": ["#hex1","#hex2","#hex3"],',
-    '  "reglas_rig": { "num_cabezas": 1, "num_ojos": 2, "num_brazos": 2, "estatura_cm": 175, "perspectivas": ["3_4","frente"] },',
+    '  "reglas_rig": { "num_cabezas": 1, "num_ojos": 2, "num_brazos": 2, "estatura_cm": 175, "turnaround_360": true, "cejas_separadas": true, "visemas_12": true },',
     '  "lienzos": [',
-    '    { "id_lienzo": "maestro_cuerpo", "categoria_rueda": "Base", "titulo_boton": "1. Cuerpo Maestro", "dependencia": "foto", "grid": { "cols": 1, "rows": 1, "orden": "lectura" }, "prompt_imagen_en": "...", "piezas": [{ "celda": 1, "slot_key": "maestro_cuerpo", "etiqueta_ui": "Maestro 3/4", "tipo_anclaje": "cuerpo" }] }',
+    '    { "id_lienzo": "turnaround_360", "categoria_rueda": "Base", "titulo_boton": "1. Turnaround 360 (5x1)", "dependencia": "foto", "grid": { "cols": 5, "rows": 1, "orden": "lectura" }, "prompt_imagen_en": "...", "piezas": [{ "celda": 1, "slot_key": "maestro_frente", "etiqueta_ui": "0° Frente", "tipo_anclaje": "cuerpo" }] }',
     '  ]',
     '}',
-    'MANDATORY 9 LIENZOS IN THIS EXACT ORDER:',
-    '1. id_lienzo:"maestro_cuerpo" (1x1): Full body standing 3/4 RIGHT in iconic pose on #00FF00. piezas: [maestro_cuerpo (tipo_anclaje:"cuerpo")].',
-    '2. id_lienzo:"cuerpo_base" (1x1): Exact same torso+legs+shoes WITHOUT head and WITHOUT arms (clean closed collar and shoulder openings) on #00FF00. piezas: [cuerpo_base (tipo_anclaje:"cuerpo")].',
-    '3. id_lienzo:"cabezas_blanco" (2x2): 4 isolated floating FEATURELESS BLANK HEADS (ZERO eyes, ZERO eyebrows, ZERO mouth, smooth matching fur/skin across eye & mouth zones, closed neck outline) on #00FF00: R1C1=3/4 RIGHT (cabeza_base), R1C2=STRAIGHT FRONT (cabeza_frente), R2C1=90-DEG PROFILE RIGHT (cabeza_perfil), R2C2=Seated torso/legs without head/arms (cuerpo_sentado, tipo_anclaje:"cuerpo").',
-    '4. id_lienzo:"ojos_3_4" (3x3): 9 isolated EYE+EYEBROW sets ONLY (matching num_ojos, 3/4 RIGHT, ZERO head/fur/nose/mouth) on #00FF00: ojos_neutro, ojos_feliz, ojos_enojado, ojos_triste, ojos_duda, ojos_indignado, ojos_cerrados, ojos_celoso, ojos_cansado (all tipo_anclaje:"ojos").',
-    '5. id_lienzo:"bocas_3_4" (3x3): 9 isolated MOUTH shapes ONLY (3/4 RIGHT, ZERO eyes/nose/head/beard) on #00FF00: boca_cerrada, boca_media, boca_abierta, boca_sonrisa, boca_molesta, boca_o_u, boca_f_v, boca_dientes, boca_triste (all tipo_anclaje:"boca").',
-    '6. id_lienzo:"ojos_frente" (2x2): 4 isolated STRAIGHT FRONT VIEW eye+eyebrow sets ONLY on #00FF00: ojos_frente_neutro, ojos_frente_feliz, ojos_frente_duda, ojos_frente_indignado (tipo_anclaje:"ojos_frente").',
-    '7. id_lienzo:"manos_base" (3x3): 9 isolated character RIGHT HANDS from wrist down matching fur/skin on #00FF00: mano_relajada, mano_abierta, mano_senalando, mano_puno, mano_prop, mano_pecho, mano_ok, mano_telefono, mano_paz (tipo_anclaje:"mano").',
-    '8. id_lienzo:"brazos_base" (2x2): 4 isolated character arms matching outfit/fur on #00FF00: brazo_trasero_reposo, brazo_delantero_reposo, brazo_delantero_prop, brazos_cruzados (tipo_anclaje:"brazo").',
-    '9. id_lienzo:"accesorios_ropa" (3x3): 9 isolated wearable accessories, hairstyles, jackets or props from survey on #00FF00: acc_1..acc_9 (tipo_anclaje:"acc", with clear Spanish etiqueta_ui for each item).',
-    'CRITICAL RULES FOR EVERY prompt_imagen_en: Always mandate pure flat #00FF00 chroma green background, ZERO grid lines, ZERO boxes, ZERO text/numbers, crisp outlines matching estilo_artistico, generous green margin around each cell, and explicit R1C1..RnCn cell descriptions.',
+    'MANDATORY 12 LIENZOS IN THIS EXACT ORDER:',
+    '1. id_lienzo:"turnaround_360" (5x1 horizontal 16:9 strip): 5 FULL-BODY standing views in one horizontal row on the EXACT SAME floor height on #00FF00: C1=0-deg STRAIGHT FRONT (maestro_frente), C2=45-deg 3/4 RIGHT (maestro_cuerpo), C3=90-deg PROFILE RIGHT (maestro_perfil), C4=135-deg BACK 3/4 RIGHT (maestro_espalda_3_4), C5=180-deg STRAIGHT BACK (maestro_espalda). All tipo_anclaje:"cuerpo".',
+    '2. id_lienzo:"cuerpos_360" (5x1 horizontal 16:9 strip): Exact same 5 angles (torso+legs+shoes WITHOUT head and WITHOUT arms, clean closed collar/shoulder openings) on #00FF00: C1=cuerpo_frente, C2=cuerpo_base, C3=cuerpo_perfil, C4=cuerpo_espalda_3_4, C5=cuerpo_espalda (all tipo_anclaje:"cuerpo").',
+    '3. id_lienzo:"cabezas_360" (5x1 horizontal 16:9 strip): 5 isolated floating FEATURELESS BLANK HEADS (ZERO eyes, ZERO eyebrows, ZERO mouth, smooth matching skin/fur across face, closed neck) on #00FF00: C1=0-deg Front (cabeza_frente), C2=45-deg 3/4 Right (cabeza_base), C3=90-deg Profile Right (cabeza_perfil), C4=135-deg Back 3/4 Right (cabeza_espalda_3_4), C5=180-deg Back (cabeza_espalda). All tipo_anclaje:"cabeza".',
+    '4. id_lienzo:"ojos_3_4" (3x3): 9 isolated EYE sets ONLY (3/4 RIGHT, ZERO eyebrows, ZERO pupils/iris — empty pure white #FFFFFF sclera inside black outlines, ZERO head/fur/nose/mouth) on #00FF00: ojos_neutro, ojos_feliz, ojos_enojado, ojos_triste, ojos_duda, ojos_indignado, ojos_cerrados, ojos_celoso, ojos_cansado (tipo_anclaje:"ojos").',
+    '5. id_lienzo:"cejas_3_4" (3x3): 9 isolated EYEBROW PAIRS ONLY (3/4 RIGHT, ZERO eyes, ZERO eyelids, ZERO head/fur) on #00FF00: cejas_neutro, cejas_enojado, cejas_triste, cejas_duda_izq, cejas_duda_der, cejas_sorpresa, cejas_coqueto, cejas_preocupado, cejas_sarcasmo (all tipo_anclaje:"cejas").',
+    '6. id_lienzo:"bocas_visemas_12" (4x3 horizontal 4:3 sheet): 12 isolated SPEECH SOUNDS PHONETIC VISEME MOUTHS ONLY (3/4 RIGHT, ZERO eyes/nose/head/beard) on #00FF00 covering all 42 speech sounds: R1C1=boca_mbp (M/B/P closed lips), R1C2=boca_aa (AA/AI/AW/AY wide open), R1C3=boca_ee (E/I/Y wide dental smile), R1C4=boca_oh (O/OR medium oval), R2C1=boca_oo (OO/U/W/WH/QU tight pucker), R2C2=boca_fv (F/V/PH upper teeth on lower lip), R2C3=boca_lth (L/TH tongue between teeth), R2C4=boca_s (S/Z/C-soft/X clenched teeth), R3C1=boca_dtn (D/T/N tongue behind teeth), R3C2=boca_sh (CH/SH/J flared lips), R3C3=boca_kg (C-hard/G/K/H back open), R3C4=boca_r (R rounded open). All tipo_anclaje:"boca".',
+    '7. id_lienzo:"bocas_emociones" (3x3): 9 isolated expressive resting mouths ONLY (3/4 RIGHT) on #00FF00: boca_cerrada, boca_sonrisa, boca_carcajada, boca_molesta, boca_triste, boca_grito, boca_asco, boca_puchero, boca_sarcasmo (tipo_anclaje:"boca").',
+    '8. id_lienzo:"ojos_frente" (2x2): 4 isolated STRAIGHT FRONT VIEW eye sets ONLY (ZERO eyebrows, ZERO pupils, pure white sclera) on #00FF00: ojos_frente_neutro, ojos_frente_feliz, ojos_frente_duda, ojos_frente_indignado (tipo_anclaje:"ojos_frente").',
+    '9. id_lienzo:"cejas_frente" (2x2): 4 isolated STRAIGHT FRONT VIEW eyebrow pairs ONLY (ZERO eyes) on #00FF00: cejas_frente_neutro, cejas_frente_enojado, cejas_frente_sorpresa, cejas_frente_duda (tipo_anclaje:"cejas_frente").',
+    '10. id_lienzo:"manos_base" (3x3): 9 isolated character RIGHT HANDS from wrist down matching fur/skin on #00FF00: mano_relajada, mano_abierta, mano_senalando, mano_puno, mano_prop, mano_pecho, mano_ok, mano_telefono, mano_paz (tipo_anclaje:"mano").',
+    '11. id_lienzo:"brazos_base" (2x2): 4 isolated character arms matching outfit/fur on #00FF00: brazo_trasero_reposo, brazo_delantero_reposo, brazo_delantero_prop, brazos_cruzados (tipo_anclaje:"brazo").',
+    '12. id_lienzo:"accesorios_ropa" (3x3): 9 isolated wearable accessories, hairstyles, jackets or props from survey on #00FF00: acc_1..acc_9 (tipo_anclaje:"acc", with clear Spanish etiqueta_ui).',
+    'CRITICAL RULES FOR EVERY prompt_imagen_en: Always mandate pure flat #00FF00 chroma green background, ZERO grid lines, ZERO boxes, ZERO text/numbers, crisp outlines matching estilo_artistico, generous green margin around each cell, and explicit C1..C5 or R1C1..RnCn cell descriptions.',
     'CHARACTER SURVEY DATA: ' + JSON.stringify(fichaLimpia)
   ].join('\n');
 }
@@ -1278,7 +1282,7 @@ window.generarPlanoMaestroIA = async function() {
   }
   const p = asegurarPersonajeDesdeEncuesta();
   const btn = document.getElementById('btn-generar-plano');
-  ocupandoApi = true; if (btn) { btn.disabled = true; btn.textContent = 'Diseñando 9 lienzos maestros (JSON)...'; }
+  ocupandoApi = true; if (btn) { btn.disabled = true; btn.textContent = 'Diseñando 12 lienzos maestros (JSON)...'; }
   try {
     const selMod = (document.getElementById('sel-modelo-arq').value || 'gemini:gemini-2.5-pro').split(':');
     const prefs = leerPrefsVault();
@@ -1287,31 +1291,7 @@ window.generarPlanoMaestroIA = async function() {
     const fichaLimpia = {};
     Object.keys(datosEncuesta).forEach(function(k) { const v = String(datosEncuesta[k] || '').trim(); if (v) fichaLimpia[k] = v; });
 
-    const instrucciones = [
-      'You are a Senior 2D Cut-Out Animation Rig Architect. Convert the character survey JSON into a strict production blueprint JSON for 2D modular puppet sheets on pure flat chroma green (#00FF00).',
-      'Return ONLY valid JSON (no markdown fences, no commentary) with this EXACT top-level structure:',
-      '{',
-      '  "version_esquema": "piro_blueprint_v2",',
-      '  "identidad_canonica_en": "Concise immutable visual bible in English (species, style, ink line, fur/skin hex, spots, hairstyle, beard, outfit, negative rules)",',
-      '  "paleta_hex": ["#hex1","#hex2","#hex3"],',
-      '  "reglas_rig": { "num_cabezas": 1, "num_ojos": 2, "num_brazos": 2, "estatura_cm": 175, "perspectivas": ["3_4","frente"] },',
-      '  "lienzos": [',
-      '    { "id_lienzo": "maestro_cuerpo", "categoria_rueda": "Base", "titulo_boton": "1. Cuerpo Maestro", "dependencia": "foto", "grid": { "cols": 1, "rows": 1, "orden": "lectura" }, "prompt_imagen_en": "...", "piezas": [{ "celda": 1, "slot_key": "maestro_cuerpo", "etiqueta_ui": "Maestro 3/4", "tipo_anclaje": "cuerpo" }] }',
-      '  ]',
-      '}',
-      'MANDATORY 9 LIENZOS IN THIS EXACT ORDER:',
-      '1. id_lienzo:"maestro_cuerpo" (1x1): Full body standing 3/4 RIGHT in iconic pose on #00FF00. piezas: [maestro_cuerpo (tipo_anclaje:"cuerpo")].',
-      '2. id_lienzo:"cuerpo_base" (1x1): Exact same torso+legs+shoes WITHOUT head and WITHOUT arms (clean closed collar and shoulder openings) on #00FF00. piezas: [cuerpo_base (tipo_anclaje:"cuerpo")].',
-      '3. id_lienzo:"cabezas_blanco" (2x2): 4 isolated floating FEATURELESS BLANK HEADS (ZERO eyes, ZERO eyebrows, ZERO mouth, smooth matching fur/skin across eye & mouth zones, closed neck outline) on #00FF00: R1C1=3/4 RIGHT (cabeza_base), R1C2=STRAIGHT FRONT (cabeza_frente), R2C1=90-DEG PROFILE RIGHT (cabeza_perfil), R2C2=Seated torso/legs without head/arms (cuerpo_sentado, tipo_anclaje:"cuerpo").',
-      '4. id_lienzo:"ojos_3_4" (3x3): 9 isolated EYE+EYEBROW sets ONLY (matching num_ojos, 3/4 RIGHT, ZERO head/fur/nose/mouth) on #00FF00: ojos_neutro, ojos_feliz, ojos_enojado, ojos_triste, ojos_duda, ojos_indignado, ojos_cerrados, ojos_celoso, ojos_cansado (all tipo_anclaje:"ojos").',
-      '5. id_lienzo:"bocas_3_4" (3x3): 9 isolated MOUTH shapes ONLY (3/4 RIGHT, ZERO eyes/nose/head/beard) on #00FF00: boca_cerrada, boca_media, boca_abierta, boca_sonrisa, boca_molesta, boca_o_u, boca_f_v, boca_dientes, boca_triste (all tipo_anclaje:"boca").',
-      '6. id_lienzo:"ojos_frente" (2x2): 4 isolated STRAIGHT FRONT VIEW eye+eyebrow sets ONLY on #00FF00: ojos_frente_neutro, ojos_frente_feliz, ojos_frente_duda, ojos_frente_indignado (tipo_anclaje:"ojos_frente").',
-      '7. id_lienzo:"manos_base" (3x3): 9 isolated character RIGHT HANDS from wrist down matching fur/skin on #00FF00: mano_relajada, mano_abierta, mano_senalando, mano_puno, mano_prop, mano_pecho, mano_ok, mano_telefono, mano_paz (tipo_anclaje:"mano").',
-      '8. id_lienzo:"brazos_base" (2x2): 4 isolated character arms matching outfit/fur on #00FF00: brazo_trasero_reposo, brazo_delantero_reposo, brazo_delantero_prop, brazos_cruzados (tipo_anclaje:"brazo").',
-      '9. id_lienzo:"accesorios_ropa" (3x3): 9 isolated wearable accessories, hairstyles, jackets or props from survey on #00FF00: acc_1..acc_9 (tipo_anclaje:"acc", with clear Spanish etiqueta_ui for each item).',
-      'CRITICAL RULES FOR EVERY prompt_imagen_en: Always mandate pure flat #00FF00 chroma green background, ZERO grid lines, ZERO boxes, ZERO text/numbers, crisp outlines matching estilo_artistico, generous green margin around each cell, and explicit R1C1..RnCn cell descriptions.',
-      'CHARACTER SURVEY DATA: ' + JSON.stringify(fichaLimpia)
-    ].join('\n');
+    const instrucciones = construirInstruccionesArquitecto(fichaLimpia);
 
     const parts = [];
     if (fotoRefDataUrl && provId === 'gemini') {
@@ -1415,6 +1395,10 @@ function obtenerCajaDestino(p, tipoAnc, slotKey) {
   if (tipoAnc === 'ojos' || tipoAnc === 'ojos_frente' || String(slotKey).indexOf('ojos_') === 0) {
     if (zOjos) return zOjos;
     return mk === 'cabeza_frente' ? { x: 425, y: 315, w: 150, h: 72 } : { x: 445, y: 315, w: 135, h: 68 };
+  }
+  if (tipoAnc === 'cejas' || tipoAnc === 'cejas_frente' || String(slotKey).indexOf('cejas_') === 0) {
+    const baseO = zOjos || (mk === 'cabeza_frente' ? { x: 425, y: 315, w: 150, h: 72 } : { x: 445, y: 315, w: 135, h: 68 });
+    return { x: Math.round(baseO.x - 4), y: Math.round(baseO.y - 30), w: Math.round(baseO.w + 8), h: 42 };
   }
   if (tipoAnc === 'boca' || String(slotKey).indexOf('boca_') === 0) {
     if (zBoca) return zBoca;
@@ -1605,7 +1589,7 @@ window.ejecutarLienzoBlueprint = async function(idLienzo) {
     const parts = [];
 
     let refSrc = '';
-    if (lienzo.id_lienzo === 'maestro_cuerpo' && fotoRefDataUrl) refSrc = fotoRefDataUrl;
+    if ((lienzo.id_lienzo === 'maestro_cuerpo' || lienzo.id_lienzo === 'turnaround_360') && fotoRefDataUrl) refSrc = fotoRefDataUrl;
     else refSrc = cacheLocalUrls.maestro_cuerpo || (p.piezas.maestro_cuerpo && p.piezas.maestro_cuerpo.url) || fotoRefDataUrl || '';
     if (refSrc && provImg === 'gemini') {
       const rp = await urlABase64Parte(refSrc);
@@ -1617,7 +1601,7 @@ window.ejecutarLienzoBlueprint = async function(idLienzo) {
 
     const res = await GeokatuDB.PirobonianosService.llamarProxyIA({
       proveedorId: provImg, accion: 'imagen', tipoCobro: (cols * rows > 1 ? 'hoja_lote' : 'imagen'),
-      modoPago: prefs.modoPago || 'auto', payload: { prompt: promptFinal, parts: parts, aspectRatio: '1:1', size: '1024x1024' }
+      modoPago: prefs.modoPago || 'auto', payload: { prompt: promptFinal, parts: parts, aspectRatio: (cols >= 4 && rows === 1) ? '16:9' : ((cols === 4 && rows === 3) ? '4:3' : '1:1'), size: (cols >= 4 && rows === 1) ? '1536x1024' : '1024x1024' }
     });
     if (!res || !res.success || !res.b64) throw new Error((res && res.error) || 'Sin imagen del proveedor IA');
 
@@ -1682,12 +1666,23 @@ window.ejecutarLienzoBlueprint = async function(idLienzo) {
 function obtenerItemsCategoriaRueda(p, catId) {
   const pzs = (p && p.piezas) || {};
   const keys = Object.keys(pzs).filter(function(k) { return Boolean(cacheLocalUrls[k] || (pzs[k] && pzs[k].url)); });
-  const persp = estadoRueda.cabeza === 'cabeza_frente' ? 'frente' : (estadoRueda.cabeza === 'cabeza_perfil' ? 'perfil' : '3_4');
+  const angObj = ANGULOS_360_PIRO[estadoRueda.angulo] || ANGULOS_360_PIRO['3_4_der'];
+  const persp = angObj.cabeza === 'cabeza_frente' ? 'frente' : (angObj.cabeza === 'cabeza_perfil' ? 'perfil' : '3_4');
   let lista = [];
-  if (catId === 'cabeza') {
-    lista = ['cabeza_base', 'cabeza_frente', 'cabeza_perfil'].map(function(k) {
-      return { key: k, lbl: k === 'cabeza_base' ? '3/4' : (k === 'cabeza_frente' ? 'Frente' : 'Perfil'), ok: keys.indexOf(k) >= 0 };
+  if (catId === 'angulo') {
+    lista = Object.keys(ANGULOS_360_PIRO).map(function(ak) {
+      const o = ANGULOS_360_PIRO[ak];
+      return { key: ak, lbl: o.nombre, ok: keys.indexOf(o.cabeza) >= 0 || keys.indexOf(o.cuerpo) >= 0 || ak === '3_4_der' || ak === '3_4_izq' };
     });
+  } else if (catId === 'cejas') {
+    const baseC = keys.filter(function(k) {
+      if (k.indexOf('cejas_') !== 0) return false;
+      if (persp === 'frente') return k.indexOf('cejas_frente_') === 0;
+      return k.indexOf('cejas_frente_') !== 0 && k.indexOf('cejas_perfil_') !== 0;
+    });
+    lista = [{ key: '', lbl: 'Auto', ok: true }].concat((baseC.length ? baseC : Object.keys(CEJAS_PIRO).map(function(ck) { return 'cejas_' + ck; })).map(function(k) {
+      return { key: k, lbl: (pzs[k] && pzs[k].etiqueta) || k.replace(/^cejas_(frente_|perfil_)?/, ''), ok: keys.indexOf(k) >= 0 };
+    }));
   } else if (catId === 'ojos') {
     const base = keys.filter(function(k) {
       if (k.indexOf('ojos_') !== 0) return false;
@@ -1786,6 +1781,7 @@ window.seleccionarItemRuedaH = function(idx) {
   const items = obtenerItemsCategoriaRueda(p, catAct.id);
   if (!items[idx]) return;
   estadoRueda[catAct.id] = items[idx].key;
+  if (catAct.id === 'angulo' && ANGULOS_360_PIRO[estadoRueda.angulo]) { estadoRueda.cabeza = ANGULOS_360_PIRO[estadoRueda.angulo].cabeza; estadoRueda.cuerpo = ANGULOS_360_PIRO[estadoRueda.angulo].cuerpo; }
   renderRuedas2D();
   dibujarPersonajeOffline();
 };
@@ -1798,6 +1794,7 @@ window.moverRuedaH = function(delta) {
   if (cur < 0) cur = 0;
   const sig = (cur + delta + items.length) % items.length;
   estadoRueda[catAct.id] = items[sig].key;
+  if (catAct.id === 'angulo' && ANGULOS_360_PIRO[estadoRueda.angulo]) { estadoRueda.cabeza = ANGULOS_360_PIRO[estadoRueda.angulo].cabeza; estadoRueda.cuerpo = ANGULOS_360_PIRO[estadoRueda.angulo].cuerpo; }
   renderRuedas2D();
   dibujarPersonajeOffline();
 };
@@ -1815,8 +1812,9 @@ async function dibujarPersonajeOffline() {
 
   await dibujarMarionetaPiro(ctx, perLocal, {
     modoLienzoCompleto: true,
+    angulo360: estadoRueda.angulo || '3_4_der',
     cabeza: estadoRueda.cabeza, cuerpo: estadoRueda.cuerpo,
-    ojos: estadoRueda.ojos, boca: estadoRueda.boca,
+    ojos: estadoRueda.ojos, cejas: estadoRueda.cejas, boca: estadoRueda.boca,
     brazoDel: estadoRueda.brazo, mano: estadoRueda.mano,
     soloPerspectiva: true, adaptarBocas: true, mostrarGuias: false, miradaVec: MIRADAS_PIRO[miradaPreviewId] || MIRADAS_PIRO.frente
   });
