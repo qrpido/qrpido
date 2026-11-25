@@ -1,0 +1,1985 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#080a0f">
+<title>PIRO Fábrica v2 · Encuesta 60 y Rueda 2D Offline</title>
+<style>
+  :root {
+    --bg: #080a0f; --panel: rgba(15, 19, 28, 0.94); --card: rgba(20, 25, 36, 0.9);
+    --border: rgba(255, 255, 255, 0.11); --text: #f1f5f9; --muted: #94a3b8;
+    --naranja: #ff6b00; --miel: #ffb300; --verde: #22c55e; --azul: #38bdf8; --morado: #a855f7; --rojo: #ef4444;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; height: 100dvh; overflow: hidden; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+  button, input, select, textarea { font-family: inherit; color: var(--text); }
+  .hidden { display: none !important; }
+  .svg-ico { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+  #app { display: flex; flex-direction: column; width: 100%; height: 100%; height: 100dvh; overflow: hidden; }
+  .topbar {
+    height: 48px; flex-shrink: 0; padding: 0 10px;
+    background: rgba(12, 16, 24, 0.98); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  }
+  .seg-tabs { display: inline-flex; background: rgba(0, 0, 0, 0.45); border: 1px solid var(--border); border-radius: 10px; padding: 2px; gap: 2px; }
+  .seg-btn { border: none; background: transparent; color: var(--muted); padding: 5px 10px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; white-space: nowrap; }
+  .seg-btn.activo { background: linear-gradient(135deg, #ff8c00, var(--naranja)); color: #fff; }
+
+  .btn {
+    border: 1px solid var(--border); background: rgba(255, 255, 255, 0.06); color: var(--text);
+    padding: 7px 11px; border-radius: 9px; font-size: 11.5px; font-weight: 800;
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer; white-space: nowrap;
+  }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-xs { padding: 5px 8px; font-size: 10.5px; border-radius: 8px; }
+  .btn-primary { background: linear-gradient(135deg, #ff8c00, var(--naranja)); border-color: rgba(255, 107, 0, 0.6); color: #fff; }
+  .btn-blue { background: rgba(56, 189, 248, 0.16); border-color: rgba(56, 189, 248, 0.5); color: #7dd3fc; }
+  .btn-green { background: rgba(34, 197, 94, 0.16); border-color: rgba(34, 197, 94, 0.5); color: #86efac; }
+  .btn-purple { background: rgba(168, 85, 247, 0.18); border-color: rgba(168, 85, 247, 0.5); color: #e9d5ff; }
+  .btn-danger { background: rgba(239, 68, 68, 0.16); border-color: rgba(239, 68, 68, 0.45); color: #fca5a5; }
+  .sel-top { background: rgba(6, 9, 15, 0.9); border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; font-size: 11.5px; font-weight: 800; max-width: 150px; outline: none; }
+
+  /* VISTA 1: ENCUESTA 60 CAMPOS */
+  #vista-encuesta { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .enc-bar {
+    padding: 8px 10px; flex-shrink: 0; background: rgba(14, 18, 28, 0.96); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap;
+  }
+  .enc-scroll { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+  .bloque-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+  .bloque-head {
+    padding: 10px 12px; background: rgba(255, 255, 255, 0.03); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 900; color: var(--azul);
+  }
+  .bloque-grid { padding: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 9px; }
+  .campo-wrap { display: flex; flex-direction: column; gap: 3px; }
+  .campo-lbl { display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; font-weight: 700; color: #cbd5e1; }
+  .campo-cnt { font-size: 9.5px; font-family: monospace; color: var(--muted); }
+  .campo-req { color: var(--naranja); margin-left: 2px; }
+  .inp, .sel {
+    width: 100%; padding: 8px 9px; border-radius: 9px; border: 1px solid var(--border);
+    background: rgba(5, 8, 14, 0.9); color: var(--text); font-size: 12px; outline: none;
+  }
+  .inp:focus, .sel:focus { border-color: var(--naranja); }
+  .enc-foot {
+    padding: 9px 10px; flex-shrink: 0; background: rgba(11, 14, 22, 0.98); border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+  }
+
+  /* VISTA 2: CONSOLA SANDWICH OFFLINE + RUEDA 2D ESTILO TRADINGVIEW */
+  #vista-rueda { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+  .pasos-ribbon {
+    height: 44px; flex-shrink: 0; padding: 0 8px; background: rgba(10, 14, 22, 0.96); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 5px; overflow-x: auto;
+  }
+  .paso-chip {
+    padding: 5px 9px; border-radius: 99px; border: 1px solid var(--border); background: rgba(255, 255, 255, 0.04);
+    font-size: 10.5px; font-weight: 800; color: var(--muted); cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  }
+  .paso-chip.ok { border-color: rgba(34, 197, 94, 0.5); background: rgba(34, 197, 94, 0.14); color: #86efac; }
+  .paso-chip.activo { border-color: var(--naranja); background: rgba(255, 107, 0, 0.24); color: #fff; }
+  .paso-chip.busy { border-color: var(--azul); color: #7dd3fc; }
+
+  .stage-wrap {
+    flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle at 50% 42%, rgba(56, 189, 248, 0.09), #07090e 70%);
+  }
+  .stage-wrap.bg-grid {
+    background-image: linear-gradient(45deg, #131823 25%, transparent 25%), linear-gradient(-45deg, #131823 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #131823 75%), linear-gradient(-45deg, transparent 75%, #131823 75%);
+    background-size: 24px 24px; background-position: 0 0, 0 12px, 12px -12px, -12px 0; background-color: #0b0e16;
+  }
+  .stage-wrap.bg-green { background: #00ff00; }
+  #cv-fabrica { max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain; display: block; pointer-events: none; }
+
+  .hud-top-left { position: absolute; top: 8px; left: 8px; display: flex; gap: 5px; z-index: 15; flex-wrap: wrap; }
+  .hud-pill {
+    padding: 4px 8px; border-radius: 99px; font-size: 10px; font-weight: 800;
+    background: rgba(10, 13, 20, 0.78); border: 1px solid var(--border); backdrop-filter: blur(8px); color: #cbd5e1;
+  }
+
+  /* RUEDA VERTICAL TRANSLÚCIDA (CATEGORÍAS ARRIBA/ABAJO) */
+  .wheel-v-box {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-56%); z-index: 20;
+    width: 118px; padding: 8px 6px; border-radius: 16px;
+    background: rgba(10, 14, 22, 0.62); border: 1px solid rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    display: flex; flex-direction: column; align-items: stretch; gap: 3px; touch-action: none; user-select: none;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  }
+  .wheel-v-item {
+    border: none; background: transparent; padding: 6px 8px; border-radius: 9px; text-align: left;
+    font-size: 11px; font-weight: 800; cursor: pointer; transition: transform .15s, opacity .15s, background .15s;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .wheel-v-item.dist-0 { background: rgba(255, 107, 0, 0.24); border: 1px solid rgba(255, 107, 0, 0.65); color: #fff; opacity: 1; transform: scale(1.02); }
+  .wheel-v-item.dist-1 { color: #e2e8f0; opacity: 0.52; transform: scale(0.95); }
+  .wheel-v-item.dist-2 { color: #94a3b8; opacity: 0.22; transform: scale(0.88); }
+  .dot-act { width: 6px; height: 6px; border-radius: 50%; background: var(--naranja); flex-shrink: 0; }
+
+  /* RUEDA HORIZONTAL TRANSLÚCIDA (VARIANTES IZQUIERDA/DERECHA + MICRO-EXPANSIÓN) */
+  .wheel-h-wrap {
+    position: absolute; left: 8px; right: 8px; bottom: 10px; z-index: 25;
+    display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none;
+  }
+  .wheel-h-actions { display: flex; gap: 6px; align-items: center; pointer-events: auto; flex-wrap: wrap; justify-content: center; }
+  .wheel-h-box {
+    pointer-events: auto; width: 100%; max-width: 520px; padding: 7px 8px; border-radius: 16px;
+    background: rgba(10, 14, 22, 0.68); border: 1px solid rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    display: flex; align-items: center; justify-content: center; gap: 6px; overflow: hidden;
+    touch-action: none; user-select: none; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  }
+  .wheel-h-item {
+    border: 1px solid transparent; background: transparent; padding: 7px 11px; border-radius: 10px;
+    font-size: 11.5px; font-weight: 800; cursor: pointer; white-space: nowrap; transition: all .15s;
+  }
+  .wheel-h-item.dist-0 { background: rgba(56, 189, 248, 0.22); border-color: rgba(56, 189, 248, 0.7); color: #fff; opacity: 1; transform: scale(1.04); }
+  .wheel-h-item.dist-1 { color: #cbd5e1; opacity: 0.48; transform: scale(0.92); background: rgba(255, 255, 255, 0.03); }
+  .wheel-h-item.dist-2 { color: #94a3b8; opacity: 0.2; transform: scale(0.84); }
+  .wheel-h-item.falta { border-style: dashed; border-color: rgba(255, 179, 0, 0.45); }
+
+  /* MODALES DARK GLASS */
+  .modal-ov {
+    position: fixed; inset: 0; z-index: 90000; background: rgba(4, 6, 11, 0.84); backdrop-filter: blur(10px);
+    display: none; align-items: center; justify-content: center; padding: 14px;
+  }
+  .modal-ov.open { display: flex; }
+  .modal-card {
+    width: 100%; max-width: 480px; max-height: 88dvh; overflow-y: auto;
+    background: linear-gradient(155deg, #161d2e, #0a0d15); border: 1px solid rgba(56, 189, 248, 0.42);
+    border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px;
+  }
+  #toasts { position: fixed; top: 54px; right: 10px; z-index: 99000; display: flex; flex-direction: column; gap: 6px; max-width: 88vw; }
+  .toast { padding: 9px 12px; border-radius: 10px; font-size: 11.5px; font-weight: 800; background: rgba(15, 19, 28, 0.97); border: 1px solid var(--border); box-shadow: 0 8px 24px rgba(0,0,0,0.65); }
+  .toast.exito { border-color: rgba(34,197,94,0.55); color: #86efac; }
+  .toast.error { border-color: rgba(239,68,68,0.55); color: #fca5a5; }
+  .toast.info { border-color: rgba(56,189,248,0.55); color: #7dd3fc; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div style="display:flex; align-items:center; gap:6px; min-width:0;">
+      <select id="sel-per-fab" class="sel-top" onchange="window.seleccionarPersonajeFab(this.value)"></select>
+      <button type="button" class="btn btn-xs btn-blue" onclick="window.nuevoPersonajeFab()">+ Nuevo</button>
+    </div>
+    <div class="seg-tabs">
+      <button type="button" class="seg-btn activo" id="tab-v-encuesta" onclick="window.setVistaFab('encuesta')">1. Encuesta (60)</button>
+      <button type="button" class="seg-btn" id="tab-v-rueda" onclick="window.setVistaFab('rueda')">2. Rueda 2D</button>
+      <button type="button" class="seg-btn" id="tab-v-amb" onclick="window.setVistaFab('amb')">3. Ambientes 2.5D</button>
+    </div>
+    <button type="button" class="btn btn-xs btn-green" onclick="window.enviarAEditor6Clips()">6 Clips Editor</button>
+  </header>
+
+  <!-- VISTA 1: ENCUESTA MAESTRA (60 CAMPOS + AUTO-GUARDADO POR LETRA) -->
+  <section id="vista-encuesta">
+    <div class="enc-bar">
+      <div style="display:flex; gap:5px; align-items:center; flex-wrap:wrap;">
+        <button type="button" class="btn btn-xs btn-primary" id="btn-modo-rap" onclick="window.setModoEncuesta('rapido')">Rápido (12)</button>
+        <button type="button" class="btn btn-xs" id="btn-modo-comp" onclick="window.setModoEncuesta('completo')">Completo (60)</button>
+        <button type="button" class="btn btn-xs btn-purple" onclick="window.autollenarFernando()">Autollenar Fernando</button>
+        <button type="button" class="btn btn-xs btn-blue" onclick="document.getElementById('inp-foto-ref').click()">Foto Ref</button>
+        <span id="badge-foto-ref" style="font-size:10px; color:#86efac; font-weight:800;"></span>
+      </div>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <span id="lbl-presupuesto-in" style="font-size:10.5px; font-family:monospace; color:var(--azul);">0 / 2305 car.</span>
+        <button type="button" class="btn btn-xs btn-danger" onclick="window.abrirConfirmLimpiar()">Limpiar</button>
+      </div>
+    </div>
+    <div class="enc-scroll" id="contenedor-encuesta"></div>
+    <div class="enc-foot">
+      <select id="sel-modelo-arq" class="sel" style="width:auto; min-width:170px; max-width:220px;">
+        <option value="gemini:gemini-2.5-pro">Gemini 2.5 Pro (Arquitecto)</option>
+        <option value="gemini:gemini-2.5-flash">Gemini 2.5 Flash (Rápido)</option>
+        <option value="auto:default">LLM Preferido en Bóveda</option>
+      </select>
+      <button type="button" class="btn btn-xs btn-blue" onclick="window.descargarEncuestaJSON()">Descargar JSON ($0)</button>
+      <button type="button" class="btn btn-xs btn-purple" onclick="window.copiarEncuestaJSON()">Copiar Prompt ($0)</button>
+      <button type="button" class="btn btn-xs btn-green" onclick="window.abrirModalJsonPlano()">Pegar Plano JSON</button>
+      <button type="button" class="btn btn-primary" id="btn-generar-plano" style="flex:1; min-width:170px;" onclick="window.generarPlanoMaestroIA()">Generar Plano (API)</button>
+    </div>
+  </section>
+
+  <!-- VISTA 2: CONSOLA SANDWICH OFFLINE + RUEDA 2D TRANSLUCIDA -->
+    <!-- VISTA 3: FABRICA DE AMBIENTES 2.5D (PARALLAX 4 PLANOS Z + ELEMENTOS VIVOS) -->
+  <section id="vista-ambientes" class="hidden" style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+    <div class="enc-bar">
+      <div style="display:flex; gap:5px; align-items:center; flex-wrap:wrap;">
+        <select id="sel-amb-fab" class="sel-top" onchange="window.seleccionarAmbienteFab(this.value)"></select>
+        <button type="button" class="btn btn-xs btn-blue" onclick="window.nuevoAmbienteFab()">+ Nuevo</button>
+        <button type="button" class="btn btn-xs btn-purple" onclick="window.autollenarAlmacen25D()">Autollenar Almacén</button>
+      </div>
+      <div style="display:flex; gap:5px;">
+        <button type="button" class="btn btn-xs btn-primary" id="btn-amb-tab-enc" onclick="window.setSubVistaAmb('enc')">Encuesta (20)</button>
+        <button type="button" class="btn btn-xs" id="btn-amb-tab-visor" onclick="window.setSubVistaAmb('visor')">Visor 2.5D</button>
+      </div>
+    </div>
+    <div id="amb-pane-enc" class="enc-scroll"></div>
+    <div id="amb-pane-visor" class="hidden" style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+      <div class="pasos-ribbon" id="amb-ribbon-capas"></div>
+      <div class="stage-wrap" style="flex-direction:column; gap:8px; padding:8px;">
+        <canvas id="cv-amb-25d" width="960" height="540" style="max-width:100%; max-height:66%; border-radius:12px; border:1px solid var(--border); background:#07090e;"></canvas>
+        <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:center; width:100%; max-width:560px;">
+          <button type="button" class="btn btn-xs btn-green" id="btn-amb-play" onclick="window.togglePlayAmb25D()">Play 2.5D</button>
+          <input type="range" id="rng-amb-pan" min="-100" max="100" value="0" style="flex:1; min-width:110px; accent-color:var(--azul);" oninput="window.dibujarPreviewAmb25D()">
+          <button type="button" class="btn btn-xs btn-primary" id="btn-amb-api" onclick="window.ejecutarCapaAmbAPI()">Crear API</button>
+          <button type="button" class="btn btn-xs btn-blue" onclick="window.copiarPromptCapaAmb()">Copiar Prompt ($0)</button>
+          <button type="button" class="btn btn-xs btn-green" onclick="document.getElementById('inp-amb-capa-manual').click()">Subir Capa ($0)</button>
+        </div>
+      </div>
+    </div>
+    <div class="enc-foot" id="amb-foot-enc">
+      <button type="button" class="btn btn-xs btn-blue" onclick="window.descargarEncuestaAmbJSON()">Descargar JSON ($0)</button>
+      <button type="button" class="btn btn-xs btn-purple" onclick="window.copiarEncuestaAmbPrompt()">Copiar Prompt ($0)</button>
+      <button type="button" class="btn btn-xs btn-green" onclick="window.abrirModalAmbJson()">Pegar Plano JSON</button>
+      <button type="button" class="btn btn-primary" id="btn-gen-plano-amb" style="flex:1; min-width:160px;" onclick="window.generarPlanoAmbAPI()">Generar Plano 2.5D (API)</button>
+    </div>
+  </section>
+
+  <section id="vista-rueda" class="hidden">
+    <div class="pasos-ribbon" id="ribbon-pasos"></div>
+    <div class="stage-wrap bg-grid" id="stage-fab">
+      <div class="hud-top-left">
+        <span class="hud-pill" id="hud-progreso">0 piezas offline</span>
+        <button type="button" class="btn btn-xs" id="btn-bg-fab" onclick="window.rotarFondoFab()">Fondo: Grid</button>
+        <button type="button" class="btn btn-xs btn-purple" onclick="window.abrirModalJsonPlano()">JSON</button>
+        <button type="button" class="btn btn-xs btn-green" id="btn-vaciar-pup" onclick="window.toggleVaciarPupilaFab()">Sin Pupila: ON</button>
+        <button type="button" class="btn btn-xs btn-blue" onclick="window.convertirOjosActualesAPupilaDinamica()">Convertir Ojos</button>
+        <select class="sel-top" style="max-width:112px; font-size:10px; padding:4px 6px;" onchange="window.cambiarMiradaPreviewFab(this.value)"><option value="frente">Mir: Frente</option><option value="arriba_frustracion">Mir: Arriba</option><option value="abajo_culpa">Mir: Abajo</option><option value="evadir_izq">Mir: Izq</option><option value="evadir_der">Mir: Der</option><option value="shock">Mir: Shock</option><option value="ternura">Mir: Ternura</option></select>
+      </div>
+      <canvas id="cv-fabrica" width="1000" height="1600"></canvas>
+
+      <!-- RUEDA VERTICAL TRANSLÚCIDA (CATEGORÍAS) -->
+      <div class="wheel-v-box" id="wheel-v"></div>
+
+      <!-- RUEDA HORIZONTAL TRANSLÚCIDA (VARIANTES + ACCIONES) -->
+      <div class="wheel-h-wrap">
+        <div class="wheel-h-actions">
+          <button type="button" class="btn btn-xs btn-primary" id="btn-crear-siguiente" onclick="window.ejecutarLienzoSeleccionadoAPI()">Crear API</button>
+          <button type="button" class="btn btn-xs btn-blue" id="btn-copiar-prompt-lienzo" onclick="window.copiarPromptLienzoActivo()">Copiar Prompt ($0)</button>
+          <button type="button" class="btn btn-xs btn-green" id="btn-subir-lienzo-manual" onclick="window.abrirSubidaLienzoManual()">Subir y Recortar ($0)</button>
+          <button type="button" class="btn btn-xs btn-purple" id="btn-expandir-9" onclick="window.abrirModalExpandir()">+9 Variantes</button>
+        </div>
+        <div class="wheel-h-box" id="wheel-h"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<input type="file" id="inp-amb-capa-manual" accept="image/*" class="hidden" onchange="window.procesarCapaAmbManual(this.files[0]); this.value='';">
+<div class="modal-ov" id="modal-amb-json" onclick="if(event.target.id==='modal-amb-json') window.cerrarModalFab('modal-amb-json')">
+  <div class="modal-card" style="max-width:560px;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <strong style="font-size:13.5px; color:var(--azul);">Plano Maestro Ambiente 2.5D (JSON)</strong>
+      <button type="button" class="btn btn-xs" onclick="window.cerrarModalFab('modal-amb-json')">Cerrar</button>
+    </div>
+    <textarea id="txt-amb-json" class="inp" rows="12" style="font-family:monospace; font-size:10.5px;"></textarea>
+    <div style="display:flex; gap:6px; justify-content:flex-end;">
+      <button type="button" class="btn btn-xs btn-green" onclick="window.guardarPlanoAmbJsonEditado()">Guardar y Abrir Visor 2.5D</button>
+    </div>
+  </div>
+</div>
+<input type="file" id="inp-foto-ref" accept="image/*" class="hidden" onchange="window.cargarFotoRefFab(this.files[0]); this.value='';">
+<input type="file" id="inp-lienzo-manual" accept="image/*" class="hidden" onchange="window.procesarLienzoManualSubido(this.files[0]); this.value='';">
+<input type="file" id="inp-importar-plano" accept=".json,application/json,text/plain" class="hidden" onchange="window.importarArchivoPlanoJSON(this.files[0]); this.value='';">
+
+<!-- MODAL MICRO-EXPANSIÓN +9 VARIANTES -->
+<div class="modal-ov" id="modal-expandir" onclick="if(event.target.id==='modal-expandir') window.cerrarModalFab('modal-expandir')">
+  <div class="modal-card">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <strong id="exp-titulo" style="font-size:13.5px; color:#e9d5ff;">Expandir +9 Variantes (1 API)</strong>
+      <button type="button" class="btn btn-xs" onclick="window.cerrarModalFab('modal-expandir')">Cerrar</button>
+    </div>
+    <div style="font-size:11px; color:var(--muted);">Describe hasta 9 variaciones derivadas de la opción actual separadas por coma. Se recortarán y sumarán a tu rueda offline:</div>
+    <textarea id="inp-exp-variantes" class="inp" rows="3" maxlength="320" placeholder="Ej: triste llorando, triste enojado, triste horror, triste decepcionado, triste puchero, triste cansado, triste sarcástico, triste dramático, triste aliviado"></textarea>
+    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+      <button type="button" class="btn btn-blue" style="flex:1;" onclick="window.prepararExpansion9SoloPrompt()">Crear Slot y Copiar Prompt ($0)</button>
+      <button type="button" class="btn btn-primary" id="btn-run-expandir" style="flex:1;" onclick="window.ejecutarExpansion9()">Generar API (+9)</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL VER / EDITAR PLANO JSON -->
+<div class="modal-ov" id="modal-json" onclick="if(event.target.id==='modal-json') window.cerrarModalFab('modal-json')">
+  <div class="modal-card" style="max-width:560px;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <strong style="font-size:13.5px; color:var(--azul);">Plano Maestro JSON (Prompts Invisibles)</strong>
+      <button type="button" class="btn btn-xs" onclick="window.cerrarModalFab('modal-json')">Cerrar</button>
+    </div>
+    <textarea id="txt-json-plano" class="inp" rows="12" style="font-family:monospace; font-size:10.5px;"></textarea>
+    <div style="display:flex; gap:6px; justify-content:flex-end;">
+      <button type="button" class="btn btn-xs btn-purple" onclick="document.getElementById('inp-importar-plano').click()">Importar .json</button>
+      <button type="button" class="btn btn-xs btn-blue" onclick="window.copiarJsonPlano()">Copiar JSON</button>
+      <button type="button" class="btn btn-xs btn-green" onclick="window.guardarJsonPlanoEditado()">Guardar Cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFIRMAR LIMPIEZA -->
+<div class="modal-ov" id="modal-confirm-limpiar" onclick="if(event.target.id==='modal-confirm-limpiar') window.cerrarModalFab('modal-confirm-limpiar')">
+  <div class="modal-card" style="max-width:360px;">
+    <strong style="font-size:14px; color:#fca5a5;">Limpiar Encuesta Actual</strong>
+    <div style="font-size:12px; color:var(--muted);">Se borrarán los textos de los 60 campos y la foto de referencia local para empezar un personaje desde cero.</div>
+    <div style="display:flex; gap:8px; justify-content:flex-end;">
+      <button type="button" class="btn btn-xs" onclick="window.cerrarModalFab('modal-confirm-limpiar')">Cancelar</button>
+      <button type="button" class="btn btn-xs btn-danger" onclick="window.confirmarLimpiarEncuesta()">Sí, Limpiar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script type="module">
+import GeokatuDB from './core-db.js';
+import { dibujarMarionetaPiro, cargarImagenPiro, parsearMoldes, MIRADAS_PIRO, dibujarElementosVivosPiro } from './piro-compositor.js';
+
+const BLOQUES_60 = [
+  { id: 'b1', tit: '1. Identidad y Arte (8)', campos: [
+    ['nombre_personaje', 'Nombre del personaje', 'text', 35, 1, 'Ej: Fernando Azules'],
+    ['estilo_artistico', 'Estilo visual maestro', 'text', 45, 1, 'Ghibli, Naruto 90s, BoJack, Gótico, Chibi'],
+    ['tipo_linea', 'Grosor y estilo de contorno', 'select', 30, 0, ['Tinta negra #000000 limpia', 'Línea fina lápiz Ghibli', 'Tinta anime afilada', 'Contorno grueso cartoon']],
+    ['tipo_sombreado', 'Estilo de color y sombra', 'select', 30, 0, ['Flat cel-shading 2D', '2 tonos anime', 'Acuarela suave Ghibli', 'Alto contraste cómic']],
+    ['paleta_dominante', '3 colores HEX identidad', 'text', 25, 1, '#F5B7B1, #1C2833, #FFFFFF'],
+    ['genero_presentacion', 'Presentación corporal', 'select', 25, 0, ['Masculina', 'Femenina', 'Andrógina', 'Neutra / Infantil']],
+    ['edad_aparente', 'Edad aparente', 'text', 20, 1, '28 años / Adulto joven'],
+    ['notas_foto', 'Qué conservar de foto ref', 'text', 35, 0, 'Parecido facial y peinado']
+  ]},
+  { id: 'b2', tit: '2. Especie y Anatomía (8)', campos: [
+    ['especie', 'Especie base', 'text', 35, 1, 'Humano, Perro antropomorfo, Alien, Robot'],
+    ['subespecie_raza', 'Raza, linaje o modelo', 'text', 45, 1, 'Dálmata, Saiyajin, Androide'],
+    ['num_cabezas', 'Cantidad de cabezas', 'select', 5, 0, ['1', '2', '3']],
+    ['num_ojos', 'Ojos en vista frontal', 'select', 5, 0, ['2', '1', '3', '4']],
+    ['num_brazos', 'Cantidad de brazos', 'select', 5, 0, ['2', '4']],
+    ['estatura_cm', 'Estatura (cm para Y=1480)', 'text', 5, 0, '175'],
+    ['contextura', 'Complexión física', 'text', 45, 1, 'Muy esbelto definido, atlético, chibi'],
+    ['apendices_extra', 'Cola, alas, cuernos, antenas', 'text', 60, 0, 'Cola dálmata blanca con manchas']
+  ]},
+  { id: 'b3', tit: '3. Piel, Pelaje y Rostro (6)', campos: [
+    ['tono_piel_pelaje', 'Color base piel/pelaje', 'text', 35, 1, 'Pelaje blanco puro #FFFFFF'],
+    ['patron_manchas', 'Manchas, rayas o escamas', 'text', 60, 0, 'Manchas dálmata negras irregulares'],
+    ['marcas_permanentes', 'Cicatrices, pecas, tatuajes', 'text', 60, 0, 'Ninguna / cicatriz en mejilla'],
+    ['forma_rostro', 'Contorno rostro/hocico', 'text', 35, 0, 'Rasgos finos, hocico canino perfilado'],
+    ['forma_orejas', 'Tipo y caída de orejas', 'text', 45, 0, 'Orejas caídas de dálmata con manchas'],
+    ['forma_nariz', 'Tipo de nariz / trufa', 'text', 40, 0, 'Trufa negra perfilada']
+  ]},
+  { id: 'b4', tit: '4. Cabello y Vello Facial (7)', campos: [
+    ['estilo_cabello', 'Corte y peinado principal', 'text', 45, 1, 'Corte quiff oscuro estilizado'],
+    ['largo_cabello', 'Longitud exacta', 'select', 20, 0, ['Corto', 'Rapado', 'Hombros', 'Largo espalda']],
+    ['textura_cabello', 'Textura del cabello', 'select', 25, 0, ['Liso', 'Ondulado', 'Rizado', 'Puntas anime']],
+    ['color_cabello', 'Color y reflejos', 'text', 35, 0, 'Negro azabache'],
+    ['flequillo', 'Flequillo o frente libre', 'text', 35, 0, 'Frente despejada (no tapa ojos)'],
+    ['barba_bigote', 'Vello facial / barba', 'text', 45, 0, 'Barba corta muy perfilada y bigote fino'],
+    ['color_barba', 'Color de barba', 'text', 25, 0, 'Negro oscuro']
+  ]},
+  { id: 'b5', tit: '5. Ojos y Expresión (7)', campos: [
+    ['forma_ojos', 'Geometría ocular', 'text', 40, 0, 'Almendrados expresivos estilo BoJack'],
+    ['color_iris', 'Color iris y pupilas', 'text', 40, 0, 'Iris oscuro con pupila negra limpia'],
+    ['estilo_cejas', 'Grosor y curva de cejas', 'text', 35, 0, 'Cejas oscuras definidas y arqueadas'],
+    ['ojeras_pestanas', 'Pestañas, delineado, ojeras', 'text', 45, 0, 'Pestañas sutiles limpias'],
+    ['lentes_gafas', 'Gafas o visor (capa aparte)', 'text', 45, 0, 'Ninguno por defecto'],
+    ['emocion_base', 'Expresión neutra base', 'select', 25, 0, ['Relajado confiado', 'Sarcástico', 'Tierno', 'Serio', 'Soñador']],
+    ['packs_expresiones', 'Packs extra deseados', 'text', 50, 0, 'Comedia, Drama, Indignado, Coqueto']
+  ]},
+  { id: 'b6', tit: '6. Boca y Visemas (5)', campos: [
+    ['estilo_labios', 'Trazo y color de labios', 'text', 40, 0, 'Línea negra limpia con labios sutiles'],
+    ['dentadura', 'Rasgo dental al hablar', 'text', 40, 0, 'Dientes blancos limpios'],
+    ['lengua_interior', 'Color interior boca/lengua', 'text', 30, 0, 'Interior oscuro, lengua rosa plana'],
+    ['gesto_boca_firma', 'Gesto de boca característico', 'text', 40, 0, 'Sonrisa confiada / puchero dramático'],
+    ['set_visemas', 'Nivel de lip-sync', 'select', 20, 0, ['Pro 9 visemas ES-EN', 'Básico 5 bocas']]
+  ]},
+  { id: 'b7', tit: '7. Vestuario por Capas (9)', campos: [
+    ['arquetipo_vestuario', 'Estilo general de ropa', 'text', 40, 1, 'Urbano casual ajustado'],
+    ['prenda_superior', 'Camiseta / camisa base', 'text', 65, 1, 'Camiseta unicolor rosa pastel muy ajustada'],
+    ['capa_exterior', 'Chaqueta / hoodie opcional', 'text', 65, 0, 'Chaqueta jean oscura abierta opcional'],
+    ['prenda_inferior', 'Pantalón / jean / falda', 'text', 55, 0, 'Jean oscuro ajustado'],
+    ['calzado', 'Zapatos / tenis (piso Y=1480)', 'text', 50, 0, 'Zapatillas deportivas oscuras suela blanca'],
+    ['guantes_manos', 'Manos, dedos y uñas', 'text', 45, 0, '5 dedos humanos con pelaje manchado'],
+    ['joyeria_cabeza', 'Aretes, gorras, diademas', 'text', 55, 0, 'Topos de diamante blanco en ambas orejas'],
+    ['joyeria_cuello_muneca', 'Cadenas, reloj, corbata', 'text', 55, 0, 'Cadena plateada fina sin dije'],
+    ['outfits_extra', 'Outfits alternativos (ropa extra)', 'text', 70, 0, 'Hoodie negro urbano, camisa elegante, ropa gym']
+  ]},
+  { id: 'b8', tit: '8. Personalidad, Props y Voz (10)', campos: [
+    ['pose_iconica', 'Postura de reposo', 'text', 50, 0, 'De pie 3/4 derecha, mano derecha en cadera'],
+    ['personalidad_3_rasgos', '3 rasgos de carácter', 'text', 50, 1, 'Expresivo, dramático, vanidoso, buen amigo'],
+    ['energia_corporal', 'Dinamismo al moverse', 'select', 25, 0, ['Exagerada comedia', 'Moderada natural', 'Calmada elegante']],
+    ['arquetipo_rol', 'Rol en la historia', 'select', 30, 0, ['Protagonista', 'Mejor amigo', 'Alivio cómico', 'Villano', 'Mentor']],
+    ['tics_gestos_firma', 'Gestos de manos/cuerpo', 'text', 60, 0, 'Señalar con actitud, mano en pecho, mirada de reojo'],
+    ['props_propios', 'Hasta 3 props icónicos', 'text', 65, 0, 'Celular, taza de café, gafas de sol'],
+    ['idioma_principal', 'Idioma voz/subtítulos', 'select', 25, 0, ['es-CO', 'es-MX', 'es-ES', 'en-US', 'Bilingüe ES/EN']],
+    ['timbre_voz', 'Timbre de voz', 'select', 25, 0, ['Juvenil expresiva', 'Grave', 'Aguda', 'Dulce', 'Robótica']],
+    ['restricciones_negativas', 'Qué NO dibujar nunca', 'text', 75, 0, 'Sin sombras 3D, sin texto, sin músculos exagerados, sin sangrado verde'],
+    ['perspectivas_rig', 'Ángulos de cabeza', 'select', 30, 0, ['3/4 + Frente', 'Completo (3/4 + Frente + Perfil)', 'Solo 3/4']]
+  ]}
+];
+
+const PRESET_FERNANDO = {
+  nombre_personaje: 'Fernando Azules', estilo_artistico: '2D cartoon BoJack Horseman style',
+  tipo_linea: 'Tinta negra #000000 limpia', tipo_sombreado: 'Flat cel-shading 2D',
+  paleta_dominante: '#F5B7B1, #1C2833, #FFFFFF', genero_presentacion: 'Masculina', edad_aparente: '28 años',
+  notas_foto: 'Mantener proporciones esbeltas y barba', especie: 'Perro antropomorfo', subespecie_raza: 'Dálmata',
+  num_cabezas: '1', num_ojos: '2', num_brazos: '2', estatura_cm: '175',
+  contextura: 'Muy esbelto y definido sin volumen muscular', apendices_extra: 'Cola corta de dálmata blanca con manchas',
+  tono_piel_pelaje: 'Pelaje blanco puro #FFFFFF', patron_manchas: 'Manchas dálmata negras nítidas e irregulares',
+  marcas_permanentes: 'Ninguna', forma_rostro: 'Rasgos finos, hocico canino estilizado',
+  forma_orejas: 'Orejas caídas de dálmata con manchas negras', forma_nariz: 'Trufa negra perfilada',
+  estilo_cabello: 'Corte quiff oscuro estilizado', largo_cabello: 'Corto', textura_cabello: 'Liso',
+  color_cabello: 'Negro azabache', flequillo: 'Frente despejada (no tapa ojos)',
+  barba_bigote: 'Barba corta muy perfilada alrededor del hocico', color_barba: 'Negro oscuro',
+  forma_ojos: 'Almendrados expresivos estilo BoJack', color_iris: 'Iris oscuro con pupila negra limpia',
+  estilo_cejas: 'Cejas oscuras definidas', ojeras_pestanas: 'Líneas limpias sin ojeras',
+  lentes_gafas: 'Ninguno por defecto', emocion_base: 'Relajado confiado', packs_expresiones: 'Comedia, Drama, Duda, Indignado',
+  estilo_labios: 'Línea negra limpia con labios sutiles', dentadura: 'Dientes blancos limpios',
+  lengua_interior: 'Interior oscuro, lengua rosa plana', gesto_boca_firma: 'Media sonrisa segura',
+  set_visemas: 'Pro 9 visemas ES-EN', arquetipo_vestuario: 'Urbano casual ajustado',
+  prenda_superior: 'Camiseta unicolor rosa pastel muy ajustada', capa_exterior: 'Chaqueta negra urbana abierta opcional',
+  prenda_inferior: 'Jean oscuro ajustado', calzado: 'Zapatillas deportivas oscuras con suela blanca',
+  guantes_manos: '5 dedos con pelaje blanco y manchas negras', joyeria_cabeza: 'Topos de diamante blanco en ambas orejas',
+  joyeria_cuello_muneca: 'Cadena plateada fina sin dije', outfits_extra: 'Hoodie negro streetwear, camiseta gym gris, chaqueta formal',
+  pose_iconica: 'De pie 3/4 derecha, mano derecha en cadera', personalidad_3_rasgos: 'Adulto-niño, expresivo, dramático y carismático',
+  energia_corporal: 'Exagerada comedia', arquetipo_rol: 'Protagonista',
+  tics_gestos_firma: 'Mano en cadera, señalar indignado, mano en pecho', props_propios: 'Celular smartphone, taza de tinto, gafas oscuras',
+  idioma_principal: 'es-CO', timbre_voz: 'Juvenil expresiva',
+  restricciones_negativas: 'Sin sombras 3D, sin gradientes, sin texto, sin sangrado verde', perspectivas_rig: '3/4 + Frente'
+};
+
+const CATS_RUEDA = [
+  { id: 'cabeza', nom: 'Perspectiva', pref: 'cabeza_' },
+  { id: 'ojos', nom: 'Ojos', pref: 'ojos_' },
+  { id: 'boca', nom: 'Bocas', pref: 'boca_' },
+  { id: 'mano', nom: 'Manos', pref: 'mano_' },
+  { id: 'brazo', nom: 'Brazos', pref: 'brazo_' },
+  { id: 'cuerpo', nom: 'Ropa', pref: 'cuerpo_' },
+  { id: 'acc', nom: 'Accesorios', pref: 'acc_' }
+];
+
+let proyectoActivo = { id: 'pirobonianos', nombre: 'Pirobonianos', docBibId: 'bib_pirobonianos', storageDir: 'biblioteca_contenido', estilo_visual: 'A 2D cartoon animation character, BoJack Horseman style, clean black ink outlines, flat vibrant colors.' };
+let biblioteca = { personajes: [], escenarios: [], props: [], guiones: [] };
+let perIdActual = '';
+let vistaActual = 'encuesta';
+let modoEncuesta = 'rapido';
+let datosEncuesta = {};
+let fotoRefDataUrl = '';
+let catIdxRueda = 1;
+let bgModo = 'grid';
+let estadoRueda = { cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', ojos: 'ojos_neutro', boca: 'boca_cerrada', brazo: 'brazo_delantero_reposo', mano: '', acc: '' };
+let cacheLocalUrls = {};
+let ocupandoApi = false;
+let lienzoSelId = '';
+
+function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function slug(s, def) { const r = String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 36); return r || def || 'item'; }
+function toast(msg, tipo, ms) {
+  const c = document.getElementById('toasts'), d = document.createElement('div');
+  d.className = 'toast ' + (tipo || 'info'); d.textContent = msg; c.appendChild(d);
+  setTimeout(function() { d.style.opacity = '0'; d.style.transition = 'opacity .2s'; setTimeout(function() { d.remove(); }, 220); }, ms || 3000);
+}
+
+// INDEXEDDB CACHE OFFLINE (PIEZAS Y FOTO REF 0ms SIN RED)
+function abrirIDB() {
+  return new Promise(function(resolve) {
+    try {
+      const req = indexedDB.open('piro_fabrica_offline_v2', 1);
+      req.onupgradeneeded = function(e) { const db = e.target.result; if (!db.objectStoreNames.contains('assets')) db.createObjectStore('assets'); };
+      req.onsuccess = function(e) { resolve(e.target.result); };
+      req.onerror = function() { resolve(null); };
+    } catch (e) { resolve(null); }
+  });
+}
+async function idbGuardar(k, val) {
+  const db = await abrirIDB(); if (!db) return;
+  return new Promise(function(res) {
+    try { const tx = db.transaction('assets', 'readwrite'); tx.objectStore('assets').put(val, k); tx.oncomplete = function() { res(true); }; tx.onerror = function() { res(false); }; } catch (e) { res(false); }
+  });
+}
+async function idbLeer(k) {
+  const db = await abrirIDB(); if (!db) return null;
+  return new Promise(function(res) {
+    try { const tx = db.transaction('assets', 'readonly'); const rq = tx.objectStore('assets').get(k); rq.onsuccess = function() { res(rq.result || null); }; rq.onerror = function() { res(null); }; } catch (e) { res(null); }
+  });
+}
+
+function claveBorradorEncuesta() { return 'piro_fabrica_draft_' + proyectoActivo.id; }
+function guardarBorradorEncuestaLocal() {
+  try { localStorage.setItem(claveBorradorEncuesta(), JSON.stringify({ perId: perIdActual, modo: modoEncuesta, datos: datosEncuesta, ts: Date.now() })); } catch (e) {}
+  actualizarPresupuestoTokens();
+}
+function cargarBorradorEncuestaLocal() {
+  try {
+    const raw = localStorage.getItem(claveBorradorEncuesta());
+    if (raw) { const o = JSON.parse(raw); if (o && o.datos) { datosEncuesta = o.datos; if (o.modo) modoEncuesta = o.modo; } }
+  } catch (e) {}
+}
+
+function leerPrefsVault() {
+  const def = { modoPago: 'auto', provImagen: 'gemini', provLlm: 'gemini', provVoz: 'edge_tts', resumen: { proveedores: {} } };
+  try { const raw = localStorage.getItem('piro_ia_cloud_prefs_v2'); if (raw) Object.assign(def, JSON.parse(raw)); } catch (e) {}
+  return def;
+}
+
+function obtenerPersonajeActual() {
+  return (biblioteca.personajes || []).find(function(p) { return p.id === perIdActual; }) || (biblioteca.personajes || [])[0] || null;
+}
+
+// PERSISTENCIA BIBLIOTECA (COMPATIBLE CON CONTENIDO Y EDITOR)
+function claveCacheBib() { return 'piro_contenido_bib_' + proyectoActivo.id; }
+async function cargarBiblioteca() {
+  try { const raw = localStorage.getItem(claveCacheBib()); if (raw) { const o = JSON.parse(raw); if (o && Array.isArray(o.personajes)) biblioteca = o; } } catch (e) {}
+  if (GeokatuDB.PirobonianosService && navigator.onLine) {
+    try {
+      const res = await GeokatuDB.PirobonianosService.obtenerProyectoEDT(proyectoActivo.docBibId || 'bib_pirobonianos');
+      if (res && res.success && res.data && Array.isArray(res.data.personajes)) {
+        biblioteca = res.data;
+        try { localStorage.setItem(claveCacheBib(), JSON.stringify(biblioteca)); } catch (e) {}
+      }
+    } catch (e) {}
+  }
+  if (!Array.isArray(biblioteca.personajes)) biblioteca.personajes = [];
+  if (!perIdActual || !biblioteca.personajes.some(function(p) { return p.id === perIdActual; })) {
+    perIdActual = biblioteca.personajes[0] ? biblioteca.personajes[0].id : '';
+  }
+  renderSelectorPersonajes();
+  const p = obtenerPersonajeActual();
+  if (p && p.encuesta_v2 && Object.keys(datosEncuesta).length === 0) datosEncuesta = Object.assign({}, p.encuesta_v2);
+  renderEncuesta();
+  await hidratarCacheOfflinePersonaje(p);
+  renderConsolaRueda();
+}
+
+async function guardarBiblioteca(notificar) {
+  (biblioteca.personajes || []).forEach(function(pe) {
+    if (pe && pe._esclPend && pe.piezas) {
+      Object.keys(pe._esclPend).forEach(function(sk) {
+        if (pe.piezas[sk]) { pe.piezas[sk].pupila_dinamica = true; pe.piezas[sk].escleroticas = pe._esclPend[sk]; }
+      });
+      delete pe._esclPend;
+    }
+  });
+  try { localStorage.setItem(claveCacheBib(), JSON.stringify(biblioteca)); } catch (e) {}
+  if (GeokatuDB.PirobonianosService && navigator.onLine) {
+    try { await GeokatuDB.PirobonianosService.guardarProyectoEDT(proyectoActivo.docBibId || 'bib_pirobonianos', Object.assign({ tipo_doc: 'biblioteca' }, biblioteca)); } catch (e) {}
+  }
+  if (notificar && window.parent && window.parent !== window) {
+    window.parent.postMessage({ tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA', origen: 'fabrica' }, '*');
+  }
+}
+
+async function hidratarCacheOfflinePersonaje(p) {
+  cacheLocalUrls = {};
+  if (!p) return;
+  const fRef = await idbLeer('foto_' + proyectoActivo.id + '_' + p.id);
+  if (fRef) { fotoRefDataUrl = fRef; actualizarBadgeFoto(); }
+  const pzs = p.piezas || {};
+  const keys = Object.keys(pzs);
+  for (let i = 0; i < keys.length; i++) {
+    const k = keys[i];
+    const loc = await idbLeer('pz_' + proyectoActivo.id + '_' + p.id + '_' + k);
+    if (loc) cacheLocalUrls[k] = loc;
+  }
+}
+
+function renderSelectorPersonajes() {
+  const sel = document.getElementById('sel-per-fab');
+  if (!sel) return;
+  const arr = biblioteca.personajes || [];
+  if (!arr.length) { sel.innerHTML = '<option value="">(Sin personaje)</option>'; return; }
+  sel.innerHTML = arr.map(function(p) {
+    return '<option value="' + esc(p.id) + '"' + (p.id === perIdActual ? ' selected' : '') + '>' + esc(p.nombre || p.id) + '</option>';
+  }).join('');
+}
+
+window.seleccionarPersonajeFab = async function(id) {
+  perIdActual = id;
+  const p = obtenerPersonajeActual();
+  if (p && p.encuesta_v2) datosEncuesta = Object.assign({}, p.encuesta_v2);
+  else if (p) datosEncuesta = { nombre_personaje: p.nombre || '', subespecie_raza: p.raza || '', contextura: p.contextura || '', patron_manchas: p.pelaje || '', prenda_superior: p.vestuario || '', pose_iconica: p.pose || '', personalidad_3_rasgos: p.personalidad || '' };
+  fotoRefDataUrl = '';
+  actualizarBadgeFoto();
+  guardarBorradorEncuestaLocal();
+  renderEncuesta();
+  await hidratarCacheOfflinePersonaje(p);
+  renderConsolaRueda();
+};
+
+window.nuevoPersonajeFab = function() {
+  const idx = (biblioteca.personajes || []).length + 1;
+  const nuevo = {
+    id: 'per_' + String(idx).padStart(3, '0'),
+    nombre: 'Personaje ' + idx,
+    raza: '', contextura: '', pelaje: '', vestuario: '', pose: '', personalidad: '',
+    voz_motor: 'edge_tts', voz_id: 'es-CO-GonzaloNeural',
+    piezas: {}, variantes: [], encuesta_v2: {}, blueprint_v2: null
+  };
+  biblioteca.personajes.push(nuevo);
+  perIdActual = nuevo.id;
+  datosEncuesta = { nombre_personaje: nuevo.nombre };
+  fotoRefDataUrl = '';
+  actualizarBadgeFoto();
+  renderSelectorPersonajes();
+  renderEncuesta();
+  guardarBiblioteca(true);
+  window.setVistaFab('encuesta');
+  toast('Nuevo personaje listo para encuesta.', 'exito');
+};
+
+window.setVistaFab = function(v) {
+  vistaActual = (v === 'rueda' || v === 'amb') ? v : 'encuesta';
+  document.getElementById('vista-encuesta').classList.toggle('hidden', vistaActual !== 'encuesta');
+  document.getElementById('vista-rueda').classList.toggle('hidden', vistaActual !== 'rueda');
+  document.getElementById('tab-v-encuesta').classList.toggle('activo', vistaActual === 'encuesta');
+  document.getElementById('tab-v-rueda').classList.toggle('activo', vistaActual === 'rueda');
+  document.getElementById('vista-ambientes').classList.toggle('hidden', vistaActual !== 'amb');
+  document.getElementById('tab-v-amb').classList.toggle('activo', vistaActual === 'amb');
+  if (vistaActual === 'rueda') renderConsolaRueda();
+  if (vistaActual === 'amb') { renderSelectorAmbientes(); renderEncuestaAmb(); if (subVistaAmb === 'visor') renderVisorAmb25D(); }
+};
+
+window.setModoEncuesta = function(m) {
+  modoEncuesta = m === 'completo' ? 'completo' : 'rapido';
+  document.getElementById('btn-modo-rap').className = 'btn btn-xs ' + (modoEncuesta === 'rapido' ? 'btn-primary' : '');
+  document.getElementById('btn-modo-comp').className = 'btn btn-xs ' + (modoEncuesta === 'completo' ? 'btn-primary' : '');
+  guardarBorradorEncuestaLocal();
+  renderEncuesta();
+};
+
+// ENCUESTA 60 CAMPOS (AUTO-GUARDADO LETRA POR LETRA + PRESUPUESTO TOKENS)
+function actualizarPresupuestoTokens() {
+  let chars = 0, llenos = 0;
+  BLOQUES_60.forEach(function(b) {
+    b.campos.forEach(function(c) {
+      const v = String(datosEncuesta[c[0]] || '').trim();
+      if (v) { chars += v.length; llenos++; }
+    });
+  });
+  const tokEst = Math.round((chars + 2400) / 3.8) + (fotoRefDataUrl ? 512 : 0);
+  const el = document.getElementById('lbl-presupuesto-in');
+  if (el) el.textContent = llenos + '/60 · ' + chars + '/2305 car. (~' + tokEst + ' tok)';
+}
+
+function renderEncuesta() {
+  const cont = document.getElementById('contenedor-encuesta');
+  if (!cont) return;
+  const html = BLOQUES_60.map(function(b) {
+    const visibles = b.campos.filter(function(c) { return modoEncuesta === 'completo' || c[4] === 1; });
+    if (!visibles.length) return '';
+    const camposHtml = visibles.map(function(c) {
+      const key = c[0], lbl = c[1], tipo = c[2], max = c[3], req = c[4] === 1, phOOpts = c[5];
+      const val = datosEncuesta[key] !== undefined ? String(datosEncuesta[key]) : (tipo === 'select' && Array.isArray(phOOpts) ? phOOpts[0] : '');
+      if (tipo === 'select' && Array.isArray(phOOpts) && datosEncuesta[key] === undefined) datosEncuesta[key] = val;
+      let ctrl = '';
+      if (tipo === 'select' && Array.isArray(phOOpts)) {
+        ctrl = '<select class="sel" onchange="window.alEditarCampo60(\'' + key + '\',this.value,' + max + ')">' +
+          phOOpts.map(function(op) { return '<option value="' + esc(op) + '"' + (val === op ? ' selected' : '') + '>' + esc(op) + '</option>'; }).join('') +
+        '</select>';
+      } else {
+        ctrl = '<input type="text" class="inp" maxlength="' + max + '" value="' + esc(val) + '" placeholder="' + esc(phOOpts || '') + '" oninput="window.alEditarCampo60(\'' + key + '\',this.value,' + max + ')">';
+      }
+      return '<div class="campo-wrap">' +
+        '<div class="campo-lbl"><span>' + esc(lbl) + (req ? '<span class="campo-req">*</span>' : '') + '</span><span class="campo-cnt" id="cnt_' + key + '">' + val.length + '/' + max + '</span></div>' +
+        ctrl +
+      '</div>';
+    }).join('');
+    return '<div class="bloque-card"><div class="bloque-head"><span>' + esc(b.tit) + '</span><span>' + visibles.length + ' campos</span></div><div class="bloque-grid">' + camposHtml + '</div></div>';
+  }).join('');
+  cont.innerHTML = html;
+  actualizarPresupuestoTokens();
+}
+
+window.alEditarCampo60 = function(key, val, max) {
+  const limpio = String(val || '').slice(0, max || 80);
+  datosEncuesta[key] = limpio;
+  const cnt = document.getElementById('cnt_' + key);
+  if (cnt) cnt.textContent = limpio.length + '/' + max;
+  guardarBorradorEncuestaLocal();
+};
+
+window.autollenarFernando = function() {
+  datosEncuesta = Object.assign({}, PRESET_FERNANDO);
+  guardarBorradorEncuestaLocal();
+  renderEncuesta();
+  toast('60 campos completados con Fernando Azules.', 'exito');
+};
+
+window.abrirConfirmLimpiar = function() { document.getElementById('modal-confirm-limpiar').classList.add('open'); };
+window.cerrarModalFab = function(id) { const el = document.getElementById(id); if (el) el.classList.remove('open'); };
+window.confirmarLimpiarEncuesta = function() {
+  datosEncuesta = {}; fotoRefDataUrl = '';
+  actualizarBadgeFoto();
+  guardarBorradorEncuestaLocal();
+  renderEncuesta();
+  window.cerrarModalFab('modal-confirm-limpiar');
+  toast('Encuesta limpia.', 'info');
+};
+
+function actualizarBadgeFoto() {
+  const b = document.getElementById('badge-foto-ref');
+  if (b) b.textContent = fotoRefDataUrl ? 'Foto Ref OK' : '';
+}
+
+window.cargarFotoRefFab = function(file) {
+  if (!file) return;
+  const fr = new FileReader();
+  fr.onload = function(ev) {
+    const im = new Image();
+    im.onload = async function() {
+      const maxD = 1024, r = Math.min(1, maxD / Math.max(im.width, im.height));
+      const cv = document.createElement('canvas'); cv.width = Math.round(im.width * r); cv.height = Math.round(im.height * r);
+      cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+      fotoRefDataUrl = cv.toDataURL('image/webp', 0.88);
+      const p = obtenerPersonajeActual();
+      if (p) await idbGuardar('foto_' + proyectoActivo.id + '_' + p.id, fotoRefDataUrl);
+      actualizarBadgeFoto(); actualizarPresupuestoTokens();
+      toast('Foto de referencia comprimida y guardada offline.', 'exito');
+    };
+    im.src = ev.target.result;
+  };
+  fr.readAsDataURL(file);
+};
+
+// LLAMADA UNICA ARQUITECTO -> JSON MAESTRO DE LIENZOS
+function extraerJsonSeguro(txt) {
+  const s = String(txt || '').trim();
+  try { return JSON.parse(s); } catch (e) {}
+  const m = s.match(/\{[\s\S]*\}/);
+  if (m) { try { return JSON.parse(m[0]); } catch (e2) {} }
+  throw new Error('La IA no devolvió un JSON válido. Reintenta con Gemini 2.5 Pro o Flash.');
+}
+
+function asegurarPersonajeDesdeEncuesta() {
+  let p = obtenerPersonajeActual();
+  if (!p) {
+    const idx = (biblioteca.personajes || []).length + 1;
+    p = { id: 'per_' + String(idx).padStart(3, '0'), nombre: datosEncuesta.nombre_personaje || ('Personaje ' + idx), piezas: {}, variantes: [] };
+    biblioteca.personajes.push(p);
+    perIdActual = p.id;
+  }
+  p.nombre = datosEncuesta.nombre_personaje || p.nombre || 'Personaje';
+  p.raza = datosEncuesta.subespecie_raza || datosEncuesta.especie || p.raza || '';
+  p.contextura = datosEncuesta.contextura || p.contextura || '';
+  p.pelaje = [datosEncuesta.tono_piel_pelaje, datosEncuesta.patron_manchas, datosEncuesta.forma_rostro, datosEncuesta.estilo_cabello, datosEncuesta.barba_bigote].filter(Boolean).join(', ');
+  p.vestuario = [datosEncuesta.prenda_superior, datosEncuesta.prenda_inferior, datosEncuesta.calzado, datosEncuesta.joyeria_cabeza, datosEncuesta.joyeria_cuello_muneca].filter(Boolean).join(', ');
+  p.pose = datosEncuesta.pose_iconica || p.pose || '';
+  p.personalidad = datosEncuesta.personalidad_3_rasgos || p.personalidad || '';
+  p.voz_motor = p.voz_motor || 'edge_tts';
+  p.encuesta_v2 = Object.assign({}, datosEncuesta);
+  renderSelectorPersonajes();
+  return p;
+}
+
+let vaciarPupilaAuto = true;
+let miradaPreviewId = 'frente';
+const REGLA_OJOS_SIN_PUPILA_EN = ' DYNAMIC PUPIL RIG RULE: Every open eye MUST have EMPTY PURE WHITE SCLERA (#FFFFFF) inside clean black outlines with ZERO pupils, ZERO iris, ZERO black dots inside the white eyeballs (only closed eyelids may be closed lines).';
+window.toggleVaciarPupilaFab = function() {
+  vaciarPupilaAuto = !vaciarPupilaAuto;
+  const b = document.getElementById('btn-vaciar-pup');
+  if (b) b.textContent = 'Sin Pupila: ' + (vaciarPupilaAuto ? 'ON' : 'OFF');
+  toast('Auto-vaciado de pupila: ' + (vaciarPupilaAuto ? 'ACTIVO' : 'DESACTIVADO'), 'info');
+};
+window.cambiarMiradaPreviewFab = function(mid) { miradaPreviewId = mid || 'frente'; dibujarPersonajeOffline(); };
+function detectarYVaciarPupilasOjo(cvCanon, vaciar) {
+  const w = cvCanon.width, h = cvCanon.height;
+  const ctx = cvCanon.getContext('2d', { willReadFrequently: true });
+  const imgData = ctx.getImageData(0, 0, w, h), d = imgData.data;
+  const vis = new Uint8Array(w * h);
+  const esBlanco = function(i4) { return d[i4 + 3] > 180 && d[i4] > 195 && d[i4 + 1] > 195 && d[i4 + 2] > 195; };
+  const islas = [], q = new Int32Array(w * h);
+  for (let y = 120; y < 780; y++) {
+    for (let x = 220; x < 780; x++) {
+      const idx = y * w + x;
+      if (vis[idx] || !esBlanco(idx * 4)) continue;
+      let qh = 0, qt = 0, minX = x, maxX = x, minY = y, maxY = y, cnt = 0;
+      vis[idx] = 1; q[qt++] = idx;
+      while (qh < qt) {
+        const p = q[qh++], px = p % w, py = (p - px) / w; cnt++;
+        if (px < minX) minX = px; if (px > maxX) maxX = px; if (py < minY) minY = py; if (py > maxY) maxY = py;
+        const ns = [p - 1, p + 1, p - w, p + w];
+        for (let k = 0; k < 4; k++) { const np = ns[k]; if (np >= 0 && np < w * h && !vis[np] && esBlanco(np * 4)) { vis[np] = 1; q[qt++] = np; } }
+      }
+      const bw = maxX - minX + 1, bh = maxY - minY + 1;
+      if (cnt >= 45 && bw >= 8 && bh >= 6 && bw <= 160 && bh <= 140) islas.push({ minX: minX, maxX: maxX, minY: minY, maxY: maxY, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, rx: bw / 2, ry: bh / 2, area: cnt });
+    }
+  }
+  islas.sort(function(a, b) { return b.area - a.area; });
+  const maxOjos = Math.max(1, Math.min(6, Number(datosEncuesta.num_ojos) || 2));
+  const elegidas = islas.slice(0, maxOjos).sort(function(a, b) { return a.cx - b.cx; });
+  if (vaciar && elegidas.length > 0) {
+    elegidas.forEach(function(isl) {
+      const wR = isl.maxX - isl.minX + 1, hR = isl.maxY - isl.minY + 1;
+      const ex = new Uint8Array(wR * hR), qE = new Int32Array(wR * hR); let eh = 0, et = 0;
+      for (let ly = 0; ly < hR; ly++) {
+        for (let lx = 0; lx < wR; lx++) {
+          if (lx !== 0 && ly !== 0 && lx !== wR - 1 && ly !== hR - 1) continue;
+          const gi = ((isl.minY + ly) * w + (isl.minX + lx)) * 4;
+          if (!esBlanco(gi)) { ex[ly * wR + lx] = 1; qE[et++] = ly * wR + lx; }
+        }
+      }
+      while (eh < et) {
+        const cp = qE[eh++], clx = cp % wR, cly = (cp - clx) / wR;
+        const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+        for (let k = 0; k < 4; k++) {
+          const nx = clx + dirs[k][0], ny = cly + dirs[k][1];
+          if (nx < 0 || nx >= wR || ny < 0 || ny >= hR) continue;
+          const np = ny * wR + nx; if (ex[np]) continue;
+          const gi = ((isl.minY + ny) * w + (isl.minX + nx)) * 4;
+          if (!esBlanco(gi)) { ex[np] = 1; qE[et++] = np; }
+        }
+      }
+      for (let ly = 1; ly < hR - 1; ly++) {
+        for (let lx = 1; lx < wR - 1; lx++) {
+          if (ex[ly * wR + lx]) continue;
+          const gi = ((isl.minY + ly) * w + (isl.minX + lx)) * 4;
+          if (!esBlanco(gi)) { d[gi] = 255; d[gi + 1] = 255; d[gi + 2] = 255; d[gi + 3] = 255; }
+        }
+      }
+    });
+    ctx.putImageData(imgData, 0, 0);
+  }
+  return elegidas.map(function(e) { return { cx: Math.round(e.cx), cy: Math.round(e.cy), rx: Math.round(e.rx), ry: Math.round(e.ry) }; });
+}
+window.convertirOjosActualesAPupilaDinamica = async function() {
+  const p = obtenerPersonajeActual(); if (!p || !p.piezas || ocupandoApi) return;
+  const claves = Object.keys(p.piezas).filter(function(k) { return k.indexOf('ojos_') === 0 && k.indexOf('cerrad') < 0 && (cacheLocalUrls[k] || (p.piezas[k] && p.piezas[k].url)); });
+  if (!claves.length) { toast('No hay ojos abiertos guardados todavía.', 'info'); return; }
+  ocupandoApi = true; toast('Vaciando pupilas y detectando cavidades en ' + claves.length + ' ojos...', 'info');
+  let okN = 0;
+  try {
+    for (let i = 0; i < claves.length; i++) {
+      const sk = claves[i], src = cacheLocalUrls[sk] || p.piezas[sk].url;
+      const im = await cargarImg(src);
+      const cv = document.createElement('canvas'); cv.width = 1000; cv.height = 1600;
+      cv.getContext('2d').drawImage(im, 0, 0, 1000, 1600);
+      const escl = detectarYVaciarPupilasOjo(cv, true);
+      if (!escl.length) continue;
+      const dUrl = cv.toDataURL('image/png');
+      cacheLocalUrls[sk] = dUrl;
+      await idbGuardar('pz_' + proyectoActivo.id + '_' + p.id + '_' + sk, dUrl);
+      let urlNube = p.piezas[sk].url || dUrl;
+      if (GeokatuDB.PirobonianosService && navigator.onLine) {
+        try {
+          const blob = await canvasABlob(cv);
+          const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(proyectoActivo.storageDir || 'biblioteca_contenido', 'personajes/' + p.id + '/' + sk + '_dyn.png', new File([blob], sk + '_dyn.png', { type: 'image/png' }));
+          if (up && up.success && up.url) urlNube = up.url;
+        } catch (eU) {}
+      }
+      p.piezas[sk] = Object.assign({}, p.piezas[sk], { url: urlNube, pupila_dinamica: true, escleroticas: escl, updatedAt: Date.now() });
+      okN++;
+    }
+    await guardarBiblioteca(true);
+    toast('Gaze Engine listo en ' + okN + ' ojos. Prueba cambiar la Mirada arriba.', 'exito', 4200);
+  } catch (err) { toast('Error convirtiendo ojos: ' + err.message, 'error'); }
+  finally { ocupandoApi = false; renderConsolaRueda(); }
+};
+
+const BLOQUES_AMB_20 = [
+  { tit: '1. Identidad y Estilo (5)', campos: [
+    ['nombre_lugar', 'Nombre del escenario', 'text', 40, 'Ej: Almacén de Ropa Urbana'],
+    ['tipo_espacio', 'Tipo de espacio', 'select', 25, ['Interior comercial', 'Exterior urbano', 'Interior hogar', 'Oficina / Call Center', 'Naturaleza']],
+    ['estilo_visual', 'Estilo artístico (heredado)', 'text', 55, '2D cartoon BoJack Horseman, clean black outlines'],
+    ['paleta_lugar', 'Paleta dominante (3 HEX)', 'text', 35, '#1E293B, #F8FAFC, #FF6B00'],
+    ['nivel_detalle', 'Densidad visual', 'select', 25, ['Limpio sitcom 2D', 'Rico en props', 'Minimalista']] ]},
+  { tit: '2. Atmósfera y Luz (4)', campos: [
+    ['hora_dia', 'Hora del día', 'select', 25, ['Tarde luminosa', 'Mañana fresca', 'Atardecer cálido', 'Noche neón']],
+    ['iluminacion', 'Tipo de iluminación', 'text', 50, 'Luces LED frías de vitrina + luz natural por ventana'],
+    ['clima_ambiente', 'Clima exterior visible', 'select', 25, ['Despejado con nubes', 'Lluvia suave', 'Nublado', 'Estrellado']],
+    ['horizonte_altura', 'Altura del piso/horizonte', 'select', 25, ['Tercio inferior (Y=1480)', 'Tercio medio']] ]},
+  { tit: '3. Planos de Profundidad 2.5D (5)', campos: [
+    ['z1_desc', 'Z1 Fondo Lejano (0.2x)', 'text', 75, 'Cielo azul, edificios de Pereira y montañas vistas por ventanal'],
+    ['z2_desc', 'Z2 Plano Medio (0.55x)', 'text', 80, 'Paredes, percheros con camisetas, espejos y estanterías sin personajes'],
+    ['z3_suelo', 'Z3 Zona de Actores (1.0x)', 'text', 60, 'Piso despejado donde se paran 2 personajes cómodamente'],
+    ['z4_desc', 'Z4 Primer Plano (1.32x)', 'text', 75, 'Mostrador de caja con datáfono y planta en esquina sobre #00FF00'],
+    ['subescena_2', 'Sub-escena 2 (zona_02)', 'text', 75, 'Pasillo de probadores con cortinas y espejo de cuerpo entero'] ]},
+  { tit: '4. Elementos Vivos y Reglas (6)', campos: [
+    ['vivo_1', 'Elem. Vivo 1 (Bucle Horiz.)', 'text', 55, 'Nubes suaves o autos pasando tras el ventanal (capa z1)'],
+    ['vivo_2', 'Elem. Vivo 2 (Rotación)', 'text', 55, 'Aspas de ventilador de techo girando (capa z2)'],
+    ['vivo_3', 'Elem. Vivo 3 (Flotar/Balanceo)', 'text', 55, 'Letrero colgante PROMO o lámpara suave (capa z2)'],
+    ['vivo_4', 'Elem. Vivo 4 (Frames/TV)', 'text', 60, 'Televisor 2x2 cuadros con pantalla de promos animada (capa z2)'],
+    ['restricciones_amb', 'Qué NO dibujar nunca', 'text', 70, 'ZERO characters, ZERO people, ZERO dogs, ZERO text logos'],
+    ['formato_amb', 'Formato base', 'select', 20, ['1:1 Cuadrado 1920x1920', '16:9 Panorámico']] ]}
+];
+
+const PRESET_ALMACEN_25D = {
+  nombre_lugar: 'Almacén de Ropa Pereira', tipo_espacio: 'Interior comercial',
+  estilo_visual: '2D cartoon BoJack Horseman style, clean black ink outlines, flat colors',
+  paleta_lugar: '#F8FAFC, #334155, #FF6B00', nivel_detalle: 'Limpio sitcom 2D',
+  hora_dia: 'Tarde luminosa', iluminacion: 'Luz comercial blanca cálida + sol suave en vitrina',
+  clima_ambiente: 'Despejado con nubes', horizonte_altura: 'Tercio inferior (Y=1480)',
+  z1_desc: 'Cielo luminoso con edificios bajos urbanos y colinas verdes vistas por vitrina',
+  z2_desc: 'Interior de tienda de ropa con racks de camisetas, repisas de tenis y pared con letrero limpio',
+  z3_suelo: 'Piso laminado madera clara despejado para 2 personajes de pie',
+  z4_desc: 'Mostrador frontal de tienda con caja registradora y maceta verde aislado sobre #00FF00',
+  subescena_2: 'Zona de probadores con cortinas oscuras, tapete y espejo grande',
+  vivo_1: 'Nube blanca estilizada pasando lenta por la ventana',
+  vivo_2: 'Aspas de ventilador de techo 2D visto en ángulo',
+  vivo_3: 'Lámpara colgante moderna con leve balanceo',
+  vivo_4: 'Pantalla de televisor 2x2 frames cambiando gráficos de oferta',
+  restricciones_amb: 'ZERO characters, ZERO people, ZERO animals, ZERO readable text',
+  formato_amb: '1:1 Cuadrado 1920x1920'
+};
+
+let ambIdActual = '', datosAmb = {}, subVistaAmb = 'enc', capaAmbSelId = 'z1_lejano', ambPlayOn = false, ambRafId = null, ambT0 = 0;
+
+function obtenerAmbienteActual() {
+  if (!Array.isArray(biblioteca.escenarios)) biblioteca.escenarios = [];
+  return biblioteca.escenarios.find(function(e) { return e.id === ambIdActual; }) || biblioteca.escenarios[0] || null;
+}
+
+function asegurarAmbienteDesdeEncuesta() {
+  if (!Array.isArray(biblioteca.escenarios)) biblioteca.escenarios = [];
+  let e = obtenerAmbienteActual();
+  if (!e) {
+    const idx = biblioteca.escenarios.length + 1;
+    e = { id: 'esc_' + String(idx).padStart(3, '0'), nombre: datosAmb.nombre_lugar || ('Escenario ' + idx), iluminacion: datosAmb.iluminacion || '', zonas: [{ id: 'zona_01', nombre: 'Principal', elementos_vivos: [] }], encuesta_25d: {}, blueprint_amb: null };
+    biblioteca.escenarios.push(e); ambIdActual = e.id;
+  }
+  e.nombre = datosAmb.nombre_lugar || e.nombre || 'Escenario';
+  e.iluminacion = datosAmb.iluminacion || e.iluminacion || '';
+  e.encuesta_25d = Object.assign({}, datosAmb);
+  if (!Array.isArray(e.zonas) || !e.zonas.length) e.zonas = [{ id: 'zona_01', nombre: 'Principal', elementos_vivos: [] }];
+  renderSelectorAmbientes();
+  return e;
+}
+
+function renderSelectorAmbientes() {
+  const sel = document.getElementById('sel-amb-fab'); if (!sel) return;
+  const arr = biblioteca.escenarios || [];
+  if (!arr.length) { sel.innerHTML = '<option value="">(Sin ambiente)</option>'; return; }
+  if (!ambIdActual || !arr.some(function(x) { return x.id === ambIdActual; })) ambIdActual = arr[0].id;
+  sel.innerHTML = arr.map(function(e) { return '<option value="' + esc(e.id) + '"' + (e.id === ambIdActual ? ' selected' : '') + '>' + esc(e.nombre || e.id) + '</option>'; }).join('');
+}
+
+window.seleccionarAmbienteFab = function(id) {
+  ambIdActual = id; const e = obtenerAmbienteActual();
+  if (e && e.encuesta_25d) datosAmb = Object.assign({}, e.encuesta_25d);
+  renderEncuestaAmb(); renderVisorAmb25D();
+};
+
+window.nuevoAmbienteFab = function() {
+  if (!Array.isArray(biblioteca.escenarios)) biblioteca.escenarios = [];
+  const idx = biblioteca.escenarios.length + 1;
+  const n = { id: 'esc_' + String(idx).padStart(3, '0'), nombre: 'Ambiente ' + idx, iluminacion: '', zonas: [{ id: 'zona_01', nombre: 'Principal', elementos_vivos: [] }], encuesta_25d: {}, blueprint_amb: null };
+  biblioteca.escenarios.push(n); ambIdActual = n.id; datosAmb = { nombre_lugar: n.nombre };
+  renderSelectorAmbientes(); renderEncuestaAmb(); guardarBiblioteca(true); window.setSubVistaAmb('enc');
+  toast('Nuevo ambiente 2.5D creado.', 'exito');
+};
+
+window.autollenarAlmacen25D = function() {
+  datosAmb = Object.assign({}, PRESET_ALMACEN_25D);
+  renderEncuestaAmb(); toast('Encuesta 2.5D completada con Almacén de Ropa.', 'exito');
+};
+
+window.setSubVistaAmb = function(s) {
+  subVistaAmb = s === 'visor' ? 'visor' : 'enc';
+  document.getElementById('amb-pane-enc').classList.toggle('hidden', subVistaAmb !== 'enc');
+  document.getElementById('amb-foot-enc').classList.toggle('hidden', subVistaAmb !== 'enc');
+  document.getElementById('amb-pane-visor').classList.toggle('hidden', subVistaAmb !== 'visor');
+  document.getElementById('btn-amb-tab-enc').className = 'btn btn-xs ' + (subVistaAmb === 'enc' ? 'btn-primary' : '');
+  document.getElementById('btn-amb-tab-visor').className = 'btn btn-xs ' + (subVistaAmb === 'visor' ? 'btn-primary' : '');
+  if (subVistaAmb === 'visor') renderVisorAmb25D(); else if (ambPlayOn) window.togglePlayAmb25D();
+};
+
+function renderEncuestaAmb() {
+  const cont = document.getElementById('amb-pane-enc'); if (!cont) return;
+  cont.innerHTML = BLOQUES_AMB_20.map(function(b) {
+    const cs = b.campos.map(function(c) {
+      const k = c[0], l = c[1], t = c[2], m = c[3], po = c[4];
+      const v = datosAmb[k] !== undefined ? String(datosAmb[k]) : (t === 'select' && Array.isArray(po) ? po[0] : '');
+      if (t === 'select' && Array.isArray(po) && datosAmb[k] === undefined) datosAmb[k] = v;
+      const ctrl = (t === 'select' && Array.isArray(po))
+        ? ('<select class="sel" onchange="window.editCampoAmb(\'' + k + '\',this.value,' + m + ')">' + po.map(function(o) { return '<option value="' + esc(o) + '"' + (v === o ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>')
+        : ('<input type="text" class="inp" maxlength="' + m + '" value="' + esc(v) + '" placeholder="' + esc(po || '') + '" oninput="window.editCampoAmb(\'' + k + '\',this.value,' + m + ')">');
+      return '<div class="campo-wrap"><div class="campo-lbl"><span>' + esc(l) + '</span><span class="campo-cnt">' + v.length + '/' + m + '</span></div>' + ctrl + '</div>';
+    }).join('');
+    return '<div class="bloque-card"><div class="bloque-head"><span>' + esc(b.tit) + '</span></div><div class="bloque-grid">' + cs + '</div></div>';
+  }).join('');
+}
+
+window.editCampoAmb = function(k, v, m) { datosAmb[k] = String(v || '').slice(0, m || 80); };
+
+function construirInstruccionesAmb25D(ficha) {
+  return [
+    'You are a Senior 2.5D Multiplane Animation Background Architect. Convert the environment survey into strict JSON for 5 modular layers with parallax depth and animated living elements.',
+    'Return ONLY valid JSON (no markdown fences) with this exact structure:',
+    '{ "version_esquema": "piro_ambiente_25d_v1", "identidad_canonica_ambiente_en": "Immutable background art bible in English (art style, line weight, palette, lighting, ZERO characters)", "capas": [',
+    '  { "id_capa": "z1_lejano", "titulo": "1. Z1 Lejano", "tipo": "fondo_z1", "chroma": false, "grid": {"cols":1,"rows":1}, "prompt_imagen_en": "Wide 1:1 distant horizon/sky/outside view..." },',
+    '  { "id_capa": "z2_medio", "titulo": "2. Z2 Plano Medio", "tipo": "fondo_z2", "chroma": false, "grid": {"cols":1,"rows":1}, "prompt_imagen_en": "Main 1:1 interior/walls/shelves with clear floor space for 2 actors, ZERO characters..." },',
+    '  { "id_capa": "z4_frente", "titulo": "3. Z4 Frente", "tipo": "frente_z4", "chroma": true, "grid": {"cols":1,"rows":1}, "prompt_imagen_en": "Foreground counter/table/plants isolated at bottom on pure #00FF00 chroma green..." },',
+    '  { "id_capa": "elementos_vivos", "titulo": "4. Vivos (2x2)", "tipo": "vivos_2x2", "chroma": true, "grid": {"cols":2,"rows":2}, "prompt_imagen_en": "2x2 sprite sheet on pure #00FF00: R1C1 horizontal loop object (cloud/car), R1C2 spinning object (fan blades), R2C1 swaying object (lamp/sign), R2C2 animated screen/neon...", "elementos": [',
+    '    {"celda":1,"nombre":"Nube/Auto","capa":"z1","modo":"bucle_h","x":0.25,"y":0.2,"w":0.22,"vel":0.7},',
+    '    {"celda":2,"nombre":"Ventilador","capa":"z2","modo":"rotar","x":0.5,"y":0.16,"w":0.22,"vel":1.4},',
+    '    {"celda":3,"nombre":"Letrero/Lampara","capa":"z2","modo":"flotar","x":0.78,"y":0.22,"w":0.16,"vel":1.0,"amp":7},',
+    '    {"celda":4,"nombre":"TV/Neon","capa":"z2","modo":"flotar","x":0.2,"y":0.32,"w":0.18,"vel":1.8,"amp":3}',
+    '  ]},',
+    '  { "id_capa": "subzona_02", "titulo": "5. Sub-escena 2", "tipo": "zona_02", "chroma": false, "grid": {"cols":1,"rows":1}, "prompt_imagen_en": "Matching 1:1 second camera angle/sub-scene sharing identical art style and palette..." }',
+    '] }',
+    'ENVIRONMENT SURVEY: ' + JSON.stringify(ficha)
+  ].join('\n');
+}
+
+window.descargarEncuestaAmbJSON = function() {
+  if (!String(datosAmb.nombre_lugar || '').trim()) { toast('Escribe el nombre del lugar o toca Autollenar Almacén.', 'error'); return; }
+  asegurarAmbienteDesdeEncuesta(); guardarBiblioteca(false);
+  const paq = { tipo: 'piro_encuesta_ambiente_25d', prompt_arquitecto: construirInstruccionesAmb25D(datosAmb), encuesta_20: datosAmb };
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(paq, null, 2)], { type: 'application/json' }));
+  a.download = 'encuesta_ambiente_' + slug(datosAmb.nombre_lugar, 'esc') + '.json';
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+  toast('JSON de Ambiente 2.5D descargado ($0).', 'exito');
+};
+
+window.copiarEncuestaAmbPrompt = function() {
+  if (!String(datosAmb.nombre_lugar || '').trim()) { toast('Escribe el nombre del lugar o toca Autollenar Almacén.', 'error'); return; }
+  asegurarAmbienteDesdeEncuesta();
+  const txt = construirInstruccionesAmb25D(datosAmb);
+  if (navigator.clipboard) navigator.clipboard.writeText(txt).then(function() { toast('Prompt 2.5D copiado ($0). Pégalo en el chat.', 'exito'); });
+};
+
+window.abrirModalAmbJson = function() {
+  const e = asegurarAmbienteDesdeEncuesta();
+  document.getElementById('txt-amb-json').value = e.blueprint_amb ? JSON.stringify(e.blueprint_amb, null, 2) : '';
+  document.getElementById('modal-amb-json').classList.add('open');
+};
+
+window.guardarPlanoAmbJsonEditado = async function() {
+  const e = asegurarAmbienteDesdeEncuesta();
+  try {
+    const pl = extraerJsonSeguro(document.getElementById('txt-amb-json').value);
+    if (!pl || !Array.isArray(pl.capas) || !pl.capas.length) throw new Error('Falta el arreglo capas');
+    e.blueprint_amb = pl; capaAmbSelId = pl.capas[0].id_capa;
+    await guardarBiblioteca(true); window.cerrarModalFab('modal-amb-json'); window.setSubVistaAmb('visor');
+    toast('Plano 2.5D guardado (' + pl.capas.length + ' capas).', 'exito');
+  } catch (err) { toast('JSON inválido: ' + err.message, 'error'); }
+};
+
+window.generarPlanoAmbAPI = async function() {
+  if (ocupandoApi) return;
+  if (!String(datosAmb.nombre_lugar || '').trim()) { toast('Escribe el nombre del lugar o toca Autollenar Almacén.', 'error'); return; }
+  const e = asegurarAmbienteDesdeEncuesta(), btn = document.getElementById('btn-gen-plano-amb');
+  ocupandoApi = true; if (btn) { btn.disabled = true; btn.textContent = 'Diseñando 2.5D...'; }
+  try {
+    const prefs = leerPrefsVault(), provId = prefs.provLlm || 'gemini';
+    const inst = construirInstruccionesAmb25D(datosAmb);
+    const pay = provId === 'gemini' ? { parts: [{ text: inst }], responseMimeType: 'application/json', maxOutputTokens: 12000 } : { prompt: inst, max_tokens: 8000, response_format: { type: 'json_object' } };
+    const res = await GeokatuDB.PirobonianosService.llamarProxyIA({ proveedorId: provId, accion: 'texto', tipoCobro: 'plano_personaje', modoPago: prefs.modoPago || 'auto', payload: pay });
+    if (!res || !res.success) throw new Error((res && res.error) || 'Error generando plano ambiente');
+    const pl = extraerJsonSeguro(res.texto);
+    if (!pl || !Array.isArray(pl.capas)) throw new Error('JSON sin capas');
+    e.blueprint_amb = pl; capaAmbSelId = pl.capas[0].id_capa;
+    await guardarBiblioteca(true); window.setSubVistaAmb('visor');
+    toast('Plano 2.5D listo (' + pl.capas.length + ' capas).', 'exito');
+  } catch (err) { toast('Error 2.5D: ' + err.message, 'error'); }
+  finally { ocupandoApi = false; if (btn) { btn.disabled = false; btn.textContent = 'Generar Plano 2.5D (API)'; } }
+};
+
+function obtenerCapaAmbActiva(e) {
+  const cs = (e && e.blueprint_amb && Array.isArray(e.blueprint_amb.capas)) ? e.blueprint_amb.capas : [];
+  if (!cs.length) return null;
+  const hit = cs.find(function(x) { return x.id_capa === capaAmbSelId; }) || cs[0];
+  capaAmbSelId = hit.id_capa; return hit;
+}
+
+window.selCapaAmbChip = function(id) { capaAmbSelId = id; renderVisorAmb25D(); };
+
+window.copiarPromptCapaAmb = function() {
+  const e = obtenerAmbienteActual(), c = obtenerCapaAmbActiva(e);
+  if (!c) { toast('Primero genera o pega el Plano JSON 2.5D.', 'info'); return; }
+  const bib = (e.blueprint_amb && e.blueprint_amb.identidad_canonica_ambiente_en) ? ('ART BIBLE: ' + e.blueprint_amb.identidad_canonica_ambiente_en + '. ') : '';
+  const txt = bib + String(c.prompt_imagen_en || '') + (c.chroma ? ' Pure flat #00FF00 chroma green background, ZERO grid lines, ZERO text.' : ' Full bleed 1:1 background, ZERO characters, ZERO text.');
+  if (navigator.clipboard) navigator.clipboard.writeText(txt).then(function() { toast('Prompt copiado (' + c.titulo + '). Genéralo y pulsa Subir Capa ($0).', 'exito', 4000); });
+};
+
+async function aplicarImagenACapaAmb(e, capa, imgSrc) {
+  if (!Array.isArray(e.zonas) || !e.zonas.length) e.zonas = [{ id: 'zona_01', nombre: 'Principal', elementos_vivos: [] }];
+  const z1 = e.zonas[0];
+  const im = await cargarImg(imgSrc);
+  const subirCv = async function(cv, nomF) {
+    const dUrl = cv.toDataURL('image/png');
+    if (GeokatuDB.PirobonianosService && navigator.onLine) {
+      try { const bl = await canvasABlob(cv); const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(proyectoActivo.storageDir || 'biblioteca_contenido', 'escenarios/' + e.id + '/' + nomF, new File([bl], nomF, { type: 'image/png' })); if (up && up.success && up.url) return up.url; } catch (ex) {}
+    }
+    return dUrl;
+  };
+  if (capa.tipo === 'vivos_2x2') {
+    const cvF = document.createElement('canvas'); cvF.width = im.width; cvF.height = im.height;
+    const ctxF = cvF.getContext('2d', { willReadFrequently: true }); ctxF.drawImage(im, 0, 0);
+    quitarChromaExterior(ctxF, cvF.width, cvF.height);
+    const cw = Math.floor(cvF.width / 2), ch = Math.floor(cvF.height / 2);
+    const defs = Array.isArray(capa.elementos) && capa.elementos.length ? capa.elementos : [{celda:1,nombre:'Nube',capa:'z1',modo:'bucle_h',x:0.25,y:0.2,w:0.22,vel:0.7},{celda:2,nombre:'Ventilador',capa:'z2',modo:'rotar',x:0.5,y:0.16,w:0.22,vel:1.4},{celda:3,nombre:'Lampara',capa:'z2',modo:'flotar',x:0.78,y:0.22,w:0.16,vel:1.0,amp:7},{celda:4,nombre:'TV',capa:'z2',modo:'flotar',x:0.2,y:0.32,w:0.18,vel:1.8,amp:3}];
+    if (!Array.isArray(z1.elementos_vivos)) z1.elementos_vivos = [];
+    for (let i = 0; i < Math.min(4, defs.length); i++) {
+      const r = Math.floor(i / 2), c = i % 2, cvC = document.createElement('canvas'); cvC.width = cw; cvC.height = ch;
+      const ctxC = cvC.getContext('2d', { willReadFrequently: true }); ctxC.drawImage(cvF, c * cw, r * ch, cw, ch, 0, 0, cw, ch);
+      quitarChromaExterior(ctxC, cw, ch);
+      const bb = detectarBBox(ctxC, cw, ch); if (!bb) continue;
+      const cvOut = document.createElement('canvas'); cvOut.width = bb.w; cvOut.height = bb.h;
+      cvOut.getContext('2d').drawImage(cvC, bb.x, bb.y, bb.w, bb.h, 0, 0, bb.w, bb.h);
+      const u = await subirCv(cvOut, 'vivo_' + Date.now() + '_' + i + '.png');
+      z1.elementos_vivos.push(Object.assign({ id: 'v_' + i + '_' + Date.now(), url: u }, defs[i]));
+    }
+  } else {
+    const cv = document.createElement('canvas'); cv.width = im.width; cv.height = im.height;
+    const ctx = cv.getContext('2d', { willReadFrequently: true }); ctx.drawImage(im, 0, 0);
+    if (capa.chroma) quitarChromaExterior(ctx, cv.width, cv.height);
+    const u = await subirCv(cv, capa.id_capa + '_' + Date.now() + '.png');
+    if (capa.tipo === 'fondo_z1') z1.z1_lejano = { url: u };
+    else if (capa.tipo === 'frente_z4') { z1.z4_frente = { url: u }; z1.frente = { url: u }; }
+    else if (capa.tipo === 'zona_02') {
+      let z2 = e.zonas.find(function(z) { return z.id === 'zona_02'; });
+      if (!z2) { z2 = { id: 'zona_02', nombre: 'Sub-escena 2', elementos_vivos: [] }; e.zonas.push(z2); }
+      z2.fondo = { url: u }; z2.z2_medio = { url: u };
+    } else { z1.z2_medio = { url: u }; z1.fondo = { url: u }; }
+  }
+  await guardarBiblioteca(true);
+}
+
+window.procesarCapaAmbManual = function(file) {
+  const e = obtenerAmbienteActual(), c = obtenerCapaAmbActiva(e);
+  if (!e || !c || !file) return;
+  const fr = new FileReader();
+  fr.onload = async function(ev) {
+    ocupandoApi = true; toast('Procesando ' + c.titulo + '...', 'info');
+    try { await aplicarImagenACapaAmb(e, c, ev.target.result); toast('Capa ' + c.titulo + ' integrada en 2.5D ($0).', 'exito'); }
+    catch (err) { toast('Error capa: ' + err.message, 'error'); }
+    finally { ocupandoApi = false; renderVisorAmb25D(); }
+  };
+  fr.readAsDataURL(file);
+};
+
+window.ejecutarCapaAmbAPI = async function() {
+  const e = obtenerAmbienteActual(), c = obtenerCapaAmbActiva(e);
+  if (!e || !c || ocupandoApi) return;
+  ocupandoApi = true; toast('Generando ' + c.titulo + ' (API)...', 'info');
+  try {
+    const prefs = leerPrefsVault(), bib = (e.blueprint_amb && e.blueprint_amb.identidad_canonica_ambiente_en) ? ('ART BIBLE: ' + e.blueprint_amb.identidad_canonica_ambiente_en + '. ') : '';
+    const pr = bib + String(c.prompt_imagen_en || '') + (c.chroma ? ' Pure flat #00FF00 chroma green background.' : ' Full bleed 1:1 background, ZERO characters.');
+    const res = await GeokatuDB.PirobonianosService.llamarProxyIA({ proveedorId: prefs.provImagen || 'gemini', accion: 'imagen', tipoCobro: (c.tipo === 'vivos_2x2' ? 'hoja_lote' : 'imagen'), modoPago: prefs.modoPago || 'auto', payload: { prompt: pr, parts: [{ text: pr }], aspectRatio: '1:1', size: '1024x1024' } });
+    if (!res || !res.success || !res.b64) throw new Error((res && res.error) || 'Sin imagen IA');
+    await aplicarImagenACapaAmb(e, c, 'data:' + (res.mime || 'image/png') + ';base64,' + res.b64);
+    toast('Capa ' + c.titulo + ' lista en 2.5D.', 'exito');
+  } catch (err) { toast('Error API 2.5D: ' + err.message, 'error'); }
+  finally { ocupandoApi = false; renderVisorAmb25D(); }
+};
+
+function renderVisorAmb25D() {
+  const e = obtenerAmbienteActual(), r = document.getElementById('amb-ribbon-capas'); if (!r) return;
+  const cs = (e && e.blueprint_amb && Array.isArray(e.blueprint_amb.capas)) ? e.blueprint_amb.capas : [];
+  const z1 = (e && e.zonas && e.zonas[0]) || {};
+  if (!cs.length) { r.innerHTML = '<span style="font-size:11px; color:var(--muted);">Completa Encuesta (20) y genera o pega el Plano JSON 2.5D.</span>'; window.dibujarPreviewAmb25D(); return; }
+  const act = obtenerCapaAmbActiva(e);
+  r.innerHTML = cs.map(function(c) {
+    const ok = (c.tipo === 'fondo_z1' && z1.z1_lejano) || (c.tipo === 'fondo_z2' && (z1.z2_medio || z1.fondo)) || (c.tipo === 'frente_z4' && (z1.z4_frente || z1.frente)) || (c.tipo === 'vivos_2x2' && z1.elementos_vivos && z1.elementos_vivos.length) || (c.tipo === 'zona_02' && e.zonas && e.zonas.length > 1);
+    return '<button type="button" class="paso-chip ' + (act && act.id_capa === c.id_capa ? 'activo' : (ok ? 'ok' : '')) + '" onclick="window.selCapaAmbChip(\'' + esc(c.id_capa) + '\')">' + esc(c.titulo || c.id_capa) + (ok ? ' OK' : '') + '</button>';
+  }).join('');
+  window.dibujarPreviewAmb25D();
+}
+
+window.dibujarPreviewAmb25D = async function(tOverride) {
+  const cv = document.getElementById('cv-amb-25d'), e = obtenerAmbienteActual(); if (!cv) return;
+  const ctx = cv.getContext('2d'), W = cv.width, H = cv.height;
+  ctx.fillStyle = '#07090e'; ctx.fillRect(0, 0, W, H);
+  const z1 = (e && e.zonas && e.zonas[0]) || {};
+  const rng = document.getElementById('rng-amb-pan');
+  const panX = Number(rng ? rng.value : 0) * 1.15;
+  const tSeg = typeof tOverride === 'number' ? tOverride : (performance.now() / 1000);
+  const bgSize = 960;
+  const imZ1 = z1.z1_lejano ? await cargarImagenPiro(z1.z1_lejano.url) : null;
+  const imZ2 = (z1.z2_medio || z1.fondo) ? await cargarImagenPiro((z1.z2_medio || z1.fondo).url) : null;
+  const imZ4 = (z1.z4_frente || z1.frente) ? await cargarImagenPiro((z1.z4_frente || z1.frente).url) : null;
+  const vivos = Array.isArray(z1.elementos_vivos) ? z1.elementos_vivos : [];
+  if (imZ1) ctx.drawImage(imZ1, (W - bgSize * 1.06) / 2 + panX * 0.2, (H - bgSize * 1.06) / 2, bgSize * 1.06, bgSize * 1.06);
+  await dibujarElementosVivosPiro(ctx, vivos, 'z1', W, H, panX, 1, tSeg, {});
+  if (imZ2) ctx.drawImage(imZ2, (W - bgSize) / 2 + panX * 0.55, (H - bgSize) / 2, bgSize, bgSize);
+  await dibujarElementosVivosPiro(ctx, vivos, 'z2', W, H, panX, 1, tSeg, {});
+  if (imZ4) ctx.drawImage(imZ4, (W - bgSize) / 2 + panX * 1.32, (H - bgSize) / 2, bgSize, bgSize);
+  await dibujarElementosVivosPiro(ctx, vivos, 'z4', W, H, panX, 1, tSeg, {});
+};
+
+window.togglePlayAmb25D = function() {
+  ambPlayOn = !ambPlayOn;
+  const b = document.getElementById('btn-amb-play'); if (b) b.textContent = ambPlayOn ? 'Pausa 2.5D' : 'Play 2.5D';
+  if (!ambPlayOn) { if (ambRafId) cancelAnimationFrame(ambRafId); ambRafId = null; return; }
+  ambT0 = performance.now();
+  const loop = function(now) {
+    if (!ambPlayOn) return;
+    const t = (now - ambT0) / 1000;
+    const rng = document.getElementById('rng-amb-pan'); if (rng) rng.value = Math.round(Math.sin(t * 0.9) * 85);
+    window.dibujarPreviewAmb25D(t);
+    ambRafId = requestAnimationFrame(loop);
+  };
+  ambRafId = requestAnimationFrame(loop);
+};
+
+function construirInstruccionesArquitecto(fichaLimpia) {
+  return [
+    'You are a Senior 2D Cut-Out Animation Rig Architect. Convert the character survey JSON into a strict production blueprint JSON for 2D modular puppet sheets on pure flat chroma green (#00FF00).',
+    'Return ONLY valid JSON (no markdown fences, no commentary) with this EXACT top-level structure:',
+    '{',
+    '  "version_esquema": "piro_blueprint_v2",',
+    '  "identidad_canonica_en": "Concise immutable visual bible in English (species, style, ink line, fur/skin hex, spots, hairstyle, beard, outfit, negative rules)",',
+    '  "paleta_hex": ["#hex1","#hex2","#hex3"],',
+    '  "reglas_rig": { "num_cabezas": 1, "num_ojos": 2, "num_brazos": 2, "estatura_cm": 175, "perspectivas": ["3_4","frente"] },',
+    '  "lienzos": [',
+    '    { "id_lienzo": "maestro_cuerpo", "categoria_rueda": "Base", "titulo_boton": "1. Cuerpo Maestro", "dependencia": "foto", "grid": { "cols": 1, "rows": 1, "orden": "lectura" }, "prompt_imagen_en": "...", "piezas": [{ "celda": 1, "slot_key": "maestro_cuerpo", "etiqueta_ui": "Maestro 3/4", "tipo_anclaje": "cuerpo" }] }',
+    '  ]',
+    '}',
+    'MANDATORY 9 LIENZOS IN THIS EXACT ORDER:',
+    '1. id_lienzo:"maestro_cuerpo" (1x1): Full body standing 3/4 RIGHT in iconic pose on #00FF00. piezas: [maestro_cuerpo (tipo_anclaje:"cuerpo")].',
+    '2. id_lienzo:"cuerpo_base" (1x1): Exact same torso+legs+shoes WITHOUT head and WITHOUT arms (clean closed collar and shoulder openings) on #00FF00. piezas: [cuerpo_base (tipo_anclaje:"cuerpo")].',
+    '3. id_lienzo:"cabezas_blanco" (2x2): 4 isolated floating FEATURELESS BLANK HEADS (ZERO eyes, ZERO eyebrows, ZERO mouth, smooth matching fur/skin across eye & mouth zones, closed neck outline) on #00FF00: R1C1=3/4 RIGHT (cabeza_base), R1C2=STRAIGHT FRONT (cabeza_frente), R2C1=90-DEG PROFILE RIGHT (cabeza_perfil), R2C2=Seated torso/legs without head/arms (cuerpo_sentado, tipo_anclaje:"cuerpo").',
+    '4. id_lienzo:"ojos_3_4" (3x3): 9 isolated EYE+EYEBROW sets ONLY (matching num_ojos, 3/4 RIGHT, ZERO head/fur/nose/mouth) on #00FF00: ojos_neutro, ojos_feliz, ojos_enojado, ojos_triste, ojos_duda, ojos_indignado, ojos_cerrados, ojos_celoso, ojos_cansado (all tipo_anclaje:"ojos").',
+    '5. id_lienzo:"bocas_3_4" (3x3): 9 isolated MOUTH shapes ONLY (3/4 RIGHT, ZERO eyes/nose/head/beard) on #00FF00: boca_cerrada, boca_media, boca_abierta, boca_sonrisa, boca_molesta, boca_o_u, boca_f_v, boca_dientes, boca_triste (all tipo_anclaje:"boca").',
+    '6. id_lienzo:"ojos_frente" (2x2): 4 isolated STRAIGHT FRONT VIEW eye+eyebrow sets ONLY on #00FF00: ojos_frente_neutro, ojos_frente_feliz, ojos_frente_duda, ojos_frente_indignado (tipo_anclaje:"ojos_frente").',
+    '7. id_lienzo:"manos_base" (3x3): 9 isolated character RIGHT HANDS from wrist down matching fur/skin on #00FF00: mano_relajada, mano_abierta, mano_senalando, mano_puno, mano_prop, mano_pecho, mano_ok, mano_telefono, mano_paz (tipo_anclaje:"mano").',
+    '8. id_lienzo:"brazos_base" (2x2): 4 isolated character arms matching outfit/fur on #00FF00: brazo_trasero_reposo, brazo_delantero_reposo, brazo_delantero_prop, brazos_cruzados (tipo_anclaje:"brazo").',
+    '9. id_lienzo:"accesorios_ropa" (3x3): 9 isolated wearable accessories, hairstyles, jackets or props from survey on #00FF00: acc_1..acc_9 (tipo_anclaje:"acc", with clear Spanish etiqueta_ui for each item).',
+    'CRITICAL RULES FOR EVERY prompt_imagen_en: Always mandate pure flat #00FF00 chroma green background, ZERO grid lines, ZERO boxes, ZERO text/numbers, crisp outlines matching estilo_artistico, generous green margin around each cell, and explicit R1C1..RnCn cell descriptions.',
+    'CHARACTER SURVEY DATA: ' + JSON.stringify(fichaLimpia)
+  ].join('\n');
+}
+
+function construirPaqueteEncuestaDescargable() {
+  const fichaLimpia = {};
+  Object.keys(datosEncuesta).forEach(function(k) { const v = String(datosEncuesta[k] || '').trim(); if (v) fichaLimpia[k] = v; });
+  return {
+    tipo: 'piro_encuesta_arquitecto_v2',
+    fecha: new Date().toISOString(),
+    instruccion_para_chat: 'Lee encuesta_60_campos y devuelve UNICAMENTE el JSON estricto definido en prompt_arquitecto (sin bloques extra de texto) listo para pegar en PIRO Fabrica v2.',
+    prompt_arquitecto: construirInstruccionesArquitecto(fichaLimpia) + '\n' + REGLA_OJOS_SIN_PUPILA_EN,
+    encuesta_60_campos: fichaLimpia
+  };
+}
+
+window.descargarEncuestaJSON = function() {
+  if (!String(datosEncuesta.nombre_personaje || '').trim()) { toast('Escribe al menos el Nombre del personaje (o toca Autollenar Fernando).', 'error'); return; }
+  asegurarPersonajeDesdeEncuesta();
+  guardarBiblioteca(false);
+  const paq = construirPaqueteEncuestaDescargable();
+  const nom = 'encuesta_' + slug(datosEncuesta.nombre_personaje, 'personaje') + '_arquitecto.json';
+  const blob = new Blob([JSON.stringify(paq, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nom;
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+  toast('Descargado ' + nom + '. Súbelo al chat para recibir tu Plano JSON ($0).', 'exito', 4000);
+};
+
+window.copiarEncuestaJSON = function() {
+  if (!String(datosEncuesta.nombre_personaje || '').trim()) { toast('Escribe al menos el Nombre del personaje (o toca Autollenar Fernando).', 'error'); return; }
+  asegurarPersonajeDesdeEncuesta();
+  const fichaLimpia = {};
+  Object.keys(datosEncuesta).forEach(function(k) { const v = String(datosEncuesta[k] || '').trim(); if (v) fichaLimpia[k] = v; });
+  const txt = construirInstruccionesArquitecto(fichaLimpia) + '\n' + REGLA_OJOS_SIN_PUPILA_EN;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(function() { toast('Prompt + 60 campos copiado. Pégalo en Gemini para recibir el Plano JSON ($0).', 'exito', 4000); });
+  } else { toast('Usa Descargar JSON ($0) en este navegador.', 'info'); }
+};
+
+window.generarPlanoMaestroIA = async function() {
+  if (ocupandoApi) return;
+  if (!String(datosEncuesta.nombre_personaje || '').trim()) {
+    toast('Escribe al menos el Nombre del personaje (o toca Autollenar Fernando).', 'error'); return;
+  }
+  const p = asegurarPersonajeDesdeEncuesta();
+  const btn = document.getElementById('btn-generar-plano');
+  ocupandoApi = true; if (btn) { btn.disabled = true; btn.textContent = 'Diseñando 9 lienzos maestros (JSON)...'; }
+  try {
+    const selMod = (document.getElementById('sel-modelo-arq').value || 'gemini:gemini-2.5-pro').split(':');
+    const prefs = leerPrefsVault();
+    const provId = selMod[0] === 'auto' ? (prefs.provLlm || 'gemini') : selMod[0];
+    const mod = selMod[1] === 'default' ? '' : selMod[1];
+    const fichaLimpia = {};
+    Object.keys(datosEncuesta).forEach(function(k) { const v = String(datosEncuesta[k] || '').trim(); if (v) fichaLimpia[k] = v; });
+
+    const instrucciones = [
+      'You are a Senior 2D Cut-Out Animation Rig Architect. Convert the character survey JSON into a strict production blueprint JSON for 2D modular puppet sheets on pure flat chroma green (#00FF00).',
+      'Return ONLY valid JSON (no markdown fences, no commentary) with this EXACT top-level structure:',
+      '{',
+      '  "version_esquema": "piro_blueprint_v2",',
+      '  "identidad_canonica_en": "Concise immutable visual bible in English (species, style, ink line, fur/skin hex, spots, hairstyle, beard, outfit, negative rules)",',
+      '  "paleta_hex": ["#hex1","#hex2","#hex3"],',
+      '  "reglas_rig": { "num_cabezas": 1, "num_ojos": 2, "num_brazos": 2, "estatura_cm": 175, "perspectivas": ["3_4","frente"] },',
+      '  "lienzos": [',
+      '    { "id_lienzo": "maestro_cuerpo", "categoria_rueda": "Base", "titulo_boton": "1. Cuerpo Maestro", "dependencia": "foto", "grid": { "cols": 1, "rows": 1, "orden": "lectura" }, "prompt_imagen_en": "...", "piezas": [{ "celda": 1, "slot_key": "maestro_cuerpo", "etiqueta_ui": "Maestro 3/4", "tipo_anclaje": "cuerpo" }] }',
+      '  ]',
+      '}',
+      'MANDATORY 9 LIENZOS IN THIS EXACT ORDER:',
+      '1. id_lienzo:"maestro_cuerpo" (1x1): Full body standing 3/4 RIGHT in iconic pose on #00FF00. piezas: [maestro_cuerpo (tipo_anclaje:"cuerpo")].',
+      '2. id_lienzo:"cuerpo_base" (1x1): Exact same torso+legs+shoes WITHOUT head and WITHOUT arms (clean closed collar and shoulder openings) on #00FF00. piezas: [cuerpo_base (tipo_anclaje:"cuerpo")].',
+      '3. id_lienzo:"cabezas_blanco" (2x2): 4 isolated floating FEATURELESS BLANK HEADS (ZERO eyes, ZERO eyebrows, ZERO mouth, smooth matching fur/skin across eye & mouth zones, closed neck outline) on #00FF00: R1C1=3/4 RIGHT (cabeza_base), R1C2=STRAIGHT FRONT (cabeza_frente), R2C1=90-DEG PROFILE RIGHT (cabeza_perfil), R2C2=Seated torso/legs without head/arms (cuerpo_sentado, tipo_anclaje:"cuerpo").',
+      '4. id_lienzo:"ojos_3_4" (3x3): 9 isolated EYE+EYEBROW sets ONLY (matching num_ojos, 3/4 RIGHT, ZERO head/fur/nose/mouth) on #00FF00: ojos_neutro, ojos_feliz, ojos_enojado, ojos_triste, ojos_duda, ojos_indignado, ojos_cerrados, ojos_celoso, ojos_cansado (all tipo_anclaje:"ojos").',
+      '5. id_lienzo:"bocas_3_4" (3x3): 9 isolated MOUTH shapes ONLY (3/4 RIGHT, ZERO eyes/nose/head/beard) on #00FF00: boca_cerrada, boca_media, boca_abierta, boca_sonrisa, boca_molesta, boca_o_u, boca_f_v, boca_dientes, boca_triste (all tipo_anclaje:"boca").',
+      '6. id_lienzo:"ojos_frente" (2x2): 4 isolated STRAIGHT FRONT VIEW eye+eyebrow sets ONLY on #00FF00: ojos_frente_neutro, ojos_frente_feliz, ojos_frente_duda, ojos_frente_indignado (tipo_anclaje:"ojos_frente").',
+      '7. id_lienzo:"manos_base" (3x3): 9 isolated character RIGHT HANDS from wrist down matching fur/skin on #00FF00: mano_relajada, mano_abierta, mano_senalando, mano_puno, mano_prop, mano_pecho, mano_ok, mano_telefono, mano_paz (tipo_anclaje:"mano").',
+      '8. id_lienzo:"brazos_base" (2x2): 4 isolated character arms matching outfit/fur on #00FF00: brazo_trasero_reposo, brazo_delantero_reposo, brazo_delantero_prop, brazos_cruzados (tipo_anclaje:"brazo").',
+      '9. id_lienzo:"accesorios_ropa" (3x3): 9 isolated wearable accessories, hairstyles, jackets or props from survey on #00FF00: acc_1..acc_9 (tipo_anclaje:"acc", with clear Spanish etiqueta_ui for each item).',
+      'CRITICAL RULES FOR EVERY prompt_imagen_en: Always mandate pure flat #00FF00 chroma green background, ZERO grid lines, ZERO boxes, ZERO text/numbers, crisp outlines matching estilo_artistico, generous green margin around each cell, and explicit R1C1..RnCn cell descriptions.',
+      'CHARACTER SURVEY DATA: ' + JSON.stringify(fichaLimpia)
+    ].join('\n');
+
+    const parts = [];
+    if (fotoRefDataUrl && provId === 'gemini') {
+      const sp = fotoRefDataUrl.split(',');
+      const mt = (sp[0].match(/data:([^;]+)/) || [])[1] || 'image/webp';
+      if (sp[1]) parts.push({ inlineData: { mimeType: mt, data: sp[1] } });
+    }
+    parts.push({ text: instrucciones + '\n' + REGLA_OJOS_SIN_PUPILA_EN });
+
+    const payloadIA = provId === 'gemini'
+      ? { parts: parts, responseMimeType: 'application/json', maxOutputTokens: 16384 }
+      : { prompt: instrucciones, max_tokens: 12000, response_format: { type: 'json_object' } };
+
+    const res = await GeokatuDB.PirobonianosService.llamarProxyIA({
+      proveedorId: provId, accion: 'texto', tipoCobro: 'plano_personaje',
+      modoPago: prefs.modoPago || 'auto', modelo: mod, payload: payloadIA
+    });
+    if (!res || !res.success) throw new Error((res && res.error) || 'Error generando plano JSON');
+    const plano = extraerJsonSeguro(res.texto);
+    if (!plano || !Array.isArray(plano.lienzos) || !plano.lienzos.length) throw new Error('JSON recibido sin lista de lienzos.');
+
+    p.blueprint_v2 = plano;
+    await guardarBiblioteca(true);
+    toast('Plano Maestro listo: ' + plano.lienzos.length + ' lienzos habilitados.', 'exito');
+    window.setVistaFab('rueda');
+  } catch (err) {
+    toast('Error arquitecto: ' + err.message, 'error', 4200);
+  } finally {
+    ocupandoApi = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Generar Plano Maestro (1 Llamada JSON)'; }
+  }
+};
+
+// PIPELINE AUTOMATICO: LIMPIAR CROMA #00FF00 + AUTO-CORTE GRILLA + ANCLAJE 1000x1600
+function cargarImg(src) {
+  return new Promise(function(resolve, reject) {
+    const im = new Image(); im.crossOrigin = 'anonymous';
+    im.onload = function() { resolve(im); };
+    im.onerror = function() { reject(new Error('No se pudo cargar imagen')); };
+    im.src = src;
+  });
+}
+
+function quitarChromaExterior(ctx, w, h) {
+  const id = ctx.getImageData(0, 0, w, h), d = id.data;
+  const vis = new Uint8Array(w * h);
+  const esVerde = function(idx) {
+    const r = d[idx], g = d[idx + 1], b = d[idx + 2], a = d[idx + 3];
+    if (a < 15) return true;
+    return g > 115 && (g - Math.max(r, b)) > 36;
+  };
+  const q = new Int32Array(w * h); let qh = 0, qt = 0;
+  const push = function(x, y) { const p = y * w + x; if (!vis[p] && esVerde(p * 4)) { vis[p] = 1; q[qt++] = p; } };
+  for (let x = 0; x < w; x++) { push(x, 0); push(x, h - 1); }
+  for (let y = 0; y < h; y++) { push(0, y); push(w - 1, y); }
+  while (qh < qt) {
+    const p = q[qh++], px = p % w, py = (p - px) / w;
+    d[p * 4 + 3] = 0;
+    if (px > 0) push(px - 1, py);
+    if (px + 1 < w) push(px + 1, py);
+    if (py > 0) push(px, py - 1);
+    if (py + 1 < h) push(px, py + 1);
+  }
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] > 0) {
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      if (g > 130 && (g - Math.max(r, b)) > 48) { d[i + 3] = 0; }
+      else if (g > Math.max(r, b) + 18) { d[i + 1] = Math.max(r, b); }
+    }
+  }
+  ctx.putImageData(id, 0, 0);
+}
+
+function detectarBBox(ctx, w, h) {
+  const d = ctx.getImageData(0, 0, w, h).data;
+  let minX = w, minY = h, maxX = -1, maxY = -1;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (d[(y * w + x) * 4 + 3] > 28) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < minX) return null;
+  return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+}
+
+let metaRecorteOjoTmp = null;
+function obtenerCajaDestino(p, tipoAnc, slotKey) {
+  const esOjoAb = (tipoAnc === 'ojos' || tipoAnc === 'ojos_frente' || String(slotKey || '').indexOf('ojos_') === 0) && String(slotKey || '').indexOf('cerrad') < 0;
+  metaRecorteOjoTmp = { p: p, sk: slug(slotKey, 'pz'), esOjoAb: esOjoAb };
+  const moldes = parsearMoldes(p);
+  const mk = (tipoAnc === 'ojos_frente' || String(slotKey).indexOf('_frente_') >= 0) ? 'cabeza_frente' : 'cabeza_base';
+  const zOjos = moldes[mk] && moldes[mk].zonas && moldes[mk].zonas.ojos && moldes[mk].zonas.ojos.caja;
+  const zBoca = moldes[mk] && moldes[mk].zonas && moldes[mk].zonas.boca && moldes[mk].zonas.boca.caja;
+  const est = Math.max(90, Math.min(230, Number((p.encuesta_v2 && p.encuesta_v2.estatura_cm) || 175)));
+  const altoCuerpo = Math.round(1180 * (est / 175));
+  if (tipoAnc === 'cuerpo') return { x: 180, y: 1480 - altoCuerpo, w: 640, h: altoCuerpo, bottomAlign: true };
+  if (tipoAnc === 'cabeza' || String(slotKey).indexOf('cabeza_') === 0) return { x: 350, y: 205, w: 300, h: 300 };
+  if (tipoAnc === 'ojos' || tipoAnc === 'ojos_frente' || String(slotKey).indexOf('ojos_') === 0) {
+    if (zOjos) return zOjos;
+    return mk === 'cabeza_frente' ? { x: 425, y: 315, w: 150, h: 72 } : { x: 445, y: 315, w: 135, h: 68 };
+  }
+  if (tipoAnc === 'boca' || String(slotKey).indexOf('boca_') === 0) {
+    if (zBoca) return zBoca;
+    return { x: 455, y: 400, w: 96, h: 62 };
+  }
+  if (tipoAnc === 'mano' || String(slotKey).indexOf('mano_') === 0) return { x: 570, y: 750, w: 140, h: 140 };
+  if (tipoAnc === 'brazo' || String(slotKey).indexOf('brazo_') === 0) return { x: 250, y: 490, w: 480, h: 520 };
+  if (tipoAnc === 'acc' || String(slotKey).indexOf('acc_') === 0) return { x: 340, y: 170, w: 320, h: 260 };
+  return { x: 200, y: 280, w: 600, h: 1180 };
+}
+
+function anclarRecorteEn1000x1600(cvCell, bbox, cajaDst) {
+  const out = document.createElement('canvas'); out.width = 1000; out.height = 1600;
+  const ctx = out.getContext('2d');
+  const sc = Math.min(cajaDst.w / bbox.w, cajaDst.h / bbox.h);
+  const dw = Math.round(bbox.w * sc), dh = Math.round(bbox.h * sc);
+  const dx = Math.round(cajaDst.x + (cajaDst.w - dw) / 2);
+  const dy = cajaDst.bottomAlign ? Math.round(cajaDst.y + cajaDst.h - dh) : Math.round(cajaDst.y + (cajaDst.h - dh) / 2);
+  ctx.drawImage(cvCell, bbox.x, bbox.y, bbox.w, bbox.h, dx, dy, dw, dh);
+  if (metaRecorteOjoTmp && metaRecorteOjoTmp.esOjoAb) {
+    const escl = detectarYVaciarPupilasOjo(out, vaciarPupilaAuto);
+    if (escl && escl.length && metaRecorteOjoTmp.p) {
+      if (!metaRecorteOjoTmp.p._esclPend) metaRecorteOjoTmp.p._esclPend = {};
+      metaRecorteOjoTmp.p._esclPend[metaRecorteOjoTmp.sk] = escl;
+    }
+  }
+  return out;
+}
+
+function canvasABlob(cv) {
+  return new Promise(function(res) { cv.toBlob(function(b) { res(b); }, 'image/png'); });
+}
+
+async function urlABase64Parte(url) {
+  if (!url) return null;
+  if (url.indexOf('data:') === 0) {
+    const sp = url.split(','); return { mime: (sp[0].match(/data:([^;]+)/) || [])[1] || 'image/png', data: sp[1] };
+  }
+  try {
+    const r = await fetch(url); if (!r.ok) return null;
+    const ab = await r.arrayBuffer(), u8 = new Uint8Array(ab);
+    let bin = ''; for (let i = 0; i < u8.length; i += 8192) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 8192));
+    return { mime: r.headers.get('content-type') || 'image/png', data: btoa(bin) };
+  } catch (e) { return null; }
+}
+
+function lienzoEstaListo(p, l) {
+  if (!p || !l || !Array.isArray(l.piezas) || !l.piezas.length) return false;
+  return l.piezas.some(function(pz) { return Boolean(p.piezas && p.piezas[pz.slot_key] && p.piezas[pz.slot_key].url); });
+}
+
+function obtenerLienzoActivoObj(p) {
+  const ls = (p && p.blueprint_v2 && Array.isArray(p.blueprint_v2.lienzos)) ? p.blueprint_v2.lienzos : [];
+  if (!ls.length) return null;
+  const exacto = lienzoSelId ? ls.find(function(l) { return l.id_lienzo === lienzoSelId; }) : null;
+  if (exacto) return exacto;
+  const sig = ls.find(function(l) { return !lienzoEstaListo(p, l); }) || ls[0];
+  lienzoSelId = sig.id_lienzo;
+  return sig;
+}
+
+window.seleccionarLienzoChip = function(idLienzo) {
+  lienzoSelId = idLienzo;
+  renderRibbonPasos(null);
+};
+
+window.ejecutarLienzoSeleccionadoAPI = function() {
+  const p = obtenerPersonajeActual();
+  const l = obtenerLienzoActivoObj(p);
+  if (!l) { toast('Primero carga o genera el Plano Maestro JSON.', 'info'); window.setVistaFab('encuesta'); return; }
+  window.ejecutarLienzoBlueprint(l.id_lienzo);
+};
+
+function armarPromptFinalLienzo(p, lienzo) {
+  const bibPref = (p && p.blueprint_v2 && p.blueprint_v2.identidad_canonica_en) ? ('CHARACTER BIBLE: ' + p.blueprint_v2.identidad_canonica_en + '. ') : '';
+  const esOjoL = String(lienzo.id_lienzo || '').indexOf('ojos') >= 0 || String(lienzo.categoria_rueda || '').toLowerCase() === 'ojos'; return bibPref + String(lienzo.prompt_imagen_en || '') + (esOjoL ? REGLA_OJOS_SIN_PUPILA_EN : '') + ' Pure flat solid #00FF00 chroma green background, ZERO grid lines, ZERO text, ZERO borders.';
+}
+
+window.copiarPromptLienzoActivo = function() {
+  const p = obtenerPersonajeActual();
+  const l = obtenerLienzoActivoObj(p);
+  if (!l) { toast('Primero carga o genera el Plano Maestro JSON.', 'info'); return; }
+  const txt = armarPromptFinalLienzo(p, l);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(function() {
+      toast('Prompt copiado (' + (l.titulo_boton || l.id_lienzo) + '). Genéralo en el chat y toca Subir y Recortar ($0).', 'exito', 4200);
+    });
+  } else { toast('No se pudo acceder al portapapeles.', 'error'); }
+};
+
+window.abrirSubidaLienzoManual = function() {
+  const p = obtenerPersonajeActual();
+  const l = obtenerLienzoActivoObj(p);
+  if (!l) { toast('Primero carga o genera el Plano Maestro JSON.', 'info'); return; }
+  document.getElementById('inp-lienzo-manual').click();
+};
+
+async function procesarYRecortarImagenLienzo(p, lienzo, imgSrc) {
+  const gr = lienzo.grid || { cols: 1, rows: 1, orden: 'lectura' };
+  const cols = Math.max(1, Number(gr.cols) || 1), rows = Math.max(1, Number(gr.rows) || 1);
+  const im = await cargarImg(imgSrc);
+  const cvFull = document.createElement('canvas'); cvFull.width = im.width; cvFull.height = im.height;
+  const ctxF = cvFull.getContext('2d', { willReadFrequently: true });
+  ctxF.drawImage(im, 0, 0);
+  quitarChromaExterior(ctxF, cvFull.width, cvFull.height);
+  const cw = Math.floor(cvFull.width / cols), ch = Math.floor(cvFull.height / rows);
+  const piezasSpec = Array.isArray(lienzo.piezas) ? lienzo.piezas : [];
+  let guardadas = 0;
+  for (let idx = 0; idx < piezasSpec.length; idx++) {
+    const sp = piezasSpec[idx];
+    const r = Math.floor(idx / cols);
+    let c = idx % cols;
+    if (gr.orden === 'serpiente' && (r % 2 === 1)) c = cols - 1 - c;
+    if (r >= rows) break;
+    const padX = cols > 1 ? Math.round(cw * 0.04) : 0, padY = rows > 1 ? Math.round(ch * 0.04) : 0;
+    const sx = c * cw + padX, sy = r * ch + padY, sw = Math.max(8, cw - padX * 2), sh = Math.max(8, ch - padY * 2);
+    const cvC = document.createElement('canvas'); cvC.width = sw; cvC.height = sh;
+    const ctxC = cvC.getContext('2d', { willReadFrequently: true });
+    ctxC.drawImage(cvFull, sx, sy, sw, sh, 0, 0, sw, sh);
+    quitarChromaExterior(ctxC, sw, sh);
+    const bb = detectarBBox(ctxC, sw, sh);
+    if (!bb || bb.w < 6 || bb.h < 6) continue;
+    const cajaDst = obtenerCajaDestino(p, sp.tipo_anclaje, sp.slot_key);
+    const cvCanon = anclarRecorteEn1000x1600(cvC, bb, cajaDst);
+    const dataUrlLoc = cvCanon.toDataURL('image/png');
+    const sk = slug(sp.slot_key, 'pz_' + idx);
+    cacheLocalUrls[sk] = dataUrlLoc;
+    await idbGuardar('pz_' + proyectoActivo.id + '_' + p.id + '_' + sk, dataUrlLoc);
+    let urlNube = dataUrlLoc;
+    if (GeokatuDB.PirobonianosService && navigator.onLine) {
+      try {
+        const blob = await canvasABlob(cvCanon);
+        const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(proyectoActivo.storageDir || 'biblioteca_contenido', 'personajes/' + p.id + '/' + sk + '.png', new File([blob], sk + '.png', { type: 'image/png' }));
+        if (up && up.success && up.url) urlNube = up.url;
+      } catch (eUp) {}
+    }
+    if (!p.piezas) p.piezas = {};
+    p.piezas[sk] = { url: urlNube, etiqueta: sp.etiqueta_ui || sk, updatedAt: Date.now() };
+    guardadas++;
+  }
+  await guardarBiblioteca(true);
+  return guardadas;
+}
+
+window.procesarLienzoManualSubido = function(file) {
+  const p = obtenerPersonajeActual(), l = obtenerLienzoActivoObj(p);
+  if (!p || !l || !file) return;
+  const fr = new FileReader();
+  fr.onload = async function(ev) {
+    ocupandoApi = true; renderRibbonPasos(l.id_lienzo);
+    toast('Recortando ' + (l.titulo_boton || l.id_lienzo) + ' (' + ((l.grid && l.grid.cols) || 1) + 'x' + ((l.grid && l.grid.rows) || 1) + ')...', 'info');
+    try {
+      const n = await procesarYRecortarImagenLienzo(p, l, ev.target.result);
+      const sig = (p.blueprint_v2.lienzos || []).find(function(x) { return !lienzoEstaListo(p, x); });
+      if (sig) lienzoSelId = sig.id_lienzo;
+      toast('Auto-recorte listo: ' + n + ' piezas guardadas offline y en nube ($0).', 'exito', 3800);
+    } catch (err) {
+      toast('Error recortando lienzo: ' + err.message, 'error', 4200);
+    } finally {
+      ocupandoApi = false; renderConsolaRueda();
+    }
+  };
+  fr.readAsDataURL(file);
+};
+
+window.ejecutarSiguienteLienzo = function() {
+  const p = obtenerPersonajeActual();
+  if (!p || !p.blueprint_v2 || !Array.isArray(p.blueprint_v2.lienzos)) {
+    toast('Primero genera el Plano Maestro en la pestaña 1. Encuesta.', 'info'); window.setVistaFab('encuesta'); return;
+  }
+  const sig = p.blueprint_v2.lienzos.find(function(l) { return !lienzoEstaListo(p, l); }) || p.blueprint_v2.lienzos[0];
+  window.ejecutarLienzoBlueprint(sig.id_lienzo);
+};
+
+window.ejecutarLienzoBlueprint = async function(idLienzo) {
+  const p = obtenerPersonajeActual();
+  if (!p || !p.blueprint_v2 || ocupandoApi) return;
+  const lienzo = (p.blueprint_v2.lienzos || []).find(function(l) { return l.id_lienzo === idLienzo; });
+  if (!lienzo) return;
+  ocupandoApi = true;
+  renderRibbonPasos(idLienzo);
+  toast('Generando lienzo: ' + (lienzo.titulo_boton || idLienzo) + ' (1 API)...', 'info');
+  try {
+    const prefs = leerPrefsVault();
+    const provImg = prefs.provImagen || 'gemini';
+    const gr = lienzo.grid || { cols: 1, rows: 1, orden: 'lectura' };
+    const cols = Math.max(1, Number(gr.cols) || 1), rows = Math.max(1, Number(gr.rows) || 1);
+    const parts = [];
+
+    let refSrc = '';
+    if (lienzo.id_lienzo === 'maestro_cuerpo' && fotoRefDataUrl) refSrc = fotoRefDataUrl;
+    else refSrc = cacheLocalUrls.maestro_cuerpo || (p.piezas.maestro_cuerpo && p.piezas.maestro_cuerpo.url) || fotoRefDataUrl || '';
+    if (refSrc && provImg === 'gemini') {
+      const rp = await urlABase64Parte(refSrc);
+      if (rp) parts.push({ inlineData: { mimeType: rp.mime, data: rp.data } });
+    }
+    const bibPref = p.blueprint_v2.identidad_canonica_en ? ('CHARACTER BIBLE: ' + p.blueprint_v2.identidad_canonica_en + '. ') : '';
+    const promptFinal = armarPromptFinalLienzo(p, lienzo);
+    parts.push({ text: promptFinal });
+
+    const res = await GeokatuDB.PirobonianosService.llamarProxyIA({
+      proveedorId: provImg, accion: 'imagen', tipoCobro: (cols * rows > 1 ? 'hoja_lote' : 'imagen'),
+      modoPago: prefs.modoPago || 'auto', payload: { prompt: promptFinal, parts: parts, aspectRatio: '1:1', size: '1024x1024' }
+    });
+    if (!res || !res.success || !res.b64) throw new Error((res && res.error) || 'Sin imagen del proveedor IA');
+
+    const im = await cargarImg('data:' + (res.mime || 'image/png') + ';base64,' + res.b64);
+    const cvFull = document.createElement('canvas'); cvFull.width = im.width; cvFull.height = im.height;
+    const ctxF = cvFull.getContext('2d', { willReadFrequently: true });
+    ctxF.drawImage(im, 0, 0);
+    quitarChromaExterior(ctxF, cvFull.width, cvFull.height);
+
+    const cw = Math.floor(cvFull.width / cols), ch = Math.floor(cvFull.height / rows);
+    const piezasSpec = Array.isArray(lienzo.piezas) ? lienzo.piezas : [];
+    let guardadas = 0;
+
+    for (let idx = 0; idx < piezasSpec.length; idx++) {
+      const sp = piezasSpec[idx];
+      const r = Math.floor(idx / cols);
+      let c = idx % cols;
+      if (gr.orden === 'serpiente' && (r % 2 === 1)) c = cols - 1 - c;
+      if (r >= rows) break;
+
+      const padX = cols > 1 ? Math.round(cw * 0.04) : 0, padY = rows > 1 ? Math.round(ch * 0.04) : 0;
+      const sx = c * cw + padX, sy = r * ch + padY, sw = Math.max(8, cw - padX * 2), sh = Math.max(8, ch - padY * 2);
+      const cvC = document.createElement('canvas'); cvC.width = sw; cvC.height = sh;
+      const ctxC = cvC.getContext('2d', { willReadFrequently: true });
+      ctxC.drawImage(cvFull, sx, sy, sw, sh, 0, 0, sw, sh);
+      quitarChromaExterior(ctxC, sw, sh);
+      const bb = detectarBBox(ctxC, sw, sh);
+      if (!bb || bb.w < 6 || bb.h < 6) continue;
+
+      const cajaDst = obtenerCajaDestino(p, sp.tipo_anclaje, sp.slot_key);
+      const cvCanon = anclarRecorteEn1000x1600(cvC, bb, cajaDst);
+      const dataUrlLoc = cvCanon.toDataURL('image/png');
+      const sk = slug(sp.slot_key, 'pz_' + idx);
+
+      cacheLocalUrls[sk] = dataUrlLoc;
+      await idbGuardar('pz_' + proyectoActivo.id + '_' + p.id + '_' + sk, dataUrlLoc);
+
+      let urlNube = dataUrlLoc;
+      if (GeokatuDB.PirobonianosService && navigator.onLine) {
+        try {
+          const blob = await canvasABlob(cvCanon);
+          const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(proyectoActivo.storageDir || 'biblioteca_contenido', 'personajes/' + p.id + '/' + sk + '.png', new File([blob], sk + '.png', { type: 'image/png' }));
+          if (up && up.success && up.url) urlNube = up.url;
+        } catch (eUp) {}
+      }
+      if (!p.piezas) p.piezas = {};
+      p.piezas[sk] = { url: urlNube, etiqueta: sp.etiqueta_ui || sk, updatedAt: Date.now() };
+      guardadas++;
+    }
+
+    await guardarBiblioteca(true);
+    toast('Lienzo recortado: ' + guardadas + ' piezas guardadas offline y en nube.', 'exito');
+  } catch (err) {
+    toast('Error lienzo: ' + err.message, 'error', 4200);
+  } finally {
+    ocupandoApi = false;
+    renderConsolaRueda();
+  }
+};
+
+// CONSOLA SANDWICH OFFLINE + RUEDA 2D TRANSLUCIDA
+function obtenerItemsCategoriaRueda(p, catId) {
+  const pzs = (p && p.piezas) || {};
+  const keys = Object.keys(pzs).filter(function(k) { return Boolean(cacheLocalUrls[k] || (pzs[k] && pzs[k].url)); });
+  const persp = estadoRueda.cabeza === 'cabeza_frente' ? 'frente' : (estadoRueda.cabeza === 'cabeza_perfil' ? 'perfil' : '3_4');
+  let lista = [];
+  if (catId === 'cabeza') {
+    lista = ['cabeza_base', 'cabeza_frente', 'cabeza_perfil'].map(function(k) {
+      return { key: k, lbl: k === 'cabeza_base' ? '3/4' : (k === 'cabeza_frente' ? 'Frente' : 'Perfil'), ok: keys.indexOf(k) >= 0 };
+    });
+  } else if (catId === 'ojos') {
+    const base = keys.filter(function(k) {
+      if (k.indexOf('ojos_') !== 0) return false;
+      if (persp === 'frente') return k.indexOf('ojos_frente_') === 0;
+      if (persp === 'perfil') return k.indexOf('ojos_perfil_') === 0;
+      return k.indexOf('ojos_frente_') !== 0 && k.indexOf('ojos_perfil_') !== 0;
+    });
+    lista = (base.length ? base : ['ojos_neutro', 'ojos_feliz', 'ojos_triste', 'ojos_enojado']).map(function(k) {
+      return { key: k, lbl: (pzs[k] && pzs[k].etiqueta) || k.replace(/^ojos_(frente_|perfil_)?/, ''), ok: keys.indexOf(k) >= 0 };
+    });
+  } else if (catId === 'boca') {
+    const base = keys.filter(function(k) { return k.indexOf('boca_') === 0; });
+    lista = (base.length ? base : ['boca_cerrada', 'boca_media', 'boca_abierta', 'boca_sonrisa']).map(function(k) {
+      return { key: k, lbl: (pzs[k] && pzs[k].etiqueta) || k.replace('boca_', ''), ok: keys.indexOf(k) >= 0 };
+    });
+  } else if (catId === 'mano') {
+    const base = keys.filter(function(k) { return k.indexOf('mano_') === 0; });
+    lista = [{ key: '', lbl: 'Sin mano', ok: true }].concat(base.map(function(k) { return { key: k, lbl: (pzs[k] && pzs[k].etiqueta) || k.replace('mano_', ''), ok: true }; }));
+  } else if (catId === 'brazo') {
+    const base = keys.filter(function(k) { return k.indexOf('brazo') === 0 || k === 'manos_cintura'; });
+    lista = (base.length ? base : ['brazo_delantero_reposo', 'brazo_delantero_prop']).map(function(k) {
+      return { key: k, lbl: (pzs[k] && pzs[k].etiqueta) || k.replace('brazo_delantero_', ''), ok: keys.indexOf(k) >= 0 };
+    });
+  } else if (catId === 'cuerpo') {
+    const base = keys.filter(function(k) { return k.indexOf('cuerpo_') === 0; });
+    lista = (base.length ? base : ['cuerpo_base', 'cuerpo_sentado']).map(function(k) {
+      return { key: k, lbl: (pzs[k] && pzs[k].etiqueta) || k.replace('cuerpo_', ''), ok: keys.indexOf(k) >= 0 };
+    });
+  } else if (catId === 'acc') {
+    const base = keys.filter(function(k) { return k.indexOf('acc_') === 0; });
+    lista = [{ key: '', lbl: 'Ninguno', ok: true }].concat(base.map(function(k) { return { key: k, lbl: (pzs[k] && pzs[k].etiqueta) || k, ok: true }; }));
+  }
+  return lista;
+}
+
+function renderRibbonPasos(busyId) {
+  const r = document.getElementById('ribbon-pasos'), p = obtenerPersonajeActual();
+  if (!r) return;
+  const lienzos = (p && p.blueprint_v2 && Array.isArray(p.blueprint_v2.lienzos)) ? p.blueprint_v2.lienzos : [];
+  if (!lienzos.length) {
+    r.innerHTML = '<span style="font-size:11px; color:var(--muted);">Sin plano aún · Completa la Encuesta (60) y pulsa Generar Plano Maestro.</span>';
+    return;
+  }
+  r.innerHTML = lienzos.map(function(l) {
+    const ok = lienzoEstaListo(p, l), esBusy = busyId === l.id_lienzo;
+    const esSel = l.id_lienzo === (obtenerLienzoActivoObj(p) && obtenerLienzoActivoObj(p).id_lienzo); return '<button type="button" class="paso-chip ' + (esBusy ? 'busy' : (esSel ? 'activo' : (ok ? 'ok' : ''))) + '" onclick="window.seleccionarLienzoChip(\'' + esc(l.id_lienzo) + '\')">' +
+      esc(l.titulo_boton || l.id_lienzo) + (esBusy ? ' ...' : (ok ? ' OK' : '')) +
+    '</button>';
+  }).join('');
+  const nextL = lienzos.find(function(l) { return !lienzoEstaListo(p, l); });
+  const btnSig = document.getElementById('btn-crear-siguiente');
+  if (btnSig) {
+    btnSig.disabled = ocupandoApi;
+    const actL = obtenerLienzoActivoObj(p); btnSig.textContent = actL ? ('API: ' + (actL.titulo_boton || actL.id_lienzo)) : 'Crear API';
+  }
+}
+
+function renderRuedas2D() {
+  const p = obtenerPersonajeActual();
+  const wv = document.getElementById('wheel-v'), wh = document.getElementById('wheel-h');
+  if (!wv || !wh) return;
+
+  let vHtml = '';
+  for (let d = -2; d <= 2; d++) {
+    const idx = (catIdxRueda + d + CATS_RUEDA.length) % CATS_RUEDA.length;
+    const cat = CATS_RUEDA[idx], ad = Math.abs(d);
+    vHtml += '<button type="button" class="wheel-v-item dist-' + ad + '" onclick="window.moverRuedaV(' + d + ')"><span>' + esc(cat.nom) + '</span>' + (d === 0 ? '<span class="dot-act"></span>' : '') + '</button>';
+  }
+  wv.innerHTML = vHtml;
+
+  const catAct = CATS_RUEDA[catIdxRueda];
+  const items = obtenerItemsCategoriaRueda(p, catAct.id);
+  let curIdx = items.findIndex(function(x) { return x.key === estadoRueda[catAct.id]; });
+  if (curIdx < 0) { curIdx = 0; if (items[0]) estadoRueda[catAct.id] = items[0].key; }
+
+  let hHtml = '';
+  const unicos = [];
+  for (let d = -2; d <= 2; d++) {
+    if (Math.abs(d) > items.length - 1) continue;
+    const idx = (curIdx + d + items.length) % items.length;
+    if (unicos.indexOf(idx) >= 0) continue;
+    unicos.push(idx);
+    const it = items[idx], ad = Math.min(2, Math.abs(d));
+    hHtml += '<button type="button" class="wheel-h-item dist-' + ad + (it.ok ? '' : ' falta') + '" onclick="window.seleccionarItemRuedaH(' + idx + ')">' + esc(it.lbl) + '</button>';
+  }
+  wh.innerHTML = hHtml;
+}
+
+window.moverRuedaV = function(delta) {
+  catIdxRueda = (catIdxRueda + delta + CATS_RUEDA.length) % CATS_RUEDA.length;
+  renderRuedas2D();
+};
+
+window.seleccionarItemRuedaH = function(idx) {
+  const p = obtenerPersonajeActual(), catAct = CATS_RUEDA[catIdxRueda];
+  const items = obtenerItemsCategoriaRueda(p, catAct.id);
+  if (!items[idx]) return;
+  estadoRueda[catAct.id] = items[idx].key;
+  renderRuedas2D();
+  dibujarPersonajeOffline();
+};
+
+window.moverRuedaH = function(delta) {
+  const p = obtenerPersonajeActual(), catAct = CATS_RUEDA[catIdxRueda];
+  const items = obtenerItemsCategoriaRueda(p, catAct.id);
+  if (!items.length) return;
+  let cur = items.findIndex(function(x) { return x.key === estadoRueda[catAct.id]; });
+  if (cur < 0) cur = 0;
+  const sig = (cur + delta + items.length) % items.length;
+  estadoRueda[catAct.id] = items[sig].key;
+  renderRuedas2D();
+  dibujarPersonajeOffline();
+};
+
+async function dibujarPersonajeOffline() {
+  const cv = document.getElementById('cv-fabrica'), p = obtenerPersonajeActual();
+  if (!cv) return;
+  const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, 1000, 1600);
+  if (!p) return;
+  const pzsOffline = {};
+  const srcPzs = p.piezas || {};
+  Object.keys(srcPzs).forEach(function(k) { pzsOffline[k] = Object.assign({}, srcPzs[k], { url: cacheLocalUrls[k] || srcPzs[k].url }); });
+  Object.keys(cacheLocalUrls).forEach(function(k) { if (!pzsOffline[k]) pzsOffline[k] = { url: cacheLocalUrls[k] }; });
+  const perLocal = Object.assign({}, p, { piezas: pzsOffline });
+
+  await dibujarMarionetaPiro(ctx, perLocal, {
+    modoLienzoCompleto: true,
+    cabeza: estadoRueda.cabeza, cuerpo: estadoRueda.cuerpo,
+    ojos: estadoRueda.ojos, boca: estadoRueda.boca,
+    brazoDel: estadoRueda.brazo, mano: estadoRueda.mano,
+    soloPerspectiva: true, adaptarBocas: true, mostrarGuias: false, miradaVec: MIRADAS_PIRO[miradaPreviewId] || MIRADAS_PIRO.frente
+  });
+  if (estadoRueda.acc && pzsOffline[estadoRueda.acc] && pzsOffline[estadoRueda.acc].url) {
+    const imAcc = await cargarImagenPiro(pzsOffline[estadoRueda.acc].url);
+    if (imAcc) ctx.drawImage(imAcc, 0, 0, 1000, 1600);
+  }
+  const hud = document.getElementById('hud-progreso');
+  if (hud) hud.textContent = Object.keys(pzsOffline).length + ' piezas offline · 0ms';
+}
+
+function renderConsolaRueda() {
+  renderRibbonPasos(null);
+  renderRuedas2D();
+  dibujarPersonajeOffline();
+}
+
+window.rotarFondoFab = function() {
+  const st = document.getElementById('stage-fab'), b = document.getElementById('btn-bg-fab');
+  bgModo = bgModo === 'grid' ? 'oscuro' : (bgModo === 'oscuro' ? 'green' : 'grid');
+  st.className = 'stage-wrap' + (bgModo === 'grid' ? ' bg-grid' : (bgModo === 'green' ? ' bg-green' : ''));
+  if (b) b.textContent = 'Fondo: ' + (bgModo === 'grid' ? 'Grid' : (bgModo === 'green' ? 'Verde' : 'Oscuro'));
+};
+
+// MICRO-EXPANSIÓN +9 VARIANTES
+window.abrirModalExpandir = function() {
+  const catAct = CATS_RUEDA[catIdxRueda];
+  const itemAct = estadoRueda[catAct.id] || catAct.id;
+  document.getElementById('exp-titulo').textContent = '+9 Variantes de ' + catAct.nom + ' (' + itemAct + ')';
+  document.getElementById('inp-exp-variantes').value = '';
+  document.getElementById('modal-expandir').classList.add('open');
+};
+
+window.ejecutarExpansion9 = async function() {
+  const p = obtenerPersonajeActual();
+  if (!p || ocupandoApi) return;
+  const catAct = CATS_RUEDA[catIdxRueda];
+  const baseSel = estadoRueda[catAct.id] || catAct.nom;
+  const rawList = String(document.getElementById('inp-exp-variantes').value || '').split(',').map(function(x) { return x.trim(); }).filter(Boolean).slice(0, 9);
+  if (!rawList.length) { toast('Escribe al menos 1 variación separada por coma.', 'error'); return; }
+  while (rawList.length < 9) rawList.push(baseSel + ' variación ' + (rawList.length + 1));
+
+  const persp = estadoRueda.cabeza === 'cabeza_frente' ? 'frente' : (estadoRueda.cabeza === 'cabeza_perfil' ? 'perfil' : '3_4');
+  const pref = (catAct.id === 'ojos' && persp !== '3_4') ? ('ojos_' + persp + '_') : catAct.pref;
+  const ts = String(Date.now()).slice(-4);
+  const celdasTxt = rawList.map(function(v, i) { return 'R' + (Math.floor(i / 3) + 1) + 'C' + ((i % 3) + 1) + ': ' + v; }).join('; ');
+  const idExp = 'exp_' + catAct.id + '_' + ts;
+  const nuevoLienzo = {
+    id_lienzo: idExp, categoria_rueda: catAct.nom, titulo_boton: '+9 ' + catAct.nom,
+    grid: { cols: 3, rows: 3, orden: 'lectura' },
+    prompt_imagen_en: 'STRICT 2D SPRITE SHEET (3x3 invisible grid, 1:1 canvas): Generate 9 isolated ' + catAct.nom + ' variations derived from "' + baseSel + '" (' + (persp === 'frente' ? 'STRAIGHT FRONT VIEW' : 'three-quarter RIGHT') + '). Place centered with wide margin: ' + celdasTxt + '.',
+    piezas: rawList.map(function(v, i) {
+      return { celda: i + 1, slot_key: pref + slug(v, 'v' + (i + 1)) + '_' + ts, etiqueta_ui: v.slice(0, 18), tipo_anclaje: (catAct.id === 'ojos' && persp === 'frente') ? 'ojos_frente' : catAct.id };
+    })
+  };
+  if (!p.blueprint_v2) p.blueprint_v2 = { version_esquema: 'piro_blueprint_v2', identidad_canonica_en: p.pelaje || p.nombre, lienzos: [] };
+  p.blueprint_v2.lienzos.push(nuevoLienzo);
+  window.cerrarModalFab('modal-expandir');
+  await window.ejecutarLienzoBlueprint(idExp);
+};
+
+// VER/EDITAR JSON Y SALTO DIRECTO AL EDITOR (6 CLIPS PRUEBA)
+window.abrirModalJsonPlano = function() {
+  const p = obtenerPersonajeActual();
+  const pObj = p || asegurarPersonajeDesdeEncuesta(); document.getElementById('txt-json-plano').value = (pObj && pObj.blueprint_v2) ? JSON.stringify(pObj.blueprint_v2, null, 2) : '';
+  document.getElementById('modal-json').classList.add('open');
+};
+window.prepararExpansion9SoloPrompt = async function() {
+  const p = obtenerPersonajeActual(); if (!p) return;
+  const catAct = CATS_RUEDA[catIdxRueda], baseSel = estadoRueda[catAct.id] || catAct.nom;
+  const rawList = String(document.getElementById('inp-exp-variantes').value || '').split(',').map(function(x) { return x.trim(); }).filter(Boolean).slice(0, 9);
+  if (!rawList.length) { toast('Escribe al menos 1 variación separada por coma.', 'error'); return; }
+  while (rawList.length < 9) rawList.push(baseSel + ' variación ' + (rawList.length + 1));
+  const persp = estadoRueda.cabeza === 'cabeza_frente' ? 'frente' : (estadoRueda.cabeza === 'cabeza_perfil' ? 'perfil' : '3_4');
+  const pref = (catAct.id === 'ojos' && persp !== '3_4') ? ('ojos_' + persp + '_') : catAct.pref;
+  const ts = String(Date.now()).slice(-4);
+  const celdasTxt = rawList.map(function(v, i) { return 'R' + (Math.floor(i / 3) + 1) + 'C' + ((i % 3) + 1) + ': ' + v; }).join('; ');
+  const idExp = 'exp_' + catAct.id + '_' + ts;
+  const nuevoLienzo = {
+    id_lienzo: idExp, categoria_rueda: catAct.nom, titulo_boton: '+9 ' + catAct.nom,
+    grid: { cols: 3, rows: 3, orden: 'lectura' },
+    prompt_imagen_en: 'STRICT 2D SPRITE SHEET (3x3 invisible grid, 1:1 canvas): Generate 9 isolated ' + catAct.nom + ' variations derived from "' + baseSel + '" (' + (persp === 'frente' ? 'STRAIGHT FRONT VIEW' : 'three-quarter RIGHT') + '). Place centered with wide margin: ' + celdasTxt + '.',
+    piezas: rawList.map(function(v, i) { return { celda: i + 1, slot_key: pref + slug(v, 'v' + (i + 1)) + '_' + ts, etiqueta_ui: v.slice(0, 18), tipo_anclaje: (catAct.id === 'ojos' && persp === 'frente') ? 'ojos_frente' : catAct.id }; })
+  };
+  if (!p.blueprint_v2) p.blueprint_v2 = { version_esquema: 'piro_blueprint_v2', identidad_canonica_en: p.pelaje || p.nombre, lienzos: [] };
+  p.blueprint_v2.lienzos.push(nuevoLienzo);
+  lienzoSelId = idExp;
+  await guardarBiblioteca(true);
+  window.cerrarModalFab('modal-expandir');
+  renderConsolaRueda();
+  window.copiarPromptLienzoActivo();
+};
+
+window.importarArchivoPlanoJSON = function(file) {
+  if (!file) return;
+  const fr = new FileReader();
+  fr.onload = function(ev) {
+    const el = document.getElementById('txt-json-plano');
+    if (el) el.value = String(ev.target.result || '');
+    window.guardarJsonPlanoEditado();
+  };
+  fr.readAsText(file);
+};
+
+window.copiarJsonPlano = function() {
+  const txt = document.getElementById('txt-json-plano').value;
+  if (navigator.clipboard) navigator.clipboard.writeText(txt).then(function() { toast('JSON copiado.', 'exito'); });
+};
+window.guardarJsonPlanoEditado = async function() {
+  const p = obtenerPersonajeActual(); if (!p) return;
+  try {
+    const pJson = extraerJsonSeguro(document.getElementById('txt-json-plano').value); if (!pJson || !Array.isArray(pJson.lienzos) || !pJson.lienzos.length) throw new Error('Falta el arreglo lienzos'); p.blueprint_v2 = pJson; lienzoSelId = pJson.lienzos[0].id_lienzo; window.setVistaFab('rueda');
+    await guardarBiblioteca(true);
+    window.cerrarModalFab('modal-json');
+    renderConsolaRueda();
+    toast('Plano JSON actualizado.', 'exito');
+  } catch (e) { toast('JSON inválido: ' + e.message, 'error'); }
+};
+
+window.enviarAEditor6Clips = async function() {
+  const p = obtenerPersonajeActual();
+  if (!p) { toast('Crea o selecciona un personaje primero.', 'info'); return; }
+  await guardarBiblioteca(true);
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({ tipo: 'PIRO_EDITOR_CREAR_PACK_PRUEBAS', personajeId: p.id }, '*');
+  } else {
+    window.location.href = './piro-editor.html';
+  }
+};
+
+// Gestos táctiles y rueda de mouse para Rueda Vertical y Horizontal
+(function conectarGestosRuedas() {
+  let syV = null, sxH = null;
+  const wv = document.getElementById('wheel-v'), wh = document.getElementById('wheel-h');
+  if (wv) {
+    wv.addEventListener('pointerdown', function(e) { syV = e.clientY; });
+    wv.addEventListener('pointermove', function(e) { if (syV !== null && Math.abs(e.clientY - syV) > 26) { window.moverRuedaV(e.clientY < syV ? 1 : -1); syV = e.clientY; } });
+    wv.addEventListener('pointerup', function() { syV = null; });
+    wv.addEventListener('wheel', function(e) { e.preventDefault(); window.moverRuedaV(e.deltaY > 0 ? 1 : -1); }, { passive: false });
+  }
+  if (wh) {
+    wh.addEventListener('pointerdown', function(e) { sxH = e.clientX; });
+    wh.addEventListener('pointermove', function(e) { if (sxH !== null && Math.abs(e.clientX - sxH) > 32) { window.moverRuedaH(e.clientX < sxH ? 1 : -1); sxH = e.clientX; } });
+    wh.addEventListener('pointerup', function() { sxH = null; });
+    wh.addEventListener('wheel', function(e) { e.preventDefault(); window.moverRuedaH(e.deltaY > 0 || e.deltaX > 0 ? 1 : -1); }, { passive: false });
+  }
+})();
+
+window.addEventListener('message', function(e) {
+  if (!e.data || !e.data.tipo) return;
+  if (e.data.tipo === 'PIRO_SHELL_AUTH' || e.data.tipo === 'PIRO_SHELL_CAMBIAR_PROYECTO') {
+    if (e.data.proyecto) proyectoActivo = e.data.proyecto;
+    cargarBorradorEncuestaLocal();
+    cargarBiblioteca();
+  } else if (e.data.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA') {
+    cargarBiblioteca();
+  }
+});
+
+try { const rp = localStorage.getItem('piro_proyecto_activo_v1'); if (rp) proyectoActivo = JSON.parse(rp); } catch (e) {}
+cargarBorradorEncuestaLocal();
+renderEncuesta();
+cargarBiblioteca();
+</script>
+</body>
+</html>
