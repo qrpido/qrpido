@@ -372,6 +372,152 @@ export function obtenerBocaLipSyncPiro(opts) {
   return obtenerBocaDesdeEnvolvente(env, t, texto);
 }
 
+export const MIRADAS_PIRO = {
+  frente: { id: 'frente', nombre: 'Frente', x: 0, y: 0, dil: 1 },
+  interlocutor: { id: 'interlocutor', nombre: 'Al Otro Actor', x: 0.35, y: 0, dil: 1, autoOtro: true },
+  camara: { id: 'camara', nombre: 'A Camara', x: -0.08, y: 0.02, dil: 1.08 },
+  arriba_frustracion: { id: 'arriba_frustracion', nombre: 'Frustracion Arriba', x: 0.05, y: -0.78, dil: 0.92 },
+  abajo_culpa: { id: 'abajo_culpa', nombre: 'Culpa Abajo', x: 0.14, y: 0.74, dil: 0.95 },
+  evadir_izq: { id: 'evadir_izq', nombre: 'Evadir Izq', x: -0.78, y: 0.1, dil: 0.94 },
+  evadir_der: { id: 'evadir_der', nombre: 'Evadir Der', x: 0.78, y: 0.1, dil: 0.94 },
+  arriba_pensar: { id: 'arriba_pensar', nombre: 'Pensar Arriba', x: 0.56, y: -0.64, dil: 1.0 },
+  shock: { id: 'shock', nombre: 'Shock (Pequena)', x: 0, y: 0, dil: 0.54 },
+  ternura: { id: 'ternura', nombre: 'Ternura (Grande)', x: 0, y: -0.05, dil: 1.32 }
+};
+
+function resolverVectorMirada(miradaId, vecInterlocutor) {
+  const m = MIRADAS_PIRO[miradaId] || MIRADAS_PIRO.frente;
+  if (m.autoOtro && vecInterlocutor) {
+    return { x: Math.max(-0.85, Math.min(0.85, Number(vecInterlocutor.x) || 0)), y: Math.max(-0.8, Math.min(0.8, Number(vecInterlocutor.y) || 0)), dil: m.dil || 1 };
+  }
+  return { x: m.x || 0, y: m.y || 0, dil: m.dil || 1 };
+}
+
+export function evaluarMiradaActorPiro(actorObj, sc, tLocalSeg, vecInterlocutor, seedStr) {
+  const a = actorObj || {}, t = Math.max(0, Number(tLocalSeg) || 0);
+  let prevId = a.mirada || (sc && sc.mirada) || (vecInterlocutor ? 'interlocutor' : 'frente');
+  let curId = prevId, tCambio = -1;
+  const evs = (sc && Array.isArray(sc.eventos_actuacion)) ? sc.eventos_actuacion : [];
+  for (let i = 0; i < evs.length; i++) {
+    const ev = evs[i];
+    if (!ev || typeof ev.t !== 'number' || !ev.mirada || (ev.actorId && ev.actorId !== a.id)) continue;
+    if (t >= ev.t) { prevId = curId; curId = ev.mirada; tCambio = ev.t; }
+  }
+  const vPrev = resolverVectorMirada(prevId, vecInterlocutor);
+  const vCur = resolverVectorMirada(curId, vecInterlocutor);
+  let x = vCur.x, y = vCur.y, dil = vCur.dil;
+  if (tCambio >= 0 && (t - tCambio) < 0.095) {
+    const k = evaluarCurvaPiro('easeOut', Math.max(0, (t - tCambio) / 0.095));
+    x = vPrev.x + (vCur.x - vPrev.x) * k;
+    y = vPrev.y + (vCur.y - vPrev.y) * k;
+    dil = vPrev.dil + (vCur.dil - vPrev.dil) * k;
+  }
+  if (!sc || sc.vida_auto !== false) {
+    const h = hashSemillaPiro(seedStr || a.id || 'gaze');
+    const pasoMicro = Math.floor((t + (h % 17) * 0.13) / 1.45);
+    const hm = hashSemillaPiro((seedStr || 'g') + '_' + pasoMicro);
+    x += (((hm % 100) / 100) - 0.5) * 0.11;
+    y += ((((hm >> 7) % 100) / 100) - 0.5) * 0.07;
+  }
+  return { id: curId, x: Math.max(-0.9, Math.min(0.9, x)), y: Math.max(-0.85, Math.min(0.85, y)), dil: Math.max(0.45, Math.min(1.45, dil)) };
+}
+
+function dibujarPupilasDinamicasPiro(ctx, piezaObj, mirada, ptCuello, rotCab, tf, personaje) {
+  if (!piezaObj || !piezaObj.pupila_dinamica || !Array.isArray(piezaObj.escleroticas) || !piezaObj.escleroticas.length) return;
+  const m = mirada || { x: 0, y: 0, dil: 1 };
+  const colorIris = (personaje && personaje.encuesta_v2 && personaje.encuesta_v2.color_iris_hex) || '';
+  ctx.save();
+  ctx.translate(ptCuello.x, ptCuello.y);
+  ctx.rotate((rotCab * Math.PI) / 180);
+  if (tf) {
+    ctx.translate(tf.cxDst - ptCuello.x, tf.cyDst - ptCuello.y);
+    ctx.scale(tf.scale, tf.scale);
+    ctx.translate(-tf.cxSrc, -tf.cySrc);
+  } else {
+    ctx.translate(-ptCuello.x, -ptCuello.y);
+  }
+  piezaObj.escleroticas.forEach(function(s) {
+    const rx = Math.max(4, Number(s.rx) || 12), ry = Math.max(3, Number(s.ry) || 10);
+    const cx = Number(s.cx) || 500, cy = Number(s.cy) || 340;
+    const rBase = Math.max(2.6, Math.min(rx, ry) * 0.44 * (m.dil || 1));
+    const dx = (m.x || 0) * Math.max(1.5, rx - rBase * 0.72);
+    const dy = (m.y || 0) * Math.max(1.2, ry - rBase * 0.72);
+    const px = cx + dx, py = cy + dy;
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx * 0.94, ry * 0.92, 0, 0, Math.PI * 2);
+    ctx.clip();
+    if (colorIris) {
+      ctx.fillStyle = colorIris;
+      ctx.beginPath(); ctx.arc(px, py, rBase * 1.28, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = '#090b10';
+    ctx.beginPath(); ctx.arc(px, py, rBase, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.88)';
+    ctx.beginPath(); ctx.arc(px - rBase * 0.34, py - rBase * 0.34, Math.max(1.2, rBase * 0.28), 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  });
+  ctx.restore();
+}
+
+export function calcularCamara25DPiro(sc, tLocalSeg, esH) {
+  const cam = (sc && sc.camara) || 'centro';
+  const dur = Math.max(0.5, Number(sc && sc.duracion) || 3);
+  const u = evaluarCurvaPiro('easeInOut', Math.max(0, Math.min(1, (Number(tLocalSeg) || 0) / dur)));
+  const spanPan = esH ? 95 : 150;
+  let zoom = 1.0, panX = 0;
+  if (cam === 'zoom_actor') zoom = 1.18;
+  else if (cam === 'plano_general') zoom = 0.92;
+  else if (cam === 'izq') panX = spanPan;
+  else if (cam === 'der') panX = -spanPan;
+  else if (cam === 'paneo_der') panX = spanPan * (1 - 2 * u);
+  else if (cam === 'paneo_izq') panX = spanPan * (-1 + 2 * u);
+  else if (cam === 'zoom_in') { zoom = 0.96 + 0.24 * u; panX = (esH ? -18 : -28) * u; }
+  else if (cam === 'zoom_out') { zoom = 1.20 - 0.24 * u; panX = (esH ? 18 : 28) * (1 - u); }
+  return { zoom: zoom, panX: panX };
+}
+
+export async function dibujarElementosVivosPiro(ctx, lista, capaObjetivo, W, H, panX, zoom, tSeg, corsOpt) {
+  if (!Array.isArray(lista) || !lista.length) return;
+  const t = Math.max(0, Number(tSeg) || 0);
+  const multZ = capaObjetivo === 'z1' ? 0.2 : (capaObjetivo === 'z4' ? 1.32 : 0.55);
+  for (let i = 0; i < lista.length; i++) {
+    const el = lista[i];
+    if (!el || !el.url || (el.capa || 'z2') !== capaObjetivo) continue;
+    const im = await cargarImagenPiro(el.url, corsOpt);
+    if (!im) continue;
+    const wDraw = (Number(el.w) || 0.24) * W * zoom;
+    const hDraw = (Number(el.h) ? (Number(el.h) * H * zoom) : (wDraw * (im.height / Math.max(1, im.width))));
+    const bw = Math.max(16, wDraw), bh = Math.max(16, hDraw);
+    const cx = (el.x !== undefined && !isNaN(Number(el.x)) ? Number(el.x) : 0.5) * W + panX * multZ;
+    const cy = (el.y !== undefined && !isNaN(Number(el.y)) ? Number(el.y) : 0.25) * H;
+    const modo = el.modo || 'flotar';
+    const vel = Number(el.vel) || 1;
+    const amp = Number(el.amp) || 8;
+    ctx.save();
+    if (modo === 'bucle_h') {
+      const span = W + bw * 1.4;
+      const desp = ((cx + t * vel * 38) % span + span) % span - bw * 0.7;
+      ctx.drawImage(im, desp - bw / 2, cy - bh / 2, bw, bh);
+    } else if (modo === 'rotar') {
+      ctx.translate(cx, cy);
+      ctx.rotate(t * vel * 2.4);
+      ctx.drawImage(im, -bw / 2, -bh / 2, bw, bh);
+    } else if (modo === 'frames') {
+      const cols = Math.max(1, Number(el.cols) || 2), rows = Math.max(1, Number(el.rows) || 2);
+      const totF = cols * rows, fpsEl = Math.max(1, Number(el.fps) || 4);
+      const fIdx = Math.floor(t * fpsEl) % totF;
+      const fc = fIdx % cols, fr = Math.floor(fIdx / cols);
+      const sw = im.width / cols, sh = im.height / rows;
+      ctx.drawImage(im, fc * sw, fr * sh, sw, sh, cx - bw / 2, cy - bh / 2, bw, bh);
+    } else {
+      const dy = Math.sin(t * vel * 2.0 + i) * amp;
+      ctx.drawImage(im, cx - bw / 2, cy - bh / 2 + dy, bw, bh);
+    }
+    ctx.restore();
+  }
+}
+
 export const CURVAS_PIRO = {
   linear: function(u) { return u; },
   easeInOut: function(u) { return u < 0.5 ? (2 * u * u) : (1 - Math.pow(-2 * u + 2, 2) / 2); },
@@ -465,6 +611,7 @@ export function normalizarActoresEscena(sc) {
         rotBrazoTras: Number(a.rotBrazoTras) || 0,
         prop: String(a.prop || ''),
         actuacion: String(a.actuacion || ''),
+        mirada: String(a.mirada || ''),
         escala: Number(a.escala) || 1
       };
     });
@@ -481,6 +628,7 @@ export function normalizarActoresEscena(sc) {
     rotBrazo: Number(sc.rotBrazo) || 0,
     prop: esPropMano ? String(sc.prop) : '',
     actuacion: String(sc.actuacion || ''),
+    mirada: String(sc.mirada || ''),
     escala: 1
   }];
 }
@@ -618,6 +766,9 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
     };
     drawR(cabezaImg, ptCuello, rotCab);
     drawRFacial(ojosImg, resOjos.transform);
+    if (resOjos.key && resOjos.key.indexOf('cerrad') < 0 && piezas[resOjos.key] && piezas[resOjos.key].pupila_dinamica) {
+      dibujarPupilasDinamicasPiro(ctx, piezas[resOjos.key], cfg.miradaVec || null, ptCuello, rotCab, resOjos.transform, personaje);
+    }
     drawRFacial(bocaImg, resBoca.transform);
 
     const ptHombro = piv.hombro_delantero;
@@ -774,16 +925,23 @@ export async function componerEscenaPiro(ctx, params) {
     const escObj = escList.find(function(e) { return e.id === (sc.escenario || g.escenario_id); }) || escList[0];
     const zObj = escObj ? ((escObj.zonas || []).find(function(z) { return z.id === (sc.zona || g.zona_id); }) || (escObj.zonas || [])[0]) : null;
         const corsOpt = { strictCors: Boolean(params.modoExportacion) };
-    const imFondo = zObj && zObj.fondo ? await cargarImagenPiro(zObj.fondo.url, corsOpt) : null;
-    const imFrente = zObj && zObj.frente ? await cargarImagenPiro(zObj.frente.url, corsOpt) : null;
+    const imZ1 = zObj && zObj.z1_lejano ? await cargarImagenPiro(zObj.z1_lejano.url, corsOpt) : null;
+    const imFondo = zObj && ((zObj.z2_medio && zObj.z2_medio.url) ? zObj.z2_medio : zObj.fondo) ? await cargarImagenPiro((zObj.z2_medio && zObj.z2_medio.url) ? zObj.z2_medio.url : zObj.fondo.url, corsOpt) : null;
+    const imFrente = zObj && ((zObj.z4_frente && zObj.z4_frente.url) ? zObj.z4_frente : zObj.frente) ? await cargarImagenPiro((zObj.z4_frente && zObj.z4_frente.url) ? zObj.z4_frente.url : zObj.frente.url, corsOpt) : null;
+    const vivosZ = (zObj && Array.isArray(zObj.elementos_vivos)) ? zObj.elementos_vivos : [];
+    const tEsc = Number(params.tiempoLocal) || 0;
+    const cam25 = calcularCamara25DPiro(sc, tEsc, esH);
 
-    const zoom = sc.camara === 'zoom_actor' ? 1.18 : (sc.camara === 'plano_general' ? 0.92 : 1.0);
-    const panX = esH
+    const zoom = cam25.zoom;
+    const panX = cam25.panX; const _panLegacy = esH
       ? (sc.camara === 'izq' ? 75 : (sc.camara === 'der' ? -75 : 0))
       : (sc.camara === 'izq' ? 140 : (sc.camara === 'der' ? -140 : 0));
     const bgSize = 960 * zoom;
 
-    if (imFondo) ctx.drawImage(imFondo, (W - bgSize) / 2 + panX, (H - bgSize) / 2, bgSize, bgSize);
+    if (imZ1) { const bgZ1 = bgSize * 1.06; ctx.drawImage(imZ1, (W - bgZ1) / 2 + panX * 0.2, (H - bgZ1) / 2, bgZ1, bgZ1); }
+    await dibujarElementosVivosPiro(ctx, vivosZ, 'z1', W, H, panX, zoom, tEsc, corsOpt);
+    if (imFondo) ctx.drawImage(imFondo, (W - bgSize) / 2 + panX * 0.55, (H - bgSize) / 2, bgSize, bgSize);
+    await dibujarElementosVivosPiro(ctx, vivosZ, 'z2', W, H, panX, zoom, tEsc, corsOpt);
 
     const actores = normalizarActoresEscena(sc);
     const hablanteId = params.hablanteActivoId !== undefined
@@ -811,13 +969,24 @@ export async function componerEscenaPiro(ctx, params) {
       }
 
             const estaHablando = Boolean(hablanteId && hablanteId !== 'ninguno' && a.id === hablanteId);
-      const anim = evaluarAnimacionActorPiro(a, sc, Number(params.tiempoLocal) || 0, estaHablando, per);
+      const anim = evaluarAnimacionActorPiro(a, sc, tEsc, estaHablando, per);
+      let vecOtro = null;
+      if (actores.length > 1) {
+        const otroA = actores.find(function(x) { return x.id !== a.id; }) || null;
+        if (otroA) {
+          const ox = esH ? (otroA.posicion === 'izq' ? 275 : (otroA.posicion === 'der' ? 685 : 480)) : (otroA.posicion === 'izq' ? 155 : (otroA.posicion === 'der' ? 385 : 270));
+          const dxRaw = (ox - xBase) * (flip ? -1 : 1);
+          vecOtro = { x: Math.max(-0.78, Math.min(0.78, dxRaw / (esH ? 340 : 210))), y: 0 };
+        }
+      }
+      const miradaVec = evaluarMiradaActorPiro(a, sc, tEsc, vecOtro, (sc.id || 'sc') + '_' + a.id);
       const bocaFinal = estaHablando ? bocaActiva : (anim.bocaDef || a.boca || 'boca_cerrada');
 
       await dibujarMarionetaPiro(ctx, per, {
         cabeza: anim.cabeza || 'cabeza_base',
         cuerpo: a.cuerpo || 'cuerpo_base',
         ojos: anim.ojos || 'neutro',
+        miradaVec: miradaVec,
         boca: bocaFinal,
         brazoDel: a.brazo || (propImg ? 'brazo_delantero_prop' : 'brazo_delantero_reposo'),
         brazoTras: a.brazoTras || 'brazo_trasero_reposo',
@@ -839,7 +1008,8 @@ export async function componerEscenaPiro(ctx, params) {
       });
     }
 
-    if (imFrente) ctx.drawImage(imFrente, (W - bgSize) / 2 + panX, (H - bgSize) / 2, bgSize, bgSize);
+    if (imFrente) ctx.drawImage(imFrente, (W - bgSize) / 2 + panX * 1.32, (H - bgSize) / 2, bgSize, bgSize);
+    await dibujarElementosVivosPiro(ctx, vivosZ, 'z4', W, H, panX, zoom, tEsc, corsOpt);
 
     // Ícono FX flotante (si el prop de escena es un fx_*)
     if (sc.prop && String(sc.prop).indexOf('fx_') === 0) {
