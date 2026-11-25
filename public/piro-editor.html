@@ -457,7 +457,7 @@
 
 <script type="module">
 import GeokatuDB from './core-db.js';
-import { componerEscenaPiro, normalizarActoresEscena, extraerEnvolventeAudio, obtenerBocaDesdeEnvolvente, construirVisemasDesdeMarcasPiro, obtenerBocaLipSyncPiro, limpiarBloqueosCorsPiro, obtenerBloqueosCorsPiro, ACTUACIONES_PIRO, limpiarCacheCompositor } from './piro-compositor.js';
+import { componerEscenaPiro, normalizarActoresEscena, extraerEnvolventeAudio, obtenerBocaDesdeEnvolvente, construirVisemasDesdeMarcasPiro, obtenerBocaLipSyncPiro, limpiarBloqueosCorsPiro, obtenerBloqueosCorsPiro, ACTUACIONES_PIRO, MIRADAS_PIRO, limpiarCacheCompositor } from './piro-compositor.js';
 
 const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
 const CLAVE_PREFS_IA_ED = 'piro_ia_cloud_prefs_v2';
@@ -759,9 +759,9 @@ window.crearPackPruebasRig10s = function(personajeIdOpcional) {
   const escId = biblioteca.escenarios && biblioteca.escenarios[0] ? biblioteca.escenarios[0].id : 'esc_001';
   const zId = (biblioteca.escenarios && biblioteca.escenarios[0] && biblioteca.escenarios[0].zonas && biblioteca.escenarios[0].zonas[0]) ? biblioteca.escenarios[0].zonas[0].id : 'zona_01';
   const plantillas = [
-    { tit: 'Feliz Cantando', act: 'cantar_feliz', ojos: 'feliz', cab: 'cabeza_base', dur: 8.0, txt: 'La la la, hoy amaneci con toda la actitud y el estilo perfecto para brillar.' },
-    { tit: 'Triste Llorando', act: 'llorar_triste', ojos: 'triste', cab: 'cabeza_base', dur: 8.0, txt: 'No puede ser, me dejaron en visto y hasta mi cafe se enfrio por completo.' },
-    { tit: 'Enojado Rabieta', act: 'rabieta_enojado', ojos: 'enojado', cab: 'cabeza_base', dur: 8.0, txt: 'Que rabia! Quien fue el genio que desordeno todo el estudio otra vez?' },
+    { tit: 'Feliz Cantando', act: 'cantar_feliz', ojos: 'feliz', cab: 'cabeza_base', mir: 'camara', cam: 'paneo_der', dur: 8.0, txt: 'La la la, hoy amaneci con toda la actitud y el estilo perfecto para brillar.' },
+    { tit: 'Triste Llorando', act: 'llorar_triste', ojos: 'triste', cab: 'cabeza_base', mir: 'abajo_culpa', cam: 'zoom_in', dur: 8.0, txt: 'No puede ser, me dejaron en visto y hasta mi cafe se enfrio por completo.', evs: [{ t: 3.6, actorId: pid, mirada: 'arriba_frustracion' }] },
+    { tit: 'Enojado Rabieta', act: 'rabieta_enojado', ojos: 'enojado', cab: 'cabeza_base', mir: 'shock', cam: 'zoom_actor', dur: 8.0, txt: 'Que rabia! Quien fue el genio que desordeno todo el estudio otra vez?', evs: [{ t: 2.5, actorId: pid, mirada: 'evadir_izq' }, { t: 4.5, actorId: pid, mirada: 'camara' }] },
     { tit: 'Saludo y Carcajada', act: 'saludar', ojos: 'feliz', cab: 'cabeza_base', dur: 8.0, txt: 'Quiubo pues mi gente! Jajaja, mire como se mueve este personaje en vivo.', evs: [{ t: 3.5, dur: 4.5, actorId: pid, actuacion: 'reir', ojos: 'feliz' }] },
     { tit: 'Sorpresa 3/4 a Frente', act: 'sorprenderse', ojos: 'indignado', cab: 'cabeza_base', dur: 8.0, txt: 'Esperen un segundo... me estan grabando de frente justo ahora?', evs: [{ t: 3.2, dur: 4.8, actorId: pid, cabeza: 'cabeza_frente', ojos: 'duda', actuacion: 'pensar' }] },
     { tit: 'Pensar y Senalar', act: 'pensar', ojos: 'duda', cab: 'cabeza_base', dur: 8.0, txt: 'Dejeme pensar... ya se! El culpable esta mirando esta pantalla ahora mismo.', evs: [{ t: 3.4, dur: 4.6, actorId: pid, actuacion: 'senalar', ojos: 'indignado', mano: 'mano_senalando' }] }
@@ -773,9 +773,9 @@ window.crearPackPruebasRig10s = function(personajeIdOpcional) {
     escenas: plantillas.map(function(pl, idx) {
       return {
         id: 'sc_test_' + Date.now() + '_' + idx, actor: pid, escenario: escId, zona: zId, posicion: 'centro',
-        ojos: pl.ojos, camara: 'centro', modo: 'rig', prop: '', sfx: '', duracion: pl.dur, texto: pl.txt,
+        ojos: pl.ojos, mirada: pl.mir || 'camara', camara: pl.cam || 'centro', modo: 'rig', prop: '', sfx: '', duracion: pl.dur, texto: pl.txt,
         actuacion: pl.act, vida_auto: true, eventos_actuacion: pl.evs || [],
-        actores: [{ id: pid, posicion: 'centro', cabeza: pl.cab, cuerpo: 'cuerpo_base', ojos: pl.ojos, boca: 'boca_cerrada', brazo: 'brazo_delantero_reposo', mano: '', actuacion: pl.act, rotCab: 0, rotBrazo: 0, prop: '', escala: 1 }],
+        actores: [{ id: pid, posicion: 'centro', cabeza: pl.cab, cuerpo: 'cuerpo_base', ojos: pl.ojos, mirada: pl.mir || 'camara', boca: 'boca_cerrada', brazo: 'brazo_delantero_reposo', mano: '', actuacion: pl.act, rotCab: 0, rotBrazo: 0, prop: '', escala: 1 }],
         prompt_plano: pl.tit, audio_url: '', plano_url: ''
       };
     })
@@ -1036,7 +1036,7 @@ window.generarGuionConAPI = async function() {
       : 'Eres guionista experto en comedia corta colombiana (estilo South Park / BoJack Horseman). Responde ÚNICAMENTE con un array JSON válido sin markdown.';
     const usr = (esBilingue
       ? ('Adapta este texto fuente de "' + proyectoActivo.nombre + '" en un episodio ' + fmtTxt + ' de 8 escenas (Tensión ' + (g.tension || 8) + '/10, ' + planVeo.cat + ').\nREGLA VEO: índices [' + planVeo.indices.join(', ') + '] (base 1) llevan "render_mode":"VEO_ANIMATED","modo":"plano". Las demás "STATIC_COMIC".\nClaves exactas: {"actor":"NARRADOR","escenario":"' + (g.escenario_id || 'esc_001') + '","zona":"' + (g.zona_id || 'zona_01') + '","posicion":"centro","ojos":"neutro|enojado|duda|indignado","camara":"centro|zoom_actor|plano_general","modo":"plano","render_mode":"STATIC_COMIC|VEO_ANIMATED","prop":"","sfx":"","duracion":5.5,"texto":"diálogo ES","texto_en":"English dialogue","prompt_plano":"base static ' + asp + ' frame prompt in English","veo_bridge_prompt":"5-6s Veo animation or slow_zoom_in"}\n\nETIQUETAS:\nPersonajes:\n' + actoresTxt + '\nEscenarios:\n' + escTxt + '\nProps: ' + (propsTxt || 'ninguno') + '\nSFX: ' + (sfxTxt || 'ninguno') + '\n\nTEXTO FUENTE:\n' + g.anecdota.slice(0, 12000))
-      : ('Convierte esta anécdota en un guion dinámico ' + fmtTxt + ' de ~' + duracionObjetivoSeg + 's (7 a 12 líneas cortas, gancho fuerte y remate).\nClaves exactas: {"actor":"per_001","escenario":"' + (g.escenario_id || 'esc_001') + '","zona":"' + (g.zona_id || 'zona_01') + '","posicion":"izq|centro|der","ojos":"neutro|feliz|enojado|triste|duda|indignado","camara":"centro|izq|der|zoom_actor|plano_general","modo":"rig","prop":"","sfx":"","duracion":3.5,"texto":"diálogo colombiano","prompt_plano":"breve descripción ' + asp + ' en inglés"}\n\nETIQUETAS:\nPersonajes:\n' + actoresTxt + '\nEscenarios:\n' + escTxt + '\nProps: ' + (propsTxt || 'ninguno') + '\nSFX: ' + (sfxTxt || 'ninguno') + '\n\nANÉCDOTA:\n' + g.anecdota)) + bloqueReglas;
+      : ('Convierte esta anécdota en un guion dinámico ' + fmtTxt + ' de ~' + duracionObjetivoSeg + 's (7 a 12 líneas cortas, gancho fuerte y remate).\nClaves exactas: {"actor":"per_001","escenario":"' + (g.escenario_id || 'esc_001') + '","zona":"' + (g.zona_id || 'zona_01') + '","posicion":"izq|centro|der","ojos":"neutro|feliz|enojado|triste|duda|indignado","mirada":"interlocutor|frente|arriba_frustracion|abajo_culpa|evadir_izq|evadir_der|arriba_pensar|camara|shock|ternura","camara":"centro|izq|der|zoom_actor|plano_general|paneo_der|paneo_izq|zoom_in|zoom_out","modo":"rig","prop":"","sfx":"","duracion":3.5,"texto":"diálogo colombiano","prompt_plano":"breve descripción ' + asp + ' en inglés"}\n\nETIQUETAS:\nPersonajes:\n' + actoresTxt + '\nEscenarios:\n' + escTxt + '\nProps: ' + (propsTxt || 'ninguno') + '\nSFX: ' + (sfxTxt || 'ninguno') + '\n\nANÉCDOTA:\n' + g.anecdota)) + bloqueReglas;
 
     const raw = await llamarLLM(sys, usr);
     let arr = extraerArrayJsonLLM(raw);
@@ -1057,7 +1057,7 @@ window.generarGuionConAPI = async function() {
       return {
         id: 'sc_' + Date.now() + '_' + idx, actor: String(it.actor || (rep[0] ? rep[0].id : 'per_001')),
         escenario: String(it.escenario || g.escenario_id || 'esc_001'), zona: String(it.zona || g.zona_id || 'zona_01'),
-        posicion: String(it.posicion || (idx % 2 === 0 ? 'izq' : 'der')), ojos: String(it.ojos || 'neutro'),
+        posicion: String(it.posicion || (idx % 2 === 0 ? 'izq' : 'der')), ojos: String(it.ojos || 'neutro'), mirada: String(it.mirada || 'interlocutor'),
         camara: String(it.camara || 'centro'), modo: String(it.modo || 'rig'), prop: String(it.prop || ''), sfx: String(it.sfx || ''),
         duracion: durEst, texto: String(it.texto || ''), texto_en: String(it.texto_en || ''),
         render_mode: String(it.render_mode || 'STATIC_COMIC'), veo_bridge_prompt: String(it.veo_bridge_prompt || 'slow_zoom_in'),
@@ -1261,6 +1261,7 @@ function renderDockTimeline() {
           '<select class="sel-mini" onchange="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'id\',this.value)">' + pOpts + '</select>' +
           '<select class="sel-mini" onchange="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'posicion\',this.value)">' + [['izq','Izq'],['centro','Centro'],['der','Der (Esp)']].map(function(c) { return '<option value="' + c[0] + '"' + (a.posicion === c[0] ? ' selected' : '') + '>' + c[1] + '</option>'; }).join('') + '</select>' +
           '<select class="sel-mini" onchange="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'ojos\',this.value)">' + ['neutro','feliz','enojado','triste','duda','indignado'].map(function(o) { return '<option value="' + o + '"' + (a.ojos === o ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select>' +
+            '<select class="sel-mini" onchange="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'mirada\',this.value)">' + Object.keys(MIRADAS_PIRO).map(function(mk) { return '<option value="' + mk + '"' + ((a.mirada || 'interlocutor') === mk ? ' selected' : '') + '>Mir: ' + esc(MIRADAS_PIRO[mk].nombre) + '</option>'; }).join('') + '</select>' +
           '<select class="sel-mini" onchange="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'brazo\',this.value)"><option value="brazo_delantero_reposo"' + (a.brazo === 'brazo_delantero_reposo' ? ' selected' : '') + '>Brazo Rep</option><option value="brazo_delantero_prop"' + (a.brazo === 'brazo_delantero_prop' ? ' selected' : '') + '>Brazo Prop</option><option value="ninguno"' + (a.brazo === 'ninguno' ? ' selected' : '') + '>Sin Brazo</option></select>' +
           '<select class="sel-mini" onchange="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'prop\',this.value)">' + prOpts + '</select>' +
           '<input type="number" min="-25" max="25" class="sel-mini" style="width:54px; min-width:54px;" value="' + (a.rotCab || 0) + '" title="Giro cabeza" oninput="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'rotCab\',Number(this.value))">' +
@@ -1276,7 +1277,7 @@ function renderDockTimeline() {
       ['Cantar', 'actuacion', 'cantar_feliz'], ['Llorar', 'actuacion', 'llorar_triste'], ['Rabieta', 'actuacion', 'rabieta_enojado'],
       ['Reir', 'actuacion', 'reir'], ['Saludar', 'actuacion', 'saludar'], ['Sorpresa', 'actuacion', 'sorprenderse'],
       ['Pensar', 'actuacion', 'pensar'], ['Senalar', 'actuacion', 'senalar'], ['Asentir', 'actuacion', 'asentir'], ['Negar', 'actuacion', 'negar'],
-      ['Frente', 'cabeza', 'cabeza_frente'], ['3/4', 'cabeza', 'cabeza_base']
+      ['Frente', 'cabeza', 'cabeza_frente'], ['3/4', 'cabeza', 'cabeza_base'], ['Mir:Otro', 'mirada', 'interlocutor'], ['Mir:Arriba', 'mirada', 'arriba_frustracion'], ['Mir:Abajo', 'mirada', 'abajo_culpa'], ['Mir:Evadir', 'mirada', 'evadir_izq'], ['Mir:Cam', 'mirada', 'camara'], ['Mir:Shock', 'mirada', 'shock']
     ].map(function(pd) {
       return '<button type="button" class="btn btn-xs ' + (grabandoActuacion ? 'btn-primary' : 'btn-blue') + '" onclick="window.dispararPadActuacion(\'' + pd[1] + '\',\'' + pd[2] + '\')">' + pd[0] + '</button>';
     }).join('');
@@ -1317,7 +1318,7 @@ function renderDockTimeline() {
       '<div class="subpanel">' +
         '<div class="sub-top"><div style="display:flex; gap:5px; align-items:center;"><span class="sub-title">Cám/FX</span><button type="button" class="btn btn-xs btn-green" onclick="window.abrirModalAudioLib()">+ Música/SFX</button></div><button type="button" class="btn btn-green btn-xs" onclick="window.cerrarToolTL()">Listo</button></div>' +
         '<div class="sub-row">' +
-          '<select class="sel-mini" onchange="window.editEscena(' + clipSelIdx + ',\'camara\',this.value)">' + [['centro','Cám Centro'],['izq','Cám Izq'],['der','Cám Der'],['zoom_actor','Zoom'],['plano_general','General']].map(function(c) { return '<option value="' + c[0] + '"' + ((sc.camara || 'centro') === c[0] ? ' selected' : '') + '>' + c[1] + '</option>'; }).join('') + '</select>' +
+          '<select class="sel-mini" onchange="window.editEscena(' + clipSelIdx + ',\'camara\',this.value)">' + [['centro','Cám Centro'],['izq','Cám Izq'],['der','Cám Der'],['zoom_actor','Zoom'],['plano_general','General'],['paneo_der','2.5D Paneo →'],['paneo_izq','2.5D Paneo ←'],['zoom_in','2.5D Zoom In'],['zoom_out','2.5D Zoom Out']].map(function(c) { return '<option value="' + c[0] + '"' + ((sc.camara || 'centro') === c[0] ? ' selected' : '') + '>' + c[1] + '</option>'; }).join('') + '</select>' +
           '<select class="sel-mini" onchange="window.editEscena(' + clipSelIdx + ',\'modo\',this.value)"><option value="rig"' + ((sc.modo || 'rig') === 'rig' ? ' selected' : '') + '>Piro-Rig</option><option value="plano"' + (sc.modo === 'plano' ? ' selected' : '') + '>Plano IA</option></select>' +
           '<input type="number" step="0.1" min="0.5" class="sel-mini" style="width:62px; min-width:62px;" value="' + (Number(sc.duracion) || 3) + '" title="Duración (s)" oninput="window.editEscena(' + clipSelIdx + ',\'duracion\',this.value)">' +
           '<select class="sel-mini" onchange="window.editEscena(' + clipSelIdx + ',\'prop\',this.value)">' + fxOpts + '</select>' +
