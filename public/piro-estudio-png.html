@@ -725,6 +725,9 @@ let cajaPreDraw = null;
 let moldesRig = {};
 let moldesRigTs = 0;
 let slotKeyActual = '';
+let proyectoIdActual = 'pirobonianos';
+let operationIdActual = '';
+try { const rpSt = localStorage.getItem('piro_proyecto_activo_v1'); if (rpSt) { const po = JSON.parse(rpSt); if (po && po.id) proyectoIdActual = String(po.id); } } catch (e) {}
 let calibPasos = [];
 let calibIdx = 0;
 let calibModo = 'x';
@@ -766,6 +769,8 @@ function guardarMetaSyncLocal() {
   if (!imgOriginalDataUrl) return;
   try {
     localStorage.setItem(LS_META_KEY, JSON.stringify({
+      proyectoId: proyectoIdActual,
+      operationId: operationIdActual,
       pasoActual: pasoActual,
       presetId: presetActual.id,
       entidadId: document.getElementById('input-entidad-id').value,
@@ -793,6 +798,8 @@ function guardarBorradorEnDisco(inmediato) {
         const db = await abrirDraftIDB();
         const tx = db.transaction(IDB_STORE, 'readwrite');
         tx.objectStore(IDB_STORE).put({
+          proyectoId: proyectoIdActual,
+          operationId: operationIdActual,
           v: 1,
           fecha: Date.now(),
           pasoActual: pasoActual,
@@ -864,6 +871,8 @@ async function intentarRestaurarBorrador() {
       }
     } catch (e) {}
 
+    if (meta.proyectoId) proyectoIdActual = String(meta.proyectoId);
+    if (meta.operationId) operationIdActual = String(meta.operationId);
     if (meta.presetId) window.seleccionarPreset(meta.presetId, false);
     if (meta.entidadId) document.getElementById('input-entidad-id').value = meta.entidadId;
     if (meta.zonaId) document.getElementById('input-zona-id').value = meta.zonaId;
@@ -2119,7 +2128,7 @@ function detectarZonaCaja(presetId, archivo, etiqueta) {
 
 function claveLocalCajas() {
   const eId = slug(document.getElementById('input-entidad-id').value, 'per_001');
-  return 'piro_cajas_guia_' + eId;
+  return 'piro_cajas_guia_' + slug(proyectoIdActual, 'pirobonianos') + '_' + eId;
 }
 
 function guardarCajasEnLocal() {
@@ -2157,11 +2166,11 @@ function pasosParaMolde(mk) {
     { key: 'cuello', titulo: 'Pivote Cuello', tipo: 'pivote', hint: 'Toca el punto de unión del cuello' }
   ];
 }
-function claveLocalMoldes() { return 'piro_moldes_rig_' + slug(document.getElementById('input-entidad-id').value, 'per_001'); }
+function claveLocalMoldes() { return 'piro_moldes_rig_' + slug(proyectoIdActual, 'pirobonianos') + '_' + slug(document.getElementById('input-entidad-id').value, 'per_001'); }
 function guardarMoldesEnLocal() { moldesRigTs = Date.now(); try { localStorage.setItem(claveLocalMoldes(), JSON.stringify({ ts: moldesRigTs, moldes: moldesRig })); } catch (e) {} }
 function cargarMoldesCombinados(pivInit) {
   let locM = {}, locTs = 0;
-  try { const raw = localStorage.getItem(claveLocalMoldes()); if (raw) { const o = JSON.parse(raw); if (o && o.moldes) { locM = o.moldes; locTs = Number(o.ts) || 0; } } } catch (e) {}
+  try { let raw = localStorage.getItem(claveLocalMoldes()); if (!raw && proyectoIdActual === 'pirobonianos') raw = localStorage.getItem('piro_moldes_rig_' + slug(document.getElementById('input-entidad-id').value, 'per_001')); if (raw) { const o = JSON.parse(raw); if (o && o.moldes) { locM = o.moldes; locTs = Number(o.ts) || 0; } } } catch (e) {}
   const nubeM = (pivInit && pivInit._moldes && typeof pivInit._moldes === 'object') ? pivInit._moldes : null;
   const nubeTs = (pivInit && Number(pivInit._moldes_ts)) ? Number(pivInit._moldes_ts) : 0;
   moldesRig = (nubeM && (!locTs || nubeTs >= locTs)) ? Object.assign({}, locM, nubeM) : Object.assign({}, nubeM || {}, locM);
@@ -2244,7 +2253,7 @@ window.omitirCalibracionMolde = function() { const debeGuardar = calibGuardarAlC
 function cargarCajasCombinadas(pivInit) {
   let locCajas = {}, locTs = 0;
   try {
-    const raw = localStorage.getItem(claveLocalCajas());
+    let raw = localStorage.getItem(claveLocalCajas()); if (!raw && proyectoIdActual === 'pirobonianos') raw = localStorage.getItem('piro_cajas_guia_' + slug(document.getElementById('input-entidad-id').value, 'per_001'));
     if (raw) { const o = JSON.parse(raw); if (o && o.cajas) { locCajas = o.cajas; locTs = Number(o.ts) || 0; } }
   } catch (e) {}
   const nubeCajas = (pivInit && pivInit._cajas && typeof pivInit._cajas === 'object') ? pivInit._cajas : null;
@@ -2611,10 +2620,12 @@ async function guardarYExportarPNG(saltarCalibracion) {
     guardarBorradorEnDisco(true);
     window.parent.postMessage({
       tipo: 'PIRO_EXPORTAR_PNG',
+      operationId: operationIdActual || ('op_' + Date.now()),
+      proyectoId: proyectoIdActual,
       blob: blob,
       rutaRelativa: rutaRelativa,
       nombreArchivo: rutaRelativa.split('/').pop(),
-      pivotes: Object.assign({}, pivotes, (cajasGuiaTs > 0 || Object.keys(cajasGuia).length > 0) ? { _cajas: cajasGuia, _cajas_ts: cajasGuiaTs || Date.now() } : {}, (moldesRigTs > 0 || Object.keys(moldesRig).length > 0) ? { _moldes: moldesRig, _moldes_ts: moldesRigTs || Date.now() } : {}),
+      pivotes: (function() { const pl = {}; PIVOTES_KEYS.forEach(function(k) { const pv = pivotes[k]; if (pv && typeof pv.x === 'number' && typeof pv.y === 'number') pl[k] = [Math.round(pv.x), Math.round(pv.y)]; }); return Object.assign(pl, (cajasGuiaTs > 0 || Object.keys(cajasGuia).length > 0) ? { _cajas: cajasGuia, _cajas_ts: cajasGuiaTs || Date.now() } : {}, (moldesRigTs > 0 || Object.keys(moldesRig).length > 0) ? { _moldes: moldesRig, _moldes_ts: moldesRigTs || Date.now() } : {}); })(),
 alturaCm: alturaCm
     }, '*');
     toast('PNG enviado. Esperando confirmación en la nube...', 'info');
@@ -3079,11 +3090,19 @@ wrapStage.addEventListener('wheel', function(e) {
 // =========================================================================
 window.addEventListener('message', async function(e) {
   if (!e.data || !e.data.tipo) return;
+  if (e.data.tipo === 'PIRO_SHELL_CAMBIAR_PROYECTO' || e.data.tipo === 'PIRO_SHELL_AUTH') {
+    if (e.data.proyecto && e.data.proyecto.id) proyectoIdActual = String(e.data.proyecto.id);
+    return;
+  }
   if (e.data.tipo === 'PIRO_PNG_GUARDADO_OK') {
+    if (e.data.operationId && operationIdActual && e.data.operationId !== operationIdActual) return;
+    operationIdActual = '';
     await limpiarBorradorEnDisco();
     return;
   }
   if (e.data.tipo === 'PIRO_ESTUDIO_CONFIG') {
+    if (e.data.proyectoId) proyectoIdActual = String(e.data.proyectoId);
+    operationIdActual = e.data.operationId ? String(e.data.operationId) : ('op_' + Date.now());
     if (e.data.dataUrl) recibidoConfigExterno = true;
     const pedirFormato = e.data.presetId === 'elegir';
     if (e.data.presetId && !pedirFormato) window.seleccionarPreset(e.data.presetId, false);
