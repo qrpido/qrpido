@@ -677,6 +677,7 @@ export function normalizarActoresEscena(sc) {
         rotMano: Number(a.rotMano) || 0,
         rotBrazoTras: Number(a.rotBrazoTras) || 0,
         prop: String(a.prop || ''),
+        acc: String(a.acc || ''),
         actuacion: String(a.actuacion || ''),
         mirada: String(a.mirada || ''),
         cejas: String(a.cejas || ''),
@@ -696,6 +697,7 @@ export function normalizarActoresEscena(sc) {
     rotCab: Number(sc.rotCab) || 0,
     rotBrazo: Number(sc.rotBrazo) || 0,
     prop: esPropMano ? String(sc.prop) : '',
+    acc: String(sc.acc || ''),
     actuacion: String(sc.actuacion || ''),
     mirada: String(sc.mirada || ''),
     cejas: String(sc.cejas || ''),
@@ -996,20 +998,65 @@ function dibujarSubtituloPiro(ctx, texto, W, H, esH) {
 /**
  * Compone una escena completa (Fondo -> Múltiples Actores + Props en mano -> Frente -> FX -> Subtítulo -> Safe Zones).
  */
+export async function precargarRecursosEpisodioPiro(episodio, biblioteca, opts) {
+  const urls = new Set();
+  const g = episodio || {}, bib = biblioteca || {};
+  const corsOpt = { strictCors: Boolean(opts && opts.strictCors) };
+  const addU = function(u) { if (u && typeof u === 'string' && u.length > 5) urls.add(u); };
+  (g.escenas || []).forEach(function(sc) {
+    if (sc.plano_url) addU(sc.plano_url);
+    const escObj = (bib.escenarios || []).find(function(e) { return e.id === (sc.escenario || g.escenario_id); }) || (bib.escenarios || [])[0];
+    const zObj = escObj ? ((escObj.zonas || []).find(function(z) { return z.id === (sc.zona || g.zona_id); }) || (escObj.zonas || [])[0]) : null;
+    if (zObj) {
+      if (zObj.z1_lejano) addU(zObj.z1_lejano.url);
+      if (zObj.z2_medio) addU(zObj.z2_medio.url); else if (zObj.fondo) addU(zObj.fondo.url);
+      if (zObj.z4_frente) addU(zObj.z4_frente.url); else if (zObj.frente) addU(zObj.frente.url);
+      (zObj.elementos_vivos || []).forEach(function(ev) { if (ev && ev.url) addU(ev.url); });
+    }
+    if (sc.prop && String(sc.prop).indexOf('fx_') === 0) {
+      const fx = (bib.props || []).find(function(x) { return x.id === sc.prop; });
+      if (fx && fx.archivo) addU(fx.archivo.url);
+    }
+    normalizarActoresEscena(sc).forEach(function(a) {
+      const per = (bib.personajes || []).find(function(p) { return p.id === a.id; });
+      if (per && per.piezas) {
+        Object.keys(per.piezas).forEach(function(k) { if (per.piezas[k] && per.piezas[k].url) addU(per.piezas[k].url); });
+      }
+      if (a.prop) {
+        const pr = (bib.props || []).find(function(x) { return x.id === a.prop; });
+        if (pr && pr.archivo) addU(pr.archivo.url);
+      }
+    });
+  });
+  const lista = Array.from(urls);
+  let ok = 0, fail = 0;
+  for (let i = 0; i < lista.length; i += 6) {
+    const lote = lista.slice(i, i + 6);
+    const res = await Promise.all(lote.map(function(u) { return cargarImagenPiro(u, corsOpt); }));
+    res.forEach(function(im) { if (im) ok++; else fail++; });
+  }
+  return { total: lista.length, ok: ok, fail: fail };
+}
+
 export async function componerEscenaPiro(ctx, params) {
   const sc = params.escena;
   const g = params.episodio || {};
   const bib = params.biblioteca || {};
   const esH = Boolean(params.esHorizontal);
-  const W = Number(params.ancho) || (esH ? 960 : 540);
-  const H = Number(params.alto) || (esH ? 540 : 960);
+  const W = esH ? 960 : 540;
+  const H = esH ? 540 : 960;
+  const WOut = Number(params.ancho) || W;
+  const HOut = Number(params.alto) || H;
 
+  ctx.save();
+  if (WOut !== W || HOut !== H) ctx.scale(WOut / W, HOut / H);
   ctx.fillStyle = '#0d1117';
   ctx.fillRect(0, 0, W, H);
 
   if (!sc) {
     ctx.fillStyle = '#64748b'; ctx.font = '700 18px system-ui'; ctx.textAlign = 'center';
     ctx.fillText('Sin escenas en el timeline', W / 2, H / 2);
+    ctx.restore();
     return;
   }
 
@@ -1094,6 +1141,7 @@ export async function componerEscenaPiro(ctx, params) {
         brazoDel: a.brazo || (propImg ? 'brazo_delantero_prop' : 'brazo_delantero_reposo'),
         brazoTras: a.brazoTras || 'brazo_trasero_reposo',
         mano: anim.mano || '',
+        acc: a.acc || '',
         rotCab: anim.rotCab || 0,
         rotBrazo: anim.rotBrazo || 0,
         rotAntebrazo: anim.rotAntebrazo || 0,
@@ -1141,4 +1189,5 @@ export async function componerEscenaPiro(ctx, params) {
     }
     ctx.restore();
   }
+  ctx.restore();
 }
