@@ -153,7 +153,12 @@
   .cal-chip { flex: 0 0 auto; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border); background: rgba(255,255,255,0.05); font-size: 10px; font-weight: 800; color: var(--muted); cursor: pointer; }
   .cal-chip.ok { border-color: rgba(34,197,94,0.55); color: #86efac; background: rgba(34,197,94,0.14); }
   .cal-chip.activo { border-color: var(--naranja); color: #fff; background: rgba(255,107,0,0.28); }
-    .lote-bar { padding: 6px 10px; background: rgba(56, 189, 248, 0.14); border-bottom: 1px solid rgba(56, 189, 248, 0.45); display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+      .casc-bar { padding: 6px 8px; background: rgba(13, 20, 34, 0.98); border-bottom: 1px solid rgba(34, 197, 94, 0.45); display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
+  .casc-row { display: flex; align-items: center; gap: 5px; overflow-x: auto; scrollbar-width: none; }
+  .casc-row::-webkit-scrollbar { display: none; }
+  .casc-pill { flex: 0 0 auto; padding: 3px 8px; border-radius: 99px; border: 1px solid var(--border); background: rgba(255,255,255,0.05); font-size: 10px; font-weight: 800; color: var(--muted); cursor: pointer; }
+  .casc-pill.activo { border-color: var(--verde); background: rgba(34,197,94,0.22); color: #86efac; }
+  .lote-bar { padding: 6px 10px; background: rgba(56, 189, 248, 0.14); border-bottom: 1px solid rgba(56, 189, 248, 0.45); display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .lote-track { flex: 1; height: 7px; border-radius: 99px; background: rgba(255,255,255,0.1); overflow: hidden; }
   .lote-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--naranja), var(--verde)); transition: width .2s; }
   .btn-play-live { background: linear-gradient(135deg, #22c55e, #16a34a); border-color: rgba(34,197,94,0.75); color: #042f1a; font-weight: 900; }
@@ -263,6 +268,19 @@
       <div class="lote-track"><div id="lote-1clic-fill" class="lote-fill"></div></div>
       <button type="button" class="btn btn-xs btn-danger" onclick="window.cancelarFabricacion1Clic()">Detener</button>
     </div>
+        <div id="barra-cascada-fab" class="casc-bar hidden">
+      <div class="casc-row" id="casc-etapas-row"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:5px; flex-wrap:wrap;">
+        <span id="casc-paso-txt" style="font-size:10.5px; font-weight:800; color:#86efac;">Paso a paso</span>
+        <div style="display:flex; gap:4px; align-items:center; flex-wrap:wrap;">
+          <button type="button" class="btn btn-xs btn-purple hidden" id="btn-casc-cabeza-sola" onclick="window.abrirCabezaSolaPromediar()">Cabeza Sola</button>
+          <button type="button" class="btn btn-xs btn-danger hidden" id="btn-casc-fijar-x" onclick="window.toggleFijarXPivoteCascada()">Fijar X</button>
+          <button type="button" class="btn btn-xs" onclick="window.moverPasoCascada(-1)">Ant</button>
+          <button type="button" class="btn btn-xs btn-green" onclick="window.moverPasoCascada(1)">Sig</button>
+          <button type="button" class="btn btn-xs" onclick="window.toggleAsistenteCascada(false)">X</button>
+        </div>
+      </div>
+    </div>
     <div class="stage-wrap bg-grid" id="stage-fab">
       <div class="hud-top-left">
         <button type="button" class="btn btn-xs btn-play-live" id="btn-play-live-fab" onclick="window.togglePlayDemoFab()">Play</button>
@@ -273,6 +291,7 @@
         <button type="button" class="btn btn-xs btn-purple" onclick="window.abrirModalJsonPlano()">JSON</button>
         <button type="button" class="btn btn-xs btn-green" id="btn-vaciar-pup" onclick="window.toggleVaciarPupilaFab()">Sin Pupila: ON</button>
         <button type="button" class="btn btn-xs btn-blue" onclick="window.convertirOjosActualesAPupilaDinamica()">Convertir Ojos</button>
+        <button type="button" class="btn btn-xs btn-green" id="btn-cascada-fab" onclick="window.toggleAsistenteCascada()">Paso a Paso</button>
         <button type="button" class="btn btn-xs btn-primary" onclick="window.abrirCalibradorRig()">Calibrar Rig</button>
         <button type="button" class="btn btn-xs btn-purple" onclick="window.toggleAjusteCapaFab()">Ajustar Capa</button>
         <select class="sel-top" style="max-width:112px; font-size:10px; padding:4px 6px;" onchange="window.cambiarMiradaPreviewFab(this.value)"><option value="frente">Mir: Frente</option><option value="arriba_frustracion">Mir: Arriba</option><option value="abajo_culpa">Mir: Abajo</option><option value="evadir_izq">Mir: Izq</option><option value="evadir_der">Mir: Der</option><option value="shock">Mir: Shock</option><option value="ternura">Mir: Ternura</option></select>
@@ -422,6 +441,7 @@
       <div style="display:flex; gap:4px;">
         <button type="button" class="btn btn-xs btn-primary" id="btn-cal-v34" onclick="window.setVistaCalRig('3_4')">3/4 (45°)</button>
         <button type="button" class="btn btn-xs" id="btn-cal-vf" onclick="window.setVistaCalRig('frente')">Frente (0°)</button>
+        <button type="button" class="btn btn-xs" id="btn-cal-vcab" onclick="window.setVistaCalRig('cabeza_sola')">Cabeza Sola</button>
         <button type="button" class="btn btn-xs" onclick="window.cerrarModalFab('modal-calibrar-rig')">Cerrar</button>
       </div>
     </div>
@@ -454,6 +474,7 @@
     <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
       <button type="button" class="btn btn-xs btn-danger" onclick="window.limpiarPasoCalRig()">Borrar Paso</button>
       <button type="button" class="btn btn-xs btn-blue" onclick="window.siguientePasoCalRig()">Siguiente Paso →</button>
+      <button type="button" class="btn btn-xs btn-purple hidden" id="btn-cal-promediar" onclick="window.promediarCabezaSolaConCuerpo()">Promediar con Cuerpo</button>
       <button type="button" class="btn btn-xs btn-green" style="flex:1;" onclick="window.guardarCalibracionRig()">Guardar Calibración Maestra</button>
     </div>
   </div>
@@ -1979,6 +2000,10 @@ window.procesarLienzoManualSubido = function(file) {
       if (rep.faltantes.length) toast('Recorte parcial: ' + rep.guardadas + '/' + rep.esperadas + ' (vacías: ' + rep.faltantes.slice(0, 3).join(', ') + ')', 'error', 5200);
       else toast('Auditoría OK: ' + rep.guardadas + '/' + rep.esperadas + ' piezas guardadas ($0).', 'exito', 3800);
       if (l.id_lienzo === 'turnaround_360' || l.id_lienzo === 'maestro_cuerpo') { setTimeout(function() { window.abrirCalibradorRig(); }, 450); }
+      else if (l.id_lienzo === 'cuerpos_360' || l.id_lienzo === 'cabezas_360') { setTimeout(function() { window.toggleAsistenteCascada(true, 'cuerpo_cab'); }, 350); }
+      else if (l.id_lienzo === 'brazos_articulados' || l.id_lienzo === 'brazos_base') { setTimeout(function() { window.toggleAsistenteCascada(true, 'brazos_sup'); }, 350); }
+      else if (l.id_lienzo === 'manos_base') { setTimeout(function() { window.toggleAsistenteCascada(true, 'manos'); }, 350); }
+      else if (/^(ojos|cejas|bocas)_/.test(String(l.id_lienzo || ''))) { setTimeout(function() { window.toggleAsistenteCascada(true, 'cara'); }, 350); }
     } catch (err) {
       toast('Error recortando lienzo: ' + err.message, 'error', 4200);
     } finally {
@@ -2273,8 +2298,241 @@ const PASOS_CAL_FRENTE = [
 let calVista = '3_4', calPasoIdx = 0, calDatos = { moldes: {}, pivotes: {} }, calImgCache = null, calDragIni = null, calDragAct = null;
 let ajusteCapaAbierto = false, ajCapaActiva = 'ojos';
 
-function pasosCalActuales() { return calVista === 'frente' ? PASOS_CAL_FRENTE : PASOS_CAL_34; }
-function mkCalActual() { return calVista === 'frente' ? 'cabeza_frente' : 'cabeza_base'; }
+// =========================================================================
+// ASISTENTE PASO A PASO EN CASCADA + CABEZA SOLA PROMEDIADA + FIJAR X VIVO
+// =========================================================================
+function pantallaACanvas1000x1600(cv, clientX, clientY) {
+  const r = cv.getBoundingClientRect();
+  const ar = 1000 / 1600, br = r.width / Math.max(1, r.height);
+  let dw = r.width, dh = r.height, ox = 0, oy = 0;
+  if (br > ar) { dw = r.height * ar; ox = (r.width - dw) / 2; }
+  else { dh = r.width / ar; oy = (r.height - dh) / 2; }
+  const x = Math.max(0, Math.min(1000, Math.round(((clientX - r.left - ox) / Math.max(1, dw)) * 1000)));
+  const y = Math.max(0, Math.min(1600, Math.round(((clientY - r.top - oy) / Math.max(1, dh)) * 1600)));
+  return { x: x, y: y };
+}
+
+const PASOS_CAL_CAB_SOLA = [
+  { id: 'ojos', tipo: 'box', nom: 'Ojos (Cab Sola)', col: '#a855f7', tip: 'Marca los 2 ojos directo sobre la cabeza sola (sin cuerpo).' },
+  { id: 'cejas', tipo: 'box', nom: 'Cejas (Cab Sola)', col: '#f472b6', tip: 'Marca las cejas directo sobre la cabeza sola.' },
+  { id: 'boca', tipo: 'box', nom: 'Boca (Cab Sola)', col: '#facc15', tip: 'Marca la boca/hocico directo sobre la cabeza sola.' },
+  { id: 'cuello', tipo: 'pt', nom: 'X Cuello (Cab Sola)', col: '#ef4444', tip: 'Toca la base del cuello sobre la cabeza sola.' }
+];
+
+window.promediarCabezaSolaConCuerpo = function() {
+  const mCab = calDatos.moldes.cabeza_sola_ref;
+  if (!mCab || (!mCab.cuello && (!mCab.zonas || !Object.keys(mCab.zonas).length))) {
+    toast('Marca al menos Ojos, Cejas, Boca o X Cuello en Cabeza Sola primero.', 'error'); return;
+  }
+  if (!calDatos.moldes.cabeza_base) calDatos.moldes.cabeza_base = { angulo: '3_4', zonas: {}, calibrado: true };
+  if (!calDatos.moldes.cabeza_base.zonas) calDatos.moldes.cabeza_base.zonas = {};
+  let nProm = 0;
+  ['ojos', 'cejas', 'boca'].forEach(function(k) {
+    const b = mCab.zonas && mCab.zonas[k] && mCab.zonas[k].caja;
+    if (!b || b.w < 6 || b.h < 6) return;
+    const a = calDatos.moldes.cabeza_base.zonas[k] && calDatos.moldes.cabeza_base.zonas[k].caja;
+    const mix = a ? { x: Math.round((a.x + b.x) / 2), y: Math.round((a.y + b.y) / 2), w: Math.round((a.w + b.w) / 2), h: Math.round((a.h + b.h) / 2) } : Object.assign({}, b);
+    calDatos.moldes.cabeza_base.zonas[k] = { caja: mix, puntos: [{ x: Math.round(mix.x + mix.w / 2), y: Math.round(mix.y + mix.h / 2) }] };
+    nProm++;
+  });
+  if (mCab.cuello) {
+    const aC = calDatos.moldes.cabeza_base.cuello || (Array.isArray(calDatos.pivotes.cuello) ? { x: calDatos.pivotes.cuello[0], y: calDatos.pivotes.cuello[1] } : null);
+    const cMix = aC ? { x: Math.round((aC.x + mCab.cuello.x) / 2), y: Math.round((aC.y + mCab.cuello.y) / 2) } : { x: mCab.cuello.x, y: mCab.cuello.y };
+    calDatos.moldes.cabeza_base.cuello = cMix;
+    calDatos.pivotes.cuello = [cMix.x, cMix.y];
+    nProm++;
+  }
+  calDatos.moldes.cabeza_base.calibrado = true;
+  window.setVistaCalRig('3_4');
+  toast('Promediado con cuerpo completo (' + nProm + ' referencias). Pulsa Guardar Calibración.', 'exito', 4200);
+};
+
+const CASCADA_ETAPAS = [
+  { id: 'completo', nom: '1. Completo' },
+  { id: 'cuerpo_cab', nom: '2. Cuerpo+Cab' },
+  { id: 'brazos_sup', nom: '3. Brazos Sup' },
+  { id: 'antebrazos', nom: '4. Antebrazos' },
+  { id: 'manos', nom: '5. Manos' },
+  { id: 'cara', nom: '6. Cara (O/C/B)' }
+];
+let cascadaActiva = false, cascEtapaIdx = 1, cascItemIdx = 0, cascPivoteActivo = '';
+
+function obtenerItemsEtapaCascada(p, etapaId) {
+  const pzs = (p && p.piezas) || {};
+  const tiene = function(k) { return Boolean(cacheLocalUrls[k] || (pzs[k] && pzs[k].url)); };
+  const keys = Object.keys(pzs).filter(tiene);
+  if (etapaId === 'completo') return [{ capa: 'cuerpo', slot: 'cuerpo_base', nom: 'Cuerpo Completo (Paso 1.5)', abrirCal: '3_4' }];
+  if (etapaId === 'cuerpo_cab') {
+    const out = [];
+    if (tiene('cuerpo_base')) out.push({ capa: 'cuerpo', slot: 'cuerpo_base', nom: 'Cuerpo sin brazos', piv: 'cuello', pivLbl: 'X Cuello' });
+    if (tiene('cabeza_base')) out.push({ capa: 'cabeza', slot: 'cabeza_base', nom: 'Cabeza sola (cuello)', piv: 'cuello', pivLbl: 'X Cuello', cabSola: true });
+    return out.length ? out : [{ capa: 'cabeza', slot: 'cabeza_base', nom: 'Cabeza sola', piv: 'cuello', pivLbl: 'X Cuello', cabSola: true }];
+  }
+  if (etapaId === 'brazos_sup') {
+    const out = [];
+    if (tiene('brazo_del_sup')) out.push({ capa: 'brazo', slot: 'brazo_del_sup', seg: 'brazo_del_sup', nom: 'Brazo Sup Delantero', piv: 'codo_delantero', pivLbl: 'X Codo Del' });
+    if (tiene('brazo_tras_sup')) out.push({ capa: 'brazo', slot: 'brazo_tras_sup', seg: 'brazo_tras_sup', nom: 'Brazo Sup Trasero', piv: 'codo_trasero', pivLbl: 'X Codo Tras' });
+    keys.filter(function(k) { return (k.indexOf('brazo_delantero_') === 0 || k === 'brazos_cruzados'); }).forEach(function(k) {
+      out.push({ capa: 'brazo', slot: k, brazoEntero: true, nom: (pzs[k] && pzs[k].etiqueta) || k, piv: 'hombro_delantero', pivLbl: 'X Hombro' });
+    });
+    return out.length ? out : [{ capa: 'brazo', slot: 'brazo_del_sup', seg: 'brazo_del_sup', nom: 'Sube Lienzo 13 (Codos)', piv: 'codo_delantero', pivLbl: 'X Codo Del' }];
+  }
+  if (etapaId === 'antebrazos') {
+    const out = [];
+    if (tiene('brazo_del_ant')) out.push({ capa: 'brazo', slot: 'brazo_del_ant', seg: 'brazo_del_ant', nom: 'Antebrazo Delantero', piv: 'mano_delantera', pivLbl: 'X Muñeca Del' });
+    if (tiene('brazo_tras_ant')) out.push({ capa: 'brazo', slot: 'brazo_tras_ant', seg: 'brazo_tras_ant', nom: 'Antebrazo Trasero', piv: 'mano_trasera', pivLbl: 'X Muñeca Tras' });
+    return out.length ? out : [{ capa: 'brazo', slot: 'brazo_del_ant', seg: 'brazo_del_ant', nom: 'Sube Lienzo 13 (Codos)', piv: 'mano_delantera', pivLbl: 'X Muñeca Del' }];
+  }
+  if (etapaId === 'manos') {
+    const ms = keys.filter(function(k) { return k.indexOf('mano_') === 0; });
+    return (ms.length ? ms : ['mano_relajada']).map(function(k) {
+      return { capa: 'mano', slot: k, nom: (pzs[k] && pzs[k].etiqueta) || k.replace('mano_', ''), piv: 'mano_delantera', pivLbl: 'X Muñeca' };
+    });
+  }
+  const cara = [];
+  keys.filter(function(k) { return k.indexOf('ojos_') === 0 && k.indexOf('_frente') < 0; }).forEach(function(k) { cara.push({ capa: 'ojos', slot: k, nom: 'Ojos · ' + ((pzs[k] && pzs[k].etiqueta) || k.replace('ojos_', '')) }); });
+  keys.filter(function(k) { return k.indexOf('cejas_') === 0 && k.indexOf('_frente') < 0; }).forEach(function(k) { cara.push({ capa: 'cejas', slot: k, nom: 'Cejas · ' + ((pzs[k] && pzs[k].etiqueta) || k.replace('cejas_', '')) }); });
+  keys.filter(function(k) { return k.indexOf('boca_') === 0; }).forEach(function(k) { cara.push({ capa: 'boca', slot: k, nom: 'Boca · ' + ((pzs[k] && pzs[k].etiqueta) || k.replace('boca_', '')) }); });
+  return cara.length ? cara : [{ capa: 'boca', slot: 'boca_cerrada', nom: 'Boca base' }];
+}
+
+function aplicarPasoCascadaActual() {
+  const p = obtenerPersonajeActual(); if (!p) return;
+  const et = CASCADA_ETAPAS[cascEtapaIdx] || CASCADA_ETAPAS[1];
+  const items = obtenerItemsEtapaCascada(p, et.id);
+  if (cascItemIdx >= items.length) cascItemIdx = 0;
+  if (cascItemIdx < 0) cascItemIdx = Math.max(0, items.length - 1);
+  const it = items[cascItemIdx];
+  cascPivoteActivo = '';
+  if (ajGestoModo === 'pivote') ajGestoModo = 'palanca';
+  if (it.abrirCal) { window.abrirCalibradorRig(); }
+  else {
+    if (!ajusteCapaAbierto) window.toggleAjusteCapaFab(true);
+    ajCapaActiva = it.capa;
+    ajScope = 'pieza';
+    if (it.capa === 'brazo') {
+      if (it.seg) { estadoRueda.brazo = 'articulado'; ajBrazoSeg = it.seg; }
+      else if (it.brazoEntero) { estadoRueda.brazo = it.slot; }
+    } else if (it.capa === 'mano') {
+      if (resolverCapacidadesRigPiro(p).artDelCompleto) estadoRueda.brazo = 'articulado';
+      estadoRueda.mano = it.slot;
+    } else if (it.capa === 'ojos') { estadoRueda.ojos = it.slot; }
+    else if (it.capa === 'cejas') { estadoRueda.cejas = it.slot; }
+    else if (it.capa === 'boca') { estadoRueda.boca = it.slot; }
+    else if (it.capa === 'cuerpo') { estadoRueda.cuerpo = it.slot; }
+    else if (it.capa === 'cabeza') { estadoRueda.cabeza = it.slot; }
+    const cIdx = CATS_RUEDA.findIndex(function(c) { return c.id === it.capa; });
+    if (cIdx >= 0) catIdxRueda = cIdx;
+    refrescarPanelAjusteFab();
+    renderRuedas2D();
+    dibujarPersonajeOffline();
+  }
+  renderBarraCascada();
+}
+
+function renderBarraCascada() {
+  const bar = document.getElementById('barra-cascada-fab'); if (!bar) return;
+  bar.classList.toggle('hidden', !cascadaActiva);
+  if (!cascadaActiva) return;
+  const p = obtenerPersonajeActual();
+  const et = CASCADA_ETAPAS[cascEtapaIdx] || CASCADA_ETAPAS[1];
+  const items = obtenerItemsEtapaCascada(p, et.id);
+  const it = items[cascItemIdx] || items[0] || {};
+  const row = document.getElementById('casc-etapas-row');
+  if (row) {
+    row.innerHTML = CASCADA_ETAPAS.map(function(e, i) {
+      return '<button type="button" class="casc-pill ' + (i === cascEtapaIdx ? 'activo' : '') + '" onclick="window.irEtapaCascada(' + i + ')">' + esc(e.nom) + '</button>';
+    }).join('');
+  }
+  const txt = document.getElementById('casc-paso-txt');
+  if (txt) txt.textContent = et.nom + ' (' + (cascItemIdx + 1) + '/' + items.length + ') · ' + (it.nom || '');
+  const bCab = document.getElementById('btn-casc-cabeza-sola');
+  if (bCab) bCab.classList.toggle('hidden', et.id !== 'cuerpo_cab');
+  const bX = document.getElementById('btn-casc-fijar-x');
+  if (bX) {
+    bX.classList.toggle('hidden', !it.piv);
+    bX.textContent = (ajGestoModo === 'pivote' && cascPivoteActivo === it.piv) ? ('Tocando ' + (it.pivLbl || 'X') + '...') : ('Fijar ' + (it.pivLbl || 'X'));
+    bX.className = 'btn btn-xs ' + ((ajGestoModo === 'pivote' && cascPivoteActivo === it.piv) ? 'btn-primary' : 'btn-danger') + (!it.piv ? ' hidden' : '');
+  }
+}
+
+window.toggleAsistenteCascada = function(forzar, etapaIdOpcional) {
+  cascadaActiva = typeof forzar === 'boolean' ? forzar : !cascadaActiva;
+  if (cascadaActiva) {
+    if (etapaIdOpcional) {
+      const idx = CASCADA_ETAPAS.findIndex(function(e) { return e.id === etapaIdOpcional; });
+      if (idx >= 0) { cascEtapaIdx = idx; cascItemIdx = 0; }
+    }
+    aplicarPasoCascadaActual();
+  } else {
+    cascPivoteActivo = '';
+    if (ajGestoModo === 'pivote') ajGestoModo = 'palanca';
+    renderBarraCascada();
+    guardarBiblioteca(true);
+  }
+};
+
+window.irEtapaCascada = function(idx) {
+  cascEtapaIdx = Math.max(0, Math.min(CASCADA_ETAPAS.length - 1, idx));
+  cascItemIdx = 0;
+  aplicarPasoCascadaActual();
+};
+
+window.moverPasoCascada = function(delta) {
+  const p = obtenerPersonajeActual();
+  const et = CASCADA_ETAPAS[cascEtapaIdx] || CASCADA_ETAPAS[1];
+  const items = obtenerItemsEtapaCascada(p, et.id);
+  guardarBiblioteca(false);
+  if (cascItemIdx + delta >= items.length) {
+    if (cascEtapaIdx + 1 < CASCADA_ETAPAS.length) { cascEtapaIdx++; cascItemIdx = 0; }
+    else { guardarBiblioteca(true); toast('Calibración en cascada completada y guardada.', 'exito', 4000); return; }
+  } else if (cascItemIdx + delta < 0) {
+    if (cascEtapaIdx > 0) { cascEtapaIdx--; const prevIt = obtenerItemsEtapaCascada(p, CASCADA_ETAPAS[cascEtapaIdx].id); cascItemIdx = Math.max(0, prevIt.length - 1); }
+    else cascItemIdx = 0;
+  } else {
+    cascItemIdx += delta;
+  }
+  aplicarPasoCascadaActual();
+};
+
+window.abrirCabezaSolaPromediar = async function() {
+  await window.abrirCalibradorRig();
+  await window.setVistaCalRig('cabeza_sola');
+};
+
+window.toggleFijarXPivoteCascada = function() {
+  const p = obtenerPersonajeActual();
+  const et = CASCADA_ETAPAS[cascEtapaIdx] || CASCADA_ETAPAS[1];
+  const items = obtenerItemsEtapaCascada(p, et.id);
+  const it = items[cascItemIdx] || items[0];
+  if (!it || !it.piv) return;
+  if (ajGestoModo === 'pivote' && cascPivoteActivo === it.piv) {
+    ajGestoModo = 'palanca'; cascPivoteActivo = '';
+  } else {
+    ajGestoModo = 'pivote'; cascPivoteActivo = it.piv;
+    toast('Toca en el personaje el punto exacto para ' + (it.pivLbl || it.piv) + ' (puedes hacer Zoom antes).', 'info', 3600);
+  }
+  renderBarraCascada(); refrescarPanelAjusteFab();
+};
+
+function fijarPivoteVivoDesdeToque(pivKey, pt1000) {
+  const p = obtenerPersonajeActual(); if (!p || !pivKey || !pt1000) return;
+  let raw = {}; try { if (p.pivotes_json) raw = JSON.parse(p.pivotes_json); } catch (e) { raw = {}; }
+  raw[pivKey] = [pt1000.x, pt1000.y];
+  if (pivKey === 'cuello') {
+    if (!raw._moldes) raw._moldes = {};
+    if (!raw._moldes.cabeza_base) raw._moldes.cabeza_base = { angulo: '3_4', zonas: {}, calibrado: true };
+    raw._moldes.cabeza_base.cuello = { x: pt1000.x, y: pt1000.y };
+  }
+  raw._moldes_ts = Date.now();
+  p.pivotes_json = JSON.stringify(raw, null, 2);
+  guardarBiblioteca(false);
+  dibujarPersonajeOffline();
+  toast('X ' + pivKey + ' fijada en [' + pt1000.x + ', ' + pt1000.y + ']', 'exito', 2600);
+}
+
+function pasosCalActuales() { return calVista === 'frente' ? PASOS_CAL_FRENTE : (calVista === 'cabeza_sola' ? PASOS_CAL_CAB_SOLA : PASOS_CAL_34); }
+function mkCalActual() { return calVista === 'frente' ? 'cabeza_frente' : (calVista === 'cabeza_sola' ? 'cabeza_sola_ref' : 'cabeza_base'); }
 
 window.abrirCalibradorRig = async function() {
   const p = obtenerPersonajeActual(); if (!p) return;
@@ -2288,17 +2546,19 @@ window.abrirCalibradorRig = async function() {
 };
 
 window.setVistaCalRig = async function(v) {
-  calVista = v === 'frente' ? 'frente' : '3_4';
+  calVista = (v === 'frente' || v === 'cabeza_sola') ? v : '3_4';
   window.resetZoomCalRig();
   calPasoIdx = 0;
   document.getElementById('btn-cal-v34').className = 'btn btn-xs ' + (calVista === '3_4' ? 'btn-primary' : '');
   document.getElementById('btn-cal-vf').className = 'btn btn-xs ' + (calVista === 'frente' ? 'btn-primary' : '');
+  const bCabV = document.getElementById('btn-cal-vcab'); if (bCabV) bCabV.className = 'btn btn-xs ' + (calVista === 'cabeza_sola' ? 'btn-primary' : '');
+  const bPromV = document.getElementById('btn-cal-promediar'); if (bPromV) bPromV.classList.toggle('hidden', calVista !== 'cabeza_sola');
   const p = obtenerPersonajeActual(), pzs = (p && p.piezas) || {};
-  const kPref = calVista === 'frente' ? ['maestro_frente', 'cabeza_frente', 'cuerpo_frente', 'maestro_cuerpo'] : ['maestro_cuerpo', 'cuerpo_base', 'cabeza_base', 'maestro_frente'];
+  const kPref = calVista === 'frente' ? ['maestro_frente', 'cabeza_frente', 'cuerpo_frente', 'maestro_cuerpo'] : (calVista === 'cabeza_sola' ? ['cabeza_base', 'cabeza_frente', 'maestro_cuerpo'] : ['maestro_cuerpo', 'cuerpo_base', 'cabeza_base', 'maestro_frente']);
   calImgCache = null;
   for (let i = 0; i < kPref.length; i++) {
     const src = cacheLocalUrls[kPref[i]] || (pzs[kPref[i]] && pzs[kPref[i]].url);
-    if (src) { try { calImgCache = await cargarImg(src); break; } catch (eI) {} }
+    if (src) { try { calImgCache = await cargarImg(src); if (calVista === 'cabeza_sola') { calZoom = 2.0; calPanX = 0; calPanY = 120; aplicarTransformCalRig(); } break; } catch (eI) {} }
   }
   renderCalibradorRig();
 };
@@ -2385,7 +2645,7 @@ window.toggleModoPanCalRig = function() { calModoPan = !calModoPan; aplicarTrans
   const ptrs = new Map(); let pinchIni = null, panIni = null;
   const ptCanvas = function(ev) {
     const r = cv.getBoundingClientRect();
-    return { x: Math.max(0, Math.min(1000, Math.round(((ev.clientX - r.left) / Math.max(1, r.width)) * 1000))), y: Math.max(0, Math.min(1600, Math.round(((ev.clientY - r.top) / Math.max(1, r.height)) * 1600))) };
+    return pantallaACanvas1000x1600(cv, ev.clientX, ev.clientY);
   };
   const targetEl = wrap || cv;
   targetEl.style.touchAction = 'none';
@@ -2521,7 +2781,7 @@ window.toggleCalibrarManoTraseraFab = function() {
   }
   refrescarPanelAjusteFab(); dibujarPersonajeOffline();
 };
-window.setGestoAjusteFab = function(m) { ajGestoModo = m || 'palanca'; refrescarPanelAjusteFab(); };
+window.setGestoAjusteFab = function(m) { ajGestoModo = m || 'palanca'; if (ajGestoModo !== 'pivote') cascPivoteActivo = ''; refrescarPanelAjusteFab(); if (cascadaActiva) renderBarraCascada(); };
 window.toggleFlipAjusteFab = function() {
   const p = obtenerPersonajeActual(); if (!p) return;
   const cur = leerAjusteActivoFab(p);
@@ -2811,6 +3071,14 @@ window.resetAjusteCapaFab = function() {
     const stR = st.getBoundingClientRect();
     const p = obtenerPersonajeActual(); if (!p) return;
     const cur = leerAjusteActivoFab(p);
+    if (ajGestoModo === 'pivote' && cascPivoteActivo) {
+      const cvEl = document.getElementById('cv-fabrica');
+      const pt1000 = pantallaACanvas1000x1600(cvEl, ev.clientX, ev.clientY);
+      fijarPivoteVivoDesdeToque(cascPivoteActivo, pt1000);
+      ajGestoModo = 'palanca'; cascPivoteActivo = '';
+      renderBarraCascada(); refrescarPanelAjusteFab();
+      return;
+    }
     if (ajGestoModo === 'paneo') {
       dragAct = { tipo: 'paneo', x0: ev.clientX, y0: ev.clientY, px: fabPanX, py: fabPanY };
     } else if (ajGestoModo === 'mover') {
