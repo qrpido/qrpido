@@ -832,8 +832,12 @@ function enviarAFrame(nombre, mensaje) {
 }
 
 window.PiroShell = {
-  irA: function(destino, sinHistorial) {
+    irA: function(destino, sinHistorial) {
+    const prev = vistaActiva;
     const v = VISTAS[destino] ? destino : 'resumen';
+    if (prev && prev !== v && prev !== 'resumen' && cargados[prev]) {
+      enviarAFrame(prev, { tipo: 'PIRO_SHELL_PAUSAR', destino: v });
+    }
     vistaActiva = v;
     Object.keys(VISTAS).forEach(function(k) {
       VISTAS[k].classList.toggle('activa', k === v);
