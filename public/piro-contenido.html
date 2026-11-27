@@ -1944,7 +1944,22 @@ window.resetearSandwich = function() {
   sandwichCfg = { angulo: '3_4_der', cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', ojos: 'ojos_neutro', cejas: '', boca: 'boca_cerrada', brazoDel: 'brazo_delantero_reposo', brazoTras: 'brazo_trasero_reposo', mano: '', acc: '', mirada: 'frente', guias: false, rotCab: 0, rotBrazo: 0, rotAntebrazo: 0, rotMano: 0, rotBrazoTras: 0, rotAntebrazoTras: 0, bg: sandwichCfg.bg, piernas: true, prop: '' };
   swPanelModo = ''; renderizarVistaPersonajes();
 };
-window.dibujarProbadorSandwich = async function(liveCfg) {
+let swRenderSeq = 0, swRenderBusy = false, swRenderQueued = null;
+window.dibujarProbadorSandwich = function(liveCfg) {
+  const req = { seq: ++swRenderSeq, proyId: proyectoActivo.id, perId: selId.personajes, liveSid: swPlaySid, liveCfg: liveCfg || null };
+  if (swRenderBusy) { swRenderQueued = req; return Promise.resolve(); }
+  const runSw = async function(r) {
+    swRenderBusy = true;
+    try { await ejecutarDibujoSandwichSerial(r); }
+    finally {
+      swRenderBusy = false;
+      if (swRenderQueued) { const nxt = swRenderQueued; swRenderQueued = null; runSw(nxt); }
+    }
+  };
+  return runSw(req);
+};
+async function ejecutarDibujoSandwichSerial(r) {
+  const liveCfg = r.liveCfg;
   const canvas = document.getElementById('canvas-sandwich'), p = obtenerPersonajeActual();
   if (!canvas || !p) return;
   if (!cvSwBuf) { cvSwBuf = document.createElement('canvas'); cvSwBuf.width = 1000; cvSwBuf.height = 1600; }
@@ -1979,6 +1994,7 @@ window.dibujarProbadorSandwich = async function(liveCfg) {
     if (imZ4) ctx.drawImage(imZ4, -300 + pan25 * 1.32, 0, 1600, 1600);
     await dibujarElementosVivosPiro(ctx, z25.elementos_vivos || [], 'z4', 1000, 1600, pan25, 1, tBg, {});
   }
+  if (r.seq !== swRenderSeq || r.proyId !== proyectoActivo.id || r.perId !== selId.personajes || (liveCfg && r.liveSid !== swPlaySid)) return;
   const ctxVis = canvas.getContext('2d'); ctxVis.clearRect(0, 0, 1000, 1600); ctxVis.drawImage(cvSwBuf, 0, 0);
   const est = document.getElementById('sandwich-estado-txt');
   if (est) est.textContent = swPlayOn ? 'EN VIVO' : textoEstadoSandwich(p, n);
@@ -3582,7 +3598,9 @@ window.addEventListener('message', async function(e) {
     }
     limpiarCacheCompositor();
     cargarBiblioteca();
-    } else if (e.data.tipo === 'PIRO_VAULT_ACTUALIZADO') {
+    } else if (e.data.tipo === 'PIRO_SHELL_PAUSAR') {
+    if (swPlayOn) window.detenerPlayDemoSw();
+  } else if (e.data.tipo === 'PIRO_VAULT_ACTUALIZADO') {
     if (e.data.estadoIA) { try { localStorage.setItem(CLAVE_PREFS_IA_CONT, JSON.stringify(e.data.estadoIA)); } catch (er) {} }
     actualizarBadgeModalGIA();
   } else if (e.data.tipo === 'PIRO_SHELL_ABRIR_CREAR') {
