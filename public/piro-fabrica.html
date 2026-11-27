@@ -977,6 +977,7 @@ const REGLA_CEJAS_LIMPIAS_EN = ' STRICT EYEBROW RIG RULE: Draw ONLY 2 solid flat
 const REGLA_BOCAS_LIMPIAS_EN = ' CRITICAL MOUTH RIG STYLE: Simple flat 2D #000000 black-ink cartoon mouth lines and flat openings designed to paste directly onto a character face/muzzle. ZERO fleshy lips, ZERO colored or skin-toned lip borders, ZERO snout, ZERO muzzle, ZERO fur, ZERO beard, ZERO sharp fangs. Teeth MUST be simple flat white rounded cartoon tooth bars (NEVER individual realistic or jagged teeth), dark flat interior, flat pink tongue. Keep consistent horizontal scale across all cells.';
 const REGLA_MANOS_LIMPIAS_EN = ' STRICT HAND RIG RULE: Isolated hands cut cleanly at the wrist with closed outline, ZERO forearm, ZERO sleeve, ZERO props. UNIFORM ORIENTATION across all cells: wrist cut ALWAYS at top/top-left and fingers pointing down/right, IDENTICAL hand scale in every cell.';
 const REGLA_ACC_LIMPIOS_EN = ' STRICT ACCESSORY RIG RULE: Isolated flat 2D wearable items/props ONLY. ZERO mannequin, ZERO head, ZERO body, ZERO hands wearing or holding the item. Generous pure #00FF00 margin around every cell.';
+const REGLA_BRAZOS_CODO_EN = ' CRITICAL ELBOW-ARTICULATED PUPPET ARM RULES: Draw 4 isolated vertical arm segments on a 2x2 grid at the EXACT SAME SCALE so the circular elbow joint diameter W is IDENTICAL in all 4 cells (R1C1 bottom elbow circle width == R1C2 top elbow circle width == R2C1 bottom elbow circle width == R2C2 top elbow circle width). ZERO head, ZERO torso, ZERO hands, ZERO fingers, ZERO pants, ZERO shoes. TOP ROW (FRONT ARM): R1C1 = UPPER ARM ONLY (short rounded shoulder sleeve cap covering upper 60-70% + short fur/skin bicep ending in a smooth semicircular elbow cap of width W); R1C2 = FOREARM ONLY (starts with a smooth semicircular elbow cap of EXACT SAME width W at top, tapering gently down to a clean flat closed wrist cuff at bottom, NO sleeve, NO hand). BOTTOM ROW (REAR ARM): R2C1 = REAR UPPER ARM ONLY (matching R1C1 sleeve + short elbow cap of width W); R2C2 = REAR FOREARM ONLY (matching R1C2 elbow cap of width W down to closed wrist cuff, NO sleeve, NO hand).';
 window.toggleVaciarPupilaFab = function() {
   vaciarPupilaAuto = !vaciarPupilaAuto;
   const b = document.getElementById('btn-vaciar-pup');
@@ -1674,29 +1675,35 @@ function obtenerCajaDestino(p, tipoAnc, slotKey, etiquetaUi, zonaExplicit) {
   }
   if (tipoAnc === 'brazo' || skStr.indexOf('brazo') === 0) {
     const zC = getC('cuerpo');
-    if (skStr === 'brazo_del_sup') {
+        if (skStr === 'brazo_del_sup') {
       const cx = Math.round((piv.hombro_delantero.x + piv.codo_delantero.x) / 2);
-      const y0 = Math.round(piv.hombro_delantero.y - 34), y1 = Math.round(piv.codo_delantero.y + 22);
-      const h = Math.max(120, y1 - y0), w = Math.max(90, Math.round(h * 0.62));
-      return { x: Math.round(cx - w / 2), y: y0, w: w, h: h };
+      const y0 = Math.round(piv.hombro_delantero.y - 30), y1 = Math.round(piv.codo_delantero.y + 20);
+      const h = Math.max(120, y1 - y0), w = Math.max(92, Math.round(h * 0.64));
+      return { x: Math.round(cx - w / 2), y: y0, w: w, h: h, bottomAlign: true };
     }
     if (skStr === 'brazo_del_ant') {
-      const cx = Math.round((piv.codo_delantero.x + piv.mano_delantera.x) / 2);
-      const y0 = Math.round(piv.codo_delantero.y - 22), y1 = Math.round(piv.mano_delantera.y + 8);
-      const h = Math.max(110, y1 - y0), w = Math.max(76, Math.round(h * 0.54));
-      return { x: Math.round(cx - w / 2), y: y0, w: w, h: h };
+      const manoOk = piv.mano_delantera.marcado && Math.abs(piv.mano_delantera.x - piv.codo_delantero.x) < 160 && piv.mano_delantera.y > piv.codo_delantero.y + 40;
+      const mX = manoOk ? piv.mano_delantera.x : piv.codo_delantero.x;
+      const mY = manoOk ? piv.mano_delantera.y : Math.round(piv.codo_delantero.y + Math.max(130, piv.codo_delantero.y - piv.hombro_delantero.y));
+      const cx = Math.round((piv.codo_delantero.x + mX) / 2);
+      const y0 = Math.round(piv.codo_delantero.y - 20), y1 = Math.round(mY + 6);
+      const h = Math.max(110, y1 - y0), w = Math.max(58, Math.round(h * 0.36));
+      return { x: Math.round(cx - w / 2), y: y0, w: w, h: h, topAlign: true };
     }
     if (skStr === 'brazo_tras_sup') {
       const cx = Math.round((piv.hombro_trasero.x + piv.codo_trasero.x) / 2);
-      const y0 = Math.round(piv.hombro_trasero.y - 34), y1 = Math.round(piv.codo_trasero.y + 22);
-      const h = Math.max(120, y1 - y0), w = Math.max(88, Math.round(h * 0.60));
-      return { x: Math.round(cx - w / 2), y: y0, w: w, h: h };
+      const y0 = Math.round(piv.hombro_trasero.y - 30), y1 = Math.round(piv.codo_trasero.y + 20);
+      const h = Math.max(120, y1 - y0), w = Math.max(88, Math.round(h * 0.62));
+      return { x: Math.round(cx - w / 2), y: y0, w: w, h: h, bottomAlign: true };
     }
-        if (skStr === 'brazo_tras_ant') {
-      const cx = Math.round((piv.codo_trasero.x + piv.mano_trasera.x) / 2);
-      const y0 = Math.round(piv.codo_trasero.y - 22), y1 = Math.round(piv.mano_trasera.y + 8);
-      const h = Math.max(110, y1 - y0), w = Math.max(74, Math.round(h * 0.54));
-      return { x: Math.round(cx - w / 2), y: y0, w: w, h: h };
+    if (skStr === 'brazo_tras_ant') {
+      const mOkT = piv.mano_trasera.marcado && Math.abs(piv.mano_trasera.x - piv.codo_trasero.x) < 160 && piv.mano_trasera.y > piv.codo_trasero.y + 40;
+      const mXT = mOkT ? piv.mano_trasera.x : piv.codo_trasero.x;
+      const mYT = mOkT ? piv.mano_trasera.y : Math.round(piv.codo_trasero.y + Math.max(130, piv.codo_delantero.y - piv.hombro_delantero.y));
+      const cx = Math.round((piv.codo_trasero.x + mXT) / 2);
+      const y0 = Math.round(piv.codo_trasero.y - 20), y1 = Math.round(mYT + 6);
+      const h = Math.max(110, y1 - y0), w = Math.max(56, Math.round(h * 0.36));
+      return { x: Math.round(cx - w / 2), y: y0, w: w, h: h, topAlign: true };
     }
     if (skStr === 'brazos_cruzados' || skStr === 'manos_cintura') {
       const bw = zC ? Math.round(zC.w * 1.04) : 340, bx = zC ? Math.round(zC.x + (zC.w - bw) / 2) : 330;
@@ -1727,7 +1734,7 @@ function anclarRecorteEn1000x1600(cvCell, bbox, cajaDst) {
   const sc = Math.min(cajaDst.w / bbox.w, cajaDst.h / bbox.h);
   const dw = Math.round(bbox.w * sc), dh = Math.round(bbox.h * sc);
   const dx = Math.round(cajaDst.x + (cajaDst.w - dw) / 2);
-  const dy = cajaDst.bottomAlign ? Math.round(cajaDst.y + cajaDst.h - dh) : Math.round(cajaDst.y + (cajaDst.h - dh) / 2);
+  const dy = cajaDst.topAlign ? Math.round(cajaDst.y) : (cajaDst.bottomAlign ? Math.round(cajaDst.y + cajaDst.h - dh) : Math.round(cajaDst.y + (cajaDst.h - dh) / 2));
   ctx.drawImage(cvCell, bbox.x, bbox.y, bbox.w, bbox.h, dx, dy, dw, dh);
   if (metaRecorteOjoTmp && metaRecorteOjoTmp.esOjoAb) {
     const escl = detectarYVaciarPupilasOjo(out, vaciarPupilaAuto);
@@ -1861,7 +1868,8 @@ function armarPromptFinalLienzo(p, lienzo) {
   const esBocaL = id.indexOf('boca') >= 0 || cat === 'bocas';
   const esManoL = id.indexOf('mano') >= 0 || cat === 'manos';
   const esAccL = id.indexOf('acc') >= 0 || cat === 'accesorios';
-  const esCabezaL = id === 'cabezas_360';
+    const esCabezaL = id === 'cabezas_360';
+  const esBrazoArtL = id === 'brazos_articulados';
   const estilo = obtenerEstiloVisualBase(p);
   const rasgos = obtenerPaletaRasgosBase(p);
   const enc = (p && p.encuesta_v2) || datosEncuesta || {};
@@ -1882,9 +1890,13 @@ function armarPromptFinalLienzo(p, lienzo) {
   } else if (esAccL) {
     pref = 'STYLE BIBLE: ' + estilo + '. ';
     extra = REGLA_ACC_LIMPIOS_EN;
-  } else if (esCabezaL) {
+    } else if (esCabezaL) {
     pref = 'STYLE BIBLE: ' + estilo + '. HEAD TRAITS ONLY: ' + rasgos + '. ';
     extra = ' FLOATING DETACHED HEADS ONLY: ZERO shoulders, ZERO collar, ZERO shirt, ZERO torso, ZERO arms. Smooth featureless blank face (ZERO eyes, ZERO eyebrows, ZERO mouth line) with short rounded neck stub at bottom.';
+  } else if (esBrazoArtL) {
+    pref = 'STYLE BIBLE: ' + estilo + '. SLEEVE: ' + (enc.prenda_superior || 'base shirt sleeve') + '. ARM FUR/SKIN: ' + [enc.tono_piel_pelaje, enc.patron_manchas].filter(Boolean).join(', ') + '. ';
+    cuerpoPrompt = 'STRICT 2D CUT-OUT PUPPET SHEET (2x2 invisible square grid, 1:1 canvas): 4 separate vertical elbow-articulated arm segments matching the sleeve and arm fur/skin above.';
+    extra = REGLA_BRAZOS_CODO_EN;
   } else {
     const fullBib = (p && p.blueprint_v2 && p.blueprint_v2.identidad_canonica_en) ? p.blueprint_v2.identidad_canonica_en : (estilo + '. ' + rasgos);
     pref = 'CHARACTER BIBLE: ' + fullBib + '. ';
@@ -2217,8 +2229,22 @@ window.moverRuedaH = function(delta) {
   dibujarPersonajeOffline();
 };
 
-let cvFabBuf = null;
-async function dibujarPersonajeOffline(liveCfg) {
+let cvFabBuf = null, fabRenderSeq = 0, fabRenderBusy = false, fabRenderQueued = null;
+function dibujarPersonajeOffline(liveCfg) {
+  const req = { seq: ++fabRenderSeq, proyId: proyectoActivo.id, perId: perIdActual, liveSid: playLiveSid, liveCfg: liveCfg || null };
+  if (fabRenderBusy) { fabRenderQueued = req; return Promise.resolve(); }
+  const runDraw = async function(r) {
+    fabRenderBusy = true;
+    try { await ejecutarDibujoOfflineSerial(r); }
+    finally {
+      fabRenderBusy = false;
+      if (fabRenderQueued) { const nxt = fabRenderQueued; fabRenderQueued = null; runDraw(nxt); }
+    }
+  };
+  return runDraw(req);
+}
+async function ejecutarDibujoOfflineSerial(r) {
+  const liveCfg = r.liveCfg;
   const cv = document.getElementById('cv-fabrica'), p = obtenerPersonajeActual();
   if (!cv) return;
   if (!p) { cv.getContext('2d').clearRect(0, 0, 1000, 1600); return; }
@@ -2259,7 +2285,8 @@ async function dibujarPersonajeOffline(liveCfg) {
     if (imZ4) ctx.drawImage(imZ4, -300 + pan25 * 1.32, 0, 1600, 1600);
     await dibujarElementosVivosPiro(ctx, z25.elementos_vivos || [], 'z4', 1000, 1600, pan25, 1, tBg, {});
   }
-    const ctxVis = cv.getContext('2d'); ctxVis.clearRect(0, 0, 1000, 1600); ctxVis.drawImage(cvFabBuf, 0, 0);
+    if (r.seq !== fabRenderSeq || r.proyId !== proyectoActivo.id || r.perId !== perIdActual || (liveCfg && r.liveSid !== playLiveSid)) return;
+  const ctxVis = cv.getContext('2d'); ctxVis.clearRect(0, 0, 1000, 1600); ctxVis.drawImage(cvFabBuf, 0, 0);
   const hud = document.getElementById('hud-progreso');
   if (hud) hud.textContent = Object.keys(pzsOffline).length + ' piezas · ' + (playLiveOn ? 'EN VIVO' : '0ms');
 }
@@ -2886,27 +2913,38 @@ function aplicarObjetoVisionCalibracion(obj, targetDatos, vistaDef) {
   const dObj = targetDatos || calDatos;
   const v = obj.vista === 'frente' ? 'frente' : (vistaDef || calVista);
   const mk = v === 'frente' ? 'cabeza_frente' : 'cabeza_base';
-  if (!dObj.moldes[mk]) dObj.moldes[mk] = { angulo: v, zonas: {}, calibrado: true };
-  if (!dObj.moldes[mk].zonas) dObj.moldes[mk].zonas = {};
   const cjs = obj.cajas || obj.zonas || {};
+  const pvs = obj.pivotes || {};
+  const zonasVal = {}, pivVal = {}; let cuelloVal = null, nOk = 0;
   ['cuerpo', 'cabeza', 'ojos', 'cejas', 'boca', 'brazo', 'mano'].forEach(function(k) {
     const c = cjs[k];
-    if (c && typeof c.x === 'number' && typeof c.y === 'number' && c.w > 8 && c.h > 6) {
-      const bx = { x: Math.round(c.x), y: Math.round(c.y), w: Math.round(c.w), h: Math.round(c.h) };
-      dObj.moldes[mk].zonas[k] = { caja: bx, puntos: [{ x: Math.round(bx.x + bx.w / 2), y: Math.round(bx.y + bx.h / 2) }] };
-    }
+    if (!c || typeof c !== 'object') return;
+    const x = Number(c.x), y = Number(c.y), w = Number(c.w), h = Number(c.h);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(w) || !Number.isFinite(h)) return;
+    if (x < 0 || y < 0 || w < 10 || h < 8 || x + w > 1000 || y + h > 1600) return;
+    const bx = { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) };
+    zonasVal[k] = { caja: bx, puntos: [{ x: Math.round(bx.x + bx.w / 2), y: Math.round(bx.y + bx.h / 2) }] };
+    nOk++;
   });
-  const pvs = obj.pivotes || {};
   ['cuello', 'hombro_delantero', 'codo_delantero', 'mano_delantera', 'hombro_trasero', 'codo_trasero', 'mano_trasera', 'cadera_delantera'].forEach(function(k) {
     const pt = pvs[k];
-    if (Array.isArray(pt) && pt.length >= 2) {
-      const px = Math.round(Number(pt[0])), py = Math.round(Number(pt[1]));
-      if (k === 'cuello') dObj.moldes[mk].cuello = { x: px, y: py };
-      if (v === '3_4') dObj.pivotes[k] = [px, py];
-    }
+    if (!Array.isArray(pt) || pt.length < 2) return;
+    const px = Number(pt[0]), py = Number(pt[1]);
+    if (!Number.isFinite(px) || !Number.isFinite(py) || px < 0 || px > 1000 || py < 0 || py > 1600) return;
+    const rx = Math.round(px), ry = Math.round(py);
+    if (k === 'cuello') cuelloVal = { x: rx, y: ry };
+    if (v === '3_4') pivVal[k] = [rx, ry];
+    nOk++;
   });
+  if (nOk === 0) throw new Error('Calibración vacía o fuera de 1000x1600 (rechazada).');
+  if (!dObj.moldes[mk]) dObj.moldes[mk] = { angulo: v, zonas: {}, calibrado: false };
+  if (!dObj.moldes[mk].zonas) dObj.moldes[mk].zonas = {};
+  Object.assign(dObj.moldes[mk].zonas, zonasVal);
+  if (cuelloVal) dObj.moldes[mk].cuello = cuelloVal;
+  Object.assign(dObj.pivotes, pivVal);
   dObj.moldes[mk].calibrado = true;
   if (!targetDatos) renderCalibradorRig();
+  return nOk;
 }
 
 async function autoCalibrarSilenciosoPostTurnaround(p) {
@@ -3212,21 +3250,28 @@ window.fabricarPersonajeCompleto1Clic = async function() {
     if (!ls.length) throw new Error('No se obtuvo el Plano Maestro JSON.');
     aplicarVozSugeridaPlano(p, p.blueprint_v2);
     await guardarBiblioteca(true);
-    let hechos = 0;
+        let hechos = 0, fallidos = 0;
     for (let i = 0; i < ls.length; i++) {
       if (lote1ClicCancelar) break;
       const l = ls[i];
       const pct = Math.round(((i + 1) / (ls.length + 1)) * 100);
-      if (lienzoEstaListo(p, l)) { hechos++; continue; }
+      const esTurn = (l.id_lienzo === 'turnaround_360' || l.id_lienzo === 'maestro_cuerpo');
+      if (lienzoEstaListo(p, l)) {
+        hechos++;
+        if (esTurn && !(parsearMoldes(p).cabeza_base && parsearMoldes(p).cabeza_base.calibrado)) { actualizarBarraLote1Clic(true, pct + 2, 'Paso 1.5 · Verificando calibración Visión IA...'); await autoCalibrarSilenciosoPostTurnaround(p); }
+        continue;
+      }
       lienzoSelId = l.id_lienzo;
       actualizarBarraLote1Clic(true, pct, 'Lienzo ' + (i + 1) + '/' + ls.length + ' · ' + (l.titulo_boton || l.id_lienzo) + '...');
       await window.ejecutarLienzoBlueprint(l.id_lienzo);
-      if ((l.id_lienzo === 'turnaround_360' || l.id_lienzo === 'maestro_cuerpo') && !lote1ClicCancelar) { actualizarBarraLote1Clic(true, pct + 3, 'Paso 1.5 · Auto-Calibrando cajas y pivotes con Gemini Visión...'); await autoCalibrarSilenciosoPostTurnaround(p); }
-      if (lienzoEstaListo(p, l)) hechos++;
+      if (esTurn && !lote1ClicCancelar && lienzoEstaListo(p, l)) { actualizarBarraLote1Clic(true, pct + 3, 'Paso 1.5 · Auto-Calibrando cajas y pivotes con Gemini Visión...'); await autoCalibrarSilenciosoPostTurnaround(p); }
+      if (lienzoEstaListo(p, l)) hechos++; else fallidos++;
     }
     actualizarBarraLote1Clic(false, 100, '');
     if (lote1ClicCancelar) toast('Fabricación pausada (' + hechos + '/' + ls.length + ' lienzos listos). Puedes continuar luego sin repetir.', 'info', 4500);
-    else toast('Personaje listo (' + hechos + '/' + ls.length + ' lienzos + voz IA). Pulsa Play para verlo en vivo.', 'exito', 5000);
+    else if (hechos === 0) toast('Lote sin piezas producidas (0/' + ls.length + '). Revisa tu API/red y reintenta.', 'error', 5000);
+    else if (fallidos > 0 || hechos < ls.length) toast('Fabricación parcial: ' + hechos + '/' + ls.length + ' lienzos completos (' + fallidos + ' pendientes). Reintenta 1-Clic para completar.', 'info', 5200);
+    else toast('Personaje completo (' + hechos + '/' + ls.length + ' lienzos + voz IA). Pulsa Play para verlo en vivo.', 'exito', 5000);
   } catch (err) {
     actualizarBarraLote1Clic(false, 0, '');
     toast('Error fabricación 1-Clic: ' + err.message, 'error', 4500);
@@ -3559,6 +3604,9 @@ window.addEventListener('message', function(e) {
     }
     cargarBorradorEncuestaLocal();
     cargarBiblioteca();
+  } else if (e.data.tipo === 'PIRO_SHELL_PAUSAR') {
+    if (playLiveOn) window.detenerPlayDemoFab();
+    if (ambPlayOn) window.togglePlayAmb25D();
   } else if (e.data.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA') {
     if (e.data.proyectoId && e.data.proyectoId !== proyectoActivo.id) return;
     limpiarCacheCompositor();
