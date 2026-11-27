@@ -444,7 +444,7 @@
 
 <script type="module">
 import GeokatuDB from './core-db.js';
-import { dibujarMarionetaPiro, cargarImagenPiro, parsearMoldes, parsearAjustesCapas, limpiarCacheCompositor, obtenerPerspectivaCabeza, resolverPiezaPerspectiva, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO, ACTUACIONES_PIRO, evaluarAnimacionActorPiro, evaluarMiradaActorPiro, construirVisemasDesdeMarcasPiro, obtenerBocaLipSyncPiro, dibujarElementosVivosPiro } from './piro-compositor.js';
+import { dibujarMarionetaPiro, cargarImagenPiro, precargarPiezasPersonajePiro, extraerEnvolventeAudio, parsearMoldes, parsearAjustesCapas, limpiarCacheCompositor, obtenerPerspectivaCabeza, resolverPiezaPerspectiva, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO, ACTUACIONES_PIRO, evaluarAnimacionActorPiro, evaluarMiradaActorPiro, construirVisemasDesdeMarcasPiro, obtenerBocaLipSyncPiro, dibujarElementosVivosPiro } from './piro-compositor.js';
 
 const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
 function normalizarDocBibId(id, proyId) {
@@ -532,7 +532,7 @@ let swToolActiva = null; // null | ojos | bocas | brazo | prop | rotar
 let tipoPromptVista = 'cuerpo_completo';
 let filtroPropsCat = 'todos';
 let perspCarrusel = '3_4';
-let sandwichCfg = { angulo: '3_4_der', cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', ojos: 'ojos_neutro', cejas: '', boca: 'boca_cerrada', brazoDel: 'brazo_delantero_reposo', brazoTras: 'brazo_trasero_reposo', mano: '', acc: '', mirada: 'frente', guias: false, rotCab: 0, rotBrazo: 0, rotAntebrazo: 0, rotMano: 0, rotBrazoTras: 0, bg: 'checker', piernas: true, prop: '' };
+let sandwichCfg = { angulo: '3_4_der', cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', ojos: 'ojos_neutro', cejas: '', boca: 'boca_cerrada', brazoDel: 'brazo_delantero_reposo', brazoTras: 'brazo_trasero_reposo', mano: '', acc: '', mirada: 'frente', guias: false, rotCab: 0, rotBrazo: 0, rotAntebrazo: 0, rotMano: 0, rotBrazoTras: 0, rotAntebrazoTras: 0, bg: 'checker', piernas: true, prop: '' };
 let slotUploadPendiente = null;
 let tipoModalCrear = null;
 let debounceGuardar = null;
@@ -1405,10 +1405,13 @@ window.cambiarVozIdSelectSw = function(val) {
   else p.voz_es = val;
   swPlayCacheKey = ''; guardarBiblioteca(false);
 };
+let swPlaySid = 0, swPlayDrawing = false, cvSwBuf = null;
 window.detenerPlayDemoSw = function() {
+  swPlaySid++;
   swPlayOn = false;
+  swPlayDrawing = false;
   if (swPlayRaf) { cancelAnimationFrame(swPlayRaf); swPlayRaf = null; }
-  if (swPlayAudioEl) { try { swPlayAudioEl.pause(); swPlayAudioEl.currentTime = 0; } catch (e) {} }
+  if (swPlayAudioEl) { try { swPlayAudioEl.onended = null; swPlayAudioEl.pause(); swPlayAudioEl.currentTime = 0; } catch (e) {} }
   const b = document.getElementById('btn-play-live-sw');
   if (b) { b.textContent = 'Play'; b.classList.remove('on'); }
   window.dibujarProbadorSandwich();
@@ -1417,14 +1420,24 @@ window.togglePlayDemoSw = async function(forzarPlay) {
   if (swPlayOn && !forzarPlay) { window.detenerPlayDemoSw(); return; }
   if (swPlayOn) window.detenerPlayDemoSw();
   const p = obtenerPersonajeActual(); if (!p) return;
+  const sid = ++swPlaySid;
   const b = document.getElementById('btn-play-live-sw');
   if (b) { b.textContent = '...'; b.classList.add('on'); }
   const frase = String(p.frase_demo || ('Hola, soy ' + (p.nombre || 'tu personaje') + '. Listo para rodar en PIRO Studio.')).trim();
   const vCfg = resolverVozSw(p);
   const cKey = p.id + '|' + vCfg.motor + '|' + vCfg.voiceId + '|' + (vCfg.pitch || '') + '|' + (vCfg.rate || '') + '|' + frase;
-  let audioDataUrl = '', marcas = [];
+  const extraBg = [];
+  const esc25p = sandwichCfg.bg === 'amb25d' ? ((biblioteca.escenarios || [])[0] || null) : null;
+  const z25p = esc25p && esc25p.zonas && esc25p.zonas[0] ? esc25p.zonas[0] : null;
+  if (z25p) {
+    if (z25p.z1_lejano && z25p.z1_lejano.url) extraBg.push(z25p.z1_lejano.url);
+    if ((z25p.z2_medio || z25p.fondo) && (z25p.z2_medio || z25p.fondo).url) extraBg.push((z25p.z2_medio || z25p.fondo).url);
+    if ((z25p.z4_frente || z25p.frente) && (z25p.z4_frente || z25p.frente).url) extraBg.push((z25p.z4_frente || z25p.frente).url);
+  }
+  const promPrecarga = precargarPiezasPersonajePiro(p, extraBg);
+  let audioDataUrl = '', marcas = [], env = null;
   try {
-    if (swPlayCacheKey === cKey && swPlayCacheObj) { audioDataUrl = swPlayCacheObj.url; marcas = swPlayCacheObj.marcas; }
+    if (swPlayCacheKey === cKey && swPlayCacheObj) { audioDataUrl = swPlayCacheObj.url; marcas = swPlayCacheObj.marcas; env = swPlayCacheObj.env || null; }
     else if (GeokatuDB.PirobonianosService && navigator.onLine) {
       const cfgV = leerConfigGeminiVault();
       const motorReal = (vCfg.motor === 'elevenlabs' && !vCfg.voiceId) ? 'edge_tts' : vCfg.motor;
@@ -1433,36 +1446,56 @@ window.togglePlayDemoSw = async function(forzarPlay) {
       if (res && res.success && res.b64) {
         audioDataUrl = 'data:' + (res.mime || 'audio/mpeg') + ';base64,' + res.b64;
         marcas = Array.isArray(res.marcas) ? res.marcas : [];
-        swPlayCacheKey = cKey; swPlayCacheObj = { url: audioDataUrl, marcas: marcas };
+        env = await extraerEnvolventeAudio(audioDataUrl, 30);
+        swPlayCacheKey = cKey; swPlayCacheObj = { url: audioDataUrl, marcas: marcas, env: env };
       } else if (res && res.error) { toast('Aviso voz: ' + res.error + ' (animando sin audio)', 'info'); }
     }
   } catch (eV) { toast('Animación en vivo (sin audio).', 'info'); }
-  swPlayDur = Math.max(2.6, Math.min(12, frase.split(/\s+/).length * 0.42 + 0.8));
+  await promPrecarga;
+  if (sid !== swPlaySid) return;
+  swPlayDur = (env && env.duracion > 0.3) ? env.duracion : Math.max(2.4, Math.min(12, frase.split(/\s+/).length * 0.42 + 0.6));
+  let tieneAudio = false;
   if (audioDataUrl) {
     if (!swPlayAudioEl) swPlayAudioEl = new Audio();
+    swPlayAudioEl.onended = null;
     swPlayAudioEl.src = audioDataUrl;
     await new Promise(function(resA) {
-      swPlayAudioEl.onloadedmetadata = function() { if (Number.isFinite(swPlayAudioEl.duration) && swPlayAudioEl.duration > 0.3) swPlayDur = swPlayAudioEl.duration + 0.3; resA(); };
-      swPlayAudioEl.onerror = function() { resA(); };
-      setTimeout(resA, 800);
+      const fin = function() { if (Number.isFinite(swPlayAudioEl.duration) && swPlayAudioEl.duration > 0.25) swPlayDur = swPlayAudioEl.duration; resA(); };
+      swPlayAudioEl.onloadedmetadata = fin; swPlayAudioEl.oncanplaythrough = fin; swPlayAudioEl.onerror = function() { resA(); };
+      setTimeout(resA, 900);
     });
-    swPlayAudioEl.currentTime = 0; swPlayAudioEl.play().catch(function() {});
+    if (sid !== swPlaySid) return;
+    if (!env) env = await extraerEnvolventeAudio(audioDataUrl, 30);
+    if (sid !== swPlaySid) return;
+    swPlayAudioEl.currentTime = 0;
+    swPlayAudioEl.onended = function() { if (swPlayOn && sid === swPlaySid) window.detenerPlayDemoSw(); };
+    try { await swPlayAudioEl.play(); tieneAudio = true; } catch (eP) { tieneAudio = false; }
   }
-  swPlayVisemas = construirVisemasDesdeMarcasPiro(marcas, frase, swPlayDur);
-  swPlayOn = true; swPlayT0 = performance.now();
+  if (sid !== swPlaySid) return;
+  swPlayVisemas = construirVisemasDesdeMarcasPiro(marcas, frase, swPlayDur, env);
+  swPlayOn = true; swPlayDrawing = false; swPlayT0 = performance.now();
   if (b) b.textContent = 'Stop';
   const actId = p.actuacion_demo || 'saludar';
-  const loopSw = async function(now) {
-    if (!swPlayOn) return;
-    const t = (swPlayAudioEl && !swPlayAudioEl.paused && swPlayAudioEl.duration) ? swPlayAudioEl.currentTime : ((now - swPlayT0) / 1000);
-    if (t >= swPlayDur) { window.detenerPlayDemoSw(); return; }
+  const loopSw = function(now) {
+    if (!swPlayOn || sid !== swPlaySid) return;
+    const t = tieneAudio ? Math.max(0, swPlayAudioEl.currentTime || 0) : ((now - swPlayT0) / 1000);
+    if ((!tieneAudio && t >= swPlayDur) || (tieneAudio && swPlayAudioEl.ended)) { window.detenerPlayDemoSw(); return; }
+    if (swPlayDrawing) { swPlayRaf = requestAnimationFrame(loopSw); return; }
+    swPlayDrawing = true;
+    let hablandoAhora = true;
+    if (env && Array.isArray(env.frames) && env.frames.length) {
+      const fIdx = Math.floor(t * (env.fps || 30));
+      hablandoAhora = fIdx < env.frames.length && (env.frames[fIdx] || 0) >= 0.08;
+    }
     const scFake = { id: 'demo_sw', vida_auto: true, actuacion: actId, mirada: sandwichCfg.mirada || 'frente' };
     const actorFake = { id: p.id, cabeza: sandwichCfg.cabeza, angulo: sandwichCfg.angulo, cejas: sandwichCfg.cejas, ojos: sandwichCfg.ojos, boca: sandwichCfg.boca, mano: sandwichCfg.mano, actuacion: actId, mirada: sandwichCfg.mirada || 'frente' };
-    const anim = evaluarAnimacionActorPiro(actorFake, scFake, t, true, p);
+    const anim = evaluarAnimacionActorPiro(actorFake, scFake, t, hablandoAhora, p);
     const mirVec = evaluarMiradaActorPiro(actorFake, scFake, t, null, 'sw_' + p.id);
-    const bocaDyn = obtenerBocaLipSyncPiro({ modo: 'visemas', tiempoLocal: t, visemas: swPlayVisemas, texto: frase, duracion: swPlayDur, personaje: p, cabezaKey: sandwichCfg.cabeza });
-    await window.dibujarProbadorSandwich({ anim: anim, boca: bocaDyn, miradaVec: mirVec, tSeg: t });
-    if (swPlayOn) swPlayRaf = requestAnimationFrame(loopSw);
+    const bocaDyn = obtenerBocaLipSyncPiro({ modo: 'visemas', tiempoLocal: t, envolvente: env, visemas: swPlayVisemas, texto: frase, duracion: swPlayDur, personaje: p, cabezaKey: sandwichCfg.cabeza });
+    window.dibujarProbadorSandwich({ anim: anim, boca: bocaDyn, miradaVec: mirVec, tSeg: t }).then(function() {
+      swPlayDrawing = false;
+      if (swPlayOn && sid === swPlaySid) swPlayRaf = requestAnimationFrame(loopSw);
+    }).catch(function() { swPlayDrawing = false; });
   };
   swPlayRaf = requestAnimationFrame(loopSw);
 };
@@ -1513,9 +1546,13 @@ function obtenerItemsRuedaSandwich(p, catId) {
     const baseM = keys.filter(function(k) { return k.indexOf('mano_') === 0; });
     return [{ key: '', lbl: 'Sin mano', ok: true }].concat(baseM.map(function(k) { return { key: k, lbl: (pzs[k] && pzs[k].etiqueta) || k.replace('mano_', ''), ok: true }; }));
   }
-  if (catId === 'brazo') {
-    const baseBr = keys.filter(function(k) { return (k.indexOf('brazo') === 0 || k === 'manos_cintura') && k.indexOf('trasero') < 0; });
-    return [{ key: 'ninguno', lbl: 'Sin brazo', ok: true }].concat((baseBr.length ? baseBr : ['brazo_delantero_reposo', 'brazo_delantero_prop']).map(function(k) { return { key: k, lbl: (pzs[k] && pzs[k].etiqueta) || k.replace('brazo_delantero_', ''), ok: keys.indexOf(k) >= 0 }; }));
+    if (catId === 'brazo') {
+    const segsArt = ['brazo_del_sup', 'brazo_del_ant', 'brazo_tras_sup', 'brazo_tras_ant'];
+    const tieneArt = keys.indexOf('brazo_del_sup') >= 0 || keys.indexOf('brazo_del_ant') >= 0;
+    const baseBr = keys.filter(function(k) { return (k.indexOf('brazo') === 0 || k === 'manos_cintura') && k.indexOf('trasero') < 0 && segsArt.indexOf(k) < 0; });
+    const artIt = { key: 'articulado', lbl: 'Articulado (Codo)', ok: tieneArt };
+    const prefBr = tieneArt ? [artIt, { key: 'ninguno', lbl: 'Sin brazo', ok: true }] : [{ key: 'ninguno', lbl: 'Sin brazo', ok: true }, artIt];
+    return prefBr.concat((baseBr.length ? baseBr : ['brazo_delantero_reposo', 'brazo_delantero_prop']).map(function(k) { return { key: k, lbl: (pzs[k] && pzs[k].etiqueta) || k.replace('brazo_delantero_', ''), ok: keys.indexOf(k) >= 0 }; }));
   }
   if (catId === 'cuerpo') {
     const baseCu = keys.filter(function(k) { return k.indexOf('cuerpo_') === 0; });
@@ -1588,7 +1625,8 @@ window.selItemRuedaHSw = function(idx) {
   const cfgK = claveCfgPorCatSw(catAct.id);
   sandwichCfg[cfgK] = items[idx].key;
   if (catAct.id === 'angulo' && ANGULOS_360_PIRO[sandwichCfg.angulo]) { sandwichCfg.cabeza = ANGULOS_360_PIRO[sandwichCfg.angulo].cabeza; sandwichCfg.cuerpo = ANGULOS_360_PIRO[sandwichCfg.angulo].cuerpo; }
-  if (catAct.id === 'prop' && sandwichCfg.prop) sandwichCfg.brazoDel = 'brazo_delantero_prop';
+  if (catAct.id === 'brazo') { const hasTrasArt = Boolean(p && p.piezas && (p.piezas.brazo_tras_sup || p.piezas.brazo_tras_ant)); sandwichCfg.brazoTras = (sandwichCfg.brazoDel === 'articulado' && hasTrasArt) ? 'articulado' : 'brazo_trasero_reposo'; }
+  if (catAct.id === 'prop' && sandwichCfg.prop && sandwichCfg.brazoDel !== 'articulado') sandwichCfg.brazoDel = 'brazo_delantero_prop';
   renderRuedasSandwich(); window.dibujarProbadorSandwich();
 };
 window.moverRuedaHSw = function(delta) {
@@ -1614,7 +1652,7 @@ function renderPanelFlotanteSw() {
   } else if (swPanelModo === 'rotar') {
     const mkR = function(l, k, mn, mx, id) { return '<div class="sw-aj-row"><span>' + l + '</span><input type="range" min="' + mn + '" max="' + mx + '" value="' + (sandwichCfg[k] || 0) + '" oninput="window.actualizarSandwich(\'' + k + '\',Number(this.value))"><b id="' + id + '">' + (sandwichCfg[k] || 0) + '°</b></div>'; };
     box.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center;"><strong style="font-size:11px; color:var(--miel);">Articulación Pivotes</strong><div style="display:flex; gap:4px;"><button type="button" class="btn btn-xs" onclick="window.resetRotacionesSandwich()">0°</button><button type="button" class="btn btn-xs btn-green" onclick="window.togglePanelSw(\'\')">Listo</button></div></div>' +
-            mkR('Cabeza','rotCab',-25,25,'sw-rot-cab-val') + mkR('Hombro','rotBrazo',-75,75,'sw-rot-brz-val') + mkR('Codo','rotAntebrazo',-110,90,'sw-rot-ant-val') + mkR('Mano','rotMano',-60,60,'sw-rot-man-val') + mkR('Trasero','rotBrazoTras',-60,60,'sw-rot-tra-val');
+            mkR('Cabeza','rotCab',-25,25,'sw-rot-cab-val') + mkR('Hombro','rotBrazo',-75,75,'sw-rot-brz-val') + mkR('Codo','rotAntebrazo',-110,90,'sw-rot-ant-val') + mkR('Mano','rotMano',-60,60,'sw-rot-man-val') + mkR('Hmb Tras','rotBrazoTras',-60,60,'sw-rot-tra-val') + mkR('Codo Tras','rotAntebrazoTras',-110,90,'sw-rot-atra-val');
   } else if (swPanelModo === 'voz') {
     const m = p.voz_motor || 'edge_tts', vCur = resolverVozSw(p);
     const mOpts = [['edge_tts','Edge Neural ($0)'],['polly_free','Polly Free ($0)'],['google_tts_free','Google TTS ($0)'],['gemini','Gemini TTS (API)'],['openai','OpenAI TTS (API)'],['elevenlabs','ElevenLabs (API)']].map(function(x) { return '<option value="' + x[0] + '"' + (m === x[0] ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('');
@@ -1866,25 +1904,26 @@ function obtenerCalcoInteligente(p, slotKey) {
 }
 
 window.resetRotacionesSandwich = function() {
-  sandwichCfg.rotCab = 0; sandwichCfg.rotBrazo = 0; sandwichCfg.rotAntebrazo = 0; sandwichCfg.rotMano = 0; sandwichCfg.rotBrazoTras = 0;
+  sandwichCfg.rotCab = 0; sandwichCfg.rotBrazo = 0; sandwichCfg.rotAntebrazo = 0; sandwichCfg.rotMano = 0; sandwichCfg.rotBrazoTras = 0; sandwichCfg.rotAntebrazoTras = 0;
   renderPanelFlotanteSw(); window.dibujarProbadorSandwich();
 };
 window.actualizarSandwich = function(campo, val) {
   sandwichCfg[campo] = val;
   if (campo === 'prop' && val && sandwichCfg.brazoDel !== 'articulado') sandwichCfg.brazoDel = 'brazo_delantero_prop';
   if (campo === 'bg' || campo === 'piernas' || campo === 'guias') { renderizarVistaPersonajes(); return; }
-  const mv = { rotCab: 'sw-rot-cab-val', rotBrazo: 'sw-rot-brz-val', rotAntebrazo: 'sw-rot-ant-val', rotMano: 'sw-rot-man-val', rotBrazoTras: 'sw-rot-tra-val' };
+  const mv = { rotCab: 'sw-rot-cab-val', rotBrazo: 'sw-rot-brz-val', rotAntebrazo: 'sw-rot-ant-val', rotMano: 'sw-rot-man-val', rotBrazoTras: 'sw-rot-tra-val', rotAntebrazoTras: 'sw-rot-atra-val' };
   if (mv[campo]) { const el = document.getElementById(mv[campo]); if (el) el.textContent = sandwichCfg[campo] + '°'; }
   window.dibujarProbadorSandwich();
 };
 window.resetearSandwich = function() {
-  sandwichCfg = { angulo: '3_4_der', cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', ojos: 'ojos_neutro', cejas: '', boca: 'boca_cerrada', brazoDel: 'brazo_delantero_reposo', brazoTras: 'brazo_trasero_reposo', mano: '', acc: '', mirada: 'frente', guias: false, rotCab: 0, rotBrazo: 0, rotAntebrazo: 0, rotMano: 0, rotBrazoTras: 0, bg: sandwichCfg.bg, piernas: true, prop: '' };
+  sandwichCfg = { angulo: '3_4_der', cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', ojos: 'ojos_neutro', cejas: '', boca: 'boca_cerrada', brazoDel: 'brazo_delantero_reposo', brazoTras: 'brazo_trasero_reposo', mano: '', acc: '', mirada: 'frente', guias: false, rotCab: 0, rotBrazo: 0, rotAntebrazo: 0, rotMano: 0, rotBrazoTras: 0, rotAntebrazoTras: 0, bg: sandwichCfg.bg, piernas: true, prop: '' };
   swPanelModo = ''; renderizarVistaPersonajes();
 };
 window.dibujarProbadorSandwich = async function(liveCfg) {
   const canvas = document.getElementById('canvas-sandwich'), p = obtenerPersonajeActual();
   if (!canvas || !p) return;
-  const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, 1000, 1600);
+  if (!cvSwBuf) { cvSwBuf = document.createElement('canvas'); cvSwBuf.width = 1000; cvSwBuf.height = 1600; }
+  const ctx = cvSwBuf.getContext('2d'); ctx.clearRect(0, 0, 1000, 1600);
   const lv = liveCfg || null, an = lv && lv.anim ? lv.anim : null, tBg = (lv && typeof lv.tSeg === 'number') ? lv.tSeg : 0;
   const esc25 = sandwichCfg.bg === 'amb25d' ? ((biblioteca.escenarios || [])[0] || null) : null;
   const z25 = esc25 && esc25.zonas && esc25.zonas[0] ? esc25.zonas[0] : null;
@@ -1904,8 +1943,8 @@ window.dibujarProbadorSandwich = async function(liveCfg) {
     ojos: (an && an.ojos === 'ojos_cerrados') ? 'ojos_cerrados' : sandwichCfg.ojos,
     cejas: sandwichCfg.cejas || '', cejasOffsetY: an ? (an.cejasOffsetY || 0) : 0,
     boca: (lv && lv.boca) ? lv.boca : sandwichCfg.boca,
-    brazoDel: sandwichCfg.brazoDel, brazoTras: sandwichCfg.brazoTras, mano: sandwichCfg.mano, forzarManoSuelta: Boolean(sandwichCfg.mano), acc: sandwichCfg.acc || '',
-    rotCab: sandwichCfg.rotCab + (an ? an.rotCab : 0), rotBrazo: sandwichCfg.rotBrazo + (an ? an.rotBrazo : 0), rotAntebrazo: sandwichCfg.rotAntebrazo + (an ? an.rotAntebrazo : 0), rotMano: sandwichCfg.rotMano + (an ? an.rotMano : 0), rotBrazoTras: sandwichCfg.rotBrazoTras,
+    brazoDel: sandwichCfg.brazoDel, brazoTras: sandwichCfg.brazoTras, mano: sandwichCfg.mano || (an && an.mano ? an.mano : ''), forzarManoSuelta: Boolean(sandwichCfg.mano), acc: sandwichCfg.acc || '',
+    rotCab: sandwichCfg.rotCab + (an ? an.rotCab : 0), rotBrazo: sandwichCfg.rotBrazo + (an ? an.rotBrazo : 0), rotAntebrazo: sandwichCfg.rotAntebrazo + (an ? an.rotAntebrazo : 0), rotMano: sandwichCfg.rotMano + (an ? an.rotMano : 0), rotBrazoTras: sandwichCfg.rotBrazoTras + (an ? (an.rotBrazoTras || 0) : 0), rotAntebrazoTras: (sandwichCfg.rotAntebrazoTras || 0) + (an ? (an.rotAntebrazoTras || 0) : 0),
     scaleX: an ? an.scaleX : 1, scaleY: an ? an.scaleY : 1, offsetY: an ? an.offsetY : 0,
     piernas: sandwichCfg.piernas, propImg: propImg, mostrarGuias: Boolean(sandwichCfg.guias), soloPerspectiva: true, adaptarBocas: true, miradaVec: (lv && lv.miradaVec) ? lv.miradaVec : (MIRADAS_PIRO[sandwichCfg.mirada || 'frente'] || MIRADAS_PIRO.frente)
   });
@@ -1914,6 +1953,7 @@ window.dibujarProbadorSandwich = async function(liveCfg) {
     if (imZ4) ctx.drawImage(imZ4, -300 + pan25 * 1.32, 0, 1600, 1600);
     await dibujarElementosVivosPiro(ctx, z25.elementos_vivos || [], 'z4', 1000, 1600, pan25, 1, tBg, {});
   }
+  const ctxVis = canvas.getContext('2d'); ctxVis.clearRect(0, 0, 1000, 1600); ctxVis.drawImage(cvSwBuf, 0, 0);
   const est = document.getElementById('sandwich-estado-txt');
   if (est) est.textContent = swPlayOn ? 'EN VIVO' : textoEstadoSandwich(p, n);
 };
