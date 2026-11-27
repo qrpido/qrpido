@@ -887,7 +887,8 @@ window.PiroShell = {
     renderSelectorProyectosShell();
     if (cargados.contenido) enviarAFrame('contenido', { tipo: 'PIRO_SHELL_CAMBIAR_PROYECTO', proyecto: proyectoActivo });
         if (cargados.editor) enviarAFrame('editor', { tipo: 'PIRO_SHELL_CAMBIAR_PROYECTO', proyecto: proyectoActivo });
-    if (cargados.fabrica) enviarAFrame('fabrica', { tipo: 'PIRO_SHELL_CAMBIAR_PROYECTO', proyecto: proyectoActivo });
+        if (cargados.fabrica) enviarAFrame('fabrica', { tipo: 'PIRO_SHELL_CAMBIAR_PROYECTO', proyecto: proyectoActivo });
+    if (cargados.estudio) enviarAFrame('estudio', { tipo: 'PIRO_SHELL_CAMBIAR_PROYECTO', proyecto: proyectoActivo });
     mostrarToastShell('Proyecto activo: ' + p.nombre, 'exito');
   },
   abrirModalProyecto: function() {
@@ -935,45 +936,56 @@ window.addEventListener('message', function(e) {
 
   if (d.tipo === 'PIRO_TOAST') {
     mostrarToastShell(d.mensaje, d.nivel, d.duracion);
-  } else if (d.tipo === 'PIRO_IR_A_ESTUDIO') {
-        contextoEstudio = {
+    } else if (d.tipo === 'PIRO_IR_A_ESTUDIO') {
+    const opId = d.operationId || ('op_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7));
+    contextoEstudio = {
+      operationId: opId,
+      proyectoId: proyectoActivo.id,
       origen: d.origen || 'contenido',
       etiqueta: d.etiqueta || 'Editando activo',
-      slotMeta: d.slotMeta || null
+      slotMeta: d.slotMeta || null,
+      pendienteGuardar: false
     };
     guardarSesionShell();
     document.getElementById('txt-contexto-estudio').textContent = 'Editando: ' + contextoEstudio.etiqueta;
     window.PiroShell.irA('estudio');
     enviarAFrame('estudio', {
       tipo: 'PIRO_ESTUDIO_CONFIG',
+      operationId: opId,
+      proyectoId: proyectoActivo.id,
       presetId: d.presetId || 'per_cuerpo',
       entidadId: d.entidadId || 'per_001',
       zonaId: d.zonaId || 'zona_01',
       archivoNombre: d.archivoNombre || 'pieza',
-            dataUrl: d.dataUrl || null,
-            calcoUrl: d.calcoUrl || null,
+      dataUrl: d.dataUrl || null,
+      calcoUrl: d.calcoUrl || null,
       pivotesIniciales: d.pivotesIniciales || null,
-      modoCalco1a1: Boolean(d.modoCalco1a1)
+      modoCalco1a1: Boolean(d.modoCalco1a1),
+      slotMeta: d.slotMeta || null
     });
   } else if (d.tipo === 'PIRO_EXPORTAR_PNG') {
     if (contextoEstudio && contextoEstudio.origen === 'contenido') {
-      const meta = contextoEstudio.slotMeta;
-      contextoEstudio = null;
-      document.getElementById('barra-contexto-estudio').classList.remove('visible');
+      const opIdExp = d.operationId || contextoEstudio.operationId || ('op_' + Date.now());
+      const proyExp = d.proyectoId || contextoEstudio.proyectoId || proyectoActivo.id;
+      contextoEstudio.pendienteGuardar = true;
+      guardarSesionShell();
       enviarAFrame('contenido', {
         tipo: 'PIRO_PNG_RECIBIDO',
+        operationId: opIdExp,
+        proyectoId: proyExp,
         blob: d.blob,
         rutaRelativa: d.rutaRelativa,
         nombreArchivo: d.nombreArchivo,
         pivotes: d.pivotes || null,
-        slotMeta: meta
+        slotMeta: contextoEstudio.slotMeta
       });
       window.PiroShell.irA('contenido');
-      mostrarToastShell('PNG recibido. Guardando en la pieza...', 'exito');
+      mostrarToastShell('PNG enviado. Confirmando guardado...', 'info');
     } else if (contextoEstudio && contextoEstudio.origen === 'tickets') {
-      contextoEstudio = null;
-      document.getElementById('barra-contexto-estudio').classList.remove('visible');
-      enviarAFrame('tickets', d);
+      const opIdTk = d.operationId || contextoEstudio.operationId || ('op_' + Date.now());
+      contextoEstudio.pendienteGuardar = true;
+      guardarSesionShell();
+      enviarAFrame('tickets', Object.assign({}, d, { operationId: opIdTk, proyectoId: contextoEstudio.proyectoId || proyectoActivo.id }));
       window.PiroShell.irA('tickets');
     }
   } else if (d.tipo === 'PIRO_CREAR_TICKET_EN_COLA') {
@@ -987,15 +999,25 @@ window.addEventListener('message', function(e) {
       tipo: 'PIRO_SHELL_AUTOCOMPLETAR_TICKET',
       slotMeta: d.slotMeta
     });
-      } else if (d.tipo === 'PIRO_TICKET_SUBIO_ASSET' && d.slotMeta && d.registro) {
+        } else if (d.tipo === 'PIRO_TICKET_SUBIO_ASSET' && d.slotMeta && d.registro) {
     enviarAFrame('contenido', {
       tipo: 'PIRO_SHELL_VINCULAR_ASSET_TICKET',
+      proyectoId: d.proyectoId || proyectoActivo.id,
       slotMeta: d.slotMeta,
       registro: d.registro,
       pivotes: d.pivotes || null
     });
   } else if (d.tipo === 'PIRO_PNG_GUARDADO_OK') {
-    if (cargados.estudio) enviarAFrame('estudio', { tipo: 'PIRO_PNG_GUARDADO_OK' });
+    if (contextoEstudio && (!d.operationId || !contextoEstudio.operationId || d.operationId === contextoEstudio.operationId)) {
+      contextoEstudio = null;
+      document.getElementById('barra-contexto-estudio').classList.remove('visible');
+      document.getElementById('piro-stage').classList.remove('con-barra-ctx');
+      guardarSesionShell();
+    }
+    if (cargados.estudio) enviarAFrame('estudio', { tipo: 'PIRO_PNG_GUARDADO_OK', operationId: d.operationId || '', proyectoId: d.proyectoId || '', slotMeta: d.slotMeta || null });
+  } else if (d.tipo === 'PIRO_PNG_GUARDADO_ERROR') {
+    if (contextoEstudio) { contextoEstudio.pendienteGuardar = false; guardarSesionShell(); }
+    mostrarToastShell('No se confirmó el guardado (' + (d.error || 'red') + '). Tu destino sigue activo en Estudio PNG para reintentar.', 'error', 4600);
   } else if (d.tipo === 'PIRO_ABRIR_EDITOR_GUION') {
     window.PiroShell.irA('editor');
     enviarAFrame('editor', {
@@ -1010,10 +1032,11 @@ window.addEventListener('message', function(e) {
   } else if (d.tipo === 'PIRO_EDITOR_CREAR_ESCENA_2_ACTORES') {
     window.PiroShell.irA('editor');
     enviarAFrame('editor', { tipo: 'PIRO_EDITOR_CREAR_ESCENA_2_ACTORES', personajeId: d.personajeId || null });
-  } else if (d.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA') {
-    if (cargados.contenido && d.origen !== 'contenido') enviarAFrame('contenido', { tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA' });
-    if (cargados.editor && d.origen !== 'editor') enviarAFrame('editor', { tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA' });
-    if (cargados.fabrica && d.origen !== 'fabrica') enviarAFrame('fabrica', { tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA' });
+    } else if (d.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA') {
+    const msgBib = { tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA', origen: d.origen || '', proyectoId: d.proyectoId || proyectoActivo.id };
+    if (cargados.contenido && d.origen !== 'contenido') enviarAFrame('contenido', msgBib);
+    if (cargados.editor && d.origen !== 'editor') enviarAFrame('editor', msgBib);
+    if (cargados.fabrica && d.origen !== 'fabrica') enviarAFrame('fabrica', msgBib);
   }
 });
 
