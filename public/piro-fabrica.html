@@ -141,6 +141,14 @@
   .wheel-h-item.falta { border-style: dashed; border-color: rgba(255, 179, 0, 0.45); }
 
   /* MODALES DARK GLASS */
+  .aj-panel { position: absolute; left: 8px; right: 8px; top: 82px; z-index: 30; max-width: 370px; background: rgba(10, 14, 22, 0.94); border: 1px solid rgba(56, 189, 248, 0.5); border-radius: 14px; padding: 9px 10px; backdrop-filter: blur(12px); display: flex; flex-direction: column; gap: 6px; box-shadow: 0 12px 30px rgba(0,0,0,0.65); }
+  .aj-row { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 800; color: #cbd5e1; }
+  .aj-row input[type="range"] { flex: 1; accent-color: var(--naranja); }
+  .aj-row b { min-width: 38px; text-align: right; font-family: monospace; color: var(--azul); }
+  .cal-chips { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 3px; }
+  .cal-chip { flex: 0 0 auto; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border); background: rgba(255,255,255,0.05); font-size: 10px; font-weight: 800; color: var(--muted); cursor: pointer; }
+  .cal-chip.ok { border-color: rgba(34,197,94,0.55); color: #86efac; background: rgba(34,197,94,0.14); }
+  .cal-chip.activo { border-color: var(--naranja); color: #fff; background: rgba(255,107,0,0.28); }
   .modal-ov {
     position: fixed; inset: 0; z-index: 90000; background: rgba(4, 6, 11, 0.84); backdrop-filter: blur(10px);
     display: none; align-items: center; justify-content: center; padding: 14px;
@@ -247,7 +255,22 @@
         <button type="button" class="btn btn-xs btn-purple" onclick="window.abrirModalJsonPlano()">JSON</button>
         <button type="button" class="btn btn-xs btn-green" id="btn-vaciar-pup" onclick="window.toggleVaciarPupilaFab()">Sin Pupila: ON</button>
         <button type="button" class="btn btn-xs btn-blue" onclick="window.convertirOjosActualesAPupilaDinamica()">Convertir Ojos</button>
+        <button type="button" class="btn btn-xs btn-primary" onclick="window.abrirCalibradorRig()">Calibrar Rig</button>
+        <button type="button" class="btn btn-xs btn-purple" onclick="window.toggleAjusteCapaFab()">Ajustar Capa</button>
         <select class="sel-top" style="max-width:112px; font-size:10px; padding:4px 6px;" onchange="window.cambiarMiradaPreviewFab(this.value)"><option value="frente">Mir: Frente</option><option value="arriba_frustracion">Mir: Arriba</option><option value="abajo_culpa">Mir: Abajo</option><option value="evadir_izq">Mir: Izq</option><option value="evadir_der">Mir: Der</option><option value="shock">Mir: Shock</option><option value="ternura">Mir: Ternura</option></select>
+      </div>
+      <div id="panel-ajuste-fab" class="aj-panel hidden">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+          <strong id="aj-fab-tit" style="font-size:11px; color:var(--miel);">Ajustar Capa: Ojos</strong>
+          <div style="display:flex; gap:4px;">
+            <select id="sel-aj-capa-fab" class="sel-top" style="font-size:10px; padding:3px 6px;" onchange="window.selCapaAjusteFab(this.value)"><option value="cabeza">Cabeza</option><option value="ojos">Ojos</option><option value="cejas">Cejas</option><option value="boca">Bocas</option><option value="brazo">Brazos</option><option value="mano">Manos</option><option value="cuerpo">Cuerpo</option><option value="acc">Accesorios</option></select>
+            <button type="button" class="btn btn-xs" onclick="window.resetAjusteCapaFab()">0</button>
+            <button type="button" class="btn btn-xs btn-green" onclick="window.toggleAjusteCapaFab(false)">Listo</button>
+          </div>
+        </div>
+        <div class="aj-row"><span>Pos X</span><input type="range" id="rng-aj-x" min="-180" max="180" value="0" oninput="window.editarAjusteCapaFab('dx',Number(this.value))"><b id="val-aj-x">0</b></div>
+        <div class="aj-row"><span>Pos Y</span><input type="range" id="rng-aj-y" min="-220" max="220" value="0" oninput="window.editarAjusteCapaFab('dy',Number(this.value))"><b id="val-aj-y">0</b></div>
+        <div class="aj-row"><span>Escala</span><input type="range" id="rng-aj-sc" min="45" max="170" value="100" oninput="window.editarAjusteCapaFab('sc',Number(this.value)/100)"><b id="val-aj-sc">100%</b></div>
       </div>
       <canvas id="cv-fabrica" width="1000" height="1600"></canvas>
 
@@ -329,11 +352,34 @@
   </div>
 </div>
 
+<div class="modal-ov" id="modal-calibrar-rig" onclick="if(event.target.id==='modal-calibrar-rig') window.cerrarModalFab('modal-calibrar-rig')">
+  <div class="modal-card" style="max-width:540px; max-height:94dvh; padding:12px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
+      <strong style="font-size:13px; color:var(--miel);">Paso 1.5 · Calibrar Encuadres y Pivotes</strong>
+      <div style="display:flex; gap:4px;">
+        <button type="button" class="btn btn-xs btn-primary" id="btn-cal-v34" onclick="window.setVistaCalRig('3_4')">3/4 (45°)</button>
+        <button type="button" class="btn btn-xs" id="btn-cal-vf" onclick="window.setVistaCalRig('frente')">Frente (0°)</button>
+        <button type="button" class="btn btn-xs" onclick="window.cerrarModalFab('modal-calibrar-rig')">Cerrar</button>
+      </div>
+    </div>
+    <div id="cal-ayuda-txt" style="font-size:11px; color:#7dd3fc; font-weight:700;">Arrastra sobre el personaje para marcar el rectángulo o toca para marcar la X.</div>
+    <div class="cal-chips" id="cal-chips-pasos"></div>
+    <div class="stage-wrap bg-grid" style="height:48dvh; min-height:260px; border-radius:12px; border:1px solid var(--border); padding:4px;">
+      <canvas id="cv-cal-rig" width="1000" height="1600" style="max-width:100%; max-height:100%; height:100%; width:auto; object-fit:contain; touch-action:none; cursor:crosshair;"></canvas>
+    </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
+      <button type="button" class="btn btn-xs btn-danger" onclick="window.limpiarPasoCalRig()">Borrar Paso</button>
+      <button type="button" class="btn btn-xs btn-blue" onclick="window.siguientePasoCalRig()">Siguiente Paso →</button>
+      <button type="button" class="btn btn-xs btn-green" style="flex:1;" onclick="window.guardarCalibracionRig()">Guardar Calibración Maestra</button>
+    </div>
+  </div>
+</div>
+
 <div id="toasts"></div>
 
 <script type="module">
 import GeokatuDB from './core-db.js';
-import { dibujarMarionetaPiro, cargarImagenPiro, parsearMoldes, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO, dibujarElementosVivosPiro } from './piro-compositor.js';
+import { dibujarMarionetaPiro, cargarImagenPiro, parsearMoldes, parsearPivotes, parsearAjustesCapas, limpiarCacheCompositor, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO, dibujarElementosVivosPiro } from './piro-compositor.js';
 
 const BLOQUES_60 = [
   { id: 'b1', tit: '1. Identidad y Arte (8)', campos: [
@@ -524,7 +570,7 @@ function obtenerPersonajeActual() {
 }
 
 // PERSISTENCIA BIBLIOTECA (COMPATIBLE CON CONTENIDO Y EDITOR)
-function claveCacheBib() { return 'piro_contenido_bib_' + proyectoActivo.id; }
+function claveCacheBib() { return proyectoActivo.id === 'pirobonianos' ? 'piro_biblioteca_maestra_v1' : ('piro_bib_' + proyectoActivo.id + '_v1'); }
 async function cargarBiblioteca() {
   try { const raw = localStorage.getItem(claveCacheBib()); if (raw) { const o = JSON.parse(raw); if (o && Array.isArray(o.personajes)) biblioteca = o; } } catch (e) {}
   if (GeokatuDB.PirobonianosService && navigator.onLine) {
@@ -549,6 +595,8 @@ async function cargarBiblioteca() {
 }
 
 async function guardarBiblioteca(notificar) {
+  biblioteca.fecha_actualizacion = new Date().toISOString();
+  limpiarCacheCompositor();
   (biblioteca.personajes || []).forEach(function(pe) {
     if (pe && pe._esclPend && pe.piezas) {
       Object.keys(pe._esclPend).forEach(function(sk) {
@@ -1382,31 +1430,57 @@ function detectarBBox(ctx, w, h) {
 
 let metaRecorteOjoTmp = null;
 function obtenerCajaDestino(p, tipoAnc, slotKey) {
-  const esOjoAb = (tipoAnc === 'ojos' || tipoAnc === 'ojos_frente' || String(slotKey || '').indexOf('ojos_') === 0) && String(slotKey || '').indexOf('cerrad') < 0;
-  metaRecorteOjoTmp = { p: p, sk: slug(slotKey, 'pz'), esOjoAb: esOjoAb };
+  const skStr = String(slotKey || '');
+  const esOjoAb = (tipoAnc === 'ojos' || tipoAnc === 'ojos_frente' || skStr.indexOf('ojos_') === 0) && skStr.indexOf('cerrad') < 0;
+  metaRecorteOjoTmp = { p: p, sk: slug(skStr, 'pz'), esOjoAb: esOjoAb };
   const moldes = parsearMoldes(p);
-  const mk = (tipoAnc === 'ojos_frente' || String(slotKey).indexOf('_frente_') >= 0) ? 'cabeza_frente' : 'cabeza_base';
-  const zOjos = moldes[mk] && moldes[mk].zonas && moldes[mk].zonas.ojos && moldes[mk].zonas.ojos.caja;
-  const zBoca = moldes[mk] && moldes[mk].zonas && moldes[mk].zonas.boca && moldes[mk].zonas.boca.caja;
+  const piv = parsearPivotes(p);
+  const esFrente = tipoAnc === 'ojos_frente' || tipoAnc === 'cejas_frente' || skStr.indexOf('_frente') >= 0;
+  const mk = esFrente ? 'cabeza_frente' : 'cabeza_base';
+  const zBase = (moldes.cabeza_base && moldes.cabeza_base.zonas) || {};
+  const zMk = (moldes[mk] && moldes[mk].zonas) || zBase;
+  const getC = function(k) { return (zMk[k] && zMk[k].caja && zMk[k].caja.w > 6) ? zMk[k].caja : ((zBase[k] && zBase[k].caja && zBase[k].caja.w > 6) ? zBase[k].caja : null); };
   const est = Math.max(90, Math.min(230, Number((p.encuesta_v2 && p.encuesta_v2.estatura_cm) || 175)));
-  const altoCuerpo = Math.round(1180 * (est / 175));
-  if (tipoAnc === 'cuerpo') return { x: 180, y: 1480 - altoCuerpo, w: 640, h: altoCuerpo, bottomAlign: true };
-  if (tipoAnc === 'cabeza' || String(slotKey).indexOf('cabeza_') === 0) return { x: 350, y: 205, w: 300, h: 300 };
-  if (tipoAnc === 'ojos' || tipoAnc === 'ojos_frente' || String(slotKey).indexOf('ojos_') === 0) {
-    if (zOjos) return zOjos;
-    return mk === 'cabeza_frente' ? { x: 425, y: 315, w: 150, h: 72 } : { x: 445, y: 315, w: 135, h: 68 };
+  const altoFull = Math.round(1180 * (est / 175));
+  if (skStr.indexOf('maestro_') === 0) return { x: 180, y: 1480 - altoFull, w: 640, h: altoFull, bottomAlign: true };
+  if (tipoAnc === 'cuerpo' || skStr.indexOf('cuerpo_') === 0) {
+    const zC = getC('cuerpo'); if (zC) return Object.assign({}, zC, { bottomAlign: true });
+    const yCuello = Math.max(360, Math.min(620, Math.round(piv.cuello.y - 12)));
+    return { x: 200, y: yCuello, w: 600, h: 1480 - yCuello, bottomAlign: true };
   }
-  if (tipoAnc === 'cejas' || tipoAnc === 'cejas_frente' || String(slotKey).indexOf('cejas_') === 0) {
-    const baseO = zOjos || (mk === 'cabeza_frente' ? { x: 425, y: 315, w: 150, h: 72 } : { x: 445, y: 315, w: 135, h: 68 });
+  if (tipoAnc === 'cabeza' || skStr.indexOf('cabeza_') === 0) {
+    const zCab = getC('cabeza'); if (zCab) return Object.assign({}, zCab, { bottomAlign: true });
+    const hCab = Math.max(240, Math.round(piv.cuello.y - 185));
+    return { x: 355, y: Math.max(120, Math.round(piv.cuello.y - hCab + 18)), w: 290, h: hCab, bottomAlign: true };
+  }
+  if (tipoAnc === 'ojos' || tipoAnc === 'ojos_frente' || skStr.indexOf('ojos_') === 0) {
+    const zO = getC('ojos'); if (zO) return zO;
+    return esFrente ? { x: 425, y: 315, w: 150, h: 72 } : { x: 445, y: 315, w: 135, h: 68 };
+  }
+  if (tipoAnc === 'cejas' || tipoAnc === 'cejas_frente' || skStr.indexOf('cejas_') === 0) {
+    const zCj = getC('cejas'); if (zCj) return zCj;
+    const baseO = getC('ojos') || (esFrente ? { x: 425, y: 315, w: 150, h: 72 } : { x: 445, y: 315, w: 135, h: 68 });
     return { x: Math.round(baseO.x - 4), y: Math.round(baseO.y - 30), w: Math.round(baseO.w + 8), h: 42 };
   }
-  if (tipoAnc === 'boca' || String(slotKey).indexOf('boca_') === 0) {
-    if (zBoca) return zBoca;
+  if (tipoAnc === 'boca' || skStr.indexOf('boca_') === 0) {
+    const zB = getC('boca'); if (zB) return zB;
     return { x: 455, y: 400, w: 96, h: 62 };
   }
-  if (tipoAnc === 'mano' || String(slotKey).indexOf('mano_') === 0) return { x: 570, y: 750, w: 140, h: 140 };
-  if (tipoAnc === 'brazo' || String(slotKey).indexOf('brazo_') === 0) return { x: 250, y: 490, w: 480, h: 520 };
-  if (tipoAnc === 'acc' || String(slotKey).indexOf('acc_') === 0) return { x: 340, y: 170, w: 320, h: 260 };
+  if (tipoAnc === 'mano' || skStr.indexOf('mano_') === 0) {
+    const zM = getC('mano'); if (zM) return zM;
+    return { x: Math.round(piv.mano_delantera.x - 65), y: Math.round(piv.mano_delantera.y - 65), w: 130, h: 130 };
+  }
+  if (tipoAnc === 'brazo' || skStr.indexOf('brazo') === 0) {
+    if (skStr === 'brazos_cruzados' || skStr === 'manos_cintura') return { x: 300, y: Math.round(piv.hombro_delantero.y - 25), w: 400, h: 360 };
+    const zBr = getC('brazo');
+    if (skStr.indexOf('trasero') >= 0) return { x: Math.round(piv.hombro_trasero.x - 50), y: Math.round(piv.hombro_trasero.y - 25), w: (zBr ? zBr.w : 180), h: (zBr ? zBr.h : 440) };
+    if (zBr) return zBr;
+    return { x: Math.round(piv.hombro_delantero.x - 85), y: Math.round(piv.hombro_delantero.y - 25), w: 200, h: 440 };
+  }
+  if (tipoAnc === 'acc' || skStr.indexOf('acc_') === 0) {
+    const zC = getC('cuerpo'); if (zC) return { x: zC.x, y: zC.y, w: zC.w, h: Math.round(zC.h * 0.55) };
+    return { x: 340, y: 240, w: 320, h: 360 };
+  }
   return { x: 200, y: 280, w: 600, h: 1180 };
 }
 
@@ -1506,21 +1580,21 @@ async function procesarYRecortarImagenLienzo(p, lienzo, imgSrc) {
   quitarChromaExterior(ctxF, cvFull.width, cvFull.height);
   const cw = Math.floor(cvFull.width / cols), ch = Math.floor(cvFull.height / rows);
   const piezasSpec = Array.isArray(lienzo.piezas) ? lienzo.piezas : [];
-  let guardadas = 0;
+  let guardadas = 0; const faltantes = [];
   for (let idx = 0; idx < piezasSpec.length; idx++) {
     const sp = piezasSpec[idx];
     const r = Math.floor(idx / cols);
     let c = idx % cols;
     if (gr.orden === 'serpiente' && (r % 2 === 1)) c = cols - 1 - c;
     if (r >= rows) break;
-    const padX = cols > 1 ? Math.round(cw * 0.04) : 0, padY = rows > 1 ? Math.round(ch * 0.04) : 0;
+    const padX = cols > 1 ? Math.round(cw * 0.03) : 0, padY = rows > 1 ? Math.round(ch * 0.03) : 0;
     const sx = c * cw + padX, sy = r * ch + padY, sw = Math.max(8, cw - padX * 2), sh = Math.max(8, ch - padY * 2);
     const cvC = document.createElement('canvas'); cvC.width = sw; cvC.height = sh;
     const ctxC = cvC.getContext('2d', { willReadFrequently: true });
     ctxC.drawImage(cvFull, sx, sy, sw, sh, 0, 0, sw, sh);
     quitarChromaExterior(ctxC, sw, sh);
     const bb = detectarBBox(ctxC, sw, sh);
-    if (!bb || bb.w < 6 || bb.h < 6) continue;
+    if (!bb || bb.w < 5 || bb.h < 5) { faltantes.push('R' + (r + 1) + 'C' + (c + 1) + ' ' + (sp.slot_key || idx)); continue; }
     const cajaDst = obtenerCajaDestino(p, sp.tipo_anclaje, sp.slot_key);
     const cvCanon = anclarRecorteEn1000x1600(cvC, bb, cajaDst);
     const dataUrlLoc = cvCanon.toDataURL('image/png');
@@ -1540,7 +1614,7 @@ async function procesarYRecortarImagenLienzo(p, lienzo, imgSrc) {
     guardadas++;
   }
   await guardarBiblioteca(true);
-  return guardadas;
+  return { guardadas: guardadas, esperadas: piezasSpec.length, faltantes: faltantes };
 }
 
 window.procesarLienzoManualSubido = function(file) {
@@ -1551,10 +1625,12 @@ window.procesarLienzoManualSubido = function(file) {
     ocupandoApi = true; renderRibbonPasos(l.id_lienzo);
     toast('Recortando ' + (l.titulo_boton || l.id_lienzo) + ' (' + ((l.grid && l.grid.cols) || 1) + 'x' + ((l.grid && l.grid.rows) || 1) + ')...', 'info');
     try {
-      const n = await procesarYRecortarImagenLienzo(p, l, ev.target.result);
+      const rep = await procesarYRecortarImagenLienzo(p, l, ev.target.result);
       const sig = (p.blueprint_v2.lienzos || []).find(function(x) { return !lienzoEstaListo(p, x); });
       if (sig) lienzoSelId = sig.id_lienzo;
-      toast('Auto-recorte listo: ' + n + ' piezas guardadas offline y en nube ($0).', 'exito', 3800);
+      if (rep.faltantes.length) toast('Recorte parcial: ' + rep.guardadas + '/' + rep.esperadas + ' (vacías: ' + rep.faltantes.slice(0, 3).join(', ') + ')', 'error', 5200);
+      else toast('Auditoría OK: ' + rep.guardadas + '/' + rep.esperadas + ' piezas guardadas ($0).', 'exito', 3800);
+      if (l.id_lienzo === 'turnaround_360' || l.id_lienzo === 'maestro_cuerpo') { setTimeout(function() { window.abrirCalibradorRig(); }, 450); }
     } catch (err) {
       toast('Error recortando lienzo: ' + err.message, 'error', 4200);
     } finally {
@@ -1654,6 +1730,7 @@ window.ejecutarLienzoBlueprint = async function(idLienzo) {
 
     await guardarBiblioteca(true);
     toast('Lienzo recortado: ' + guardadas + ' piezas guardadas offline y en nube.', 'exito');
+    if (lienzo.id_lienzo === 'turnaround_360' || lienzo.id_lienzo === 'maestro_cuerpo') { setTimeout(function() { window.abrirCalibradorRig(); }, 450); }
   } catch (err) {
     toast('Error lienzo: ' + err.message, 'error', 4200);
   } finally {
@@ -1773,6 +1850,7 @@ function renderRuedas2D() {
 
 window.moverRuedaV = function(delta) {
   catIdxRueda = (catIdxRueda + delta + CATS_RUEDA.length) % CATS_RUEDA.length;
+  if (ajusteCapaAbierto) { ajCapaActiva = mapearCatAAjuste(CATS_RUEDA[catIdxRueda].id); refrescarPanelAjusteFab(); }
   renderRuedas2D();
 };
 
@@ -1815,13 +1893,9 @@ async function dibujarPersonajeOffline() {
     angulo360: estadoRueda.angulo || '3_4_der',
     cabeza: estadoRueda.cabeza, cuerpo: estadoRueda.cuerpo,
     ojos: estadoRueda.ojos, cejas: estadoRueda.cejas, boca: estadoRueda.boca,
-    brazoDel: estadoRueda.brazo, mano: estadoRueda.mano,
-    soloPerspectiva: true, adaptarBocas: true, mostrarGuias: false, miradaVec: MIRADAS_PIRO[miradaPreviewId] || MIRADAS_PIRO.frente
+    brazoDel: estadoRueda.brazo, mano: estadoRueda.mano, acc: estadoRueda.acc,
+    soloPerspectiva: true, adaptarBocas: true, mostrarGuias: ajusteCapaAbierto, miradaVec: MIRADAS_PIRO[miradaPreviewId] || MIRADAS_PIRO.frente
   });
-  if (estadoRueda.acc && pzsOffline[estadoRueda.acc] && pzsOffline[estadoRueda.acc].url) {
-    const imAcc = await cargarImagenPiro(pzsOffline[estadoRueda.acc].url);
-    if (imAcc) ctx.drawImage(imAcc, 0, 0, 1000, 1600);
-  }
   const hud = document.getElementById('hud-progreso');
   if (hud) hud.textContent = Object.keys(pzsOffline).length + ' piezas offline · 0ms';
 }
@@ -1831,6 +1905,200 @@ function renderConsolaRueda() {
   renderRuedas2D();
   dibujarPersonajeOffline();
 }
+
+// PASO 1.5: CALIBRADOR VISUAL DE ENCUADRES Y PIVOTES + AJUSTE DE CAPA
+const PASOS_CAL_34 = [
+  { id: 'cuerpo', tipo: 'box', nom: 'Cuerpo/Ropa', col: '#22c55e', tip: 'Arrastra un rectángulo desde los hombros/cuello hasta los zapatos (sin cabeza).' },
+  { id: 'cabeza', tipo: 'box', nom: 'Cabeza', col: '#38bdf8', tip: 'Arrastra un rectángulo cubriendo toda la cabeza (orejas, pelo y base del cuello).' },
+  { id: 'ojos', tipo: 'box', nom: 'Ojos', col: '#a855f7', tip: 'Arrastra el rectángulo exacto sobre los 2 ojos.' },
+  { id: 'cejas', tipo: 'box', nom: 'Cejas', col: '#f472b6', tip: 'Arrastra el rectángulo justo encima de los ojos donde van las cejas.' },
+  { id: 'boca', tipo: 'box', nom: 'Boca', col: '#facc15', tip: 'Arrastra el rectángulo sobre la zona de la boca/hocico.' },
+  { id: 'brazo', tipo: 'box', nom: 'Brazo', col: '#fb923c', tip: 'Arrastra el rectángulo del brazo delantero (hombro hasta muñeca).' },
+  { id: 'mano', tipo: 'box', nom: 'Mano', col: '#2dd4bf', tip: 'Arrastra el rectángulo alrededor de la mano para fijar su escala.' },
+  { id: 'cuello', tipo: 'pt', nom: 'X Cuello', col: '#ef4444', tip: 'Toca el punto exacto donde rota el cuello.' },
+  { id: 'hombro_delantero', tipo: 'pt', nom: 'X Hombro Del', col: '#ef4444', tip: 'Toca el hombro delantero (eje del brazo frontal).' },
+  { id: 'codo_delantero', tipo: 'pt', nom: 'X Codo Del', col: '#ef4444', tip: 'Toca el codo delantero.' },
+  { id: 'mano_delantera', tipo: 'pt', nom: 'X Mano', col: '#ef4444', tip: 'Toca el centro de la mano/muñeca delantera.' },
+  { id: 'hombro_trasero', tipo: 'pt', nom: 'X Hombro Tras', col: '#ef4444', tip: 'Toca el hombro trasero.' },
+  { id: 'cadera_delantera', tipo: 'pt', nom: 'X Cadera', col: '#ef4444', tip: 'Toca la cadera (eje de torso/piernas).' }
+];
+const PASOS_CAL_FRENTE = [
+  { id: 'cabeza', tipo: 'box', nom: 'Cabeza Frente', col: '#38bdf8', tip: 'Arrastra el rectángulo sobre la cabeza frontal (0°).' },
+  { id: 'ojos', tipo: 'box', nom: 'Ojos Frente', col: '#a855f7', tip: 'Arrastra el rectángulo sobre los 2 ojos en vista frontal.' },
+  { id: 'cejas', tipo: 'box', nom: 'Cejas Frente', col: '#f472b6', tip: 'Arrastra el rectángulo de las cejas en vista frontal.' },
+  { id: 'boca', tipo: 'box', nom: 'Boca Frente', col: '#facc15', tip: 'Arrastra el rectángulo sobre la boca en vista frontal.' },
+  { id: 'cuello', tipo: 'pt', nom: 'X Cuello Frente', col: '#ef4444', tip: 'Toca el centro del cuello en vista frontal.' }
+];
+let calVista = '3_4', calPasoIdx = 0, calDatos = { moldes: {}, pivotes: {} }, calImgCache = null, calDragIni = null, calDragAct = null;
+let ajusteCapaAbierto = false, ajCapaActiva = 'ojos';
+
+function pasosCalActuales() { return calVista === 'frente' ? PASOS_CAL_FRENTE : PASOS_CAL_34; }
+function mkCalActual() { return calVista === 'frente' ? 'cabeza_frente' : 'cabeza_base'; }
+
+window.abrirCalibradorRig = async function() {
+  const p = obtenerPersonajeActual(); if (!p) return;
+  let raw = {};
+  try { if (p.pivotes_json) raw = JSON.parse(p.pivotes_json); } catch (e) { raw = {}; }
+  calDatos = { moldes: JSON.parse(JSON.stringify(raw._moldes || {})), pivotes: Object.assign({}, raw) };
+  delete calDatos.pivotes._moldes; delete calDatos.pivotes._cajas;
+  calVista = '3_4'; calPasoIdx = 0;
+  document.getElementById('modal-calibrar-rig').classList.add('open');
+  await window.setVistaCalRig('3_4');
+};
+
+window.setVistaCalRig = async function(v) {
+  calVista = v === 'frente' ? 'frente' : '3_4';
+  calPasoIdx = 0;
+  document.getElementById('btn-cal-v34').className = 'btn btn-xs ' + (calVista === '3_4' ? 'btn-primary' : '');
+  document.getElementById('btn-cal-vf').className = 'btn btn-xs ' + (calVista === 'frente' ? 'btn-primary' : '');
+  const p = obtenerPersonajeActual(), pzs = (p && p.piezas) || {};
+  const kPref = calVista === 'frente' ? ['maestro_frente', 'cabeza_frente', 'cuerpo_frente', 'maestro_cuerpo'] : ['maestro_cuerpo', 'cuerpo_base', 'cabeza_base', 'maestro_frente'];
+  calImgCache = null;
+  for (let i = 0; i < kPref.length; i++) {
+    const src = cacheLocalUrls[kPref[i]] || (pzs[kPref[i]] && pzs[kPref[i]].url);
+    if (src) { try { calImgCache = await cargarImg(src); break; } catch (eI) {} }
+  }
+  renderCalibradorRig();
+};
+
+function renderCalibradorRig() {
+  const pasos = pasosCalActuales(), mk = mkCalActual();
+  const mObj = calDatos.moldes[mk] || { angulo: calVista, zonas: {}, calibrado: true };
+  const pAct = pasos[calPasoIdx] || pasos[0];
+  const ay = document.getElementById('cal-ayuda-txt');
+  if (ay && pAct) ay.textContent = (calPasoIdx + 1) + '/' + pasos.length + ' · ' + pAct.nom + ': ' + pAct.tip;
+  const boxC = document.getElementById('cal-chips-pasos');
+  if (boxC) {
+    boxC.innerHTML = pasos.map(function(ps, i) {
+      const ok = ps.tipo === 'box' ? Boolean(mObj.zonas && mObj.zonas[ps.id] && mObj.zonas[ps.id].caja) : Boolean((ps.id === 'cuello' && mObj.cuello) || calDatos.pivotes[ps.id]);
+      return '<button type="button" class="cal-chip ' + (i === calPasoIdx ? 'activo' : (ok ? 'ok' : '')) + '" onclick="window.selPasoCalRig(' + i + ')">' + esc(ps.nom) + (ok ? ' OK' : '') + '</button>';
+    }).join('');
+  }
+  dibujarCanvasCalRig();
+}
+
+window.selPasoCalRig = function(i) { calPasoIdx = Math.max(0, Math.min(pasosCalActuales().length - 1, i)); renderCalibradorRig(); };
+window.siguientePasoCalRig = function() { calPasoIdx = (calPasoIdx + 1) % pasosCalActuales().length; renderCalibradorRig(); };
+window.limpiarPasoCalRig = function() {
+  const ps = pasosCalActuales()[calPasoIdx], mk = mkCalActual(); if (!ps) return;
+  if (ps.tipo === 'box') { if (calDatos.moldes[mk] && calDatos.moldes[mk].zonas) delete calDatos.moldes[mk].zonas[ps.id]; }
+  else { if (ps.id === 'cuello' && calDatos.moldes[mk]) delete calDatos.moldes[mk].cuello; delete calDatos.pivotes[ps.id]; }
+  renderCalibradorRig();
+};
+
+function dibujarCanvasCalRig() {
+  const cv = document.getElementById('cv-cal-rig'); if (!cv) return;
+  const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, 1000, 1600);
+  if (calImgCache) ctx.drawImage(calImgCache, 0, 0, 1000, 1600);
+  else { ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 34px system-ui'; ctx.textAlign = 'center'; ctx.fillText('Sube primero el Lienzo 1 (Turnaround 360)', 500, 800); }
+  ctx.save(); ctx.strokeStyle = 'rgba(34,197,94,0.8)'; ctx.lineWidth = 4; ctx.setLineDash([16, 12]); ctx.beginPath(); ctx.moveTo(0, 1480); ctx.lineTo(1000, 1480); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+  const mk = mkCalActual(), mObj = calDatos.moldes[mk] || { zonas: {} }, pasos = pasosCalActuales();
+  pasos.forEach(function(ps, idx) {
+    if (ps.tipo === 'box' && mObj.zonas && mObj.zonas[ps.id] && mObj.zonas[ps.id].caja) {
+      const c = mObj.zonas[ps.id].caja;
+      ctx.save(); ctx.strokeStyle = ps.col; ctx.lineWidth = idx === calPasoIdx ? 7 : 4;
+      ctx.strokeRect(c.x, c.y, c.w, c.h);
+      ctx.fillStyle = ps.col; ctx.font = 'bold 26px system-ui'; ctx.fillText(ps.nom, c.x + 6, Math.max(28, c.y - 8));
+      ctx.restore();
+    } else if (ps.tipo === 'pt') {
+      const pt = (ps.id === 'cuello' && mObj.cuello) ? mObj.cuello : calDatos.pivotes[ps.id];
+      if (pt) {
+        const px = Array.isArray(pt) ? pt[0] : pt.x, py = Array.isArray(pt) ? pt[1] : pt.y;
+        ctx.save(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(px - 18, py - 18); ctx.lineTo(px + 18, py + 18); ctx.moveTo(px + 18, py - 18); ctx.lineTo(px - 18, py + 18); ctx.stroke();
+        ctx.strokeStyle = ps.col; ctx.lineWidth = 4; ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 24px system-ui'; ctx.fillText(ps.nom, px + 22, py + 8); ctx.restore();
+      }
+    }
+  });
+  if (calDragIni && calDragAct) {
+    const x = Math.min(calDragIni.x, calDragAct.x), y = Math.min(calDragIni.y, calDragAct.y);
+    const w = Math.abs(calDragAct.x - calDragIni.x), h = Math.abs(calDragAct.y - calDragIni.y);
+    ctx.save(); ctx.strokeStyle = '#ff6b00'; ctx.lineWidth = 6; ctx.setLineDash([12, 8]); ctx.strokeRect(x, y, w, h); ctx.restore();
+  }
+}
+
+(function conectarEventosCalRig() {
+  const cv = document.getElementById('cv-cal-rig'); if (!cv) return;
+  const ptCanvas = function(ev) {
+    const r = cv.getBoundingClientRect();
+    return { x: Math.max(0, Math.min(1000, Math.round(((ev.clientX - r.left) / Math.max(1, r.width)) * 1000))), y: Math.max(0, Math.min(1600, Math.round(((ev.clientY - r.top) / Math.max(1, r.height)) * 1600))) };
+  };
+  cv.addEventListener('pointerdown', function(ev) {
+    ev.preventDefault(); const pt = ptCanvas(ev), ps = pasosCalActuales()[calPasoIdx], mk = mkCalActual(); if (!ps) return;
+    if (!calDatos.moldes[mk]) calDatos.moldes[mk] = { angulo: calVista, zonas: {}, calibrado: true };
+    if (ps.tipo === 'pt') {
+      if (ps.id === 'cuello') calDatos.moldes[mk].cuello = { x: pt.x, y: pt.y };
+      if (calVista === '3_4') calDatos.pivotes[ps.id] = [pt.x, pt.y];
+      renderCalibradorRig();
+    } else {
+      calDragIni = pt; calDragAct = pt; dibujarCanvasCalRig();
+    }
+  });
+  cv.addEventListener('pointermove', function(ev) {
+    if (!calDragIni) return; ev.preventDefault(); calDragAct = ptCanvas(ev); dibujarCanvasCalRig();
+  });
+  const finDrag = function() {
+    if (!calDragIni || !calDragAct) return;
+    const ps = pasosCalActuales()[calPasoIdx], mk = mkCalActual();
+    const x = Math.min(calDragIni.x, calDragAct.x), y = Math.min(calDragIni.y, calDragAct.y);
+    const w = Math.abs(calDragAct.x - calDragIni.x), h = Math.abs(calDragAct.y - calDragIni.y);
+    calDragIni = null; calDragAct = null;
+    if (ps && ps.tipo === 'box' && w >= 14 && h >= 10) {
+      if (!calDatos.moldes[mk]) calDatos.moldes[mk] = { angulo: calVista, zonas: {}, calibrado: true };
+      if (!calDatos.moldes[mk].zonas) calDatos.moldes[mk].zonas = {};
+      calDatos.moldes[mk].zonas[ps.id] = { caja: { x: x, y: y, w: w, h: h }, puntos: [{ x: Math.round(x + w / 2), y: Math.round(y + h / 2) }] };
+      calDatos.moldes[mk].calibrado = true;
+      renderCalibradorRig();
+    } else { dibujarCanvasCalRig(); }
+  };
+  cv.addEventListener('pointerup', finDrag); cv.addEventListener('pointercancel', finDrag);
+})();
+
+window.guardarCalibracionRig = async function() {
+  const p = obtenerPersonajeActual(); if (!p) return;
+  const out = Object.assign({}, calDatos.pivotes, { _moldes: calDatos.moldes });
+  p.pivotes_json = JSON.stringify(out, null, 2);
+  await guardarBiblioteca(true);
+  window.cerrarModalFab('modal-calibrar-rig');
+  toast('Calibración maestra guardada. Los próximos lienzos se anclarán al milímetro.', 'exito', 4200);
+  renderConsolaRueda();
+};
+
+function mapearCatAAjuste(catId) {
+  if (catId === 'angulo') return 'cabeza';
+  return ['cabeza', 'ojos', 'cejas', 'boca', 'brazo', 'mano', 'cuerpo', 'acc'].indexOf(catId) >= 0 ? catId : 'ojos';
+}
+function refrescarPanelAjusteFab() {
+  const p = obtenerPersonajeActual(); if (!p) return;
+  const aj = parsearAjustesCapas(p)[ajCapaActiva] || { dx: 0, dy: 0, sc: 1 };
+  const sel = document.getElementById('sel-aj-capa-fab'); if (sel) sel.value = ajCapaActiva;
+  const tit = document.getElementById('aj-fab-tit'); if (tit) tit.textContent = 'Ajustar Capa: ' + ajCapaActiva.toUpperCase();
+  const rx = document.getElementById('rng-aj-x'), ry = document.getElementById('rng-aj-y'), rs = document.getElementById('rng-aj-sc');
+  if (rx) rx.value = Math.round(aj.dx); if (ry) ry.value = Math.round(aj.dy); if (rs) rs.value = Math.round(aj.sc * 100);
+  const vx = document.getElementById('val-aj-x'), vy = document.getElementById('val-aj-y'), vs = document.getElementById('val-aj-sc');
+  if (vx) vx.textContent = Math.round(aj.dx); if (vy) vy.textContent = Math.round(aj.dy); if (vs) vs.textContent = Math.round(aj.sc * 100) + '%';
+}
+window.toggleAjusteCapaFab = function(forzar) {
+  ajusteCapaAbierto = typeof forzar === 'boolean' ? forzar : !ajusteCapaAbierto;
+  const pnl = document.getElementById('panel-ajuste-fab');
+  if (pnl) pnl.classList.toggle('hidden', !ajusteCapaAbierto);
+  if (ajusteCapaAbierto) { ajCapaActiva = mapearCatAAjuste(CATS_RUEDA[catIdxRueda].id); refrescarPanelAjusteFab(); }
+  else { guardarBiblioteca(true); }
+};
+window.selCapaAjusteFab = function(k) { ajCapaActiva = k || 'ojos'; refrescarPanelAjusteFab(); };
+window.editarAjusteCapaFab = function(campo, val) {
+  const p = obtenerPersonajeActual(); if (!p) return;
+  if (!p.ajustes_capas || typeof p.ajustes_capas !== 'object') p.ajustes_capas = {};
+  const cur = Object.assign({ dx: 0, dy: 0, sc: 1 }, p.ajustes_capas[ajCapaActiva] || {});
+  cur[campo] = val; p.ajustes_capas[ajCapaActiva] = cur;
+  refrescarPanelAjusteFab(); dibujarPersonajeOffline();
+};
+window.resetAjusteCapaFab = function() {
+  const p = obtenerPersonajeActual(); if (!p) return;
+  if (!p.ajustes_capas) p.ajustes_capas = {};
+  p.ajustes_capas[ajCapaActiva] = { dx: 0, dy: 0, sc: 1 };
+  refrescarPanelAjusteFab(); dibujarPersonajeOffline(); guardarBiblioteca(true);
+};
 
 window.rotarFondoFab = function() {
   const st = document.getElementById('stage-fab'), b = document.getElementById('btn-bg-fab');
