@@ -642,15 +642,31 @@ function guardarEstadoUIEditor() {
   } catch (e) {}
 }
 
+let loadSeqEd = 0;
+let pendingSaveEdRun = null;
+
+async function vaciarGuardadoPendienteEd() {
+  if (debounceSync) { clearTimeout(debounceSync); debounceSync = null; }
+  if (pendingSaveEdRun) {
+    const fn = pendingSaveEdRun; pendingSaveEdRun = null;
+    try { await fn(); } catch (eFl) {}
+  }
+}
+
 async function cargarBiblioteca() {
+  const seq = ++loadSeqEd;
+  const targetProyId = proyectoActivo.id;
+  const targetDocId = getDocBibId();
+  const kLoc = getLocalBibKey();
   const bp = document.getElementById('badge-proy-ed'); if (bp) bp.textContent = proyectoActivo.nombre || 'Pirobonianos';
   setSync('...', 'warn');
-  biblioteca = { tipo_doc: 'biblioteca', personajes: [], escenarios: [], props: [], guiones: [] };
-  const kLoc = getLocalBibKey();
-  try { const raw = localStorage.getItem(kLoc); if (raw) biblioteca = JSON.parse(raw); } catch (e) {}
+  let bibTmp = { tipo_doc: 'biblioteca', personajes: [], escenarios: [], props: [], guiones: [] };
+  try { const raw = localStorage.getItem(kLoc); if (raw) bibTmp = JSON.parse(raw); } catch (e) {}
+  biblioteca = bibTmp;
 
   if (GeokatuDB.PirobonianosService && navigator.onLine) {
-    const res = await GeokatuDB.PirobonianosService.obtenerProyectoEDT(getDocBibId());
+    const res = await GeokatuDB.PirobonianosService.obtenerProyectoEDT(targetDocId);
+    if (seq !== loadSeqEd || proyectoActivo.id !== targetProyId) return;
     if (res.success && res.data && Array.isArray(res.data.personajes)) {
       if (!biblioteca.fecha_actualizacion || String(res.data.fecha_actualizacion || '') >= String(biblioteca.fecha_actualizacion)) {
         biblioteca = res.data;
@@ -663,6 +679,7 @@ async function cargarBiblioteca() {
   } else {
     setSync('Offline', 'warn');
   }
+  if (seq !== loadSeqEd || proyectoActivo.id !== targetProyId) return;
 
   if (!Array.isArray(biblioteca.guiones)) biblioteca.guiones = [];
   if (biblioteca.guiones.length === 0) {
@@ -674,7 +691,7 @@ async function cargarBiblioteca() {
     });
   }
   try {
-    const rawUi = localStorage.getItem('piro_editor_ui_' + proyectoActivo.id);
+    const rawUi = localStorage.getItem('piro_editor_ui_' + targetProyId);
     if (rawUi) {
       const u = JSON.parse(rawUi);
       if (!epIdActivo && u.epIdActivo && biblioteca.guiones.some(function(g) { return g.id === u.epIdActivo; })) epIdActivo = u.epIdActivo;
@@ -690,28 +707,38 @@ async function cargarBiblioteca() {
 }
 
 function guardarBiblioteca(inmediato) {
+  const snapProy = Object.assign({}, proyectoActivo);
+  const snapProyId = snapProy.id;
+  const snapDocId = normalizarDocBibId(snapProy.docBibId, snapProyId);
+  const snapLocalKey = snapProyId === 'pirobonianos' ? 'piro_biblioteca_maestra_v1' : ('piro_bib_' + snapProyId + '_v1');
   hayCambiosPendientesEd = true;
   biblioteca.tipo_doc = 'biblioteca';
-  biblioteca.meta_proyecto = proyectoActivo;
+  biblioteca.meta_proyecto = snapProy;
   biblioteca.fecha_actualizacion = new Date().toISOString();
   const limpioJson = JSON.parse(JSON.stringify(biblioteca));
-  try { localStorage.setItem(getLocalBibKey(), JSON.stringify(limpioJson)); } catch (e) {}
+  try { localStorage.setItem(snapLocalKey, JSON.stringify(limpioJson)); } catch (e) {}
   setSync('Guardando...', 'warn');
   clearTimeout(debounceSync);
   const run = async function() {
-    if (!GeokatuDB.PirobonianosService) { setSync('Local', 'warn'); return; }
-    const res = await GeokatuDB.PirobonianosService.guardarProyectoEDT(getDocBibId(), limpioJson);
-    if (res.success && !res.offline) {
-      hayCambiosPendientesEd = false;
-      setSync('Nube OK', 'ok');
+    pendingSaveEdRun = null;
+    if (!GeokatuDB.PirobonianosService) { if (proyectoActivo.id === snapProyId) setSync('Local', 'warn'); return { success: false, offline: true }; }
+    const res = await GeokatuDB.PirobonianosService.guardarProyectoEDT(snapDocId, limpioJson);
+    const esActual = proyectoActivo.id === snapProyId;
+    if (res && res.success && !res.offline) {
+      if (esActual) { hayCambiosPendientesEd = false; setSync('Nube OK', 'ok'); }
     } else {
-      setSync('Local', 'warn');
+      if (esActual) setSync('Local', 'warn');
       if (res && res.error) toast('Aviso nube: ' + res.error, 'error');
     }
-    if (window.self !== window.top) window.parent.postMessage({ tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA', origen: 'editor' }, '*');
+    if (res && res.success && window.self !== window.top) {
+      window.parent.postMessage({ tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA', origen: 'editor', proyectoId: snapProyId }, '*');
+    }
+    return res || { success: false };
   };
-  if (inmediato) run();
-  else debounceSync = setTimeout(run, 600);
+  if (inmediato) { pendingSaveEdRun = null; return run(); }
+  pendingSaveEdRun = run;
+  debounceSync = setTimeout(run, 600);
+  return Promise.resolve({ success: true, debounced: true });
 }
 
 window.toggleVistaRapida = function() {
@@ -2085,18 +2112,21 @@ window.exportarPaqueteEpisodio = function() {
 // =========================================================================
 // 7. PUENTE POSTMESSAGE + PERSISTENCIA
 // =========================================================================
-window.addEventListener('message', function(e) {
+window.addEventListener('message', async function(e) {
   if (!e.data || !e.data.tipo) return;
-    if (e.data.tipo === 'PIRO_SHELL_CAMBIAR_PROYECTO' && e.data.proyecto) {
+  if (e.data.tipo === 'PIRO_SHELL_CAMBIAR_PROYECTO' && e.data.proyecto) {
     window.detenerTimeline();
+    await vaciarGuardadoPendienteEd();
     limpiarCacheCompositor();
-    proyectoActivo = Object.assign(proyectoActivo, e.data.proyecto);
+    proyectoActivo = Object.assign({}, proyectoActivo, e.data.proyecto);
     proyectoActivo.docBibId = normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id);
     epIdActivo = null; clipSelIdx = 0; actorSelIdx = 0;
     cargarBiblioteca();
   } else if (e.data.tipo === 'PIRO_SHELL_AUTH' || e.data.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA') {
+    if (e.data.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA' && e.data.proyectoId && e.data.proyectoId !== proyectoActivo.id) return;
+    if (e.data.proyecto && e.data.proyecto.id !== proyectoActivo.id) await vaciarGuardadoPendienteEd();
     if (e.data.proyecto) {
-      proyectoActivo = Object.assign(proyectoActivo, e.data.proyecto);
+      proyectoActivo = Object.assign({}, proyectoActivo, e.data.proyecto);
       proyectoActivo.docBibId = normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id);
     }
     cargarBiblioteca();
