@@ -4,7 +4,7 @@
  * múltiples actores simultáneos en plano, L-cuts y lip-sync por envolvente real.
  */
 
-const MAX_IMG_CACHE = 80;
+const MAX_IMG_CACHE = 140;
 const MAX_ENV_CACHE = 40;
 const _imgCache = new Map();
 const _envCache = new Map();
@@ -92,6 +92,28 @@ export function cargarImagenPiro(url, opts) {
     };
     im.src = url;
   });
+}
+
+export async function precargarPiezasPersonajePiro(personaje, extraUrls) {
+  const urls = new Set();
+  const pzs = (personaje && personaje.piezas) || {};
+  Object.keys(pzs).forEach(function(k) {
+    if (k.indexOf('maestro_') === 0) return;
+    const u = pzs[k] && pzs[k].url;
+    if (u && typeof u === 'string' && u.length > 5) urls.add(u);
+  });
+  if (Array.isArray(extraUrls)) {
+    extraUrls.forEach(function(u) { if (u && typeof u === 'string' && u.length > 5) urls.add(u); });
+  }
+  const lista = Array.from(urls);
+  for (let i = 0; i < lista.length; i += 8) {
+    const lote = lista.slice(i, i + 8);
+    await Promise.all(lote.map(async function(u) {
+      const im = await cargarImagenPiro(u);
+      if (im && typeof im.decode === 'function') { try { await im.decode(); } catch (eD) {} }
+    }));
+  }
+  return lista.length;
 }
 
 export function parsearPivotes(p) {
@@ -263,9 +285,17 @@ export async function extraerEnvolventeAudio(url, fps) {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
     if (!_audioCtx) _audioCtx = new AC();
-    const resp = await fetch(url);
-    if (!resp.ok) return null;
-    const buf = await resp.arrayBuffer();
+        let buf = null;
+    if (String(url).indexOf('data:') === 0 && String(url).indexOf(';base64,') > 0) {
+      const bin = atob(String(url).split(',')[1]);
+      const u8 = new Uint8Array(bin.length);
+      for (let k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k);
+      buf = u8.buffer;
+    } else {
+      const resp = await fetch(url);
+      if (!resp.ok) return null;
+      buf = await resp.arrayBuffer();
+    }
     const audioBuf = await _audioCtx.decodeAudioData(buf);
     const ch = audioBuf.getChannelData(0);
     const sr = audioBuf.sampleRate;
@@ -360,7 +390,7 @@ export function palabraAVisemasPiro(palabra) {
   return out;
 }
 
-export function construirVisemasDesdeMarcasPiro(marcas, textoFallback, duracionSeg) {
+export function construirVisemasDesdeMarcasPiro(marcas, textoFallback, duracionSeg, env) {
   const pista = [];
   if (Array.isArray(marcas) && marcas.length > 0) {
     marcas.forEach(function(m) {
@@ -377,6 +407,25 @@ export function construirVisemasDesdeMarcasPiro(marcas, textoFallback, duracionS
   }
   const palabras = String(textoFallback || '').trim().split(/\s+/).filter(Boolean);
   if (!palabras.length) return pista;
+  if (env && Array.isArray(env.frames) && env.frames.length > 4) {
+    const fps = env.fps || 24, dt = 1 / fps;
+    const allV = [];
+    palabras.forEach(function(w) { palabraAVisemasPiro(w).forEach(function(v) { allV.push(v); }); });
+    const activos = [];
+    for (let f = 0; f < env.frames.length; f++) { if ((env.frames[f] || 0) >= 0.08) activos.push(f); }
+    if (allV.length > 0 && activos.length > 0) {
+      for (let i = 0; i < activos.length; i++) {
+        const vIdx = Math.min(allV.length - 1, Math.floor((i / activos.length) * allV.length));
+        const tF = activos[i] * dt;
+        if (pista.length && pista[pista.length - 1].b === allV[vIdx] && Math.abs((pista[pista.length - 1].t + pista[pista.length - 1].d) - tF) < dt * 1.5) {
+          pista[pista.length - 1].d = Number((pista[pista.length - 1].d + dt).toFixed(3));
+        } else {
+          pista.push({ t: Number(tF.toFixed(3)), d: Number(dt.toFixed(3)), b: allV[vIdx] });
+        }
+      }
+      return pista;
+    }
+  }
   const total = Math.max(0.5, Number(duracionSeg) || (palabras.length * 0.34));
   const pesos = palabras.map(function(w) { return Math.max(2, w.replace(/[^a-zA-ZáéíóúñÁÉÍÓÚÑ]/g, '').length); });
   const sumP = pesos.reduce(function(a, b) { return a + b; }, 0) || 1;
@@ -419,13 +468,13 @@ export function obtenerBocaLipSyncPiro(opts) {
   let amp = -1;
   if (env && Array.isArray(env.frames) && env.frames.length > 0) {
     const idx = Math.floor(t * (env.fps || 24));
-    if (idx >= env.frames.length) return 'boca_cerrada';
+    if (idx >= env.frames.length) return elegirBocaDisponiblePiro(o.personaje, cabezaKey, 'boca_cerrada');
     amp = env.frames[idx] || 0;
-    if (amp < 0.08) return 'boca_cerrada';
+    if (amp < 0.08) return elegirBocaDisponiblePiro(o.personaje, cabezaKey, 'boca_cerrada');
   }
   let pista = Array.isArray(o.visemas) && o.visemas.length > 0 ? o.visemas : null;
   if (!pista && Array.isArray(o.marcas) && o.marcas.length > 0) pista = construirVisemasDesdeMarcasPiro(o.marcas, texto, o.duracion);
-  if (!pista && texto.trim()) pista = construirVisemasDesdeMarcasPiro(null, texto, (env && env.duracion) || o.duracion || 3);
+  if (!pista && texto.trim()) pista = construirVisemasDesdeMarcasPiro(null, texto, (env && env.duracion) || o.duracion || 3, env);
   if (pista && pista.length > 0) {
     for (let i = 0; i < pista.length; i++) {
       const it = pista[i];
@@ -649,7 +698,8 @@ export function evaluarAnimacionActorPiro(actorObj, sc, tLocalSeg, estaHablando,
   const actDef = ACTUACIONES_PIRO[out.actuacionActiva];
   if (actDef && actDef.frames && actDef.frames.length > 0) {
     const pose = interpolarActuacion(actDef, Math.max(0, t - tActInicio));
-    if (pose) { out.rotCab += pose.rotCab; out.rotBrazo += pose.rotBrazo; out.rotAntebrazo += pose.rotAntebrazo; out.rotMano += pose.rotMano; out.scaleX *= pose.scaleX; out.scaleY *= pose.scaleY; out.offsetY += pose.offsetY; }
+    const tieneArtB = Boolean(personaje && personaje.piezas && (personaje.piezas.brazo_del_sup || personaje.piezas.brazo_del_ant));
+    if (pose) { const kBr = tieneArtB ? 1 : 0.35; out.rotCab += pose.rotCab; out.rotBrazo += pose.rotBrazo * kBr; out.rotAntebrazo += pose.rotAntebrazo * kBr; out.rotMano += pose.rotMano * kBr; out.scaleX *= pose.scaleX; out.scaleY *= pose.scaleY; out.offsetY += pose.offsetY; }
     if (actDef.ojos && out.ojos !== 'ojos_cerrados') out.ojos = actDef.ojos;
     if (actDef.bocaDef) out.bocaDef = actDef.bocaDef;
     const tieneArtP = Boolean(personaje && personaje.piezas && (personaje.piezas.brazo_del_sup || personaje.piezas.brazo_del_ant));
@@ -835,13 +885,13 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
       drawP(imgs[piernaTrasKey] || imgs.pierna_trasera);
       drawP(imgs[piernaDelKey] || imgs.pierna_delantera);
     }
-    if (cuerpoImg) {
+        if (cuerpoImg) {
       ctx.save(); aplicarTransformAjuste(ctx, ajCapas.cuerpo, 500, 1480); drawP(cuerpoImg); ctx.restore();
+    } else if (imgs.maestro_cuerpo && cfg.modoLienzoCompleto) {
+      ctx.save(); ctx.globalAlpha = 0.42; drawP(imgs.maestro_cuerpo); ctx.restore();
     }
     if (accZona === 'torso' && imgs[accKey]) {
       ctx.save(); aplicarTransformAjuste(ctx, ajCapas.acc, 500, 680); drawP(imgs[accKey]); ctx.restore();
-    } else if (imgs.maestro_cuerpo && cfg.modoLienzoCompleto) {
-      ctx.save(); ctx.globalAlpha = 0.42; drawP(imgs.maestro_cuerpo); ctx.restore();
     }
 
         const moldeCab = moldes[cabezaKey] || null;
