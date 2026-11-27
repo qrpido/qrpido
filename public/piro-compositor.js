@@ -247,24 +247,50 @@ export function obtenerPerspectivaCabeza(cabezaKey) {
 
 export const AJUSTES_CAPA_KEYS = ['cuerpo', 'cabeza', 'ojos', 'cejas', 'boca', 'brazo', 'mano', 'acc'];
 
+export function normalizarAjusteObjPiro(v) {
+  return {
+    dx: (v && typeof v.dx === 'number' && Number.isFinite(v.dx)) ? v.dx : 0,
+    dy: (v && typeof v.dy === 'number' && Number.isFinite(v.dy)) ? v.dy : 0,
+    sc: (v && typeof v.sc === 'number' && v.sc > 0.2 && v.sc < 3) ? v.sc : 1,
+    rot: (v && typeof v.rot === 'number' && Number.isFinite(v.rot)) ? Math.max(-180, Math.min(180, v.rot)) : 0,
+    flipX: Boolean(v && v.flipX)
+  };
+}
+
 export function parsearAjustesCapas(p) {
   const raw = (p && p.ajustes_capas && typeof p.ajustes_capas === 'object') ? p.ajustes_capas : {};
   const out = {};
-  AJUSTES_CAPA_KEYS.forEach(function(k) {
-    const v = raw[k];
-    out[k] = {
-      dx: (v && typeof v.dx === 'number') ? v.dx : 0,
-      dy: (v && typeof v.dy === 'number') ? v.dy : 0,
-      sc: (v && typeof v.sc === 'number' && v.sc > 0.2 && v.sc < 3) ? v.sc : 1
-    };
-  });
+  AJUSTES_CAPA_KEYS.forEach(function(k) { out[k] = normalizarAjusteObjPiro(raw[k]); });
   return out;
 }
 
+export function parsearAjustePiezaPiro(p, slotKey, campoAlt) {
+  const pzs = (p && p.piezas) || {};
+  const pz = slotKey ? pzs[slotKey] : null;
+  const raw = pz ? (campoAlt ? pz[campoAlt] : pz.ajuste) : null;
+  return normalizarAjusteObjPiro(raw);
+}
+
+export function combinarAjustesPiro(a, b) {
+  const x = normalizarAjusteObjPiro(a), y = normalizarAjusteObjPiro(b);
+  return {
+    dx: Number((x.dx + y.dx).toFixed(2)),
+    dy: Number((x.dy + y.dy).toFixed(2)),
+    sc: Math.max(0.2, Math.min(3, Number((x.sc * y.sc).toFixed(4)))),
+    rot: Number((x.rot + y.rot).toFixed(2)),
+    flipX: Boolean(x.flipX) !== Boolean(y.flipX)
+  };
+}
+
 function aplicarTransformAjuste(ctx, aj, ax, ay) {
-  if (!aj || (aj.dx === 0 && aj.dy === 0 && aj.sc === 1)) return;
-  ctx.translate(ax + aj.dx, ay + aj.dy);
-  if (aj.sc !== 1) ctx.scale(aj.sc, aj.sc);
+  if (!aj) return;
+  const dx = Number(aj.dx) || 0, dy = Number(aj.dy) || 0;
+  const sc = (typeof aj.sc === 'number' && aj.sc > 0.2 && aj.sc < 3) ? aj.sc : 1;
+  const rot = Number(aj.rot) || 0, fl = Boolean(aj.flipX);
+  if (dx === 0 && dy === 0 && sc === 1 && rot === 0 && !fl) return;
+  ctx.translate(ax + dx, ay + dy);
+  if (rot !== 0) ctx.rotate((rot * Math.PI) / 180);
+  if (fl || sc !== 1) ctx.scale((fl ? -1 : 1) * sc, sc);
   ctx.translate(-ax, -ay);
 }
 
@@ -885,7 +911,7 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
     'pierna_trasera', 'pierna_delantera', piernaTrasKey, piernaDelKey,
     'cuerpo_base', cuerpoKey, 'maestro_cuerpo', 'maestro_perfil',
     'cabeza_base', cabezaKey, ojosKey, cejasKey, bocaKey, 'cuerpo_frente', 'cuerpo_perfil', 'cuerpo_espalda', 'cuerpo_espalda_3_4',
-        'brazo_delantero_reposo', brazoDelKey, 'brazo_del_sup', 'brazo_del_ant', manoKey, 'mano_relajada', 'mano_trasera', accKey
+            'brazo_delantero_reposo', brazoDelKey, 'brazo_del_sup', 'brazo_del_ant', manoKey, 'mano_relajada', 'mano_trasera', cfg.manoTras || '', personaje.mano_trasera_ref || '', accKey
   ];
   const imgs = {};
   await Promise.all(claves.map(async function(k) {
@@ -942,30 +968,34 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
     const esOverlayDoble = (brazoDelKey === 'brazos_cruzados' || brazoDelKey === 'manos_cintura');
     if (brazoTrasKey !== 'ninguno' && !esOverlayDoble) {
       const ptHT = piv.hombro_trasero;
-      if (brazoTrasKey === 'articulado' && tieneArtTras) {
+            if (brazoTrasKey === 'articulado' && tieneArtTras) {
+        const ajBTSup = parsearAjustePiezaPiro(personaje, 'brazo_tras_sup');
+        const ajBTAnt = parsearAjustePiezaPiro(personaje, 'brazo_tras_ant');
         ctx.save();
         aplicarTransformAjuste(ctx, ajCapas.brazo, ptHT.x, ptHT.y);
         ctx.translate(ptHT.x, ptHT.y);
         ctx.rotate((rotBrazoTras * Math.PI) / 180);
-        if (imgs.brazo_tras_sup) { ctx.drawImage(imgs.brazo_tras_sup, -ptHT.x, -ptHT.y, 1000, 1600); capasDibujadas++; }
-                if (imgs.brazo_tras_ant) {
+        if (imgs.brazo_tras_sup) { ctx.save(); aplicarTransformAjuste(ctx, ajBTSup, 0, 0); ctx.drawImage(imgs.brazo_tras_sup, -ptHT.x, -ptHT.y, 1000, 1600); ctx.restore(); capasDibujadas++; }
+        if (imgs.brazo_tras_ant) {
           const ptCT = piv.codo_trasero;
           const ptMT = piv.mano_trasera;
           ctx.translate(ptCT.x - ptHT.x, ptCT.y - ptHT.y);
           ctx.rotate((rotAntebrazoTras * Math.PI) / 180);
-          ctx.drawImage(imgs.brazo_tras_ant, -ptCT.x, -ptCT.y, 1000, 1600);
+          ctx.save(); aplicarTransformAjuste(ctx, ajBTAnt, 0, 0); ctx.drawImage(imgs.brazo_tras_ant, -ptCT.x, -ptCT.y, 1000, 1600); ctx.restore();
           capasDibujadas++;
-          const manoTrasImg = imgs.mano_trasera || imgs.mano_relajada;
+          const manoTrasSlot = (cfg.manoTras && imgs[cfg.manoTras]) ? cfg.manoTras : ((personaje.mano_trasera_ref && imgs[personaje.mano_trasera_ref]) ? personaje.mano_trasera_ref : (imgs.mano_trasera ? 'mano_trasera' : 'mano_relajada'));
+          const manoTrasImg = imgs[manoTrasSlot] || null;
           if (manoTrasImg) {
+            const esManoTrasPropia = manoTrasSlot === 'mano_trasera';
+            const pzMT = piezas[manoTrasSlot];
+            const rawAjMT = (pzMT && pzMT.ajuste_tras) ? pzMT.ajuste_tras : (esManoTrasPropia ? (pzMT && pzMT.ajuste) : { flipX: true });
+            const ajMT = normalizarAjusteObjPiro(rawAjMT);
             ctx.translate(ptMT.x - ptCT.x, ptMT.y - ptCT.y);
-            if (imgs.mano_trasera) {
-              ctx.drawImage(imgs.mano_trasera, -ptMT.x, -ptMT.y, 1000, 1600);
-            } else {
-              ctx.save();
-              ctx.scale(-1, 1);
-              ctx.drawImage(imgs.mano_relajada, -piv.mano_delantera.x, -piv.mano_delantera.y, 1000, 1600);
-              ctx.restore();
-            }
+            ctx.save();
+            aplicarTransformAjuste(ctx, ajMT, 0, 0);
+            if (esManoTrasPropia) ctx.drawImage(manoTrasImg, -ptMT.x, -ptMT.y, 1000, 1600);
+            else ctx.drawImage(manoTrasImg, -piv.mano_delantera.x, -piv.mano_delantera.y, 1000, 1600);
+            ctx.restore();
             capasDibujadas++;
           }
         }
@@ -979,13 +1009,15 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
       drawP(imgs[piernaTrasKey] || imgs.pierna_trasera);
       drawP(imgs[piernaDelKey] || imgs.pierna_delantera);
     }
-        if (cuerpoImg) {
-      ctx.save(); aplicarTransformAjuste(ctx, ajCapas.cuerpo, 500, 1480); drawP(cuerpoImg); ctx.restore();
+            const ajCuerpoTot = combinarAjustesPiro(ajCapas.cuerpo, parsearAjustePiezaPiro(personaje, cuerpoKey));
+    const ajAccTot = combinarAjustesPiro(ajCapas.acc, parsearAjustePiezaPiro(personaje, accKey));
+    if (cuerpoImg) {
+      ctx.save(); aplicarTransformAjuste(ctx, ajCuerpoTot, 500, 1480); drawP(cuerpoImg); ctx.restore();
     } else if (imgs.maestro_cuerpo && cfg.modoLienzoCompleto) {
       ctx.save(); ctx.globalAlpha = 0.42; drawP(imgs.maestro_cuerpo); ctx.restore();
     }
     if (accZona === 'torso' && imgs[accKey]) {
-      ctx.save(); aplicarTransformAjuste(ctx, ajCapas.acc, 500, 680); drawP(imgs[accKey]); ctx.restore();
+      ctx.save(); aplicarTransformAjuste(ctx, ajAccTot, 500, 680); drawP(imgs[accKey]); ctx.restore();
     }
 
         const moldeCab = moldes[cabezaKey] || null;
@@ -1004,24 +1036,28 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
       ctx.restore();
       capasDibujadas++;
     };
+        const ajCabTot = combinarAjustesPiro(ajCapas.cabeza, parsearAjustePiezaPiro(personaje, cabezaKey));
+    const ajOjosTot = combinarAjustesPiro(ajCapas.ojos, parsearAjustePiezaPiro(personaje, resOjos.key));
+    const ajCejBase = combinarAjustesPiro(ajCapas.cejas, parsearAjustePiezaPiro(personaje, resCejas.key));
+    const ajBocaTot = combinarAjustesPiro(ajCapas.boca, parsearAjustePiezaPiro(personaje, resBoca.key));
     ctx.save();
-    aplicarTransformAjuste(ctx, ajCapas.cabeza, ptCuello.x, ptCuello.y);
+    aplicarTransformAjuste(ctx, ajCabTot, ptCuello.x, ptCuello.y);
     ctx.translate(ptCuello.x, ptCuello.y);
     ctx.rotate((rotCab * Math.PI) / 180);
     ctx.translate(-ptCuello.x, -ptCuello.y);
     if (cabezaImg) { ctx.drawImage(cabezaImg, 0, 0, 1000, 1600); capasDibujadas++; }
-    drawFacialEnCab(ojosImg, resOjos.transform, ajCapas.ojos, ptOjos);
+    drawFacialEnCab(ojosImg, resOjos.transform, ajOjosTot, ptOjos);
     if (!ocultarCara360 && resOjos.key && resOjos.key.indexOf('cerrad') < 0 && piezas[resOjos.key] && piezas[resOjos.key].pupila_dinamica) {
-      dibujarPupilasDinamicasPiro(ctx, piezas[resOjos.key], cfg.miradaVec || null, resOjos.transform, personaje, ajCapas.ojos, ptOjos);
+      dibujarPupilasDinamicasPiro(ctx, piezas[resOjos.key], cfg.miradaVec || null, resOjos.transform, personaje, ajOjosTot, ptOjos);
     }
     if (cejasImg) {
       const cOffY = Number(cfg.cejasOffsetY) || 0;
-      const ajCej = { dx: ajCapas.cejas.dx, dy: ajCapas.cejas.dy + cOffY, sc: ajCapas.cejas.sc };
+      const ajCej = Object.assign({}, ajCejBase, { dy: ajCejBase.dy + cOffY });
       drawFacialEnCab(cejasImg, resCejas.transform, ajCej, ptCejas);
     }
-    drawFacialEnCab(bocaImg, resBoca.transform, ajCapas.boca, ptBoca);
+    drawFacialEnCab(bocaImg, resBoca.transform, ajBocaTot, ptBoca);
     if (accZona === 'cabeza' && imgs[accKey]) {
-      ctx.save(); aplicarTransformAjuste(ctx, ajCapas.acc, ptOjos.x, ptOjos.y); ctx.drawImage(imgs[accKey], 0, 0, 1000, 1600); ctx.restore(); capasDibujadas++;
+      ctx.save(); aplicarTransformAjuste(ctx, ajAccTot, ptOjos.x, ptOjos.y); ctx.drawImage(imgs[accKey], 0, 0, 1000, 1600); ctx.restore(); capasDibujadas++;
     }
     ctx.restore();
 
@@ -1029,23 +1065,28 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
     const ptCodo = piv.codo_delantero;
     const ptMano = piv.mano_delantera;
     const manoImg = manoKey ? imgs[manoKey] : null;
-    if (esOverlayDoble && imgs[brazoDelKey]) {
-      ctx.save(); aplicarTransformAjuste(ctx, ajCapas.brazo, 500, 640); drawP(imgs[brazoDelKey]); ctx.restore();
-        } else if (brazoDelKey === 'articulado' && tieneArtDel) {
+        if (esOverlayDoble && imgs[brazoDelKey]) {
+      const ajBrDoble = combinarAjustesPiro(ajCapas.brazo, parsearAjustePiezaPiro(personaje, brazoDelKey));
+      ctx.save(); aplicarTransformAjuste(ctx, ajBrDoble, 500, 640); drawP(imgs[brazoDelKey]); ctx.restore();
+    } else if (brazoDelKey === 'articulado' && tieneArtDel) {
+      const manoArtKey = manoImg ? manoKey : 'mano_relajada';
       const manoArtImg = manoImg || imgs.mano_relajada;
+      const ajBDSup = parsearAjustePiezaPiro(personaje, 'brazo_del_sup');
+      const ajBDAnt = parsearAjustePiezaPiro(personaje, 'brazo_del_ant');
+      const ajManoArt = combinarAjustesPiro(ajCapas.mano, parsearAjustePiezaPiro(personaje, manoArtKey));
       ctx.save();
       aplicarTransformAjuste(ctx, ajCapas.brazo, ptHombro.x, ptHombro.y);
       ctx.translate(ptHombro.x, ptHombro.y);
       ctx.rotate((rotBrazo * Math.PI) / 180);
-      ctx.drawImage(imgs.brazo_del_sup, -ptHombro.x, -ptHombro.y, 1000, 1600); capasDibujadas++;
+      ctx.save(); aplicarTransformAjuste(ctx, ajBDSup, 0, 0); ctx.drawImage(imgs.brazo_del_sup, -ptHombro.x, -ptHombro.y, 1000, 1600); ctx.restore(); capasDibujadas++;
       ctx.translate(ptCodo.x - ptHombro.x, ptCodo.y - ptHombro.y);
       ctx.rotate((rotAntebrazo * Math.PI) / 180);
-      ctx.drawImage(imgs.brazo_del_ant, -ptCodo.x, -ptCodo.y, 1000, 1600); capasDibujadas++;
+      ctx.save(); aplicarTransformAjuste(ctx, ajBDAnt, 0, 0); ctx.drawImage(imgs.brazo_del_ant, -ptCodo.x, -ptCodo.y, 1000, 1600); ctx.restore(); capasDibujadas++;
       if (manoArtImg || cfg.propImg) {
         ctx.translate(ptMano.x - ptCodo.x, ptMano.y - ptCodo.y);
         ctx.rotate((rotMano * Math.PI) / 180);
         ctx.save();
-        aplicarTransformAjuste(ctx, ajCapas.mano, 0, 0);
+        aplicarTransformAjuste(ctx, ajManoArt, 0, 0);
         if (manoArtImg) { ctx.drawImage(manoArtImg, -ptMano.x, -ptMano.y, 1000, 1600); capasDibujadas++; }
         if (cfg.propImg) {
           const propSize = Number(cfg.propSize) || 230;
@@ -1056,10 +1097,13 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
       }
       ctx.restore();
     } else {
-      const brazoImg = (brazoDelKey !== 'ninguno') ? (imgs[brazoDelKey] || imgs.brazo_delantero_reposo) : null;
+      const brazoUseKey = (brazoDelKey !== 'ninguno') ? (imgs[brazoDelKey] ? brazoDelKey : 'brazo_delantero_reposo') : '';
+      const brazoImg = brazoUseKey ? imgs[brazoUseKey] : null;
       if (brazoImg || manoImg || cfg.propImg) {
+        const ajBrTot = combinarAjustesPiro(ajCapas.brazo, parsearAjustePiezaPiro(personaje, brazoUseKey));
+        const ajManoTot = combinarAjustesPiro(ajCapas.mano, parsearAjustePiezaPiro(personaje, manoKey));
         ctx.save();
-        aplicarTransformAjuste(ctx, ajCapas.brazo, ptHombro.x, ptHombro.y);
+        aplicarTransformAjuste(ctx, ajBrTot, ptHombro.x, ptHombro.y);
         ctx.translate(ptHombro.x, ptHombro.y);
         ctx.rotate((rotBrazo * Math.PI) / 180);
         if (brazoImg) {
@@ -1071,7 +1115,7 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
           ctx.translate(ptMano.x - ptHombro.x, ptMano.y - ptHombro.y);
           ctx.rotate((rotMano * Math.PI) / 180);
           ctx.save();
-          aplicarTransformAjuste(ctx, ajCapas.mano, 0, 0);
+          aplicarTransformAjuste(ctx, ajManoTot, 0, 0);
           if (mostrarManoExtra) { ctx.drawImage(manoImg, -ptMano.x, -ptMano.y, 1000, 1600); capasDibujadas++; }
           if (cfg.propImg) {
             const propSize = Number(cfg.propSize) || 230;
@@ -1083,8 +1127,8 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
         ctx.restore();
       }
     }
-  if (accZona === 'frente' && imgs[accKey]) {
-      ctx.save(); aplicarTransformAjuste(ctx, ajCapas.acc, ptMano.x, ptMano.y); ctx.drawImage(imgs[accKey], 0, 0, 1000, 1600); ctx.restore(); capasDibujadas++;
+    if (accZona === 'frente' && imgs[accKey]) {
+      ctx.save(); aplicarTransformAjuste(ctx, ajAccTot, ptMano.x, ptMano.y); ctx.drawImage(imgs[accKey], 0, 0, 1000, 1600); ctx.restore(); capasDibujadas++;
     }
   } else if (imgs.maestro_cuerpo) {
     drawP(imgs.maestro_cuerpo);
