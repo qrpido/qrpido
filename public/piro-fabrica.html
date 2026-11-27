@@ -441,7 +441,7 @@
 
 <script type="module">
 import GeokatuDB from './core-db.js';
-import { dibujarMarionetaPiro, cargarImagenPiro, parsearMoldes, parsearPivotes, parsearAjustesCapas, limpiarCacheCompositor, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO, ACTUACIONES_PIRO, evaluarAnimacionActorPiro, evaluarMiradaActorPiro, construirVisemasDesdeMarcasPiro, obtenerBocaLipSyncPiro, dibujarElementosVivosPiro } from './piro-compositor.js';
+import { dibujarMarionetaPiro, cargarImagenPiro, precargarPiezasPersonajePiro, extraerEnvolventeAudio, parsearMoldes, parsearPivotes, parsearAjustesCapas, limpiarCacheCompositor, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO, ACTUACIONES_PIRO, evaluarAnimacionActorPiro, evaluarMiradaActorPiro, construirVisemasDesdeMarcasPiro, obtenerBocaLipSyncPiro, dibujarElementosVivosPiro } from './piro-compositor.js';
 
 const BLOQUES_60 = [
   { id: 'b1', tit: '1. Identidad y Arte (8)', campos: [
@@ -2072,11 +2072,13 @@ window.moverRuedaH = function(delta) {
   dibujarPersonajeOffline();
 };
 
+let cvFabBuf = null;
 async function dibujarPersonajeOffline(liveCfg) {
   const cv = document.getElementById('cv-fabrica'), p = obtenerPersonajeActual();
   if (!cv) return;
-  const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, 1000, 1600);
-  if (!p) return;
+  if (!p) { cv.getContext('2d').clearRect(0, 0, 1000, 1600); return; }
+  if (!cvFabBuf) { cvFabBuf = document.createElement('canvas'); cvFabBuf.width = 1000; cvFabBuf.height = 1600; }
+  const ctx = cvFabBuf.getContext('2d'); ctx.clearRect(0, 0, 1000, 1600);
   const pzsOffline = {};
   const srcPzs = p.piezas || {};
   Object.keys(srcPzs).forEach(function(k) { pzsOffline[k] = Object.assign({}, srcPzs[k], { url: cacheLocalUrls[k] || srcPzs[k].url }); });
@@ -2112,6 +2114,7 @@ async function dibujarPersonajeOffline(liveCfg) {
     if (imZ4) ctx.drawImage(imZ4, -300 + pan25 * 1.32, 0, 1600, 1600);
     await dibujarElementosVivosPiro(ctx, z25.elementos_vivos || [], 'z4', 1000, 1600, pan25, 1, tBg, {});
   }
+    const ctxVis = cv.getContext('2d'); ctxVis.clearRect(0, 0, 1000, 1600); ctxVis.drawImage(cvFabBuf, 0, 0);
   const hud = document.getElementById('hud-progreso');
   if (hud) hud.textContent = Object.keys(pzsOffline).length + ' piezas · ' + (playLiveOn ? 'EN VIVO' : '0ms');
 }
@@ -2632,10 +2635,13 @@ window.cambiarVozIdSelectFab = function(val) {
   playLiveCacheKey = ''; guardarBiblioteca(false);
 };
 
+let playLiveSid = 0, playLiveDrawing = false;
 window.detenerPlayDemoFab = function() {
+  playLiveSid++;
   playLiveOn = false;
+  playLiveDrawing = false;
   if (playLiveRaf) { cancelAnimationFrame(playLiveRaf); playLiveRaf = null; }
-  if (playLiveAudioEl) { try { playLiveAudioEl.pause(); playLiveAudioEl.currentTime = 0; } catch (e) {} }
+  if (playLiveAudioEl) { try { playLiveAudioEl.onended = null; playLiveAudioEl.pause(); playLiveAudioEl.currentTime = 0; } catch (e) {} }
   const b = document.getElementById('btn-play-live-fab');
   if (b) { b.textContent = 'Play'; b.classList.remove('on'); }
   dibujarPersonajeOffline();
@@ -2646,15 +2652,29 @@ window.togglePlayDemoFab = async function(forzarPlay) {
   if (playLiveOn) window.detenerPlayDemoFab();
   const p = obtenerPersonajeActual(); if (!p) return;
   if (!p.voz_es) aplicarVozSugeridaPlano(p, p.blueprint_v2);
+  const sid = ++playLiveSid;
   const b = document.getElementById('btn-play-live-fab');
   if (b) { b.textContent = '...'; b.classList.add('on'); }
   const frase = String(p.frase_demo || ('Hola, soy ' + (p.nombre || 'personaje') + '. Listo para animar.')).trim();
   const vCfg = resolverVozFab(p);
   const cKey = p.id + '|' + vCfg.motor + '|' + vCfg.voiceId + '|' + (vCfg.pitch || '') + '|' + (vCfg.rate || '') + '|' + frase;
-  let audioDataUrl = '', marcas = [];
+  const pzsOff = {};
+  Object.keys(p.piezas || {}).forEach(function(k) { pzsOff[k] = Object.assign({}, p.piezas[k], { url: cacheLocalUrls[k] || p.piezas[k].url }); });
+  Object.keys(cacheLocalUrls).forEach(function(k) { if (!pzsOff[k]) pzsOff[k] = { url: cacheLocalUrls[k] }; });
+  const perPre = Object.assign({}, p, { piezas: pzsOff });
+  const extraBg = [];
+  const esc25p = bgModo === 'amb25d' ? ((biblioteca.escenarios || [])[0] || null) : null;
+  const z25p = esc25p && esc25p.zonas && esc25p.zonas[0] ? esc25p.zonas[0] : null;
+  if (z25p) {
+    if (z25p.z1_lejano && z25p.z1_lejano.url) extraBg.push(z25p.z1_lejano.url);
+    if ((z25p.z2_medio || z25p.fondo) && (z25p.z2_medio || z25p.fondo).url) extraBg.push((z25p.z2_medio || z25p.fondo).url);
+    if ((z25p.z4_frente || z25p.frente) && (z25p.z4_frente || z25p.frente).url) extraBg.push((z25p.z4_frente || z25p.frente).url);
+  }
+  const promPrecarga = precargarPiezasPersonajePiro(perPre, extraBg);
+  let audioDataUrl = '', marcas = [], env = null;
   try {
     if (playLiveCacheKey === cKey && playLiveCacheObj) {
-      audioDataUrl = playLiveCacheObj.url; marcas = playLiveCacheObj.marcas;
+      audioDataUrl = playLiveCacheObj.url; marcas = playLiveCacheObj.marcas; env = playLiveCacheObj.env || null;
     } else if (GeokatuDB.PirobonianosService && navigator.onLine) {
       const prefs = leerPrefsVault();
       const motorReal = (vCfg.motor === 'elevenlabs' && !vCfg.voiceId) ? 'edge_tts' : vCfg.motor;
@@ -2663,36 +2683,56 @@ window.togglePlayDemoFab = async function(forzarPlay) {
       if (res && res.success && res.b64) {
         audioDataUrl = 'data:' + (res.mime || 'audio/mpeg') + ';base64,' + res.b64;
         marcas = Array.isArray(res.marcas) ? res.marcas : [];
-        playLiveCacheKey = cKey; playLiveCacheObj = { url: audioDataUrl, marcas: marcas };
+        env = await extraerEnvolventeAudio(audioDataUrl, 30);
+        playLiveCacheKey = cKey; playLiveCacheObj = { url: audioDataUrl, marcas: marcas, env: env };
       } else if (res && res.error) { toast('Aviso voz: ' + res.error + ' (animando sin audio)', 'info', 3600); }
     }
   } catch (eV) { toast('Animación en vivo (sin audio red).', 'info'); }
-  playLiveDur = Math.max(2.6, Math.min(12, frase.split(/\s+/).length * 0.42 + 0.8));
+  await promPrecarga;
+  if (sid !== playLiveSid) return;
+  playLiveDur = (env && env.duracion > 0.3) ? env.duracion : Math.max(2.4, Math.min(12, frase.split(/\s+/).length * 0.42 + 0.6));
+  let tieneAudio = false;
   if (audioDataUrl) {
     if (!playLiveAudioEl) playLiveAudioEl = new Audio();
+    playLiveAudioEl.onended = null;
     playLiveAudioEl.src = audioDataUrl;
     await new Promise(function(resA) {
-      playLiveAudioEl.onloadedmetadata = function() { if (Number.isFinite(playLiveAudioEl.duration) && playLiveAudioEl.duration > 0.3) playLiveDur = playLiveAudioEl.duration + 0.3; resA(); };
-      playLiveAudioEl.onerror = function() { resA(); };
-      setTimeout(resA, 800);
+      const fin = function() { if (Number.isFinite(playLiveAudioEl.duration) && playLiveAudioEl.duration > 0.25) playLiveDur = playLiveAudioEl.duration; resA(); };
+      playLiveAudioEl.onloadedmetadata = fin; playLiveAudioEl.oncanplaythrough = fin; playLiveAudioEl.onerror = function() { resA(); };
+      setTimeout(resA, 900);
     });
-    playLiveAudioEl.currentTime = 0; playLiveAudioEl.play().catch(function() {});
+    if (sid !== playLiveSid) return;
+    if (!env) env = await extraerEnvolventeAudio(audioDataUrl, 30);
+    if (sid !== playLiveSid) return;
+    playLiveAudioEl.currentTime = 0;
+    playLiveAudioEl.onended = function() { if (playLiveOn && sid === playLiveSid) window.detenerPlayDemoFab(); };
+    try { await playLiveAudioEl.play(); tieneAudio = true; } catch (eP) { tieneAudio = false; }
   }
-  playLiveVisemas = construirVisemasDesdeMarcasPiro(marcas, frase, playLiveDur);
-  playLiveOn = true; playLiveT0 = performance.now();
+  if (sid !== playLiveSid) return;
+  playLiveVisemas = construirVisemasDesdeMarcasPiro(marcas, frase, playLiveDur, env);
+  playLiveOn = true; playLiveDrawing = false; playLiveT0 = performance.now();
   if (b) b.textContent = 'Stop';
   const actId = p.actuacion_demo || 'saludar';
-  const loopLive = async function(now) {
-    if (!playLiveOn) return;
-    const t = (playLiveAudioEl && !playLiveAudioEl.paused && playLiveAudioEl.duration) ? playLiveAudioEl.currentTime : ((now - playLiveT0) / 1000);
-    if (t >= playLiveDur) { window.detenerPlayDemoFab(); return; }
+  const loopLive = function(now) {
+    if (!playLiveOn || sid !== playLiveSid) return;
+    const t = tieneAudio ? Math.max(0, playLiveAudioEl.currentTime || 0) : ((now - playLiveT0) / 1000);
+    if ((!tieneAudio && t >= playLiveDur) || (tieneAudio && playLiveAudioEl.ended)) { window.detenerPlayDemoFab(); return; }
+    if (playLiveDrawing) { playLiveRaf = requestAnimationFrame(loopLive); return; }
+    playLiveDrawing = true;
+    let hablandoAhora = true;
+    if (env && Array.isArray(env.frames) && env.frames.length) {
+      const fIdx = Math.floor(t * (env.fps || 30));
+      hablandoAhora = fIdx < env.frames.length && (env.frames[fIdx] || 0) >= 0.08;
+    }
     const scFake = { id: 'demo_fab', vida_auto: true, actuacion: actId, mirada: miradaPreviewId };
     const actorFake = { id: p.id, cabeza: estadoRueda.cabeza, angulo: estadoRueda.angulo, cejas: estadoRueda.cejas, ojos: estadoRueda.ojos, boca: estadoRueda.boca, mano: estadoRueda.mano, actuacion: actId, mirada: miradaPreviewId };
-    const anim = evaluarAnimacionActorPiro(actorFake, scFake, t, true, p);
+    const anim = evaluarAnimacionActorPiro(actorFake, scFake, t, hablandoAhora, perPre);
     const mirVec = evaluarMiradaActorPiro(actorFake, scFake, t, null, 'fab_' + p.id);
-    const bocaDyn = obtenerBocaLipSyncPiro({ modo: 'visemas', tiempoLocal: t, visemas: playLiveVisemas, texto: frase, duracion: playLiveDur, personaje: p, cabezaKey: estadoRueda.cabeza });
-    await dibujarPersonajeOffline({ anim: anim, boca: bocaDyn, miradaVec: mirVec, tSeg: t });
-    if (playLiveOn) playLiveRaf = requestAnimationFrame(loopLive);
+    const bocaDyn = obtenerBocaLipSyncPiro({ modo: 'visemas', tiempoLocal: t, envolvente: env, visemas: playLiveVisemas, texto: frase, duracion: playLiveDur, personaje: perPre, cabezaKey: estadoRueda.cabeza });
+    dibujarPersonajeOffline({ anim: anim, boca: bocaDyn, miradaVec: mirVec, tSeg: t }).then(function() {
+      playLiveDrawing = false;
+      if (playLiveOn && sid === playLiveSid) playLiveRaf = requestAnimationFrame(loopLive);
+    }).catch(function() { playLiveDrawing = false; });
   };
   playLiveRaf = requestAnimationFrame(loopLive);
 };
