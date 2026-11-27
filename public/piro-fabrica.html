@@ -633,17 +633,34 @@ function obtenerPersonajeActual() {
 
 // PERSISTENCIA BIBLIOTECA (COMPATIBLE CON CONTENIDO Y EDITOR)
 function claveCacheBib() { return proyectoActivo.id === 'pirobonianos' ? 'piro_biblioteca_maestra_v1' : ('piro_bib_' + proyectoActivo.id + '_v1'); }
+let loadSeqFab = 0;
+let hidrSeqFab = 0;
+function normalizarDocBibIdFab(id, proyId) {
+  const s = String(id || '').trim();
+  if (!s || s === '__biblioteca_maestra__') return 'bib_pirobonianos';
+  return s.replace(/^_+/, '').replace(/_+$/, '') || ('bib_' + (proyId || 'pirobonianos'));
+}
 async function cargarBiblioteca() {
-  try { const raw = localStorage.getItem(claveCacheBib()); if (raw) { const o = JSON.parse(raw); if (o && Array.isArray(o.personajes)) biblioteca = o; } } catch (e) {}
+  const seq = ++loadSeqFab;
+  const targetProyId = proyectoActivo.id;
+  const targetDocId = normalizarDocBibIdFab(proyectoActivo.docBibId, targetProyId);
+  const kLoc = claveCacheBib();
+  let bibTmp = { tipo_doc: 'biblioteca', personajes: [], escenarios: [], props: [], guiones: [] };
+  try { const raw = localStorage.getItem(kLoc); if (raw) { const o = JSON.parse(raw); if (o && Array.isArray(o.personajes)) bibTmp = o; } } catch (e) {}
+  biblioteca = bibTmp;
   if (GeokatuDB.PirobonianosService && navigator.onLine) {
     try {
-      const res = await GeokatuDB.PirobonianosService.obtenerProyectoEDT(proyectoActivo.docBibId || 'bib_pirobonianos');
+      const res = await GeokatuDB.PirobonianosService.obtenerProyectoEDT(targetDocId);
+      if (seq !== loadSeqFab || proyectoActivo.id !== targetProyId) return;
       if (res && res.success && res.data && Array.isArray(res.data.personajes)) {
-        biblioteca = res.data;
-        try { localStorage.setItem(claveCacheBib(), JSON.stringify(biblioteca)); } catch (e) {}
+        if (!biblioteca.fecha_actualizacion || String(res.data.fecha_actualizacion || '') >= String(biblioteca.fecha_actualizacion)) {
+          biblioteca = res.data;
+          try { localStorage.setItem(kLoc, JSON.stringify(biblioteca)); } catch (e) {}
+        }
       }
     } catch (e) {}
   }
+  if (seq !== loadSeqFab || proyectoActivo.id !== targetProyId) return;
   if (!Array.isArray(biblioteca.personajes)) biblioteca.personajes = [];
   if (!perIdActual || !biblioteca.personajes.some(function(p) { return p.id === perIdActual; })) {
     perIdActual = biblioteca.personajes[0] ? biblioteca.personajes[0].id : '';
@@ -653,10 +670,17 @@ async function cargarBiblioteca() {
   if (p && p.encuesta_v2 && Object.keys(datosEncuesta).length === 0) datosEncuesta = Object.assign({}, p.encuesta_v2);
   renderEncuesta();
   await hidratarCacheOfflinePersonaje(p);
+  if (seq !== loadSeqFab || proyectoActivo.id !== targetProyId) return;
   renderConsolaRueda();
 }
 
 async function guardarBiblioteca(notificar) {
+  const snapProy = Object.assign({}, proyectoActivo);
+  const snapProyId = snapProy.id;
+  const snapDocId = normalizarDocBibIdFab(snapProy.docBibId, snapProyId);
+  const snapKey = snapProyId === 'pirobonianos' ? 'piro_biblioteca_maestra_v1' : ('piro_bib_' + snapProyId + '_v1');
+  biblioteca.tipo_doc = 'biblioteca';
+  biblioteca.meta_proyecto = snapProy;
   biblioteca.fecha_actualizacion = new Date().toISOString();
   limpiarCacheCompositor();
   (biblioteca.personajes || []).forEach(function(pe) {
@@ -667,10 +691,12 @@ async function guardarBiblioteca(notificar) {
       delete pe._esclPend;
     }
   });
-  try { localStorage.setItem(claveCacheBib(), JSON.stringify(biblioteca)); } catch (e) {}
-    if (GeokatuDB.PirobonianosService && navigator.onLine) {
+  const snapLocal = JSON.parse(JSON.stringify(biblioteca));
+  try { localStorage.setItem(snapKey, JSON.stringify(snapLocal)); } catch (e) {}
+  let resFinal = { success: true, offline: true };
+  if (GeokatuDB.PirobonianosService && navigator.onLine) {
     try {
-      const copiaNube = JSON.parse(JSON.stringify(biblioteca));
+      const copiaNube = JSON.parse(JSON.stringify(snapLocal));
       (copiaNube.personajes || []).forEach(function(pe) {
         if (!pe || !pe.piezas) return;
         Object.keys(pe.piezas).forEach(function(sk) {
@@ -678,27 +704,36 @@ async function guardarBiblioteca(notificar) {
           if (typeof u === 'string' && u.indexOf('data:') === 0) { pe.piezas[sk].url = ''; pe.piezas[sk].soloLocal = true; }
         });
       });
-      const resSave = await GeokatuDB.PirobonianosService.guardarProyectoEDT(proyectoActivo.docBibId || 'bib_pirobonianos', Object.assign({ tipo_doc: 'biblioteca' }, copiaNube));
+      const resSave = await GeokatuDB.PirobonianosService.guardarProyectoEDT(snapDocId, copiaNube);
+      resFinal = resSave || { success: false, error: 'Sin respuesta' };
       if (!resSave || !resSave.success) toast('Aviso nube: guardado local OK, pero falló sincronización (' + ((resSave && resSave.error) || 'red') + ').', 'error', 4200);
-    } catch (e) { toast('Aviso nube: guardado local OK, pendiente subir.', 'info'); }
+    } catch (e) { resFinal = { success: false, error: e.message || 'red' }; toast('Aviso nube: guardado local OK, pendiente subir.', 'info'); }
   }
-  if (notificar && window.parent && window.parent !== window) {
-    window.parent.postMessage({ tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA', origen: 'fabrica' }, '*');
+  if (notificar && resFinal && resFinal.success && window.parent && window.parent !== window) {
+    window.parent.postMessage({ tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA', origen: 'fabrica', proyectoId: snapProyId }, '*');
   }
+  return resFinal;
 }
 
 async function hidratarCacheOfflinePersonaje(p) {
+  const hSeq = ++hidrSeqFab;
+  const targetProyId = proyectoActivo.id;
+  const targetPerId = p ? p.id : '';
   cacheLocalUrls = {};
   if (!p) return;
-  const fRef = await idbLeer('foto_' + proyectoActivo.id + '_' + p.id);
+  const fRef = await idbLeer('foto_' + targetProyId + '_' + targetPerId);
+  if (hSeq !== hidrSeqFab || proyectoActivo.id !== targetProyId || perIdActual !== targetPerId) return;
   if (fRef) { fotoRefDataUrl = fRef; actualizarBadgeFoto(); }
   const pzs = p.piezas || {};
   const keys = Object.keys(pzs);
+  const tmpCache = {};
   for (let i = 0; i < keys.length; i++) {
     const k = keys[i];
-    const loc = await idbLeer('pz_' + proyectoActivo.id + '_' + p.id + '_' + k);
-    if (loc) cacheLocalUrls[k] = loc;
+    const loc = await idbLeer('pz_' + targetProyId + '_' + targetPerId + '_' + k);
+    if (hSeq !== hidrSeqFab || proyectoActivo.id !== targetProyId || perIdActual !== targetPerId) return;
+    if (loc) tmpCache[k] = loc;
   }
+  cacheLocalUrls = tmpCache;
 }
 
 function renderSelectorPersonajes() {
@@ -1683,8 +1718,8 @@ function contarPiezasLienzo(p, l) {
   let ok = 0;
   pzs.forEach(function(pz) {
     const sk = slug(pz.slot_key, '');
-    const enPer = p && p.piezas && p.piezas[sk] && (p.piezas[sk].url || p.piezas[sk].soloLocal);
-    if (cacheLocalUrls[sk] || enPer) ok++;
+    const urlReal = p && p.piezas && p.piezas[sk] && typeof p.piezas[sk].url === 'string' && p.piezas[sk].url.trim().length > 4;
+    if (cacheLocalUrls[sk] || urlReal) ok++;
   });
   return { ok: ok, total: pzs.length };
 }
@@ -2337,7 +2372,7 @@ function dibujarCanvasCalRig() {
 
 window.guardarCalibracionRig = async function() {
   const p = obtenerPersonajeActual(); if (!p) return;
-  const out = Object.assign({}, calDatos.pivotes, { _moldes: calDatos.moldes });
+  const out = Object.assign({}, calDatos.pivotes, { _moldes: calDatos.moldes, _moldes_ts: Date.now() });
   p.pivotes_json = JSON.stringify(out, null, 2);
   await guardarBiblioteca(true);
   window.cerrarModalFab('modal-calibrar-rig');
@@ -2475,7 +2510,7 @@ async function autoCalibrarSilenciosoPostTurnaround(p) {
       if (res && res.success && res.texto) { aplicarObjetoVisionCalibracion(extraerJsonSeguro(res.texto), dTmp, vId); okAny = true; }
     }
     if (okAny) {
-      p.pivotes_json = JSON.stringify(Object.assign({}, dTmp.pivotes, { _moldes: dTmp.moldes }), null, 2);
+      p.pivotes_json = JSON.stringify(Object.assign({}, dTmp.pivotes, { _moldes: dTmp.moldes, _moldes_ts: Date.now() }), null, 2);
       await guardarBiblioteca(true);
     }
   } catch (eSil) {}
@@ -2945,10 +2980,21 @@ window.enviarAEditor6Clips = async function() {
 window.addEventListener('message', function(e) {
   if (!e.data || !e.data.tipo) return;
   if (e.data.tipo === 'PIRO_SHELL_AUTH' || e.data.tipo === 'PIRO_SHELL_CAMBIAR_PROYECTO') {
-    if (e.data.proyecto) proyectoActivo = e.data.proyecto;
+    const cambioProy = Boolean(e.data.proyecto && e.data.proyecto.id && e.data.proyecto.id !== proyectoActivo.id);
+    if (cambioProy) {
+      if (playLiveOn) window.detenerPlayDemoFab();
+      cacheLocalUrls = {}; perIdActual = ''; datosEncuesta = {}; fotoRefDataUrl = ''; actualizarBadgeFoto();
+      limpiarCacheCompositor();
+    }
+    if (e.data.proyecto) {
+      proyectoActivo = Object.assign({}, proyectoActivo, e.data.proyecto);
+      proyectoActivo.docBibId = normalizarDocBibIdFab(proyectoActivo.docBibId, proyectoActivo.id);
+    }
     cargarBorradorEncuestaLocal();
     cargarBiblioteca();
   } else if (e.data.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA') {
+    if (e.data.proyectoId && e.data.proyectoId !== proyectoActivo.id) return;
+    limpiarCacheCompositor();
     cargarBiblioteca();
   }
 });
