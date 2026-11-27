@@ -468,21 +468,38 @@ function guardarLocalTableros() {
   try { localStorage.setItem(CLAVE_LOCAL_TAB, JSON.stringify(listaProyectos)); } catch (e) {}
 }
 
+let pendingSaveEdtRun = null;
+async function vaciarGuardadoPendienteEdt() {
+  if (debounceSave) { clearTimeout(debounceSave); debounceSave = null; }
+  if (pendingSaveEdtRun) {
+    const fn = pendingSaveEdtRun; pendingSaveEdtRun = null;
+    try { await fn(); } catch (eFl) {}
+  }
+}
+
 function programarGuardadoProyecto(inmediato) {
-  if (!proyectoActual) return;
+  if (!proyectoActual) return Promise.resolve({ success: false, error: 'Sin tablero' });
   proyectoActual.tipo_doc = 'edt';
   proyectoActual.fecha_actualizacion = new Date().toISOString();
+  const snapId = proyectoActual.id;
+  const snapDoc = JSON.parse(JSON.stringify(proyectoActual));
   guardarLocalTableros();
   setSync('Guardando...', 'warn');
   clearTimeout(debounceSave);
   const run = async function() {
-    if (!GeokatuDB.PirobonianosService || !navigator.onLine) { setSync('Local', 'warn'); return; }
-    const res = await GeokatuDB.PirobonianosService.guardarProyectoEDT(proyectoActual.id, proyectoActual);
-    if (res.success && !res.offline) setSync('Nube OK', 'ok');
-    else setSync('Local', 'warn');
+    pendingSaveEdtRun = null;
+    if (!GeokatuDB.PirobonianosService || !navigator.onLine) { if (proyectoActual && proyectoActual.id === snapId) setSync('Local', 'warn'); return { success: true, offline: true }; }
+    const res = await GeokatuDB.PirobonianosService.guardarProyectoEDT(snapId, snapDoc);
+    if (proyectoActual && proyectoActual.id === snapId) {
+      if (res && res.success && !res.offline) setSync('Nube OK', 'ok');
+      else setSync('Local', 'warn');
+    }
+    return res || { success: false, error: 'Sin respuesta' };
   };
-  if (inmediato) run();
-  else debounceSave = setTimeout(run, 650);
+  if (inmediato) { pendingSaveEdtRun = null; return run(); }
+  pendingSaveEdtRun = run;
+  debounceSave = setTimeout(run, 650);
+  return Promise.resolve({ success: true, debounced: true });
 }
 
 async function cargarTableros() {
@@ -543,8 +560,9 @@ async function cargarTableros() {
   }
 }
 
-window.seleccionarTablero = function(id) {
+window.seleccionarTablero = async function(id) {
   detenerTimer();
+  await vaciarGuardadoPendienteEdt();
   const f = listaProyectos.find(function(p) { return p.id === id; });
   if (!f) return;
   proyectoActual = f;
@@ -972,13 +990,18 @@ window.manejarArchivoTicket = async function(fileObj) {
   await subirArchivoFinalATicket(t, fileObj, fileObj.name);
 };
 
-async function subirArchivoFinalATicket(t, fileObj, nombreSugerido, pivotesRecibidos, desdeEstudio) {
-  if (!GeokatuDB.PirobonianosService) { toast('Falta PirobonianosService en core-db.js.', 'error'); return false; }
+async function subirArchivoFinalATicket(t, fileObj, nombreSugerido, pivotesRecibidos, desdeEstudio, operationId, proyectoIdMsg) {
+  const opId = operationId || ('op_' + Date.now());
+  if (!GeokatuDB.PirobonianosService) {
+    toast('Falta PirobonianosService en core-db.js.', 'error');
+    if (desdeEstudio && ES_EMBEBIDO) window.parent.postMessage({ tipo: 'PIRO_PNG_GUARDADO_ERROR', operationId: opId, error: 'Servicio no disponible' }, '*');
+    return false;
+  }
   setSync('Subiendo...', 'warn');
   const nombreLimpio = String(nombreSugerido || fileObj.name || 'archivo.png').replace(/[^a-zA-Z0-9._-]+/g, '_');
   const ruta = t.codigo.replace(/[^a-zA-Z0-9_-]+/g, '_') + '/' + Date.now() + '_' + nombreLimpio;
   const res = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(proyectoActual.id || 'tablero_edt', ruta, fileObj);
-  if (res.success) {
+  if (res && res.success) {
     if (!Array.isArray(t.adjuntos)) t.adjuntos = [];
     const regNuevo = {
       nombre: nombreLimpio,
@@ -989,19 +1012,25 @@ async function subirArchivoFinalATicket(t, fileObj, nombreSugerido, pivotesRecib
       fecha: res.fecha || new Date().toISOString()
     };
     t.adjuntos.unshift(regNuevo);
-    if (t.slotMeta && ES_EMBEBIDO) {
-      window.parent.postMessage({ tipo: 'PIRO_TICKET_SUBIO_ASSET', slotMeta: t.slotMeta, registro: regNuevo, pivotes: pivotesRecibidos || null }, '*');
-    }
     renderizarAdjuntosTicket(t);
     actualizarContadorBoveda();
     window.renderizarRiel();
-    programarGuardadoProyecto(true);
-    if (desdeEstudio && ES_EMBEBIDO) window.parent.postMessage({ tipo: 'PIRO_PNG_GUARDADO_OK' }, '*');
-    toast('Archivo guardado en Firebase Storage.', 'exito');
+    const gRes = await programarGuardadoProyecto(true);
+    if (!gRes || !gRes.success) {
+      toast('Archivo subido, pero falló guardar el ticket (' + ((gRes && gRes.error) || 'red') + '). Tu borrador sigue protegido.', 'error');
+      if (desdeEstudio && ES_EMBEBIDO) window.parent.postMessage({ tipo: 'PIRO_PNG_GUARDADO_ERROR', operationId: opId, error: (gRes && gRes.error) || 'Error guardando ticket' }, '*');
+      return false;
+    }
+    if (t.slotMeta && ES_EMBEBIDO) {
+      window.parent.postMessage({ tipo: 'PIRO_TICKET_SUBIO_ASSET', proyectoId: proyectoIdMsg || null, slotMeta: t.slotMeta, registro: regNuevo, pivotes: pivotesRecibidos || null }, '*');
+    }
+    if (desdeEstudio && ES_EMBEBIDO) window.parent.postMessage({ tipo: 'PIRO_PNG_GUARDADO_OK', operationId: opId, proyectoId: proyectoIdMsg || '', confirmadoNube: !gRes.offline }, '*');
+    toast(gRes.offline ? 'Archivo guardado localmente (pendiente sincronizar nube).' : 'Archivo guardado y confirmado en la nube.', 'exito');
     return true;
   } else {
     setSync('Error', 'warn');
     toast('Error subiendo archivo. Tu borrador sigue guardado en Estudio PNG para reintentar.', 'error');
+    if (desdeEstudio && ES_EMBEBIDO) window.parent.postMessage({ tipo: 'PIRO_PNG_GUARDADO_ERROR', operationId: opId, error: (res && res.error) || 'Error subida' }, '*');
     return false;
   }
 }
@@ -1097,10 +1126,12 @@ window.addEventListener('message', async function(e) {
       const fileObj = new File([d.blob], nom, { type: 'image/png' });
       window.setSubTab('arch');
       renderTicketActivo();
-            await subirArchivoFinalATicket(t, fileObj, nom, d.pivotes || null, true);
+            await subirArchivoFinalATicket(t, fileObj, nom, d.pivotes || null, true, d.operationId || null, d.proyectoId || null);
       guardarEstadoUIEdt();
     }
-  } else if (d.tipo === 'PIRO_SHELL_INYECTAR_TICKET' && d.ticket && proyectoActual) {
+  } else if (d.tipo === 'PIRO_SHELL_INYECTAR_TICKET' && d.ticket) {
+    if (!proyectoActual) await cargarTableros();
+    if (!proyectoActual) return;
     const t = d.ticket;
     const mismaMeta = function(a, b) {
       return Boolean(a && b && a.tipo === b.tipo && a.entidadId === b.entidadId && (a.slotKey || '') === (b.slotKey || '') && (a.zonaId || '') === (b.zonaId || '') && (a.campoZona || '') === (b.campoZona || ''));
@@ -1125,7 +1156,9 @@ window.addEventListener('message', async function(e) {
     proyectoActual.tickets.push(nuevo);
     actualizarUIProyecto();
     programarGuardadoProyecto(true);
-  } else if (d.tipo === 'PIRO_SHELL_AUTOCOMPLETAR_TICKET' && d.slotMeta && proyectoActual) {
+  } else if (d.tipo === 'PIRO_SHELL_AUTOCOMPLETAR_TICKET' && d.slotMeta) {
+    if (!proyectoActual) await cargarTableros();
+    if (!proyectoActual) return;
     const sm = d.slotMeta;
     let cambio = false;
     (proyectoActual.tickets || []).forEach(function(tk) {
