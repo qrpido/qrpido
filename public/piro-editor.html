@@ -457,7 +457,7 @@
 
 <script type="module">
 import GeokatuDB from './core-db.js';
-import { componerEscenaPiro, precargarRecursosEpisodioPiro, normalizarActoresEscena, extraerEnvolventeAudio, obtenerBocaDesdeEnvolvente, construirVisemasDesdeMarcasPiro, obtenerBocaLipSyncPiro, limpiarBloqueosCorsPiro, obtenerBloqueosCorsPiro, ACTUACIONES_PIRO, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO, limpiarCacheCompositor } from './piro-compositor.js';
+import { componerEscenaPiro, precargarRecursosEpisodioPiro, normalizarActoresEscena, resolverCapacidadesRigPiro, CUERPOS_ANGULO_STD_PIRO, extraerEnvolventeAudio, obtenerBocaDesdeEnvolvente, construirVisemasDesdeMarcasPiro, obtenerBocaLipSyncPiro, limpiarBloqueosCorsPiro, obtenerBloqueosCorsPiro, ACTUACIONES_PIRO, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO, limpiarCacheCompositor } from './piro-compositor.js';
 
 const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
 const CLAVE_PREFS_IA_ED = 'piro_ia_cloud_prefs_v2';
@@ -1316,6 +1316,9 @@ function renderDockTimeline() {
     const perSel = (biblioteca.personajes || []).find(function(x) { return x.id === a.id; });
     const accKeys = perSel && perSel.piezas ? Object.keys(perSel.piezas).filter(function(k) { return k.indexOf('acc_') === 0 && perSel.piezas[k] && perSel.piezas[k].url; }) : [];
     const accOpts = '<option value="">Acc: Ninguno</option>' + accKeys.map(function(k) { return '<option value="' + esc(k) + '"' + (a.acc === k ? ' selected' : '') + '>Acc: ' + esc((perSel.piezas[k] && perSel.piezas[k].etiqueta) || k) + '</option>'; }).join('');
+    const capsPer = resolverCapacidadesRigPiro(perSel);
+    const cuerpoKeys = perSel && perSel.piezas ? Object.keys(perSel.piezas).filter(function(k) { return k.indexOf('cuerpo_') === 0 && perSel.piezas[k] && perSel.piezas[k].url && (k === 'cuerpo_base' || CUERPOS_ANGULO_STD_PIRO.indexOf(k) < 0); }) : [];
+    const cuerpoOpts = cuerpoKeys.map(function(k) { return '<option value="' + esc(k) + '"' + ((a.cuerpo || 'cuerpo_base') === k ? ' selected' : '') + '>Ropa: ' + esc((perSel.piezas[k] && perSel.piezas[k].etiqueta) || k.replace('cuerpo_', '')) + '</option>'; }).join('');
     const tabsAct = actoresClip.map(function(ac, i) {
       const pe = biblioteca.personajes.find(function(x) { return x.id === ac.id; });
       return '<button type="button" class="btn btn-xs ' + (i === actorSelIdx ? 'btn-primary' : '') + '" onclick="window.selActorIdxDock(' + i + ')">' + (i + 1) + '.' + esc(pe ? pe.nombre.split(' ')[0] : ac.id) + '</button>';
@@ -1333,7 +1336,14 @@ function renderDockTimeline() {
             '<select class="sel-mini" onchange="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'cejas\',this.value)"><option value="">Cej: Auto</option>' + Object.keys(CEJAS_PIRO).map(function(ck) { return '<option value="cejas_' + ck + '"' + (a.cejas === ('cejas_' + ck) ? ' selected' : '') + '>Cej: ' + esc(CEJAS_PIRO[ck]) + '</option>'; }).join('') + '</select>' +
             '<select class="sel-mini" onchange="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'angulo\',this.value)"><option value="">360: Auto</option>' + Object.keys(ANGULOS_360_PIRO).map(function(ak) { return '<option value="' + ak + '"' + (a.angulo === ak ? ' selected' : '') + '>' + esc(ANGULOS_360_PIRO[ak].nombre) + '</option>'; }).join('') + '</select>' +
             '<select class="sel-mini" onchange="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'mirada\',this.value)">' + Object.keys(MIRADAS_PIRO).map(function(mk) { return '<option value="' + mk + '"' + ((a.mirada || 'interlocutor') === mk ? ' selected' : '') + '>Mir: ' + esc(MIRADAS_PIRO[mk].nombre) + '</option>'; }).join('') + '</select>' +
-          '<select class="sel-mini" onchange="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'brazo\',this.value)"><option value="brazo_delantero_reposo"' + (a.brazo === 'brazo_delantero_reposo' ? ' selected' : '') + '>Brazo Rep</option><option value="brazo_delantero_prop"' + (a.brazo === 'brazo_delantero_prop' ? ' selected' : '') + '>Brazo Prop</option><option value="ninguno"' + (a.brazo === 'ninguno' ? ' selected' : '') + '>Sin Brazo</option></select>' +
+          '<select class="sel-mini" onchange="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'brazo\',this.value)">' +
+            (capsPer.artDelCompleto ? ('<option value="articulado"' + (a.brazo === 'articulado' ? ' selected' : '') + '>Articulado (Codo)</option>') : '') +
+            '<option value="auto"' + (a.brazo === 'auto' ? ' selected' : '') + '>Brazo Auto</option>' +
+            '<option value="brazo_delantero_reposo"' + (a.brazo === 'brazo_delantero_reposo' ? ' selected' : '') + '>Brazo Rep</option>' +
+            '<option value="brazo_delantero_prop"' + (a.brazo === 'brazo_delantero_prop' ? ' selected' : '') + '>Brazo Prop</option>' +
+            '<option value="brazos_cruzados"' + (a.brazo === 'brazos_cruzados' ? ' selected' : '') + '>Cruzados</option>' +
+            '<option value="ninguno"' + (a.brazo === 'ninguno' ? ' selected' : '') + '>Sin Brazo</option></select>' +
+            (cuerpoKeys.length > 1 ? ('<select class="sel-mini" onchange="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'cuerpo\',this.value)">' + cuerpoOpts + '</select>') : '') +
           '<select class="sel-mini" onchange="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'prop\',this.value)">' + prOpts + '</select>' +
             (accKeys.length ? ('<select class="sel-mini" onchange="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'acc\',this.value)">' + accOpts + '</select>') : '') +
           '<input type="number" min="-25" max="25" class="sel-mini" style="width:54px; min-width:54px;" value="' + (a.rotCab || 0) + '" title="Giro cabeza" oninput="window.editActorClip(' + clipSelIdx + ',' + actorSelIdx + ',\'rotCab\',Number(this.value))">' +
@@ -1658,7 +1668,8 @@ window.editActorClip = function(idx, aIdx, campo, val) {
   sc.actores = normalizarActoresEscena(sc);
   if (!sc.actores[aIdx]) return;
   sc.actores[aIdx][campo] = val;
-  if (campo === 'prop' && val) sc.actores[aIdx].brazo = 'brazo_delantero_prop';
+  if (campo === 'prop' && val && sc.actores[aIdx].brazo !== 'articulado' && sc.actores[aIdx].brazo !== 'auto') sc.actores[aIdx].brazo = 'brazo_delantero_prop';
+  if (campo === 'brazo') sc.actores[aIdx].brazoTras = (val === 'articulado' || val === 'auto') ? 'auto' : 'brazo_trasero_reposo';
   if (aIdx === 0) {
     if (campo === 'id') sc.actor = val;
     if (campo === 'posicion') sc.posicion = val;
