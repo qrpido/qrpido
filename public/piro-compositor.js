@@ -209,6 +209,7 @@ export function resolverCuerpoPiro(personaje, cuerpoSol, ang360) {
     }
     return req;
   }
+    if (req && req !== 'cuerpo_base' && (!ang360 || ang360.cuerpo === 'cuerpo_base')) return req;
   if (ang360 && ang360.cuerpo) return ang360.cuerpo;
   return req || 'cuerpo_base';
 }
