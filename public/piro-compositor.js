@@ -676,7 +676,7 @@ export function calcularVidaAutonomaPiro(tSeg, seedStr, estaHablando) {
 }
 export function evaluarAnimacionActorPiro(actorObj, sc, tLocalSeg, estaHablando, personaje) {
   const a = actorObj || {}, t = Math.max(0, Number(tLocalSeg) || 0), vidaOn = !sc || sc.vida_auto !== false;
-  const out = { cabeza: a.cabeza || 'cabeza_base', angulo: a.angulo || (sc && sc.angulo) || '', cejas: a.cejas || (sc && sc.cejas) || '', cejasOffsetY: 0, ojos: a.ojos || 'neutro', bocaDef: a.boca || 'boca_cerrada', mano: a.mano || '', rotCab: Number(a.rotCab) || 0, rotBrazo: Number(a.rotBrazo) || 0, rotAntebrazo: Number(a.rotAntebrazo) || 0, rotMano: Number(a.rotMano) || 0, rotBrazoTras: Number(a.rotBrazoTras) || 0, scaleX: 1, scaleY: 1, offsetY: 0, actuacionActiva: a.actuacion || (sc && sc.actuacion) || 'ninguna' };
+  const out = { cabeza: a.cabeza || 'cabeza_base', angulo: a.angulo || (sc && sc.angulo) || '', cejas: a.cejas || (sc && sc.cejas) || '', cejasOffsetY: 0, ojos: a.ojos || 'neutro', bocaDef: a.boca || 'boca_cerrada', mano: a.mano || '', rotCab: Number(a.rotCab) || 0, rotBrazo: Number(a.rotBrazo) || 0, rotAntebrazo: Number(a.rotAntebrazo) || 0, rotMano: Number(a.rotMano) || 0, rotBrazoTras: Number(a.rotBrazoTras) || 0, rotAntebrazoTras: Number(a.rotAntebrazoTras) || 0, scaleX: 1, scaleY: 1, offsetY: 0, actuacionActiva: a.actuacion || (sc && sc.actuacion) || 'ninguna' };
   let tActInicio = 0;
   const evs = (sc && Array.isArray(sc.eventos_actuacion)) ? sc.eventos_actuacion : [];
   for (let i = 0; i < evs.length; i++) {
@@ -699,7 +699,7 @@ export function evaluarAnimacionActorPiro(actorObj, sc, tLocalSeg, estaHablando,
   if (actDef && actDef.frames && actDef.frames.length > 0) {
     const pose = interpolarActuacion(actDef, Math.max(0, t - tActInicio));
     const tieneArtB = Boolean(personaje && personaje.piezas && (personaje.piezas.brazo_del_sup || personaje.piezas.brazo_del_ant));
-    if (pose) { const kBr = tieneArtB ? 1 : 0.35; out.rotCab += pose.rotCab; out.rotBrazo += pose.rotBrazo * kBr; out.rotAntebrazo += pose.rotAntebrazo * kBr; out.rotMano += pose.rotMano * kBr; out.scaleX *= pose.scaleX; out.scaleY *= pose.scaleY; out.offsetY += pose.offsetY; }
+    if (pose) { const kBr = tieneArtB ? 1 : 0.35; out.rotCab += pose.rotCab; out.rotBrazo += pose.rotBrazo * kBr; out.rotAntebrazo += pose.rotAntebrazo * kBr; out.rotMano += pose.rotMano * kBr; out.rotBrazoTras += (pose.rotBrazo || 0) * -0.18 * kBr; out.rotAntebrazoTras += (pose.rotAntebrazo || 0) * 0.22 * kBr; out.scaleX *= pose.scaleX; out.scaleY *= pose.scaleY; out.offsetY += pose.offsetY; }
     if (actDef.ojos && out.ojos !== 'ojos_cerrados') out.ojos = actDef.ojos;
     if (actDef.bocaDef) out.bocaDef = actDef.bocaDef;
     const tieneArtP = Boolean(personaje && personaje.piezas && (personaje.piezas.brazo_del_sup || personaje.piezas.brazo_del_ant));
@@ -729,6 +729,7 @@ export function normalizarActoresEscena(sc) {
         rotBrazoTras: Number(a.rotBrazoTras) || 0,
         prop: String(a.prop || ''),
         acc: String(a.acc || ''),
+        rotAntebrazoTras: Number(a.rotAntebrazoTras) || 0,
         actuacion: String(a.actuacion || ''),
         mirada: String(a.mirada || ''),
         cejas: String(a.cejas || ''),
@@ -789,7 +790,7 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
   const accObj = (accKey && piezas[accKey]) ? piezas[accKey] : null;
   const accTxt = ((accObj && accObj.etiqueta ? accObj.etiqueta : '') + ' ' + accKey).toLowerCase();
   const accZona = !accKey ? '' : (/(gafa|lente|visor|audifon|gorra|sombrero|corona|diadema|casco|pelo|barba)/.test(accTxt) ? 'cabeza' : (/(hoodie|camis|chaquet|blazer|chaleco|abrigo|sueter|cadena|collar|corbata|vest)/.test(accTxt) ? 'torso' : 'frente'));
-  const brazoTrasKey = cfg.brazoTras || 'brazo_trasero_reposo';
+  const brazoTrasKey = cfg.brazoTras || (brazoDelKey === 'articulado' ? 'articulado' : 'brazo_trasero_reposo');
   const manoKey = cfg.mano ? (String(cfg.mano).indexOf('mano_') === 0 ? cfg.mano : ('mano_' + cfg.mano)) : '';
   const piernaDelKey = cfg.piernaDel || 'pierna_delantera';
   const piernaTrasKey = cfg.piernaTras || 'pierna_trasera';
@@ -806,7 +807,7 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
     'pierna_trasera', 'pierna_delantera', piernaTrasKey, piernaDelKey,
     'cuerpo_base', cuerpoKey, 'maestro_cuerpo', 'maestro_perfil',
     'cabeza_base', cabezaKey, ojosKey, cejasKey, bocaKey, 'cuerpo_frente', 'cuerpo_perfil', 'cuerpo_espalda', 'cuerpo_espalda_3_4',
-    'brazo_delantero_reposo', brazoDelKey, 'brazo_del_sup', 'brazo_del_ant', manoKey, accKey
+    'brazo_delantero_reposo', brazoDelKey, 'brazo_del_sup', 'brazo_del_ant', manoKey, 'mano_relajada', accKey
   ];
   const imgs = {};
   await Promise.all(claves.map(async function(k) {
@@ -865,6 +866,7 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
       const ptHT = piv.hombro_trasero;
       if (brazoTrasKey === 'articulado' && tieneArtTras) {
         ctx.save();
+        aplicarTransformAjuste(ctx, ajCapas.brazo, ptHT.x, ptHT.y);
         ctx.translate(ptHT.x, ptHT.y);
         ctx.rotate((rotBrazoTras * Math.PI) / 180);
         if (imgs.brazo_tras_sup) { ctx.drawImage(imgs.brazo_tras_sup, -ptHT.x, -ptHT.y, 1000, 1600); capasDibujadas++; }
@@ -938,17 +940,19 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
     if (esOverlayDoble && imgs[brazoDelKey]) {
       ctx.save(); aplicarTransformAjuste(ctx, ajCapas.brazo, 500, 640); drawP(imgs[brazoDelKey]); ctx.restore();
     } else if (brazoDelKey === 'articulado' && (tieneArtDel || manoImg || cfg.propImg)) {
+      const manoArtImg = manoImg || imgs.mano_relajada;
       ctx.save();
+      aplicarTransformAjuste(ctx, ajCapas.brazo, ptHombro.x, ptHombro.y);
       ctx.translate(ptHombro.x, ptHombro.y);
       ctx.rotate((rotBrazo * Math.PI) / 180);
       if (imgs.brazo_del_sup) { ctx.drawImage(imgs.brazo_del_sup, -ptHombro.x, -ptHombro.y, 1000, 1600); capasDibujadas++; }
       ctx.translate(ptCodo.x - ptHombro.x, ptCodo.y - ptHombro.y);
       ctx.rotate((rotAntebrazo * Math.PI) / 180);
       if (imgs.brazo_del_ant) { ctx.drawImage(imgs.brazo_del_ant, -ptCodo.x, -ptCodo.y, 1000, 1600); capasDibujadas++; }
-      if (manoImg || cfg.propImg) {
+      if (manoArtImg || cfg.propImg) {
         ctx.translate(ptMano.x - ptCodo.x, ptMano.y - ptCodo.y);
         ctx.rotate((rotMano * Math.PI) / 180);
-        if (manoImg) { ctx.save(); aplicarTransformAjuste(ctx, ajCapas.mano, 0, 0); ctx.drawImage(manoImg, -ptMano.x, -ptMano.y, 1000, 1600); ctx.restore(); capasDibujadas++; }
+        if (manoArtImg) { ctx.save(); aplicarTransformAjuste(ctx, ajCapas.mano, 0, 0); ctx.drawImage(manoArtImg, -ptMano.x, -ptMano.y, 1000, 1600); ctx.restore(); capasDibujadas++; }
         if (cfg.propImg) {
           const propSize = Number(cfg.propSize) || 230;
           ctx.drawImage(cfg.propImg, -propSize / 2, -propSize / 2, propSize, propSize);
@@ -1200,8 +1204,8 @@ export async function componerEscenaPiro(ctx, params) {
         cejas: anim.cejas || a.cejas || '',
         cejasOffsetY: anim.cejasOffsetY || 0,
         boca: bocaFinal,
-        brazoDel: a.brazo || (propImg ? 'brazo_delantero_prop' : 'brazo_delantero_reposo'),
-        brazoTras: a.brazoTras || 'brazo_trasero_reposo',
+        brazoDel: (function() { const r = a.brazo || (propImg ? 'brazo_delantero_prop' : 'brazo_delantero_reposo'); const tA = Boolean(per.piezas && (per.piezas.brazo_del_sup || per.piezas.brazo_del_ant)); return (tA && (r === 'brazo_delantero_reposo' || r === 'brazo_delantero_prop')) ? 'articulado' : r; })(),
+        brazoTras: (function() { const r = a.brazoTras || 'brazo_trasero_reposo'; const tT = Boolean(per.piezas && (per.piezas.brazo_tras_sup || per.piezas.brazo_tras_ant)); return (tT && r === 'brazo_trasero_reposo') ? 'articulado' : r; })(),
         mano: anim.mano || '',
         acc: a.acc || '',
         rotCab: anim.rotCab || 0,
@@ -1209,6 +1213,7 @@ export async function componerEscenaPiro(ctx, params) {
         rotAntebrazo: anim.rotAntebrazo || 0,
         rotMano: anim.rotMano || 0,
         rotBrazoTras: anim.rotBrazoTras || 0,
+        rotAntebrazoTras: anim.rotAntebrazoTras || 0,
         scaleX: anim.scaleX,
         scaleY: anim.scaleY,
         offsetY: anim.offsetY,
