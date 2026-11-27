@@ -149,6 +149,11 @@
   .cal-chip { flex: 0 0 auto; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border); background: rgba(255,255,255,0.05); font-size: 10px; font-weight: 800; color: var(--muted); cursor: pointer; }
   .cal-chip.ok { border-color: rgba(34,197,94,0.55); color: #86efac; background: rgba(34,197,94,0.14); }
   .cal-chip.activo { border-color: var(--naranja); color: #fff; background: rgba(255,107,0,0.28); }
+    .lote-bar { padding: 6px 10px; background: rgba(56, 189, 248, 0.14); border-bottom: 1px solid rgba(56, 189, 248, 0.45); display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .lote-track { flex: 1; height: 7px; border-radius: 99px; background: rgba(255,255,255,0.1); overflow: hidden; }
+  .lote-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--naranja), var(--verde)); transition: width .2s; }
+  .btn-play-live { background: linear-gradient(135deg, #22c55e, #16a34a); border-color: rgba(34,197,94,0.75); color: #042f1a; font-weight: 900; }
+  .btn-play-live.on { background: linear-gradient(135deg, #ef4444, #dc2626); border-color: rgba(239,68,68,0.8); color: #fff; }
   .modal-ov {
     position: fixed; inset: 0; z-index: 90000; background: rgba(4, 6, 11, 0.84); backdrop-filter: blur(10px);
     display: none; align-items: center; justify-content: center; padding: 14px;
@@ -178,7 +183,7 @@
       <button type="button" class="seg-btn" id="tab-v-rueda" onclick="window.setVistaFab('rueda')">2. Rueda 2D</button>
       <button type="button" class="seg-btn" id="tab-v-amb" onclick="window.setVistaFab('amb')">3. Ambientes 2.5D</button>
     </div>
-    <button type="button" class="btn btn-xs btn-green" onclick="window.enviarAEditor6Clips()">6 Clips Editor</button>
+    <div style="display:flex; gap:4px; flex-shrink:0;"><button type="button" class="btn btn-xs btn-blue" onclick="window.enviarAEscena2Actores()">Escena 2 Actores</button><button type="button" class="btn btn-xs btn-green" onclick="window.enviarAEditor6Clips()">6 Clips</button></div>
   </header>
 
   <!-- VISTA 1: ENCUESTA MAESTRA (60 CAMPOS + AUTO-GUARDADO POR LETRA) -->
@@ -206,7 +211,8 @@
       <button type="button" class="btn btn-xs btn-blue" onclick="window.descargarEncuestaJSON()">Descargar JSON ($0)</button>
       <button type="button" class="btn btn-xs btn-purple" onclick="window.copiarEncuestaJSON()">Copiar Prompt ($0)</button>
       <button type="button" class="btn btn-xs btn-green" onclick="window.abrirModalJsonPlano()">Pegar Plano JSON</button>
-      <button type="button" class="btn btn-primary" id="btn-generar-plano" style="flex:1; min-width:170px;" onclick="window.generarPlanoMaestroIA()">Generar Plano (API)</button>
+      <button type="button" class="btn btn-xs btn-blue" id="btn-generar-plano" onclick="window.generarPlanoMaestroIA()">Solo Plano (API)</button>
+      <button type="button" class="btn btn-primary" id="btn-fabricar-todo" style="flex:1; min-width:185px;" onclick="window.fabricarPersonajeCompleto1Clic()">Fabricar Todo (1 Clic API)</button>
     </div>
   </section>
 
@@ -248,8 +254,16 @@
 
   <section id="vista-rueda" class="hidden">
     <div class="pasos-ribbon" id="ribbon-pasos"></div>
+    <div id="barra-lote-1clic" class="lote-bar hidden">
+      <span id="lote-1clic-txt" style="font-size:10.5px; font-weight:800; color:#7dd3fc; white-space:nowrap;">Fabricando...</span>
+      <div class="lote-track"><div id="lote-1clic-fill" class="lote-fill"></div></div>
+      <button type="button" class="btn btn-xs btn-danger" onclick="window.cancelarFabricacion1Clic()">Detener</button>
+    </div>
     <div class="stage-wrap bg-grid" id="stage-fab">
       <div class="hud-top-left">
+        <button type="button" class="btn btn-xs btn-play-live" id="btn-play-live-fab" onclick="window.togglePlayDemoFab()">Play</button>
+        <button type="button" class="btn btn-xs btn-blue" onclick="window.togglePanelVozFab()">Voz / APIs</button>
+        <button type="button" class="btn btn-xs btn-primary" onclick="window.fabricarPersonajeCompleto1Clic()">Todo 1-Clic</button>
         <span class="hud-pill" id="hud-progreso">0 piezas offline</span>
         <button type="button" class="btn btn-xs" id="btn-bg-fab" onclick="window.rotarFondoFab()">Fondo: Grid</button>
         <button type="button" class="btn btn-xs btn-purple" onclick="window.abrirModalJsonPlano()">JSON</button>
@@ -271,6 +285,38 @@
         <div class="aj-row"><span>Pos X</span><input type="range" id="rng-aj-x" min="-180" max="180" value="0" oninput="window.editarAjusteCapaFab('dx',Number(this.value))"><b id="val-aj-x">0</b></div>
         <div class="aj-row"><span>Pos Y</span><input type="range" id="rng-aj-y" min="-220" max="220" value="0" oninput="window.editarAjusteCapaFab('dy',Number(this.value))"><b id="val-aj-y">0</b></div>
         <div class="aj-row"><span>Escala</span><input type="range" id="rng-aj-sc" min="45" max="170" value="100" oninput="window.editarAjusteCapaFab('sc',Number(this.value)/100)"><b id="val-aj-sc">100%</b></div>
+      </div>
+            <div id="panel-voz-fab" class="aj-panel hidden" style="max-width:400px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+          <strong id="voz-fab-tit" style="font-size:11px; color:#86efac;">Voz Automática IA · Cambiar / APIs</strong>
+          <div style="display:flex; gap:4px;">
+            <button type="button" class="btn btn-xs btn-purple" onclick="window.abrirBovedaDesdeFab('voces')">Configurar APIs</button>
+            <button type="button" class="btn btn-xs btn-green" onclick="window.togglePanelVozFab(false)">Listo</button>
+          </div>
+        </div>
+        <div id="voz-fab-origen" style="font-size:10px; color:#7dd3fc;">La IA elige la voz inicial automáticamente. Aquí puedes probar otra voz, tono o API.</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px;">
+          <select id="sel-voz-motor-fab" class="sel" style="padding:5px 7px; font-size:11px;" onchange="window.cambiarCfgVozFab('voz_motor',this.value)">
+            <option value="edge_tts">Edge Neural ($0 Gratis)</option>
+            <option value="polly_free">Polly Free ($0 Gratis)</option>
+            <option value="google_tts_free">Google TTS ($0 Gratis)</option>
+            <option value="gemini">Gemini TTS (API)</option>
+            <option value="openai">OpenAI TTS (API)</option>
+            <option value="elevenlabs">ElevenLabs (API)</option>
+          </select>
+          <select id="sel-voz-id-fab" class="sel" style="padding:5px 7px; font-size:11px;" onchange="window.cambiarVozIdSelectFab(this.value)"></select>
+        </div>
+        <input id="inp-voz-el-fab" class="inp hidden" style="padding:5px 7px; font-size:11px;" placeholder="Pega tu voice_id de ElevenLabs..." oninput="window.cambiarCfgVozFab('voice_id',this.value)">
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px;">
+          <select id="sel-voz-pitch-fab" class="sel" style="padding:5px 6px; font-size:10.5px;" onchange="window.cambiarCfgVozFab('voz_pitch',this.value)"><option value="-12Hz">Tono -12Hz</option><option value="-8Hz">Tono -8Hz</option><option value="-4Hz">Tono -4Hz</option><option value="+0Hz">Tono 0Hz</option><option value="+4Hz">Tono +4Hz</option><option value="+8Hz">Tono +8Hz</option><option value="+12Hz">Tono +12Hz</option></select>
+          <select id="sel-voz-rate-fab" class="sel" style="padding:5px 6px; font-size:10.5px;" onchange="window.cambiarCfgVozFab('voz_rate',this.value)"><option value="-15%">Vel -15%</option><option value="-8%">Vel -8%</option><option value="+0%">Vel Normal</option><option value="+8%">Vel +8%</option><option value="+15%">Vel +15%</option></select>
+          <select id="sel-act-demo-fab" class="sel" style="padding:5px 6px; font-size:10.5px;" onchange="window.cambiarCfgVozFab('actuacion_demo',this.value)"></select>
+        </div>
+        <input id="inp-frase-demo-fab" class="inp" style="padding:6px 8px; font-size:11px;" maxlength="180" placeholder="Frase de prueba del personaje..." oninput="window.cambiarCfgVozFab('frase_demo',this.value)">
+        <div style="display:flex; gap:6px;">
+          <button type="button" class="btn btn-xs btn-play-live" style="flex:1;" onclick="window.togglePlayDemoFab(true)">Probar Voz + Movimiento</button>
+          <button type="button" class="btn btn-xs btn-blue" onclick="window.enviarAEscena2Actores()">Escena 2 Actores</button>
+        </div>
       </div>
       <canvas id="cv-fabrica" width="1000" height="1600"></canvas>
 
@@ -379,7 +425,7 @@
 
 <script type="module">
 import GeokatuDB from './core-db.js';
-import { dibujarMarionetaPiro, cargarImagenPiro, parsearMoldes, parsearPivotes, parsearAjustesCapas, limpiarCacheCompositor, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO, dibujarElementosVivosPiro } from './piro-compositor.js';
+import { dibujarMarionetaPiro, cargarImagenPiro, parsearMoldes, parsearPivotes, parsearAjustesCapas, limpiarCacheCompositor, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO, ACTUACIONES_PIRO, evaluarAnimacionActorPiro, evaluarMiradaActorPiro, construirVisemasDesdeMarcasPiro, obtenerBocaLipSyncPiro, dibujarElementosVivosPiro } from './piro-compositor.js';
 
 const BLOQUES_60 = [
   { id: 'b1', tit: '1. Identidad y Arte (8)', campos: [
@@ -650,6 +696,8 @@ function renderSelectorPersonajes() {
 }
 
 window.seleccionarPersonajeFab = async function(id) {
+  if (playLiveOn) window.detenerPlayDemoFab();
+  playLiveCacheKey = '';
   perIdActual = id;
   const p = obtenerPersonajeActual();
   if (p && p.encuesta_v2) datosEncuesta = Object.assign({}, p.encuesta_v2);
@@ -684,6 +732,7 @@ window.nuevoPersonajeFab = function() {
 };
 
 window.setVistaFab = function(v) {
+  if (playLiveOn) window.detenerPlayDemoFab();
   vistaActual = (v === 'rueda' || v === 'amb') ? v : 'encuesta';
   document.getElementById('vista-encuesta').classList.toggle('hidden', vistaActual !== 'encuesta');
   document.getElementById('vista-rueda').classList.toggle('hidden', vistaActual !== 'rueda');
@@ -1277,6 +1326,7 @@ function construirInstruccionesArquitecto(fichaLimpia) {
     '  "identidad_canonica_en": "Concise immutable visual bible in English (species, style, ink line, fur/skin hex, spots, hairstyle, beard, outfit, negative rules)",',
     '  "paleta_hex": ["#hex1","#hex2","#hex3"],',
     '  "reglas_rig": { "num_cabezas": 1, "num_ojos": 2, "num_brazos": 2, "estatura_cm": 175, "turnaround_360": true, "cejas_separadas": true, "visemas_12": true },',
+'  "voz_sugerida": { "motor": "edge_tts", "voz_es": "es-CO-GonzaloNeural|es-CO-SalomeNeural|es-MX-JorgeNeural|es-MX-DaliaNeural|es-AR-TomasNeural|es-ES-AlvaroNeural|en-US-BrianNeural|en-US-JennyNeural", "voz_gemini": "Puck|Charon|Kore|Fenrir|Aoede|Zephyr", "voz_openai": "onyx|alloy|ash|coral|echo|nova", "voz_polly": "Miguel|Lupe|Mia|Brian|Joanna", "pitch": "-8Hz|-4Hz|+0Hz|+4Hz|+8Hz", "rate": "-8%|+0%|+8%", "actuacion_demo": "saludar|cantar_feliz|reir|pensar|senalar|sorprenderse", "frase_demo": "Natural 1-sentence in-character greeting in character language (max 18 words)" },',
     '  "lienzos": [',
     '    { "id_lienzo": "turnaround_360", "categoria_rueda": "Base", "titulo_boton": "1. Turnaround 360 (5x1)", "dependencia": "foto", "grid": { "cols": 5, "rows": 1, "orden": "lectura" }, "prompt_imagen_en": "...", "piezas": [{ "celda": 1, "slot_key": "maestro_frente", "etiqueta_ui": "0° Frente", "tipo_anclaje": "cuerpo" }] }',
     '  ]',
@@ -1372,15 +1422,16 @@ window.generarPlanoMaestroIA = async function() {
     const plano = extraerJsonSeguro(res.texto);
     if (!plano || !Array.isArray(plano.lienzos) || !plano.lienzos.length) throw new Error('JSON recibido sin lista de lienzos.');
 
-    p.blueprint_v2 = plano;
+        p.blueprint_v2 = plano;
+    aplicarVozSugeridaPlano(p, plano);
     await guardarBiblioteca(true);
-    toast('Plano Maestro listo: ' + plano.lienzos.length + ' lienzos habilitados.', 'exito');
+    toast('Plano Maestro + voz IA (' + (p.voz_es || 'Edge') + ') listos.', 'exito');
     window.setVistaFab('rueda');
   } catch (err) {
     toast('Error arquitecto: ' + err.message, 'error', 4200);
   } finally {
     ocupandoApi = false;
-    if (btn) { btn.disabled = false; btn.textContent = 'Generar Plano Maestro (1 Llamada JSON)'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Solo Plano (API)'; }
   }
 };
 
@@ -1710,7 +1761,7 @@ window.ejecutarLienzoBlueprint = async function(idLienzo) {
       const rp = await urlABase64Parte(refSrc);
       if (rp) parts.push({ inlineData: { mimeType: rp.mime, data: rp.data } });
     }
-    const bibPref = p.blueprint_v2.identidad_canonica_en ? ('CHARACTER BIBLE: ' + p.blueprint_v2.identidad_canonica_en + '. ') : '';
+    // biblia aplicada via armarPromptFinalLienzo
     const promptFinal = armarPromptFinalLienzo(p, lienzo);
     parts.push({ text: promptFinal });
 
@@ -1723,7 +1774,7 @@ window.ejecutarLienzoBlueprint = async function(idLienzo) {
         const rep = await procesarYRecortarImagenLienzo(p, lienzo, 'data:' + (res.mime || 'image/png') + ';base64,' + res.b64);
     if (rep.faltantes.length) toast('Recorte parcial: ' + rep.guardadas + '/' + rep.esperadas + ' (vacías: ' + rep.faltantes.slice(0, 3).join(', ') + ')', 'error', 5200);
     else toast('Auditoría OK: ' + rep.guardadas + '/' + rep.esperadas + ' piezas guardadas offline y en nube.', 'exito');
-    if (lienzo.id_lienzo === 'turnaround_360' || lienzo.id_lienzo === 'maestro_cuerpo') { setTimeout(function() { window.abrirCalibradorRig(); }, 450); }
+    if (!lote1ClicActivo && (lienzo.id_lienzo === 'turnaround_360' || lienzo.id_lienzo === 'maestro_cuerpo')) { setTimeout(function() { window.abrirCalibradorRig(); }, 450); }
   } catch (err) {
     toast('Error lienzo: ' + err.message, 'error', 4200);
   } finally {
@@ -1872,7 +1923,7 @@ window.moverRuedaH = function(delta) {
   dibujarPersonajeOffline();
 };
 
-async function dibujarPersonajeOffline() {
+async function dibujarPersonajeOffline(liveCfg) {
   const cv = document.getElementById('cv-fabrica'), p = obtenerPersonajeActual();
   if (!cv) return;
   const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, 1000, 1600);
@@ -1882,17 +1933,38 @@ async function dibujarPersonajeOffline() {
   Object.keys(srcPzs).forEach(function(k) { pzsOffline[k] = Object.assign({}, srcPzs[k], { url: cacheLocalUrls[k] || srcPzs[k].url }); });
   Object.keys(cacheLocalUrls).forEach(function(k) { if (!pzsOffline[k]) pzsOffline[k] = { url: cacheLocalUrls[k] }; });
   const perLocal = Object.assign({}, p, { piezas: pzsOffline });
-
+  const lv = liveCfg || null, an = lv && lv.anim ? lv.anim : null;
+  const tBg = (lv && typeof lv.tSeg === 'number') ? lv.tSeg : 0;
+  const esc25 = bgModo === 'amb25d' ? ((biblioteca.escenarios || [])[0] || null) : null;
+  const z25 = esc25 && esc25.zonas && esc25.zonas[0] ? esc25.zonas[0] : null;
+  const pan25 = Math.sin(tBg * 0.7) * 55;
+  if (z25) {
+    const imZ1 = z25.z1_lejano ? await cargarImagenPiro(z25.z1_lejano.url) : null;
+    const imZ2 = (z25.z2_medio || z25.fondo) ? await cargarImagenPiro((z25.z2_medio || z25.fondo).url) : null;
+    if (imZ1) ctx.drawImage(imZ1, -340 + pan25 * 0.2, 0, 1680, 1680);
+    await dibujarElementosVivosPiro(ctx, z25.elementos_vivos || [], 'z1', 1000, 1600, pan25, 1, tBg, {});
+    if (imZ2) ctx.drawImage(imZ2, -300 + pan25 * 0.55, 0, 1600, 1600);
+    await dibujarElementosVivosPiro(ctx, z25.elementos_vivos || [], 'z2', 1000, 1600, pan25, 1, tBg, {});
+  }
   await dibujarMarionetaPiro(ctx, perLocal, {
     modoLienzoCompleto: true,
     angulo360: estadoRueda.angulo || '3_4_der',
     cabeza: estadoRueda.cabeza, cuerpo: estadoRueda.cuerpo,
-    ojos: estadoRueda.ojos, cejas: estadoRueda.cejas, boca: estadoRueda.boca,
-    brazoDel: estadoRueda.brazo, mano: estadoRueda.mano, acc: estadoRueda.acc,
-    soloPerspectiva: true, adaptarBocas: true, mostrarGuias: ajusteCapaAbierto, miradaVec: MIRADAS_PIRO[miradaPreviewId] || MIRADAS_PIRO.frente
+    ojos: (an && an.ojos === 'ojos_cerrados') ? 'ojos_cerrados' : estadoRueda.ojos,
+    cejas: estadoRueda.cejas, cejasOffsetY: an ? (an.cejasOffsetY || 0) : 0,
+    boca: (lv && lv.boca) ? lv.boca : estadoRueda.boca,
+    brazoDel: estadoRueda.brazo, mano: (an && an.mano && !estadoRueda.mano) ? an.mano : estadoRueda.mano, acc: estadoRueda.acc,
+    rotCab: an ? an.rotCab : 0, rotBrazo: an ? an.rotBrazo : 0, rotAntebrazo: an ? an.rotAntebrazo : 0, rotMano: an ? an.rotMano : 0,
+    scaleX: an ? an.scaleX : 1, scaleY: an ? an.scaleY : 1, offsetY: an ? an.offsetY : 0,
+    soloPerspectiva: true, adaptarBocas: true, mostrarGuias: ajusteCapaAbierto, miradaVec: (lv && lv.miradaVec) ? lv.miradaVec : (MIRADAS_PIRO[miradaPreviewId] || MIRADAS_PIRO.frente)
   });
+  if (z25) {
+    const imZ4 = (z25.z4_frente || z25.frente) ? await cargarImagenPiro((z25.z4_frente || z25.frente).url) : null;
+    if (imZ4) ctx.drawImage(imZ4, -300 + pan25 * 1.32, 0, 1600, 1600);
+    await dibujarElementosVivosPiro(ctx, z25.elementos_vivos || [], 'z4', 1000, 1600, pan25, 1, tBg, {});
+  }
   const hud = document.getElementById('hud-progreso');
-  if (hud) hud.textContent = Object.keys(pzsOffline).length + ' piezas offline · 0ms';
+  if (hud) hud.textContent = Object.keys(pzsOffline).length + ' piezas · ' + (playLiveOn ? 'EN VIVO' : '0ms');
 }
 
 function renderConsolaRueda() {
@@ -2095,11 +2167,239 @@ window.resetAjusteCapaFab = function() {
   refrescarPanelAjusteFab(); dibujarPersonajeOffline(); guardarBiblioteca(true);
 };
 
+// =========================================================================
+// BLOQUE 2 + 3 + 4: VOZ AUTOMATICA IA + FABRICAR 1-CLIC + PLAY VIVO + 2 ACTORES
+// =========================================================================
+const VOCES_CATALOGO_FAB = {
+  edge_tts: [['es-CO-GonzaloNeural','Gonzalo (CO H)'],['es-CO-SalomeNeural','Salomé (CO M)'],['es-MX-JorgeNeural','Jorge (MX H)'],['es-MX-DaliaNeural','Dalia (MX M)'],['es-AR-TomasNeural','Tomás (AR H)'],['es-AR-ElenaNeural','Elena (AR M)'],['es-CL-LorenzoNeural','Lorenzo (CL H)'],['es-ES-AlvaroNeural','Álvaro (ES H)'],['es-ES-ElviraNeural','Elvira (ES M)'],['en-US-BrianNeural','Brian (EN H)'],['en-US-ChristopherNeural','Christopher (EN H)'],['en-US-JennyNeural','Jenny (EN M)'],['en-US-AriaNeural','Aria (EN IA)']],
+  polly_free: [['Miguel','Miguel (ES)'],['Lupe','Lupe (ES)'],['Mia','Mia (MX)'],['Enrique','Enrique (ES)'],['Lucia','Lucia (ES)'],['Brian','Brian (EN)'],['Matthew','Matthew (EN)'],['Joanna','Joanna (EN)']],
+  google_tts_free: [['es-CO','ES Colombia'],['es-MX','ES México'],['es-ES','ES España'],['en-US','EN USA']],
+  gemini: [['Puck','Puck (Juvenil)'],['Charon','Charon (Grave)'],['Kore','Kore (Femenina)'],['Fenrir','Fenrir (Enérgica)'],['Aoede','Aoede (Cálida)'],['Zephyr','Zephyr (Brillante)'],['Orus','Orus (Firme)'],['Leda','Leda (Suave)']],
+  openai: [['onyx','Onyx (Grave)'],['alloy','Alloy (Neutra)'],['ash','Ash (Expresiva)'],['coral','Coral (Femenina)'],['echo','Echo (Masculina)'],['fable','Fable (Narrativa)'],['nova','Nova (Joven)'],['sage','Sage (Calmada)'],['shimmer','Shimmer (Dulce)']],
+  elevenlabs: []
+};
+let lote1ClicActivo = false, lote1ClicCancelar = false;
+let panelVozAbierto = false, playLiveOn = false, playLiveRaf = null, playLiveT0 = 0, playLiveDur = 4.2, playLiveVisemas = [], playLiveAudioEl = null, playLiveCacheKey = '', playLiveCacheObj = null;
+
+function aplicarVozSugeridaPlano(p, plano) {
+  if (!p) return;
+  const vs = (plano && plano.voz_sugerida && typeof plano.voz_sugerida === 'object') ? plano.voz_sugerida : null;
+  const enc = p.encuesta_v2 || datosEncuesta || {};
+  const esFem = String(enc.genero_presentacion || '').toLowerCase().indexOf('fem') >= 0;
+  const idm = String(enc.idioma_principal || 'es-CO');
+  const defEdge = idm.indexOf('en') === 0 ? (esFem ? 'en-US-JennyNeural' : 'en-US-BrianNeural') : (idm === 'es-MX' ? (esFem ? 'es-MX-DaliaNeural' : 'es-MX-JorgeNeural') : (idm === 'es-ES' ? (esFem ? 'es-ES-ElviraNeural' : 'es-ES-AlvaroNeural') : (esFem ? 'es-CO-SalomeNeural' : 'es-CO-GonzaloNeural')));
+  p.voz_motor = (vs && vs.motor) || p.voz_motor || 'edge_tts';
+  p.voz_es = (vs && vs.voz_es) || p.voz_es || defEdge;
+  p.voz_gemini = (vs && vs.voz_gemini) || p.voz_gemini || (esFem ? 'Kore' : 'Puck');
+  p.voz_openai = (vs && vs.voz_openai) || p.voz_openai || (esFem ? 'nova' : 'onyx');
+  p.voz_polly = (vs && vs.voz_polly) || p.voz_polly || (esFem ? 'Lupe' : 'Miguel');
+  p.voz_gtts = (vs && vs.voz_gtts) || p.voz_gtts || (idm.indexOf('en') === 0 ? 'en-US' : 'es-CO');
+  p.voz_pitch = (vs && vs.pitch) || p.voz_pitch || '+0Hz';
+  p.voz_rate = (vs && vs.rate) || p.voz_rate || '+0%';
+  p.actuacion_demo = (vs && vs.actuacion_demo && ACTUACIONES_PIRO[vs.actuacion_demo]) ? vs.actuacion_demo : (p.actuacion_demo || 'saludar');
+  p.frase_demo = (vs && vs.frase_demo) || p.frase_demo || ('Hola, soy ' + (p.nombre || 'tu personaje') + '. Listo para rodar en PIRO Studio.');
+  p.voz_auto_origen = vs ? ('Elegida por IA: ' + p.voz_es + ' (' + p.voz_pitch + ')') : ('Asignada por perfil: ' + p.voz_es);
+}
+
+function actualizarBarraLote1Clic(visible, pct, txt) {
+  const bar = document.getElementById('barra-lote-1clic');
+  if (!bar) return;
+  bar.classList.toggle('hidden', !visible);
+  const f = document.getElementById('lote-1clic-fill'), t = document.getElementById('lote-1clic-txt');
+  if (f) f.style.width = Math.max(0, Math.min(100, pct || 0)) + '%';
+  if (t && txt) t.textContent = txt;
+}
+
+window.cancelarFabricacion1Clic = function() {
+  lote1ClicCancelar = true;
+  toast('Deteniendo tras terminar el lienzo actual...', 'info');
+};
+
+window.fabricarPersonajeCompleto1Clic = async function() {
+  if (lote1ClicActivo || ocupandoApi) { toast('Ya hay una generación en curso.', 'info'); return; }
+  if (!String(datosEncuesta.nombre_personaje || '').trim() && !(obtenerPersonajeActual() && obtenerPersonajeActual().blueprint_v2)) {
+    toast('Escribe el Nombre del personaje (o toca Autollenar Fernando) y sube tu Foto Ref.', 'error'); return;
+  }
+  const p = asegurarPersonajeDesdeEncuesta();
+  lote1ClicActivo = true; lote1ClicCancelar = false;
+  window.setVistaFab('rueda');
+  actualizarBarraLote1Clic(true, 4, 'Paso 1/13 · Diseñando Plano Maestro + Voz automática con Gemini...');
+  try {
+    if (!p.blueprint_v2 || !Array.isArray(p.blueprint_v2.lienzos) || !p.blueprint_v2.lienzos.length) {
+      await window.generarPlanoMaestroIA();
+    }
+    const ls = (p.blueprint_v2 && Array.isArray(p.blueprint_v2.lienzos)) ? p.blueprint_v2.lienzos : [];
+    if (!ls.length) throw new Error('No se obtuvo el Plano Maestro JSON.');
+    aplicarVozSugeridaPlano(p, p.blueprint_v2);
+    await guardarBiblioteca(true);
+    let hechos = 0;
+    for (let i = 0; i < ls.length; i++) {
+      if (lote1ClicCancelar) break;
+      const l = ls[i];
+      const pct = Math.round(((i + 1) / (ls.length + 1)) * 100);
+      if (lienzoEstaListo(p, l)) { hechos++; continue; }
+      lienzoSelId = l.id_lienzo;
+      actualizarBarraLote1Clic(true, pct, 'Lienzo ' + (i + 1) + '/' + ls.length + ' · ' + (l.titulo_boton || l.id_lienzo) + '...');
+      await window.ejecutarLienzoBlueprint(l.id_lienzo);
+      if (lienzoEstaListo(p, l)) hechos++;
+    }
+    actualizarBarraLote1Clic(false, 100, '');
+    if (lote1ClicCancelar) toast('Fabricación pausada (' + hechos + '/' + ls.length + ' lienzos listos). Puedes continuar luego sin repetir.', 'info', 4500);
+    else toast('Personaje listo (' + hechos + '/' + ls.length + ' lienzos + voz IA). Pulsa Play para verlo en vivo.', 'exito', 5000);
+  } catch (err) {
+    actualizarBarraLote1Clic(false, 0, '');
+    toast('Error fabricación 1-Clic: ' + err.message, 'error', 4500);
+  } finally {
+    lote1ClicActivo = false; lote1ClicCancelar = false; renderConsolaRueda();
+  }
+};
+
+window.abrirBovedaDesdeFab = function(tab) {
+  if (window.parent && window.parent !== window) window.parent.postMessage({ tipo: 'PIRO_ABRIR_BOVEDA_APIS', tab: tab || 'voces' }, '*');
+  else toast('Abre PIRO Studio desde piro-shell para configurar APIs.', 'info');
+};
+
+function resolverVozFab(p) {
+  const m = (p && p.voz_motor) || 'edge_tts';
+  if (m === 'polly_free') return { motor: m, voiceId: p.voz_polly || 'Miguel' };
+  if (m === 'google_tts_free') return { motor: m, voiceId: p.voz_gtts || 'es-CO' };
+  if (m === 'gemini') return { motor: m, voiceId: p.voz_gemini || 'Puck' };
+  if (m === 'openai') return { motor: m, voiceId: p.voz_openai || 'onyx' };
+  if (m === 'elevenlabs') return { motor: m, voiceId: p.voice_id || '' };
+  return { motor: 'edge_tts', voiceId: p.voz_es || 'es-CO-GonzaloNeural', pitch: p.voz_pitch || '+0Hz', rate: p.voz_rate || '+0%' };
+}
+
+function refrescarPanelVozFab() {
+  const p = obtenerPersonajeActual(); if (!p) return;
+  if (!p.voz_es) aplicarVozSugeridaPlano(p, p.blueprint_v2);
+  const m = p.voz_motor || 'edge_tts';
+  const sm = document.getElementById('sel-voz-motor-fab'); if (sm) sm.value = m;
+  const sv = document.getElementById('sel-voz-id-fab'), inEl = document.getElementById('inp-voz-el-fab');
+  const lista = VOCES_CATALOGO_FAB[m] || [];
+  if (sv && inEl) {
+    if (m === 'elevenlabs') { sv.classList.add('hidden'); inEl.classList.remove('hidden'); inEl.value = p.voice_id || ''; }
+    else {
+      sv.classList.remove('hidden'); inEl.classList.add('hidden');
+      const curId = resolverVozFab(p).voiceId;
+      sv.innerHTML = lista.map(function(v) { return '<option value="' + v[0] + '"' + (curId === v[0] ? ' selected' : '') + '>' + v[1] + '</option>'; }).join('');
+    }
+  }
+  const sp = document.getElementById('sel-voz-pitch-fab'), sr = document.getElementById('sel-voz-rate-fab'), sa = document.getElementById('sel-act-demo-fab'), fr = document.getElementById('inp-frase-demo-fab'), or = document.getElementById('voz-fab-origen');
+  if (sp) sp.value = p.voz_pitch || '+0Hz';
+  if (sr) sr.value = p.voz_rate || '+0%';
+  if (sa) sa.innerHTML = Object.keys(ACTUACIONES_PIRO).filter(function(k) { return k !== 'ninguna'; }).map(function(k) { return '<option value="' + k + '"' + ((p.actuacion_demo || 'saludar') === k ? ' selected' : '') + '>' + esc(ACTUACIONES_PIRO[k].nombre) + '</option>'; }).join('');
+  if (fr) fr.value = p.frase_demo || ('Hola, soy ' + (p.nombre || 'tu personaje') + '. Listo para rodar.');
+  if (or) or.textContent = (p.voz_auto_origen || ('Voz activa: ' + resolverVozFab(p).voiceId)) + ' · Motor: ' + m;
+}
+
+window.togglePanelVozFab = function(forzar) {
+  panelVozAbierto = typeof forzar === 'boolean' ? forzar : !panelVozAbierto;
+  if (panelVozAbierto && ajusteCapaAbierto) window.toggleAjusteCapaFab(false);
+  const pnl = document.getElementById('panel-voz-fab');
+  if (pnl) pnl.classList.toggle('hidden', !panelVozAbierto);
+  if (panelVozAbierto) refrescarPanelVozFab();
+  else guardarBiblioteca(true);
+};
+
+window.cambiarCfgVozFab = function(campo, val) {
+  const p = obtenerPersonajeActual(); if (!p) return;
+  p[campo] = val; playLiveCacheKey = '';
+  if (campo === 'voz_motor') refrescarPanelVozFab();
+  guardarBiblioteca(false);
+};
+
+window.cambiarVozIdSelectFab = function(val) {
+  const p = obtenerPersonajeActual(); if (!p) return;
+  const m = p.voz_motor || 'edge_tts';
+  if (m === 'polly_free') p.voz_polly = val;
+  else if (m === 'google_tts_free') p.voz_gtts = val;
+  else if (m === 'gemini') p.voz_gemini = val;
+  else if (m === 'openai') p.voz_openai = val;
+  else p.voz_es = val;
+  playLiveCacheKey = ''; guardarBiblioteca(false);
+};
+
+window.detenerPlayDemoFab = function() {
+  playLiveOn = false;
+  if (playLiveRaf) { cancelAnimationFrame(playLiveRaf); playLiveRaf = null; }
+  if (playLiveAudioEl) { try { playLiveAudioEl.pause(); playLiveAudioEl.currentTime = 0; } catch (e) {} }
+  const b = document.getElementById('btn-play-live-fab');
+  if (b) { b.textContent = 'Play'; b.classList.remove('on'); }
+  dibujarPersonajeOffline();
+};
+
+window.togglePlayDemoFab = async function(forzarPlay) {
+  if (playLiveOn && !forzarPlay) { window.detenerPlayDemoFab(); return; }
+  if (playLiveOn) window.detenerPlayDemoFab();
+  const p = obtenerPersonajeActual(); if (!p) return;
+  if (!p.voz_es) aplicarVozSugeridaPlano(p, p.blueprint_v2);
+  const b = document.getElementById('btn-play-live-fab');
+  if (b) { b.textContent = '...'; b.classList.add('on'); }
+  const frase = String(p.frase_demo || ('Hola, soy ' + (p.nombre || 'personaje') + '. Listo para animar.')).trim();
+  const vCfg = resolverVozFab(p);
+  const cKey = p.id + '|' + vCfg.motor + '|' + vCfg.voiceId + '|' + (vCfg.pitch || '') + '|' + (vCfg.rate || '') + '|' + frase;
+  let audioDataUrl = '', marcas = [];
+  try {
+    if (playLiveCacheKey === cKey && playLiveCacheObj) {
+      audioDataUrl = playLiveCacheObj.url; marcas = playLiveCacheObj.marcas;
+    } else if (GeokatuDB.PirobonianosService && navigator.onLine) {
+      const prefs = leerPrefsVault();
+      const motorReal = (vCfg.motor === 'elevenlabs' && !vCfg.voiceId) ? 'edge_tts' : vCfg.motor;
+      const vidReal = (vCfg.motor === 'elevenlabs' && !vCfg.voiceId) ? (p.voz_es || 'es-CO-GonzaloNeural') : vCfg.voiceId;
+      const res = await GeokatuDB.PirobonianosService.llamarProxyIA({ proveedorId: motorReal, accion: 'audio', tipoCobro: 'audio', modoPago: prefs.modoPago || 'auto', payload: { text: frase, voiceId: vidReal, pitch: vCfg.pitch || '+0Hz', rate: vCfg.rate || '+0%' } });
+      if (res && res.success && res.b64) {
+        audioDataUrl = 'data:' + (res.mime || 'audio/mpeg') + ';base64,' + res.b64;
+        marcas = Array.isArray(res.marcas) ? res.marcas : [];
+        playLiveCacheKey = cKey; playLiveCacheObj = { url: audioDataUrl, marcas: marcas };
+      } else if (res && res.error) { toast('Aviso voz: ' + res.error + ' (animando sin audio)', 'info', 3600); }
+    }
+  } catch (eV) { toast('Animación en vivo (sin audio red).', 'info'); }
+  playLiveDur = Math.max(2.6, Math.min(12, frase.split(/\s+/).length * 0.42 + 0.8));
+  if (audioDataUrl) {
+    if (!playLiveAudioEl) playLiveAudioEl = new Audio();
+    playLiveAudioEl.src = audioDataUrl;
+    await new Promise(function(resA) {
+      playLiveAudioEl.onloadedmetadata = function() { if (Number.isFinite(playLiveAudioEl.duration) && playLiveAudioEl.duration > 0.3) playLiveDur = playLiveAudioEl.duration + 0.3; resA(); };
+      playLiveAudioEl.onerror = function() { resA(); };
+      setTimeout(resA, 800);
+    });
+    playLiveAudioEl.currentTime = 0; playLiveAudioEl.play().catch(function() {});
+  }
+  playLiveVisemas = construirVisemasDesdeMarcasPiro(marcas, frase, playLiveDur);
+  playLiveOn = true; playLiveT0 = performance.now();
+  if (b) b.textContent = 'Stop';
+  const actId = p.actuacion_demo || 'saludar';
+  const loopLive = async function(now) {
+    if (!playLiveOn) return;
+    const t = (playLiveAudioEl && !playLiveAudioEl.paused && playLiveAudioEl.duration) ? playLiveAudioEl.currentTime : ((now - playLiveT0) / 1000);
+    if (t >= playLiveDur) { window.detenerPlayDemoFab(); return; }
+    const scFake = { id: 'demo_fab', vida_auto: true, actuacion: actId, mirada: miradaPreviewId };
+    const actorFake = { id: p.id, cabeza: estadoRueda.cabeza, angulo: estadoRueda.angulo, cejas: estadoRueda.cejas, ojos: estadoRueda.ojos, boca: estadoRueda.boca, mano: estadoRueda.mano, actuacion: actId, mirada: miradaPreviewId };
+    const anim = evaluarAnimacionActorPiro(actorFake, scFake, t, true, p);
+    const mirVec = evaluarMiradaActorPiro(actorFake, scFake, t, null, 'fab_' + p.id);
+    const bocaDyn = obtenerBocaLipSyncPiro({ modo: 'visemas', tiempoLocal: t, visemas: playLiveVisemas, texto: frase, duracion: playLiveDur, personaje: p, cabezaKey: estadoRueda.cabeza });
+    await dibujarPersonajeOffline({ anim: anim, boca: bocaDyn, miradaVec: mirVec, tSeg: t });
+    if (playLiveOn) playLiveRaf = requestAnimationFrame(loopLive);
+  };
+  playLiveRaf = requestAnimationFrame(loopLive);
+};
+
+window.enviarAEscena2Actores = async function() {
+  const p = obtenerPersonajeActual();
+  if (!p) { toast('Crea o selecciona un personaje primero.', 'info'); return; }
+  await guardarBiblioteca(true);
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({ tipo: 'PIRO_EDITOR_CREAR_ESCENA_2_ACTORES', personajeId: p.id }, '*');
+  } else { window.location.href = './piro-editor.html'; }
+};
+
 window.rotarFondoFab = function() {
   const st = document.getElementById('stage-fab'), b = document.getElementById('btn-bg-fab');
-  bgModo = bgModo === 'grid' ? 'oscuro' : (bgModo === 'oscuro' ? 'green' : 'grid');
+  const tieneAmb = Boolean(biblioteca.escenarios && biblioteca.escenarios[0] && biblioteca.escenarios[0].zonas && biblioteca.escenarios[0].zonas[0] && (biblioteca.escenarios[0].zonas[0].z2_medio || biblioteca.escenarios[0].zonas[0].fondo));
+  bgModo = bgModo === 'grid' ? (tieneAmb ? 'amb25d' : 'oscuro') : (bgModo === 'amb25d' ? 'oscuro' : (bgModo === 'oscuro' ? 'green' : 'grid'));
   st.className = 'stage-wrap' + (bgModo === 'grid' ? ' bg-grid' : (bgModo === 'green' ? ' bg-green' : ''));
-  if (b) b.textContent = 'Fondo: ' + (bgModo === 'grid' ? 'Grid' : (bgModo === 'green' ? 'Verde' : 'Oscuro'));
+  if (b) b.textContent = 'Fondo: ' + (bgModo === 'amb25d' ? '2.5D' : (bgModo === 'grid' ? 'Grid' : (bgModo === 'green' ? 'Verde' : 'Oscuro')));
+  dibujarPersonajeOffline();
 };
 
 // MICRO-EXPANSIÓN +9 VARIANTES
@@ -2189,7 +2489,7 @@ window.copiarJsonPlano = function() {
 window.guardarJsonPlanoEditado = async function() {
   const p = obtenerPersonajeActual(); if (!p) return;
   try {
-    const pJson = extraerJsonSeguro(document.getElementById('txt-json-plano').value); if (!pJson || !Array.isArray(pJson.lienzos) || !pJson.lienzos.length) throw new Error('Falta el arreglo lienzos'); p.blueprint_v2 = pJson; lienzoSelId = pJson.lienzos[0].id_lienzo; window.setVistaFab('rueda');
+    const pJson = extraerJsonSeguro(document.getElementById('txt-json-plano').value); if (!pJson || !Array.isArray(pJson.lienzos) || !pJson.lienzos.length) throw new Error('Falta el arreglo lienzos'); p.blueprint_v2 = pJson; aplicarVozSugeridaPlano(p, pJson); lienzoSelId = pJson.lienzos[0].id_lienzo; window.setVistaFab('rueda');
     await guardarBiblioteca(true);
     window.cerrarModalFab('modal-json');
     renderConsolaRueda();
