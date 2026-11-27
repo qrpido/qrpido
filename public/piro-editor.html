@@ -457,7 +457,7 @@
 
 <script type="module">
 import GeokatuDB from './core-db.js';
-import { componerEscenaPiro, precargarRecursosEpisodioPiro, normalizarActoresEscena, resolverCapacidadesRigPiro, CUERPOS_ANGULO_STD_PIRO, extraerEnvolventeAudio, obtenerBocaDesdeEnvolvente, construirVisemasDesdeMarcasPiro, obtenerBocaLipSyncPiro, limpiarBloqueosCorsPiro, obtenerBloqueosCorsPiro, ACTUACIONES_PIRO, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO, limpiarCacheCompositor } from './piro-compositor.js';
+import { componerEscenaPiro, precargarRecursosEpisodioPiro, evaluarEpisodioEnTiempoPiro, normalizarActoresEscena, resolverCapacidadesRigPiro, CUERPOS_ANGULO_STD_PIRO, extraerEnvolventeAudio, obtenerBocaDesdeEnvolvente, construirVisemasDesdeMarcasPiro, obtenerBocaLipSyncPiro, limpiarBloqueosCorsPiro, obtenerBloqueosCorsPiro, ACTUACIONES_PIRO, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO, limpiarCacheCompositor } from './piro-compositor.js';
 
 const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
 const CLAVE_PREFS_IA_ED = 'piro_ia_cloud_prefs_v2';
@@ -1116,23 +1116,37 @@ window.generarGuionConAPI = async function() {
         if (arrDir) arr = arrDir;
       } catch (eDir) {}
     }
-    if (!Array.isArray(arr) || arr.length === 0) throw new Error('Guion vacío.');
-    g.escenas = arr.map(function(it, idx) {
+        if (!Array.isArray(arr) || arr.length === 0) throw new Error('Guion vacío.');
+    const tieneProd = Array.isArray(g.escenas) && g.escenas.some(function(x) { return Boolean(x && (x.audio_url || x.plano_url)); });
+    let gDest = g;
+    if (tieneProd) {
+      const newId = g.id + '_v' + String(biblioteca.guiones.length + 1);
+      gDest = Object.assign({}, JSON.parse(JSON.stringify(g)), { id: newId, titulo: (g.titulo || g.id) + ' (Borrador)', estado: 'Borrador', escenas: [] });
+      biblioteca.guiones.push(gDest);
+      epIdActivo = newId;
+      toast('Se creó borrador nuevo (' + newId + ') para proteger tus audios/planos anteriores.', 'info', 4200);
+    }
+    gDest.escenas = arr.map(function(it, idx) {
       const words = String(it.texto || '').trim().split(/\s+/).filter(Boolean).length;
       const durEst = Math.max(1.8, Math.min(9, Number(it.duracion) || Number((words / 2.7 + 0.7).toFixed(1))));
-      return {
+      const actValid = (it.actuacion && ACTUACIONES_PIRO[it.actuacion]) ? String(it.actuacion) : 'ninguna';
+      const scObj = {
         id: 'sc_' + Date.now() + '_' + idx, actor: String(it.actor || (rep[0] ? rep[0].id : 'per_001')),
-        escenario: String(it.escenario || g.escenario_id || 'esc_001'), zona: String(it.zona || g.zona_id || 'zona_01'),
+        hablante: it.hablante !== undefined ? String(it.hablante) : String(it.actor || (rep[0] ? rep[0].id : 'per_001')),
+        escenario: String(it.escenario || gDest.escenario_id || 'esc_001'), zona: String(it.zona || gDest.zona_id || 'zona_01'),
         posicion: String(it.posicion || (idx % 2 === 0 ? 'izq' : 'der')), ojos: String(it.ojos || 'neutro'), cejas: String(it.cejas || ''), angulo: String(it.angulo || ''), mirada: String(it.mirada || 'interlocutor'),
-        camara: String(it.camara || 'centro'), modo: String(it.modo || 'rig'), prop: String(it.prop || ''), sfx: String(it.sfx || ''),
+        actuacion: actValid, camara: String(it.camara || 'centro'), modo: String(it.modo || 'rig'), prop: String(it.prop || ''), sfx: String(it.sfx || ''),
         duracion: durEst, texto: String(it.texto || ''), texto_en: String(it.texto_en || ''),
         render_mode: String(it.render_mode || 'STATIC_COMIC'), veo_bridge_prompt: String(it.veo_bridge_prompt || 'slow_zoom_in'),
-        prompt_plano: String(it.prompt_plano || ''), audio_url: '', plano_url: ''
+        prompt_plano: String(it.prompt_plano || ''), audio_url: '', plano_url: '', vida_auto: true,
+        eventos_actuacion: Array.isArray(it.eventos_actuacion) ? it.eventos_actuacion : []
       };
+      if (Array.isArray(it.actores) && it.actores.length > 0) scObj.actores = normalizarActoresEscena({ actores: it.actores, actor: scObj.actor });
+      return scObj;
     });
     clipSelIdx = 0; subGuionTab = 'escenas';
     guardarBiblioteca(true); renderTodo();
-    toast('Guion generado (' + g.escenas.length + ' escenas).', 'exito');
+    toast('Guion generado (' + gDest.escenas.length + ' escenas).', 'exito');
   } catch (err) {
     toast('Error: ' + err.message, 'error');
   } finally {
@@ -1500,26 +1514,32 @@ window.generarVozClip = async function(idx) {
   if (!sc) return;
   const cfgVoz = obtenerCfgIAEditor();
   if (!sc.texto || !sc.texto.trim()) { toast('Este clip no tiene diálogo.', 'error'); return; }
-  const idVoz = (sc.hablante && sc.hablante !== 'ninguno') ? sc.hablante : sc.actor;
+    const idVoz = (sc.hablante && sc.hablante !== 'ninguno') ? sc.hablante : sc.actor;
   const per = biblioteca.personajes.find(function(p) { return p.id === idVoz; });
-  const vozCfg = resolverVozPersonajeParaMotor(per, cfgVoz.provVoz);
-  if (cfgVoz.provVoz === 'elevenlabs' && !vozCfg.voiceId) { toast('Asigna voice_id de ElevenLabs a ' + (per ? per.nombre : sc.actor) + ' en Contenido, o cambia el motor a Edge $0.', 'error'); return; }
+  let motorUsar = (sc.voz_motor_override || (per && per.voz_motor) || cfgVoz.provVoz || 'edge_tts');
+  let vozCfg = resolverVozPersonajeParaMotor(per, motorUsar);
+  if (motorUsar === 'elevenlabs' && !vozCfg.voiceId) {
+    if (cfgVoz.provVoz !== 'elevenlabs') { motorUsar = cfgVoz.provVoz; vozCfg = resolverVozPersonajeParaMotor(per, motorUsar); }
+    else { toast('Asigna voice_id de ElevenLabs a ' + (per ? per.nombre : sc.actor) + ' en Contenido, o cambia el motor a Edge $0.', 'error'); return; }
+  }
+  const modUsar = motorUsar === 'gemini' ? 'gemini-2.5-flash-preview-tts' : (motorUsar === 'openai' ? 'tts-1' : (motorUsar === 'elevenlabs' ? 'eleven_multilingual_v2' : motorUsar));
   const btn = document.getElementById('btn-gen-voz-clip');
   if (btn) { btn.disabled = true; btn.textContent = 'Sintetizando...'; }
   try {
-    const resV = await GeokatuDB.PirobonianosService.llamarProxyIA({ proveedorId: cfgVoz.provVoz, accion: 'audio', tipoCobro: 'audio', modoPago: cfgVoz.modoPago, modelo: cfgVoz.modVoz, payload: { text: sc.texto, voiceId: vozCfg.voiceId, pitch: vozCfg.pitch || '+0Hz', rate: vozCfg.rate || '+0%', voice_settings: { stability: 0.45, similarity_boost: 0.78 } } });
+    const resV = await GeokatuDB.PirobonianosService.llamarProxyIA({ proveedorId: motorUsar, accion: 'audio', tipoCobro: 'audio', modoPago: cfgVoz.modoPago, modelo: modUsar, payload: { text: sc.texto, voiceId: vozCfg.voiceId, pitch: vozCfg.pitch || '+0Hz', rate: vozCfg.rate || '+0%', voice_settings: { stability: 0.45, similarity_boost: 0.78 } } });
     if (!resV || !resV.success || !resV.b64) throw new Error((resV && resV.error) || 'Error sintetizando voz.');
     if (typeof resV.saldoRestante === 'number') window.sincronizarBovedaEd(false);
     const mimeAud = resV.mime || 'audio/mpeg';
     const extAud = mimeAud.indexOf('wav') >= 0 ? 'wav' : 'mp3';
     const blob = base64ABlob(resV.b64, mimeAud);
     const dur = await medirDuracionAudio(blob);
+    const envVoz = await extraerEnvolventeAudio('data:' + mimeAud + ';base64,' + resV.b64, 30);
     const fileObj = new File([blob], 'voz_' + (idx + 1) + '.' + extAud, { type: mimeAud });
     const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(getEpStorageBucket(g.id), 'voces/' + Date.now() + '_clip_' + (idx + 1) + '.' + extAud, fileObj);
     if (!up.success) throw new Error(up.error || 'Error subiendo audio');
-    sc.audio_url = up.url; sc.audio_storage = up.rutaStorage; sc.duracion = Number((dur + 0.25).toFixed(2)); sc.marcas_voz = Array.isArray(resV.marcas) ? resV.marcas : []; sc.visemas = construirVisemasDesdeMarcasPiro(sc.marcas_voz, sc.texto, dur);
+    sc.audio_url = up.url; sc.audio_storage = up.rutaStorage; sc.duracion = Number((dur + 0.25).toFixed(2)); sc.marcas_voz = Array.isArray(resV.marcas) ? resV.marcas : []; sc.visemas = construirVisemasDesdeMarcasPiro(sc.marcas_voz, sc.texto, dur, envVoz); sc.visemas_meta = { motor: motorUsar, voiceId: vozCfg.voiceId, origen: sc.marcas_voz.length ? 'marcas' : (envVoz ? 'rms' : 'texto'), audio_url: up.url, dur: dur };
     guardarBiblioteca(true); renderTimeline();
-    toast('Voz ' + cfgVoz.provVoz + ' guardada (' + dur + 's).', 'exito');
+    toast('Voz ' + motorUsar + ' (' + vozCfg.voiceId + ') guardada (' + dur + 's).', 'exito');
   } catch (err) {
     toast('Error voz #' + (idx + 1) + ': ' + err.message, 'error');
   } finally {
@@ -1746,20 +1766,29 @@ window.dispararPadActuacion = function(campo, valor) {
   }
 };
 
-window.renderPreviewCanvas = async function(bocaForzada, hablanteOverride, subtituloOverride, tiempoLocalSeg) {
-  const cv = document.getElementById('canvas-preview');
-  const g = getEp();
-  if (!cv || !g) return;
-  const esH = getAspectoEp(g) === '16:9';
-  const W = esH ? 960 : 540, H = esH ? 540 : 960;
-  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; ajustarCanvasPreview(); }
-  const ctx = cv.getContext('2d');
-  const sc = (g.escenas || [])[clipSelIdx];
-  await componerEscenaPiro(ctx, {
-    escena: sc, episodio: g, biblioteca: biblioteca, ancho: W, alto: H, esHorizontal: esH,
-    bocaHablante: bocaForzada || 'boca_cerrada', hablanteActivoId: hablanteOverride,
-        subtituloOverride: subtituloOverride, safeZones: safeZonesOn, tiempoLocal: typeof tiempoLocalSeg === 'number' ? tiempoLocalSeg : tLocalPreviewActual
-  });
+let cvEdBuf = null, edRenderSeq = 0, edRenderBusy = false, edRenderQueued = null;
+window.renderPreviewCanvas = function(bocaForzada, hablanteOverride, subtituloOverride, tiempoLocalSeg, clipIdxForzado) {
+  const req = { seq: ++edRenderSeq, proyId: proyectoActivo.id, epId: epIdActivo, clipIdx: typeof clipIdxForzado === 'number' ? clipIdxForzado : clipSelIdx, boca: bocaForzada || 'boca_cerrada', hab: hablanteOverride, sub: subtituloOverride, tLoc: typeof tiempoLocalSeg === 'number' ? tiempoLocalSeg : tLocalPreviewActual };
+  if (edRenderBusy) { edRenderQueued = req; return Promise.resolve(); }
+  const ejecutar = async function(r) {
+    edRenderBusy = true;
+    try {
+      const cv = document.getElementById('canvas-preview'), g = getEp();
+      if (!cv || !g || r.proyId !== proyectoActivo.id || r.epId !== epIdActivo) return;
+      const esH = getAspectoEp(g) === '16:9', W = esH ? 960 : 540, H = esH ? 540 : 960;
+      if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; ajustarCanvasPreview(); }
+      if (!cvEdBuf || cvEdBuf.width !== W || cvEdBuf.height !== H) { cvEdBuf = document.createElement('canvas'); cvEdBuf.width = W; cvEdBuf.height = H; }
+      const ctxB = cvEdBuf.getContext('2d');
+      const sc = (g.escenas || [])[r.clipIdx];
+      await componerEscenaPiro(ctxB, { escena: sc, episodio: g, biblioteca: biblioteca, ancho: W, alto: H, esHorizontal: esH, bocaHablante: r.boca, hablanteActivoId: r.hab, subtituloOverride: r.sub, safeZones: safeZonesOn, tiempoLocal: r.tLoc });
+      if (r.seq !== edRenderSeq || r.proyId !== proyectoActivo.id || r.epId !== epIdActivo) return;
+      const ctxVis = cv.getContext('2d'); ctxVis.clearRect(0, 0, W, H); ctxVis.drawImage(cvEdBuf, 0, 0);
+    } finally {
+      edRenderBusy = false;
+      if (edRenderQueued) { const nxt = edRenderQueued; edRenderQueued = null; ejecutar(nxt); }
+    }
+  };
+  return ejecutar(req);
 };
 
 let tipoSubidaAudioPendiente = 'musica';
@@ -1950,20 +1979,27 @@ window.ejecutarExportacionNavegador = async function() {
     const fps = Number(document.getElementById('exp-fps').value) || 24, esH = getAspectoEp(g) === '16:9', W = esH ? 1280 : 720, H = esH ? 720 : 1280;
     const cvExp = document.createElement('canvas'); cvExp.width = W; cvExp.height = H; const ctxExp = cvExp.getContext('2d');
         setProg(3, 'Precargando personajes, fondos y accesorios (CORS)...');
-    const preRes = await precargarRecursosEpisodioPiro(g, biblioteca, { strictCors: true });
-    setProg(6, 'Recursos visuales: ' + preRes.ok + '/' + preRes.total + ' listos. Preparando audio...');
+        const preRes = await precargarRecursosEpisodioPiro(g, biblioteca, { strictCors: true });
+    if (preRes.obligatoriosFail > 0) {
+      throw new Error('Faltan ' + preRes.obligatoriosFail + ' recurso(s) visual(es) obligatorios (' + (preRes.faltantes || []).slice(0, 3).join(', ') + '). Revisa CORS o red antes de exportar.');
+    }
+    setProg(6, 'Recursos visuales: ' + preRes.ok + '/' + preRes.total + ' listos. Validando audio...');
     const AC = window.AudioContext || window.webkitAudioContext; ac = new AC(); if (ac.state === 'suspended') await ac.resume();
     const dest = ac.createMediaStreamDestination();
     const decodificar = async function(u) { if (!u) return null; try { const r = await fetch(u); if (!r.ok) return null; return await ac.decodeAudioData(await r.arrayBuffer()); } catch (e) { return null; } };
     const musBuf = g.musica_url ? await decodificar(g.musica_url) : null;
-    const clipsData = []; let totDur = 0;
+    const clipsData = [], envsPorIdx = [], fallosAud = []; let totDur = 0;
     for (let i = 0; i < g.escenas.length; i++) {
       const sc = g.escenas[i], d = Math.max(0.5, Number(sc.duracion) || 3);
       const aBuf = sc.audio_url ? await decodificar(sc.audio_url) : null;
+      if (sc.audio_url && !aBuf) fallosAud.push('Voz clip #' + (i + 1));
       const sfxU = resolverSfxUrlClip(sc), sBuf = sfxU ? await decodificar(sfxU) : null;
       const env = sc.audio_url ? await extraerEnvolventeAudio(sc.audio_url, fps) : null;
-      clipsData.push({ sc: sc, ini: totDur, dur: d, aBuf: aBuf, sBuf: sBuf, env: env }); totDur += d;
+      envsPorIdx.push(env);
+      let durSpan = d; for (let k = i + 1; k < g.escenas.length; k++) { if (g.escenas[k].continuar_audio && !g.escenas[k].audio_url) durSpan += Math.max(0.5, Number(g.escenas[k].duracion) || 3); else break; }
+      clipsData.push({ sc: sc, ini: totDur, dur: d, durSpan: durSpan, aBuf: aBuf, sBuf: sBuf, env: env }); totDur += d;
     }
+    if (fallosAud.length > 0) throw new Error('Falló decodificar ' + fallosAud.join(', ') + '. Revisa tu conexión antes de exportar.');
     const mimes = ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
     const mimeOk = mimes.find(function(m) { return MediaRecorder.isTypeSupported(m); }) || '', extVid = mimeOk.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
     const vStream = cvExp.captureStream(fps), tracks = vStream.getVideoTracks().concat(dest.stream.getAudioTracks());
@@ -1975,22 +2011,19 @@ window.ejecutarExportacionNavegador = async function() {
     if (musBuf) {
       const mSrc = ac.createBufferSource(); mSrc.buffer = musBuf; mSrc.loop = true; const mGain = ac.createGain();
       const vBase = (typeof g.musica_vol === 'number' ? g.musica_vol : 25) / 100; mGain.gain.setValueAtTime(vBase, t0Ac);
-      if (g.musica_ducking !== false) { clipsData.forEach(function(cd) { if (cd.aBuf) { mGain.gain.setTargetAtTime(vBase * 0.35, t0Ac + cd.ini, 0.08); mGain.gain.setTargetAtTime(vBase, t0Ac + cd.ini + Math.min(cd.dur, cd.aBuf.duration), 0.14); } }); }
+      if (g.musica_ducking !== false) { clipsData.forEach(function(cd) { if (cd.aBuf) { mGain.gain.setTargetAtTime(vBase * 0.35, t0Ac + cd.ini, 0.08); mGain.gain.setTargetAtTime(vBase, t0Ac + cd.ini + Math.min(cd.durSpan, cd.aBuf.duration), 0.14); } }); }
       mSrc.connect(mGain); mGain.connect(dest); mSrc.start(t0Ac); mSrc.stop(t0Ac + totDur + 0.15);
     }
     clipsData.forEach(function(cd) {
-      if (cd.aBuf) { const s = ac.createBufferSource(); s.buffer = cd.aBuf; s.connect(dest); s.start(t0Ac + cd.ini); }
-      if (cd.sBuf) { const s2 = ac.createBufferSource(); s2.buffer = cd.sBuf; const g2 = ac.createGain(); g2.gain.value = 0.85; s2.connect(g2); g2.connect(dest); s2.start(t0Ac + cd.ini); }
+      if (cd.aBuf) { const s = ac.createBufferSource(); s.buffer = cd.aBuf; s.connect(dest); s.start(t0Ac + cd.ini, 0, Math.min(cd.aBuf.duration, cd.durSpan)); }
+      if (cd.sBuf) { const s2 = ac.createBufferSource(); s2.buffer = cd.sBuf; const g2 = ac.createGain(); g2.gain.value = 0.85; s2.connect(g2); g2.connect(dest); s2.start(t0Ac + cd.ini, 0, Math.min(cd.sBuf.duration, cd.dur)); }
     });
     rec.start(250); const modoLS = obtenerModoLipSyncEp(g);
     while (!exportNavAbortar) {
       const t = Math.max(0, ac.currentTime - t0Ac); if (t >= totDur) break;
-      let cd = clipsData[clipsData.length - 1]; for (let i = 0; i < clipsData.length; i++) { if (t < clipsData[i].ini + clipsData[i].dur) { cd = clipsData[i]; break; } }
-      const sc = cd.sc, tLoc = Math.max(0, t - cd.ini), habId = sc.hablante !== undefined ? sc.hablante : sc.actor;
-      const perHab = (biblioteca.personajes || []).find(function(x) { return x.id === habId; }) || null;
-      const acts = normalizarActoresEscena(sc), aHab = acts.find(function(a) { return a.id === habId; }) || acts[0];
-      const boca = (habId && habId !== 'ninguno') ? obtenerBocaLipSyncPiro({ modo: modoLS, tiempoLocal: tLoc, envolvente: cd.env, marcas: sc.marcas_voz, visemas: sc.visemas, texto: sc.texto, duracion: cd.dur, personaje: perHab, cabezaKey: aHab ? aHab.cabeza : 'cabeza_base' }) : 'boca_cerrada';
-      await componerEscenaPiro(ctxExp, { escena: sc, episodio: g, biblioteca: biblioteca, ancho: W, alto: H, esHorizontal: esH, bocaHablante: boca, hablanteActivoId: habId, subtituloOverride: sc.texto || '', safeZones: false, tiempoLocal: tLoc, modoExportacion: true });
+      const evT = evaluarEpisodioEnTiempoPiro(g, biblioteca, t, { envolventesPorIdx: envsPorIdx, modoLipSync: modoLS });
+      if (!evT) break;
+      await componerEscenaPiro(ctxExp, { escena: evT.clipVisual, episodio: g, biblioteca: biblioteca, ancho: W, alto: H, esHorizontal: esH, bocaHablante: evT.bocaHablante, hablanteActivoId: evT.hablanteId, subtituloOverride: evT.subtitulo, safeZones: false, tiempoLocal: evT.tLocalVisual, modoExportacion: true });
       setProg(10 + Math.round((t / Math.max(0.1, totDur)) * 88), 'Renderizando ' + t.toFixed(1) + 's / ' + totDur.toFixed(1) + 's (' + extVid.toUpperCase() + ')...');
       await new Promise(function(r) { setTimeout(r, Math.max(12, Math.floor(1000 / fps))); });
     }
@@ -2054,40 +2087,27 @@ window.togglePlayTimeline = function() {
     const t = (now - playInicioMs) / 1000, total = duracionTotalEp();
     if (t >= total) { window.detenerTimeline(); return; }
     playOffsetSeg = t; actualizarPlayheadUI(t);
-    let acum = 0, idxAct = 0;
-    for (let i = 0; i < g.escenas.length; i++) {
-      const d = Number(g.escenas[i].duracion) || 3;
-      if (t < acum + d || i === g.escenas.length - 1) { idxAct = i; break; }
-      acum += d;
-    }
+        const evPre = evaluarEpisodioEnTiempoPiro(g, biblioteca, t, { envolventeActiva: envolventeActiva, modoLipSync: obtenerModoLipSyncEp(g) });
+    if (!evPre) { window.detenerTimeline(); return; }
+    const idxAct = evPre.clipIdx;
     if (idxAct !== clipSonandoIdx) {
       clipSonandoIdx = idxAct; clipSelIdx = idxAct; renderTimeline();
-      const sfxU = resolverSfxUrlClip(g.escenas[idxAct]), sAud = document.getElementById('audio-sfx-tl');
+      const sfxU = resolverSfxUrlClip(evPre.clipVisual), sAud = document.getElementById('audio-sfx-tl');
       if (sAud) { if (sfxU) { sAud.src = sfxU; sAud.currentTime = 0; sAud.play().catch(function() {}); } else { sAud.pause(); } }
-      const sc = g.escenas[idxAct], aud = document.getElementById('audio-player-tl');
-      if (!(sc.continuar_audio && clipAudioOrigenIdx >= 0 && !sc.audio_url)) {
-        if (sc.audio_url) {
-          clipAudioOrigenIdx = idxAct; audioOrigenInicioSeg = acum; envolventeActiva = null;
-          extraerEnvolventeAudio(sc.audio_url, 24).then(function(env) { if (clipAudioOrigenIdx === idxAct) envolventeActiva = env; });
-          aud.src = sc.audio_url; aud.currentTime = Math.max(0, t - acum); aud.play().catch(function() {});
-        } else {
-          clipAudioOrigenIdx = -1; envolventeActiva = null; aud.pause();
-        }
-      }
     }
-    const scAct = g.escenas[idxAct];
-    const scAud = (scAct && scAct.continuar_audio && clipAudioOrigenIdx >= 0) ? g.escenas[clipAudioOrigenIdx] : scAct;
-    const habId = scAud ? (scAud.hablante !== undefined ? scAud.hablante : scAud.actor) : 'ninguno';
-    const tLocalAud = (scAct && scAct.continuar_audio && clipAudioOrigenIdx >= 0) ? (t - audioOrigenInicioSeg) : (t - acum);
-    const perHab = (biblioteca.personajes || []).find(function(x) { return x.id === habId; }) || null;
-    const actsPlay = normalizarActoresEscena(scAct), aHabPlay = actsPlay.find(function(a) { return a.id === habId; }) || actsPlay[0];
-    const boca = (habId && habId !== 'ninguno') ? obtenerBocaLipSyncPiro({ modo: obtenerModoLipSyncEp(g), tiempoLocal: tLocalAud, envolvente: envolventeActiva, marcas: scAud ? scAud.marcas_voz : null, visemas: scAud ? scAud.visemas : null, texto: scAud ? scAud.texto : '', duracion: scAud ? (Number(scAud.duracion) || 3) : 3, personaje: perHab, cabezaKey: aHabPlay ? aHabPlay.cabeza : 'cabeza_base' }) : 'boca_cerrada';
+    if (evPre.clipAudioIdx !== clipAudioOrigenIdx) {
+      const aud = document.getElementById('audio-player-tl');
+      clipAudioOrigenIdx = evPre.clipAudioIdx; audioOrigenInicioSeg = evPre.audioInicioSeg; envolventeActiva = null;
+      if (evPre.clipAudio && evPre.clipAudio.audio_url) {
+        const aIdxCap = evPre.clipAudioIdx;
+        extraerEnvolventeAudio(evPre.clipAudio.audio_url, 24).then(function(env) { if (clipAudioOrigenIdx === aIdxCap) envolventeActiva = env; });
+        aud.src = evPre.clipAudio.audio_url; aud.currentTime = Math.max(0, evPre.tLocalAudio); aud.play().catch(function() {});
+      } else { aud.pause(); }
+    }
     const mAudDuck = document.getElementById('audio-musica-tl');
-    if (mAudDuck && g.musica_url) { const vB = (typeof g.musica_vol === 'number' ? g.musica_vol : 25) / 100; const hablandoAhora = Boolean(habId && habId !== 'ninguno' && boca !== 'boca_cerrada'); mAudDuck.volume = (g.musica_ducking !== false && hablandoAhora) ? (vB * 0.38) : vB; }
-        const subTxt = (scAct && scAct.texto && scAct.texto.trim()) ? scAct.texto : (scAud ? (scAud.texto || '') : '');
-    const tLocClip = Math.max(0, t - acum);
-    tLocalPreviewActual = tLocClip;
-    window.renderPreviewCanvas(boca, habId, subTxt, tLocClip);
+    if (mAudDuck && g.musica_url) { const vB = (typeof g.musica_vol === 'number' ? g.musica_vol : 25) / 100; mAudDuck.volume = (g.musica_ducking !== false && evPre.hablandoAhora) ? (vB * 0.38) : vB; }
+    tLocalPreviewActual = evPre.tLocalVisual;
+    window.renderPreviewCanvas(evPre.bocaHablante, evPre.hablanteId, evPre.subtitulo, evPre.tLocalVisual, idxAct);
     playRaf = requestAnimationFrame(tick);
   };
   playRaf = requestAnimationFrame(tick);
@@ -2141,7 +2161,9 @@ window.addEventListener('message', async function(e) {
       proyectoActivo.docBibId = normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id);
     }
     cargarBiblioteca();
-      } else if (e.data.tipo === 'PIRO_VAULT_ACTUALIZADO') {
+        } else if (e.data.tipo === 'PIRO_SHELL_PAUSAR') {
+    if (reproduciendo) window.togglePlayTimeline();
+  } else if (e.data.tipo === 'PIRO_VAULT_ACTUALIZADO') {
     if (e.data.estadoIA) { try { localStorage.setItem(CLAVE_PREFS_IA_ED, JSON.stringify(e.data.estadoIA)); } catch (er) {} }
     cargarVault();
     if (vistaActual === 'guion') renderVistaGuionIA();
