@@ -606,8 +606,19 @@ async function guardarBiblioteca(notificar) {
     }
   });
   try { localStorage.setItem(claveCacheBib(), JSON.stringify(biblioteca)); } catch (e) {}
-  if (GeokatuDB.PirobonianosService && navigator.onLine) {
-    try { await GeokatuDB.PirobonianosService.guardarProyectoEDT(proyectoActivo.docBibId || 'bib_pirobonianos', Object.assign({ tipo_doc: 'biblioteca' }, biblioteca)); } catch (e) {}
+    if (GeokatuDB.PirobonianosService && navigator.onLine) {
+    try {
+      const copiaNube = JSON.parse(JSON.stringify(biblioteca));
+      (copiaNube.personajes || []).forEach(function(pe) {
+        if (!pe || !pe.piezas) return;
+        Object.keys(pe.piezas).forEach(function(sk) {
+          const u = pe.piezas[sk] && pe.piezas[sk].url;
+          if (typeof u === 'string' && u.indexOf('data:') === 0) { pe.piezas[sk].url = ''; pe.piezas[sk].soloLocal = true; }
+        });
+      });
+      const resSave = await GeokatuDB.PirobonianosService.guardarProyectoEDT(proyectoActivo.docBibId || 'bib_pirobonianos', Object.assign({ tipo_doc: 'biblioteca' }, copiaNube));
+      if (!resSave || !resSave.success) toast('Aviso nube: guardado local OK, pero falló sincronización (' + ((resSave && resSave.error) || 'red') + ').', 'error', 4200);
+    } catch (e) { toast('Aviso nube: guardado local OK, pendiente subir.', 'info'); }
   }
   if (notificar && window.parent && window.parent !== window) {
     window.parent.postMessage({ tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA', origen: 'fabrica' }, '*');
@@ -1385,12 +1396,22 @@ function cargarImg(src) {
 
 function quitarChromaExterior(ctx, w, h) {
   const id = ctx.getImageData(0, 0, w, h), d = id.data;
-  const vis = new Uint8Array(w * h);
   const esVerde = function(idx) {
     const r = d[idx], g = d[idx + 1], b = d[idx + 2], a = d[idx + 3];
     if (a < 15) return true;
-    return g > 115 && (g - Math.max(r, b)) > 36;
+    return g > 110 && (g - Math.max(r, b)) > 34;
   };
+  let bordeTransp = 0, bordeVerde = 0, bordeTot = 0;
+  const muestrear = function(x, y) {
+    const i = (y * w + x) * 4; bordeTot++;
+    if (d[i + 3] < 20) bordeTransp++;
+    else if (d[i + 1] > 110 && (d[i + 1] - Math.max(d[i], d[i + 2])) > 34) bordeVerde++;
+  };
+  const pasoX = Math.max(1, Math.floor(w / 40)), pasoY = Math.max(1, Math.floor(h / 40));
+  for (let x = 0; x < w; x += pasoX) { muestrear(x, 0); muestrear(x, h - 1); }
+  for (let y = 0; y < h; y += pasoY) { muestrear(0, y); muestrear(w - 1, y); }
+  if (bordeTot > 0 && bordeTransp > bordeTot * 0.7 && bordeVerde < bordeTot * 0.1) return;
+  const vis = new Uint8Array(w * h);
   const q = new Int32Array(w * h); let qh = 0, qt = 0;
   const push = function(x, y) { const p = y * w + x; if (!vis[p] && esVerde(p * 4)) { vis[p] = 1; q[qt++] = p; } };
   for (let x = 0; x < w; x++) { push(x, 0); push(x, h - 1); }
@@ -1403,11 +1424,17 @@ function quitarChromaExterior(ctx, w, h) {
     if (py > 0) push(px, py - 1);
     if (py + 1 < h) push(px, py + 1);
   }
-  for (let i = 0; i < d.length; i += 4) {
-    if (d[i + 3] > 0) {
-      const r = d[i], g = d[i + 1], b = d[i + 2];
-      if (g > 130 && (g - Math.max(r, b)) > 48) { d[i + 3] = 0; }
-      else if (g > Math.max(r, b) + 18) { d[i + 1] = Math.max(r, b); }
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const p = y * w + x, i = p * 4;
+      if (d[i + 3] === 0) continue;
+      if (vis[p - 1] || vis[p + 1] || vis[p - w] || vis[p + w]) {
+        const r = d[i], g = d[i + 1], b = d[i + 2], rb = Math.max(r, b);
+        if (g > rb + 16) {
+          d[i + 1] = rb;
+          if (g > 135 && (g - rb) > 48) d[i + 3] = Math.round(d[i + 3] * 0.35);
+        }
+      }
     }
   }
   ctx.putImageData(id, 0, 0);
@@ -1519,9 +1546,20 @@ async function urlABase64Parte(url) {
   } catch (e) { return null; }
 }
 
+function contarPiezasLienzo(p, l) {
+  const pzs = (l && Array.isArray(l.piezas)) ? l.piezas : [];
+  let ok = 0;
+  pzs.forEach(function(pz) {
+    const sk = slug(pz.slot_key, '');
+    const enPer = p && p.piezas && p.piezas[sk] && (p.piezas[sk].url || p.piezas[sk].soloLocal);
+    if (cacheLocalUrls[sk] || enPer) ok++;
+  });
+  return { ok: ok, total: pzs.length };
+}
+
 function lienzoEstaListo(p, l) {
-  if (!p || !l || !Array.isArray(l.piezas) || !l.piezas.length) return false;
-  return l.piezas.some(function(pz) { return Boolean(p.piezas && p.piezas[pz.slot_key] && p.piezas[pz.slot_key].url); });
+  const st = contarPiezasLienzo(p, l);
+  return st.total > 0 && st.ok >= st.total;
 }
 
 function obtenerLienzoActivoObj(p) {
@@ -1582,11 +1620,12 @@ async function procesarYRecortarImagenLienzo(p, lienzo, imgSrc) {
   const piezasSpec = Array.isArray(lienzo.piezas) ? lienzo.piezas : [];
   let guardadas = 0; const faltantes = [];
   for (let idx = 0; idx < piezasSpec.length; idx++) {
-    const sp = piezasSpec[idx];
-    const r = Math.floor(idx / cols);
-    let c = idx % cols;
+        const sp = piezasSpec[idx];
+    const celIdx = (typeof sp.celda === 'number' && sp.celda >= 1 && sp.celda <= cols * rows) ? (sp.celda - 1) : idx;
+    const r = Math.floor(celIdx / cols);
+    let c = celIdx % cols;
     if (gr.orden === 'serpiente' && (r % 2 === 1)) c = cols - 1 - c;
-    if (r >= rows) break;
+    if (r >= rows) continue;
     const padX = cols > 1 ? Math.round(cw * 0.03) : 0, padY = rows > 1 ? Math.round(ch * 0.03) : 0;
     const sx = c * cw + padX, sy = r * ch + padY, sw = Math.max(8, cw - padX * 2), sh = Math.max(8, ch - padY * 2);
     const cvC = document.createElement('canvas'); cvC.width = sw; cvC.height = sh;
@@ -1681,55 +1720,9 @@ window.ejecutarLienzoBlueprint = async function(idLienzo) {
     });
     if (!res || !res.success || !res.b64) throw new Error((res && res.error) || 'Sin imagen del proveedor IA');
 
-    const im = await cargarImg('data:' + (res.mime || 'image/png') + ';base64,' + res.b64);
-    const cvFull = document.createElement('canvas'); cvFull.width = im.width; cvFull.height = im.height;
-    const ctxF = cvFull.getContext('2d', { willReadFrequently: true });
-    ctxF.drawImage(im, 0, 0);
-    quitarChromaExterior(ctxF, cvFull.width, cvFull.height);
-
-    const cw = Math.floor(cvFull.width / cols), ch = Math.floor(cvFull.height / rows);
-    const piezasSpec = Array.isArray(lienzo.piezas) ? lienzo.piezas : [];
-    let guardadas = 0;
-
-    for (let idx = 0; idx < piezasSpec.length; idx++) {
-      const sp = piezasSpec[idx];
-      const r = Math.floor(idx / cols);
-      let c = idx % cols;
-      if (gr.orden === 'serpiente' && (r % 2 === 1)) c = cols - 1 - c;
-      if (r >= rows) break;
-
-      const padX = cols > 1 ? Math.round(cw * 0.04) : 0, padY = rows > 1 ? Math.round(ch * 0.04) : 0;
-      const sx = c * cw + padX, sy = r * ch + padY, sw = Math.max(8, cw - padX * 2), sh = Math.max(8, ch - padY * 2);
-      const cvC = document.createElement('canvas'); cvC.width = sw; cvC.height = sh;
-      const ctxC = cvC.getContext('2d', { willReadFrequently: true });
-      ctxC.drawImage(cvFull, sx, sy, sw, sh, 0, 0, sw, sh);
-      quitarChromaExterior(ctxC, sw, sh);
-      const bb = detectarBBox(ctxC, sw, sh);
-      if (!bb || bb.w < 6 || bb.h < 6) continue;
-
-      const cajaDst = obtenerCajaDestino(p, sp.tipo_anclaje, sp.slot_key);
-      const cvCanon = anclarRecorteEn1000x1600(cvC, bb, cajaDst);
-      const dataUrlLoc = cvCanon.toDataURL('image/png');
-      const sk = slug(sp.slot_key, 'pz_' + idx);
-
-      cacheLocalUrls[sk] = dataUrlLoc;
-      await idbGuardar('pz_' + proyectoActivo.id + '_' + p.id + '_' + sk, dataUrlLoc);
-
-      let urlNube = dataUrlLoc;
-      if (GeokatuDB.PirobonianosService && navigator.onLine) {
-        try {
-          const blob = await canvasABlob(cvCanon);
-          const up = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(proyectoActivo.storageDir || 'biblioteca_contenido', 'personajes/' + p.id + '/' + sk + '.png', new File([blob], sk + '.png', { type: 'image/png' }));
-          if (up && up.success && up.url) urlNube = up.url;
-        } catch (eUp) {}
-      }
-      if (!p.piezas) p.piezas = {};
-      p.piezas[sk] = { url: urlNube, etiqueta: sp.etiqueta_ui || sk, updatedAt: Date.now() };
-      guardadas++;
-    }
-
-    await guardarBiblioteca(true);
-    toast('Lienzo recortado: ' + guardadas + ' piezas guardadas offline y en nube.', 'exito');
+        const rep = await procesarYRecortarImagenLienzo(p, lienzo, 'data:' + (res.mime || 'image/png') + ';base64,' + res.b64);
+    if (rep.faltantes.length) toast('Recorte parcial: ' + rep.guardadas + '/' + rep.esperadas + ' (vacías: ' + rep.faltantes.slice(0, 3).join(', ') + ')', 'error', 5200);
+    else toast('Auditoría OK: ' + rep.guardadas + '/' + rep.esperadas + ' piezas guardadas offline y en nube.', 'exito');
     if (lienzo.id_lienzo === 'turnaround_360' || lienzo.id_lienzo === 'maestro_cuerpo') { setTimeout(function() { window.abrirCalibradorRig(); }, 450); }
   } catch (err) {
     toast('Error lienzo: ' + err.message, 'error', 4200);
@@ -1804,10 +1797,12 @@ function renderRibbonPasos(busyId) {
     return;
   }
   r.innerHTML = lienzos.map(function(l) {
-    const ok = lienzoEstaListo(p, l), esBusy = busyId === l.id_lienzo;
-    const esSel = l.id_lienzo === (obtenerLienzoActivoObj(p) && obtenerLienzoActivoObj(p).id_lienzo); return '<button type="button" class="paso-chip ' + (esBusy ? 'busy' : (esSel ? 'activo' : (ok ? 'ok' : ''))) + '" onclick="window.seleccionarLienzoChip(\'' + esc(l.id_lienzo) + '\')">' +
-      esc(l.titulo_boton || l.id_lienzo) + (esBusy ? ' ...' : (ok ? ' OK' : '')) +
-    '</button>';
+        const st = contarPiezasLienzo(p, l), ok = st.total > 0 && st.ok >= st.total, esBusy = busyId === l.id_lienzo;
+    const esSel = l.id_lienzo === (obtenerLienzoActivoObj(p) && obtenerLienzoActivoObj(p).id_lienzo);
+    const suf = esBusy ? ' ...' : (ok ? ' OK' : (st.ok > 0 ? (' ' + st.ok + '/' + st.total) : ''));
+    return '<button type="button" class="paso-chip ' + (esBusy ? 'busy' : (esSel ? 'activo' : (ok ? 'ok' : ''))) + '" onclick="window.seleccionarLienzoChip(\'' + esc(l.id_lienzo) + '\')">' +
+      esc(l.titulo_boton || l.id_lienzo) + suf +
+      '</button>';
   }).join('');
   const nextL = lienzos.find(function(l) { return !lienzoEstaListo(p, l); });
   const btnSig = document.getElementById('btn-crear-siguiente');
