@@ -652,7 +652,8 @@ export function evaluarAnimacionActorPiro(actorObj, sc, tLocalSeg, estaHablando,
     if (pose) { out.rotCab += pose.rotCab; out.rotBrazo += pose.rotBrazo; out.rotAntebrazo += pose.rotAntebrazo; out.rotMano += pose.rotMano; out.scaleX *= pose.scaleX; out.scaleY *= pose.scaleY; out.offsetY += pose.offsetY; }
     if (actDef.ojos && out.ojos !== 'ojos_cerrados') out.ojos = actDef.ojos;
     if (actDef.bocaDef) out.bocaDef = actDef.bocaDef;
-    if (actDef.mano && !out.mano) out.mano = actDef.mano;
+    const tieneArtP = Boolean(personaje && personaje.piezas && (personaje.piezas.brazo_del_sup || personaje.piezas.brazo_del_ant));
+    if (actDef.mano && !out.mano && tieneArtP) out.mano = actDef.mano;
   }
   return out;
 }
@@ -733,7 +734,11 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
   const ojosKey = (!ocultarCara360 && resOjos.url) ? resOjos.key : 'ninguno';
   const cejasKey = (!ocultarCara360 && resCejas.url) ? resCejas.key : 'ninguno';
   const bocaKey = resBoca.url ? resBoca.key : 'ninguno';
-  const brazoDelKey = cfg.brazoDel || (cfg.propImg ? 'brazo_delantero_prop' : 'brazo_delantero_reposo');
+  const rawBrazoDel = cfg.brazoDel || (cfg.propImg ? 'brazo_delantero_prop' : 'brazo_delantero_reposo');
+  const brazoDelKey = String(rawBrazoDel).indexOf('trasero') >= 0 ? 'ninguno' : rawBrazoDel;
+  const accObj = (accKey && piezas[accKey]) ? piezas[accKey] : null;
+  const accTxt = ((accObj && accObj.etiqueta ? accObj.etiqueta : '') + ' ' + accKey).toLowerCase();
+  const accZona = !accKey ? '' : (/(gafa|lente|visor|audifon|gorra|sombrero|corona|diadema|casco|pelo|barba)/.test(accTxt) ? 'cabeza' : (/(hoodie|camis|chaquet|blazer|chaleco|abrigo|sueter|cadena|collar|corbata|vest)/.test(accTxt) ? 'torso' : 'frente'));
   const brazoTrasKey = cfg.brazoTras || 'brazo_trasero_reposo';
   const manoKey = cfg.mano ? (String(cfg.mano).indexOf('mano_') === 0 ? cfg.mano : ('mano_' + cfg.mano)) : '';
   const piernaDelKey = cfg.piernaDel || 'pierna_delantera';
@@ -832,6 +837,9 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
     }
     if (cuerpoImg) {
       ctx.save(); aplicarTransformAjuste(ctx, ajCapas.cuerpo, 500, 1480); drawP(cuerpoImg); ctx.restore();
+    }
+    if (accZona === 'torso' && imgs[accKey]) {
+      ctx.save(); aplicarTransformAjuste(ctx, ajCapas.acc, 500, 680); drawP(imgs[accKey]); ctx.restore();
     } else if (imgs.maestro_cuerpo && cfg.modoLienzoCompleto) {
       ctx.save(); ctx.globalAlpha = 0.42; drawP(imgs.maestro_cuerpo); ctx.restore();
     }
@@ -868,6 +876,9 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
       drawFacialEnCab(cejasImg, resCejas.transform, ajCej, ptCejas);
     }
     drawFacialEnCab(bocaImg, resBoca.transform, ajCapas.boca, ptBoca);
+    if (accZona === 'cabeza' && imgs[accKey]) {
+      ctx.save(); aplicarTransformAjuste(ctx, ajCapas.acc, ptOjos.x, ptOjos.y); ctx.drawImage(imgs[accKey], 0, 0, 1000, 1600); ctx.restore(); capasDibujadas++;
+    }
     ctx.restore();
 
     const ptHombro = piv.hombro_delantero;
@@ -875,7 +886,7 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
     const ptMano = piv.mano_delantera;
     const manoImg = manoKey ? imgs[manoKey] : null;
     if (esOverlayDoble && imgs[brazoDelKey]) {
-      drawP(imgs[brazoDelKey]);
+      ctx.save(); aplicarTransformAjuste(ctx, ajCapas.brazo, 500, 640); drawP(imgs[brazoDelKey]); ctx.restore();
     } else if (brazoDelKey === 'articulado' && (tieneArtDel || manoImg || cfg.propImg)) {
       ctx.save();
       ctx.translate(ptHombro.x, ptHombro.y);
@@ -905,10 +916,11 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
           ctx.save(); aplicarTransformAjuste(ctx, ajCapas.brazo, 0, 0); ctx.drawImage(brazoImg, -ptHombro.x, -ptHombro.y, 1000, 1600); ctx.restore();
           capasDibujadas++;
         }
-        if (manoImg || cfg.propImg) {
+        const mostrarManoExtra = Boolean(manoImg && (!brazoImg || cfg.forzarManoSuelta));
+        if (mostrarManoExtra || cfg.propImg) {
           ctx.translate(ptMano.x - ptHombro.x, ptMano.y - ptHombro.y);
           ctx.rotate((rotMano * Math.PI) / 180);
-          if (manoImg) { ctx.save(); aplicarTransformAjuste(ctx, ajCapas.mano, 0, 0); ctx.drawImage(manoImg, -ptMano.x, -ptMano.y, 1000, 1600); ctx.restore(); capasDibujadas++; }
+          if (mostrarManoExtra) { ctx.save(); aplicarTransformAjuste(ctx, ajCapas.mano, 0, 0); ctx.drawImage(manoImg, -ptMano.x, -ptMano.y, 1000, 1600); ctx.restore(); capasDibujadas++; }
           if (cfg.propImg) {
             const propSize = Number(cfg.propSize) || 230;
             ctx.drawImage(cfg.propImg, -propSize / 2, -propSize / 2, propSize, propSize);
@@ -918,8 +930,8 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
         ctx.restore();
       }
     }
-  if (accKey && imgs[accKey]) {
-      ctx.save(); aplicarTransformAjuste(ctx, ajCapas.acc, 500, 500); ctx.drawImage(imgs[accKey], 0, 0, 1000, 1600); ctx.restore(); capasDibujadas++;
+  if (accZona === 'frente' && imgs[accKey]) {
+      ctx.save(); aplicarTransformAjuste(ctx, ajCapas.acc, ptMano.x, ptMano.y); ctx.drawImage(imgs[accKey], 0, 0, 1000, 1600); ctx.restore(); capasDibujadas++;
     }
   } else if (imgs.maestro_cuerpo) {
     drawP(imgs.maestro_cuerpo);
