@@ -629,6 +629,7 @@ function renderDrawerEd() {
           '<span style="font-size:10px; color:var(--azul);">' + getAspectoEp(ep) + '</span></button>';
       }).join('') +
       '<button type="button" class="btn btn-xs btn-primary" style="width:100%; margin-top:4px;" onclick="window.crearEpisodioRapido(); window.toggleDrawerEd(false);">+ Nuevo Episodio</button>' +
+      '<button type="button" class="btn btn-xs btn-blue" style="width:100%; margin-top:4px;" onclick="window.crearEscenaCinematografica2Actores(); window.toggleDrawerEd(false);">+ Escena 2 Actores (Cine)</button>' +
       '<button type="button" class="btn btn-xs btn-green" style="width:100%; margin-top:4px;" onclick="window.crearPackPruebasRig10s(); window.toggleDrawerEd(false);">+ Pack 6 Pruebas Rig (10s)</button>' +
     '</div>';
 }
@@ -784,6 +785,44 @@ window.crearPackPruebasRig10s = function(personajeIdOpcional) {
   epIdActivo = epTest.id; clipSelIdx = 0; actorSelIdx = 0; tlToolActiva = 'actuar';
   guardarBiblioteca(true); window.setVistaEditor('timeline');
   toast('Pack de 6 clips de prueba (<=10s) creado para ' + pNom + '.', 'exito');
+};
+
+window.crearEscenaCinematografica2Actores = function(personajeIdOpcional) {
+  const listaP = biblioteca.personajes || [];
+  if (!listaP.length) { toast('Crea al menos 1 personaje en Fábrica v2 primero.', 'info'); return; }
+  const p1 = listaP.find(function(p) { return p.id === personajeIdOpcional; }) || listaP[0];
+  const p2 = listaP.find(function(p) { return p.id !== p1.id; }) || p1;
+  const escId = biblioteca.escenarios && biblioteca.escenarios[0] ? biblioteca.escenarios[0].id : 'esc_001';
+  const zId = (biblioteca.escenarios && biblioteca.escenarios[0] && biblioteca.escenarios[0].zonas && biblioteca.escenarios[0].zonas[0]) ? biblioteca.escenarios[0].zonas[0].id : 'zona_01';
+  const nom1 = p1.nombre || 'Actor 1', nom2 = p2.nombre || 'Actor 2';
+  const clips = [
+    { hab: p1.id, cam: 'plano_general', dur: 4.5, txt: 'Oye ' + nom2.split(' ')[0] + ', mira como quedamos animados sobre este escenario 2.5D.', a1: { ojos: 'feliz', cejas: 'cejas_coqueto', act: 'saludar', mir: 'interlocutor' }, a2: { ojos: 'duda', cejas: 'cejas_duda_izq', act: 'pensar', mir: 'interlocutor' } },
+    { hab: p2.id, cam: 'paneo_der', dur: 4.8, txt: 'No lo puedo creer... hasta nos miramos a los ojos y movemos las cejas en vivo.', a1: { ojos: 'neutro', cejas: 'cejas_neutro', act: 'asentir', mir: 'interlocutor' }, a2: { ojos: 'indignado', cejas: 'cejas_sorpresa', act: 'sorprenderse', mir: 'interlocutor' } },
+    { hab: p1.id, cam: 'zoom_in', dur: 4.6, txt: 'Y esto apenas empieza. Ahora cualquier historia la rodamos en minutos y a puro cine.', a1: { ojos: 'feliz', cejas: 'cejas_sarcasmo', act: 'senalar', mir: 'camara', mano: 'mano_senalando' }, a2: { ojos: 'feliz', cejas: 'cejas_neutro', act: 'reir', mir: 'interlocutor' } },
+    { hab: p2.id, cam: 'zoom_out', dur: 4.2, txt: 'Entonces dale a Voces Lote y exportar video, que esto ya esta listo para estrenar.', a1: { ojos: 'feliz', cejas: 'cejas_neutro', act: 'reir', mir: 'camara' }, a2: { ojos: 'feliz', cejas: 'cejas_sorpresa', act: 'saludar', mir: 'camara' } }
+  ];
+  const epId = 'escena_2act_' + String(biblioteca.guiones.length + 1).padStart(2, '0');
+  const epNuevo = {
+    id: epId, titulo: 'Escena 2 Actores · ' + nom1.split(' ')[0] + ' & ' + nom2.split(' ')[0],
+    escenario_id: escId, zona_id: zId, reparto: p1.id === p2.id ? [p1.id] : [p1.id, p2.id],
+    estado: 'Escena 2 Actores', anecdota: 'Escena cinematográfica interactiva de 2 personajes con mirada interlocutor, cejas y parallax 2.5D.',
+    escenas: clips.map(function(cl, idx) {
+      return {
+        id: 'sc_2a_' + Date.now() + '_' + idx, actor: cl.hab, hablante: cl.hab, escenario: escId, zona: zId,
+        posicion: cl.hab === p1.id ? 'izq' : 'der', ojos: cl.hab === p1.id ? cl.a1.ojos : cl.a2.ojos,
+        camara: cl.cam, modo: 'rig', prop: '', sfx: '', duracion: cl.dur, texto: cl.txt, vida_auto: true, eventos_actuacion: [],
+        actores: [
+          { id: p1.id, posicion: 'izq', cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', angulo: '3_4_der', ojos: cl.a1.ojos, cejas: cl.a1.cejas, mirada: cl.a1.mir, boca: 'boca_cerrada', brazo: 'brazo_delantero_reposo', mano: cl.a1.mano || '', actuacion: cl.a1.act, rotCab: 0, rotBrazo: 0, prop: '', acc: '', escala: 1 },
+          { id: p2.id, posicion: 'der', cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', angulo: '3_4_izq', ojos: cl.a2.ojos, cejas: cl.a2.cejas, mirada: cl.a2.mir, boca: 'boca_cerrada', brazo: 'brazo_delantero_reposo', mano: cl.a2.mano || '', actuacion: cl.a2.act, rotCab: 0, rotBrazo: 0, prop: '', acc: '', escala: 1 }
+        ],
+        prompt_plano: 'Escena 2 Actores #' + (idx + 1), audio_url: '', plano_url: ''
+      };
+    })
+  };
+  biblioteca.guiones.push(epNuevo);
+  epIdActivo = epNuevo.id; clipSelIdx = 0; actorSelIdx = 0; tlToolActiva = 'clips';
+  guardarBiblioteca(true); window.setVistaEditor('timeline');
+  toast('Escena de 2 Actores creada (' + nom1 + ' + ' + nom2 + '). Pulsa Voces Lote y Play.', 'exito');
 };
 
 window.cambiarAspectoEpisodio = function(asp) {
@@ -2067,6 +2106,8 @@ window.addEventListener('message', function(e) {
     if (vistaActual === 'guion') renderVistaGuionIA();
     } else if (e.data.tipo === 'PIRO_EDITOR_CREAR_PACK_PRUEBAS') {
     cargarBiblioteca().then(function() { window.crearPackPruebasRig10s(e.data.personajeId); });
+  } else if (e.data.tipo === 'PIRO_EDITOR_CREAR_ESCENA_2_ACTORES') {
+    cargarBiblioteca().then(function() { window.crearEscenaCinematografica2Actores(e.data.personajeId); });
   } else if (e.data.tipo === 'PIRO_EDITOR_ABRIR_EPISODIO') {
     cargarBiblioteca().then(function() {
       if (e.data.episodioId) epIdActivo = e.data.episodioId;
