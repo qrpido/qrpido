@@ -141,7 +141,11 @@
   .wheel-h-item.falta { border-style: dashed; border-color: rgba(255, 179, 0, 0.45); }
 
   /* MODALES DARK GLASS */
-  .aj-panel { position: absolute; left: 8px; right: 8px; top: 82px; z-index: 30; max-width: 370px; background: rgba(10, 14, 22, 0.94); border: 1px solid rgba(56, 189, 248, 0.5); border-radius: 14px; padding: 9px 10px; backdrop-filter: blur(12px); display: flex; flex-direction: column; gap: 6px; box-shadow: 0 12px 30px rgba(0,0,0,0.65); }
+  .fab-toolbar { display: flex; align-items: center; gap: 5px; padding: 5px 8px; background: rgba(12, 16, 24, 0.96); border-bottom: 1px solid var(--border); overflow-x: auto; flex-shrink: 0; scrollbar-width: none; }
+  .fab-toolbar::-webkit-scrollbar { display: none; }
+  .fab-lienzo-bar { display: flex; align-items: center; gap: 5px; padding: 5px 8px; background: rgba(15, 20, 32, 0.96); border-bottom: 1px solid var(--border); overflow-x: auto; flex-shrink: 0; scrollbar-width: none; }
+  .fab-lienzo-bar::-webkit-scrollbar { display: none; }
+  .aj-panel { flex-shrink: 0; width: 100%; max-width: none !important; background: rgba(10, 14, 22, 0.98); border-top: 1px solid rgba(56, 189, 248, 0.55); padding: 8px 10px; display: flex; flex-direction: column; gap: 5px; box-shadow: 0 -8px 24px rgba(0,0,0,0.65); z-index: 30; }
   .aj-row { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 800; color: #cbd5e1; }
   .aj-row input[type="range"] { flex: 1; accent-color: var(--naranja); }
   .aj-row b { min-width: 38px; text-align: right; font-family: monospace; color: var(--azul); }
@@ -408,7 +412,19 @@
         <button type="button" class="btn btn-xs" onclick="window.cerrarModalFab('modal-calibrar-rig')">Cerrar</button>
       </div>
     </div>
-    <div id="cal-ayuda-txt" style="font-size:11px; color:#7dd3fc; font-weight:700;">Arrastra sobre el personaje para marcar el rectángulo o toca para marcar la X.</div>
+    <div style="display:flex; gap:4px; flex-wrap:wrap;">
+      <button type="button" class="btn btn-xs btn-purple" id="btn-autocal-ia" onclick="window.autoCalibrarRigConIA()">Auto-Calibrar IA (API)</button>
+      <button type="button" class="btn btn-xs btn-blue" onclick="window.copiarPromptCalibracionIA()">Prompt Calibración ($0)</button>
+      <button type="button" class="btn btn-xs btn-green" onclick="window.togglePegarCalJson()">Pegar JSON ($0)</button>
+    </div>
+    <div id="box-cal-json-paste" class="hidden" style="display:flex; flex-direction:column; gap:5px; padding:6px; border-radius:9px; border:1px solid rgba(56,189,248,0.45); background:rgba(6,10,18,0.92);">
+      <textarea id="txt-cal-json-paste" class="inp" rows="4" style="font-family:monospace; font-size:10px;" placeholder="Pega aquí el JSON de calibración devuelto por Gemini Visión..."></textarea>
+      <div style="display:flex; gap:5px; justify-content:flex-end;">
+        <button type="button" class="btn btn-xs" onclick="window.togglePegarCalJson(false)">Cancelar</button>
+        <button type="button" class="btn btn-xs btn-green" onclick="window.aplicarJsonCalibracionPegado()">Aplicar Cajas y X</button>
+      </div>
+    </div>
+    <div id="cal-ayuda-txt" style="font-size:11px; color:#7dd3fc; font-weight:700;">Usa Auto-Calibrar IA o arrastra para ajustar cualquier rectángulo o X.</div>
     <div class="cal-chips" id="cal-chips-pasos"></div>
     <div class="stage-wrap bg-grid" style="height:48dvh; min-height:260px; border-radius:12px; border:1px solid var(--border); padding:4px;">
       <canvas id="cv-cal-rig" width="1000" height="1600" style="max-width:100%; max-height:100%; height:100%; width:auto; object-fit:contain; touch-action:none; cursor:crosshair;"></canvas>
@@ -957,7 +973,7 @@ window.convertirOjosActualesAPupilaDinamica = async function() {
       const sk = claves[i], src = cacheLocalUrls[sk] || p.piezas[sk].url;
       const im = await cargarImg(src);
       const cv = document.createElement('canvas'); cv.width = 1000; cv.height = 1600;
-      cv.getContext('2d').drawImage(im, 0, 0, 1000, 1600);
+      const cO = cv.getContext('2d', { willReadFrequently: true }); cO.drawImage(im, 0, 0, 1000, 1600); quitarChromaExterior(cO, 1000, 1600, true);
       const escl = detectarYVaciarPupilasOjo(cv, true);
       if (!escl.length) continue;
       const dUrl = cv.toDataURL('image/png');
@@ -1445,7 +1461,7 @@ function cargarImg(src) {
   });
 }
 
-function quitarChromaExterior(ctx, w, h) {
+function quitarChromaExterior(ctx, w, h, limpiarHuecosPuros) {
   const id = ctx.getImageData(0, 0, w, h), d = id.data;
   const esVerde = function(idx) {
     const r = d[idx], g = d[idx + 1], b = d[idx + 2], a = d[idx + 3];
@@ -1461,7 +1477,7 @@ function quitarChromaExterior(ctx, w, h) {
   const pasoX = Math.max(1, Math.floor(w / 40)), pasoY = Math.max(1, Math.floor(h / 40));
   for (let x = 0; x < w; x += pasoX) { muestrear(x, 0); muestrear(x, h - 1); }
   for (let y = 0; y < h; y += pasoY) { muestrear(0, y); muestrear(w - 1, y); }
-  if (bordeTot > 0 && bordeTransp > bordeTot * 0.7 && bordeVerde < bordeTot * 0.1) return;
+  if (!limpiarHuecosPuros && bordeTot > 0 && bordeTransp > bordeTot * 0.7 && bordeVerde < bordeTot * 0.1) return;
   const vis = new Uint8Array(w * h);
   const q = new Int32Array(w * h); let qh = 0, qt = 0;
   const push = function(x, y) { const p = y * w + x; if (!vis[p] && esVerde(p * 4)) { vis[p] = 1; q[qt++] = p; } };
@@ -1474,6 +1490,12 @@ function quitarChromaExterior(ctx, w, h) {
     if (px + 1 < w) push(px + 1, py);
     if (py > 0) push(px, py - 1);
     if (py + 1 < h) push(px, py + 1);
+  }
+  if (limpiarHuecosPuros) {
+    for (let p = 0; p < w * h; p++) {
+      const i = p * 4;
+      if (d[i + 3] > 0 && d[i + 1] > 165 && (d[i + 1] - Math.max(d[i], d[i + 2])) > 58) { d[i + 3] = 0; vis[p] = 1; }
+    }
   }
   for (let y = 1; y < h - 1; y++) {
     for (let x = 1; x < w - 1; x++) {
@@ -1507,7 +1529,15 @@ function detectarBBox(ctx, w, h) {
 }
 
 let metaRecorteOjoTmp = null;
-function obtenerCajaDestino(p, tipoAnc, slotKey) {
+function inferirZonaAccesorio(slotKey, etiqueta) {
+  const txt = (String(etiqueta || '') + ' ' + String(slotKey || '')).toLowerCase();
+  if (/(gafa|lente|visor|sunglass)/.test(txt)) return 'ojos';
+  if (/(audifon|headphon|gorra|cap|sombrero|hat|corona|diadema|casco)/.test(txt)) return 'cabeza_top';
+  if (/(cadena|collar|corbata|bufanda|necklace)/.test(txt)) return 'cuello';
+  if (/(celular|phone|taza|tinto|cafe|vaso|botella|microfono)/.test(txt)) return 'mano';
+  return 'torso';
+}
+function obtenerCajaDestino(p, tipoAnc, slotKey, etiquetaUi) {
   const skStr = String(slotKey || '');
   const esOjoAb = (tipoAnc === 'ojos' || tipoAnc === 'ojos_frente' || skStr.indexOf('ojos_') === 0) && skStr.indexOf('cerrad') < 0;
   metaRecorteOjoTmp = { p: p, sk: slug(skStr, 'pz'), esOjoAb: esOjoAb };
@@ -1520,16 +1550,25 @@ function obtenerCajaDestino(p, tipoAnc, slotKey) {
   const getC = function(k) { return (zMk[k] && zMk[k].caja && zMk[k].caja.w > 6) ? zMk[k].caja : ((zBase[k] && zBase[k].caja && zBase[k].caja.w > 6) ? zBase[k].caja : null); };
   const est = Math.max(90, Math.min(230, Number((p.encuesta_v2 && p.encuesta_v2.estatura_cm) || 175)));
   const altoFull = Math.round(1180 * (est / 175));
+  const ptCuelloY = (moldes[mk] && moldes[mk].cuello && moldes[mk].cuello.y) ? moldes[mk].cuello.y : piv.cuello.y;
   if (skStr.indexOf('maestro_') === 0) return { x: 180, y: 1480 - altoFull, w: 640, h: altoFull, bottomAlign: true };
   if (tipoAnc === 'cuerpo' || skStr.indexOf('cuerpo_') === 0) {
-    const zC = getC('cuerpo'); if (zC) return Object.assign({}, zC, { bottomAlign: true });
-    const yCuello = Math.max(360, Math.min(620, Math.round(piv.cuello.y - 12)));
+    const zC = getC('cuerpo');
+    if (zC) {
+      const yTopC = Math.min(zC.y, ptCuelloY - 8);
+      return { x: zC.x, y: yTopC, w: Math.max(zC.w, 380), h: Math.max(300, 1480 - yTopC), bottomAlign: true };
+    }
+    const yCuello = Math.max(360, Math.min(620, Math.round(ptCuelloY - 10)));
     return { x: 200, y: yCuello, w: 600, h: 1480 - yCuello, bottomAlign: true };
   }
   if (tipoAnc === 'cabeza' || skStr.indexOf('cabeza_') === 0) {
-    const zCab = getC('cabeza'); if (zCab) return Object.assign({}, zCab, { bottomAlign: true });
-    const hCab = Math.max(240, Math.round(piv.cuello.y - 185));
-    return { x: 355, y: Math.max(120, Math.round(piv.cuello.y - hCab + 18)), w: 290, h: hCab, bottomAlign: true };
+    const zCab = getC('cabeza');
+    if (zCab) {
+      const yBotSold = Math.max(zCab.y + zCab.h + 18, ptCuelloY + 22);
+      return { x: zCab.x, y: yBotSold - zCab.h, w: zCab.w, h: zCab.h, bottomAlign: true };
+    }
+    const hCab = Math.max(240, Math.round(ptCuelloY - 185));
+    return { x: 355, y: Math.max(120, Math.round(ptCuelloY + 22 - hCab)), w: 290, h: hCab, bottomAlign: true };
   }
   if (tipoAnc === 'ojos' || tipoAnc === 'ojos_frente' || skStr.indexOf('ojos_') === 0) {
     const zO = getC('ojos'); if (zO) return zO;
@@ -1549,15 +1588,26 @@ function obtenerCajaDestino(p, tipoAnc, slotKey) {
     return { x: Math.round(piv.mano_delantera.x - 65), y: Math.round(piv.mano_delantera.y - 65), w: 130, h: 130 };
   }
   if (tipoAnc === 'brazo' || skStr.indexOf('brazo') === 0) {
-    if (skStr === 'brazos_cruzados' || skStr === 'manos_cintura') return { x: 300, y: Math.round(piv.hombro_delantero.y - 25), w: 400, h: 360 };
+    const zC = getC('cuerpo');
+    if (skStr === 'brazos_cruzados' || skStr === 'manos_cintura') {
+      const bw = zC ? Math.round(zC.w * 1.04) : 340, bx = zC ? Math.round(zC.x + (zC.w - bw) / 2) : 330;
+      return { x: bx, y: Math.round(piv.hombro_delantero.y - 20), w: bw, h: 310 };
+    }
     const zBr = getC('brazo');
-    if (skStr.indexOf('trasero') >= 0) return { x: Math.round(piv.hombro_trasero.x - 50), y: Math.round(piv.hombro_trasero.y - 25), w: (zBr ? zBr.w : 180), h: (zBr ? zBr.h : 440) };
+    if (skStr.indexOf('trasero') >= 0) return { x: Math.round(piv.hombro_trasero.x - 50), y: Math.round(piv.hombro_trasero.y - 22), w: (zBr ? zBr.w : 165), h: (zBr ? zBr.h : 420) };
     if (zBr) return zBr;
-    return { x: Math.round(piv.hombro_delantero.x - 85), y: Math.round(piv.hombro_delantero.y - 25), w: 200, h: 440 };
+    return { x: Math.round(piv.hombro_delantero.x - 75), y: Math.round(piv.hombro_delantero.y - 22), w: 175, h: 420 };
   }
   if (tipoAnc === 'acc' || skStr.indexOf('acc_') === 0) {
-    const zC = getC('cuerpo'); if (zC) return { x: zC.x, y: zC.y, w: zC.w, h: Math.round(zC.h * 0.55) };
-    return { x: 340, y: 240, w: 320, h: 360 };
+    const zAcc = inferirZonaAccesorio(skStr, etiquetaUi);
+    const zCab = getC('cabeza') || { x: 365, y: 205, w: 270, h: 270 };
+    const zO = getC('ojos') || { x: 445, y: 315, w: 135, h: 68 };
+    const zC = getC('cuerpo') || { x: 320, y: 470, w: 360, h: 980 };
+    if (zAcc === 'ojos') return { x: Math.round(zO.x - zO.w * 0.16), y: Math.round(zO.y - zO.h * 0.18), w: Math.round(zO.w * 1.32), h: Math.round(zO.h * 1.36) };
+    if (zAcc === 'cabeza_top') return { x: Math.round(zCab.x - zCab.w * 0.06), y: Math.round(zCab.y - zCab.h * 0.12), w: Math.round(zCab.w * 1.12), h: Math.round(zCab.h * 0.62) };
+    if (zAcc === 'cuello') return { x: Math.round(piv.cuello.x - 62), y: Math.round(ptCuelloY - 6), w: 124, h: 120 };
+    if (zAcc === 'mano') return { x: Math.round(piv.mano_delantera.x - 70), y: Math.round(piv.mano_delantera.y - 70), w: 140, h: 140 };
+    return { x: Math.round(zC.x - 8), y: Math.round(Math.min(zC.y, ptCuelloY - 8)), w: Math.round(zC.w + 16), h: Math.round(zC.h * 0.48) };
   }
   return { x: 200, y: 280, w: 600, h: 1180 };
 }
@@ -1682,10 +1732,11 @@ async function procesarYRecortarImagenLienzo(p, lienzo, imgSrc) {
     const cvC = document.createElement('canvas'); cvC.width = sw; cvC.height = sh;
     const ctxC = cvC.getContext('2d', { willReadFrequently: true });
     ctxC.drawImage(cvFull, sx, sy, sw, sh, 0, 0, sw, sh);
-    quitarChromaExterior(ctxC, sw, sh);
+    const esPiezaFacialOMano = ['ojos', 'ojos_frente', 'cejas', 'cejas_frente', 'boca', 'mano'].indexOf(sp.tipo_anclaje) >= 0 || /^(ojos|cejas|boca|mano)_/.test(String(sp.slot_key || ''));
+    quitarChromaExterior(ctxC, sw, sh, esPiezaFacialOMano);
     const bb = detectarBBox(ctxC, sw, sh);
     if (!bb || bb.w < 5 || bb.h < 5) { faltantes.push('R' + (r + 1) + 'C' + (c + 1) + ' ' + (sp.slot_key || idx)); continue; }
-    const cajaDst = obtenerCajaDestino(p, sp.tipo_anclaje, sp.slot_key);
+    const cajaDst = obtenerCajaDestino(p, sp.tipo_anclaje, sp.slot_key, sp.etiqueta_ui);
     const cvCanon = anclarRecorteEn1000x1600(cvC, bb, cajaDst);
     const dataUrlLoc = cvCanon.toDataURL('image/png');
     const sk = slug(sp.slot_key, 'pz_' + idx);
@@ -1823,10 +1874,10 @@ function obtenerItemsCategoriaRueda(p, catId) {
     const base = keys.filter(function(k) { return k.indexOf('mano_') === 0; });
     lista = [{ key: '', lbl: 'Sin mano', ok: true }].concat(base.map(function(k) { return { key: k, lbl: (pzs[k] && pzs[k].etiqueta) || k.replace('mano_', ''), ok: true }; }));
   } else if (catId === 'brazo') {
-    const base = keys.filter(function(k) { return k.indexOf('brazo') === 0 || k === 'manos_cintura'; });
-    lista = (base.length ? base : ['brazo_delantero_reposo', 'brazo_delantero_prop']).map(function(k) {
+    const base = keys.filter(function(k) { return (k.indexOf('brazo') === 0 || k === 'manos_cintura') && k.indexOf('trasero') < 0; });
+    lista = [{ key: 'ninguno', lbl: 'Sin brazo', ok: true }].concat((base.length ? base : ['brazo_delantero_reposo', 'brazo_delantero_prop']).map(function(k) {
       return { key: k, lbl: (pzs[k] && pzs[k].etiqueta) || k.replace('brazo_delantero_', ''), ok: keys.indexOf(k) >= 0 };
-    });
+    }));
   } else if (catId === 'cuerpo') {
     const base = keys.filter(function(k) { return k.indexOf('cuerpo_') === 0; });
     lista = (base.length ? base : ['cuerpo_base', 'cuerpo_sentado']).map(function(k) {
@@ -1953,7 +2004,7 @@ async function dibujarPersonajeOffline(liveCfg) {
     ojos: (an && an.ojos === 'ojos_cerrados') ? 'ojos_cerrados' : estadoRueda.ojos,
     cejas: estadoRueda.cejas, cejasOffsetY: an ? (an.cejasOffsetY || 0) : 0,
     boca: (lv && lv.boca) ? lv.boca : estadoRueda.boca,
-    brazoDel: estadoRueda.brazo, mano: (an && an.mano && !estadoRueda.mano) ? an.mano : estadoRueda.mano, acc: estadoRueda.acc,
+    brazoDel: estadoRueda.brazo, mano: estadoRueda.mano, forzarManoSuelta: Boolean(estadoRueda.mano), acc: estadoRueda.acc,
     rotCab: an ? an.rotCab : 0, rotBrazo: an ? an.rotBrazo : 0, rotAntebrazo: an ? an.rotAntebrazo : 0, rotMano: an ? an.rotMano : 0,
     scaleX: an ? an.scaleX : 1, scaleY: an ? an.scaleY : 1, offsetY: an ? an.offsetY : 0,
     soloPerspectiva: true, adaptarBocas: true, mostrarGuias: ajusteCapaAbierto, miradaVec: (lv && lv.miradaVec) ? lv.miradaVec : (MIRADAS_PIRO[miradaPreviewId] || MIRADAS_PIRO.frente)
@@ -2145,8 +2196,171 @@ function refrescarPanelAjusteFab() {
   const vx = document.getElementById('val-aj-x'), vy = document.getElementById('val-aj-y'), vs = document.getElementById('val-aj-sc');
   if (vx) vx.textContent = Math.round(aj.dx); if (vy) vy.textContent = Math.round(aj.dy); if (vs) vs.textContent = Math.round(aj.sc * 100) + '%';
 }
+(function despejarLayoutRuedaFab() {
+  const sec = document.getElementById('vista-rueda'), rib = document.getElementById('ribbon-pasos'), stg = document.getElementById('stage-fab');
+  if (!sec || !rib || !stg) return;
+  sec.style.minHeight = '0'; stg.style.minHeight = '0';
+  const tb = document.createElement('div'); tb.className = 'fab-toolbar';
+  const lb = document.createElement('div'); lb.id = 'barra-lienzo-acciones'; lb.className = 'fab-lienzo-bar';
+  rib.insertAdjacentElement('afterend', lb); rib.insertAdjacentElement('afterend', tb);
+  const hud = stg.querySelector('.hud-top-left');
+  if (hud) {
+    const btnToggleL = document.createElement('button');
+    btnToggleL.type = 'button'; btnToggleL.id = 'btn-toggle-lienzo-bar'; btnToggleL.className = 'btn btn-xs';
+    btnToggleL.textContent = 'Lienzo ▾'; btnToggleL.onclick = function() { window.toggleBarraLienzoFab(); };
+    Array.from(hud.children).forEach(function(el) {
+      const oc = el.getAttribute('onclick') || '';
+      if (oc.indexOf('convertirOjosActualesAPupilaDinamica') >= 0) el.textContent = 'Limpiar Ojos';
+      if (oc.indexOf('abrirCalibradorRig') >= 0) el.textContent = 'Calibrar';
+      if (oc.indexOf('toggleAjusteCapaFab') >= 0) el.textContent = 'Ajustar';
+      tb.appendChild(el);
+    });
+    tb.insertBefore(btnToggleL, tb.children[3] || null);
+    hud.remove();
+  }
+  const wha = stg.querySelector('.wheel-h-actions');
+  if (wha) { Array.from(wha.children).forEach(function(el) { lb.appendChild(el); }); wha.remove(); }
+  const pAj = document.getElementById('panel-ajuste-fab'), pVz = document.getElementById('panel-voz-fab');
+  if (pAj) sec.appendChild(pAj);
+  if (pVz) sec.appendChild(pVz);
+})();
+
+window.toggleBarraLienzoFab = function() {
+  const b = document.getElementById('barra-lienzo-acciones'), btn = document.getElementById('btn-toggle-lienzo-bar');
+  if (!b) return;
+  const hid = b.classList.toggle('hidden');
+  if (btn) btn.textContent = hid ? 'Lienzo ▸' : 'Lienzo ▾';
+};
+
+function construirPromptVisionCalibracion(vista) {
+  const esF = vista === 'frente';
+  return [
+    'You are a precision 2D Cut-Out Rigging Vision Calibrator. Analyze the attached 1000x1600 character image (vertical canvas 0..1000 X, 0..1600 Y, floor line at Y=1480).',
+    'Return ONLY valid JSON (no markdown fences) with exact pixel coordinates in 1000x1600 space:',
+    '{',
+    '  "vista": "' + (esF ? 'frente' : '3_4') + '",',
+    '  "cajas": {',
+    '    "cuerpo": { "x": 0, "y": 0, "w": 0, "h": 0 },',
+    '    "cabeza": { "x": 0, "y": 0, "w": 0, "h": 0 },',
+    '    "ojos": { "x": 0, "y": 0, "w": 0, "h": 0 },',
+    '    "cejas": { "x": 0, "y": 0, "w": 0, "h": 0 },',
+    '    "boca": { "x": 0, "y": 0, "w": 0, "h": 0 },',
+    '    "brazo": { "x": 0, "y": 0, "w": 0, "h": 0 },',
+    '    "mano": { "x": 0, "y": 0, "w": 0, "h": 0 }',
+    '  },',
+    '  "pivotes": {',
+    '    "cuello": [500, 480],',
+    '    "hombro_delantero": [440, 560],',
+    '    "codo_delantero": [420, 720],',
+    '    "mano_delantera": [430, 880],',
+    '    "hombro_trasero": [560, 560],',
+    '    "cadera_delantera": [480, 920]',
+    '  }',
+    '}',
+    'STRICT ANATOMY RULES: cuerpo = ONLY torso+legs+shoes EXCLUDING head and EXCLUDING outer arm width (from shirt collar rim to shoes Y=1480). cabeza = ears/hair top down to lower neck welded inside collar. ojos = tight box around both eyes ONLY. cejas = thin box right above eyes. boca = mouth/smile zone on muzzle. brazo = front arm shoulder-to-wrist. mano = single hand bounding box. cuello = exact neck rotation point at shirt collar.'
+  ].join('\n');
+}
+
+function aplicarObjetoVisionCalibracion(obj, targetDatos, vistaDef) {
+  if (!obj || typeof obj !== 'object') throw new Error('JSON vacío');
+  const dObj = targetDatos || calDatos;
+  const v = obj.vista === 'frente' ? 'frente' : (vistaDef || calVista);
+  const mk = v === 'frente' ? 'cabeza_frente' : 'cabeza_base';
+  if (!dObj.moldes[mk]) dObj.moldes[mk] = { angulo: v, zonas: {}, calibrado: true };
+  if (!dObj.moldes[mk].zonas) dObj.moldes[mk].zonas = {};
+  const cjs = obj.cajas || obj.zonas || {};
+  ['cuerpo', 'cabeza', 'ojos', 'cejas', 'boca', 'brazo', 'mano'].forEach(function(k) {
+    const c = cjs[k];
+    if (c && typeof c.x === 'number' && typeof c.y === 'number' && c.w > 8 && c.h > 6) {
+      const bx = { x: Math.round(c.x), y: Math.round(c.y), w: Math.round(c.w), h: Math.round(c.h) };
+      dObj.moldes[mk].zonas[k] = { caja: bx, puntos: [{ x: Math.round(bx.x + bx.w / 2), y: Math.round(bx.y + bx.h / 2) }] };
+    }
+  });
+  const pvs = obj.pivotes || {};
+  ['cuello', 'hombro_delantero', 'codo_delantero', 'mano_delantera', 'hombro_trasero', 'cadera_delantera'].forEach(function(k) {
+    const pt = pvs[k];
+    if (Array.isArray(pt) && pt.length >= 2) {
+      const px = Math.round(Number(pt[0])), py = Math.round(Number(pt[1]));
+      if (k === 'cuello') dObj.moldes[mk].cuello = { x: px, y: py };
+      if (v === '3_4') dObj.pivotes[k] = [px, py];
+    }
+  });
+  dObj.moldes[mk].calibrado = true;
+  if (!targetDatos) renderCalibradorRig();
+}
+
+async function autoCalibrarSilenciosoPostTurnaround(p) {
+  if (!p || !GeokatuDB.PirobonianosService || !navigator.onLine) return;
+  try {
+    let raw = {}; try { if (p.pivotes_json) raw = JSON.parse(p.pivotes_json); } catch (e) {}
+    const dTmp = { moldes: JSON.parse(JSON.stringify(raw._moldes || {})), pivotes: Object.assign({}, raw) };
+    delete dTmp.pivotes._moldes; delete dTmp.pivotes._cajas;
+    const prefs = leerPrefsVault();
+    const vistas = [['3_4', 'maestro_cuerpo'], ['frente', 'maestro_frente']];
+    let okAny = false;
+    for (let i = 0; i < vistas.length; i++) {
+      const vId = vistas[i][0], sk = vistas[i][1];
+      const src = cacheLocalUrls[sk] || (p.piezas && p.piezas[sk] && p.piezas[sk].url);
+      if (!src) continue;
+      const im = await cargarImg(src);
+      const cvT = document.createElement('canvas'); cvT.width = 500; cvT.height = 800;
+      const cT = cvT.getContext('2d'); cT.fillStyle = '#0b0f18'; cT.fillRect(0, 0, 500, 800);
+      cT.drawImage(im, 0, 0, 500, 800);
+      const b64 = cvT.toDataURL('image/jpeg', 0.86).split(',')[1];
+      const res = await GeokatuDB.PirobonianosService.llamarProxyIA({ proveedorId: 'gemini', accion: 'texto', tipoCobro: 'plano_personaje', modoPago: prefs.modoPago || 'auto', modelo: 'gemini-2.5-flash', payload: { parts: [{ inlineData: { mimeType: 'image/jpeg', data: b64 } }, { text: construirPromptVisionCalibracion(vId) }], responseMimeType: 'application/json', maxOutputTokens: 2048 } });
+      if (res && res.success && res.texto) { aplicarObjetoVisionCalibracion(extraerJsonSeguro(res.texto), dTmp, vId); okAny = true; }
+    }
+    if (okAny) {
+      p.pivotes_json = JSON.stringify(Object.assign({}, dTmp.pivotes, { _moldes: dTmp.moldes }), null, 2);
+      await guardarBiblioteca(true);
+    }
+  } catch (eSil) {}
+}
+
+window.copiarPromptCalibracionIA = function() {
+  const txt = construirPromptVisionCalibracion(calVista);
+  if (navigator.clipboard) navigator.clipboard.writeText(txt).then(function() { toast('Prompt Visión copiado ($0). Pásalo junto a tu Turnaround en el chat y pega el JSON.', 'exito', 4400); });
+};
+
+window.togglePegarCalJson = function(forzar) {
+  const box = document.getElementById('box-cal-json-paste'); if (!box) return;
+  const abrir = typeof forzar === 'boolean' ? forzar : box.classList.contains('hidden');
+  box.classList.toggle('hidden', !abrir);
+};
+
+window.aplicarJsonCalibracionPegado = function() {
+  try {
+    const obj = extraerJsonSeguro(document.getElementById('txt-cal-json-paste').value);
+    aplicarObjetoVisionCalibracion(obj);
+    window.togglePegarCalJson(false);
+    toast('Cajas y pivotes X aplicados en automático. Revisa y pulsa Guardar.', 'exito', 4000);
+  } catch (err) { toast('JSON inválido: ' + err.message, 'error'); }
+};
+
+window.autoCalibrarRigConIA = async function() {
+  if (ocupandoApi) return;
+  if (!calImgCache) { toast('Sube primero el Lienzo 1 (Turnaround 360) para que la IA lo mida.', 'error'); return; }
+  const btn = document.getElementById('btn-autocal-ia');
+  ocupandoApi = true; if (btn) { btn.disabled = true; btn.textContent = 'Midiendo con Gemini...'; }
+  try {
+    const cvTmp = document.createElement('canvas'); cvTmp.width = 500; cvTmp.height = 800;
+    const cTmp = cvTmp.getContext('2d'); cTmp.fillStyle = '#0b0f18'; cTmp.fillRect(0, 0, 500, 800);
+    cTmp.drawImage(calImgCache, 0, 0, 500, 800);
+    const b64 = cvTmp.toDataURL('image/jpeg', 0.86).split(',')[1];
+    const prefs = leerPrefsVault();
+    const inst = construirPromptVisionCalibracion(calVista);
+    const res = await GeokatuDB.PirobonianosService.llamarProxyIA({ proveedorId: 'gemini', accion: 'texto', tipoCobro: 'plano_personaje', modoPago: prefs.modoPago || 'auto', modelo: 'gemini-2.5-flash', payload: { parts: [{ inlineData: { mimeType: 'image/jpeg', data: b64 } }, { text: inst }], responseMimeType: 'application/json', maxOutputTokens: 2048 } });
+    if (!res || !res.success) throw new Error((res && res.error) || 'Error Visión IA');
+    const obj = extraerJsonSeguro(res.texto);
+    aplicarObjetoVisionCalibracion(obj);
+    toast('Auto-calibración IA lista. Verifica los cuadros y pulsa Guardar.', 'exito', 4200);
+  } catch (err) { toast('Error Auto-Calibrar: ' + err.message, 'error', 4200); }
+  finally { ocupandoApi = false; if (btn) { btn.disabled = false; btn.textContent = 'Auto-Calibrar IA (API)'; } }
+};
+
 window.toggleAjusteCapaFab = function(forzar) {
   ajusteCapaAbierto = typeof forzar === 'boolean' ? forzar : !ajusteCapaAbierto;
+  if (ajusteCapaAbierto && panelVozAbierto) window.togglePanelVozFab(false);
   const pnl = document.getElementById('panel-ajuste-fab');
   if (pnl) pnl.classList.toggle('hidden', !ajusteCapaAbierto);
   if (ajusteCapaAbierto) { ajCapaActiva = mapearCatAAjuste(CATS_RUEDA[catIdxRueda].id); refrescarPanelAjusteFab(); }
@@ -2241,6 +2455,7 @@ window.fabricarPersonajeCompleto1Clic = async function() {
       lienzoSelId = l.id_lienzo;
       actualizarBarraLote1Clic(true, pct, 'Lienzo ' + (i + 1) + '/' + ls.length + ' · ' + (l.titulo_boton || l.id_lienzo) + '...');
       await window.ejecutarLienzoBlueprint(l.id_lienzo);
+      if ((l.id_lienzo === 'turnaround_360' || l.id_lienzo === 'maestro_cuerpo') && !lote1ClicCancelar) { actualizarBarraLote1Clic(true, pct + 3, 'Paso 1.5 · Auto-Calibrando cajas y pivotes con Gemini Visión...'); await autoCalibrarSilenciosoPostTurnaround(p); }
       if (lienzoEstaListo(p, l)) hechos++;
     }
     actualizarBarraLote1Clic(false, 100, '');
