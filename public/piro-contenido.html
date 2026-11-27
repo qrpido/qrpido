@@ -444,7 +444,7 @@
 
 <script type="module">
 import GeokatuDB from './core-db.js';
-import { dibujarMarionetaPiro, cargarImagenPiro, precargarPiezasPersonajePiro, extraerEnvolventeAudio, parsearMoldes, parsearAjustesCapas, limpiarCacheCompositor, obtenerPerspectivaCabeza, resolverPiezaPerspectiva, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO, ACTUACIONES_PIRO, evaluarAnimacionActorPiro, evaluarMiradaActorPiro, construirVisemasDesdeMarcasPiro, obtenerBocaLipSyncPiro, dibujarElementosVivosPiro } from './piro-compositor.js';
+import { dibujarMarionetaPiro, cargarImagenPiro, precargarPiezasPersonajePiro, extraerEnvolventeAudio, parsearMoldes, parsearAjustesCapas, resolverCapacidadesRigPiro, resolverModoBrazosPiro, CUERPOS_ANGULO_STD_PIRO, limpiarCacheCompositor, obtenerPerspectivaCabeza, resolverPiezaPerspectiva, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO, ACTUACIONES_PIRO, evaluarAnimacionActorPiro, evaluarMiradaActorPiro, construirVisemasDesdeMarcasPiro, obtenerBocaLipSyncPiro, dibujarElementosVivosPiro } from './piro-compositor.js';
 
 const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
 function normalizarDocBibId(id, proyId) {
@@ -1513,7 +1513,7 @@ window.togglePlayDemoSw = async function(forzarPlay) {
       hablandoAhora = fIdx < env.frames.length && (env.frames[fIdx] || 0) >= 0.08;
     }
     const scFake = { id: 'demo_sw', vida_auto: true, actuacion: actId, mirada: sandwichCfg.mirada || 'frente' };
-    const actorFake = { id: p.id, cabeza: sandwichCfg.cabeza, angulo: sandwichCfg.angulo, cejas: sandwichCfg.cejas, ojos: sandwichCfg.ojos, boca: sandwichCfg.boca, mano: sandwichCfg.mano, actuacion: actId, mirada: sandwichCfg.mirada || 'frente' };
+    const actorFake = { id: p.id, cabeza: sandwichCfg.cabeza, angulo: sandwichCfg.angulo, cejas: sandwichCfg.cejas, ojos: sandwichCfg.ojos, boca: sandwichCfg.boca, brazo: sandwichCfg.brazoDel, brazoTras: sandwichCfg.brazoTras, mano: sandwichCfg.mano, actuacion: actId, mirada: sandwichCfg.mirada || 'frente' };
     const anim = evaluarAnimacionActorPiro(actorFake, scFake, t, hablandoAhora, p);
     const mirVec = evaluarMiradaActorPiro(actorFake, scFake, t, null, 'sw_' + p.id);
     const bocaDyn = obtenerBocaLipSyncPiro({ modo: 'visemas', tiempoLocal: t, envolvente: env, visemas: swPlayVisemas, texto: frase, duracion: swPlayDur, personaje: p, cabezaKey: sandwichCfg.cabeza });
@@ -1573,7 +1573,7 @@ function obtenerItemsRuedaSandwich(p, catId) {
   }
     if (catId === 'brazo') {
     const segsArt = ['brazo_del_sup', 'brazo_del_ant', 'brazo_tras_sup', 'brazo_tras_ant'];
-    const tieneArt = keys.indexOf('brazo_del_sup') >= 0 || keys.indexOf('brazo_del_ant') >= 0;
+    const tieneArt = resolverCapacidadesRigPiro(p).artDelCompleto;
     const baseBr = keys.filter(function(k) { return (k.indexOf('brazo') === 0 || k === 'manos_cintura') && k.indexOf('trasero') < 0 && segsArt.indexOf(k) < 0; });
     const artIt = { key: 'articulado', lbl: 'Articulado (Codo)', ok: tieneArt };
     const prefBr = tieneArt ? [artIt, { key: 'ninguno', lbl: 'Sin brazo', ok: true }] : [{ key: 'ninguno', lbl: 'Sin brazo', ok: true }, artIt];
@@ -1649,8 +1649,8 @@ window.selItemRuedaHSw = function(idx) {
   if (!items[idx]) return;
   const cfgK = claveCfgPorCatSw(catAct.id);
   sandwichCfg[cfgK] = items[idx].key;
-  if (catAct.id === 'angulo' && ANGULOS_360_PIRO[sandwichCfg.angulo]) { sandwichCfg.cabeza = ANGULOS_360_PIRO[sandwichCfg.angulo].cabeza; sandwichCfg.cuerpo = ANGULOS_360_PIRO[sandwichCfg.angulo].cuerpo; }
-  if (catAct.id === 'brazo') { const hasTrasArt = Boolean(p && p.piezas && (p.piezas.brazo_tras_sup || p.piezas.brazo_tras_ant)); sandwichCfg.brazoTras = (sandwichCfg.brazoDel === 'articulado' && hasTrasArt) ? 'articulado' : 'brazo_trasero_reposo'; }
+  if (catAct.id === 'angulo' && ANGULOS_360_PIRO[sandwichCfg.angulo]) { sandwichCfg.cabeza = ANGULOS_360_PIRO[sandwichCfg.angulo].cabeza; if (!sandwichCfg.cuerpo || CUERPOS_ANGULO_STD_PIRO.indexOf(sandwichCfg.cuerpo) >= 0) sandwichCfg.cuerpo = ANGULOS_360_PIRO[sandwichCfg.angulo].cuerpo; }
+  if (catAct.id === 'brazo') { const modB = resolverModoBrazosPiro(p, sandwichCfg.brazoDel, 'auto', Boolean(sandwichCfg.prop)); sandwichCfg.brazoDel = modB.brazoDel; sandwichCfg.brazoTras = modB.brazoTras; }
   if (catAct.id === 'prop' && sandwichCfg.prop && sandwichCfg.brazoDel !== 'articulado') sandwichCfg.brazoDel = 'brazo_delantero_prop';
   renderRuedasSandwich(); window.dibujarProbadorSandwich();
 };
@@ -1963,12 +1963,13 @@ window.dibujarProbadorSandwich = async function(liveCfg) {
   }
   let propImg = null;
   if (sandwichCfg.prop) { const prObj = (biblioteca.props || []).find(function(x){ return x.id === sandwichCfg.prop; }); if (prObj && prObj.archivo && prObj.archivo.url) propImg = await cargarImagenPiro(prObj.archivo.url); }
+  const modBrSw = resolverModoBrazosPiro(p, sandwichCfg.brazoDel, sandwichCfg.brazoTras, Boolean(propImg));
   const n = await dibujarMarionetaPiro(ctx, p, {
     modoLienzoCompleto: true, angulo360: sandwichCfg.angulo || '3_4_der', cabeza: sandwichCfg.cabeza, cuerpo: sandwichCfg.cuerpo,
     ojos: (an && an.ojos === 'ojos_cerrados') ? 'ojos_cerrados' : sandwichCfg.ojos,
     cejas: sandwichCfg.cejas || '', cejasOffsetY: an ? (an.cejasOffsetY || 0) : 0,
     boca: (lv && lv.boca) ? lv.boca : sandwichCfg.boca,
-    brazoDel: sandwichCfg.brazoDel, brazoTras: sandwichCfg.brazoTras, mano: sandwichCfg.mano || (an && an.mano ? an.mano : ''), forzarManoSuelta: Boolean(sandwichCfg.mano), acc: sandwichCfg.acc || '',
+    brazoDel: modBrSw.brazoDel, brazoTras: modBrSw.brazoTras, mano: sandwichCfg.mano || (an && an.mano ? an.mano : ''), forzarManoSuelta: Boolean(sandwichCfg.mano), acc: sandwichCfg.acc || '',
     rotCab: sandwichCfg.rotCab + (an ? an.rotCab : 0), rotBrazo: sandwichCfg.rotBrazo + (an ? an.rotBrazo : 0), rotAntebrazo: sandwichCfg.rotAntebrazo + (an ? an.rotAntebrazo : 0), rotMano: sandwichCfg.rotMano + (an ? an.rotMano : 0), rotBrazoTras: sandwichCfg.rotBrazoTras + (an ? (an.rotBrazoTras || 0) : 0), rotAntebrazoTras: (sandwichCfg.rotAntebrazoTras || 0) + (an ? (an.rotAntebrazoTras || 0) : 0),
     scaleX: an ? an.scaleX : 1, scaleY: an ? an.scaleY : 1, offsetY: an ? an.offsetY : 0,
     piernas: sandwichCfg.piernas, propImg: propImg, mostrarGuias: Boolean(sandwichCfg.guias), soloPerspectiva: true, adaptarBocas: true, miradaVec: (lv && lv.miradaVec) ? lv.miradaVec : (MIRADAS_PIRO[sandwichCfg.mirada || 'frente'] || MIRADAS_PIRO.frente)
