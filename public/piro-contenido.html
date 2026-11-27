@@ -666,15 +666,31 @@ function crearSemillaPorProyecto() {
   };
 }
 
+let loadSeqCont = 0;
+let pendingSaveContRun = null;
+
+async function vaciarGuardadoPendienteCont() {
+  if (debounceGuardar) { clearTimeout(debounceGuardar); debounceGuardar = null; }
+  if (pendingSaveContRun) {
+    const fn = pendingSaveContRun; pendingSaveContRun = null;
+    try { await fn(); } catch (eFl) {}
+  }
+}
+
 async function cargarBiblioteca() {
+  const seq = ++loadSeqCont;
+  const targetProyId = proyectoActivo.id;
+  const targetDocId = getDocBibId();
+  const kLoc = getLocalBibKey();
   actualizarBadgeProy();
   setSyncBadge('...', 'warn');
-  biblioteca = { tipo_doc: 'biblioteca', personajes: [], escenarios: [], props: [], guiones: [] };
-  const kLoc = getLocalBibKey();
-  try { const raw = localStorage.getItem(kLoc); if (raw) biblioteca = JSON.parse(raw); } catch (e) {}
+  let bibTmp = { tipo_doc: 'biblioteca', personajes: [], escenarios: [], props: [], guiones: [] };
+  try { const raw = localStorage.getItem(kLoc); if (raw) bibTmp = JSON.parse(raw); } catch (e) {}
+  biblioteca = bibTmp;
 
   if (GeokatuDB.PirobonianosService && navigator.onLine) {
-    const res = await GeokatuDB.PirobonianosService.obtenerProyectoEDT(getDocBibId());
+    const res = await GeokatuDB.PirobonianosService.obtenerProyectoEDT(targetDocId);
+    if (seq !== loadSeqCont || proyectoActivo.id !== targetProyId) return;
     if (res.success && res.data && Array.isArray(res.data.personajes)) {
       if (!biblioteca.fecha_actualizacion || String(res.data.fecha_actualizacion || '') >= String(biblioteca.fecha_actualizacion)) {
         biblioteca = res.data;
@@ -689,13 +705,14 @@ async function cargarBiblioteca() {
   } else {
     setSyncBadge('Offline', 'warn');
   }
+  if (seq !== loadSeqCont || proyectoActivo.id !== targetProyId) return;
 
   if (!Array.isArray(biblioteca.personajes) || biblioteca.personajes.length === 0) {
     biblioteca = crearSemillaPorProyecto();
     guardarBiblioteca(true);
   }
   try {
-    const rawUiC = localStorage.getItem('piro_cont_ui_' + proyectoActivo.id);
+    const rawUiC = localStorage.getItem('piro_cont_ui_' + targetProyId);
     if (rawUiC) {
       const u = JSON.parse(rawUiC);
       if (u.catActiva) catActiva = u.catActiva;
@@ -710,28 +727,36 @@ async function cargarBiblioteca() {
 }
 
 function guardarBiblioteca(inmediato) {
+  const snapProy = Object.assign({}, proyectoActivo);
+  const snapProyId = snapProy.id;
+  const snapDocId = normalizarDocBibId(snapProy.docBibId, snapProyId);
+  const snapLocalKey = snapProyId === 'pirobonianos' ? 'piro_biblioteca_maestra_v1' : ('piro_bib_' + snapProyId + '_v1');
   hayCambiosPendientes = true;
   biblioteca.tipo_doc = 'biblioteca';
-  biblioteca.meta_proyecto = proyectoActivo;
+  biblioteca.meta_proyecto = snapProy;
   biblioteca.fecha_actualizacion = new Date().toISOString();
   const limpioJson = JSON.parse(JSON.stringify(biblioteca));
-  try { localStorage.setItem(getLocalBibKey(), JSON.stringify(limpioJson)); } catch (e) {}
+  try { localStorage.setItem(snapLocalKey, JSON.stringify(limpioJson)); } catch (e) {}
   setSyncBadge('Guardando...', 'warn');
   clearTimeout(debounceGuardar);
   const run = async function() {
-    if (!GeokatuDB.PirobonianosService) { setSyncBadge('Local', 'warn'); return { success: false, offline: true }; }
-    const res = await GeokatuDB.PirobonianosService.guardarProyectoEDT(getDocBibId(), limpioJson);
-    if (res.success && !res.offline) {
-      hayCambiosPendientes = false;
-      setSyncBadge('Nube OK', 'ok');
+    pendingSaveContRun = null;
+    if (!GeokatuDB.PirobonianosService) { if (proyectoActivo.id === snapProyId) setSyncBadge('Local', 'warn'); return { success: false, offline: true, error: 'Servicio no disponible' }; }
+    const res = await GeokatuDB.PirobonianosService.guardarProyectoEDT(snapDocId, limpioJson);
+    const esActual = proyectoActivo.id === snapProyId;
+    if (res && res.success && !res.offline) {
+      if (esActual) { hayCambiosPendientes = false; setSyncBadge('Nube OK', 'ok'); }
     } else {
-      setSyncBadge('Local', 'warn');
+      if (esActual) setSyncBadge('Local', 'warn');
       if (res && res.error) toast('Aviso nube: ' + res.error, 'error');
     }
-    if (window.self !== window.top) window.parent.postMessage({ tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA', origen: 'contenido' }, '*');
-    return res;
+    if (res && res.success && window.self !== window.top) {
+      window.parent.postMessage({ tipo: 'PIRO_BIBLIOTECA_ACTUALIZADA', origen: 'contenido', proyectoId: snapProyId }, '*');
+    }
+    return res || { success: false, error: 'Sin respuesta' };
   };
-  if (inmediato) return run();
+  if (inmediato) { pendingSaveContRun = null; return run(); }
+  pendingSaveContRun = run;
   debounceGuardar = setTimeout(run, 650);
   return Promise.resolve({ success: true, debounced: true });
 }
@@ -1990,45 +2015,105 @@ window.quitarMuestraVozPersonaje = async function() {
   guardarBiblioteca(true); renderizarVistaPersonajes();
 };
 
+function mezclarPivotesSeguro(prevPiv, recPiv) {
+  const out = Object.assign({}, prevPiv || {});
+  if (!recPiv || typeof recPiv !== 'object') return out;
+  Object.keys(recPiv).forEach(function(k) {
+    const v = recPiv[k];
+    if (v === null || v === undefined) return;
+    if (k === '_moldes' && typeof v === 'object') {
+      const mOut = Object.assign({}, out._moldes || {});
+      Object.keys(v).forEach(function(mk) {
+        const mv = v[mk];
+        if (!mv || typeof mv !== 'object') return;
+        const prevM = mOut[mk] || {};
+        const mergedM = Object.assign({}, prevM, mv);
+        if (prevM.zonas || mv.zonas) mergedM.zonas = Object.assign({}, prevM.zonas || {}, mv.zonas || {});
+        if (!mv.cuello && prevM.cuello) mergedM.cuello = prevM.cuello;
+        mOut[mk] = mergedM;
+      });
+      out._moldes = mOut;
+      out._moldes_ts = Math.max(Number(out._moldes_ts) || 0, Number(recPiv._moldes_ts) || Date.now());
+      return;
+    }
+    if (k === '_cajas' && typeof v === 'object') {
+      const cOut = Object.assign({}, out._cajas || {});
+      Object.keys(v).forEach(function(ck) {
+        const cv = v[ck];
+        if (cv && typeof cv === 'object' && Number.isFinite(Number(cv.x)) && Number.isFinite(Number(cv.y)) && Number(cv.w) > 4 && Number(cv.h) > 4) cOut[ck] = cv;
+      });
+      out._cajas = cOut;
+      return;
+    }
+    if (k === '_moldes_ts') { if (Number(v) > 0) out._moldes_ts = Math.max(Number(out._moldes_ts) || 0, Number(v)); return; }
+    if (Array.isArray(v) && v.length >= 2 && Number.isFinite(Number(v[0])) && Number.isFinite(Number(v[1]))) {
+      out[k] = [Math.round(Number(v[0])), Math.round(Number(v[1]))];
+    } else if (typeof v === 'object' && Number.isFinite(Number(v.x)) && Number.isFinite(Number(v.y))) {
+      out[k] = [Math.round(Number(v.x)), Math.round(Number(v.y))];
+    }
+  });
+  return out;
+}
+
 function aplicarRegistroEnSlot(meta, registro, pivotesRecibidos) {
+  const regAct = Object.assign({}, registro, { soloLocal: false, assetRevision: Date.now() });
   if (meta.tipo === 'personaje') {
     const p = biblioteca.personajes.find(function(x) { return x.id === meta.entidadId; });
     if (p) {
-      if (meta.esVariante) { const v = (p.variantes || []).find(function(x) { return x.id === meta.slotKey; }); if (v) Object.assign(v, registro); }
-      else { if (!p.piezas) p.piezas = {}; p.piezas[meta.slotKey] = registro; }
-      if (pivotesRecibidos && typeof pivotesRecibidos === 'object' && Object.keys(pivotesRecibidos).some(function(k) { return Boolean(pivotesRecibidos[k]); })) {
-        const prevPiv = parsearPivotesPersonaje(p) || {}, mPiv = Object.assign({}, prevPiv, pivotesRecibidos); if (prevPiv._moldes || pivotesRecibidos._moldes) mPiv._moldes = Object.assign({}, prevPiv._moldes || {}, pivotesRecibidos._moldes || {}); if (prevPiv._cajas || pivotesRecibidos._cajas) mPiv._cajas = Object.assign({}, prevPiv._cajas || {}, pivotesRecibidos._cajas || {}); p.pivotes_json = JSON.stringify(mPiv, null, 2);
+      if (meta.esVariante) { const v = (p.variantes || []).find(function(x) { return x.id === meta.slotKey; }); if (v) Object.assign(v, regAct); }
+      else {
+        if (!p.piezas) p.piezas = {};
+        const prev = (p.piezas[meta.slotKey] && typeof p.piezas[meta.slotKey] === 'object') ? p.piezas[meta.slotKey] : {};
+        p.piezas[meta.slotKey] = Object.assign({}, prev, regAct);
+      }
+      if (pivotesRecibidos && typeof pivotesRecibidos === 'object') {
+        const prevPiv = parsearPivotesPersonaje(p) || {};
+        const mPiv = mezclarPivotesSeguro(prevPiv, pivotesRecibidos);
+        if (Object.keys(mPiv).length > 0) p.pivotes_json = JSON.stringify(mPiv, null, 2);
       }
     }
   } else if (meta.tipo === 'voz') {
-    const p = biblioteca.personajes.find(function(x) { return x.id === meta.entidadId; }); if (p) p.muestra_voz = registro;
+    const p = biblioteca.personajes.find(function(x) { return x.id === meta.entidadId; }); if (p) p.muestra_voz = regAct;
   } else if (meta.tipo === 'escenario') {
     const e = biblioteca.escenarios.find(function(x) { return x.id === meta.entidadId; });
-    const z = e ? (e.zonas || []).find(function(x) { return x.id === meta.zonaId; }) : null; if (z) z[meta.campoZona] = registro;
+    const z = e ? (e.zonas || []).find(function(x) { return x.id === meta.zonaId; }) : null;
+    if (z) z[meta.campoZona] = Object.assign({}, (z[meta.campoZona] && typeof z[meta.campoZona] === 'object') ? z[meta.campoZona] : {}, regAct);
   } else if (meta.tipo === 'prop') {
-    const pr = biblioteca.props.find(function(x) { return x.id === meta.entidadId; }); if (pr) pr.archivo = registro;
+    const pr = biblioteca.props.find(function(x) { return x.id === meta.entidadId; });
+    if (pr) pr.archivo = Object.assign({}, (pr.archivo && typeof pr.archivo === 'object') ? pr.archivo : {}, regAct);
   }
 }
 
-async function subirYAsignarArchivoASlot(fileObj, meta, pivotesRecibidos, desdeEstudio) {
-  if (!GeokatuDB.PirobonianosService) { toast('Falta PirobonianosService en core-db.js.', 'error'); return false; }
+async function subirYAsignarArchivoASlot(fileObj, meta, pivotesRecibidos, desdeEstudio, operationId) {
+  const opId = operationId || ('op_' + Date.now());
+  if (!GeokatuDB.PirobonianosService) {
+    toast('Falta PirobonianosService en core-db.js.', 'error');
+    if (desdeEstudio && window.self !== window.top) window.parent.postMessage({ tipo: 'PIRO_PNG_GUARDADO_ERROR', operationId: opId, error: 'Servicio no disponible' }, '*');
+    return false;
+  }
   setSyncBadge('Subiendo...', 'warn');
   const ruta = meta.tipo + '/' + meta.entidadId + '/' + (meta.zonaId ? (meta.zonaId + '/') : '') + Date.now() + '_' + String(fileObj.name || 'activo.png').replace(/[^a-zA-Z0-9._-]+/g, '_');
   const res = await GeokatuDB.PirobonianosService.subirActivoPirobonianos(getStorageDir(), ruta, fileObj);
-  if (!res.success) {
+  if (!res || !res.success) {
     toast('Error subiendo archivo. Tu borrador sigue guardado en Estudio PNG.', 'error');
     setSyncBadge('Error', 'warn');
+    if (desdeEstudio && window.self !== window.top) window.parent.postMessage({ tipo: 'PIRO_PNG_GUARDADO_ERROR', operationId: opId, error: (res && res.error) || 'Error subida' }, '*');
     return false;
   }
   const registro = { url: res.url, rutaStorage: res.rutaStorage, nombre: fileObj.name, tipo: res.tipo, fecha: res.fecha };
   aplicarRegistroEnSlot(meta, registro, pivotesRecibidos);
   const gRes = await guardarBiblioteca(true);
   renderizarTodo();
-  if (window.self !== window.top && meta.tipo !== 'voz') {
-    window.parent.postMessage({ tipo: 'PIRO_SLOT_COMPLETADO', slotMeta: meta }, '*');
-    if (desdeEstudio) window.parent.postMessage({ tipo: 'PIRO_PNG_GUARDADO_OK' }, '*');
+  if (!gRes || !gRes.success) {
+    toast('Archivo subido, pero falló guardar en biblioteca (' + ((gRes && gRes.error) || 'red') + '). Tu borrador sigue protegido.', 'error');
+    if (desdeEstudio && window.self !== window.top) window.parent.postMessage({ tipo: 'PIRO_PNG_GUARDADO_ERROR', operationId: opId, error: (gRes && gRes.error) || 'Error guardando biblioteca' }, '*');
+    return false;
   }
-  toast(gRes && gRes.offline ? 'Activo subido y guardado localmente.' : 'Activo guardado y confirmado en la nube.', 'exito');
+  if (window.self !== window.top && meta.tipo !== 'voz') {
+    window.parent.postMessage({ tipo: 'PIRO_SLOT_COMPLETADO', slotMeta: meta, operationId: opId, proyectoId: proyectoActivo.id }, '*');
+    if (desdeEstudio) window.parent.postMessage({ tipo: 'PIRO_PNG_GUARDADO_OK', operationId: opId, proyectoId: proyectoActivo.id, slotMeta: meta, confirmadoNube: !gRes.offline }, '*');
+  }
+  toast(gRes.offline ? 'Activo guardado localmente (pendiente sincronizar nube).' : 'Activo guardado y confirmado en la nube.', 'exito');
   return true;
 }
 
@@ -3479,14 +3564,19 @@ window.guardarGenIADirecto = async function() {
 // =========================================================================
 window.addEventListener('message', async function(e) {
   if (!e.data || !e.data.tipo) return;
-  if (e.data.tipo === 'PIRO_SHELL_CAMBIAR_PROYECTO' && e.data.proyecto) {
-    proyectoActivo = Object.assign(proyectoActivo, e.data.proyecto);
+    if (e.data.tipo === 'PIRO_SHELL_CAMBIAR_PROYECTO' && e.data.proyecto) {
+    if (swPlayOn) window.detenerPlayDemoSw();
+    await vaciarGuardadoPendienteCont();
+    proyectoActivo = Object.assign({}, proyectoActivo, e.data.proyecto);
     proyectoActivo.docBibId = normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id);
     selId = { personajes: null, escenarios: null, guiones: null };
+    limpiarCacheCompositor();
     cargarBiblioteca();
   } else if (e.data.tipo === 'PIRO_SHELL_AUTH' || e.data.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA') {
+    if (e.data.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA' && e.data.proyectoId && e.data.proyectoId !== proyectoActivo.id) return;
+    if (e.data.proyecto && e.data.proyecto.id !== proyectoActivo.id) await vaciarGuardadoPendienteCont();
     if (e.data.proyecto) {
-      proyectoActivo = Object.assign(proyectoActivo, e.data.proyecto);
+      proyectoActivo = Object.assign({}, proyectoActivo, e.data.proyecto);
       proyectoActivo.docBibId = normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id);
     }
     limpiarCacheCompositor();
@@ -3499,13 +3589,19 @@ window.addEventListener('message', async function(e) {
     else if (e.data.entidad === 'escenario') window.cambiarCategoria('escenarios');
     else if (e.data.entidad === 'guion') window.cambiarCategoria('guiones');
     window.abrirModalCrear(e.data.entidad);
-  } else if (e.data.tipo === 'PIRO_PNG_RECIBIDO' && e.data.blob && e.data.slotMeta) {
+    } else if (e.data.tipo === 'PIRO_PNG_RECIBIDO' && e.data.blob && e.data.slotMeta) {
+    if (e.data.proyectoId && e.data.proyectoId !== proyectoActivo.id) {
+      toast('Se evitó guardar PNG en otra serie (' + e.data.proyectoId + ' != ' + proyectoActivo.id + ').', 'error');
+      if (window.self !== window.top) window.parent.postMessage({ tipo: 'PIRO_PNG_GUARDADO_ERROR', operationId: e.data.operationId || '', error: 'Proyecto no coincide' }, '*');
+      return;
+    }
     const fileObj = new File([e.data.blob], e.data.nombreArchivo || 'pieza.png', { type: 'image/png' });
-    await subirYAsignarArchivoASlot(fileObj, e.data.slotMeta, e.data.pivotes || null, true);
+    await subirYAsignarArchivoASlot(fileObj, e.data.slotMeta, e.data.pivotes || null, true, e.data.operationId || null);
   } else if (e.data.tipo === 'PIRO_SHELL_VINCULAR_ASSET_TICKET' && e.data.slotMeta && e.data.registro) {
+    if (e.data.proyectoId && e.data.proyectoId !== proyectoActivo.id) return;
     aplicarRegistroEnSlot(e.data.slotMeta, e.data.registro, e.data.pivotes || null);
-    await guardarBiblioteca(true); renderizarTodo();
-    toast('Pieza vinculada automáticamente desde Tickets.', 'exito');
+    const gTk = await guardarBiblioteca(true); renderizarTodo();
+    if (gTk && gTk.success) toast('Pieza vinculada automáticamente desde Tickets.', 'exito');
   }
 });
 
