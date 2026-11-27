@@ -199,6 +199,8 @@
   .sw-aj-row { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 800; color: #cbd5e1; }
   .sw-aj-row input[type="range"] { flex: 1; accent-color: var(--naranja); }
   .sw-aj-row b { min-width: 38px; text-align: right; font-family: monospace; color: var(--azul); }
+  .mini-pill.play-live { background: linear-gradient(135deg, #22c55e, #16a34a); border-color: rgba(34,197,94,0.8); color: #042f1a; font-weight: 900; }
+  .mini-pill.play-live.on { background: linear-gradient(135deg, #ef4444, #dc2626); border-color: rgba(239,68,68,0.85); color: #fff; }
   #canvas-sandwich {
     display: block; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.16);
     box-shadow: 0 8px 26px rgba(0, 0, 0, 0.55);
@@ -440,7 +442,7 @@
 
 <script type="module">
 import GeokatuDB from './core-db.js';
-import { dibujarMarionetaPiro, cargarImagenPiro, parsearMoldes, parsearAjustesCapas, limpiarCacheCompositor, obtenerPerspectivaCabeza, resolverPiezaPerspectiva, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO } from './piro-compositor.js';
+import { dibujarMarionetaPiro, cargarImagenPiro, parsearMoldes, parsearAjustesCapas, limpiarCacheCompositor, obtenerPerspectivaCabeza, resolverPiezaPerspectiva, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO, ACTUACIONES_PIRO, evaluarAnimacionActorPiro, evaluarMiradaActorPiro, construirVisemasDesdeMarcasPiro, obtenerBocaLipSyncPiro, dibujarElementosVivosPiro } from './piro-compositor.js';
 
 const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
 function normalizarDocBibId(id, proyId) {
@@ -1122,6 +1124,7 @@ function actualizarHeaderYSubtabs() {
 }
 
 window.setSubTabPersonaje = function(tab) {
+  if (swPlayOn) window.detenerPlayDemoSw();
   subTabPersonaje = tab;
   swToolActiva = null;
   renderizarTodo();
@@ -1157,18 +1160,21 @@ function renderizarVistaPersonajes() {
   if (!p.variantes) p.variantes = [];
 
   if (subTabPersonaje === 'sandwich') {
-    const bgCls = sandwichCfg.bg === 'dark' ? 'dark-bg' : (sandwichCfg.bg === 'green' ? 'green-bg' : (sandwichCfg.bg === 'light' ? 'light-bg' : 'checker-bg'));
-    const bgLbl = sandwichCfg.bg === 'dark' ? 'Oscuro' : (sandwichCfg.bg === 'green' ? 'Verde' : (sandwichCfg.bg === 'light' ? 'Claro' : 'Grid'));
+    const bgCls = sandwichCfg.bg === 'dark' || sandwichCfg.bg === 'amb25d' ? 'dark-bg' : (sandwichCfg.bg === 'green' ? 'green-bg' : (sandwichCfg.bg === 'light' ? 'light-bg' : 'checker-bg'));
+    const bgLbl = sandwichCfg.bg === 'amb25d' ? '2.5D' : (sandwichCfg.bg === 'dark' ? 'Oscuro' : (sandwichCfg.bg === 'green' ? 'Verde' : (sandwichCfg.bg === 'light' ? 'Claro' : 'Grid')));
     const optsMir = Object.keys(MIRADAS_PIRO).map(function(mk) { return '<option value="' + mk + '"' + ((sandwichCfg.mirada || 'frente') === mk ? ' selected' : '') + '>Mir: ' + esc(MIRADAS_PIRO[mk].nombre) + '</option>'; }).join('');
     ws.innerHTML =
-      '<div class="sandwich-stage" id="sw-stage-wrap" style="padding:38px 8px 12px 8px;">' +
+      '<div class="sandwich-stage" id="sw-stage-wrap" style="padding:44px 8px 12px 8px;">' +
         '<div class="stage-float-top" style="flex-wrap:wrap;">' +
           '<div class="float-grp" style="flex-wrap:wrap;">' +
+            '<button type="button" class="mini-pill play-live" id="btn-play-live-sw" onclick="window.togglePlayDemoSw()">Play</button>' +
+            '<button type="button" class="mini-pill' + (swPanelModo === 'voz' ? ' on' : '') + '" onclick="window.togglePanelSw(\'voz\')">Voz/APIs</button>' +
             '<button type="button" class="mini-pill on" onclick="window.ciclarFondoSandwich()">Fondo: ' + bgLbl + '</button>' +
-            '<button type="button" class="mini-pill' + (sandwichCfg.guias ? ' on' : '') + '" onclick="window.actualizarSandwich(\'guias\',' + (!sandwichCfg.guias) + ')">Guías</button>' +
             '<button type="button" class="mini-pill' + (swPanelModo === 'ajustar' ? ' on' : '') + '" onclick="window.togglePanelSw(\'ajustar\')">Ajustar</button>' +
             '<button type="button" class="mini-pill' + (swPanelModo === 'rotar' ? ' on' : '') + '" onclick="window.togglePanelSw(\'rotar\')">Articular</button>' +
-            '<select class="mini-pill" style="max-width:118px;" onchange="window.actualizarSandwich(\'mirada\',this.value)">' + optsMir + '</select>' +
+            '<select class="mini-pill" style="max-width:110px;" onchange="window.actualizarSandwich(\'mirada\',this.value)">' + optsMir + '</select>' +
+            '<button type="button" class="mini-pill' + (sandwichCfg.guias ? ' on' : '') + '" onclick="window.actualizarSandwich(\'guias\',' + (!sandwichCfg.guias) + ')">Guías</button>' +
+            '<button type="button" class="mini-pill" onclick="window.enviarAEscena2ActoresSw()">2 Actores</button>' +
             '<button type="button" class="mini-pill" onclick="window.resetearSandwich()">Reset</button>' +
           '</div>' +
           '<span class="mini-pill" id="sandwich-estado-txt" style="pointer-events:none; color:#93c5fd;">Rueda 2D</span>' +
@@ -1358,8 +1364,113 @@ window.cerrarToolSandwich = function() {
 };
 
 window.ciclarFondoSandwich = function() {
-  sandwichCfg.bg = sandwichCfg.bg === 'checker' ? 'dark' : (sandwichCfg.bg === 'dark' ? 'green' : (sandwichCfg.bg === 'green' ? 'light' : 'checker'));
+  const tieneAmb = Boolean(biblioteca.escenarios && biblioteca.escenarios[0] && biblioteca.escenarios[0].zonas && biblioteca.escenarios[0].zonas[0] && (biblioteca.escenarios[0].zonas[0].z2_medio || biblioteca.escenarios[0].zonas[0].fondo));
+  sandwichCfg.bg = sandwichCfg.bg === 'checker' ? (tieneAmb ? 'amb25d' : 'dark') : (sandwichCfg.bg === 'amb25d' ? 'dark' : (sandwichCfg.bg === 'dark' ? 'green' : (sandwichCfg.bg === 'green' ? 'light' : 'checker')));
   renderizarVistaPersonajes();
+};
+
+const VOCES_CATALOGO_SW = {
+  edge_tts: [['es-CO-GonzaloNeural','Gonzalo (CO H)'],['es-CO-SalomeNeural','Salomé (CO M)'],['es-MX-JorgeNeural','Jorge (MX H)'],['es-MX-DaliaNeural','Dalia (MX M)'],['es-AR-TomasNeural','Tomás (AR H)'],['es-AR-ElenaNeural','Elena (AR M)'],['es-CL-LorenzoNeural','Lorenzo (CL H)'],['es-ES-AlvaroNeural','Álvaro (ES H)'],['es-ES-ElviraNeural','Elvira (ES M)'],['en-US-BrianNeural','Brian (EN H)'],['en-US-ChristopherNeural','Christopher (EN H)'],['en-US-JennyNeural','Jenny (EN M)'],['en-US-AriaNeural','Aria (EN IA)']],
+  polly_free: [['Miguel','Miguel (ES)'],['Lupe','Lupe (ES)'],['Mia','Mia (MX)'],['Enrique','Enrique (ES)'],['Lucia','Lucia (ES)'],['Brian','Brian (EN)'],['Matthew','Matthew (EN)'],['Joanna','Joanna (EN)']],
+  google_tts_free: [['es-CO','ES Colombia'],['es-MX','ES México'],['es-ES','ES España'],['en-US','EN USA']],
+  gemini: [['Puck','Puck (Juvenil)'],['Charon','Charon (Grave)'],['Kore','Kore (Femenina)'],['Fenrir','Fenrir (Enérgica)'],['Aoede','Aoede (Cálida)'],['Zephyr','Zephyr (Brillante)'],['Orus','Orus (Firme)'],['Leda','Leda (Suave)']],
+  openai: [['onyx','Onyx (Grave)'],['alloy','Alloy (Neutra)'],['ash','Ash (Expresiva)'],['coral','Coral (Femenina)'],['echo','Echo (Masculina)'],['fable','Fable (Narrativa)'],['nova','Nova (Joven)'],['sage','Sage (Calmada)'],['shimmer','Shimmer (Dulce)']],
+  elevenlabs: []
+};
+let swPlayOn = false, swPlayRaf = null, swPlayT0 = 0, swPlayDur = 4.2, swPlayVisemas = [], swPlayAudioEl = null, swPlayCacheKey = '', swPlayCacheObj = null;
+
+function resolverVozSw(p) {
+  const m = (p && p.voz_motor) || 'edge_tts';
+  if (m === 'polly_free') return { motor: m, voiceId: p.voz_polly || 'Miguel' };
+  if (m === 'google_tts_free') return { motor: m, voiceId: p.voz_gtts || 'es-CO' };
+  if (m === 'gemini') return { motor: m, voiceId: p.voz_gemini || 'Puck' };
+  if (m === 'openai') return { motor: m, voiceId: p.voz_openai || 'onyx' };
+  if (m === 'elevenlabs') return { motor: m, voiceId: p.voice_id || '' };
+  return { motor: 'edge_tts', voiceId: p.voz_es || 'es-CO-GonzaloNeural', pitch: p.voz_pitch || '+0Hz', rate: p.voz_rate || '+0%' };
+}
+
+window.cambiarCfgVozSw = function(campo, val) {
+  const p = obtenerPersonajeActual(); if (!p) return;
+  p[campo] = val; swPlayCacheKey = '';
+  if (campo === 'voz_motor') renderPanelFlotanteSw();
+  guardarBiblioteca(false);
+};
+window.cambiarVozIdSelectSw = function(val) {
+  const p = obtenerPersonajeActual(); if (!p) return;
+  const m = p.voz_motor || 'edge_tts';
+  if (m === 'polly_free') p.voz_polly = val;
+  else if (m === 'google_tts_free') p.voz_gtts = val;
+  else if (m === 'gemini') p.voz_gemini = val;
+  else if (m === 'openai') p.voz_openai = val;
+  else p.voz_es = val;
+  swPlayCacheKey = ''; guardarBiblioteca(false);
+};
+window.detenerPlayDemoSw = function() {
+  swPlayOn = false;
+  if (swPlayRaf) { cancelAnimationFrame(swPlayRaf); swPlayRaf = null; }
+  if (swPlayAudioEl) { try { swPlayAudioEl.pause(); swPlayAudioEl.currentTime = 0; } catch (e) {} }
+  const b = document.getElementById('btn-play-live-sw');
+  if (b) { b.textContent = 'Play'; b.classList.remove('on'); }
+  window.dibujarProbadorSandwich();
+};
+window.togglePlayDemoSw = async function(forzarPlay) {
+  if (swPlayOn && !forzarPlay) { window.detenerPlayDemoSw(); return; }
+  if (swPlayOn) window.detenerPlayDemoSw();
+  const p = obtenerPersonajeActual(); if (!p) return;
+  const b = document.getElementById('btn-play-live-sw');
+  if (b) { b.textContent = '...'; b.classList.add('on'); }
+  const frase = String(p.frase_demo || ('Hola, soy ' + (p.nombre || 'tu personaje') + '. Listo para rodar en PIRO Studio.')).trim();
+  const vCfg = resolverVozSw(p);
+  const cKey = p.id + '|' + vCfg.motor + '|' + vCfg.voiceId + '|' + (vCfg.pitch || '') + '|' + (vCfg.rate || '') + '|' + frase;
+  let audioDataUrl = '', marcas = [];
+  try {
+    if (swPlayCacheKey === cKey && swPlayCacheObj) { audioDataUrl = swPlayCacheObj.url; marcas = swPlayCacheObj.marcas; }
+    else if (GeokatuDB.PirobonianosService && navigator.onLine) {
+      const cfgV = leerConfigGeminiVault();
+      const motorReal = (vCfg.motor === 'elevenlabs' && !vCfg.voiceId) ? 'edge_tts' : vCfg.motor;
+      const vidReal = (vCfg.motor === 'elevenlabs' && !vCfg.voiceId) ? (p.voz_es || 'es-CO-GonzaloNeural') : vCfg.voiceId;
+      const res = await GeokatuDB.PirobonianosService.llamarProxyIA({ proveedorId: motorReal, accion: 'audio', tipoCobro: 'audio', modoPago: cfgV.modoPago || 'auto', payload: { text: frase, voiceId: vidReal, pitch: vCfg.pitch || '+0Hz', rate: vCfg.rate || '+0%' } });
+      if (res && res.success && res.b64) {
+        audioDataUrl = 'data:' + (res.mime || 'audio/mpeg') + ';base64,' + res.b64;
+        marcas = Array.isArray(res.marcas) ? res.marcas : [];
+        swPlayCacheKey = cKey; swPlayCacheObj = { url: audioDataUrl, marcas: marcas };
+      } else if (res && res.error) { toast('Aviso voz: ' + res.error + ' (animando sin audio)', 'info'); }
+    }
+  } catch (eV) { toast('Animación en vivo (sin audio).', 'info'); }
+  swPlayDur = Math.max(2.6, Math.min(12, frase.split(/\s+/).length * 0.42 + 0.8));
+  if (audioDataUrl) {
+    if (!swPlayAudioEl) swPlayAudioEl = new Audio();
+    swPlayAudioEl.src = audioDataUrl;
+    await new Promise(function(resA) {
+      swPlayAudioEl.onloadedmetadata = function() { if (Number.isFinite(swPlayAudioEl.duration) && swPlayAudioEl.duration > 0.3) swPlayDur = swPlayAudioEl.duration + 0.3; resA(); };
+      swPlayAudioEl.onerror = function() { resA(); };
+      setTimeout(resA, 800);
+    });
+    swPlayAudioEl.currentTime = 0; swPlayAudioEl.play().catch(function() {});
+  }
+  swPlayVisemas = construirVisemasDesdeMarcasPiro(marcas, frase, swPlayDur);
+  swPlayOn = true; swPlayT0 = performance.now();
+  if (b) b.textContent = 'Stop';
+  const actId = p.actuacion_demo || 'saludar';
+  const loopSw = async function(now) {
+    if (!swPlayOn) return;
+    const t = (swPlayAudioEl && !swPlayAudioEl.paused && swPlayAudioEl.duration) ? swPlayAudioEl.currentTime : ((now - swPlayT0) / 1000);
+    if (t >= swPlayDur) { window.detenerPlayDemoSw(); return; }
+    const scFake = { id: 'demo_sw', vida_auto: true, actuacion: actId, mirada: sandwichCfg.mirada || 'frente' };
+    const actorFake = { id: p.id, cabeza: sandwichCfg.cabeza, angulo: sandwichCfg.angulo, cejas: sandwichCfg.cejas, ojos: sandwichCfg.ojos, boca: sandwichCfg.boca, mano: sandwichCfg.mano, actuacion: actId, mirada: sandwichCfg.mirada || 'frente' };
+    const anim = evaluarAnimacionActorPiro(actorFake, scFake, t, true, p);
+    const mirVec = evaluarMiradaActorPiro(actorFake, scFake, t, null, 'sw_' + p.id);
+    const bocaDyn = obtenerBocaLipSyncPiro({ modo: 'visemas', tiempoLocal: t, visemas: swPlayVisemas, texto: frase, duracion: swPlayDur, personaje: p, cabezaKey: sandwichCfg.cabeza });
+    await window.dibujarProbadorSandwich({ anim: anim, boca: bocaDyn, miradaVec: mirVec, tSeg: t });
+    if (swPlayOn) swPlayRaf = requestAnimationFrame(loopSw);
+  };
+  swPlayRaf = requestAnimationFrame(loopSw);
+};
+window.enviarAEscena2ActoresSw = function() {
+  const p = obtenerPersonajeActual(); if (!p) return;
+  guardarBiblioteca(true);
+  if (window.self !== window.top) window.parent.postMessage({ tipo: 'PIRO_EDITOR_CREAR_ESCENA_2_ACTORES', personajeId: p.id }, '*');
+  else toast('Abre PIRO Studio desde piro-shell para saltar a Escena 2 Actores.', 'info');
 };
 
 const CATS_SW_RUEDA = [
@@ -1503,7 +1614,22 @@ function renderPanelFlotanteSw() {
   } else if (swPanelModo === 'rotar') {
     const mkR = function(l, k, mn, mx, id) { return '<div class="sw-aj-row"><span>' + l + '</span><input type="range" min="' + mn + '" max="' + mx + '" value="' + (sandwichCfg[k] || 0) + '" oninput="window.actualizarSandwich(\'' + k + '\',Number(this.value))"><b id="' + id + '">' + (sandwichCfg[k] || 0) + '°</b></div>'; };
     box.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center;"><strong style="font-size:11px; color:var(--miel);">Articulación Pivotes</strong><div style="display:flex; gap:4px;"><button type="button" class="btn btn-xs" onclick="window.resetRotacionesSandwich()">0°</button><button type="button" class="btn btn-xs btn-green" onclick="window.togglePanelSw(\'\')">Listo</button></div></div>' +
-      mkR('Cabeza','rotCab',-25,25,'sw-rot-cab-val') + mkR('Hombro','rotBrazo',-75,75,'sw-rot-brz-val') + mkR('Codo','rotAntebrazo',-110,90,'sw-rot-ant-val') + mkR('Mano','rotMano',-60,60,'sw-rot-man-val') + mkR('Trasero','rotBrazoTras',-60,60,'sw-rot-tra-val');
+            mkR('Cabeza','rotCab',-25,25,'sw-rot-cab-val') + mkR('Hombro','rotBrazo',-75,75,'sw-rot-brz-val') + mkR('Codo','rotAntebrazo',-110,90,'sw-rot-ant-val') + mkR('Mano','rotMano',-60,60,'sw-rot-man-val') + mkR('Trasero','rotBrazoTras',-60,60,'sw-rot-tra-val');
+  } else if (swPanelModo === 'voz') {
+    const m = p.voz_motor || 'edge_tts', vCur = resolverVozSw(p);
+    const mOpts = [['edge_tts','Edge Neural ($0)'],['polly_free','Polly Free ($0)'],['google_tts_free','Google TTS ($0)'],['gemini','Gemini TTS (API)'],['openai','OpenAI TTS (API)'],['elevenlabs','ElevenLabs (API)']].map(function(x) { return '<option value="' + x[0] + '"' + (m === x[0] ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('');
+    const listaV = VOCES_CATALOGO_SW[m] || [];
+    const vCtrl = m === 'elevenlabs' ? ('<input class="inp" style="padding:5px 6px; font-size:11px;" value="' + esc(p.voice_id || '') + '" placeholder="voice_id ElevenLabs" oninput="window.cambiarCfgVozSw(\'voice_id\',this.value)">') : ('<select class="sel" style="padding:5px 6px; font-size:11px;" onchange="window.cambiarVozIdSelectSw(this.value)">' + listaV.map(function(v) { return '<option value="' + v[0] + '"' + (vCur.voiceId === v[0] ? ' selected' : '') + '>' + v[1] + '</option>'; }).join('') + '</select>');
+    const pOpts = ['-12Hz','-8Hz','-4Hz','+0Hz','+4Hz','+8Hz','+12Hz'].map(function(x) { return '<option value="' + x + '"' + ((p.voz_pitch || '+0Hz') === x ? ' selected' : '') + '>Tono ' + x + '</option>'; }).join('');
+    const rOpts = ['-15%','-8%','+0%','+8%','+15%'].map(function(x) { return '<option value="' + x + '"' + ((p.voz_rate || '+0%') === x ? ' selected' : '') + '>Vel ' + x + '</option>'; }).join('');
+    const aOpts = Object.keys(ACTUACIONES_PIRO).filter(function(k) { return k !== 'ninguna'; }).map(function(k) { return '<option value="' + k + '"' + ((p.actuacion_demo || 'saludar') === k ? ' selected' : '') + '>' + esc(ACTUACIONES_PIRO[k].nombre) + '</option>'; }).join('');
+    const frVal = p.frase_demo || ('Hola, soy ' + (p.nombre || 'tu personaje') + '. Listo para rodar.');
+    box.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center; gap:5px;"><strong style="font-size:11px; color:#86efac;">Voz IA · Cambiar / APIs</strong><div style="display:flex; gap:4px;"><button type="button" class="btn btn-xs btn-purple" onclick="window.abrirBovedaApisDesdeContenido()">APIs</button><button type="button" class="btn btn-xs btn-green" onclick="window.togglePanelSw(\'\')">Listo</button></div></div>' +
+      '<div style="font-size:10px; color:#7dd3fc;">' + esc(p.voz_auto_origen || ('Voz: ' + vCur.voiceId + ' · ' + m)) + '</div>' +
+      '<div style="display:grid; grid-template-columns:1fr 1fr; gap:5px;"><select class="sel" style="padding:5px 6px; font-size:11px;" onchange="window.cambiarCfgVozSw(\'voz_motor\',this.value)">' + mOpts + '</select>' + vCtrl + '</div>' +
+      '<div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px;"><select class="sel" style="padding:4px 5px; font-size:10px;" onchange="window.cambiarCfgVozSw(\'voz_pitch\',this.value)">' + pOpts + '</select><select class="sel" style="padding:4px 5px; font-size:10px;" onchange="window.cambiarCfgVozSw(\'voz_rate\',this.value)">' + rOpts + '</select><select class="sel" style="padding:4px 5px; font-size:10px;" onchange="window.cambiarCfgVozSw(\'actuacion_demo\',this.value)">' + aOpts + '</select></div>' +
+      '<input class="inp" style="padding:5px 7px; font-size:11px;" value="' + esc(frVal) + '" placeholder="Frase de prueba..." oninput="window.cambiarCfgVozSw(\'frase_demo\',this.value)">' +
+      '<div style="display:flex; gap:5px;"><button type="button" class="btn btn-xs btn-green" style="flex:1;" onclick="window.togglePlayDemoSw(true)">Probar Voz + Movimiento</button><button type="button" class="btn btn-xs btn-blue" onclick="window.enviarAEscena2ActoresSw()">Escena 2 Actores</button></div>';
   }
 }
 
@@ -1511,7 +1637,7 @@ window.togglePanelSw = function(modo) {
   const prev = swPanelModo;
   swPanelModo = (modo && prev !== modo) ? modo : '';
   if (swPanelModo === 'ajustar') { const cid = CATS_SW_RUEDA[swCatIdx].id; swAjCapa = cid === 'angulo' ? 'cabeza' : (cid === 'prop' ? 'mano' : cid); }
-  if (prev === 'ajustar' && !swPanelModo) guardarBiblioteca(true);
+    if ((prev === 'ajustar' || prev === 'voz') && !swPanelModo) guardarBiblioteca(true);
   renderPanelFlotanteSw();
 };
 window.selCapaAjusteSw = function(k) { swAjCapa = k || 'ojos'; renderPanelFlotanteSw(); };
@@ -1754,20 +1880,41 @@ window.resetearSandwich = function() {
   sandwichCfg = { angulo: '3_4_der', cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', ojos: 'ojos_neutro', cejas: '', boca: 'boca_cerrada', brazoDel: 'brazo_delantero_reposo', brazoTras: 'brazo_trasero_reposo', mano: '', acc: '', mirada: 'frente', guias: false, rotCab: 0, rotBrazo: 0, rotAntebrazo: 0, rotMano: 0, rotBrazoTras: 0, bg: sandwichCfg.bg, piernas: true, prop: '' };
   swPanelModo = ''; renderizarVistaPersonajes();
 };
-window.dibujarProbadorSandwich = async function() {
+window.dibujarProbadorSandwich = async function(liveCfg) {
   const canvas = document.getElementById('canvas-sandwich'), p = obtenerPersonajeActual();
   if (!canvas || !p) return;
   const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, 1000, 1600);
+  const lv = liveCfg || null, an = lv && lv.anim ? lv.anim : null, tBg = (lv && typeof lv.tSeg === 'number') ? lv.tSeg : 0;
+  const esc25 = sandwichCfg.bg === 'amb25d' ? ((biblioteca.escenarios || [])[0] || null) : null;
+  const z25 = esc25 && esc25.zonas && esc25.zonas[0] ? esc25.zonas[0] : null;
+  const pan25 = Math.sin(tBg * 0.7) * 55;
+  if (z25) {
+    const imZ1 = z25.z1_lejano ? await cargarImagenPiro(z25.z1_lejano.url) : null;
+    const imZ2 = (z25.z2_medio || z25.fondo) ? await cargarImagenPiro((z25.z2_medio || z25.fondo).url) : null;
+    if (imZ1) ctx.drawImage(imZ1, -340 + pan25 * 0.2, 0, 1680, 1680);
+    await dibujarElementosVivosPiro(ctx, z25.elementos_vivos || [], 'z1', 1000, 1600, pan25, 1, tBg, {});
+    if (imZ2) ctx.drawImage(imZ2, -300 + pan25 * 0.55, 0, 1600, 1600);
+    await dibujarElementosVivosPiro(ctx, z25.elementos_vivos || [], 'z2', 1000, 1600, pan25, 1, tBg, {});
+  }
   let propImg = null;
   if (sandwichCfg.prop) { const prObj = (biblioteca.props || []).find(function(x){ return x.id === sandwichCfg.prop; }); if (prObj && prObj.archivo && prObj.archivo.url) propImg = await cargarImagenPiro(prObj.archivo.url); }
   const n = await dibujarMarionetaPiro(ctx, p, {
-    modoLienzoCompleto: true, angulo360: sandwichCfg.angulo || '3_4_der', cabeza: sandwichCfg.cabeza, cuerpo: sandwichCfg.cuerpo, ojos: sandwichCfg.ojos, cejas: sandwichCfg.cejas || '', boca: sandwichCfg.boca,
-    brazoDel: sandwichCfg.brazoDel, brazoTras: sandwichCfg.brazoTras, mano: sandwichCfg.mano, acc: sandwichCfg.acc || '',
-    rotCab: sandwichCfg.rotCab, rotBrazo: sandwichCfg.rotBrazo, rotAntebrazo: sandwichCfg.rotAntebrazo, rotMano: sandwichCfg.rotMano, rotBrazoTras: sandwichCfg.rotBrazoTras,
-    piernas: sandwichCfg.piernas, propImg: propImg, mostrarGuias: Boolean(sandwichCfg.guias), soloPerspectiva: true, adaptarBocas: true, miradaVec: MIRADAS_PIRO[sandwichCfg.mirada || 'frente'] || MIRADAS_PIRO.frente
+    modoLienzoCompleto: true, angulo360: sandwichCfg.angulo || '3_4_der', cabeza: sandwichCfg.cabeza, cuerpo: sandwichCfg.cuerpo,
+    ojos: (an && an.ojos === 'ojos_cerrados') ? 'ojos_cerrados' : sandwichCfg.ojos,
+    cejas: sandwichCfg.cejas || '', cejasOffsetY: an ? (an.cejasOffsetY || 0) : 0,
+    boca: (lv && lv.boca) ? lv.boca : sandwichCfg.boca,
+    brazoDel: sandwichCfg.brazoDel, brazoTras: sandwichCfg.brazoTras, mano: (an && an.mano && !sandwichCfg.mano) ? an.mano : sandwichCfg.mano, acc: sandwichCfg.acc || '',
+    rotCab: sandwichCfg.rotCab + (an ? an.rotCab : 0), rotBrazo: sandwichCfg.rotBrazo + (an ? an.rotBrazo : 0), rotAntebrazo: sandwichCfg.rotAntebrazo + (an ? an.rotAntebrazo : 0), rotMano: sandwichCfg.rotMano + (an ? an.rotMano : 0), rotBrazoTras: sandwichCfg.rotBrazoTras,
+    scaleX: an ? an.scaleX : 1, scaleY: an ? an.scaleY : 1, offsetY: an ? an.offsetY : 0,
+    piernas: sandwichCfg.piernas, propImg: propImg, mostrarGuias: Boolean(sandwichCfg.guias), soloPerspectiva: true, adaptarBocas: true, miradaVec: (lv && lv.miradaVec) ? lv.miradaVec : (MIRADAS_PIRO[sandwichCfg.mirada || 'frente'] || MIRADAS_PIRO.frente)
   });
+  if (z25) {
+    const imZ4 = (z25.z4_frente || z25.frente) ? await cargarImagenPiro((z25.z4_frente || z25.frente).url) : null;
+    if (imZ4) ctx.drawImage(imZ4, -300 + pan25 * 1.32, 0, 1600, 1600);
+    await dibujarElementosVivosPiro(ctx, z25.elementos_vivos || [], 'z4', 1000, 1600, pan25, 1, tBg, {});
+  }
   const est = document.getElementById('sandwich-estado-txt');
-  if (est) est.textContent = textoEstadoSandwich(p, n);
+  if (est) est.textContent = swPlayOn ? 'EN VIVO' : textoEstadoSandwich(p, n);
 };
 
 window.probarVozGratisFicha = async function(motor) {
