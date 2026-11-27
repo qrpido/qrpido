@@ -181,6 +181,24 @@
   }
   .dark-bg { background: #05070b; }
   .light-bg { background: #e2e8f0; }
+  .green-bg { background: #00ff00; }
+  .wheel-v-box { position: absolute; right: 8px; top: 50%; transform: translateY(-54%); z-index: 20; width: 118px; padding: 8px 6px; border-radius: 16px; background: rgba(10, 14, 22, 0.64); border: 1px solid rgba(255, 255, 255, 0.14); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); display: flex; flex-direction: column; align-items: stretch; gap: 3px; touch-action: none; user-select: none; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55); }
+  .wheel-v-item { border: none; background: transparent; padding: 6px 8px; border-radius: 9px; text-align: left; font-size: 11px; font-weight: 800; cursor: pointer; transition: transform .15s, opacity .15s, background .15s; display: flex; align-items: center; justify-content: space-between; }
+  .wheel-v-item.dist-0 { background: rgba(255, 107, 0, 0.24); border: 1px solid rgba(255, 107, 0, 0.65); color: #fff; opacity: 1; transform: scale(1.02); }
+  .wheel-v-item.dist-1 { color: #e2e8f0; opacity: 0.52; transform: scale(0.95); }
+  .wheel-v-item.dist-2 { color: #94a3b8; opacity: 0.22; transform: scale(0.88); }
+  .dot-act { width: 6px; height: 6px; border-radius: 50%; background: var(--naranja); flex-shrink: 0; }
+  .wheel-h-wrap { position: absolute; left: 8px; right: 8px; bottom: 10px; z-index: 25; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
+  .wheel-h-box { pointer-events: auto; width: 100%; max-width: 520px; padding: 7px 8px; border-radius: 16px; background: rgba(10, 14, 22, 0.7); border: 1px solid rgba(255, 255, 255, 0.14); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); display: flex; align-items: center; justify-content: center; gap: 6px; overflow: hidden; touch-action: none; user-select: none; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6); }
+  .wheel-h-item { border: 1px solid transparent; background: transparent; padding: 7px 11px; border-radius: 10px; font-size: 11.5px; font-weight: 800; cursor: pointer; white-space: nowrap; transition: all .15s; }
+  .wheel-h-item.dist-0 { background: rgba(56, 189, 248, 0.22); border-color: rgba(56, 189, 248, 0.7); color: #fff; opacity: 1; transform: scale(1.04); }
+  .wheel-h-item.dist-1 { color: #cbd5e1; opacity: 0.48; transform: scale(0.92); background: rgba(255, 255, 255, 0.03); }
+  .wheel-h-item.dist-2 { color: #94a3b8; opacity: 0.2; transform: scale(0.84); }
+  .wheel-h-item.falta { border-style: dashed; border-color: rgba(255, 179, 0, 0.45); }
+  .sw-float-panel { position: absolute; left: 8px; right: 8px; top: 44px; z-index: 30; max-width: 360px; background: rgba(10, 14, 22, 0.94); border: 1px solid rgba(56, 189, 248, 0.5); border-radius: 14px; padding: 9px 10px; backdrop-filter: blur(12px); display: flex; flex-direction: column; gap: 6px; box-shadow: 0 12px 28px rgba(0,0,0,0.65); }
+  .sw-aj-row { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 800; color: #cbd5e1; }
+  .sw-aj-row input[type="range"] { flex: 1; accent-color: var(--naranja); }
+  .sw-aj-row b { min-width: 38px; text-align: right; font-family: monospace; color: var(--azul); }
   #canvas-sandwich {
     display: block; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.16);
     box-shadow: 0 8px 26px rgba(0, 0, 0, 0.55);
@@ -422,7 +440,7 @@
 
 <script type="module">
 import GeokatuDB from './core-db.js';
-import { dibujarMarionetaPiro, cargarImagenPiro, parsearMoldes, obtenerPerspectivaCabeza, resolverPiezaPerspectiva } from './piro-compositor.js';
+import { dibujarMarionetaPiro, cargarImagenPiro, parsearMoldes, parsearAjustesCapas, limpiarCacheCompositor, obtenerPerspectivaCabeza, resolverPiezaPerspectiva, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO } from './piro-compositor.js';
 
 const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
 function normalizarDocBibId(id, proyId) {
@@ -510,7 +528,7 @@ let swToolActiva = null; // null | ojos | bocas | brazo | prop | rotar
 let tipoPromptVista = 'cuerpo_completo';
 let filtroPropsCat = 'todos';
 let perspCarrusel = '3_4';
-let sandwichCfg = { cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', ojos: 'ojos_neutro', boca: 'boca_cerrada', brazoDel: 'brazo_delantero_reposo', brazoTras: 'brazo_trasero_reposo', mano: '', rotCab: 0, rotBrazo: 0, rotAntebrazo: 0, rotMano: 0, rotBrazoTras: 0, bg: 'checker', piernas: true, prop: '' };
+let sandwichCfg = { angulo: '3_4_der', cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', ojos: 'ojos_neutro', cejas: '', boca: 'boca_cerrada', brazoDel: 'brazo_delantero_reposo', brazoTras: 'brazo_trasero_reposo', mano: '', acc: '', mirada: 'frente', guias: false, rotCab: 0, rotBrazo: 0, rotAntebrazo: 0, rotMano: 0, rotBrazoTras: 0, bg: 'checker', piernas: true, prop: '' };
 let slotUploadPendiente = null;
 let tipoModalCrear = null;
 let debounceGuardar = null;
@@ -1139,22 +1157,32 @@ function renderizarVistaPersonajes() {
   if (!p.variantes) p.variantes = [];
 
   if (subTabPersonaje === 'sandwich') {
-    const bgCls = sandwichCfg.bg === 'dark' ? 'dark-bg' : (sandwichCfg.bg === 'light' ? 'light-bg' : 'checker-bg');
-    const bgLbl = sandwichCfg.bg === 'dark' ? 'Oscuro' : (sandwichCfg.bg === 'light' ? 'Claro' : 'Grid');
+    const bgCls = sandwichCfg.bg === 'dark' ? 'dark-bg' : (sandwichCfg.bg === 'green' ? 'green-bg' : (sandwichCfg.bg === 'light' ? 'light-bg' : 'checker-bg'));
+    const bgLbl = sandwichCfg.bg === 'dark' ? 'Oscuro' : (sandwichCfg.bg === 'green' ? 'Verde' : (sandwichCfg.bg === 'light' ? 'Claro' : 'Grid'));
+    const optsMir = Object.keys(MIRADAS_PIRO).map(function(mk) { return '<option value="' + mk + '"' + ((sandwichCfg.mirada || 'frente') === mk ? ' selected' : '') + '>Mir: ' + esc(MIRADAS_PIRO[mk].nombre) + '</option>'; }).join('');
     ws.innerHTML =
-      '<div class="sandwich-stage" id="sw-stage-wrap">' +
-        '<div class="stage-float-top">' +
-          '<div class="float-grp">' +
+      '<div class="sandwich-stage" id="sw-stage-wrap" style="padding:38px 8px 12px 8px;">' +
+        '<div class="stage-float-top" style="flex-wrap:wrap;">' +
+          '<div class="float-grp" style="flex-wrap:wrap;">' +
             '<button type="button" class="mini-pill on" onclick="window.ciclarFondoSandwich()">Fondo: ' + bgLbl + '</button>' +
-            '<button type="button" class="mini-pill' + (sandwichCfg.piernas ? ' on' : '') + '" onclick="window.actualizarSandwich(\'piernas\',' + (!sandwichCfg.piernas) + ')">Piernas: ' + (sandwichCfg.piernas ? 'ON' : 'OFF') + '</button>' +
+            '<button type="button" class="mini-pill' + (sandwichCfg.guias ? ' on' : '') + '" onclick="window.actualizarSandwich(\'guias\',' + (!sandwichCfg.guias) + ')">Guías</button>' +
+            '<button type="button" class="mini-pill' + (swPanelModo === 'ajustar' ? ' on' : '') + '" onclick="window.togglePanelSw(\'ajustar\')">Ajustar</button>' +
+            '<button type="button" class="mini-pill' + (swPanelModo === 'rotar' ? ' on' : '') + '" onclick="window.togglePanelSw(\'rotar\')">Articular</button>' +
+            '<select class="mini-pill" style="max-width:118px;" onchange="window.actualizarSandwich(\'mirada\',this.value)">' + optsMir + '</select>' +
+            '<button type="button" class="mini-pill" onclick="window.resetearSandwich()">Reset</button>' +
           '</div>' +
-          '<span class="mini-pill" id="sandwich-estado-txt" style="pointer-events:none; color:#93c5fd;">Piro-Compositor</span>' +
+          '<span class="mini-pill" id="sandwich-estado-txt" style="pointer-events:none; color:#93c5fd;">Rueda 2D</span>' +
         '</div>' +
+        '<div id="sw-panel-flotante" class="sw-float-panel hidden"></div>' +
         '<canvas id="canvas-sandwich" class="' + bgCls + '" width="1000" height="1600"></canvas>' +
-      '</div>' +
-      '<footer class="snapseed-dock" id="sw-dock">' + renderHtmlDockSandwich(p) + '</footer>';
+        '<div class="wheel-v-box" id="sw-wheel-v"></div>' +
+        '<div class="wheel-h-wrap"><div class="wheel-h-box" id="sw-wheel-h"></div></div>' +
+      '</div>';
     requestAnimationFrame(function() {
       ajustarTamanoCanvasSandwich();
+      renderRuedasSandwich();
+      conectarGestosRuedaSw();
+      renderPanelFlotanteSw();
       window.dibujarProbadorSandwich();
     });
     return;
@@ -1330,8 +1358,177 @@ window.cerrarToolSandwich = function() {
 };
 
 window.ciclarFondoSandwich = function() {
-  sandwichCfg.bg = sandwichCfg.bg === 'checker' ? 'dark' : (sandwichCfg.bg === 'dark' ? 'light' : 'checker');
+  sandwichCfg.bg = sandwichCfg.bg === 'checker' ? 'dark' : (sandwichCfg.bg === 'dark' ? 'green' : (sandwichCfg.bg === 'green' ? 'light' : 'checker'));
   renderizarVistaPersonajes();
+};
+
+const CATS_SW_RUEDA = [
+  { id: 'angulo', nom: 'Giro 360°' },
+  { id: 'ojos', nom: 'Ojos' },
+  { id: 'cejas', nom: 'Cejas' },
+  { id: 'boca', nom: 'Bocas' },
+  { id: 'mano', nom: 'Manos' },
+  { id: 'brazo', nom: 'Brazos' },
+  { id: 'cuerpo', nom: 'Ropa' },
+  { id: 'acc', nom: 'Accesorios' },
+  { id: 'prop', nom: 'Props' }
+];
+let swCatIdx = 1, swPanelModo = '', swAjCapa = 'ojos';
+
+function obtenerItemsRuedaSandwich(p, catId) {
+  const pzs = (p && p.piezas) || {};
+  const keys = Object.keys(pzs).filter(function(k) { return Boolean(pzs[k] && pzs[k].url); });
+  const angObj = ANGULOS_360_PIRO[sandwichCfg.angulo || '3_4_der'] || ANGULOS_360_PIRO['3_4_der'];
+  const persp = angObj.cabeza === 'cabeza_frente' ? 'frente' : (angObj.cabeza === 'cabeza_perfil' ? 'perfil' : '3_4');
+  if (catId === 'angulo') {
+    return Object.keys(ANGULOS_360_PIRO).map(function(ak) {
+      const o = ANGULOS_360_PIRO[ak];
+      return { key: ak, lbl: o.nombre, ok: keys.indexOf(o.cabeza) >= 0 || keys.indexOf(o.cuerpo) >= 0 || ak === '3_4_der' || ak === '3_4_izq' };
+    });
+  }
+  if (catId === 'cejas') {
+    const baseC = keys.filter(function(k) { if (k.indexOf('cejas_') !== 0) return false; return persp === 'frente' ? k.indexOf('cejas_frente_') === 0 : (k.indexOf('cejas_frente_') !== 0 && k.indexOf('cejas_perfil_') !== 0); });
+    return [{ key: '', lbl: 'Auto', ok: true }].concat((baseC.length ? baseC : Object.keys(CEJAS_PIRO).map(function(ck) { return 'cejas_' + ck; })).map(function(k) { return { key: k, lbl: (pzs[k] && pzs[k].etiqueta) || k.replace(/^cejas_(frente_|perfil_)?/, ''), ok: keys.indexOf(k) >= 0 }; }));
+  }
+  if (catId === 'ojos') {
+    const baseO = keys.filter(function(k) { if (k.indexOf('ojos_') !== 0) return false; if (persp === 'frente') return k.indexOf('ojos_frente_') === 0; if (persp === 'perfil') return k.indexOf('ojos_perfil_') === 0; return k.indexOf('ojos_frente_') !== 0 && k.indexOf('ojos_perfil_') !== 0; });
+    return (baseO.length ? baseO : ['ojos_neutro', 'ojos_feliz', 'ojos_triste', 'ojos_enojado']).map(function(k) { return { key: k, lbl: (pzs[k] && pzs[k].etiqueta) || k.replace(/^ojos_(frente_|perfil_)?/, ''), ok: keys.indexOf(k) >= 0 }; });
+  }
+  if (catId === 'boca') {
+    const baseB = keys.filter(function(k) { return k.indexOf('boca_') === 0; });
+    return (baseB.length ? baseB : ['boca_cerrada', 'boca_media', 'boca_abierta', 'boca_sonrisa']).map(function(k) { return { key: k, lbl: (pzs[k] && pzs[k].etiqueta) || k.replace('boca_', ''), ok: keys.indexOf(k) >= 0 }; });
+  }
+  if (catId === 'mano') {
+    const baseM = keys.filter(function(k) { return k.indexOf('mano_') === 0; });
+    return [{ key: '', lbl: 'Sin mano', ok: true }].concat(baseM.map(function(k) { return { key: k, lbl: (pzs[k] && pzs[k].etiqueta) || k.replace('mano_', ''), ok: true }; }));
+  }
+  if (catId === 'brazo') {
+    const baseBr = keys.filter(function(k) { return k.indexOf('brazo') === 0 || k === 'manos_cintura'; });
+    return [{ key: 'ninguno', lbl: 'Sin brazo', ok: true }].concat((baseBr.length ? baseBr : ['brazo_delantero_reposo', 'brazo_delantero_prop']).map(function(k) { return { key: k, lbl: (pzs[k] && pzs[k].etiqueta) || k.replace('brazo_delantero_', ''), ok: keys.indexOf(k) >= 0 }; }));
+  }
+  if (catId === 'cuerpo') {
+    const baseCu = keys.filter(function(k) { return k.indexOf('cuerpo_') === 0; });
+    return (baseCu.length ? baseCu : ['cuerpo_base', 'cuerpo_sentado']).map(function(k) { return { key: k, lbl: (pzs[k] && pzs[k].etiqueta) || k.replace('cuerpo_', ''), ok: keys.indexOf(k) >= 0 }; });
+  }
+  if (catId === 'acc') {
+    const baseA = keys.filter(function(k) { return k.indexOf('acc_') === 0; });
+    return [{ key: '', lbl: 'Ninguno', ok: true }].concat(baseA.map(function(k) { return { key: k, lbl: (pzs[k] && pzs[k].etiqueta) || k, ok: true }; }));
+  }
+  const prList = (biblioteca.props || []).filter(function(x) { return x.categoria === 'prop'; });
+  return [{ key: '', lbl: 'Sin prop', ok: true }].concat(prList.map(function(x) { return { key: x.id, lbl: x.nombre, ok: Boolean(x.archivo && x.archivo.url) }; }));
+}
+
+function claveCfgPorCatSw(catId) { return catId === 'brazo' ? 'brazoDel' : catId; }
+
+function renderRuedasSandwich() {
+  const p = obtenerPersonajeActual();
+  const wv = document.getElementById('sw-wheel-v'), wh = document.getElementById('sw-wheel-h');
+  if (!wv || !wh || !p) return;
+  let vHtml = '';
+  for (let d = -2; d <= 2; d++) {
+    const idx = (swCatIdx + d + CATS_SW_RUEDA.length) % CATS_SW_RUEDA.length;
+    const cat = CATS_SW_RUEDA[idx], ad = Math.abs(d);
+    vHtml += '<button type="button" class="wheel-v-item dist-' + ad + '" onclick="window.moverRuedaVSw(' + d + ')"><span>' + esc(cat.nom) + '</span>' + (d === 0 ? '<span class="dot-act"></span>' : '') + '</button>';
+  }
+  wv.innerHTML = vHtml;
+  const catAct = CATS_SW_RUEDA[swCatIdx], cfgK = claveCfgPorCatSw(catAct.id);
+  const items = obtenerItemsRuedaSandwich(p, catAct.id);
+  let curIdx = items.findIndex(function(x) { return x.key === (sandwichCfg[cfgK] || ''); });
+  if (curIdx < 0) { curIdx = 0; if (items[0]) sandwichCfg[cfgK] = items[0].key; }
+  let hHtml = ''; const unicos = [];
+  for (let d = -2; d <= 2; d++) {
+    if (Math.abs(d) > items.length - 1) continue;
+    const idx = (curIdx + d + items.length) % items.length;
+    if (unicos.indexOf(idx) >= 0) continue; unicos.push(idx);
+    const it = items[idx], ad = Math.min(2, Math.abs(d));
+    hHtml += '<button type="button" class="wheel-h-item dist-' + ad + (it.ok ? '' : ' falta') + '" onclick="window.selItemRuedaHSw(' + idx + ')">' + esc(it.lbl) + '</button>';
+  }
+  wh.innerHTML = hHtml;
+}
+
+function conectarGestosRuedaSw() {
+  let syV = null, sxH = null;
+  const wv = document.getElementById('sw-wheel-v'), wh = document.getElementById('sw-wheel-h');
+  if (wv && !wv._wired) {
+    wv._wired = true;
+    wv.addEventListener('pointerdown', function(e) { syV = e.clientY; });
+    wv.addEventListener('pointermove', function(e) { if (syV !== null && Math.abs(e.clientY - syV) > 24) { window.moverRuedaVSw(e.clientY < syV ? 1 : -1); syV = e.clientY; } });
+    wv.addEventListener('pointerup', function() { syV = null; });
+    wv.addEventListener('wheel', function(e) { e.preventDefault(); window.moverRuedaVSw(e.deltaY > 0 ? 1 : -1); }, { passive: false });
+  }
+  if (wh && !wh._wired) {
+    wh._wired = true;
+    wh.addEventListener('pointerdown', function(e) { sxH = e.clientX; });
+    wh.addEventListener('pointermove', function(e) { if (sxH !== null && Math.abs(e.clientX - sxH) > 30) { window.moverRuedaHSw(e.clientX < sxH ? 1 : -1); sxH = e.clientX; } });
+    wh.addEventListener('pointerup', function() { sxH = null; });
+    wh.addEventListener('wheel', function(e) { e.preventDefault(); window.moverRuedaHSw(e.deltaY > 0 || e.deltaX > 0 ? 1 : -1); }, { passive: false });
+  }
+}
+
+window.moverRuedaVSw = function(delta) {
+  swCatIdx = (swCatIdx + delta + CATS_SW_RUEDA.length) % CATS_SW_RUEDA.length;
+  const cid = CATS_SW_RUEDA[swCatIdx].id;
+  if (swPanelModo === 'ajustar') { swAjCapa = cid === 'angulo' ? 'cabeza' : (cid === 'prop' ? 'mano' : cid); renderPanelFlotanteSw(); }
+  renderRuedasSandwich();
+};
+window.selItemRuedaHSw = function(idx) {
+  const p = obtenerPersonajeActual(), catAct = CATS_SW_RUEDA[swCatIdx], items = obtenerItemsRuedaSandwich(p, catAct.id);
+  if (!items[idx]) return;
+  const cfgK = claveCfgPorCatSw(catAct.id);
+  sandwichCfg[cfgK] = items[idx].key;
+  if (catAct.id === 'angulo' && ANGULOS_360_PIRO[sandwichCfg.angulo]) { sandwichCfg.cabeza = ANGULOS_360_PIRO[sandwichCfg.angulo].cabeza; sandwichCfg.cuerpo = ANGULOS_360_PIRO[sandwichCfg.angulo].cuerpo; }
+  if (catAct.id === 'prop' && sandwichCfg.prop) sandwichCfg.brazoDel = 'brazo_delantero_prop';
+  renderRuedasSandwich(); window.dibujarProbadorSandwich();
+};
+window.moverRuedaHSw = function(delta) {
+  const p = obtenerPersonajeActual(), catAct = CATS_SW_RUEDA[swCatIdx], items = obtenerItemsRuedaSandwich(p, catAct.id);
+  if (!items.length) return;
+  const cfgK = claveCfgPorCatSw(catAct.id);
+  let cur = items.findIndex(function(x) { return x.key === (sandwichCfg[cfgK] || ''); }); if (cur < 0) cur = 0;
+  window.selItemRuedaHSw((cur + delta + items.length) % items.length);
+};
+
+function renderPanelFlotanteSw() {
+  const box = document.getElementById('sw-panel-flotante'), p = obtenerPersonajeActual();
+  if (!box || !p) return;
+  if (!swPanelModo) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+  box.classList.remove('hidden');
+  if (swPanelModo === 'ajustar') {
+    const aj = parsearAjustesCapas(p)[swAjCapa] || { dx: 0, dy: 0, sc: 1 };
+    const opts = ['cabeza','ojos','cejas','boca','brazo','mano','cuerpo','acc'].map(function(k) { return '<option value="' + k + '"' + (swAjCapa === k ? ' selected' : '') + '>' + k.toUpperCase() + '</option>'; }).join('');
+    box.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center; gap:5px;"><strong style="font-size:11px; color:var(--miel);">Ajustar Capa (Sincronizado)</strong><div style="display:flex; gap:4px;"><select class="sel" style="width:auto; padding:3px 6px; font-size:10px;" onchange="window.selCapaAjusteSw(this.value)">' + opts + '</select><button type="button" class="btn btn-xs" onclick="window.resetAjusteCapaSw()">0</button><button type="button" class="btn btn-xs btn-green" onclick="window.togglePanelSw(\'\')">Listo</button></div></div>' +
+      '<div class="sw-aj-row"><span>Pos X</span><input type="range" min="-180" max="180" value="' + Math.round(aj.dx) + '" oninput="window.editarAjusteCapaSw(\'dx\',Number(this.value))"><b id="sw-aj-vx">' + Math.round(aj.dx) + '</b></div>' +
+      '<div class="sw-aj-row"><span>Pos Y</span><input type="range" min="-220" max="220" value="' + Math.round(aj.dy) + '" oninput="window.editarAjusteCapaSw(\'dy\',Number(this.value))"><b id="sw-aj-vy">' + Math.round(aj.dy) + '</b></div>' +
+      '<div class="sw-aj-row"><span>Escala</span><input type="range" min="45" max="170" value="' + Math.round(aj.sc * 100) + '" oninput="window.editarAjusteCapaSw(\'sc\',Number(this.value)/100)"><b id="sw-aj-vs">' + Math.round(aj.sc * 100) + '%</b></div>';
+  } else if (swPanelModo === 'rotar') {
+    const mkR = function(l, k, mn, mx, id) { return '<div class="sw-aj-row"><span>' + l + '</span><input type="range" min="' + mn + '" max="' + mx + '" value="' + (sandwichCfg[k] || 0) + '" oninput="window.actualizarSandwich(\'' + k + '\',Number(this.value))"><b id="' + id + '">' + (sandwichCfg[k] || 0) + '°</b></div>'; };
+    box.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center;"><strong style="font-size:11px; color:var(--miel);">Articulación Pivotes</strong><div style="display:flex; gap:4px;"><button type="button" class="btn btn-xs" onclick="window.resetRotacionesSandwich()">0°</button><button type="button" class="btn btn-xs btn-green" onclick="window.togglePanelSw(\'\')">Listo</button></div></div>' +
+      mkR('Cabeza','rotCab',-25,25,'sw-rot-cab-val') + mkR('Hombro','rotBrazo',-75,75,'sw-rot-brz-val') + mkR('Codo','rotAntebrazo',-110,90,'sw-rot-ant-val') + mkR('Mano','rotMano',-60,60,'sw-rot-man-val') + mkR('Trasero','rotBrazoTras',-60,60,'sw-rot-tra-val');
+  }
+}
+
+window.togglePanelSw = function(modo) {
+  const prev = swPanelModo;
+  swPanelModo = (modo && prev !== modo) ? modo : '';
+  if (swPanelModo === 'ajustar') { const cid = CATS_SW_RUEDA[swCatIdx].id; swAjCapa = cid === 'angulo' ? 'cabeza' : (cid === 'prop' ? 'mano' : cid); }
+  if (prev === 'ajustar' && !swPanelModo) guardarBiblioteca(true);
+  renderPanelFlotanteSw();
+};
+window.selCapaAjusteSw = function(k) { swAjCapa = k || 'ojos'; renderPanelFlotanteSw(); };
+window.editarAjusteCapaSw = function(campo, val) {
+  const p = obtenerPersonajeActual(); if (!p) return;
+  if (!p.ajustes_capas || typeof p.ajustes_capas !== 'object') p.ajustes_capas = {};
+  const cur = Object.assign({ dx: 0, dy: 0, sc: 1 }, p.ajustes_capas[swAjCapa] || {});
+  cur[campo] = val; p.ajustes_capas[swAjCapa] = cur;
+  const vx = document.getElementById('sw-aj-vx'), vy = document.getElementById('sw-aj-vy'), vs = document.getElementById('sw-aj-vs');
+  if (vx) vx.textContent = Math.round(cur.dx); if (vy) vy.textContent = Math.round(cur.dy); if (vs) vs.textContent = Math.round(cur.sc * 100) + '%';
+  window.dibujarProbadorSandwich();
+};
+window.resetAjusteCapaSw = function() {
+  const p = obtenerPersonajeActual(); if (!p) return;
+  if (!p.ajustes_capas) p.ajustes_capas = {};
+  p.ajustes_capas[swAjCapa] = { dx: 0, dy: 0, sc: 1 };
+  renderPanelFlotanteSw(); window.dibujarProbadorSandwich(); guardarBiblioteca(true);
 };
 
 function construirSlideSlot(personaje, spec, datoGuardado) {
@@ -1543,20 +1740,19 @@ function obtenerCalcoInteligente(p, slotKey) {
 
 window.resetRotacionesSandwich = function() {
   sandwichCfg.rotCab = 0; sandwichCfg.rotBrazo = 0; sandwichCfg.rotAntebrazo = 0; sandwichCfg.rotMano = 0; sandwichCfg.rotBrazoTras = 0;
-  window.abrirToolSandwich('rotar'); window.dibujarProbadorSandwich();
+  renderPanelFlotanteSw(); window.dibujarProbadorSandwich();
 };
 window.actualizarSandwich = function(campo, val) {
   sandwichCfg[campo] = val;
   if (campo === 'prop' && val && sandwichCfg.brazoDel !== 'articulado') sandwichCfg.brazoDel = 'brazo_delantero_prop';
-  if (campo === 'bg' || campo === 'piernas') { renderizarVistaPersonajes(); return; }
+  if (campo === 'bg' || campo === 'piernas' || campo === 'guias') { renderizarVistaPersonajes(); return; }
   const mv = { rotCab: 'sw-rot-cab-val', rotBrazo: 'sw-rot-brz-val', rotAntebrazo: 'sw-rot-ant-val', rotMano: 'sw-rot-man-val', rotBrazoTras: 'sw-rot-tra-val' };
   if (mv[campo]) { const el = document.getElementById(mv[campo]); if (el) el.textContent = sandwichCfg[campo] + '°'; }
-  else { const dock = document.getElementById('sw-dock'), p = obtenerPersonajeActual(); if (dock && p) dock.innerHTML = renderHtmlDockSandwich(p); }
   window.dibujarProbadorSandwich();
 };
 window.resetearSandwich = function() {
-  sandwichCfg = { cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', ojos: 'ojos_neutro', boca: 'boca_cerrada', brazoDel: 'brazo_delantero_reposo', brazoTras: 'brazo_trasero_reposo', mano: '', rotCab: 0, rotBrazo: 0, rotAntebrazo: 0, rotMano: 0, rotBrazoTras: 0, bg: sandwichCfg.bg, piernas: true, prop: '' };
-  swToolActiva = null; renderizarVistaPersonajes();
+  sandwichCfg = { angulo: '3_4_der', cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', ojos: 'ojos_neutro', cejas: '', boca: 'boca_cerrada', brazoDel: 'brazo_delantero_reposo', brazoTras: 'brazo_trasero_reposo', mano: '', acc: '', mirada: 'frente', guias: false, rotCab: 0, rotBrazo: 0, rotAntebrazo: 0, rotMano: 0, rotBrazoTras: 0, bg: sandwichCfg.bg, piernas: true, prop: '' };
+  swPanelModo = ''; renderizarVistaPersonajes();
 };
 window.dibujarProbadorSandwich = async function() {
   const canvas = document.getElementById('canvas-sandwich'), p = obtenerPersonajeActual();
@@ -1565,10 +1761,10 @@ window.dibujarProbadorSandwich = async function() {
   let propImg = null;
   if (sandwichCfg.prop) { const prObj = (biblioteca.props || []).find(function(x){ return x.id === sandwichCfg.prop; }); if (prObj && prObj.archivo && prObj.archivo.url) propImg = await cargarImagenPiro(prObj.archivo.url); }
   const n = await dibujarMarionetaPiro(ctx, p, {
-    modoLienzoCompleto: true, cabeza: sandwichCfg.cabeza, cuerpo: sandwichCfg.cuerpo, ojos: sandwichCfg.ojos, boca: sandwichCfg.boca,
-    brazoDel: sandwichCfg.brazoDel, brazoTras: sandwichCfg.brazoTras, mano: sandwichCfg.mano,
+    modoLienzoCompleto: true, angulo360: sandwichCfg.angulo || '3_4_der', cabeza: sandwichCfg.cabeza, cuerpo: sandwichCfg.cuerpo, ojos: sandwichCfg.ojos, cejas: sandwichCfg.cejas || '', boca: sandwichCfg.boca,
+    brazoDel: sandwichCfg.brazoDel, brazoTras: sandwichCfg.brazoTras, mano: sandwichCfg.mano, acc: sandwichCfg.acc || '',
     rotCab: sandwichCfg.rotCab, rotBrazo: sandwichCfg.rotBrazo, rotAntebrazo: sandwichCfg.rotAntebrazo, rotMano: sandwichCfg.rotMano, rotBrazoTras: sandwichCfg.rotBrazoTras,
-    piernas: sandwichCfg.piernas, propImg: propImg, mostrarGuias: true, soloPerspectiva: true, adaptarBocas: Boolean(sandwichCfg.adaptarBocas)
+    piernas: sandwichCfg.piernas, propImg: propImg, mostrarGuias: Boolean(sandwichCfg.guias), soloPerspectiva: true, adaptarBocas: true, miradaVec: MIRADAS_PIRO[sandwichCfg.mirada || 'frente'] || MIRADAS_PIRO.frente
   });
   const est = document.getElementById('sandwich-estado-txt');
   if (est) est.textContent = textoEstadoSandwich(p, n);
@@ -3105,6 +3301,7 @@ window.addEventListener('message', async function(e) {
       proyectoActivo = Object.assign(proyectoActivo, e.data.proyecto);
       proyectoActivo.docBibId = normalizarDocBibId(proyectoActivo.docBibId, proyectoActivo.id);
     }
+    limpiarCacheCompositor();
     cargarBiblioteca();
     } else if (e.data.tipo === 'PIRO_VAULT_ACTUALIZADO') {
     if (e.data.estadoIA) { try { localStorage.setItem(CLAVE_PREFS_IA_CONT, JSON.stringify(e.data.estadoIA)); } catch (er) {} }
