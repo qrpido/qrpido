@@ -60,42 +60,47 @@ export const PIVOTES_DEFAULT = {
   cadera_trasera: { x: 535, y: 920 }
 };
 
+const _imgInFlight = new Map();
+
 export function cargarImagenPiro(url, opts) {
   const strictCors = Boolean(opts === true || (opts && opts.strictCors));
-  return new Promise(function(resolve) {
-    if (!url) { resolve(null); return; }
-    const hit = lruGet(_imgCache, url);
-    if (hit) {
-      if (!strictCors || hit._corsOk === true) { resolve(hit); return; }
-    }
+  if (!url) return Promise.resolve(null);
+  const hit = lruGet(_imgCache, url);
+  if (hit && (!strictCors || hit._corsOk === true)) return Promise.resolve(hit);
+  const fKey = url + (strictCors ? '|strict' : '');
+  if (_imgInFlight.has(fKey)) return _imgInFlight.get(fKey);
+  const prom = new Promise(function(resolve) {
+    const fin = function(res) { _imgInFlight.delete(fKey); resolve(res); };
     const im = new Image();
     im.crossOrigin = 'anonymous';
     im.onload = function() {
       im._corsOk = true;
       _corsBloqueadas.delete(url);
       lruSet(_imgCache, url, im, MAX_IMG_CACHE);
-      resolve(im);
+      fin(im);
     };
     im.onerror = function() {
       if (strictCors) {
         _corsBloqueadas.add(url);
-        resolve(null);
+        fin(null);
         return;
       }
       const im2 = new Image();
       im2.onload = function() {
         im2._corsOk = false;
         lruSet(_imgCache, url, im2, MAX_IMG_CACHE);
-        resolve(im2);
+        fin(im2);
       };
-      im2.onerror = function() { resolve(null); };
+      im2.onerror = function() { fin(null); };
       im2.src = url;
     };
     im.src = url;
   });
+  _imgInFlight.set(fKey, prom);
+  return prom;
 }
 
-export async function precargarPiezasPersonajePiro(personaje, extraUrls) {
+export async function precargarPiezasPersonajePiro(personaje, extraUrls, opts) {
   const urls = new Set();
   const pzs = (personaje && personaje.piezas) || {};
   Object.keys(pzs).forEach(function(k) {
@@ -107,14 +112,18 @@ export async function precargarPiezasPersonajePiro(personaje, extraUrls) {
     extraUrls.forEach(function(u) { if (u && typeof u === 'string' && u.length > 5) urls.add(u); });
   }
   const lista = Array.from(urls);
+  let ok = 0, fail = 0; const faltantes = [];
   for (let i = 0; i < lista.length; i += 8) {
     const lote = lista.slice(i, i + 8);
     await Promise.all(lote.map(async function(u) {
-      const im = await cargarImagenPiro(u);
-      if (im && typeof im.decode === 'function') { try { await im.decode(); } catch (eD) {} }
+      const im = await cargarImagenPiro(u, opts);
+      if (im) {
+        if (typeof im.decode === 'function') { try { await im.decode(); } catch (eD) {} }
+        ok++;
+      } else { fail++; faltantes.push(u); }
     }));
   }
-  return lista.length;
+  return { total: lista.length, ok: ok, fail: fail, faltantes: faltantes };
 }
 
 export function parsearPivotes(p) {
@@ -1207,44 +1216,125 @@ function dibujarSubtituloPiro(ctx, texto, W, H, esH) {
 /**
  * Compone una escena completa (Fondo -> Múltiples Actores + Props en mano -> Frente -> FX -> Subtítulo -> Safe Zones).
  */
+export function evaluarEpisodioEnTiempoPiro(episodio, biblioteca, tSeg, opts) {
+  const g = episodio || {}, bib = biblioteca || {}, o = opts || {};
+  const escenas = Array.isArray(g.escenas) ? g.escenas : [];
+  if (!escenas.length) return null;
+  const t = Math.max(0, Number(tSeg) || 0);
+  let acum = 0, clipIdx = escenas.length - 1;
+  const inicios = new Array(escenas.length);
+  for (let i = 0; i < escenas.length; i++) {
+    inicios[i] = acum;
+    const d = Math.max(0.5, Number(escenas[i].duracion) || 3);
+    if (t < acum + d) { clipIdx = i; break; }
+    acum += d;
+  }
+  const scVis = escenas[clipIdx];
+  const tLocVis = Math.max(0, t - inicios[clipIdx]);
+  let audIdx = clipIdx;
+  if (scVis.continuar_audio && !scVis.audio_url) {
+    let j = clipIdx - 1;
+    while (j >= 0) {
+      if (escenas[j].audio_url || !escenas[j].continuar_audio) { audIdx = j; break; }
+      j--;
+    }
+  }
+  const scAud = escenas[audIdx] || scVis;
+  const tLocAud = Math.max(0, t - inicios[audIdx]);
+  let durSpanAud = Math.max(0.5, Number(scAud.duracion) || 3);
+  for (let k = audIdx + 1; k < escenas.length; k++) {
+    if (escenas[k].continuar_audio && !escenas[k].audio_url) durSpanAud += Math.max(0.5, Number(escenas[k].duracion) || 3);
+    else break;
+  }
+  const habId = scAud.hablante !== undefined ? scAud.hablante : scAud.actor;
+  const perHab = (bib.personajes || []).find(function(x) { return x.id === habId; }) || null;
+  const actsVis = normalizarActoresEscena(scVis);
+  const aHab = actsVis.find(function(a) { return a.id === habId; }) || actsVis[0] || null;
+  const env = (o.envolventesPorIdx && o.envolventesPorIdx[audIdx]) || o.envolventeActiva || null;
+  const modoLS = o.modoLipSync || (g.modo_lipsync === 'volumen' ? 'volumen' : 'visemas');
+  const durAudRef = (env && env.duracion > 0.2) ? env.duracion : Math.min(durSpanAud, Math.max(0.5, Number(scAud.duracion) || 3));
+  let boca = 'boca_cerrada';
+  if (habId && habId !== 'ninguno' && tLocAud <= durSpanAud + 0.05) {
+    boca = obtenerBocaLipSyncPiro({ modo: modoLS, tiempoLocal: tLocAud, envolvente: env, marcas: scAud.marcas_voz, visemas: scAud.visemas, texto: scAud.texto || '', duracion: durAudRef, personaje: perHab, cabezaKey: aHab ? aHab.cabeza : 'cabeza_base' });
+  }
+  const subTxt = (scVis.texto && String(scVis.texto).trim()) ? scVis.texto : (scAud.texto || '');
+  return { clipIdx: clipIdx, clipVisual: scVis, tLocalVisual: tLocVis, clipAudioIdx: audIdx, clipAudio: scAud, audioInicioSeg: inicios[audIdx], durSpanAudio: durSpanAud, tLocalAudio: tLocAud, hablanteId: habId, bocaHablante: boca, hablandoAhora: Boolean(habId && habId !== 'ninguno' && boca !== 'boca_cerrada'), subtitulo: subTxt };
+}
+
 export async function precargarRecursosEpisodioPiro(episodio, biblioteca, opts) {
-  const urls = new Set();
+  const reqMap = new Map();
+  const optMap = new Map();
   const g = episodio || {}, bib = biblioteca || {};
   const corsOpt = { strictCors: Boolean(opts && opts.strictCors) };
-  const addU = function(u) { if (u && typeof u === 'string' && u.length > 5) urls.add(u); };
-  (g.escenas || []).forEach(function(sc) {
-    if (sc.plano_url) addU(sc.plano_url);
+  const addReq = function(u, lbl) { if (u && typeof u === 'string' && u.length > 5 && !reqMap.has(u)) reqMap.set(u, lbl || u); };
+  const addOpt = function(u, lbl) { if (u && typeof u === 'string' && u.length > 5 && !reqMap.has(u) && !optMap.has(u)) optMap.set(u, lbl || u); };
+  (g.escenas || []).forEach(function(sc, scIdx) {
+    if (sc.modo === 'plano' && sc.plano_url) { addReq(sc.plano_url, 'Plano clip #' + (scIdx + 1)); return; }
     const escObj = (bib.escenarios || []).find(function(e) { return e.id === (sc.escenario || g.escenario_id); }) || (bib.escenarios || [])[0];
     const zObj = escObj ? ((escObj.zonas || []).find(function(z) { return z.id === (sc.zona || g.zona_id); }) || (escObj.zonas || [])[0]) : null;
     if (zObj) {
-      if (zObj.z1_lejano) addU(zObj.z1_lejano.url);
-      if (zObj.z2_medio) addU(zObj.z2_medio.url); else if (zObj.fondo) addU(zObj.fondo.url);
-      if (zObj.z4_frente) addU(zObj.z4_frente.url); else if (zObj.frente) addU(zObj.frente.url);
-      (zObj.elementos_vivos || []).forEach(function(ev) { if (ev && ev.url) addU(ev.url); });
+      if (zObj.z1_lejano && zObj.z1_lejano.url) addOpt(zObj.z1_lejano.url, 'Fondo Z1');
+      if (zObj.z2_medio && zObj.z2_medio.url) addReq(zObj.z2_medio.url, 'Fondo Z2');
+      else if (zObj.fondo && zObj.fondo.url) addReq(zObj.fondo.url, 'Fondo Escenario');
+      if (zObj.z4_frente && zObj.z4_frente.url) addOpt(zObj.z4_frente.url, 'Frente Z4');
+      else if (zObj.frente && zObj.frente.url) addOpt(zObj.frente.url, 'Frente');
+      (zObj.elementos_vivos || []).forEach(function(ev) { if (ev && ev.url) addOpt(ev.url, 'Elem vivo'); });
     }
     if (sc.prop && String(sc.prop).indexOf('fx_') === 0) {
       const fx = (bib.props || []).find(function(x) { return x.id === sc.prop; });
-      if (fx && fx.archivo) addU(fx.archivo.url);
+      if (fx && fx.archivo && fx.archivo.url) addOpt(fx.archivo.url, 'FX ' + sc.prop);
     }
+    const evs = Array.isArray(sc.eventos_actuacion) ? sc.eventos_actuacion : [];
     normalizarActoresEscena(sc).forEach(function(a) {
       const per = (bib.personajes || []).find(function(p) { return p.id === a.id; });
       if (per && per.piezas) {
-        Object.keys(per.piezas).forEach(function(k) { if (per.piezas[k] && per.piezas[k].url) addU(per.piezas[k].url); });
+        const pzs = per.piezas;
+        const addPz = function(k, esReq) { const u = k && pzs[k] && pzs[k].url; if (!u) return; if (esReq) addReq(u, per.nombre + ':' + k); else addOpt(u, per.nombre + ':' + k); };
+        const ang = resolverAngulo360Piro(a.angulo || sc.angulo);
+        const cabK = (ang && ang.cabeza) ? ang.cabeza : (a.cabeza || 'cabeza_base');
+        const cueK = resolverCuerpoPiro(per, a.cuerpo, ang);
+        addPz(cabK, true); addPz(cueK, true); addPz('cabeza_base', false); addPz('cuerpo_base', false);
+        const modBr = resolverModoBrazosPiro(per, a.brazo, a.brazoTras, Boolean(a.prop));
+        if (modBr.brazoDel === 'articulado') { addPz('brazo_del_sup', true); addPz('brazo_del_ant', true); addPz('mano_relajada', false); }
+        else if (modBr.brazoDel !== 'ninguno') { addPz(modBr.brazoDel, true); }
+        if (modBr.brazoTras === 'articulado') { addPz('brazo_tras_sup', true); addPz('brazo_tras_ant', true); addPz('mano_trasera', false); if (per.mano_trasera_ref) addPz(per.mano_trasera_ref, false); }
+        else if (modBr.brazoTras !== 'ninguno') { addPz(modBr.brazoTras, false); }
+        if (a.mano) addPz(String(a.mano).indexOf('mano_') === 0 ? a.mano : ('mano_' + a.mano), false);
+        if (a.acc) addPz(a.acc, true);
+        const rO = resolverPiezaPerspectiva(per, 'ojos', a.ojos, cabK, { soloPerspectiva: false }); if (rO && rO.url) addReq(rO.url, per.nombre + ':' + rO.key);
+        const rOC = resolverPiezaPerspectiva(per, 'ojos', 'ojos_cerrados', cabK, { soloPerspectiva: true, sinFallbackDefault: true }); if (rOC && rOC.url) addOpt(rOC.url, per.nombre + ':' + rOC.key);
+        if (a.cejas) { const rC = resolverPiezaPerspectiva(per, 'cejas', a.cejas, cabK, { soloPerspectiva: false }); if (rC && rC.url) addOpt(rC.url, per.nombre + ':' + rC.key); }
+        Object.keys(pzs).forEach(function(k) { if (k.indexOf('boca_') === 0 || k.indexOf('cejas_') === 0) addPz(k, false); });
+        const actDef = ACTUACIONES_PIRO[a.actuacion || sc.actuacion];
+        if (actDef && actDef.mano) addPz(actDef.mano, false);
+        if (actDef && actDef.ojos) { const rAO = resolverPiezaPerspectiva(per, 'ojos', actDef.ojos, cabK, { soloPerspectiva: false }); if (rAO && rAO.url) addOpt(rAO.url, per.nombre + ':' + rAO.key); }
+        evs.forEach(function(ev) {
+          if (!ev || (ev.actorId && ev.actorId !== a.id)) return;
+          if (ev.cabeza) addPz(ev.cabeza, false);
+          if (ev.angulo && ANGULOS_360_PIRO[ev.angulo]) { addPz(ANGULOS_360_PIRO[ev.angulo].cabeza, false); addPz(ANGULOS_360_PIRO[ev.angulo].cuerpo, false); }
+          if (ev.mano) addPz(ev.mano, false);
+          if (ev.ojos) { const rEO = resolverPiezaPerspectiva(per, 'ojos', ev.ojos, ev.cabeza || cabK, { soloPerspectiva: false }); if (rEO && rEO.url) addOpt(rEO.url, per.nombre + ':' + rEO.key); }
+        });
       }
       if (a.prop) {
         const pr = (bib.props || []).find(function(x) { return x.id === a.prop; });
-        if (pr && pr.archivo) addU(pr.archivo.url);
+        if (pr && pr.archivo && pr.archivo.url) addReq(pr.archivo.url, 'Prop ' + a.prop);
       }
     });
   });
-  const lista = Array.from(urls);
-  let ok = 0, fail = 0;
-  for (let i = 0; i < lista.length; i += 6) {
-    const lote = lista.slice(i, i + 6);
-    const res = await Promise.all(lote.map(function(u) { return cargarImagenPiro(u, corsOpt); }));
-    res.forEach(function(im) { if (im) ok++; else fail++; });
+  const listaReq = Array.from(reqMap.entries());
+  const listaOpt = Array.from(optMap.entries());
+  const todas = listaReq.map(function(e) { return { u: e[0], lbl: e[1], req: true }; }).concat(listaOpt.map(function(e) { return { u: e[0], lbl: e[1], req: false }; }));
+  let ok = 0, fail = 0, obligatoriosFail = 0; const faltantes = [];
+  for (let i = 0; i < todas.length; i += 6) {
+    const lote = todas.slice(i, i + 6);
+    const res = await Promise.all(lote.map(function(it) { return cargarImagenPiro(it.u, corsOpt); }));
+    res.forEach(function(im, j) {
+      if (im) ok++;
+      else { fail++; if (lote[j].req) obligatoriosFail++; faltantes.push(lote[j].lbl); }
+    });
   }
-  return { total: lista.length, ok: ok, fail: fail };
+  return { total: todas.length, ok: ok, fail: fail, obligatoriosFail: obligatoriosFail, faltantes: faltantes };
 }
 
 export async function componerEscenaPiro(ctx, params) {
