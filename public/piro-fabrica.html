@@ -441,7 +441,7 @@
 
 <script type="module">
 import GeokatuDB from './core-db.js';
-import { dibujarMarionetaPiro, cargarImagenPiro, precargarPiezasPersonajePiro, extraerEnvolventeAudio, parsearMoldes, parsearPivotes, parsearAjustesCapas, limpiarCacheCompositor, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO, ACTUACIONES_PIRO, evaluarAnimacionActorPiro, evaluarMiradaActorPiro, construirVisemasDesdeMarcasPiro, obtenerBocaLipSyncPiro, dibujarElementosVivosPiro } from './piro-compositor.js';
+import { dibujarMarionetaPiro, cargarImagenPiro, precargarPiezasPersonajePiro, extraerEnvolventeAudio, parsearMoldes, parsearPivotes, parsearAjustesCapas, resolverCapacidadesRigPiro, resolverModoBrazosPiro, CUERPOS_ANGULO_STD_PIRO, limpiarCacheCompositor, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO, ACTUACIONES_PIRO, evaluarAnimacionActorPiro, evaluarMiradaActorPiro, construirVisemasDesdeMarcasPiro, obtenerBocaLipSyncPiro, dibujarElementosVivosPiro } from './piro-compositor.js';
 
 const BLOQUES_60 = [
   { id: 'b1', tit: '1. Identidad y Arte (8)', campos: [
@@ -1649,11 +1649,11 @@ function obtenerCajaDestino(p, tipoAnc, slotKey, etiquetaUi, zonaExplicit) {
       const h = Math.max(120, y1 - y0), w = Math.max(88, Math.round(h * 0.60));
       return { x: Math.round(cx - w / 2), y: y0, w: w, h: h };
     }
-    if (skStr === 'brazo_tras_ant') {
-      const largoAnt = Math.max(110, piv.mano_delantera.y - piv.codo_delantero.y);
-      const y0 = Math.round(piv.codo_trasero.y - 22), y1 = Math.round(piv.codo_trasero.y + largoAnt + 8);
+        if (skStr === 'brazo_tras_ant') {
+      const cx = Math.round((piv.codo_trasero.x + piv.mano_trasera.x) / 2);
+      const y0 = Math.round(piv.codo_trasero.y - 22), y1 = Math.round(piv.mano_trasera.y + 8);
       const h = Math.max(110, y1 - y0), w = Math.max(74, Math.round(h * 0.54));
-      return { x: Math.round(piv.codo_trasero.x - w / 2), y: y0, w: w, h: h };
+      return { x: Math.round(cx - w / 2), y: y0, w: w, h: h };
     }
     if (skStr === 'brazos_cruzados' || skStr === 'manos_cintura') {
       const bw = zC ? Math.round(zC.w * 1.04) : 340, bx = zC ? Math.round(zC.x + (zC.w - bw) / 2) : 330;
@@ -1939,7 +1939,7 @@ async function procesarYRecortarImagenLienzo(p, lienzo, imgSrc) {
     guardadas++;
   }
   await guardarBiblioteca(true);
-  if (lienzo.id_lienzo === 'brazos_articulados' && guardadas > 0) estadoRueda.brazo = 'articulado';
+  if (lienzo.id_lienzo === 'brazos_articulados' && resolverCapacidadesRigPiro(p).artDelCompleto) estadoRueda.brazo = 'articulado';
   return { guardadas: guardadas, esperadas: piezasSpec.length, faltantes: faltantes };
 }
 
@@ -2064,7 +2064,7 @@ function obtenerItemsCategoriaRueda(p, catId) {
     lista = [{ key: '', lbl: 'Sin mano', ok: true }].concat(base.map(function(k) { return { key: k, lbl: (pzs[k] && pzs[k].etiqueta) || k.replace('mano_', ''), ok: true }; }));
   } else if (catId === 'brazo') {
     const segsArt = ['brazo_del_sup', 'brazo_del_ant', 'brazo_tras_sup', 'brazo_tras_ant'];
-    const tieneArt = keys.indexOf('brazo_del_sup') >= 0 || keys.indexOf('brazo_del_ant') >= 0;
+    const tieneArt = keys.indexOf('brazo_del_sup') >= 0 && keys.indexOf('brazo_del_ant') >= 0;
     const base = keys.filter(function(k) { return (k.indexOf('brazo') === 0 || k === 'manos_cintura') && k.indexOf('trasero') < 0 && segsArt.indexOf(k) < 0; });
     const artIt = { key: 'articulado', lbl: 'Articulado (Codo)', ok: tieneArt };
     const prefBr = tieneArt ? [artIt, { key: 'ninguno', lbl: 'Sin brazo', ok: true }] : [{ key: 'ninguno', lbl: 'Sin brazo', ok: true }, artIt];
@@ -2149,8 +2149,8 @@ window.seleccionarItemRuedaH = function(idx) {
   const p = obtenerPersonajeActual(), catAct = CATS_RUEDA[catIdxRueda];
   const items = obtenerItemsCategoriaRueda(p, catAct.id);
   if (!items[idx]) return;
-  estadoRueda[catAct.id] = items[idx].key;
-  if (catAct.id === 'angulo' && ANGULOS_360_PIRO[estadoRueda.angulo]) { estadoRueda.cabeza = ANGULOS_360_PIRO[estadoRueda.angulo].cabeza; estadoRueda.cuerpo = ANGULOS_360_PIRO[estadoRueda.angulo].cuerpo; }
+    estadoRueda[catAct.id] = items[idx].key;
+  if (catAct.id === 'angulo' && ANGULOS_360_PIRO[estadoRueda.angulo]) { estadoRueda.cabeza = ANGULOS_360_PIRO[estadoRueda.angulo].cabeza; if (!estadoRueda.cuerpo || CUERPOS_ANGULO_STD_PIRO.indexOf(estadoRueda.cuerpo) >= 0) estadoRueda.cuerpo = ANGULOS_360_PIRO[estadoRueda.angulo].cuerpo; }
   renderRuedas2D();
   dibujarPersonajeOffline();
 };
@@ -2162,8 +2162,8 @@ window.moverRuedaH = function(delta) {
   let cur = items.findIndex(function(x) { return x.key === estadoRueda[catAct.id]; });
   if (cur < 0) cur = 0;
   const sig = (cur + delta + items.length) % items.length;
-  estadoRueda[catAct.id] = items[sig].key;
-  if (catAct.id === 'angulo' && ANGULOS_360_PIRO[estadoRueda.angulo]) { estadoRueda.cabeza = ANGULOS_360_PIRO[estadoRueda.angulo].cabeza; estadoRueda.cuerpo = ANGULOS_360_PIRO[estadoRueda.angulo].cuerpo; }
+    estadoRueda[catAct.id] = items[sig].key;
+  if (catAct.id === 'angulo' && ANGULOS_360_PIRO[estadoRueda.angulo]) { estadoRueda.cabeza = ANGULOS_360_PIRO[estadoRueda.angulo].cabeza; if (!estadoRueda.cuerpo || CUERPOS_ANGULO_STD_PIRO.indexOf(estadoRueda.cuerpo) >= 0) estadoRueda.cuerpo = ANGULOS_360_PIRO[estadoRueda.angulo].cuerpo; }
   renderRuedas2D();
   dibujarPersonajeOffline();
 };
@@ -2200,7 +2200,7 @@ async function dibujarPersonajeOffline(liveCfg) {
     ojos: (an && an.ojos === 'ojos_cerrados') ? 'ojos_cerrados' : estadoRueda.ojos,
     cejas: estadoRueda.cejas, cejasOffsetY: an ? (an.cejasOffsetY || 0) : 0,
     boca: (lv && lv.boca) ? lv.boca : estadoRueda.boca,
-    brazoDel: estadoRueda.brazo, brazoTras: (estadoRueda.brazo === 'articulado' && (pzsOffline.brazo_tras_sup || pzsOffline.brazo_tras_ant)) ? 'articulado' : 'brazo_trasero_reposo', mano: estadoRueda.mano || (an && an.mano ? an.mano : ''), forzarManoSuelta: Boolean(estadoRueda.mano), acc: estadoRueda.acc,
+    brazoDel: resolverModoBrazosPiro(perLocal, estadoRueda.brazo, 'auto', false).brazoDel, brazoTras: resolverModoBrazosPiro(perLocal, estadoRueda.brazo, 'auto', false).brazoTras, mano: estadoRueda.mano || (an && an.mano ? an.mano : ''), forzarManoSuelta: Boolean(estadoRueda.mano), acc: estadoRueda.acc,
     rotCab: an ? an.rotCab : 0, rotBrazo: an ? an.rotBrazo : 0, rotAntebrazo: an ? an.rotAntebrazo : 0, rotMano: an ? an.rotMano : 0, rotBrazoTras: an ? (an.rotBrazoTras || 0) : 0, rotAntebrazoTras: an ? (an.rotAntebrazoTras || 0) : 0,
     scaleX: an ? an.scaleX : 1, scaleY: an ? an.scaleY : 1, offsetY: an ? an.offsetY : 0,
     soloPerspectiva: true, adaptarBocas: true, mostrarGuias: ajusteCapaAbierto, miradaVec: (lv && lv.miradaVec) ? lv.miradaVec : (MIRADAS_PIRO[miradaPreviewId] || MIRADAS_PIRO.frente)
@@ -2236,6 +2236,7 @@ const PASOS_CAL_34 = [
   { id: 'mano_delantera', tipo: 'pt', nom: 'X Mano', col: '#ef4444', tip: 'Toca el centro de la mano/muñeca delantera.' },
   { id: 'hombro_trasero', tipo: 'pt', nom: 'X Hombro Tras', col: '#ef4444', tip: 'Toca el hombro trasero.' },
   { id: 'codo_trasero', tipo: 'pt', nom: 'X Codo Tras', col: '#ef4444', tip: 'Toca el codo trasero (para articular el brazo de atrás).' },
+  { id: 'mano_trasera', tipo: 'pt', nom: 'X Mano Tras', col: '#ef4444', tip: 'Toca la muñeca/mano trasera (cierre de la cadena trasera).' },
   { id: 'cadera_delantera', tipo: 'pt', nom: 'X Cadera', col: '#ef4444', tip: 'Toca la cadera (eje de torso/piernas).' }
 ];
 const PASOS_CAL_FRENTE = [
@@ -2453,6 +2454,7 @@ function construirPromptVisionCalibracion(vista) {
     '    "mano_delantera": [430, 880],',
     '    "hombro_trasero": [560, 560],',
     '    "codo_trasero": [605, 710],',
+    '    "mano_trasera": [635, 880],',
     '    "cadera_delantera": [480, 920]',
     '  }',
     '}',
@@ -2476,7 +2478,7 @@ function aplicarObjetoVisionCalibracion(obj, targetDatos, vistaDef) {
     }
   });
   const pvs = obj.pivotes || {};
-  ['cuello', 'hombro_delantero', 'codo_delantero', 'mano_delantera', 'hombro_trasero', 'codo_trasero', 'cadera_delantera'].forEach(function(k) {
+  ['cuello', 'hombro_delantero', 'codo_delantero', 'mano_delantera', 'hombro_trasero', 'codo_trasero', 'mano_trasera', 'cadera_delantera'].forEach(function(k) {
     const pt = pvs[k];
     if (Array.isArray(pt) && pt.length >= 2) {
       const px = Math.round(Number(pt[0])), py = Math.round(Number(pt[1]));
@@ -2823,7 +2825,7 @@ window.togglePlayDemoFab = async function(forzarPlay) {
       hablandoAhora = fIdx < env.frames.length && (env.frames[fIdx] || 0) >= 0.08;
     }
     const scFake = { id: 'demo_fab', vida_auto: true, actuacion: actId, mirada: miradaPreviewId };
-    const actorFake = { id: p.id, cabeza: estadoRueda.cabeza, angulo: estadoRueda.angulo, cejas: estadoRueda.cejas, ojos: estadoRueda.ojos, boca: estadoRueda.boca, mano: estadoRueda.mano, actuacion: actId, mirada: miradaPreviewId };
+    const actorFake = { id: p.id, cabeza: estadoRueda.cabeza, angulo: estadoRueda.angulo, cejas: estadoRueda.cejas, ojos: estadoRueda.ojos, boca: estadoRueda.boca, brazo: estadoRueda.brazo, mano: estadoRueda.mano, actuacion: actId, mirada: miradaPreviewId };
     const anim = evaluarAnimacionActorPiro(actorFake, scFake, t, hablandoAhora, perPre);
     const mirVec = evaluarMiradaActorPiro(actorFake, scFake, t, null, 'fab_' + p.id);
     const bocaDyn = obtenerBocaLipSyncPiro({ modo: 'visemas', tiempoLocal: t, envolvente: env, visemas: playLiveVisemas, texto: frase, duracion: playLiveDur, personaje: perPre, cabezaKey: estadoRueda.cabeza });
