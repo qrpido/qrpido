@@ -55,7 +55,7 @@ export const PIVOTES_DEFAULT = {
   mano_trasera: { x: 635, y: 880 },
   hombro_delantero: { x: 440, y: 560 },
   codo_delantero: { x: 420, y: 720 },
-  mano_delantera: { x: 640, y: 820 },
+    mano_delantera: { x: 415, y: 940 },
   cadera_delantera: { x: 465, y: 920 },
   cadera_trasera: { x: 535, y: 920 }
 };
