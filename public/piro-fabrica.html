@@ -153,7 +153,14 @@
   .cal-chip { flex: 0 0 auto; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border); background: rgba(255,255,255,0.05); font-size: 10px; font-weight: 800; color: var(--muted); cursor: pointer; }
   .cal-chip.ok { border-color: rgba(34,197,94,0.55); color: #86efac; background: rgba(34,197,94,0.14); }
   .cal-chip.activo { border-color: var(--naranja); color: #fff; background: rgba(255,107,0,0.28); }
-      .casc-bar { padding: 6px 8px; background: rgba(13, 20, 34, 0.98); border-bottom: 1px solid rgba(34, 197, 94, 0.45); display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
+        #app.encuadre-focus .topbar, #app.encuadre-focus #ribbon-pasos, #app.encuadre-focus .fab-toolbar, #app.encuadre-focus #barra-lienzo-acciones { display: none !important; }
+  .focus-bar { display: flex; align-items: center; justify-content: space-between; gap: 5px; padding: 4px 8px; background: rgba(10, 14, 22, 0.98); border-bottom: 1px solid rgba(56, 189, 248, 0.4); flex-shrink: 0; }
+  .aj-ctrl-bar { display: flex; align-items: center; gap: 4px; overflow-x: auto; scrollbar-width: none; padding-bottom: 1px; }
+  .aj-ctrl-bar::-webkit-scrollbar { display: none; }
+  .aj-step-btn { min-width: 30px; height: 28px; padding: 0 7px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.16); background: rgba(255,255,255,0.08); color: #f8fafc; font-size: 13px; font-weight: 900; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .aj-step-btn:active { background: rgba(255,107,0,0.45); border-color: var(--naranja); }
+  .stage-wrap.sin-ruedas .wheel-v-box, .stage-wrap.sin-ruedas .wheel-h-wrap { display: none !important; }
+  .casc-bar { padding: 4px 8px; background: rgba(13, 20, 34, 0.98); border-bottom: 1px solid rgba(34, 197, 94, 0.45); display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
   .casc-row { display: flex; align-items: center; gap: 5px; overflow-x: auto; scrollbar-width: none; }
   .casc-row::-webkit-scrollbar { display: none; }
   .casc-pill { flex: 0 0 auto; padding: 3px 8px; border-radius: 99px; border: 1px solid var(--border); background: rgba(255,255,255,0.05); font-size: 10px; font-weight: 800; color: var(--muted); cursor: pointer; }
@@ -268,7 +275,23 @@
       <div class="lote-track"><div id="lote-1clic-fill" class="lote-fill"></div></div>
       <button type="button" class="btn btn-xs btn-danger" onclick="window.cancelarFabricacion1Clic()">Detener</button>
     </div>
-        <div id="barra-cascada-fab" class="casc-bar hidden">
+            <div id="bar-encuadre-top" class="focus-bar hidden">
+      <div style="display:flex; align-items:center; gap:5px; min-width:0;">
+        <button type="button" class="btn btn-xs btn-blue" id="btn-toggle-menu-top" onclick="window.toggleMenuSuperiorEncuadre()">
+          <svg class="svg-ico" id="ico-menu-top" viewBox="0 0 24 24" style="width:13px;height:13px;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          <span id="txt-menu-top">Menú</span>
+        </button>
+        <span id="lbl-focus-pieza" style="font-size:10.5px; font-weight:800; color:var(--miel); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Encuadre</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+        <button type="button" class="btn btn-xs" id="btn-toggle-ruedas-fab" onclick="window.toggleRuedasEncuadreFab()">Ver Ruedas</button>
+        <button type="button" class="btn btn-xs" onclick="window.zoomStageFab(-0.4)">-</button>
+        <button type="button" class="btn btn-xs btn-blue" id="btn-zoom-fab-val" onclick="window.resetZoomStageFab()">1.0x</button>
+        <button type="button" class="btn btn-xs" onclick="window.zoomStageFab(0.4)">+</button>
+        <button type="button" class="btn btn-xs btn-green" onclick="window.salirEncuadreManualFab()">Listo</button>
+      </div>
+    </div>
+    <div id="barra-cascada-fab" class="casc-bar hidden">
       <div class="casc-row" id="casc-etapas-row"></div>
       <div style="display:flex; align-items:center; justify-content:space-between; gap:5px; flex-wrap:wrap;">
         <span id="casc-paso-txt" style="font-size:10.5px; font-weight:800; color:#86efac;">Paso a paso</span>
@@ -977,6 +1000,7 @@ const REGLA_CEJAS_LIMPIAS_EN = ' STRICT EYEBROW RIG RULE: Draw ONLY 2 solid flat
 const REGLA_BOCAS_LIMPIAS_EN = ' CRITICAL MOUTH RIG STYLE: Simple flat 2D #000000 black-ink cartoon mouth lines and flat openings designed to paste directly onto a character face/muzzle. ZERO fleshy lips, ZERO colored or skin-toned lip borders, ZERO snout, ZERO muzzle, ZERO fur, ZERO beard, ZERO sharp fangs. Teeth MUST be simple flat white rounded cartoon tooth bars (NEVER individual realistic or jagged teeth), dark flat interior, flat pink tongue. Keep consistent horizontal scale across all cells.';
 const REGLA_MANOS_LIMPIAS_EN = ' STRICT HAND RIG RULE: Isolated hands cut cleanly at the wrist with closed outline, ZERO forearm, ZERO sleeve, ZERO props. UNIFORM ORIENTATION across all cells: wrist cut ALWAYS at top/top-left and fingers pointing down/right, IDENTICAL hand scale in every cell.';
 const REGLA_ACC_LIMPIOS_EN = ' STRICT ACCESSORY RIG RULE: Isolated flat 2D wearable items/props ONLY. ZERO mannequin, ZERO head, ZERO body, ZERO hands wearing or holding the item. Generous pure #00FF00 margin around every cell.';
+const REGLA_BRAZOS_BASE_EN = ' OPTION A STRAIGHT ARMS & TORSO OVERLAYS ONLY (2x2 invisible grid, 1:1 canvas): ZERO bent L-shaped arms (elbow bending is animated separately by the articulated elbow rig). ZERO head, ZERO torso behind arms, ZERO props. R1C1 = brazo_trasero_reposo (relaxed straight rear arm hanging vertically down with rounded shoulder sleeve cap at top); R1C2 = brazo_delantero_reposo (relaxed straight front arm hanging vertically down with rounded shoulder sleeve cap at top); R2C1 = manos_cintura (both arms akimbo with hands on hips, strictly torso-wide overlay, ZERO torso behind); R2C2 = brazos_cruzados (arms crossed neatly over chest, strictly torso-wide overlay, ZERO extra protruding shoulders, ZERO torso behind).';
 const REGLA_BRAZOS_CODO_EN = ' CRITICAL ELBOW-ARTICULATED PUPPET ARM RULES: Draw 4 isolated vertical arm segments on a 2x2 grid at the EXACT SAME SCALE so the circular elbow joint diameter W is IDENTICAL in all 4 cells (R1C1 bottom elbow circle width == R1C2 top elbow circle width == R2C1 bottom elbow circle width == R2C2 top elbow circle width). ZERO head, ZERO torso, ZERO hands, ZERO fingers, ZERO pants, ZERO shoes. TOP ROW (FRONT ARM): R1C1 = UPPER ARM ONLY (short rounded shoulder sleeve cap covering upper 60-70% + short fur/skin bicep ending in a smooth semicircular elbow cap of width W); R1C2 = FOREARM ONLY (starts with a smooth semicircular elbow cap of EXACT SAME width W at top, tapering gently down to a clean flat closed wrist cuff at bottom, NO sleeve, NO hand). BOTTOM ROW (REAR ARM): R2C1 = REAR UPPER ARM ONLY (matching R1C1 sleeve + short elbow cap of width W); R2C2 = REAR FOREARM ONLY (matching R1C2 elbow cap of width W down to closed wrist cuff, NO sleeve, NO hand).';
 window.toggleVaciarPupilaFab = function() {
   vaciarPupilaAuto = !vaciarPupilaAuto;
@@ -1443,7 +1467,7 @@ function construirInstruccionesArquitecto(fichaLimpia) {
     '8. id_lienzo:"ojos_frente" (2x2, ref_mode:"ninguna"): 4 isolated STRAIGHT FRONT VIEW eye sets ONLY (100% closed black outlines, empty #FFFFFF sclera, ZERO pupils, ZERO eyebrows, ZERO fur) on #00FF00: ojos_frente_neutro, ojos_frente_feliz, ojos_frente_duda, ojos_frente_indignado (tipo_anclaje:"ojos_frente").',
     '9. id_lienzo:"cejas_frente" (2x2, ref_mode:"ninguna"): 4 isolated STRAIGHT FRONT VIEW eyebrow pairs ONLY (2 solid flat shapes per cell, uniform spacing, ZERO eyes/fur) on #00FF00: cejas_frente_neutro, cejas_frente_enojado, cejas_frente_sorpresa, cejas_frente_duda (tipo_anclaje:"cejas_frente").',
     '10. id_lienzo:"manos_base" (3x3, ref_mode:"ninguna"): 9 isolated character RIGHT HANDS cut cleanly at the wrist matching fur/skin on #00FF00, UNIFORM ORIENTATION (wrist cut at top/top-left, fingers down/right, identical scale, ZERO forearm/sleeve/props): mano_relajada, mano_abierta, mano_senalando, mano_puno, mano_prop, mano_pecho, mano_ok, mano_telefono, mano_paz (tipo_anclaje:"mano").',
-    '11. id_lienzo:"brazos_base" (2x2, ref_mode:"cuerpo"): OPTION A 4 isolated arms matching outfit sleeve color & character fur/hand on #00FF00: C1=brazo_trasero_reposo (relaxed rear arm hanging down with rounded shoulder sleeve cap at top), C2=brazo_delantero_reposo (relaxed front arm hanging straight down with rounded shoulder sleeve cap at top pivot), C3=brazo_delantero_prop (front arm bent in L-shape to hold props with rounded shoulder sleeve cap at top pivot), C4=brazos_cruzados (crossed arms strictly torso-wide, ZERO extra protruding shoulders, ZERO torso behind). All tipo_anclaje:"brazo".',
+    '11. id_lienzo:"brazos_base" (2x2, ref_mode:"cuerpo"): OPTION A STRAIGHT ARMS & TORSO OVERLAYS ONLY (ZERO bent L-shaped prop arms; elbow bending is handled by Lienzo 13) matching sleeve & character fur/hand on #00FF00: C1=brazo_trasero_reposo (straight relaxed rear arm hanging vertically down with rounded shoulder sleeve cap), C2=brazo_delantero_reposo (straight relaxed front arm hanging vertically down with rounded shoulder sleeve cap), C3=manos_cintura (both arms akimbo hands-on-hips strictly torso-wide overlay, ZERO torso behind), C4=brazos_cruzados (crossed arms strictly torso-wide overlay, ZERO extra protruding shoulders, ZERO torso behind). All tipo_anclaje:"brazo".',
     '12. id_lienzo:"accesorios_ropa" (3x3, ref_mode:"ninguna"): 9 isolated flat 2D wearable accessories, alternative outfits or props from survey on #00FF00 (ZERO mannequin, ZERO head, ZERO body, ZERO hands): acc_1..acc_9 (tipo_anclaje:"acc", clear Spanish etiqueta_ui, AND mandatory explicit "zona_anclaje": "ojos|cabeza_top|cuello|torso|mano" on every piece).',
 '13. id_lienzo:"brazos_articulados" (2x2, ref_mode:"cuerpo"): OPTION A ELBOW-ARTICULATED ARM SEGMENTS (4 separate capsule-joint segments, ZERO hands, ZERO fingers, ZERO torso, matching sleeve & fur/skin) on #00FF00. CRITICAL ROUNDED ELBOW CAPSULE RULE: Every elbow end MUST be a smooth circular/semicircular capsule cap (NEVER flat cut) so bending leaves ZERO gap. Straight vertical downward orientation: R1C1=brazo_del_sup (front upper arm: rounded shoulder sleeve cap down to rounded elbow cap), R1C2=brazo_del_ant (front forearm ONLY: rounded elbow cap at top down to clean closed wrist cuff, NO sleeve, NO hand), R2C1=brazo_tras_sup (rear upper arm: rounded shoulder sleeve cap down to rounded elbow cap), R2C2=brazo_tras_ant (rear forearm ONLY: rounded elbow cap at top down to clean closed wrist cuff, NO sleeve, NO hand). All tipo_anclaje:"brazo".',
     'CRITICAL RULES FOR EVERY prompt_imagen_en: Always mandate pure flat #00FF00 chroma green background, ZERO grid lines, ZERO boxes, ZERO text/numbers, crisp outlines matching estilo_visual_en, generous green margin around each cell, and explicit C1..C5 or R1C1..RnCn cell descriptions.',
@@ -1868,7 +1892,8 @@ function armarPromptFinalLienzo(p, lienzo) {
   const esBocaL = id.indexOf('boca') >= 0 || cat === 'bocas';
   const esManoL = id.indexOf('mano') >= 0 || cat === 'manos';
   const esAccL = id.indexOf('acc') >= 0 || cat === 'accesorios';
-    const esCabezaL = id === 'cabezas_360';
+      const esCabezaL = id === 'cabezas_360';
+  const esBrazoBaseL = id === 'brazos_base';
   const esBrazoArtL = id === 'brazos_articulados';
   const estilo = obtenerEstiloVisualBase(p);
   const rasgos = obtenerPaletaRasgosBase(p);
@@ -1887,9 +1912,13 @@ function armarPromptFinalLienzo(p, lienzo) {
   } else if (esManoL) {
     pref = 'STYLE BIBLE: ' + estilo + '. HAND FUR/SKIN: ' + (enc.guantes_manos || rasgos || 'clean cartoon hands') + '. ';
     extra = REGLA_MANOS_LIMPIAS_EN;
-  } else if (esAccL) {
+    } else if (esAccL) {
     pref = 'STYLE BIBLE: ' + estilo + '. ';
     extra = REGLA_ACC_LIMPIOS_EN;
+  } else if (esBrazoBaseL) {
+    pref = 'STYLE BIBLE: ' + estilo + '. SLEEVE: ' + (enc.prenda_superior || 'base shirt sleeve') + '. ARM FUR/SKIN: ' + [enc.tono_piel_pelaje, enc.patron_manchas, enc.guantes_manos].filter(Boolean).join(', ') + '. ';
+    cuerpoPrompt = 'STRICT 2D CUT-OUT PUPPET SHEET (2x2 invisible square grid, 1:1 canvas): 4 isolated arm poses matching sleeve and arm fur/skin above.';
+    extra = REGLA_BRAZOS_BASE_EN;
     } else if (esCabezaL) {
     pref = 'STYLE BIBLE: ' + estilo + '. HEAD TRAITS ONLY: ' + rasgos + '. ';
     extra = ' FLOATING DETACHED HEADS ONLY: ZERO shoulders, ZERO collar, ZERO shirt, ZERO torso, ZERO arms. Smooth featureless blank face (ZERO eyes, ZERO eyebrows, ZERO mouth line) with short rounded neck stub at bottom.';
@@ -2401,7 +2430,7 @@ function obtenerItemsEtapaCascada(p, etapaId) {
     const out = [];
     if (tiene('brazo_del_sup')) out.push({ capa: 'brazo', slot: 'brazo_del_sup', seg: 'brazo_del_sup', nom: 'Brazo Sup Delantero', piv: 'codo_delantero', pivLbl: 'X Codo Del' });
     if (tiene('brazo_tras_sup')) out.push({ capa: 'brazo', slot: 'brazo_tras_sup', seg: 'brazo_tras_sup', nom: 'Brazo Sup Trasero', piv: 'codo_trasero', pivLbl: 'X Codo Tras' });
-    keys.filter(function(k) { return (k.indexOf('brazo_delantero_') === 0 || k === 'brazos_cruzados'); }).forEach(function(k) {
+        keys.filter(function(k) { return (k === 'brazos_cruzados' || k === 'manos_cintura' || (!tiene('brazo_del_sup') && k === 'brazo_delantero_reposo')); }).forEach(function(k) {
       out.push({ capa: 'brazo', slot: k, brazoEntero: true, nom: (pzs[k] && pzs[k].etiqueta) || k, piv: 'hombro_delantero', pivLbl: 'X Hombro' });
     });
     return out.length ? out : [{ capa: 'brazo', slot: 'brazo_del_sup', seg: 'brazo_del_sup', nom: 'Sube Lienzo 13 (Codos)', piv: 'codo_delantero', pivLbl: 'X Codo Del' }];
@@ -2432,8 +2461,8 @@ function aplicarPasoCascadaActual() {
   if (cascItemIdx >= items.length) cascItemIdx = 0;
   if (cascItemIdx < 0) cascItemIdx = Math.max(0, items.length - 1);
   const it = items[cascItemIdx];
-  cascPivoteActivo = '';
-  if (ajGestoModo === 'pivote') ajGestoModo = 'palanca';
+    cascPivoteActivo = '';
+  if (ajGestoModo === 'pivote') ajGestoModo = 'paneo';
   if (it.abrirCal) { window.abrirCalibradorRig(); }
   else {
     if (!ajusteCapaAbierto) window.toggleAjusteCapaFab(true);
@@ -2494,9 +2523,10 @@ window.toggleAsistenteCascada = function(forzar, etapaIdOpcional) {
     }
     aplicarPasoCascadaActual();
   } else {
-    cascPivoteActivo = '';
-    if (ajGestoModo === 'pivote') ajGestoModo = 'palanca';
+        cascPivoteActivo = '';
+    if (ajGestoModo === 'pivote') ajGestoModo = 'paneo';
     renderBarraCascada();
+    aplicarEstadoMenuTopEncuadre();
     guardarBiblioteca(true);
   }
 };
@@ -2535,8 +2565,8 @@ window.toggleFijarXPivoteCascada = function() {
   const items = obtenerItemsEtapaCascada(p, et.id);
   const it = items[cascItemIdx] || items[0];
   if (!it || !it.piv) return;
-  if (ajGestoModo === 'pivote' && cascPivoteActivo === it.piv) {
-    ajGestoModo = 'palanca'; cascPivoteActivo = '';
+    if (ajGestoModo === 'pivote' && cascPivoteActivo === it.piv) {
+    ajGestoModo = 'paneo'; cascPivoteActivo = '';
   } else {
     ajGestoModo = 'pivote'; cascPivoteActivo = it.piv;
     toast('Toca en el personaje el punto exacto para ' + (it.pivLbl || it.piv) + ' (puedes hacer Zoom antes).', 'info', 3600);
@@ -2750,7 +2780,7 @@ function mapearCatAAjuste(catId) {
   if (catId === 'angulo') return 'cabeza';
   return ['cabeza', 'ojos', 'cejas', 'boca', 'brazo', 'mano', 'cuerpo', 'acc'].indexOf(catId) >= 0 ? catId : 'ojos';
 }
-let ajScope = 'pieza', ajBrazoSeg = 'brazo_del_sup', ajGestoModo = 'palanca';
+let ajScope = 'pieza', ajBrazoSeg = 'brazo_del_sup', ajGestoModo = 'paneo', ajCtrlActivo = '', menuTopColapsado = false, ruedasOcultasEncuadre = false;
 let fabZoom = 1, fabPanX = 0, fabPanY = 0;
 
 function obtenerSlotActivoAjusteFab(p) {
@@ -2810,7 +2840,63 @@ window.toggleCalibrarManoTraseraFab = function() {
   }
   refrescarPanelAjusteFab(); dibujarPersonajeOffline();
 };
-window.setGestoAjusteFab = function(m) { ajGestoModo = m || 'palanca'; if (ajGestoModo !== 'pivote') cascPivoteActivo = ''; refrescarPanelAjusteFab(); if (cascadaActiva) renderBarraCascada(); };
+function aplicarEstadoMenuTopEncuadre() {
+  const app = document.getElementById('app'), bar = document.getElementById('bar-encuadre-top');
+  const activo = Boolean(ajusteCapaAbierto || cascadaActiva);
+  if (bar) bar.classList.toggle('hidden', !activo);
+  if (app) app.classList.toggle('encuadre-focus', Boolean(activo && menuTopColapsado));
+  const ico = document.getElementById('ico-menu-top'), txt = document.getElementById('txt-menu-top');
+  if (ico) ico.innerHTML = menuTopColapsado ? '<polyline points="6 9 12 15 18 9"></polyline>' : '<polyline points="18 15 12 9 6 15"></polyline>';
+  if (txt) txt.textContent = menuTopColapsado ? 'Menú' : 'Ocultar';
+  const st = document.getElementById('stage-fab'), bR = document.getElementById('btn-toggle-ruedas-fab');
+  if (st) st.classList.toggle('sin-ruedas', Boolean(activo && ruedasOcultasEncuadre));
+  if (bR) { bR.textContent = ruedasOcultasEncuadre ? 'Ver Ruedas' : 'Sin Ruedas'; bR.className = 'btn btn-xs ' + (ruedasOcultasEncuadre ? 'btn-purple' : ''); }
+}
+window.toggleMenuSuperiorEncuadre = function(forzar) {
+  menuTopColapsado = typeof forzar === 'boolean' ? forzar : !menuTopColapsado;
+  aplicarEstadoMenuTopEncuadre();
+};
+window.toggleRuedasEncuadreFab = function(forzar) {
+  ruedasOcultasEncuadre = typeof forzar === 'boolean' ? forzar : !ruedasOcultasEncuadre;
+  aplicarEstadoMenuTopEncuadre();
+};
+window.salirEncuadreManualFab = function() {
+  if (cascadaActiva) window.toggleAsistenteCascada(false);
+  if (ajusteCapaAbierto) window.toggleAjusteCapaFab(false);
+  menuTopColapsado = false; ruedasOcultasEncuadre = false; ajCtrlActivo = ''; ajGestoModo = 'paneo';
+  aplicarEstadoMenuTopEncuadre();
+};
+window.activarCtrlAjusteFab = function(ctrl) {
+  const c = String(ctrl || '');
+  ajCtrlActivo = (c && ajCtrlActivo === c) ? '' : c;
+  if (ajCtrlActivo === 'rot') { ajGestoModo = 'palanca'; cascPivoteActivo = ''; }
+  else if (ajGestoModo === 'palanca') { ajGestoModo = 'paneo'; }
+  refrescarPanelAjusteFab();
+  if (cascadaActiva) renderBarraCascada();
+};
+window.toggleMoverDedoFab = function() {
+  cascPivoteActivo = '';
+  ajGestoModo = ajGestoModo === 'mover' ? 'paneo' : 'mover';
+  if (ajGestoModo === 'mover' && ajCtrlActivo === 'rot') ajCtrlActivo = '';
+  refrescarPanelAjusteFab();
+  if (cascadaActiva) renderBarraCascada();
+};
+window.alMoverSliderAjusteActivo = function(valStr) {
+  const v = Number(valStr);
+  if (!ajCtrlActivo || !Number.isFinite(v)) return;
+  if (ajCtrlActivo === 'sc') window.editarAjusteCapaFab('sc', Math.max(0.35, Math.min(1.9, v / 100)));
+  else window.editarAjusteCapaFab(ajCtrlActivo, v);
+};
+window.pasoAjusteActivoFab = function(delta) {
+  const p = obtenerPersonajeActual(); if (!p || !ajCtrlActivo) return;
+  const aj = leerAjusteActivoFab(p);
+  if (ajCtrlActivo === 'dx') window.editarAjusteCapaFab('dx', Math.max(-220, Math.min(220, Math.round(aj.dx) + delta)));
+  else if (ajCtrlActivo === 'dy') window.editarAjusteCapaFab('dy', Math.max(-240, Math.min(240, Math.round(aj.dy) + delta)));
+  else if (ajCtrlActivo === 'sc') window.editarAjusteCapaFab('sc', Math.max(0.35, Math.min(1.9, (Math.round(aj.sc * 100) + delta) / 100)));
+  else if (ajCtrlActivo === 'rot') window.editarAjusteCapaFab('rot', Math.max(-180, Math.min(180, Number((Number(aj.rot || 0) + delta).toFixed(1)))));
+  guardarBiblioteca(false);
+};
+window.setGestoAjusteFab = function(m) { ajGestoModo = m || 'paneo'; if (ajGestoModo !== 'pivote') cascPivoteActivo = ''; if (ajGestoModo !== 'palanca' && ajCtrlActivo === 'rot') ajCtrlActivo = ''; refrescarPanelAjusteFab(); if (cascadaActiva) renderBarraCascada(); };
 window.toggleFlipAjusteFab = function() {
   const p = obtenerPersonajeActual(); if (!p) return;
   const cur = leerAjusteActivoFab(p);
@@ -2822,25 +2908,34 @@ function refrescarPanelAjusteFab() {
   if (ajCapaActiva !== 'mano' && ajScope === 'trasera') ajScope = 'pieza';
   const sk = obtenerSlotActivoAjusteFab(p);
   const aj = leerAjusteActivoFab(p);
+  const dxI = Math.round(aj.dx), dyI = Math.round(aj.dy), scI = Math.round(aj.sc * 100), rotV = Number(aj.rot || 0);
   const sel = document.getElementById('sel-aj-capa-fab'); if (sel) sel.value = ajCapaActiva;
   const selSeg = document.getElementById('sel-aj-brz-seg');
   if (selSeg) { selSeg.classList.toggle('hidden', !(ajCapaActiva === 'brazo' && estadoRueda.brazo === 'articulado')); selSeg.value = ajBrazoSeg; }
-  const tit = document.getElementById('aj-fab-tit');
-  if (tit) tit.textContent = ajScope === 'capa' ? ('Categoría: ' + ajCapaActiva.toUpperCase()) : ((ajScope === 'trasera' ? 'Mano Tras: ' : 'Pieza: ') + (sk || ajCapaActiva));
+  const lblF = document.getElementById('lbl-focus-pieza');
+  if (lblF) lblF.textContent = ajScope === 'capa' ? ('Cat: ' + ajCapaActiva.toUpperCase()) : ((ajScope === 'trasera' ? 'Tras: ' : '') + (sk || ajCapaActiva));
   const bScp = document.getElementById('btn-aj-scope');
-  if (bScp) { bScp.textContent = ajScope === 'capa' ? 'Toda Categoría' : (ajScope === 'trasera' ? 'Mano Trasera' : 'Solo esta pieza'); bScp.className = 'btn btn-xs ' + (ajScope === 'capa' ? 'btn-purple' : (ajScope === 'trasera' ? 'btn-primary' : 'btn-blue')); }
+  if (bScp) { bScp.textContent = ajScope === 'capa' ? 'Categoría' : (ajScope === 'trasera' ? 'Mano Tras' : 'Pieza'); bScp.className = 'btn btn-xs ' + (ajScope === 'capa' ? 'btn-purple' : (ajScope === 'trasera' ? 'btn-primary' : 'btn-blue')); }
   const bMt = document.getElementById('btn-aj-mano-tras');
-  if (bMt) { bMt.classList.toggle('hidden', ajCapaActiva !== 'mano'); bMt.className = 'btn btn-xs ' + (ajScope === 'trasera' ? 'btn-primary' : 'btn-blue') + (ajCapaActiva !== 'mano' ? ' hidden' : ''); }
+  if (bMt) { bMt.className = 'btn btn-xs ' + (ajScope === 'trasera' ? 'btn-primary' : 'btn-blue') + (ajCapaActiva !== 'mano' ? ' hidden' : ''); }
   const bFl = document.getElementById('btn-aj-flip');
-  if (bFl) { bFl.textContent = 'Espejo: ' + (aj.flipX ? 'ON' : 'OFF'); bFl.className = 'btn btn-xs ' + (aj.flipX ? 'btn-primary' : 'btn-purple'); }
-  ['palanca', 'mover', 'paneo'].forEach(function(gm) {
-    const bg = document.getElementById('btn-aj-gesto-' + gm);
-    if (bg) bg.className = 'btn btn-xs ' + (ajGestoModo === gm ? 'btn-primary' : '');
-  });
-  const rx = document.getElementById('rng-aj-x'), ry = document.getElementById('rng-aj-y'), rs = document.getElementById('rng-aj-sc'), rr = document.getElementById('rng-aj-rot');
-  if (rx) rx.value = Math.round(aj.dx); if (ry) ry.value = Math.round(aj.dy); if (rs) rs.value = Math.round(aj.sc * 100); if (rr) rr.value = Number(aj.rot || 0).toFixed(1);
-  const vx = document.getElementById('val-aj-x'), vy = document.getElementById('val-aj-y'), vs = document.getElementById('val-aj-sc'), vr = document.getElementById('val-aj-rot');
-  if (vx) vx.textContent = Math.round(aj.dx); if (vy) vy.textContent = Math.round(aj.dy); if (vs) vs.textContent = Math.round(aj.sc * 100) + '%'; if (vr) vr.textContent = Number(aj.rot || 0).toFixed(1) + '°';
+  if (bFl) { bFl.textContent = aj.flipX ? 'Espejo ON' : 'Espejo'; bFl.className = 'btn btn-xs ' + (aj.flipX ? 'btn-primary' : 'btn-purple'); }
+  const bMv = document.getElementById('btn-aj-gesto-mover');
+  if (bMv) { bMv.textContent = ajGestoModo === 'mover' ? 'Mover ON' : 'Mover'; bMv.className = 'btn btn-xs ' + (ajGestoModo === 'mover' ? 'btn-primary' : ''); }
+  const bDx = document.getElementById('btn-aj-ctrl-dx'), bDy = document.getElementById('btn-aj-ctrl-dy'), bSc = document.getElementById('btn-aj-ctrl-sc'), bRt = document.getElementById('btn-aj-ctrl-rot');
+  if (bDx) { bDx.textContent = 'X: ' + dxI; bDx.className = 'btn btn-xs ' + (ajCtrlActivo === 'dx' ? 'btn-primary' : ''); }
+  if (bDy) { bDy.textContent = 'Y: ' + dyI; bDy.className = 'btn btn-xs ' + (ajCtrlActivo === 'dy' ? 'btn-primary' : ''); }
+  if (bSc) { bSc.textContent = scI + '%'; bSc.className = 'btn btn-xs ' + (ajCtrlActivo === 'sc' ? 'btn-primary' : ''); }
+  if (bRt) { bRt.textContent = (ajCtrlActivo === 'rot' ? 'Girar ON ' : 'Girar ') + rotV.toFixed(1) + '°'; bRt.className = 'btn btn-xs ' + (ajCtrlActivo === 'rot' ? 'btn-primary' : ''); }
+  const wrapSl = document.getElementById('aj-slider-activo-wrap'), rng = document.getElementById('rng-aj-activo'), lblSl = document.getElementById('aj-ctrl-lbl'), valSl = document.getElementById('val-aj-activo');
+  if (wrapSl) wrapSl.classList.toggle('hidden', !ajCtrlActivo);
+  if (ajCtrlActivo && rng && lblSl && valSl) {
+    if (ajCtrlActivo === 'dx') { lblSl.textContent = 'Pos X'; rng.min = -220; rng.max = 220; rng.step = 1; rng.value = dxI; valSl.textContent = dxI; }
+    else if (ajCtrlActivo === 'dy') { lblSl.textContent = 'Pos Y'; rng.min = -240; rng.max = 240; rng.step = 1; rng.value = dyI; valSl.textContent = dyI; }
+    else if (ajCtrlActivo === 'sc') { lblSl.textContent = 'Escala'; rng.min = 35; rng.max = 190; rng.step = 1; rng.value = scI; valSl.textContent = scI + '%'; }
+    else if (ajCtrlActivo === 'rot') { lblSl.textContent = 'Girar °'; rng.min = -180; rng.max = 180; rng.step = 0.5; rng.value = rotV.toFixed(1); valSl.textContent = rotV.toFixed(1) + '°'; }
+  }
+  aplicarEstadoMenuTopEncuadre();
   aplicarTransformStageFab();
 }
 (function despejarLayoutRuedaFab() {
@@ -2868,7 +2963,33 @@ function refrescarPanelAjusteFab() {
   const wha = stg.querySelector('.wheel-h-actions');
   if (wha) { Array.from(wha.children).forEach(function(el) { lb.appendChild(el); }); wha.remove(); }
   const pAj = document.getElementById('panel-ajuste-fab'), pVz = document.getElementById('panel-voz-fab');
-  if (pAj) sec.appendChild(pAj);
+    if (pAj) {
+    pAj.style.padding = '6px 8px';
+    pAj.style.gap = '5px';
+    pAj.innerHTML =
+      '<div class="aj-ctrl-bar">' +
+      '<button type="button" class="btn btn-xs" id="btn-aj-ctrl-dx" onclick="window.activarCtrlAjusteFab(\'dx\')">X: 0</button>' +
+      '<button type="button" class="btn btn-xs" id="btn-aj-ctrl-dy" onclick="window.activarCtrlAjusteFab(\'dy\')">Y: 0</button>' +
+      '<button type="button" class="btn btn-xs" id="btn-aj-ctrl-sc" onclick="window.activarCtrlAjusteFab(\'sc\')">100%</button>' +
+      '<button type="button" class="btn btn-xs" id="btn-aj-ctrl-rot" onclick="window.activarCtrlAjusteFab(\'rot\')">Girar 0°</button>' +
+      '<button type="button" class="btn btn-xs" id="btn-aj-gesto-mover" onclick="window.toggleMoverDedoFab()">Mover</button>' +
+      '<button type="button" class="btn btn-xs btn-purple" id="btn-aj-flip" onclick="window.toggleFlipAjusteFab()">Espejo</button>' +
+      '<button type="button" class="btn btn-xs btn-blue hidden" id="btn-aj-mano-tras" onclick="window.toggleCalibrarManoTraseraFab()">Mano Tras</button>' +
+      '<select id="sel-aj-capa-fab" class="sel-top" style="font-size:10px; padding:3px 5px;" onchange="window.selCapaAjusteFab(this.value)"><option value="cabeza">Cabeza</option><option value="ojos">Ojos</option><option value="cejas">Cejas</option><option value="boca">Bocas</option><option value="brazo">Brazos</option><option value="mano">Manos</option><option value="cuerpo">Cuerpo</option><option value="acc">Accesorios</option></select>' +
+      '<select id="sel-aj-brz-seg" class="sel-top hidden" style="font-size:10px; padding:3px 5px;" onchange="window.selSegmentoBrazoAjFab(this.value)"><option value="brazo_del_sup">Del Sup</option><option value="brazo_del_ant">Del Ant</option><option value="brazo_tras_sup">Tras Sup</option><option value="brazo_tras_ant">Tras Ant</option></select>' +
+      '<button type="button" class="btn btn-xs btn-blue" id="btn-aj-scope" onclick="window.ciclarScopeAjusteFab()">Pieza</button>' +
+      '<button type="button" class="btn btn-xs" onclick="window.resetAjusteCapaFab()">0</button>' +
+      '</div>' +
+      '<div id="aj-slider-activo-wrap" class="aj-row hidden">' +
+      '<span id="aj-ctrl-lbl" style="min-width:36px; color:var(--miel);">Pos X</span>' +
+      '<button type="button" class="aj-step-btn" onclick="window.pasoAjusteActivoFab(-1)">-</button>' +
+      '<input type="range" id="rng-aj-activo" min="-220" max="220" step="1" value="0" oninput="window.alMoverSliderAjusteActivo(this.value)">' +
+      '<button type="button" class="aj-step-btn" onclick="window.pasoAjusteActivoFab(1)">+</button>' +
+      '<b id="val-aj-activo">0</b>' +
+      '<button type="button" class="btn btn-xs" onclick="window.activarCtrlAjusteFab(\'\')">X</button>' +
+      '</div>';
+    sec.appendChild(pAj);
+  }
   if (pVz) sec.appendChild(pVz);
 })();
 
@@ -3024,8 +3145,8 @@ window.toggleAjusteCapaFab = function(forzar) {
   const pnl = document.getElementById('panel-ajuste-fab');
   if (pnl) pnl.classList.toggle('hidden', !ajusteCapaAbierto);
   const stF = document.getElementById('stage-fab'); if (stF) stF.style.touchAction = ajusteCapaAbierto ? 'none' : '';
-  if (ajusteCapaAbierto) { ajCapaActiva = mapearCatAAjuste(CATS_RUEDA[catIdxRueda].id); ajScope = 'pieza'; refrescarPanelAjusteFab(); }
-  else { window.resetZoomStageFab(); guardarBiblioteca(true); }
+    if (ajusteCapaAbierto) { ajCapaActiva = mapearCatAAjuste(CATS_RUEDA[catIdxRueda].id); ajScope = 'pieza'; ajCtrlActivo = ''; ajGestoModo = 'paneo'; menuTopColapsado = true; ruedasOcultasEncuadre = true; refrescarPanelAjusteFab(); }
+  else { ajCtrlActivo = ''; ajGestoModo = 'paneo'; if (!cascadaActiva) { menuTopColapsado = false; ruedasOcultasEncuadre = false; } aplicarEstadoMenuTopEncuadre(); window.resetZoomStageFab(); guardarBiblioteca(true); }
 };
 window.selCapaAjusteFab = function(k) { ajCapaActiva = k || 'ojos'; if (ajCapaActiva !== 'mano' && ajScope === 'trasera') ajScope = 'pieza'; refrescarPanelAjusteFab(); };
 window.editarAjusteCapaFab = function(campo, val) {
@@ -3114,8 +3235,8 @@ window.resetAjusteCapaFab = function() {
     if (ajGestoModo === 'pivote' && cascPivoteActivo) {
       const cvEl = document.getElementById('cv-fabrica');
       const pt1000 = pantallaACanvas1000x1600(cvEl, ev.clientX, ev.clientY);
-      fijarPivoteVivoDesdeToque(cascPivoteActivo, pt1000);
-      ajGestoModo = 'palanca'; cascPivoteActivo = '';
+            fijarPivoteVivoDesdeToque(cascPivoteActivo, pt1000);
+      ajGestoModo = 'paneo'; cascPivoteActivo = '';
       renderBarraCascada(); refrescarPanelAjusteFab();
       return;
     }
@@ -3124,10 +3245,12 @@ window.resetAjusteCapaFab = function() {
     } else if (ajGestoModo === 'mover') {
       const cvR = document.getElementById('cv-fabrica').getBoundingClientRect();
       dragAct = { tipo: 'mover', x0: ev.clientX, y0: ev.clientY, dx0: cur.dx, dy0: cur.dy, kx: 1000 / Math.max(40, cvR.width), ky: 1600 / Math.max(60, cvR.height) };
-    } else {
+        } else if (ajGestoModo === 'palanca' && ajCtrlActivo === 'rot') {
       const ax = ev.clientX - stR.left, ay = ev.clientY - stR.top;
       dragAct = { tipo: 'palanca', ax: ax, ay: ay, armed: false, lastTheta: 0, rot: Number(cur.rot || 0) };
       dibujarPalanca({ ax: ax, ay: ay, px: ax, py: ay, r: 0, rot: dragAct.rot, precLbl: 'Arrastra afuera' });
+    } else {
+      dragAct = { tipo: 'paneo', x0: ev.clientX, y0: ev.clientY, px: fabPanX, py: fabPanY };
     }
   });
   st.addEventListener('pointermove', function(ev) {
