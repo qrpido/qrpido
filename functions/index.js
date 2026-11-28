@@ -2782,7 +2782,13 @@ async function llamarProveedorIA(prot, key, baseUrl, mod, acc, p, hostsPermitido
     }
     const body = { contents: Array.isArray(p.contents) ? p.contents : [{ role: 'user', parts: Array.isArray(p.parts) ? p.parts : [{ text: String(p.prompt || '') }] }] };
     if (p.systemInstruction) body.systemInstruction = p.systemInstruction;
-        if (acc === 'imagen') body.generationConfig = Object.assign({ responseModalities: ['IMAGE', 'TEXT'] }, p.generationConfig || {});
+        if (acc === 'imagen') {
+    const gcImg = Object.assign({ responseModalities: ['IMAGE', 'TEXT'] }, p.generationConfig || {});
+    if (p.aspectRatio && !(gcImg.imageConfig && gcImg.imageConfig.aspectRatio)) {
+      gcImg.imageConfig = Object.assign({}, gcImg.imageConfig || {}, { aspectRatio: String(p.aspectRatio) });
+    }
+    body.generationConfig = gcImg;
+  }
     else {
       const gc = Object.assign({}, p.generationConfig || {});
       if (p.responseMimeType && !gc.responseMimeType) gc.responseMimeType = String(p.responseMimeType);
