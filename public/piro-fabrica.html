@@ -284,6 +284,7 @@
         <span id="lbl-focus-pieza" style="font-size:10.5px; font-weight:800; color:var(--miel); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Encuadre</span>
       </div>
       <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+        <button type="button" class="btn btn-xs btn-purple" id="btn-probar-encuadre" onclick="window.toggleProbarEncuadreFab()">Probar</button>
         <button type="button" class="btn btn-xs" id="btn-toggle-ruedas-fab" onclick="window.toggleRuedasEncuadreFab()">Ver Ruedas</button>
         <button type="button" class="btn btn-xs" onclick="window.zoomStageFab(-0.4)">-</button>
         <button type="button" class="btn btn-xs btn-blue" id="btn-zoom-fab-val" onclick="window.resetZoomStageFab()">1.0x</button>
@@ -675,16 +676,30 @@ async function idbLeer(k) {
   });
 }
 
-function claveBorradorEncuesta() { return 'piro_fabrica_draft_' + proyectoActivo.id; }
+function claveSelPerProy() { return 'piro_fabrica_sel_' + proyectoActivo.id; }
+function claveBorradorEncuesta(pid) { return 'piro_fabrica_draft_' + proyectoActivo.id + '_' + (pid || perIdActual || 'tmp'); }
 function guardarBorradorEncuestaLocal() {
-  try { localStorage.setItem(claveBorradorEncuesta(), JSON.stringify({ perId: perIdActual, modo: modoEncuesta, datos: datosEncuesta, ts: Date.now() })); } catch (e) {}
+  try {
+    if (perIdActual) localStorage.setItem(claveSelPerProy(), perIdActual);
+    localStorage.setItem(claveBorradorEncuesta(perIdActual), JSON.stringify({ proyId: proyectoActivo.id, perId: perIdActual, modo: modoEncuesta, datos: datosEncuesta, ts: Date.now() }));
+  } catch (e) {}
   actualizarPresupuestoTokens();
 }
-function cargarBorradorEncuestaLocal() {
+function cargarBorradorEncuestaLocal(pidForzado) {
+  const pid = pidForzado || perIdActual || '';
+  if (!pid) return false;
   try {
-    const raw = localStorage.getItem(claveBorradorEncuesta());
-    if (raw) { const o = JSON.parse(raw); if (o && o.datos) { datosEncuesta = o.datos; if (o.modo) modoEncuesta = o.modo; } }
+    const raw = localStorage.getItem(claveBorradorEncuesta(pid));
+    if (raw) {
+      const o = JSON.parse(raw);
+      if (o && o.datos && (!o.perId || o.perId === pid) && (!o.proyId || o.proyId === proyectoActivo.id)) {
+        datosEncuesta = Object.assign({}, o.datos);
+        if (o.modo) modoEncuesta = o.modo;
+        return true;
+      }
+    }
   } catch (e) {}
+  return false;
 }
 
 function leerPrefsVault() {
@@ -728,12 +743,25 @@ async function cargarBiblioteca() {
   }
   if (seq !== loadSeqFab || proyectoActivo.id !== targetProyId) return;
   if (!Array.isArray(biblioteca.personajes)) biblioteca.personajes = [];
+    let savedPid = '';
+  try { savedPid = localStorage.getItem(claveSelPerProy()) || ''; } catch (e) {}
+  if (!perIdActual && savedPid && biblioteca.personajes.some(function(x) { return x.id === savedPid; })) {
+    perIdActual = savedPid;
+  }
   if (!perIdActual || !biblioteca.personajes.some(function(p) { return p.id === perIdActual; })) {
     perIdActual = biblioteca.personajes[0] ? biblioteca.personajes[0].id : '';
   }
+  if (perIdActual) { try { localStorage.setItem(claveSelPerProy(), perIdActual); } catch (e) {} }
   renderSelectorPersonajes();
   const p = obtenerPersonajeActual();
-  if (p && p.encuesta_v2 && Object.keys(datosEncuesta).length === 0) datosEncuesta = Object.assign({}, p.encuesta_v2);
+  datosEncuesta = {};
+  fotoRefDataUrl = '';
+  actualizarBadgeFoto();
+  const cargoDraft = cargarBorradorEncuestaLocal(perIdActual);
+  if (!cargoDraft && p) {
+    if (p.encuesta_v2 && Object.keys(p.encuesta_v2).length > 0) datosEncuesta = Object.assign({}, p.encuesta_v2);
+    else datosEncuesta = { nombre_personaje: p.nombre || '', subespecie_raza: p.raza || '', contextura: p.contextura || '', patron_manchas: p.pelaje || '', prenda_superior: p.vestuario || '', pose_iconica: p.pose || '', personalidad_3_rasgos: p.personalidad || '' };
+  }
   renderEncuesta();
   await hidratarCacheOfflinePersonaje(p);
   if (seq !== loadSeqFab || proyectoActivo.id !== targetProyId) return;
@@ -793,11 +821,21 @@ async function hidratarCacheOfflinePersonaje(p) {
   const pzs = p.piezas || {};
   const keys = Object.keys(pzs);
   const tmpCache = {};
-  for (let i = 0; i < keys.length; i++) {
+    for (let i = 0; i < keys.length; i++) {
     const k = keys[i];
     const loc = await idbLeer('pz_' + targetProyId + '_' + targetPerId + '_' + k);
     if (hSeq !== hidrSeqFab || proyectoActivo.id !== targetProyId || perIdActual !== targetPerId) return;
-    if (loc) tmpCache[k] = loc;
+    if (!loc) continue;
+    const pzObj = pzs[k] || {};
+    const pzRev = Number(pzObj.assetRevision || pzObj.updatedAt || 0);
+    const urlRem = typeof pzObj.url === 'string' ? pzObj.url.trim() : '';
+    if (typeof loc === 'string') {
+      if (!urlRem || pzObj.soloLocal || !pzRev) tmpCache[k] = loc;
+    } else if (loc && typeof loc === 'object' && loc.dataUrl) {
+      const locRev = Number(loc.rev || 0);
+      const mismaUrl = Boolean(loc.url && urlRem && loc.url === urlRem);
+      if (!urlRem || pzObj.soloLocal || mismaUrl || (locRev > 0 && (!pzRev || locRev >= pzRev))) tmpCache[k] = loc.dataUrl;
+    }
   }
   cacheLocalUrls = tmpCache;
 }
@@ -815,10 +853,15 @@ function renderSelectorPersonajes() {
 window.seleccionarPersonajeFab = async function(id) {
   if (playLiveOn) window.detenerPlayDemoFab();
   playLiveCacheKey = '';
+    if (probarEncOn) window.detenerProbarEncuadreFab();
   perIdActual = id;
+  try { if (perIdActual) localStorage.setItem(claveSelPerProy(), perIdActual); } catch (e) {}
   const p = obtenerPersonajeActual();
-  if (p && p.encuesta_v2) datosEncuesta = Object.assign({}, p.encuesta_v2);
-  else if (p) datosEncuesta = { nombre_personaje: p.nombre || '', subespecie_raza: p.raza || '', contextura: p.contextura || '', patron_manchas: p.pelaje || '', prenda_superior: p.vestuario || '', pose_iconica: p.pose || '', personalidad_3_rasgos: p.personalidad || '' };
+  datosEncuesta = {};
+  if (!cargarBorradorEncuestaLocal(perIdActual)) {
+    if (p && p.encuesta_v2 && Object.keys(p.encuesta_v2).length > 0) datosEncuesta = Object.assign({}, p.encuesta_v2);
+    else if (p) datosEncuesta = { nombre_personaje: p.nombre || '', subespecie_raza: p.raza || '', contextura: p.contextura || '', patron_manchas: p.pelaje || '', prenda_superior: p.vestuario || '', pose_iconica: p.pose || '', personalidad_3_rasgos: p.personalidad || '' };
+  }
   fotoRefDataUrl = '';
   actualizarBadgeFoto();
   guardarBorradorEncuestaLocal();
@@ -837,10 +880,12 @@ window.nuevoPersonajeFab = function() {
     piezas: {}, variantes: [], encuesta_v2: {}, blueprint_v2: null
   };
   biblioteca.personajes.push(nuevo);
+    if (probarEncOn) window.detenerProbarEncuadreFab();
   perIdActual = nuevo.id;
   datosEncuesta = { nombre_personaje: nuevo.nombre };
   fotoRefDataUrl = '';
   actualizarBadgeFoto();
+  guardarBorradorEncuestaLocal();
   renderSelectorPersonajes();
   renderEncuesta();
   guardarBiblioteca(true);
@@ -850,6 +895,7 @@ window.nuevoPersonajeFab = function() {
 
 window.setVistaFab = function(v) {
   if (playLiveOn) window.detenerPlayDemoFab();
+  if (probarEncOn) window.detenerProbarEncuadreFab();
   vistaActual = (v === 'rueda' || v === 'amb') ? v : 'encuesta';
   document.getElementById('vista-encuesta').classList.toggle('hidden', vistaActual !== 'encuesta');
   document.getElementById('vista-rueda').classList.toggle('hidden', vistaActual !== 'rueda');
@@ -1085,7 +1131,7 @@ window.convertirOjosActualesAPupilaDinamica = async function() {
       if (!escl.length) continue;
       const dUrl = cv.toDataURL('image/png');
       cacheLocalUrls[sk] = dUrl;
-      await idbGuardar('pz_' + proyectoActivo.id + '_' + p.id + '_' + sk, dUrl);
+      // idb revisionado al guardar pieza abajo
       let urlNube = p.piezas[sk].url || dUrl;
       if (GeokatuDB.PirobonianosService && navigator.onLine) {
         try {
@@ -1094,7 +1140,9 @@ window.convertirOjosActualesAPupilaDinamica = async function() {
           if (up && up.success && up.url) urlNube = up.url;
         } catch (eU) {}
       }
-      p.piezas[sk] = Object.assign({}, p.piezas[sk], { url: urlNube, pupila_dinamica: true, escleroticas: escl, updatedAt: Date.now() });
+            const revOjo = Date.now();
+      await idbGuardar('pz_' + proyectoActivo.id + '_' + p.id + '_' + sk, { dataUrl: dUrl, rev: revOjo, url: urlNube });
+      p.piezas[sk] = Object.assign({}, p.piezas[sk], { url: urlNube, pupila_dinamica: true, escleroticas: escl, updatedAt: revOjo, assetRevision: revOjo });
       okN++;
     }
     await guardarBiblioteca(true);
@@ -2008,8 +2056,8 @@ async function procesarYRecortarImagenLienzo(p, lienzo, imgSrc) {
     const cvCanon = anclarRecorteEn1000x1600(cvC, bb, cajaDst);
     const dataUrlLoc = cvCanon.toDataURL('image/png');
     const sk = slug(sp.slot_key, 'pz_' + idx);
+        const revNow = Date.now();
     cacheLocalUrls[sk] = dataUrlLoc;
-    await idbGuardar('pz_' + proyectoActivo.id + '_' + p.id + '_' + sk, dataUrlLoc);
     let urlNube = dataUrlLoc;
     if (GeokatuDB.PirobonianosService && navigator.onLine) {
       try {
@@ -2018,8 +2066,14 @@ async function procesarYRecortarImagenLienzo(p, lienzo, imgSrc) {
         if (up && up.success && up.url) urlNube = up.url;
       } catch (eUp) {}
     }
+    await idbGuardar('pz_' + proyectoActivo.id + '_' + p.id + '_' + sk, { dataUrl: dataUrlLoc, rev: revNow, url: urlNube });
     if (!p.piezas) p.piezas = {};
-    p.piezas[sk] = Object.assign({ url: urlNube, etiqueta: sp.etiqueta_ui || sk, updatedAt: Date.now() }, sp.zona_anclaje ? { zona_anclaje: sp.zona_anclaje } : {});
+    const prevPz = (p.piezas[sk] && typeof p.piezas[sk] === 'object') ? p.piezas[sk] : {};
+    const nuevaPz = Object.assign({}, prevPz, { url: urlNube, etiqueta: sp.etiqueta_ui || prevPz.etiqueta || sk, updatedAt: revNow, assetRevision: revNow, soloLocal: urlNube.indexOf('data:') === 0 });
+    if (sp.zona_anclaje) nuevaPz.zona_anclaje = sp.zona_anclaje;
+    if (cvCanon._codoW) nuevaPz.codo_w_px = cvCanon._codoW;
+    delete nuevaPz.escleroticas; delete nuevaPz.pupila_dinamica;
+    p.piezas[sk] = nuevaPz;
     guardadas++;
   }
   await guardarBiblioteca(true);
@@ -2136,7 +2190,7 @@ function obtenerItemsCategoriaRueda(p, catId) {
     const base = keys.filter(function(k) {
       if (k.indexOf('ojos_') !== 0) return false;
       if (persp === 'frente') return k.indexOf('ojos_frente_') === 0;
-      if (persp === 'perfil') return k.indexOf('ojos_perfil_') === 0;
+            if (persp === 'perfil') return keys.some(function(x) { return x.indexOf('ojos_perfil_') === 0; }) ? (k.indexOf('ojos_perfil_') === 0) : (k.indexOf('ojos_frente_') !== 0 && k.indexOf('ojos_perfil_') !== 0);
       return k.indexOf('ojos_frente_') !== 0 && k.indexOf('ojos_perfil_') !== 0;
     });
     lista = (base.length ? base : ['ojos_neutro', 'ojos_feliz', 'ojos_triste', 'ojos_enojado']).map(function(k) {
@@ -2622,12 +2676,34 @@ window.setVistaCalRig = async function(v) {
   renderCalibradorRig();
 };
 
+function evaluarEstadoCalibracionRig(moldes, pivotes) {
+  const m = (moldes && moldes.cabeza_base) || {};
+  const zs = m.zonas || {};
+  const pvs = pivotes || {};
+  const faltan = [];
+  [['cuerpo', 'Cuerpo'], ['cabeza', 'Cabeza'], ['ojos', 'Ojos'], ['boca', 'Boca']].forEach(function(par) {
+    const c = zs[par[0]] && zs[par[0]].caja;
+    if (!c || Number(c.w) < 10 || Number(c.h) < 8) faltan.push(par[1]);
+  });
+  const tieneCuello = Boolean((m.cuello && Number.isFinite(Number(m.cuello.x))) || (Array.isArray(pvs.cuello) && pvs.cuello.length >= 2));
+  if (!tieneCuello) faltan.push('X Cuello');
+  [['hombro_delantero', 'X Hombro Del'], ['codo_delantero', 'X Codo Del'], ['mano_delantera', 'X Mano'], ['hombro_trasero', 'X Hombro Tras'], ['codo_trasero', 'X Codo Tras']].forEach(function(par) {
+    const pt = pvs[par[0]];
+    if (!Array.isArray(pt) || pt.length < 2 || !Number.isFinite(Number(pt[0]))) faltan.push(par[1]);
+  });
+  const total = 10, hechos = total - faltan.length;
+  const completo = faltan.length === 0;
+  const resumen = completo ? ('Calibración completa (' + total + '/' + total + ')') : ('Parcial ' + hechos + '/' + total + ' · Faltan: ' + faltan.slice(0, 4).join(', ') + (faltan.length > 4 ? '...' : ''));
+  return { completo: completo, parcial: hechos > 0 && !completo, hechos: hechos, total: total, faltan: faltan, resumen: resumen };
+}
+
 function renderCalibradorRig() {
   const pasos = pasosCalActuales(), mk = mkCalActual();
   const mObj = calDatos.moldes[mk] || { angulo: calVista, zonas: {}, calibrado: true };
   const pAct = pasos[calPasoIdx] || pasos[0];
   const ay = document.getElementById('cal-ayuda-txt');
-  if (ay && pAct) ay.textContent = (calPasoIdx + 1) + '/' + pasos.length + ' · ' + pAct.nom + ': ' + pAct.tip;
+    const estC = evaluarEstadoCalibracionRig(calDatos.moldes, calDatos.pivotes);
+  if (ay && pAct) ay.textContent = (calPasoIdx + 1) + '/' + pasos.length + ' · ' + pAct.nom + ' (' + estC.resumen + ')';
   const boxC = document.getElementById('cal-chips-pasos');
   if (boxC) {
     boxC.innerHTML = pasos.map(function(ps, i) {
@@ -2768,11 +2844,13 @@ window.toggleModoPanCalRig = function() { calModoPan = !calModoPan; aplicarTrans
 
 window.guardarCalibracionRig = async function() {
   const p = obtenerPersonajeActual(); if (!p) return;
+    const estG = evaluarEstadoCalibracionRig(calDatos.moldes, calDatos.pivotes);
+  if (calDatos.moldes.cabeza_base) { calDatos.moldes.cabeza_base.calibrado = estG.completo; calDatos.moldes.cabeza_base.calibrado_parcial = estG.parcial; calDatos.moldes.cabeza_base.calibracion_resumen = estG.resumen; }
   const out = Object.assign({}, calDatos.pivotes, { _moldes: calDatos.moldes, _moldes_ts: Date.now() });
   p.pivotes_json = JSON.stringify(out, null, 2);
   await guardarBiblioteca(true);
   window.cerrarModalFab('modal-calibrar-rig');
-  toast('Calibración maestra guardada. Los próximos lienzos se anclarán al milímetro.', 'exito', 4200);
+  toast('Guardado · ' + estG.resumen, estG.completo ? 'exito' : 'info', 4600);
   renderConsolaRueda();
 };
 
@@ -2860,7 +2938,61 @@ window.toggleRuedasEncuadreFab = function(forzar) {
   ruedasOcultasEncuadre = typeof forzar === 'boolean' ? forzar : !ruedasOcultasEncuadre;
   aplicarEstadoMenuTopEncuadre();
 };
+let probarEncOn = false, probarEncRaf = null, probarEncT0 = 0, probarEncStateBackup = null;
+window.detenerProbarEncuadreFab = function() {
+  if (!probarEncOn) return;
+  probarEncOn = false;
+  if (probarEncRaf) { cancelAnimationFrame(probarEncRaf); probarEncRaf = null; }
+  if (probarEncStateBackup) {
+    estadoRueda.ojos = probarEncStateBackup.ojos;
+    estadoRueda.cejas = probarEncStateBackup.cejas;
+    estadoRueda.boca = probarEncStateBackup.boca;
+    probarEncStateBackup = null;
+  }
+  const bp = document.getElementById('btn-probar-encuadre');
+  if (bp) { bp.textContent = 'Probar'; bp.className = 'btn btn-xs btn-purple'; }
+  dibujarPersonajeOffline();
+};
+window.toggleProbarEncuadreFab = function() {
+  if (probarEncOn) { window.detenerProbarEncuadreFab(); return; }
+  const p = obtenerPersonajeActual(); if (!p) return;
+  if (playLiveOn) window.detenerPlayDemoFab();
+  probarEncOn = true;
+  probarEncT0 = performance.now();
+  probarEncStateBackup = { ojos: estadoRueda.ojos, cejas: estadoRueda.cejas, boca: estadoRueda.boca };
+  const bp = document.getElementById('btn-probar-encuadre');
+  if (bp) { bp.textContent = 'Stop'; bp.className = 'btn btn-xs btn-danger'; }
+  const capa = ajCapaActiva;
+  const esTras = (capa === 'brazo' && String(ajBrazoSeg).indexOf('tras') >= 0) || (capa === 'mano' && ajScope === 'trasera');
+  const cicloItems = (capa === 'ojos' || capa === 'cejas' || capa === 'boca') ? obtenerItemsCategoriaRueda(p, capa).filter(function(x) { return x.ok && x.key; }).slice(0, 3) : [];
+  const tickProbar = function(now) {
+    if (!probarEncOn) return;
+    const t = (now - probarEncT0) / 1000;
+    const an = { rotCab: 0, rotBrazo: 0, rotAntebrazo: 0, rotMano: 0, rotBrazoTras: 0, rotAntebrazoTras: 0, scaleX: 1, scaleY: 1, offsetY: 0, cejasOffsetY: 0 };
+    let bocaTest = estadoRueda.boca;
+    if (capa === 'brazo' || capa === 'mano') {
+      const cyc = (t % 3.6) / 3.6;
+      const ang = cyc < 0.25 ? (cyc / 0.25) * 45 : (cyc < 0.55 ? 45 + ((cyc - 0.25) / 0.30) * 45 : (cyc < 0.85 ? 90 - ((cyc - 0.55) / 0.30) * 90 : 0));
+      if (esTras) { an.rotBrazoTras = -ang * 0.28; an.rotAntebrazoTras = -ang; }
+      else { an.rotBrazo = -ang * 0.25; an.rotAntebrazo = -ang; an.rotMano = Math.sin(t * 5) * (capa === 'mano' ? 18 : 6); }
+    } else if ((capa === 'ojos' || capa === 'cejas' || capa === 'boca') && cicloItems.length >= 2) {
+      const idxC = Math.floor(t / 0.85) % cicloItems.length;
+      const kC = cicloItems[idxC].key;
+      if (capa === 'ojos') estadoRueda.ojos = kC;
+      else if (capa === 'cejas') estadoRueda.cejas = kC;
+      else if (capa === 'boca') bocaTest = kC;
+    } else {
+      an.rotCab = Math.sin(t * 2.4) * 12;
+      an.scaleY = 1 + Math.sin(t * 2.4) * 0.015;
+    }
+    dibujarPersonajeOffline({ anim: an, boca: bocaTest, tSeg: t });
+    probarEncRaf = requestAnimationFrame(tickProbar);
+  };
+  probarEncRaf = requestAnimationFrame(tickProbar);
+};
+
 window.salirEncuadreManualFab = function() {
+  if (probarEncOn) window.detenerProbarEncuadreFab();
   if (cascadaActiva) window.toggleAsistenteCascada(false);
   if (ajusteCapaAbierto) window.toggleAjusteCapaFab(false);
   menuTopColapsado = false; ruedasOcultasEncuadre = false; ajCtrlActivo = ''; ajGestoModo = 'paneo';
@@ -3064,8 +3196,11 @@ function aplicarObjetoVisionCalibracion(obj, targetDatos, vistaDef) {
   if (!dObj.moldes[mk].zonas) dObj.moldes[mk].zonas = {};
   Object.assign(dObj.moldes[mk].zonas, zonasVal);
   if (cuelloVal) dObj.moldes[mk].cuello = cuelloVal;
-  Object.assign(dObj.pivotes, pivVal);
-  dObj.moldes[mk].calibrado = true;
+    Object.assign(dObj.pivotes, pivVal);
+  const estV = evaluarEstadoCalibracionRig(dObj.moldes, dObj.pivotes);
+  dObj.moldes[mk].calibrado = (mk === 'cabeza_base') ? estV.completo : Boolean(Object.keys(dObj.moldes[mk].zonas || {}).length >= 2);
+  dObj.moldes[mk].calibrado_parcial = estV.parcial;
+  dObj.moldes[mk].calibracion_resumen = estV.resumen;
   if (!targetDatos) renderCalibradorRig();
   return nOk;
 }
@@ -3727,10 +3862,10 @@ window.addEventListener('message', function(e) {
       proyectoActivo = Object.assign({}, proyectoActivo, e.data.proyecto);
       proyectoActivo.docBibId = normalizarDocBibIdFab(proyectoActivo.docBibId, proyectoActivo.id);
     }
-    cargarBorradorEncuestaLocal();
-    cargarBiblioteca();
-  } else if (e.data.tipo === 'PIRO_SHELL_PAUSAR') {
+        cargarBiblioteca();
+    } else if (e.data.tipo === 'PIRO_SHELL_PAUSAR') {
     if (playLiveOn) window.detenerPlayDemoFab();
+    if (probarEncOn) window.detenerProbarEncuadreFab();
     if (ambPlayOn) window.togglePlayAmb25D();
   } else if (e.data.tipo === 'PIRO_BIBLIOTECA_ACTUALIZADA') {
     if (e.data.proyectoId && e.data.proyectoId !== proyectoActivo.id) return;
@@ -3740,7 +3875,6 @@ window.addEventListener('message', function(e) {
 });
 
 try { const rp = localStorage.getItem('piro_proyecto_activo_v1'); if (rp) proyectoActivo = JSON.parse(rp); } catch (e) {}
-cargarBorradorEncuestaLocal();
 renderEncuesta();
 cargarBiblioteca();
 </script>
