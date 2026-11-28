@@ -457,7 +457,7 @@
 
 <script type="module">
 import GeokatuDB from './core-db.js';
-import { componerEscenaPiro, precargarRecursosEpisodioPiro, evaluarEpisodioEnTiempoPiro, normalizarActoresEscena, resolverCapacidadesRigPiro, CUERPOS_ANGULO_STD_PIRO, extraerEnvolventeAudio, obtenerBocaDesdeEnvolvente, construirVisemasDesdeMarcasPiro, obtenerBocaLipSyncPiro, limpiarBloqueosCorsPiro, obtenerBloqueosCorsPiro, ACTUACIONES_PIRO, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO, limpiarCacheCompositor } from './piro-compositor.js';
+import { componerEscenaPiro, precargarRecursosEpisodioPiro, evaluarEpisodioEnTiempoPiro, normalizarActoresEscena, resolverCapacidadesRigPiro, CUERPOS_ANGULO_STD_PIRO, extraerEnvolventeAudio, obtenerBocaDesdeEnvolvente, construirVisemasDesdeMarcasPiro, obtenerBocaLipSyncPiro, limpiarBloqueosCorsPiro, obtenerBloqueosCorsPiro, ACTUACIONES_PIRO, INTERACCIONES_PIRO, MIRADAS_PIRO, ANGULOS_360_PIRO, CEJAS_PIRO, limpiarCacheCompositor } from './piro-compositor.js';
 
 const CLAVE_PROY_ACTIVO = 'piro_proyecto_activo_v1';
 const CLAVE_PREFS_IA_ED = 'piro_ia_cloud_prefs_v2';
@@ -803,7 +803,7 @@ window.crearPackPruebasRig10s = function(personajeIdOpcional) {
         id: 'sc_test_' + Date.now() + '_' + idx, actor: pid, escenario: escId, zona: zId, posicion: 'centro',
         ojos: pl.ojos, mirada: pl.mir || 'camara', camara: pl.cam || 'centro', modo: 'rig', prop: '', sfx: '', duracion: pl.dur, texto: pl.txt,
         actuacion: pl.act, vida_auto: true, eventos_actuacion: pl.evs || [],
-        actores: [{ id: pid, posicion: 'centro', cabeza: pl.cab, cuerpo: 'cuerpo_base', ojos: pl.ojos, mirada: pl.mir || 'camara', boca: 'boca_cerrada', brazo: 'brazo_delantero_reposo', mano: '', actuacion: pl.act, rotCab: 0, rotBrazo: 0, prop: '', escala: 1 }],
+        actores: [{ id: pid, posicion: 'centro', cabeza: pl.cab, cuerpo: 'cuerpo_base', ojos: pl.ojos, mirada: pl.mir || 'camara', boca: 'boca_cerrada', brazo: 'auto', brazoTras: 'auto', mano: '', actuacion: pl.act, rotCab: 0, rotBrazo: 0, prop: '', escala: 1 }],
         prompt_plano: pl.tit, audio_url: '', plano_url: ''
       };
     })
@@ -839,8 +839,8 @@ window.crearEscenaCinematografica2Actores = function(personajeIdOpcional) {
         posicion: cl.hab === p1.id ? 'izq' : 'der', ojos: cl.hab === p1.id ? cl.a1.ojos : cl.a2.ojos,
         camara: cl.cam, modo: 'rig', prop: '', sfx: '', duracion: cl.dur, texto: cl.txt, vida_auto: true, eventos_actuacion: [],
         actores: [
-          { id: p1.id, posicion: 'izq', cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', angulo: '3_4_der', ojos: cl.a1.ojos, cejas: cl.a1.cejas, mirada: cl.a1.mir, boca: 'boca_cerrada', brazo: 'brazo_delantero_reposo', mano: cl.a1.mano || '', actuacion: cl.a1.act, rotCab: 0, rotBrazo: 0, prop: '', acc: '', escala: 1 },
-          { id: p2.id, posicion: 'der', cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', angulo: '3_4_izq', ojos: cl.a2.ojos, cejas: cl.a2.cejas, mirada: cl.a2.mir, boca: 'boca_cerrada', brazo: 'brazo_delantero_reposo', mano: cl.a2.mano || '', actuacion: cl.a2.act, rotCab: 0, rotBrazo: 0, prop: '', acc: '', escala: 1 }
+          { id: p1.id, posicion: 'izq', cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', angulo: '3_4_der', ojos: cl.a1.ojos, cejas: cl.a1.cejas, mirada: cl.a1.mir, boca: 'boca_cerrada', brazo: 'auto', brazoTras: 'auto', mano: cl.a1.mano || '', actuacion: cl.a1.act, rotCab: 0, rotBrazo: 0, prop: '', acc: '', escala: 1 },
+          { id: p2.id, posicion: 'der', cabeza: 'cabeza_base', cuerpo: 'cuerpo_base', angulo: '3_4_izq', ojos: cl.a2.ojos, cejas: cl.a2.cejas, mirada: cl.a2.mir, boca: 'boca_cerrada', brazo: 'auto', brazoTras: 'auto', mano: cl.a2.mano || '', actuacion: cl.a2.act, rotCab: 0, rotBrazo: 0, prop: '', acc: '', escala: 1 }
         ],
         prompt_plano: 'Escena 2 Actores #' + (idx + 1), audio_url: '', plano_url: ''
       };
@@ -1102,7 +1102,7 @@ window.generarGuionConAPI = async function() {
       : 'Eres guionista experto en comedia corta colombiana (estilo South Park / BoJack Horseman). Responde ÚNICAMENTE con un array JSON válido sin markdown.';
     const usr = (esBilingue
       ? ('Adapta este texto fuente de "' + proyectoActivo.nombre + '" en un episodio ' + fmtTxt + ' de 8 escenas (Tensión ' + (g.tension || 8) + '/10, ' + planVeo.cat + ').\nREGLA VEO: índices [' + planVeo.indices.join(', ') + '] (base 1) llevan "render_mode":"VEO_ANIMATED","modo":"plano". Las demás "STATIC_COMIC".\nClaves exactas: {"actor":"NARRADOR","escenario":"' + (g.escenario_id || 'esc_001') + '","zona":"' + (g.zona_id || 'zona_01') + '","posicion":"centro","ojos":"neutro|enojado|duda|indignado","camara":"centro|zoom_actor|plano_general","modo":"plano","render_mode":"STATIC_COMIC|VEO_ANIMATED","prop":"","sfx":"","duracion":5.5,"texto":"diálogo ES","texto_en":"English dialogue","prompt_plano":"base static ' + asp + ' frame prompt in English","veo_bridge_prompt":"5-6s Veo animation or slow_zoom_in"}\n\nETIQUETAS:\nPersonajes:\n' + actoresTxt + '\nEscenarios:\n' + escTxt + '\nProps: ' + (propsTxt || 'ninguno') + '\nSFX: ' + (sfxTxt || 'ninguno') + '\n\nTEXTO FUENTE:\n' + g.anecdota.slice(0, 12000))
-      : ('Convierte esta anécdota en un guion dinámico ' + fmtTxt + ' de ~' + duracionObjetivoSeg + 's (7 a 12 líneas cortas, gancho fuerte y remate).\nClaves exactas: {"actor":"per_001","escenario":"' + (g.escenario_id || 'esc_001') + '","zona":"' + (g.zona_id || 'zona_01') + '","posicion":"izq|centro|der","ojos":"neutro|feliz|enojado|triste|duda|indignado","cejas":"neutro|enojado|triste|duda_izq|duda_der|sorpresa|sarcasmo","angulo":"3_4_der|frente|perfil_der|espalda_3_4_der|espalda|3_4_izq","mirada":"interlocutor|frente|arriba_frustracion|abajo_culpa|evadir_izq|evadir_der|arriba_pensar|camara|shock|ternura","camara":"centro|izq|der|zoom_actor|plano_general|paneo_der|paneo_izq|zoom_in|zoom_out","modo":"rig","prop":"","sfx":"","duracion":3.5,"texto":"diálogo colombiano","prompt_plano":"breve descripción ' + asp + ' en inglés"}\n\nETIQUETAS:\nPersonajes:\n' + actoresTxt + '\nEscenarios:\n' + escTxt + '\nProps: ' + (propsTxt || 'ninguno') + '\nSFX: ' + (sfxTxt || 'ninguno') + '\n\nANÉCDOTA:\n' + g.anecdota)) + bloqueReglas;
+      : ('Convierte esta anécdota en un guion dinámico ' + fmtTxt + ' de ~' + duracionObjetivoSeg + 's (7 a 12 líneas cortas, gancho fuerte y remate).\nREGLA DE INTERACCIONES Y MOVIMIENTO: Si hay 2 personajes presentes incluye "actores":[{"id":"per_001","posicion":"izq","ojos":"...","actuacion":"...","brazo":"auto"},{"id":"per_002","posicion":"der","ojos":"...","actuacion":"...","brazo":"auto"}]. Usa "actuacion": ninguna|saludar|cantar_feliz|llorar_triste|rabieta_enojado|reir|sorprenderse|pensar|senalar|asentir|negar. Si hay contacto fisico de pareja usa "interaccion": ninguna|saludo_beso_abrazo|abrazo_fuerte|empujon_comico|esquina_romance (con 2 actores en modo rig). Para planos comicos muy cerrados o poses especiales totalmente vestidos usa "modo":"plano" y redacta "prompt_plano" en ingles estilo 2D sitcom adulta con ropa.\nClaves exactas: {"actor":"per_001","hablante":"per_001","actores":[],"interaccion":"ninguna","actuacion":"ninguna","escenario":"' + (g.escenario_id || 'esc_001') + '","zona":"' + (g.zona_id || 'zona_01') + '","posicion":"izq|centro|der","ojos":"neutro|feliz|enojado|triste|duda|indignado","cejas":"neutro|enojado|triste|duda_izq|duda_der|sorpresa|sarcasmo","angulo":"3_4_der|frente|perfil_der|espalda_3_4_der|espalda|3_4_izq","mirada":"interlocutor|frente|arriba_frustracion|abajo_culpa|evadir_izq|evadir_der|arriba_pensar|camara|shock|ternura","camara":"centro|izq|der|zoom_actor|plano_general|paneo_der|paneo_izq|zoom_in|zoom_out","modo":"rig","prop":"","sfx":"","duracion":3.5,"texto":"diálogo colombiano","prompt_plano":"breve descripción ' + asp + ' en inglés"}\n\nETIQUETAS:\nPersonajes:\n' + actoresTxt + '\nEscenarios:\n' + escTxt + '\nProps: ' + (propsTxt || 'ninguno') + '\nSFX: ' + (sfxTxt || 'ninguno') + '\n\nANÉCDOTA:\n' + g.anecdota)) + bloqueReglas;
 
     const raw = await llamarLLM(sys, usr);
     let arr = extraerArrayJsonLLM(raw);
@@ -1135,7 +1135,7 @@ window.generarGuionConAPI = async function() {
         hablante: it.hablante !== undefined ? String(it.hablante) : String(it.actor || (rep[0] ? rep[0].id : 'per_001')),
         escenario: String(it.escenario || gDest.escenario_id || 'esc_001'), zona: String(it.zona || gDest.zona_id || 'zona_01'),
         posicion: String(it.posicion || (idx % 2 === 0 ? 'izq' : 'der')), ojos: String(it.ojos || 'neutro'), cejas: String(it.cejas || ''), angulo: String(it.angulo || ''), mirada: String(it.mirada || 'interlocutor'),
-        actuacion: actValid, camara: String(it.camara || 'centro'), modo: String(it.modo || 'rig'), prop: String(it.prop || ''), sfx: String(it.sfx || ''),
+        actuacion: actValid, interaccion: (it.interaccion && INTERACCIONES_PIRO[it.interaccion]) ? String(it.interaccion) : 'ninguna', camara: String(it.camara || 'centro'), modo: String(it.modo || 'rig'), prop: String(it.prop || ''), sfx: String(it.sfx || ''),
         duracion: durEst, texto: String(it.texto || ''), texto_en: String(it.texto_en || ''),
         render_mode: String(it.render_mode || 'STATIC_COMIC'), veo_bridge_prompt: String(it.veo_bridge_prompt || 'slow_zoom_in'),
         prompt_plano: String(it.prompt_plano || ''), audio_url: '', plano_url: '', vida_auto: true,
@@ -1367,10 +1367,12 @@ function renderDockTimeline() {
     const actKeys = Object.keys(ACTUACIONES_PIRO);
     const actActual = sc.actuacion || 'ninguna';
     const actOpts = actKeys.map(function(k) { return '<option value="' + k + '"' + (actActual === k ? ' selected' : '') + '>' + esc(ACTUACIONES_PIRO[k].nombre) + '</option>'; }).join('');
+    const intActual = sc.interaccion || 'ninguna';
+    const intOpts = Object.keys(INTERACCIONES_PIRO).map(function(k) { return '<option value="' + k + '"' + (intActual === k ? ' selected' : '') + '>' + esc(INTERACCIONES_PIRO[k].nombre) + '</option>'; }).join('');
     const nEvs = Array.isArray(sc.eventos_actuacion) ? sc.eventos_actuacion.length : 0;
     const vidaOn = sc.vida_auto !== false;
     const pads = [
-      ['Cantar', 'actuacion', 'cantar_feliz'], ['Llorar', 'actuacion', 'llorar_triste'], ['Rabieta', 'actuacion', 'rabieta_enojado'],
+      ['Beso+Abrazo', 'interaccion', 'saludo_beso_abrazo'], ['Abrazo', 'interaccion', 'abrazo_fuerte'], ['Empujon', 'interaccion', 'empujon_comico'], ['Esquina 5s', 'interaccion', 'esquina_romance'], ['Cantar', 'actuacion', 'cantar_feliz'], ['Llorar', 'actuacion', 'llorar_triste'], ['Rabieta', 'actuacion', 'rabieta_enojado'],
       ['Reir', 'actuacion', 'reir'], ['Saludar', 'actuacion', 'saludar'], ['Sorpresa', 'actuacion', 'sorprenderse'],
       ['Pensar', 'actuacion', 'pensar'], ['Senalar', 'actuacion', 'senalar'], ['Asentir', 'actuacion', 'asentir'], ['Negar', 'actuacion', 'negar'],
       ['Frente', 'cabeza', 'cabeza_frente'], ['3/4', 'cabeza', 'cabeza_base'], ['Mir:Otro', 'mirada', 'interlocutor'], ['Mir:Arriba', 'mirada', 'arriba_frustracion'], ['Mir:Abajo', 'mirada', 'abajo_culpa'], ['Mir:Evadir', 'mirada', 'evadir_izq'], ['Mir:Cam', 'mirada', 'camara'], ['Mir:Shock', 'mirada', 'shock'], ['Cej:Enojo', 'cejas', 'cejas_enojado'], ['Cej:Duda', 'cejas', 'cejas_duda_izq'], ['Cej:Sorp', 'cejas', 'cejas_sorpresa'], ['360:Frente', 'angulo', 'frente'], ['360:3/4→', 'angulo', '3_4_der'], ['360:Perfil', 'angulo', 'perfil_der'], ['360:Espalda', 'angulo', 'espalda'], ['360:3/4←', 'angulo', '3_4_izq']
@@ -1382,7 +1384,7 @@ function renderDockTimeline() {
         '<div class="sub-top">' +
           '<div style="display:flex; gap:4px; align-items:center; overflow-x:auto;">' +
             '<button type="button" class="btn btn-xs ' + (grabandoActuacion ? 'btn-danger' : 'btn-primary') + '" onclick="window.toggleRecActuacion()">' + (grabandoActuacion ? 'STOP REC' : 'REC Vivo') + '</button>' +
-            '<select class="sel-mini" onchange="window.setActuacionBaseClip(' + clipSelIdx + ',this.value)">' + actOpts + '</select>' +
+            '<select class="sel-mini" onchange="window.setActuacionBaseClip(' + clipSelIdx + ',this.value)">' + actOpts + '</select><select class="sel-mini" onchange="window.setInteraccionClip(' + clipSelIdx + ',this.value)">' + intOpts + '</select>' +
             '<button type="button" class="btn btn-xs ' + (vidaOn ? 'btn-green' : '') + '" onclick="window.editEscena(' + clipSelIdx + ',\'vida_auto\',' + (!vidaOn) + ')">Vida: ' + (vidaOn ? 'ON' : 'OFF') + '</button>' +
             (nEvs > 0 ? '<button type="button" class="btn btn-xs btn-danger" onclick="window.limpiarEventosActuacion(' + clipSelIdx + ')">Borrar ' + nEvs + '</button>' : '') +
           '</div>' +
@@ -1709,6 +1711,20 @@ window.quitarActorClip = function(idx, aIdx) {
   guardarBiblioteca(true); renderTimeline(); window.renderPreviewCanvas();
 };
 
+window.setInteraccionClip = function(idx, intId) {
+  const g = getEp(); const sc = g && g.escenas ? g.escenas[idx] : null;
+  if (!sc) return;
+  sc.interaccion = (intId && INTERACCIONES_PIRO[intId]) ? intId : 'ninguna';
+  if (sc.interaccion !== 'ninguna') {
+    sc.actores = normalizarActoresEscena(sc);
+    if (sc.actores.length < 2) window.agregarActorClip(idx);
+    if (sc.actores[0]) { sc.actores[0].posicion = 'izq'; sc.actores[0].brazo = 'auto'; sc.actores[0].brazoTras = 'auto'; }
+    if (sc.actores[1]) { sc.actores[1].posicion = 'der'; sc.actores[1].brazo = 'auto'; sc.actores[1].brazoTras = 'auto'; }
+    if (sc.interaccion === 'esquina_romance' && (Number(sc.duracion) || 3) < 4.5) sc.duracion = 5.0;
+  }
+  guardarBiblioteca(false); renderTimeline(); window.renderPreviewCanvas();
+};
+
 window.setActuacionBaseClip = function(idx, actId) {
   const g = getEp(); const sc = g && g.escenas ? g.escenas[idx] : null;
   if (!sc) return;
@@ -1760,7 +1776,7 @@ window.dispararPadActuacion = function(campo, valor) {
     guardarBiblioteca(false);
     toast('REC @' + tLoc.toFixed(1) + 's: ' + valor, 'exito');
   } else {
-    if (campo === 'actuacion') { window.setActuacionBaseClip(clipSelIdx, valor); }
+    if (campo === 'interaccion') { window.setInteraccionClip(clipSelIdx, valor); } else if (campo === 'actuacion') { window.setActuacionBaseClip(clipSelIdx, valor); }
     else if (aObj) { window.editActorClip(clipSelIdx, actorSelIdx, campo, valor); }
     toast('Aplicado al clip: ' + valor, 'info');
   }
@@ -2129,7 +2145,7 @@ window.exportarPaqueteEpisodio = function() {
   const asp = getAspectoEp(g);
   const epNorm = Object.assign({}, g, {
     escenas: (g.escenas || []).map(function(sc) {
-      return Object.assign({}, sc, { actores: normalizarActoresEscena(sc), hablante: sc.hablante !== undefined ? sc.hablante : sc.actor, continuar_audio: Boolean(sc.continuar_audio), actuacion: sc.actuacion || 'ninguna', vida_auto: sc.vida_auto !== false, eventos_actuacion: Array.isArray(sc.eventos_actuacion) ? sc.eventos_actuacion : [] });
+      return Object.assign({}, sc, { actores: normalizarActoresEscena(sc), hablante: sc.hablante !== undefined ? sc.hablante : sc.actor, continuar_audio: Boolean(sc.continuar_audio), actuacion: sc.actuacion || 'ninguna', interaccion: sc.interaccion || 'ninguna', vida_auto: sc.vida_auto !== false, eventos_actuacion: Array.isArray(sc.eventos_actuacion) ? sc.eventos_actuacion : [] });
     })
   });
   const payload = { contrato_anim_version: '1.0', proyecto: proyectoActivo, formato_video: { aspecto: asp, ancho: asp === '16:9' ? 1920 : 1080, alto: asp === '16:9' ? 1080 : 1920 }, plan_veo: calcularPlanVeo(g.tension || 8), instrucciones_puente_veo: instruccionesVeo, episodio: epNorm, descargas_episodio: descargas, biblioteca: biblioteca, exportado_en: new Date().toISOString() };
