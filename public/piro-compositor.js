@@ -373,7 +373,12 @@ export function resolverPiezaPerspectiva(personaje, grupo, claveSolicitada, cabe
   const zDst = moldes[cabezaKey] && moldes[cabezaKey].zonas && moldes[cabezaKey].zonas[zonaKey] ? moldes[cabezaKey].zonas[zonaKey].caja : null;
   const tf = calcularTransformZona(zSrc, zDst);
 
-  if (cfg.soloPerspectiva) {
+    if (cfg.soloPerspectiva) {
+    if (persp === 'perfil') {
+      const k34P = pref + exprLimpia;
+      const u34P = (piezas[k34P] && piezas[k34P].url) || (piezas[defBase] && piezas[defBase].url) || null;
+      if (u34P) return { key: (piezas[k34P] && piezas[k34P].url) ? k34P : defBase, url: u34P, esExacta: false, adaptada: true, perspectiva: persp, transform: tf };
+    }
     if (grupo === 'boca' && cfg.adaptarBocas && persp === 'frente' && tf) {
       const k34 = pref + exprLimpia;
       const u34 = (piezas[k34] && piezas[k34].url) || (piezas[defBase] && piezas[defBase].url) || null;
@@ -655,10 +660,29 @@ export function evaluarMiradaActorPiro(actorObj, sc, tLocalSeg, vecInterlocutor,
   return { id: curId, x: Math.max(-0.9, Math.min(0.9, x)), y: Math.max(-0.85, Math.min(0.85, y)), dil: Math.max(0.45, Math.min(1.45, dil)) };
 }
 
+export function resolverColorIrisPiro(personaje) {
+  const enc = (personaje && personaje.encuesta_v2) || {};
+  const hexRaw = String(enc.color_iris_hex || '').trim();
+  if (/^#[0-9a-f]{3,6}$/i.test(hexRaw)) return hexRaw;
+  const txt = String(enc.color_iris || '').trim();
+  if (!txt) return '';
+  const mHex = txt.match(/#[0-9a-f]{6}|#[0-9a-f]{3}/i);
+  if (mHex) return mHex[0];
+  const low = txt.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (/(azul|celeste|blue|cyan)/.test(low)) return '#2563eb';
+  if (/(verde|esmeralda|green)/.test(low)) return '#16a34a';
+  if (/(miel|ambar|avellana|amber|hazel|dorad|gold)/.test(low)) return '#b45309';
+  if (/(cafe|marron|castan|brown)/.test(low)) return '#5c3a21';
+  if (/(gris|plata|gray|grey)/.test(low)) return '#64748b';
+  if (/(violeta|morad|lila|purple)/.test(low)) return '#7c3aed';
+  if (/(rojo|carmesi|red)/.test(low)) return '#dc2626';
+  return '';
+}
+
 function dibujarPupilasDinamicasPiro(ctx, piezaObj, mirada, tf, personaje, ajOjos, ptOjos) {
   if (!piezaObj || !piezaObj.pupila_dinamica || !Array.isArray(piezaObj.escleroticas) || !piezaObj.escleroticas.length) return;
   const m = mirada || { x: 0, y: 0, dil: 1 };
-  const colorIris = (personaje && personaje.encuesta_v2 && personaje.encuesta_v2.color_iris_hex) || '';
+  const colorIris = resolverColorIrisPiro(personaje);
   ctx.save();
   if (ajOjos && ptOjos) aplicarTransformAjuste(ctx, ajOjos, ptOjos.x, ptOjos.y);
   if (tf) {
@@ -772,6 +796,84 @@ export const ACTUACIONES_PIRO = {
   asentir: { id: 'asentir', nombre: 'Asentir', durCiclo: 0.9, loop: true, curva: 'easeInOut', frames: [{ p: 0, rotCab: -4, rotBrazo: 0, rotAntebrazo: 0, rotMano: 0, scaleX: 1, scaleY: 1, offsetY: 0 }, { p: 0.45, rotCab: 12, rotBrazo: 2, rotAntebrazo: 0, rotMano: 0, scaleX: 1.01, scaleY: 0.99, offsetY: 3 }, { p: 1, rotCab: -4, rotBrazo: 0, rotAntebrazo: 0, rotMano: 0, scaleX: 1, scaleY: 1, offsetY: 0 }] },
   negar: { id: 'negar', nombre: 'Negar', durCiclo: 0.85, loop: true, curva: 'easeInOut', ojos: 'duda', frames: [{ p: 0, rotCab: -11, rotBrazo: -6, rotAntebrazo: 0, rotMano: 0, scaleX: 1, scaleY: 1, offsetY: 0 }, { p: 0.5, rotCab: 11, rotBrazo: 6, rotAntebrazo: 0, rotMano: 0, scaleX: 1, scaleY: 1, offsetY: 0 }, { p: 1, rotCab: -11, rotBrazo: -6, rotAntebrazo: 0, rotMano: 0, scaleX: 1, scaleY: 1, offsetY: 0 }] }
 };
+export const INTERACCIONES_PIRO = {
+  ninguna: { id: 'ninguna', nombre: 'Sin Interaccion', intercalar: false },
+  saludo_beso_abrazo: { id: 'saludo_beso_abrazo', nombre: 'Saludo Beso y Abrazo', intercalar: true, durDef: 3.6 },
+  abrazo_fuerte: { id: 'abrazo_fuerte', nombre: 'Abrazo Fuerte', intercalar: true, durDef: 3.4 },
+  empujon_comico: { id: 'empujon_comico', nombre: 'Empujon Comico', intercalar: false, durDef: 2.6 },
+  esquina_romance: { id: 'esquina_romance', nombre: 'Esquina Romance (5s)', intercalar: true, durDef: 5.0 }
+};
+
+export function evaluarInteraccionParejaPiro(interId, rolIdx, tLocalSeg, durSeg, esH) {
+  const id = String(interId || 'ninguna');
+  if (!id || id === 'ninguna' || !INTERACCIONES_PIRO[id]) return null;
+  const t = Math.max(0, Number(tLocalSeg) || 0);
+  const dur = Math.max(1.2, Number(durSeg) || INTERACCIONES_PIRO[id].durDef || 3.5);
+  const u = Math.max(0, Math.min(1, t / dur));
+  const esA = rolIdx === 0;
+  const dir = esA ? 1 : -1;
+  const pasoX = esH ? 132 : 76;
+  const r = { offsetX: 0, offsetY: 0, rotCab: 0, rotBrazo: 0, rotAntebrazo: 0, rotMano: 0, rotBrazoTras: 0, rotAntebrazoTras: 0, scaleX: 1, scaleY: 1, ojos: '', boca: '', mano: '', intercalarBrazos: Boolean(INTERACCIONES_PIRO[id].intercalar), zoomExtra: 1 };
+  if (id === 'saludo_beso_abrazo') {
+    const envAc = u < 0.28 ? evaluarCurvaPiro('easeOut', u / 0.28) : (u < 0.72 ? 1 : evaluarCurvaPiro('easeInOut', (1 - u) / 0.28));
+    r.offsetX = dir * pasoX * envAc;
+    r.rotBrazo = -58 * envAc;
+    r.rotAntebrazo = -34 * envAc;
+    r.rotBrazoTras = -32 * envAc;
+    r.rotAntebrazoTras = -26 * envAc;
+    if (u >= 0.24 && u <= 0.72) {
+      const beso = Math.sin(((u - 0.24) / 0.48) * Math.PI);
+      r.rotCab = (esA ? 11 : -11) * beso;
+      r.ojos = 'feliz';
+      r.boca = beso > 0.55 ? 'boca_o_u' : 'boca_sonrisa';
+      r.mano = 'mano_abierta';
+      r.scaleX = 1 + 0.03 * beso; r.scaleY = 1 - 0.02 * beso;
+    }
+  } else if (id === 'abrazo_fuerte') {
+    const envAc = u < 0.22 ? evaluarCurvaPiro('easeOut', u / 0.22) : (u < 0.80 ? 1 : evaluarCurvaPiro('easeInOut', (1 - u) / 0.20));
+    const palm = (u >= 0.22 && u <= 0.80) ? Math.sin(t * 10) : 0;
+    r.offsetX = dir * (pasoX * 1.06) * envAc;
+    r.rotBrazo = -64 * envAc + palm * 7;
+    r.rotAntebrazo = -40 * envAc - palm * 6;
+    r.rotBrazoTras = -38 * envAc;
+    r.rotCab = (esA ? 9 : -9) * envAc;
+    r.scaleX = 1 + 0.04 * envAc + 0.015 * Math.abs(palm);
+    r.scaleY = 1 - 0.025 * envAc;
+    if (u >= 0.22 && u <= 0.80) { r.ojos = 'feliz'; r.mano = 'mano_abierta'; }
+  } else if (id === 'empujon_comico') {
+    if (esA) {
+      const imp = u < 0.30 ? evaluarCurvaPiro('easeOut', u / 0.30) : (u < 0.55 ? 1 : evaluarCurvaPiro('easeInOut', (1 - u) / 0.45));
+      r.offsetX = pasoX * 0.72 * imp;
+      r.rotBrazo = -68 * imp; r.rotAntebrazo = 8 * imp; r.rotMano = -18 * imp;
+      r.rotCab = 6 * imp;
+      if (u >= 0.20 && u <= 0.60) { r.ojos = 'enojado'; r.mano = 'mano_abierta'; }
+    } else {
+      const rec = u < 0.28 ? 0 : (u < 0.58 ? evaluarCurvaPiro('easeOut', (u - 0.28) / 0.30) : evaluarCurvaPiro('easeInOut', (1 - u) / 0.42));
+      r.offsetX = pasoX * 0.52 * rec;
+      r.rotCab = -16 * rec; r.rotBrazo = -34 * rec; r.rotAntebrazo = -20 * rec;
+      r.offsetY = -10 * rec;
+      if (u >= 0.28) { r.ojos = 'indignado'; r.boca = 'boca_o_u'; }
+    }
+  } else if (id === 'esquina_romance') {
+    const esq = esH ? -145 : -68;
+    const envAc = u < 0.16 ? evaluarCurvaPiro('easeOut', u / 0.16) : (u < 0.84 ? 1 : evaluarCurvaPiro('easeOut', (1 - u) / 0.16));
+    const pulso = (u >= 0.16 && u <= 0.84) ? Math.sin(t * 7.2) : 0;
+    const manoSube = (u >= 0.16 && u <= 0.84) ? Math.sin(t * 4.8 + (esA ? 0 : 1.5)) : 0;
+    r.offsetX = (esq + dir * (pasoX * 1.12)) * envAc;
+    r.rotCab = (esA ? 14 : -14) * envAc + pulso * 5;
+    r.rotBrazo = (-54 + manoSube * 18) * envAc;
+    r.rotAntebrazo = (-38 + manoSube * 14) * envAc;
+    r.rotMano = manoSube * 16 * envAc;
+    r.rotBrazoTras = (-36 - manoSube * 12) * envAc;
+    r.offsetY = Math.abs(pulso) * -4 * envAc;
+    r.scaleX = 1 + 0.03 * Math.abs(pulso) * envAc;
+    r.zoomExtra = 1 + 0.10 * envAc;
+    if (u >= 0.16 && u <= 0.84) { r.ojos = 'ojos_cerrados'; r.boca = pulso > 0 ? 'boca_o_u' : 'boca_mbp'; r.mano = 'mano_abierta'; }
+    else if (u > 0.84) { r.ojos = 'indignado'; }
+  }
+  return r;
+}
+
 function interpolarActuacion(actDef, tLocal) {
   if (!actDef || !Array.isArray(actDef.frames) || !actDef.frames.length) return null;
   const dur = Math.max(0.2, Number(actDef.durCiclo) || 1), tPos = Math.max(0, Number(tLocal) || 0);
@@ -974,8 +1076,12 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
     capasDibujadas++;
   };
 
-    if (tieneModulares) {
+    const soloCapa = cfg.soloCapa || '';
+  const dibBase = !soloCapa || soloCapa === 'base';
+  const dibFrenteBr = !soloCapa || soloCapa === 'brazo_frente';
+  if (tieneModulares) {
     const esOverlayDoble = (brazoDelKey === 'brazos_cruzados' || brazoDelKey === 'manos_cintura');
+    if (dibBase) {
     if (brazoTrasKey !== 'ninguno' && !esOverlayDoble) {
       const ptHT = piv.hombro_trasero;
             if (brazoTrasKey === 'articulado' && tieneArtTras) {
@@ -1071,7 +1177,9 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
     }
     ctx.restore();
 
+    }
     const ptHombro = piv.hombro_delantero;
+    if (dibFrenteBr) {
     const ptCodo = piv.codo_delantero;
     const ptMano = piv.mano_delantera;
     const manoImg = manoKey ? imgs[manoKey] : null;
@@ -1140,9 +1248,10 @@ export async function dibujarMarionetaPiro(ctx, personaje, opts) {
     if (accZona === 'frente' && imgs[accKey]) {
       ctx.save(); aplicarTransformAjuste(ctx, ajAccTot, ptMano.x, ptMano.y); ctx.drawImage(imgs[accKey], 0, 0, 1000, 1600); ctx.restore(); capasDibujadas++;
     }
-  } else if (imgs.maestro_cuerpo) {
+  }
+  } else if (dibBase && imgs.maestro_cuerpo) {
     drawP(imgs.maestro_cuerpo);
-  } else if (imgs.maestro_perfil) {
+  } else if (dibBase && imgs.maestro_perfil) {
     drawP(imgs.maestro_perfil);
   }
 
@@ -1263,14 +1372,19 @@ export function evaluarEpisodioEnTiempoPiro(episodio, biblioteca, tSeg, opts) {
 }
 
 export async function precargarRecursosEpisodioPiro(episodio, biblioteca, opts) {
-  const reqMap = new Map();
+    const reqMap = new Map();
   const optMap = new Map();
+  const errEst = [];
   const g = episodio || {}, bib = biblioteca || {};
   const corsOpt = { strictCors: Boolean(opts && opts.strictCors) };
   const addReq = function(u, lbl) { if (u && typeof u === 'string' && u.length > 5 && !reqMap.has(u)) reqMap.set(u, lbl || u); };
   const addOpt = function(u, lbl) { if (u && typeof u === 'string' && u.length > 5 && !reqMap.has(u) && !optMap.has(u)) optMap.set(u, lbl || u); };
   (g.escenas || []).forEach(function(sc, scIdx) {
-    if (sc.modo === 'plano' && sc.plano_url) { addReq(sc.plano_url, 'Plano clip #' + (scIdx + 1)); return; }
+    if (sc.modo === 'plano') {
+      if (sc.plano_url) { addReq(sc.plano_url, 'Plano clip #' + (scIdx + 1)); return; }
+      errEst.push('Clip #' + (scIdx + 1) + ' · plano IA sin imagen');
+      return;
+    }
     const escObj = (bib.escenarios || []).find(function(e) { return e.id === (sc.escenario || g.escenario_id); }) || (bib.escenarios || [])[0];
     const zObj = escObj ? ((escObj.zonas || []).find(function(z) { return z.id === (sc.zona || g.zona_id); }) || (escObj.zonas || [])[0]) : null;
     if (zObj) {
@@ -1286,8 +1400,12 @@ export async function precargarRecursosEpisodioPiro(episodio, biblioteca, opts) 
       if (fx && fx.archivo && fx.archivo.url) addOpt(fx.archivo.url, 'FX ' + sc.prop);
     }
     const evs = Array.isArray(sc.eventos_actuacion) ? sc.eventos_actuacion : [];
-    normalizarActoresEscena(sc).forEach(function(a) {
+        normalizarActoresEscena(sc).forEach(function(a) {
       const per = (bib.personajes || []).find(function(p) { return p.id === a.id; });
+      if (!per) { errEst.push('Clip #' + (scIdx + 1) + ' · actor ausente (' + a.id + ')'); return; }
+      const pzsCheck = per.piezas || {};
+      const tieneAlgoVis = Object.keys(pzsCheck).some(function(k) { return pzsCheck[k] && typeof pzsCheck[k].url === 'string' && pzsCheck[k].url.trim().length > 4; });
+      if (!tieneAlgoVis) { errEst.push('Clip #' + (scIdx + 1) + ' · ' + (per.nombre || a.id) + ' sin piezas visibles'); return; }
       if (per && per.piezas) {
         const pzs = per.piezas;
         const addPz = function(k, esReq) { const u = k && pzs[k] && pzs[k].url; if (!u) return; if (esReq) addReq(u, per.nombre + ':' + k); else addOpt(u, per.nombre + ':' + k); };
@@ -1335,7 +1453,7 @@ export async function precargarRecursosEpisodioPiro(episodio, biblioteca, opts) 
       else { fail++; if (lote[j].req) obligatoriosFail++; faltantes.push(lote[j].lbl); }
     });
   }
-  return { total: todas.length, ok: ok, fail: fail, obligatoriosFail: obligatoriosFail, faltantes: faltantes };
+    return { total: todas.length, ok: ok, fail: fail + errEst.length, obligatoriosFail: obligatoriosFail + errEst.length, faltantes: errEst.concat(faltantes), erroresEstructura: errEst };
 }
 
 export async function componerEscenaPiro(ctx, params) {
@@ -1390,12 +1508,15 @@ export async function componerEscenaPiro(ctx, params) {
     if (imFondo) ctx.drawImage(imFondo, (W - bgSize) / 2 + panX * 0.55, (H - bgSize) / 2, bgSize, bgSize);
     await dibujarElementosVivosPiro(ctx, vivosZ, 'z2', W, H, panX, zoom, tEsc, corsOpt);
 
-    const actores = normalizarActoresEscena(sc);
+        const actores = normalizarActoresEscena(sc);
     const hablanteId = params.hablanteActivoId !== undefined
       ? params.hablanteActivoId
       : (sc.hablante !== undefined ? sc.hablante : sc.actor);
     const bocaActiva = params.bocaHablante || 'boca_cerrada';
     const propsBib = bib.props || [];
+    const interId = (actores.length >= 2 && sc.interaccion && INTERACCIONES_PIRO[sc.interaccion]) ? sc.interaccion : 'ninguna';
+    const intercalarBrazos = Boolean(interId !== 'ninguna' && INTERACCIONES_PIRO[interId].intercalar);
+    const renderList = [];
 
     for (let i = 0; i < actores.length; i++) {
       const a = actores[i];
@@ -1407,16 +1528,19 @@ export async function componerEscenaPiro(ctx, params) {
         : (a.posicion === 'izq' ? 155 : (a.posicion === 'der' ? 385 : 270));
       const yBase = esH ? 315 : 530;
       const flip = a.posicion === 'der';
-      const scPer = (esH ? 0.31 : 0.44) * zoom * (a.escala || 1);
+      const inter = interId !== 'ninguna' ? evaluarInteraccionParejaPiro(interId, i, tEsc, sc.duracion, esH) : null;
+      const scPer = (esH ? 0.31 : 0.44) * zoom * (inter ? (inter.zoomExtra || 1) : 1) * (a.escala || 1);
 
       let propImg = null;
       if (a.prop) {
         const prObj = propsBib.find(function(x) { return x.id === a.prop; });
-                if (prObj && prObj.archivo && prObj.archivo.url) propImg = await cargarImagenPiro(prObj.archivo.url, corsOpt);
+        if (prObj && prObj.archivo && prObj.archivo.url) propImg = await cargarImagenPiro(prObj.archivo.url, corsOpt);
       }
 
-            const estaHablando = Boolean(hablanteId && hablanteId !== 'ninguno' && a.id === hablanteId);
+      const estaHablando = Boolean(hablanteId && hablanteId !== 'ninguno' && a.id === hablanteId);
       const anim = evaluarAnimacionActorPiro(a, sc, tEsc, estaHablando, per);
+      const modBr = resolverModoBrazosPiro(per, a.brazo, a.brazoTras, Boolean(propImg));
+      const kIntBr = (modBr.brazoDel === 'articulado') ? 1 : 0.45;
       let vecOtro = null;
       if (actores.length > 1) {
         const otroA = actores.find(function(x) { return x.id !== a.id; }) || null;
@@ -1427,38 +1551,46 @@ export async function componerEscenaPiro(ctx, params) {
         }
       }
       const miradaVec = evaluarMiradaActorPiro(a, sc, tEsc, vecOtro, (sc.id || 'sc') + '_' + a.id);
-      const bocaFinal = estaHablando ? bocaActiva : (anim.bocaDef || a.boca || 'boca_cerrada');
+      const bocaFinal = (inter && inter.boca && !estaHablando) ? inter.boca : (estaHablando ? bocaActiva : (anim.bocaDef || a.boca || 'boca_cerrada'));
+      const ojosFinal = (inter && inter.ojos) ? inter.ojos : (anim.ojos || 'neutro');
+      const manoFinal = (inter && inter.mano && modBr.brazoDel === 'articulado') ? inter.mano : (anim.mano || '');
 
-      await dibujarMarionetaPiro(ctx, per, {
+      renderList.push({ per: per, cfg: {
         cabeza: anim.cabeza || 'cabeza_base',
         cuerpo: a.cuerpo || 'cuerpo_base',
-        ojos: anim.ojos || 'neutro',
+        ojos: ojosFinal,
         miradaVec: miradaVec,
         angulo360: anim.angulo || a.angulo || sc.angulo || '',
         cejas: anim.cejas || a.cejas || '',
         cejasOffsetY: anim.cejasOffsetY || 0,
         boca: bocaFinal,
-                brazoDel: resolverModoBrazosPiro(per, a.brazo, a.brazoTras, Boolean(propImg)).brazoDel,
-        brazoTras: resolverModoBrazosPiro(per, a.brazo, a.brazoTras, Boolean(propImg)).brazoTras,
-        mano: anim.mano || '',
+        brazoDel: modBr.brazoDel,
+        brazoTras: modBr.brazoTras,
+        mano: manoFinal,
         forzarManoSuelta: Boolean(a.mano),
         acc: a.acc || '',
-        rotCab: anim.rotCab || 0,
-        rotBrazo: anim.rotBrazo || 0,
-        rotAntebrazo: anim.rotAntebrazo || 0,
-        rotMano: anim.rotMano || 0,
-        rotBrazoTras: anim.rotBrazoTras || 0,
-        rotAntebrazoTras: anim.rotAntebrazoTras || 0,
-        scaleX: anim.scaleX,
-        scaleY: anim.scaleY,
-        offsetY: anim.offsetY,
+        rotCab: (anim.rotCab || 0) + (inter ? (inter.rotCab || 0) : 0),
+        rotBrazo: (anim.rotBrazo || 0) + (inter ? (inter.rotBrazo || 0) * kIntBr : 0),
+        rotAntebrazo: (anim.rotAntebrazo || 0) + (inter ? (inter.rotAntebrazo || 0) * kIntBr : 0),
+        rotMano: (anim.rotMano || 0) + (inter ? (inter.rotMano || 0) * kIntBr : 0),
+        rotBrazoTras: (anim.rotBrazoTras || 0) + (inter ? (inter.rotBrazoTras || 0) * kIntBr : 0),
+        rotAntebrazoTras: (anim.rotAntebrazoTras || 0) + (inter ? (inter.rotAntebrazoTras || 0) * kIntBr : 0),
+        scaleX: (anim.scaleX || 1) * (inter ? (inter.scaleX || 1) : 1),
+        scaleY: (anim.scaleY || 1) * (inter ? (inter.scaleY || 1) : 1),
+        offsetY: (anim.offsetY || 0) + (inter ? (inter.offsetY || 0) : 0),
         propImg: propImg,
-        x: xBase + panX * 0.45,
+        x: xBase + (inter ? (inter.offsetX || 0) : 0) + panX * 0.45,
         y: yBase,
         scale: scPer,
         flipX: (function() { const ag = resolverAngulo360Piro(anim.angulo || a.angulo || sc.angulo); return ag ? Boolean(ag.flipAuto) : flip; })(),
         modoExportacion: Boolean(params.modoExportacion)
-      });
+      }});
+    }
+    if (intercalarBrazos && renderList.length >= 2) {
+      for (let i = 0; i < renderList.length; i++) await dibujarMarionetaPiro(ctx, renderList[i].per, Object.assign({}, renderList[i].cfg, { soloCapa: 'base' }));
+      for (let i = 0; i < renderList.length; i++) await dibujarMarionetaPiro(ctx, renderList[i].per, Object.assign({}, renderList[i].cfg, { soloCapa: 'brazo_frente' }));
+    } else {
+      for (let i = 0; i < renderList.length; i++) await dibujarMarionetaPiro(ctx, renderList[i].per, renderList[i].cfg);
     }
 
     if (imFrente) ctx.drawImage(imFrente, (W - bgSize) / 2 + panX * 1.32, (H - bgSize) / 2, bgSize, bgSize);
